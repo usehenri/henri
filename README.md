@@ -1,4 +1,6 @@
 # henri = Feathers + Next.js
+[![Version tag](https://img.shields.io/badge/stable-0.2.0-brightgreen.svg?style=flat)](https://github.com/simplehub/henri)
+[![bitHound Dependencies](https://www.bithound.io/github/simplehub/henri/badges/dependencies.svg)](https://www.bithound.io/github/simplehub/henri/master/dependencies/npm)
 
 henri is a simple way to start using [Feathers](http://feathersjs.com/) and [Next.js](https://github.com/zeit/next.js)
 
@@ -43,12 +45,6 @@ With the above config, your directory structure should look like this:
 ├── src/
 │   ├── index.js
 ├── package.json
-```
-
-Install a few packages:
-
-```
-npm install --save nedb feathers-nedb winston
 ```
 
 And finally, add this to your `src/index.js` and you're ready to go:
