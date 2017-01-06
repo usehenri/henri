@@ -1,5 +1,5 @@
 # henri = Feathers + Next.js
-[![Version tag](https://img.shields.io/badge/stable-0.2.0-brightgreen.svg?style=flat)](https://github.com/simplehub/henri)
+[![Version tag](https://img.shields.io/badge/stable-0.2.2-brightgreen.svg?style=flat)](https://github.com/simplehub/henri)
 [![bitHound Dependencies](https://www.bithound.io/github/simplehub/henri/badges/dependencies.svg)](https://www.bithound.io/github/simplehub/henri/master/dependencies/npm)
 
 henri is a simple way to start using [Feathers](http://feathersjs.com/) and [Next.js](https://github.com/zeit/next.js)
@@ -18,16 +18,16 @@ Create a default config in `config/default.json` containing Feathers configs:
 ```json
 {
   "host": "localhost",
-  "port": 3000,
-  "public": "../public/",
+  "port": 3030,
   "nedb": "../data/",
-  "next": "../client", // Next.js pages location
+  "public": "../public/",
+  "next": "../src/client/",
   "auth": {
-    "token": {
-      "secret": "very-unique-token" // See Feathers docs for more infos
-    }
+    "secret": "some-secret",
+    "local": {}
   }
 }
+
 ```
 
 With the above config, your directory structure should look like this:
@@ -52,11 +52,11 @@ And finally, add this to your `src/index.js` and you're ready to go:
 ```js
 const henri = require('henri');
 
-const {
-  app, // Feathers (express) app
-  view // Next.js server-side app
-} = henri.init();
+// Feathers app (express-like)
+const app = henri.init();
 
+// The Next.js renderer
+const view = app.view;
 // You should register your service right here / add connectors
 
 // Next.js
@@ -82,7 +82,6 @@ henri.run();
 
 ## Plans
 
- - Upgrade feathers-authentication to 1.0.0+
  - Add example folder
  - Add a generator
  - Add a configuration parser / validator

@@ -55,10 +55,9 @@ exports.init = function () {
     .configure(local())
     .configure(jwt());
 
-  return {
-    app,
-    view
-  };
+  app.view = view;
+
+  return app;
 };
 
 exports.run = function () {
