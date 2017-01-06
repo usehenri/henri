@@ -9,28 +9,21 @@
 const bodyParser = require('body-parser');
 const compress = require('compression');
 const cors = require('cors');
-
-require('dotenv').config({
-  silent: true
-});
-const appRootDir = require('app-root-dir').get();
-
 const serveStatic = require('feathers').static;
 const feathers = require('feathers');
-const configuration = require('feathers-configuration');
 const auth = require('feathers-authentication');
 const local = require('feathers-authentication-local');
 const jwt = require('feathers-authentication-jwt');
 const hooks = require('feathers-hooks');
 const rest = require('feathers-rest');
 const socketio = require('feathers-socketio');
-
 const next = require('next');
-
+const config = require('./config');
 const middleware = require('./middleware');
 
 const app = feathers();
-app.configure(configuration(appRootDir));
+
+app.configure(config);
 
 const view = next({
   dir: app.get('next'),
