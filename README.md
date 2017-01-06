@@ -13,6 +13,12 @@ To install:
   npm install henri --save
 ```
 
+## Full example
+
+A fully fonctionnal application can be found here: [https://github.com/simplehub/henri-full-example](https://github.com/simplehub/henri-full-example)
+
+## Basic setup
+
 Create a default config in `config/default.json` containing Feathers configs:
 
 ```json
@@ -21,7 +27,7 @@ Create a default config in `config/default.json` containing Feathers configs:
   "port": 3030,
   "nedb": "../data/",
   "public": "../public/",
-  "next": "../src/client/",
+  "next": "../client/",
   "auth": {
     "secret": "some-secret",
     "local": {}
@@ -82,7 +88,6 @@ henri.run();
 
 ## Plans
 
- - Add example folder
  - Add a generator
  - Add a configuration parser / validator
 
