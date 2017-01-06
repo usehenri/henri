@@ -1,0 +1,42 @@
+{
+  "name": "henri",
+  "version": "0.1.0",
+  "description": "henri is feathers + next.js",
+  "main": "index.js",
+  "scripts": {
+    "test": "semistandard && npm run mocha",
+    "lint": "semistandard --fix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simplehub/henri.git"
+  },
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/simplehub/henri/issues"
+  },
+  "homepage": "https://github.com/simplehub/henri#readme",
+  "dependencies": {
+    "body-parser": "^1.15.2",
+    "compression": "^1.6.2",
+    "cors": "^2.8.1",
+    "dotenv": "^2.0.0",
+    "feathers": "^2.0.3",
+    "feathers-authentication": "^0.7.12",
+    "feathers-configuration": "^0.3.3",
+    "feathers-errors": "^2.5.0",
+    "feathers-hooks": "^1.7.1",
+    "feathers-rest": "^1.6.0",
+    "feathers-socketio": "^1.4.2",
+    "next": "2.0.0-beta.15",
+    "passport": "^0.3.2",
+    "winston": "^2.3.0"
+  },
+  "devDependencies": {
+    "jshint": "^2.9.4",
+    "mocha": "^3.2.0",
+    "request": "^2.79.0",
+    "semistandard": "^9.2.1"
+  }
+}
