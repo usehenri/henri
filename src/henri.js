@@ -20,7 +20,8 @@ const rest = require('feathers-rest');
 const socketio = require('feathers-socketio');
 const next = require('next');
 const config = require('./config');
-const middleware = require('./middleware');
+const cookies = require('./cookies');
+const catcher = require('./catcher');
 
 const app = feathers();
 
@@ -38,7 +39,7 @@ exports.init = function () {
     .use('/', serveStatic(app.get('public')))
     .use(bodyParser.json())
     .use(bodyParser.urlencoded({ extended: true }))
-    .user(cookieParser())
+    .use(cookieParser())
     .configure(hooks())
     .configure(rest());
 
@@ -48,7 +49,8 @@ exports.init = function () {
 
   app.configure(auth(app.get('auth')))
     .configure(local())
-    .configure(jwt());
+    .configure(jwt())
+    .configure(cookies);
 
   app.view = view;
 
@@ -60,7 +62,7 @@ exports.run = function () {
   app.get('*', (req, res) => {
     return handle(req, res);
   });
-  app.configure(middleware);
+  app.configure(catcher);
   view.prepare().then(() => {
     const port = app.get('port');
     app.listen(port, (err) => {
