@@ -1,7 +1,7 @@
 # henri = Feathers + Next.js
 [![NPM](https://nodei.co/npm/henri.svg?downloads=true&downloadRank=true)](https://nodei.co/npm/henri/)
 
-[![Version tag](https://img.shields.io/badge/stable-0.2.4-brightgreen.svg?style=flat)](https://github.com/simplehub/henri)
+[![Version tag](https://img.shields.io/badge/stable-0.3.0-brightgreen.svg?style=flat)](https://github.com/simplehub/henri)
 [![bitHound Dependencies](https://www.bithound.io/github/simplehub/henri/badges/dependencies.svg)](https://www.bithound.io/github/simplehub/henri/master/dependencies/npm)
 
 henri is a simple way to start using [Feathers](http://feathersjs.com/) and [Next.js](https://github.com/zeit/next.js)
@@ -77,6 +77,8 @@ app.get('/a', (req, res) => {
 });
 
 app.get('/b', (req, res) => {
+  // Allow from multiple origin (Access-Control-Allow-Origin=*)
+  res.forceCORS = true;
   return view.render(req, res, '/a');
 });
 
@@ -91,8 +93,6 @@ henri.run();
 ## Plans
 
  - Add a generator
- - Add a configuration parser / validator
-
 
 ## Thanks to the following and their contributors
 

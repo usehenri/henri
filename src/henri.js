@@ -52,7 +52,14 @@ exports.init = function () {
     .configure(jwt())
     .configure(cookies);
 
-  app.view = view;
+  app.view = {
+    render: (req, res, path, opts) => {
+      if (!res.forceCORS) {
+        res.removeHeader('Access-Control-Allow-Origin');
+      }
+      view.render(req, res, path, opts);
+    }
+  };
 
   return app;
 };
