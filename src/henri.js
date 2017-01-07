@@ -7,6 +7,7 @@
 'use strict';
 
 const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 const compress = require('compression');
 const cors = require('cors');
 const serveStatic = require('feathers').static;
@@ -37,6 +38,7 @@ exports.init = function () {
     .use('/', serveStatic(app.get('public')))
     .use(bodyParser.json())
     .use(bodyParser.urlencoded({ extended: true }))
+    .user(cookieParser())
     .configure(hooks())
     .configure(rest());
 
