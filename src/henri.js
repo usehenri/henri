@@ -1,9 +1,3 @@
-/*!
- * henri
- * Copyright(c) 2016-present Félix-Antoine Paradis
- * MIT Licensed
- */
-
 'use strict';
 
 const bodyParser = require('body-parser');
@@ -33,10 +27,12 @@ const view = next({
 });
 
 exports.init = function () {
+  if (app.get('public')) {
+    app.use('/', serveStatic(app.get('public')));
+  }
   app.use(compress())
     .options('*', cors())
     .use(cors())
-    .use('/', serveStatic(app.get('public')))
     .use(bodyParser.json())
     .use(bodyParser.urlencoded({ extended: true }))
     .use(cookieParser())
@@ -52,7 +48,14 @@ exports.init = function () {
     .configure(jwt())
     .configure(cookies);
 
-  app.view = view;
+  app.view = {
+    render: (req, res, path, opts) => {
+      if (!res.forceCORS) {
+        res.removeHeader('Access-Control-Allow-Origin');
+      }
+      view.render(req, res, path, opts);
+    }
+  };
 
   return app;
 };

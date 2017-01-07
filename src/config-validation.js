@@ -1,9 +1,3 @@
-/*!
- * henri
- * Copyright(c) 2016-present Félix-Antoine Paradis
- * MIT Licensed
- */
-
 'use strict';
 
 const joi = require('joi');
@@ -13,7 +7,6 @@ const config = require('config');
 const schema = joi.object().keys({
   host: joi.string().hostname().required(),
   port: joi.number().integer().min(1).max(65534).required(),
-  public: joi.string().required(),
   next: joi.string().required(),
   auth: joi.object().keys({
     secret: joi.string().min(30).required()
