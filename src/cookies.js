@@ -8,6 +8,7 @@ module.exports = function () {
   app.use((req, res, next) => {
     const { cookie: { name }, secret } = app.get('auth');
     const cookies = req.feathers.cookies;
+    res.setHeader('X-Powered-By', 'henri')
     if (cookies[name]) {
       app.passport.verifyJWT(cookies[name], { secret }).then(payload => {
         debug('cookie token verified successfully');
@@ -15,7 +16,8 @@ module.exports = function () {
           const infos = {
             authenticated: true,
             user,
-            payload: { userId: user._id }
+            payload: { userId: user._id },
+            token: cookies[name]
           };
           Object.assign(req, infos);
           Object.assign(req.feathers, infos);
