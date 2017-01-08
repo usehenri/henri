@@ -63,6 +63,7 @@ exports.init = function () {
 exports.run = function () {
   const handle = view.getRequestHandler();
   app.get('*', (req, res) => {
+    res.removeHeader('Access-Control-Allow-Origin');
     return handle(req, res);
   });
   app.configure(catcher);

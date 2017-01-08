@@ -33,7 +33,7 @@ module.exports = (obj) => {
       console.log(` `);
       process.exit(-1);
     }
-    debug('configuration file seems ok.', value, err);
+    debug('configuration file seems ok.');
     return null;
   });
 };
