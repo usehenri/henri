@@ -33,10 +33,12 @@ const view = next({
 });
 
 exports.init = function () {
+  if (app.get('public')) {
+    app.use('/', serveStatic(app.get('public')));
+  }
   app.use(compress())
     .options('*', cors())
     .use(cors())
-    .use('/', serveStatic(app.get('public')))
     .use(bodyParser.json())
     .use(bodyParser.urlencoded({ extended: true }))
     .use(cookieParser())

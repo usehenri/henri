@@ -28,7 +28,6 @@ Create a default config in `config/default.json` containing Feathers configs:
   "host": "localhost",
   "port": 3030,
   "nedb": "../data/",
-  "public": "../public/",
   "next": "../client/",
   "auth": {
     "secret": "some-secret",
@@ -46,6 +45,9 @@ With the above config, your directory structure should look like this:
 │   │   ├── index.js
 │   │   ├── a.js
 │   │   ├── b.js
+│   ├── static
+│   │   ├── favicon.ico
+│   │   ├── some.css
 ├── config/
 │   ├── default.json
 ├── node_modules/
