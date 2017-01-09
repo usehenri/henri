@@ -31,7 +31,10 @@ Create a default config in `config/default.json` containing Feathers configs:
   "next": "../client/",
   "auth": {
     "secret": "some-secret",
-    "local": {}
+    "local": {},
+    "cookie": {
+      "enabled": true
+    }
   }
 }
 
