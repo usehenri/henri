@@ -1,0 +1,33 @@
+{
+  "host": "localhost",
+  "port": 3030,
+  "nedb": "../data/",
+  "next": "../src/client/",
+  "auth": {
+    "session": true,
+    "cookie": {
+      "enabled": true,
+      "secure": false,
+      "name": "henri-example"
+    },
+    "entity": "user",
+    "service": "/users",
+    "secret": "+WRaf1r7IQah7twG0hR1GBU3fY7JTIvnEJfvQIBqcQ3gZ2j31bNQEwtfyXAN3mPvcOi2kvcaAivf/OSDIQRWPQ==",
+    "local": {
+      "name": "local",
+      "entity": "user"
+    },
+    "jwt": {
+      "name": "henri-example",
+      "issuer": "henri-example",
+      "algorithm": "HS256",
+      "expiresIn": "7d"
+    },
+    "user": {
+      "service": "/users",
+      "idField": "_id",
+      "usernameField": "email",
+      "passwordField": "password"
+    }
+  }
+}
