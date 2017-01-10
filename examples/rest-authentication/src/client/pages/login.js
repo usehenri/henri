@@ -50,7 +50,7 @@ class Login extends React.Component {
           <Alert color={this.state.message.type} isOpen toggle={this.onDismiss}>
             {this.state.message.content}
           </Alert>
-      </Row>
+        </Row>
       );
     }
     return <Row />;
