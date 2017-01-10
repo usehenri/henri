@@ -1,5 +1,4 @@
 import React from 'react';
-import Link from 'next/link';
 import { Container, Row, Col, Form, FormGroup, Input, Button, Label, Alert } from 'reactstrap';
 
 import 'isomorphic-fetch';
@@ -31,7 +30,9 @@ class Login extends React.Component {
       this.props.updateUser(body.accessToken);
       this.setState({ message: { type: 'success', content: 'Logged in!' } });
     }).catch(err => {
-      this.setState({ message: { type: 'danger', content: 'Check your username/password' } });
+      if (err) {
+        this.setState({ message: { type: 'danger', content: 'Check your username/password' } });
+      }
     });
   }
   updateEmail (ev) {
@@ -41,7 +42,7 @@ class Login extends React.Component {
     this.setState({ password: ev.target.value });
   }
   onDismiss () {
-    this.setState({ message: null});
+    this.setState({ message: null });
   }
   infoMessage () {
     if (this.state.message) {
@@ -50,7 +51,7 @@ class Login extends React.Component {
           <Alert color={this.state.message.type} isOpen toggle={this.onDismiss}>
             {this.state.message.content}
           </Alert>
-      </Row>
+        </Row>
       );
     }
     return <Row />;
