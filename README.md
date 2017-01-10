@@ -15,9 +15,9 @@ To install:
   npm install henri --save
 ```
 
-## Full example
+## Examples
 
-A fully fonctionnal application can be found here: [https://github.com/simplehub/henri-full-example](https://github.com/simplehub/henri-full-example)
+Examples can be found [here](https://github.com/simplehub/henri/examples/).
 
 ## Basic setup
 

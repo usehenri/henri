@@ -1,0 +1,27 @@
+{
+  "name": "rest-authentication",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon --watch . --ignore src/client src/app.js",
+    "start": "node index.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "feathers-authentication": "^1.0.2",
+    "feathers-authentication-client": "^0.1.6",
+    "feathers-authentication-local": "^0.3.2",
+    "feathers-hooks": "^1.7.1",
+    "feathers-memory": "^1.0.1",
+    "feathers-nedb": "^2.6.0",
+    "feathers-permissions": "^0.1.1",
+    "nedb": "^1.8.0",
+    "nodemon": "^1.11.0",
+    "react-addons-css-transition-group": "^15.4.1",
+    "react-addons-transition-group": "^15.4.1",
+    "reactstrap": "^3.9.5"
+  }
+}
