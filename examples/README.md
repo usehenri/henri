@@ -1,5 +1,5 @@
 
-# henri example folder
+# Examples
 
 ## How to use
 
@@ -22,3 +22,4 @@ npm run dev
 ## List of examples
 
 - [x] [REST Authentication](https://github.com/simplehub/henri/examples/rest-authentication) (REST signup and login)
+- [x] [Socket.io Authentication](https://github.com/simplehub/henri/examples/socketio-authentication) (Socket.io signup and login)

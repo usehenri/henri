@@ -1,5 +1,5 @@
 
-# REST signup and login
+# Socket.io signup and login
 
 ## How to use
 
@@ -14,14 +14,14 @@ Install it and run:
 ```bash
 cd henri
 npm install
-cd examples/rest-authentication
+cd examples/socketio-authentication
 npm install
 npm run dev
 ```
 
 ## Example summary
 
-Simple authentication with the REST connector.
+Simple authentication with the Socket.io connector.
 
 Register will register first than log you in. The localStorage token will be populated and using POST, feathers will add a cookie for server-side authentication upon first request.
 
