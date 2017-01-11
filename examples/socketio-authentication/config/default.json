@@ -8,8 +8,7 @@
     "session": true,
     "cookie": {
       "enabled": true,
-      "secure": false,
-      "name": "henri-example"
+      "secure": false
     },
     "entity": "user",
     "service": "/users",

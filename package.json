@@ -28,6 +28,7 @@
     "dotenv": "^4.0.0",
     "feathers": "^2.0.3",
     "feathers-authentication": "^1.0.2",
+    "feathers-authentication-client": "^0.1.6",
     "feathers-authentication-jwt": "^0.3.1",
     "feathers-authentication-local": "^0.3.2",
     "feathers-configuration": "^0.4.1",
@@ -35,6 +36,7 @@
     "feathers-hooks": "^1.7.1",
     "feathers-rest": "^1.6.0",
     "feathers-socketio": "^1.4.2",
+    "isomorphic-fetch": "^2.2.1",
     "joi": "^10.1.0",
     "next": "2.0.0-beta.15",
     "winston": "^2.3.0"

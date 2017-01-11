@@ -14,33 +14,19 @@ class Signup extends React.Component {
   }
   signupUser (ev) {
     ev.preventDefault();
+    const signup = this.props;
     const data = {
       fullname: this.state.fullname,
       email: this.state.email,
       password: this.state.password
     };
-    this.props.app.service('users').create(data).then(result => {
-      // eslint-disable-next-line no-undef
-      fetch('/authentication', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' },
-        body: `strategy=local&email=${encodeURIComponent(this.state.email)}&password=${encodeURIComponent(this.state.password)}`
-      }).then((response) => {
-        if (response.status >= 400) {
-          throw new Error('Unauthorized');
-        }
-        return response.json();
-      }).then(body => {
-        this.props.updateUser(body.accessToken);
-        this.setState({ message: { type: 'success', content: 'Registered!' } });
-        // eslint-disable-next-line handle-callback-err
-      }).catch(err => {
-        this.setState({ message: { type: 'danger', content: 'Check your username/password' } });
-      });
-    // eslint-disable-next-line handle-callback-err
-    }).catch(error => {
-      this.setState({ message: { type: 'danger', content: 'Unable to signup' } });
+    signup(data).then(token => {
+      this.setState({ message: { type: 'success', content: 'User created!' } });
+    }).catch(err => {
+      if (err) {
+        this.setState({ message: { type: 'danger', content: 'Unable to signup' } });
+      }
+      console.log('err', err);
     });
   }
   updateName (ev) {
