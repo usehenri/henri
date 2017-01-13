@@ -1,6 +1,6 @@
 'use strict';
 
-const henri = require('../../../index');
+const henri = require('../../../');
 const routes = require('./routes');
 const services = require('./services');
 

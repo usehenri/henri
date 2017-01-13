@@ -14,19 +14,19 @@ class Signup extends React.Component {
   }
   signupUser (ev) {
     ev.preventDefault();
-    const signup = this.props;
+    const { signup } = this.props;
     const data = {
       fullname: this.state.fullname,
       email: this.state.email,
       password: this.state.password
     };
+    console.log(this.props, data);
     signup(data).then(token => {
       this.setState({ message: { type: 'success', content: 'User created!' } });
     }).catch(err => {
       if (err) {
         this.setState({ message: { type: 'danger', content: 'Unable to signup' } });
       }
-      console.log('err', err);
     });
   }
   updateName (ev) {

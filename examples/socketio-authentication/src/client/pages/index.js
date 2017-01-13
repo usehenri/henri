@@ -1,8 +1,6 @@
 import React from 'react';
 import Application from '../components/application';
-import { defaultPage } from '../components/defaultPage'; // Works
-// import { defaultPage } from '../../../../../client'; //Fails
-// import defaultPage from '../../../../../src/client/defaultPage'; // Fails
+import { defaultPage } from 'henri/client';
 import Login from './login';
 import Signup from './signup';
 import { Row, Col } from 'reactstrap';
@@ -10,7 +8,7 @@ import { Row, Col } from 'reactstrap';
 class IndexPage extends React.Component {
   render () {
     return (
-      <Application logout={this.props.logout} loggedIn={this.props.loggedIn}>
+      <Application {...this.props}>
         <div>
           <div className='container'>
             <Row>

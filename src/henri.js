@@ -23,7 +23,8 @@ app.configure(config);
 
 const view = next({
   dir: app.get('next'),
-  dev: true
+  dev: true,
+  quiet: true
 });
 
 exports.init = function () {
@@ -40,8 +41,17 @@ exports.init = function () {
     .configure(rest());
 
   if (app.get('socketio')) {
+    console.log('starting socketio');
     app.configure(socketio());
   }
+  app.use((req, res, next) => {
+    const opts = {};
+    opts.socketio = app.get('socketio');
+    opts.rest = app.get('rest');
+    opts.auth = true;
+    Object.assign(req, { _opts: opts });
+    next();
+  });
 
   app.configure(auth(app.get('auth')))
     .configure(local())

@@ -28,7 +28,7 @@ export default class Navigation extends React.Component {
               <Link href='https://github.com/simplehub/henri'><a className='nav-link'>Github</a></Link>
             </NavItem>
             <NavItem>
-              {this.props.loggedIn ? (
+              {this.props.authenticated ? (
                 <a href='#' className='nav-link' onClick={this.props.logout}>Log out</a>
               ) : (
                 <a href='#' className='nav-link'>You need to log in</a>
