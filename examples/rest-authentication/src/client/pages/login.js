@@ -16,22 +16,13 @@ class Login extends React.Component {
   loginUser (ev) {
     ev.preventDefault();
     // eslint-disable-next-line no-undef
-    fetch('/authentication', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' },
-      body: `strategy=local&email=${encodeURIComponent(this.state.email)}&password=${encodeURIComponent(this.state.password)}`
-    }).then((response) => {
-      if (response.status >= 400) {
-        throw new Error('Unauthorized');
-      }
-      return response.json();
-    }).then(body => {
-      this.props.updateUser(body.accessToken);
+    const { login } = this.props;
+    const { email, password } = this.state;
+    login({ email, password }).then(token => {
       this.setState({ message: { type: 'success', content: 'Logged in!' } });
     }).catch(err => {
       if (err) {
-        this.setState({ message: { type: 'danger', content: 'Check your username/password' } });
+        this.setState({ message: { type: 'danger', content: 'Check your username/password...' } });
       }
     });
   }
