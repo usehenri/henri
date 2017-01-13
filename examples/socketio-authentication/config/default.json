@@ -3,7 +3,7 @@
   "port": 3030,
   "nedb": "../data/",
   "next": "../src/client/",
-  "socketio": true,
+  "socketio": "http://localhost:3030/",
   "auth": {
     "session": true,
     "cookie": {

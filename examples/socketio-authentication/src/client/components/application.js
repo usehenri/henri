@@ -15,7 +15,7 @@ export default class Application extends React.Component {
           <title>{'feathers & next.js'}</title>
           <link rel='stylesheet' href='/static/bootstrap.min.css' />
         </Head>
-        <Navigation loggedIn={this.props.loggedIn} logout={this.props.logout} />
+        <Navigation authenticated={this.props.authenticated} logout={this.props.logout} />
         <Jumbo />
         <Container>
           {this.props.children}
