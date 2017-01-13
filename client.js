@@ -1,3 +1,2 @@
-import { defaultPage } from './src/client';
-
-export { defaultPage };
+module.exports.defaultPage = require('./dist/client/defaultPage');
+// module.exports.securedPage = require('./dist/client/securedPage');
