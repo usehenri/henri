@@ -6,13 +6,23 @@ module.exports = function () {
   const app = this;
 
   app.use((req, res, next) => {
+    // Should check the config to get the right service name. Also, we Should
+    // warn in config-validation instead.
+    if (!app.service('users')) {
+      debug('no user service configured. check your config');
+      return next();
+    }
     const { cookie: { name }, secret } = app.get('auth');
     const cookies = req.feathers.cookies;
-    res.setHeader('X-Powered-By', 'henri')
     if (cookies[name]) {
       app.passport.verifyJWT(cookies[name], { secret }).then(payload => {
         debug('cookie token verified successfully');
         app.service('users').get(payload.userId).then(user => {
+          const passwordField =
+            app.get('users') && app.get('users').passwordField
+            ? app.get('users').passwordField : 'password';
+          // no password hash sent to client...
+          delete user[passwordField];
           const infos = {
             authenticated: true,
             user,

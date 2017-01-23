@@ -7,11 +7,11 @@ const config = require('config');
 const schema = joi.object().keys({
   host: joi.string().hostname().required(),
   port: joi.number().integer().min(1).max(65534).required(),
-  next: joi.string().required(),
+  socketio: joi.string().optional(),
+  rest: joi.string().optional(),
   auth: joi.object().keys({
     secret: joi.string().min(30).required()
   }).required()
-
 });
 
 module.exports = (obj) => {
