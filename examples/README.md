@@ -21,5 +21,5 @@ npm run dev
 
 ## List of examples
 
-- [x] [REST Authentication](https://github.com/simplehub/henri/examples/rest-authentication) (REST signup and login)
-- [x] [Socket.io Authentication](https://github.com/simplehub/henri/examples/socketio-authentication) (Socket.io signup and login)
+- [x] [REST Authentication](https://github.com/simplehub/henri/tree/master/examples/rest-authentication) (REST signup and login)
+- [x] [Socket.io Authentication](https://github.com/simplehub/henri/tree/master/examples/socketio-authentication) (Socket.io signup and login)
