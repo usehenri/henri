@@ -1,7 +1,8 @@
 # henri = Feathers + Next.js
 [![NPM](https://nodei.co/npm/henri.svg?downloads=true&downloadRank=true)](https://nodei.co/npm/henri/)
 
-[![Version tag](https://img.shields.io/badge/stable-0.4.0-brightgreen.svg?style=flat)](https://github.com/simplehub/henri)
+[![npm version](https://img.shields.io/npm/v/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
+[![npm downloads](https://img.shields.io/npm/dm/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![bitHound Dependencies](https://www.bithound.io/github/simplehub/henri/badges/dependencies.svg)](https://www.bithound.io/github/simplehub/henri/master/dependencies/npm)
 
 henri is a simple way to start using [Feathers](http://feathersjs.com/) and [Next.js](https://github.com/zeit/next.js)
