@@ -1,2 +1,10 @@
-module.exports.defaultPage = require('./dist/client/defaultPage');
-// module.exports.securedPage = require('./dist/client/securedPage');
+/*!
+ * henri
+ * Copyright(c) 2016-present Félix-Antoine Paradis
+ * MIT Licensed
+ */
+
+'use strict';
+
+module.exports.withClient = require('./dist/withClient');
+module.exports.withAuth = require('./dist/withAuth');
