@@ -59,11 +59,10 @@ const initClient = (ctx) => {
   if (!process.browser) {
     return;
   }
+
   if (!henriClient) {
-    console.log('[create client henri] infos were not found. populating');
     henriClient = createClient(ctx);
-  } else {
-    console.log('[create client henri] returning existing client');
   }
+
   return henriClient;
 };

@@ -26,7 +26,6 @@ module.exports = function () {
           const infos = {
             authenticated: true,
             user,
-            payload: { userId: user._id },
             token: cookies[name]
           };
           Object.assign(req, infos);
