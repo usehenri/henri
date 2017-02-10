@@ -8,3 +8,4 @@
 
 module.exports.withClient = require('./dist/withClient');
 module.exports.withAuth = require('./dist/withAuth');
+module.exports.withLock = require('./dist/withLock');
