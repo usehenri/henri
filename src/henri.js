@@ -52,6 +52,27 @@ const init = () => {
     app.configure(local());
     app.configure(jwt());
     app.configure(cookies);
+    const addUser = (hook) => {
+      const id = hook.params.user._id;
+      return hook.app.service('users')
+        .get(id)
+        .then(user => {
+          const passwordField =
+            hook.app.get('users') && hook.app.get('users').passwordField
+              ? hook.app.get('users').passwordField : 'password';
+          delete user[passwordField];
+          hook.result.user = user;
+          return hook;
+        });
+    }
+    app.service('authentication').hooks({
+      before: {
+        create: [ auth.hooks.authenticate(['local', 'jwt']) ]
+      },
+      after: {
+        create: [addUser]
+      }
+    });
   }
 
   app.use((req, res, next) => {
