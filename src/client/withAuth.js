@@ -78,13 +78,16 @@ const withAuth = (ComposedComponent) => {
       const opts = token ? { strategy: 'jwt', accessToken: token } : {};
 
       if (client && client.authenticate) {
+        let user = null;
         return client.authenticate(opts).then(response => {
+          // A user object is supposed to be return if successful. Store it and
+          // wait for the JWT to be decrypted.
+          user = response.user;
           return client.passport.verifyJWT(response.accessToken);
         }).then(payload => {
-          return client.service('users').get(payload.userId).then(user => {
-            client.set('user', user);
-            this.setState({ user: user });
-          });
+          // JWT is valid, set the user.
+          client.set('user', user);
+          this.setState({ user: user });
         }).catch(err => {
           if (err) {
             this.setState({ user: null });
