@@ -36,6 +36,7 @@ const withAuth = (ComposedComponent) => {
       const { client } = this.props;
       ev.preventDefault();
       this.setState({ user: null });
+      client.set('user', null);
       return client.logout();
     }
 
