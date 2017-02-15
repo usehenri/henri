@@ -32,11 +32,11 @@ const withAuth = (ComposedComponent) => {
       this.update();
     }
 
-    logout (ev) {
+    logout (ev, cb = null) {
       const { client } = this.props;
       ev.preventDefault();
-      this.setState({ user: null });
       client.set('user', null);
+      this.setState({ user: null }, typeof cb === 'function' && cb);
       return client.logout();
     }
 
