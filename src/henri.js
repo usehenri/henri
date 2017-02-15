@@ -64,7 +64,7 @@ const init = () => {
           hook.result.user = user;
           return hook;
         });
-    }
+    };
     app.service('authentication').hooks({
       before: {
         create: [ auth.hooks.authenticate(['local', 'jwt']) ]
