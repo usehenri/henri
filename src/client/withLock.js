@@ -18,11 +18,14 @@ const withLock = (ComposedComponent, Fallback) => {
     render () {
       // TODO: Fix this. Accept React element and React.isValidElement() it. Remove flash or programmatically passthru
       if (!this.props.user) {
+        if (typeof Fallback === 'function' || React.isValidElement(Fallback)) {
+          return Fallback(this.props);
+        }
         if (/^\/\w+/.test(Fallback) && process.browser) {
           return Router.push(Fallback);
         }
         console.error('*** The second argument to withLock() should be a valid path.');
-        return errorPage();
+        return errorPage;
       }
       return <ComposedComponent {...this.props} />;
     }
