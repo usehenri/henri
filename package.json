@@ -44,13 +44,13 @@
     "feathers-socketio": "^1.4.2",
     "isomorphic-fetch": "^2.2.1",
     "joi": "^10.1.0",
-    "next": "2.0.0-beta.26",
+    "next": "2.0.0-beta.31",
     "react": "^15.4.2",
     "react-dom": "^15.4.2",
     "winston": "^2.3.0"
   },
   "devDependencies": {
-    "babel-cli": "^6.22.2",
+    "babel-cli": "^6.23.0",
     "babel-plugin-add-module-exports": "^0.2.1",
     "babel-plugin-transform-async-to-generator": "^6.22.0",
     "babel-plugin-transform-class-properties": "^6.23.0",
