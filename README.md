@@ -18,6 +18,7 @@ henri is a simple way to start using [Feathers](http://feathersjs.com/) and [Nex
   - [withAuth](#withauth)
   - [withLock](#withlock)
   - [withData](#withdata)
+- [Plans, plans!](#plans)
 
 ## How to use
 
@@ -303,11 +304,12 @@ export default withClient(withData(IndexPage, (props) => {
 
 ## Plans
 
- - Add a generator (possibly?)
  - Fix `withData` so it works server-side
+ - Add a `withRedux` helper
+ - Add a generator (possibly?)
  - Report bugs!
 
-## Want to help?
+## Contributing
 
  - Submit issues, pull requests, anything!
 
@@ -316,3 +318,6 @@ export default withClient(withData(IndexPage, (props) => {
   - [Feathers](http://feathersjs.com/)
   - [Next.js](https://github.com/zeit/next.js)
 
+## Author
+
+  - Félix-Antoine Paradis ([@reel](https://github.com/reel))
