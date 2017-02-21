@@ -229,7 +229,7 @@ class LoginPage extends React.Component {
   render() {
     return (
       <App {...this.props}>
-        <div>Hello!</div>
+        <div>Hello {this.props.user ? this.props.user.fullName : 'stranger'}!</div>
         <div>
           <form onSubmit={this.login}>
             <input type='text' placeHolder='email' onChange={(e) => this.update(e)} name='email' value={this.state.email} />
