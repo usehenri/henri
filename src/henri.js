@@ -6,6 +6,7 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const compress = require('compression');
 const cors = require('cors');
+const path = require('path');
 
 const feathers = require('feathers');
 const serveStatic = require('feathers').static;
@@ -99,11 +100,28 @@ const init = () => {
       dev: true
     });
     app.view = {
-      render: (req, res, path, opts) => {
+      render: (req, res, route, opts) => {
         if (!res.forceCORS) {
           res.removeHeader('Access-Control-Allow-Origin');
         }
-        app.nextServer.render(req, res, path, opts);
+        const fileName = route.slice(-1) === '/' ? `${route}index.js` : `${route}.js`;
+        const fullPath = path.join(app.get('next'), '.next', 'dist', 'pages', fileName);
+
+        let page = null;
+        try {
+          page = require(fullPath);
+        } catch (e) {
+          page = null;
+        }
+
+        if (page && typeof page.fetchData === 'function') {
+          page.fetchData(app, req.session.user && req.session.user.profile).then(data => {
+            req.data = data;
+            app.nextServer.render(req, res, route, opts);
+          }).catch(() => app.nextServer.render(req, res, route, opts));
+        } else {
+          app.nextServer.render(req, res, route, opts);
+        }
       }
     };
   }
