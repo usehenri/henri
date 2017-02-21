@@ -23,7 +23,7 @@ const withLock = (ComposedComponent, Fallback) => {
         if (/^\/\w+/.test(Fallback) && process.browser) {
           return Router.push(Fallback);
         }
-        console.error('*** The second argument to withLock() should be a valid path.');
+        console.error('*** The second argument to withLock() should be a valid path or React element.');
         return errorPage;
       }
       return <ComposedComponent {...this.props} />;
