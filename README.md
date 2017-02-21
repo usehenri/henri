@@ -1,4 +1,8 @@
-<p align="center"><img width="100" alt="" src="https://raw.githubusercontent.com/simplehub/henri/master/henri.png"></p>
+<a href="http://usehenri.io" target="_blank">
+  <p align="center">
+    <img width="100" alt="" src="https://raw.githubusercontent.com/simplehub/henri/master/henri.png">
+  </p>
+</a>
 
 # henri - a powerful api coupled with react ssr
 [![NPM](https://nodei.co/npm/henri.svg?downloads=true&downloadRank=true)](https://nodei.co/npm/henri/)
@@ -268,11 +272,16 @@ export default withLock(secureComponent, '/login');
 
 ### `withData`
 
-`withData` also takes two arguments: the child component and a query or some data to return.
+`withData` also takes two arguments: the child component and a Promise or null.
 
 `withData` is **NOT** wrapped by `withAuth()` or `withClient()`...
 
 It will use `getInitialProps` and `componentDidMount` to make sure you always have your data handy.
+
+***SERVER SIDE*** If you want your query to be run server-side, export a function named `fetchData` that will be run server-side.
+
+This function is called with two arguments: `client` and `user`. See below:
+
 ```jsx
 import React from 'react';
 
@@ -293,18 +302,24 @@ class IndexPage extends React.Component {
   }
 }
 
-export default withClient(withData(IndexPage, (props) => {
-  const { client } = this.props;
+// Really need to be named fetchData as it will be called server-side
+export const fetchData = (client, user) => {
+  // client: this.props.client or app (server-side)
+  // user: the user object (as in this.props.session.user)
   const service = client.service('/message');
-
+  if (!user) {
+    return;
+  }
   return service.find({});
-}));
+}
+
+export default withClient(withData(IndexPage, fetchData));
 
 ```
 
 ## Plans
 
- - Fix `withData` so it works server-side
+ - Fix `withData` so it works server-side (done!)
  - Add a `withRedux` helper
  - Add a generator (possibly?)
  - Report bugs!

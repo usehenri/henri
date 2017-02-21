@@ -6,7 +6,7 @@ const withData = (ComposedComponent, func) => {
   return class withData extends React.Component {
     static async getInitialProps (ctx) {
       const data = ctx.req && ctx.req.data || null;
-      return { data: data || await fetcher(ctx, func) };
+      return { data: data || await fetcher(ctx.client, ctx.user || ctx.client.get('user') || null, func) };
     }
     constructor (props) {
       super(props);
@@ -16,7 +16,7 @@ const withData = (ComposedComponent, func) => {
     }
     async componentDidMount () {
       if (!this.props.data || this.props.data.length < 1) {
-        const data = await fetcher(this.props, func);
+        const data = await fetcher(this.props.client, this.props.user, func);
         this.setState({ data: data });
       }
     }
@@ -27,9 +27,9 @@ const withData = (ComposedComponent, func) => {
 };
 module.exports = (Page, func) => withData(Page, func);
 
-const fetcher = (props, func) => {
+const fetcher = (client, user, func) => {
   if (!process.browser) {
     return [];
   }
-  return func(props);
+  return func(client, user);
 };
