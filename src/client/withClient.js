@@ -1,9 +1,9 @@
 import React from 'react';
-import { loadGetInitialProps } from 'next/dist/lib/utils';
 
 import feathers from 'feathers/client';
 import rest from 'feathers-rest/client';
-import authentication from 'feathers-authentication-client';
+import auth from 'feathers-authentication-client';
+import { loadGetInitialProps } from 'next/dist/lib/utils';
 import hooks from 'feathers-hooks';
 
 require('es6-promise').polyfill();
@@ -14,18 +14,18 @@ let henriClient = null;
 module.exports = (ComposedComponent) => {
   return class WithClient extends React.Component {
     static async getInitialProps (ctx) {
-      const client = initClient(ctx);
+      const client = initClient(ctx.req && ctx.req.session);
+
       return {
-        client: client,
         serverRendered: !process.browser,
-        opts: ctx && ctx.req ? ctx.req._opts : client.opts || {},
-        ...await loadGetInitialProps(ComposedComponent, ctx)
+        session: ctx.req && ctx.req.session || ctx.session,
+        ...await loadGetInitialProps(ComposedComponent, { ...ctx, client })
       };
     }
 
     constructor (props) {
       super(props);
-      this.client = initClient(props);
+      this.client = initClient(props.session);
     }
 
     render () {
@@ -34,34 +34,33 @@ module.exports = (ComposedComponent) => {
   };
 };
 
-const createClient = (ctx) => {
+const createClient = (session) => {
+  const { options: { endpoint, authentication } } = session;
   const app = feathers().configure(hooks());
-  app.opts = ctx.opts;
-
-  if (app.opts.socketio) {
+  app.session = session;
+  if (process.browser) {
     const io = require('socket.io-client');
     const socketio = require('feathers-socketio/client');
-    app.configure(socketio(io(app.opts.socketio)));
+    app.configure(socketio(io(endpoint)));
+  } else {
+    app.configure(rest(endpoint).fetch(fetch)); // eslint-disable-line no-undef
   }
 
-  if (app.opts.rest) {
-    app.configure(rest(app.opts.rest).fetch(fetch)); // eslint-disable-line no-undef
-  }
-
-  if (app.opts.auth) {
-    app.configure(authentication({ storage: window.localStorage }));
+  if (authentication) {
+    const storage = process.browser ? { storage: window.localStorage } : {};
+    app.configure(auth(storage));
   }
 
   return app;
 };
 
-const initClient = (ctx) => {
+const initClient = (session) => {
+  // Don't use global SSR.. unexpected results...
   if (!process.browser) {
-    return;
+    return createClient(session);
   }
-
   if (!henriClient) {
-    henriClient = createClient(ctx);
+    henriClient = createClient(session);
   }
 
   return henriClient;

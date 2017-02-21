@@ -7,8 +7,7 @@ const config = require('config');
 const schema = joi.object().keys({
   host: joi.string().hostname().required(),
   port: joi.number().integer().min(1).max(65534).required(),
-  socketio: joi.string().optional(),
-  rest: joi.string().optional(),
+  endpoint: joi.string(),
   auth: joi.object().keys({
     secret: joi.string().min(30).required()
   }).required()

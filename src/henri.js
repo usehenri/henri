@@ -41,11 +41,9 @@ const init = () => {
     app.use('/', serveStatic(app.get('public')));
   }
 
-  if (app.get('socketio')) {
-    debug('socket.io enabled.');
-    const socketio = require('feathers-socketio');
-    app.configure(socketio());
-  }
+  debug('socket.io enabled.');
+  const socketio = require('feathers-socketio');
+  app.configure(socketio());
 
   if (app.get('auth')) {
     app.configure(auth(app.get('auth')));
@@ -77,13 +75,19 @@ const init = () => {
 
   app.use((req, res, next) => {
     debug('exposing feathers utilities');
-    const opts = {
-      socketio: app.get('socketio'),
-      rest: app.get('rest'),
-      auth: app.get('auth'),
+    const session = {
+      options: {
+        authentication: !!app.get('auth'),
+        endpoint: app.get('endpoint')
+      },
+      user: {
+        authenticated: req.authenticated,
+        token: req.token,
+        profile: req.user
+      },
       userAgent: req.headers['user-agent'] || ''
     };
-    Object.assign(req, { _opts: opts });
+    Object.assign(req, { session: session });
     next();
   });
 
@@ -92,8 +96,7 @@ const init = () => {
     debug('setting up next.js');
     app.nextServer = next({
       dir: app.get('next'),
-      dev: !isProduction,
-      quiet: !isProduction
+      dev: true
     });
     app.view = {
       render: (req, res, path, opts) => {

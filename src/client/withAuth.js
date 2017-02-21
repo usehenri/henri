@@ -8,28 +8,32 @@ require('isomorphic-fetch');
 const withAuth = (ComposedComponent) => {
   return class WithAuth extends React.Component {
     static async getInitialProps (ctx) {
+      const { client, client: { session: { user: { profile = null, authenticated = null, token = null } } } } = ctx;
+
+      if (authenticated && profile) {
+        client.set('user', profile);
+      }
+
       return {
-        user: ctx && ctx.req && ctx.req.user,
-        ...await loadGetInitialProps(ComposedComponent, ctx)
+        user: profile,
+        token: token,
+        ...await loadGetInitialProps(ComposedComponent, { ...ctx, user: profile })
       };
     }
 
     constructor (props) {
       super(props);
-      if (!props.serverRendered && !props.client.authenticate) {
-        throw new Error('You are trying to use withAuth() without proper configuration. See your project config file.');
-      }
       this.login = this.login.bind(this);
       this.logout = this.logout.bind(this);
       this.signup = this.signup.bind(this);
       this.update = this.update.bind(this);
       this.state = {
-        user: props.user || props.client && props.client.get('user')
+        user: props.user || props.client.get('user')
       };
     }
 
     componentDidMount () {
-      this.update();
+      this.update(this.props.token);
     }
 
     logout (ev, cb = null) {
