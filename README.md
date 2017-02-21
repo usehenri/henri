@@ -233,7 +233,7 @@ class LoginPage extends React.Component {
           <form onSubmit={this.login}>
             <input type='text' placeHolder='email' onChange={(e) => this.update(e)} name='email' value={this.state.email} />
             <input type='password' placeHolder='password' onChange={(e) => this.update(e)} name='password' value={this.state.password} />
-          <form>
+          </form>
         </div>
       </App>
     );
@@ -309,7 +309,7 @@ export default withClient(withData(IndexPage, (props) => {
 
 ## Want to help?
 
- - Submit issues, pull request, anything!
+ - Submit issues, pull requests, anything!
 
 ## Thanks to the following and their contributors
 
