@@ -38,5 +38,8 @@ const fetcher = (client, user, query, func) => {
   if (!process.browser) {
     return [];
   }
+  if (typeof func !== 'function') {
+    throw Error(`withData() second argument should be a function, not: ${typeof func}. See https://github.com/simplehub/henri#withdata`);
+  }
   return func(client, user, query);
 };
