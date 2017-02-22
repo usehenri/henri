@@ -1,5 +1,7 @@
 import React from 'react';
 import { loadGetInitialProps } from 'next/dist/lib/utils';
+import warning from 'warning';
+import invariant from 'invariant';
 
 require('es6-promise').polyfill();
 
@@ -35,7 +37,10 @@ const withData = (ComposedComponent, func) => {
 module.exports = (Page, func) => withData(Page, func);
 
 const fetcher = (client, user, query, func) => {
+  invariant(typeof func === 'function', `withData() second argument should be a function, not: ${typeof func}. See https://github.com/simplehub/henri#withdata`);
   if (!process.browser) {
+    // func.name might not be supported by lower version of Node...
+    warning(typeof func === 'function' && func.name === 'fetchData', `If you want server-side data injection, rename ${func.name} to fetchData. See https://github.com/simplehub/henri#withdata`);
     return [];
   }
   return func(client, user, query);
