@@ -8,6 +8,7 @@ const compress = require('compression');
 const cors = require('cors');
 const path = require('path');
 const url = require('url');
+const warning = require('warning');
 
 const feathers = require('feathers');
 const serveStatic = require('feathers').static;
@@ -95,6 +96,7 @@ const init = () => {
 
   if (app.get('next')) {
     const next = require('next');
+    const nextRequire = require('next/dist/server/require').default;
     debug('setting up next.js');
     app.nextServer = next({
       dir: app.get('next'),
@@ -102,29 +104,27 @@ const init = () => {
     });
     app.view = {
       render: (req, res, route, opts) => {
+        const parsedUrl = url.parse(req.url, true);
+        const { query } = parsedUrl;
+        const fullPath = path.join(app.get('next'), '.next', 'dist', 'pages', route);
+        
         if (!res.forceCORS) {
           res.removeHeader('Access-Control-Allow-Origin');
         }
-        const parsedUrl = url.parse(req.url, true);
-        const { query } = parsedUrl;
-        const fileName = route.slice(-1) === '/' ? `${route}index.js` : `${route}.js`;
-        const fullPath = path.join(app.get('next'), '.next', 'dist', 'pages', fileName);
 
-        let page = null;
-        try {
-          page = require(fullPath);
-        } catch (e) {
-          page = null;
-        }
-
-        if (page && typeof page.fetchData === 'function') {
-          page.fetchData(app, req.session.user && req.session.user.profile, query).then(data => {
-            req.data = data;
+        nextRequire(fullPath).then(page => {
+          if (page && typeof page.fetchData === 'function') {
+            page.fetchData(app, req.session.user && req.session.user.profile, query).then(data => {
+              req.data = data;
+              app.nextServer.render(req, res, route, query);
+            }).catch(() => app.nextServer.render(req, res, route, query));
+          } else {
             app.nextServer.render(req, res, route, query);
-          }).catch(() => app.nextServer.render(req, res, route, query));
-        } else {
+          }
+        }).catch(err => {
+          warning(false, `Route ${parsedUrl.path} is matched by the router but ${route} does not exist. Got ${err}`);
           app.nextServer.render(req, res, route, query);
-        }
+        });
       }
     };
   }
