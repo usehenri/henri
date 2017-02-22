@@ -303,9 +303,10 @@ class IndexPage extends React.Component {
 }
 
 // Really need to be named fetchData as it will be called server-side
-export const fetchData = (client, user) => {
+export const fetchData = (client, user, query) => {
   // client: this.props.client or app (server-side)
   // user: the user object (as in this.props.session.user)
+  // query: url query parameters
   const service = client.service('/message');
   if (!user) {
     return;

@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 const compress = require('compression');
 const cors = require('cors');
 const path = require('path');
+const url = require('url');
 
 const feathers = require('feathers');
 const serveStatic = require('feathers').static;
@@ -104,6 +105,8 @@ const init = () => {
         if (!res.forceCORS) {
           res.removeHeader('Access-Control-Allow-Origin');
         }
+        const parsedUrl = url.parse(req.url, true);
+        const { query } = parsedUrl;
         const fileName = route.slice(-1) === '/' ? `${route}index.js` : `${route}.js`;
         const fullPath = path.join(app.get('next'), '.next', 'dist', 'pages', fileName);
 
@@ -115,12 +118,12 @@ const init = () => {
         }
 
         if (page && typeof page.fetchData === 'function') {
-          page.fetchData(app, req.session.user && req.session.user.profile).then(data => {
+          page.fetchData(app, req.session.user && req.session.user.profile, query).then(data => {
             req.data = data;
-            app.nextServer.render(req, res, route, opts);
-          }).catch(() => app.nextServer.render(req, res, route, opts));
+            app.nextServer.render(req, res, route, query);
+          }).catch(() => app.nextServer.render(req, res, route, query));
         } else {
-          app.nextServer.render(req, res, route, opts);
+          app.nextServer.render(req, res, route, query);
         }
       }
     };
@@ -134,8 +137,9 @@ const run = () => {
     const handle = app.nextServer.getRequestHandler();
 
     app.get('*', (req, res) => {
+      const parsedUrl = url.parse(req.url, true);
       res.removeHeader('Access-Control-Allow-Origin');
-      return handle(req, res);
+      return handle(req, res, parsedUrl);
     });
     app.configure(catcher);
 
