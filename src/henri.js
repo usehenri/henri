@@ -100,7 +100,7 @@ const init = () => {
     debug('setting up next.js');
     app.nextServer = next({
       dir: app.get('next'),
-      dev: true
+      dev: !isProduction
     });
     app.view = {
       render: (req, res, route, opts) => {
