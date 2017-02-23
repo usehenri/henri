@@ -41,7 +41,7 @@ const fetcher = (client, user, query, func) => {
   if (!process.browser) {
     // func.name might not be supported by lower version of Node...
     warning(typeof func === 'function' && func.name === 'fetchData', `If you want server-side data injection, rename ${func.name} to fetchData. See https://github.com/simplehub/henri#withdata`);
-    return [];
+    return null;
   }
   return func(client, user, query);
 };
