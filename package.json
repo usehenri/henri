@@ -1,6 +1,6 @@
 {
   "name": "henri",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "henri is feathers + next.js",
   "main": "index.js",
   "scripts": {
