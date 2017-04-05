@@ -1,3 +1,7 @@
+# Currently looking at changing feathers.js to a homemade, expressjs, rails-like autoloading backend.
+
+# Please, fill an issue if you have any input on this.
+
 <a href="http://usehenri.io" target="_blank">
   <p align="center">
     <img width="100" alt="" src="https://raw.githubusercontent.com/simplehub/henri/master/henri.png">
