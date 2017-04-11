@@ -1,35 +1,35 @@
-import React from 'react';
-import { loadGetInitialProps } from 'next/dist/lib/utils';
-import Router from 'next/router';
-import Head from 'next/head';
-import withAuth from './withAuth';
+import React from 'react'
+import { loadGetInitialProps } from 'next/dist/lib/utils'
+import Router from 'next/router'
+import Head from 'next/head'
+import withAuth from './withAuth'
 
-require('es6-promise').polyfill();
-require('isomorphic-fetch');
+require('es6-promise').polyfill()
+require('isomorphic-fetch')
 
 const withLock = (ComposedComponent, Fallback) => {
   return class withLock extends React.Component {
     static async getInitialProps (ctx) {
       return {
         ...await loadGetInitialProps(ComposedComponent, ctx)
-      };
+      }
     }
 
     render () {
       if (!this.props.user) {
         if (typeof Fallback === 'function' || React.isValidElement(Fallback)) {
-          return Fallback(this.props);
+          return Fallback(this.props)
         }
         if (/^\/\w+/.test(Fallback) && process.browser) {
-          return Router.push(Fallback);
+          return Router.push(Fallback)
         }
-        console.error('*** The second argument to withLock() should be a valid path or React element.');
-        return errorPage;
+        console.error('*** The second argument to withLock() should be a valid path or React element.')
+        return errorPage
       }
-      return <ComposedComponent {...this.props} />;
+      return <ComposedComponent {...this.props} />
     }
-  };
-};
+  }
+}
 
 const errorPage = () => (
   <div className='error'>
@@ -85,6 +85,6 @@ const errorPage = () => (
         }
       `}</style>
   </div>
-);
+)
 
-module.exports = (Page, Action) => withAuth(withLock(Page, Action));
+module.exports = (Page, Action) => withAuth(withLock(Page, Action))
