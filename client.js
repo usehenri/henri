@@ -4,9 +4,9 @@
  * MIT Licensed
  */
 
-'use strict';
+'use strict'
 
-module.exports.withClient = require('./dist/withClient');
-module.exports.withAuth = require('./dist/withAuth');
-module.exports.withLock = require('./dist/withLock');
-module.exports.withData = require('./dist/withData');
+module.exports.withClient = require('./dist/withClient')
+module.exports.withAuth = require('./dist/withAuth')
+module.exports.withLock = require('./dist/withLock')
+module.exports.withData = require('./dist/withData')

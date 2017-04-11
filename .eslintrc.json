@@ -1,3 +1,13 @@
 {
-  "extends": ["semistandard", "standard-jsx"]
+    "extends": [
+        "standard",
+        "standard-jsx"
+    ],
+    "rules": {
+        "semi": "off",
+        "space-before-function-paren": "off"
+    },
+    "globals": {
+        "henri": true
+    }
 }
