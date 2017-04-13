@@ -1,0 +1,24 @@
+{
+  "name": "@usehenri/server",
+  "version": "0.9.0",
+  "description": "henri http server (express)",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.17.1",
+    "compression": "^1.6.2",
+    "cookie-parser": "^1.4.3",
+    "cors": "^2.8.3",
+    "express": "^4.15.2",
+    "path": "^0.12.7",
+    "server-timings": "^1.0.4"
+  },
+  "devDependencies": {
+    "@types/body-parser": "^1.16.3",
+    "@types/compression": "^0.0.33",
+    "@types/cookie-parser": "^1.3.30",
+    "@types/express": "^4.0.35",
+    "@types/node": "^7.0.12"
+  }
+}
