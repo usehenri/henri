@@ -1,0 +1,20 @@
+{
+  "name": "@usehenri/router",
+  "version": "0.9.0",
+  "description": "henri router",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.17.1",
+    "compression": "^1.6.2",
+    "cookie-parser": "^1.4.3",
+    "cors": "^2.8.3",
+    "express": "^4.15.2",
+    "server-timings": "^1.0.4"
+  },
+  "devDependencies": {
+    "@types/express": "^4.0.35",
+    "@types/node": "^7.0.12"
+  }
+}
