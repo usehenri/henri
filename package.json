@@ -1,40 +1,34 @@
 {
-    "name": "henri",
-    "version": "0.6.3",
+    "name": "@usehenri/henri",
+    "version": "0.9.0-alpha.3",
     "description": "henri is feathers + next.js",
     "main": "index.js",
     "scripts": {
-        "build": "babel src/client --out-dir dist",
-        "prepublish": "npm run build",
-        "test": "standard && npm run mocha",
-        "lint": "standard 'src/**/**' --fix"
+        "lint": "prettier *.js"
     },
-    "pre-commit": [
-        "lint"
-    ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/simplehub/henri.git"
+        "url": "git+https://github.com/usehenri/henri.git"
+    },
+    "bin": {
+        "henri": "bin/henri.js"
     },
     "author": "Felix-Antoine Paradis",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/simplehub/henri/issues"
+        "url": "https://github.com/usehenri/henri/issues"
     },
-    "homepage": "https://github.com/simplehub/henri#readme",
-    "devDependencies": {
-        "babel-plugin-add-module-exports": "^0.2.1",
-        "babel-plugin-transform-async-to-generator": "^6.22.0",
-        "babel-plugin-transform-class-properties": "^6.23.0",
-        "babel-plugin-transform-object-rest-spread": "^6.23.0",
-        "babel-plugin-transform-runtime": "^6.23.0",
-        "babel-preset-env": "^1.3.2",
-        "babel-preset-react": "^6.23.0",
-        "eslint-config-standard": "^10.0.0",
-        "eslint-config-standard-jsx": "^3.3.0",
-        "eslint-plugin-promise": "^3.5.0",
-        "eslint-plugin-react": "^6.10.3",
-        "eslint-plugin-standard": "^2.2.0",
-        "standard": "^10.0.0"
+    "homepage": "https://github.com/usehenri/henri#readme",
+    "dependencies": {
+        "@usehenri/cli": "alpha",
+        "@usehenri/config": "alpha",
+        "@usehenri/controller": "alpha",
+        "@usehenri/log": "alpha",
+        "@usehenri/model": "alpha",
+        "@usehenri/router": "alpha",
+        "@usehenri/server": "alpha",
+        "@usehenri/user": "alpha",
+        "@usehenri/view": "alpha",
+        "minimist": "^1.2.0"
     }
 }
