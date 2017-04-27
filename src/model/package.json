@@ -10,7 +10,7 @@
     "include-all": "^4.0.3",
     "lodash": "^4.17.4",
     "sails-disk": "1.0.0-11",
-    "waterline": "0.13.0-rc8"
+    "waterline": "0.13.0-rc9"
   },
   "devDependencies": {
     "@types/config": "^0.0.32",
