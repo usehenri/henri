@@ -1,5 +1,5 @@
 const waterline = require('waterline');
-const config = require('config');
+const { log, user, config } = henri;
 const includeAll = require('include-all');
 const _ = require('lodash');
 const path = require('path');
@@ -58,6 +58,21 @@ async function configure(models) {
     configuration.datastores[storeName].adapter = `sails-${adapter}`;
     // TODO: Change this to @usehenri/<pkg> package in the future
     configuration.adapters[`sails-${adapter}`] = require(`sails-${adapter}`);
+    if (id === 'user') {
+      log.info('Found a user model, overloading it.');
+      model.attributes.email = { type: 'string', required: true };
+      model.attributes.password = { type: 'string', required: true };
+      model.beforeCreate = async (values, cb) => {
+        values.password = await user.encrypt(values.password);
+        cb();
+      };
+      model.beforeUpdate = async (values, cb) => {
+        if (values.hasOwnProperty('password')) {
+          values.password = await user.encrypt(values.password);
+        }
+        cb();
+      };
+    }
   }
   if (!global['henri']) {
     global['henri'] = {};
@@ -83,9 +98,7 @@ async function start(configuration) {
 }
 
 async function init() {
-  const models = await load('./app/models');
-  const configuration = await configure(models);
-  await start(configuration);
+  await start(await configure(await load('./app/models')));
 }
 
 module.exports = init();
