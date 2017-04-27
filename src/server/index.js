@@ -18,7 +18,7 @@ app.use(cookieParser());
 
 app.use(express.static(path.join(__dirname, 'app/public')));
 
-const start = delay => {
+function start(delay) {
   const { config, log } = henri;
   const port = config.has('port') ? config.get('port') : 3000;
   app.listen(port, function() {
@@ -27,7 +27,7 @@ const start = delay => {
       : '';
     log.info(`server started on port ${port}${bootTiming}`);
   });
-};
+}
 
 if (!global['henri']) {
   global['henri'] = {};
