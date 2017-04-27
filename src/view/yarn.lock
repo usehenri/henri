@@ -2,9 +2,9 @@
 # yarn lockfile v1
 
 
-"@types/node@^7.0.12":
-  version "7.0.13"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.13.tgz#1b0a53fe9ef9c3a5d061b126cc9b915bca43a3f5"
+"@types/node@^7.0.14":
+  version "7.0.14"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.14.tgz#1470fa002a113316ac9d9ad163fc738c7a0de2a4"
 
 "@types/react-dom@^15.5.0":
   version "15.5.0"
@@ -12,9 +12,13 @@
   dependencies:
     "@types/react" "*"
 
-"@types/react@*", "@types/react@^15.0.21":
+"@types/react@*":
   version "15.0.22"
   resolved "https://registry.yarnpkg.com/@types/react/-/react-15.0.22.tgz#50803cde8d89f60a9b034f2dd0d619bc5f0273b5"
+
+"@types/react@^15.0.23":
+  version "15.0.23"
+  resolved "https://registry.yarnpkg.com/@types/react/-/react-15.0.23.tgz#f3facbef5290610f54242f00308759d3a3c27346"
 
 abbrev@1:
   version "1.1.0"
