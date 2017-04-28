@@ -8,9 +8,7 @@ let name = 'henri';
 
 try {
   name = require(path.resolve(process.cwd(), 'package.json')).name;
-} catch (e) {
-  console.log(e);
-}
+} catch (e) {}
 
 const main = args => {
   const prompt = `${chalk.blue.bold(name)}${chalk.white.bold('> ')}`;
