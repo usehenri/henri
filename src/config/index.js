@@ -5,3 +5,5 @@ if (!global['henri']) {
 }
 
 global['henri'].config = config;
+
+require('./checks');
