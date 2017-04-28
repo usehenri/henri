@@ -22,8 +22,10 @@ const command = argv._.shift();
 
 switch (command) {
   case 'server':
-    require(`./${command}`);
+  case 'init':
+    const cmd = require(`./scripts/${command}`);
+    cmd(argv);
     break;
   default:
-    require('./help');
+    require('./scripts/help');
 }

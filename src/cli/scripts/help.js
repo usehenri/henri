@@ -1,4 +1,4 @@
-const { version, commands } = require('./package.json');
+const { version, commands } = require('./utils');
 
 const main = args => {
   console.log(
@@ -18,4 +18,4 @@ const main = args => {
   process.exit(0);
 };
 
-module.exports = main();
+module.exports = main;
