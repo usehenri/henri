@@ -36,10 +36,13 @@ for (const key in routes) {
 if (process.env.NODE_ENV !== 'production') {
   app.get('/_routes', (req, res) => res.json(henri._globalRoutes));
 }
-next.prepare().then(() => {
-  const handle = next.getRequestHandler();
-  henri.app.get('*', (req, res) => {
-    return handle(req, res);
+
+if (next) {
+  next.prepare().then(() => {
+    const handle = next.getRequestHandler();
+    henri.app.get('*', (req, res) => {
+      return handle(req, res);
+    });
+    henri.start(global['_initialDelay'] || null);
   });
-  henri.start(global['_initialDelay'] || null);
-});
+}
