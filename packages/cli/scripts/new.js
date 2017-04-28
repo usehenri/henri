@@ -16,7 +16,7 @@ const main = args => {
   if (check(args._[0]) && !force) {
     console.log(
       `
-      The folder specified is exists. Use -f or --force if you really want
+      The folder specified already exists. Use -f or --force if you really want
       to create a structure there.
     `
     );
