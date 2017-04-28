@@ -19,4 +19,4 @@ const main = args => {
   init();
 };
 
-module.exports = main();
+module.exports = main;
