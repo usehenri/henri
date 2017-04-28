@@ -24,6 +24,7 @@ switch (command) {
   case 'server':
   case 'init':
   case 'new':
+  case 'console':
     const cmd = require(`./scripts/${command}`);
     cmd(argv);
     break;

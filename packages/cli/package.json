@@ -19,7 +19,9 @@
   },
   "commands": [
     "server",
-    "generate",
+    "new",
+    "init",
+    "console",
     "eject"
   ]
 }

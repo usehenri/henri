@@ -1,4 +1,4 @@
-const main = args => {
+const main = ({ skipView }, cb) => {
   global['_initialDelay'] = process.hrtime();
 
   async function init() {
@@ -9,8 +9,11 @@ const main = args => {
       require('@usehenri/user');
       await require('@usehenri/model');
       await require('@usehenri/controller');
-      await require('@usehenri/view');
+      !skipView && (await require('@usehenri/view'));
       require('@usehenri/router');
+      if (typeof cb === 'function') {
+        cb();
+      }
     } catch (error) {
       console.dir(error, { colors: true });
     }
