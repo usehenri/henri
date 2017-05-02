@@ -10,7 +10,7 @@
     "react-dom": "^15.5.4"
   },
   "devDependencies": {
-    "@types/node": "^7.0.14",
+    "@types/node": "^7.0.15",
     "@types/react": "^15.0.23",
     "@types/react-dom": "^15.5.0"
   }
