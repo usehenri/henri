@@ -6,6 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
+    "@types/node": "^7.0.15",
     "bcrypt-nodejs": "^0.0.3",
     "express-session": "^1.15.2",
     "nedb-session-store": "^1.1.1",

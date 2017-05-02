@@ -18,9 +18,9 @@
   version "7.0.12"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.12.tgz#ae5f67a19c15f752148004db07cbbb372e69efc9"
 
-"@types/node@^7.0.14":
-  version "7.0.14"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.14.tgz#1470fa002a113316ac9d9ad163fc738c7a0de2a4"
+"@types/node@^7.0.15":
+  version "7.0.15"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.15.tgz#628429289604c5f7e56c13f3a0422f3e59df1a17"
 
 "@types/waterline@^0.11.1":
   version "0.11.1"
