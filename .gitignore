@@ -33,3 +33,5 @@ lib/
 data/
 
 dist
+
+.changelog
