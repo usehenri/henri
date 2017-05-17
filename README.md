@@ -1,7 +1,3 @@
-# Currently looking at changing feathers.js to a homemade, expressjs, rails-like autoloading backend.
-
-# Please, fill an issue if you have any input on this.
-
 <a href="http://usehenri.io" target="_blank">
   <p align="center">
     <img width="100" alt="" src="https://raw.githubusercontent.com/simplehub/henri/master/henri.png">
@@ -13,19 +9,14 @@
 
 [![npm version](https://img.shields.io/npm/v/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![npm downloads](https://img.shields.io/npm/dm/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
-[![bitHound Dependencies](https://www.bithound.io/github/simplehub/henri/badges/dependencies.svg)](https://www.bithound.io/github/simplehub/henri/master/dependencies/npm)
+[![bitHound Overall Score](https://www.bithound.io/github/usehenri/henri/badges/score.svg)](https://www.bithound.io/github/usehenri/henri)
 
-henri is a simple way to start using [Feathers](http://feathersjs.com/) and [Next.js](https://github.com/zeit/next.js)
+henri is an easy to learn rails-like, react server-side rendered framework
 
 - [How to use](#how-to-use)
   - [Examples](#examples)
   - [Basic setup](#basic-setup)
 - [Server example](#server)
-- [Client helpers](#client)
-  - [withClient](#withclient)
-  - [withAuth](#withauth)
-  - [withLock](#withlock)
-  - [withData](#withdata)
 - [Plans, plans!](#plans)
 
 ## How to use
@@ -33,7 +24,7 @@ henri is a simple way to start using [Feathers](http://feathersjs.com/) and [Nex
 To install:
 
 ```bash
-  npm install henri --save
+  npm install -g henri
 ```
 
 ### Examples

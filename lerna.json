@@ -4,7 +4,11 @@
     "packages/*"
   ],
   "changelog": {
+<<<<<<< HEAD
     "repo": "facebookincubator/create-react-app",
+=======
+    "repo": "usehenri/henri",
+>>>>>>> scripts-new
     "labels": {
       "tag: new feature": ":rocket: New Feature",
       "tag: breaking change": ":boom: Breaking Change",
@@ -15,5 +19,10 @@
     },
     "cacheDir": ".changelog"
   },
+<<<<<<< HEAD
   "version": "0.9.0-alpha.7"
 }
+=======
+  "version": "0.9.0-alpha.5"
+}
+>>>>>>> scripts-new
