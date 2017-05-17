@@ -1,6 +1,6 @@
 {
-  "name": "@usehenri/henri",
-  "version": "0.9.0-alpha.3",
+  "name": "henri",
+  "version": "0.9.0-alpha.6",
   "description": "henri is feathers + next.js",
   "main": "index.js",
   "scripts": {
