@@ -1,0 +1,34 @@
+{
+  "name": "@usehenri/henri",
+  "version": "0.9.0-alpha.3",
+  "description": "henri is feathers + next.js",
+  "main": "index.js",
+  "scripts": {
+    "lint": "prettier *.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git"
+  },
+  "bin": {
+    "henri": "bin/henri.js"
+  },
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "homepage": "https://github.com/usehenri/henri#readme",
+  "dependencies": {
+    "@usehenri/cli": "alpha",
+    "@usehenri/config": "alpha",
+    "@usehenri/controller": "alpha",
+    "@usehenri/log": "alpha",
+    "@usehenri/model": "alpha",
+    "@usehenri/router": "alpha",
+    "@usehenri/server": "alpha",
+    "@usehenri/user": "alpha",
+    "@usehenri/view": "alpha"
+  },
+  "devDependencies": {}
+}
