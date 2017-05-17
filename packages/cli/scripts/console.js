@@ -7,7 +7,7 @@ const server = require('./server');
 let name = 'henri';
 
 try {
-  name = require(path.resolve(process.cwd(), 'package.json')).name;
+  name = require(path.resolve(process.cwd(), 'package.json')).name || 'henri';
 } catch (e) {}
 
 const main = args => {
