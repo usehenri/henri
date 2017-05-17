@@ -29,5 +29,6 @@ switch (command) {
     cmd(argv);
     break;
   default:
-    require('./scripts/help');
+    const help = require('./scripts/help');
+    help();
 }
