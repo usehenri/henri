@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/cli",
-  "version": "0.9.0-alpha.5",
+  "version": "0.9.0-alpha.6",
   "description": "henri cli runner",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
