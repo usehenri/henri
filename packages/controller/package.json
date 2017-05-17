@@ -1,0 +1,14 @@
+{
+  "name": "@usehenri/controller",
+  "version": "0.9.0-alpha.5",
+  "description": "henri controllers loader",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "include-all": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.18"
+  }
+}

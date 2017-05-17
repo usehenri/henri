@@ -1,0 +1,16 @@
+{
+  "name": "@usehenri/log",
+  "version": "0.9.0-alpha.5",
+  "description": "henri logger",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "winston": "^2.3.1"
+  },
+  "devDependencies": {
+    "@types/config": "^0.0.32",
+    "@types/node": "^7.0.18",
+    "@types/winston": "^2.3.2"
+  }
+}

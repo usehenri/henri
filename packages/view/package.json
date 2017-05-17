@@ -1,0 +1,17 @@
+{
+  "name": "@usehenri/view",
+  "version": "0.9.0-alpha.5",
+  "description": "henri view handler",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^15.5.4",
+    "react-dom": "^15.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.18",
+    "@types/react": "^15.0.24",
+    "@types/react-dom": "^15.5.0"
+  }
+}
