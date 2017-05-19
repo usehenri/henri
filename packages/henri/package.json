@@ -1,7 +1,7 @@
 {
   "name": "henri",
-  "version": "0.9.0-alpha.8",
-  "description": "henri is feathers + next.js",
+  "version": "0.9.0",
+  "description": "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
   "main": "index.js",
   "scripts": {
     "lint": "prettier *.js"
