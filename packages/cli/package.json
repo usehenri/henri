@@ -21,7 +21,6 @@
     "server",
     "new",
     "init",
-    "console",
-    "eject"
+    "console"
   ]
 }
