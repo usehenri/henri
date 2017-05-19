@@ -20,14 +20,14 @@
   },
   "homepage": "https://github.com/usehenri/henri#readme",
   "dependencies": {
-    "@usehenri/cli": "alpha",
-    "@usehenri/config": "alpha",
-    "@usehenri/controller": "alpha",
-    "@usehenri/log": "alpha",
-    "@usehenri/model": "alpha",
-    "@usehenri/router": "alpha",
-    "@usehenri/server": "alpha",
-    "@usehenri/user": "alpha",
-    "@usehenri/view": "alpha"
+    "@usehenri/cli": "0.9.0-alpha.7",
+    "@usehenri/config": "0.9.0-alpha.5",
+    "@usehenri/controller": "0.9.0-alpha.5",
+    "@usehenri/log": "0.9.0-alpha.5",
+    "@usehenri/model": "0.9.0-alpha.5",
+    "@usehenri/router": "0.9.0-alpha.5",
+    "@usehenri/server": "0.9.0-alpha.5",
+    "@usehenri/user": "0.9.0-alpha.5",
+    "@usehenri/view": "0.9.0-alpha.5"
   }
 }
