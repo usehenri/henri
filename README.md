@@ -11,313 +11,232 @@
 [![npm downloads](https://img.shields.io/npm/dm/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![bitHound Overall Score](https://www.bithound.io/github/usehenri/henri/badges/score.svg)](https://www.bithound.io/github/usehenri/henri)
 
-henri is an easy to learn rails-like, react server-side rendered framework
+henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM
 
 - [How to use](#how-to-use)
-  - [Examples](#examples)
-  - [Basic setup](#basic-setup)
-- [Server example](#server)
+- [Configuration](#configuration)
+- [Models](#models)
+- [Views](#views)
+- [Controllers](#controllers)
+- [Routes](#routes)
 - [Plans, plans!](#plans)
 
 ## How to use
 
-To install:
+### To install:
 
 ```bash
   npm install -g henri
 ```
 
-### Examples
+### To create a new project:
 
-Examples (outdated) can be found [here](https://github.com/simplehub/henri/examples/).
-
-### Basic setup
-
-Create a default config in `config/default.json` containing Feathers configs:
-
-```json
-{
-  "host": "localhost",
-  "port": 3030,
-  "endpoint": "http://localhost:3000/",
-  "nedb": "../data/",
-  "next": "../src/client/",
-  "auth": {
-    "secret": "some-secret",
-    "local": {},
-    "cookie": {
-      "enabled": true
-    }
-  }
-}
-
+```bash
+  henri new <folder name>
 ```
 
-With the above config, your directory structure should look like this:
+The above command will create a directory structure similar to this:
 
 ```
+├── app/
+│   ├── controllers/
+│   ├── helpers/
+│   ├── models/
+│   ├── views/
+│   ├── routes.js
 ├── config/
 │   ├── default.json
-├── node_modules/
-├── src/
-│   ├── client/
-│   │   ├── pages
-│   │   │   ├── index.js
-│   │   │   ├── a.js
-│   │   │   ├── b.js
-│   │   ├── static
-│   │   │   ├── favicon.ico
-│   │   │   ├── some.css
-│   ├── index.js
+├── logs/
 ├── package.json
 ```
 
-And finally, add this to your `src/index.js` and you're ready to go:
+If you have a rails background, this might look familiar.
 
-```js
-const henri = require('henri');
+One last step to start coding is:
 
-// Feathers app (express-like)
-const app = henri.init();
-
-// The Next.js renderer
-const view = app.view;
-// You should register your service right here / add connectors
-
-// Next.js
-app.get('/', (req, res) => {
-  return view.render(req, res, '/index');
-});
-
-app.get('/a', (req, res) => {
-  return view.render(req, res, '/a');
-});
-
-app.get('/b', (req, res) => {
-  // Allow from multiple origin (Access-Control-Allow-Origin=*)
-  res.forceCORS = true;
-  return app.view.render(req, res, '/a');
-});
-
-// normal express routes
-app.get('/hello', (req, res) => {
-  return res.render('Hello, Henri!');
-});
-
-henri.run();
+```bash
+  cd <folder name>
+  henri server
 ```
 
-## Server
+And you're good to go!
 
-Once you have required henri, we invoke `init()` to bootstrap and return an express-like instance:
-```js
-const app = henri.init();
-```
+## Configuration
 
-Routes can be added directly or using `configure()`: 
+The configuration is a json file located in the `config` directory. We use
+the [config](https://github.com/lorenwest/node-config) package to load them.
 
-```js
-// src/index.js
+You can have a `default.json`, `production.json`, etc.
 
-const henri = require('henri');
-const routes = require('./routes');
-
-const app = henri.init();
-
-app.configure(routes);
-
-app.get('/hello', (req, res) => {
-  return res.render('Hello, Henri!');
-});
-
-henri.run();
-
-```
-
-```js
-// src/routes.js
-
-module.exports = function () {
-  const app = this;
-
-  const view = app.view;
-
-  app.get('/', (req, res) => {
-    if (req.authenticated) {
-      console.log('user is authenticated');
+```json
+{
+  "log": "main.log", 
+  "stores": { 
+    "default": {
+      "adapter": "disk"
+    },
+    "sql01": {
+      "adapter": "mysql",
+      "user": "someuser",
+      "password": "somepass",
+      "host": "somedb01.dbland.com",
+      "database": "thedb"
     }
-    return view.render(req, res, '/');
-  });
+  },
+  "secret": "25bb9ed0b0c44cc3549f1a09fc082a1aa3ec91fbd4ce9a090b"
+}
+```
+
+## Models
+
+You can easily add models under `app/models`.
+
+They will be autoloaded and available throughout your application. 
+
+You can have multiple adapters and you can have relations between models living
+on different adapters, thanks to [waterline](https://github.com/balderdashy/waterline)
+
+```js
+// app/models/User.js
+
+// Whenever you have a User model, it will be overloaded with the following:
+
+// email: string
+// password: string
+// beforeCreate: encrypts the password
+// beforeUpdate: encrypts the password
+
+module.exports = {
+  identity: 'user',
+  datastore: 'sql01', // see the demo configuration up there
+  attributes: {
+    firstName: { type: 'string' },
+    lastName: { type: 'string' },
+    tasks: { collection: 'tasks' }
+  }
 };
 
 ```
 
-You can configure services, middlewares and hooks the same way you do with Feathers.
+```js
+# app/models/Tasks.js
 
-## Client
-
-We provide 4 Higher-Order Components to help you interact with your backend and provide helper methods:
-
-### `withClient`
-
-`withClient` provides you the `client` props and `session` (on first server load)
-
-```jsx
-import React from 'react';
-
-import { withClient } from 'henri/client';
-
-class IndexPage extends React.Component {
-  componentDidMount() {
-    const { client } = this.props;
-    const service = client.service('/message');
-    service.find({}).then(msgs => {
-      this.setState({ messages: msgs.data });
-    });
+module.exports = {
+  identity: 'tasks',
+  datastore: 'default', // see the demo configuration up there
+  attributes: {
+    name: { type: 'string', required: true },
+    category: {
+      type: 'string',
+      validations: {
+        isIn: ['urgent', 'high', 'medium', 'low']
+      },
+      defaultsTo: 'low'
+    }
   }
-  render() {
-    return (
-      <App {...this.props}>
-        <div>Hello!</div>
-        <ul>
-          {this.state.messages && this.state.messages.map((msg, i) => {
-            <li key={i}>{msg.body}</li>
-          })}
-        </ul>
-      </App>
-    );
-  }
-}
-
-export default withClient(IndexPage);
+};
 
 ```
 
-### `withAuth`
+## Views
 
-`withAuth` will use `withClient` and populate the `user` props and expose the following methods:
+We use [next.js](https://github.com/zeit/next.js) to render pages and inject
+data from controllers. You can only add pages and if the defined routes don't
+match, and next matches a route, it will be rendered. 
 
- -  `login({ email: 'hello@usehenri.io, password: 'bar' }).then...`
- -  `signup({ email: 'hello@usehenri.io, password: 'bar', other: 'fields' })`
- -  `logout(e, callback)`
-
-`login` and `signup` return a promise:
+The data injected into the view can be refetched with the `/_data/` suffix.
 
 ```jsx
+
+// app/views/pages/log.js 
+
 import React from 'react';
+import Link from 'next/link';
 
-import { withAuth } from 'henri/client';
-
-class LoginPage extends React.Component {
-  constructor() {
-    super();
-    this.update = this.update.bind(this);
-    this.login = this.login.bind(this);
-    this.state = { email: '', password: '' };
-  }
-  update(ev) {
-    this.setState({ [ev.target.name]: ev.target.value });
-  }
-  login(ev) {
-    ev.preventDefault();
-    const { login } = this.props;
-    const { email, password } = this.state;
-
-    login({email, password}).then(() => debug('woohoo')).catch(() => debug('oooh snap'));
-  }
-  render() {
-    return (
-      <App {...this.props}>
-        <div>Hello {this.props.user ? this.props.user.fullName : 'stranger'}!</div>
-        <div>
-          <form onSubmit={this.login}>
-            <input type='text' placeHolder='email' onChange={(e) => this.update(e)} name='email' value={this.state.email} />
-            <input type='password' placeHolder='password' onChange={(e) => this.update(e)} name='password' value={this.state.password} />
-          </form>
-        </div>
-      </App>
-    );
-  }
-}
-
-export default withAuth(IndexPage);
+export default (data) => (
+  <div>
+    <div>{data}</div>
+    <Link href="/home"><a>Home</a></Link>
+  </div>
+);
 
 ```
 
-### `withLock`
 
-`withLock` takes two arguments: the component we need to secure and a `fallback component` or `route` location. `withLock` is wrapped by `withAuth()` (and `withClient()`)...
+## Controllers
 
-```jsx
-import React from 'react';
+You can easily add controllers under `app/controllers`.
 
-import { withLock } from 'henri/client';
+They will be autoloaded and available throughout your application.
 
-import Error401 from '../components/error401';
+```js
+// app/controllers/User.js
 
-const secureComponent = (props) => <div>really secure. wohh</div>;
-
-export default withLock(secureComponent, Error401);
-
-// Or...
-
-export default withLock(secureComponent, '/login');
-
+module.exports = {
+  info: async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(403).send("Sorry! You can't see that.");
+    }
+    const { user } = henri;
+    if (await User.count({ email: 'felix@usehenri.io' })) {
+      await User.update({ email: 'felix@usehenri.io' }, { password: 'blue' });
+      return res.send('user exists.');
+    }
+    try {
+      await user.compare('moo', pass);
+      res.send('logged in!');
+    } catch (error) {
+      res.send('not good');
+    }
+  },
+  create: (req, res) => {
+    await User.create({ email: 'felix@usehenri.io', password: 'moo' });
+  },
+  fetch: async (req, res) => {
+    const users = await User.find();
+    res.send(users);
+  },
+  postinfo: async (req, res) => {
+    let data = req.isAuthenticated() ? await User.find() : {};
+    res.render('/log', data);
+  }
+};
 ```
 
-### `withData`
+## Routes
 
-`withData` also takes two arguments: the child component and a Promise or null.
+Routes are defined in `app/routes.js`. Also, any pages in `app/views/pages` will
+be rendered if no routes match before.
 
-`withData` is **NOT** wrapped by `withAuth()` or `withClient()`...
+Routes are a simple object with a key standing as a route or an action verb
+(used by express) and a route.
 
-It will use `getInitialProps` and `componentDidMount` to make sure you always have your data handy.
+Each route define here will also have a `/_data/` route attached that will return
+only the data injected into the view if you use `res.render`. 
 
-***SERVER SIDE*** If you want your query to be run server-side, export a function named `fetchData` that will be run server-side.
+As with the `/log` route above, fetching `/log` will give you a SSR React page and
+calling `/_data/log` will return a json object containing the users.
 
-This function is called with two arguments: `client` and `user`. See below:
+```js
+// app/routes.js
 
-```jsx
-import React from 'react';
-
-import { withClient, withData } from 'henri/client';
-
-class IndexPage extends React.Component {
-  render() {
-    return (
-      <App {...this.props}>
-        <div>Hello!</div>
-        <ul>
-          {this.props.data && this.props.data.map((msg, i) => {
-            <li key={i}>{msg.body}</li>
-          })}
-        </ul>
-      </App>
-    );
-  }
-}
-
-// Really need to be named fetchData as it will be called server-side
-export const fetchData = (client, user, query) => {
-  // client: this.props.client or app (server-side)
-  // user: the user object (as in this.props.session.user)
-  // query: url query parameters
-  const service = client.service('/message');
-  if (!user) {
-    return;
-  }
-  return service.find({});
-}
-
-export default withClient(withData(IndexPage, fetchData));
+module.exports = {
+  '/test': 'user#info', // default to 'get /test'
+  '/abc/:id': 'moo#iii', // as this controller does not exists, route won't be loaded
+  '/user/find': 'user#fetch', 
+  'get /poo': 'user#postinfo',
+  'post /poo': 'user#create'
+};
 
 ```
 
 ## Plans
 
- - Fix `withData` so it works server-side (done!)
- - Add a `withRedux` helper
- - Add a generator (possibly?)
+ - Add server reload
+ - Add helpers integration
+ - Add documentation!
+ - Build a website
+ - Add React HOC to handle data and refresh
  - Report bugs!
 
 ## Contributing
@@ -326,8 +245,9 @@ export default withClient(withData(IndexPage, fetchData));
 
 ## Thanks to the following and their contributors
 
-  - [Feathers](http://feathersjs.com/)
   - [Next.js](https://github.com/zeit/next.js)
+  - [Express](https://expressjs.com/)
+  - [Waterline](https://github.com/balderdashy/waterline)
 
 ## Author
 
