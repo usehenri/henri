@@ -10,7 +10,6 @@
   },
   "devDependencies": {
     "@types/config": "^0.0.32",
-    "@types/node": "^7.0.18",
-    "@types/winston": "^2.3.2"
+    "@types/node": "^7.0.18"
   }
 }
