@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/log",
-  "version": "0.9.0-alpha.5",
+  "version": "0.9.3",
   "description": "henri logger",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
