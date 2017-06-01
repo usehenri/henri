@@ -13,6 +13,9 @@
   "bin": {
     "henri": "bin/henri.js"
   },
+  "engines": {
+    "node": ">=7.6.0"
+  },
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "bugs": {
@@ -20,14 +23,6 @@
   },
   "homepage": "https://github.com/usehenri/henri#readme",
   "dependencies": {
-    "@usehenri/cli": "^0.9.3",
-    "@usehenri/config": "^0.9.3",
-    "@usehenri/controller": "^0.9.3",
-    "@usehenri/log": "^0.9.3",
-    "@usehenri/model": "^0.9.3",
-    "@usehenri/router": "^0.9.3",
-    "@usehenri/server": "^0.9.3",
-    "@usehenri/user": "^0.9.3",
-    "@usehenri/view": "^0.9.3"
+    "@usehenri/cli": "^0.9.3"
   }
 }
