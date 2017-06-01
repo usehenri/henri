@@ -1,1 +1,0 @@
-for dir in ./packages/*; do (cd "$dir" && echo "" && echo "$dir" && sudo -H yarn link); done
