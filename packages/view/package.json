@@ -5,7 +5,18 @@
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "autoprefixer": "^7.1.1",
+    "babel-loader": "^7.0.0",
+    "babel-plugin-module-resolver": "^2.7.1",
+    "babel-plugin-wrap-in-js": "^1.1.1",
+    "glob": "^7.1.2",
+    "postcss-easy-import": "^2.0.0",
+    "postcss-loader": "^2.0.5",
+    "raw-loader": "^0.5.1",
+    "sass-loader": "^6.0.5",
+    "webpack": "^2.6.1"
+  },
   "devDependencies": {
     "@types/node": "^7.0.22"
   }
