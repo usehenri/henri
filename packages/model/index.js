@@ -11,7 +11,7 @@ function load(location) {
         dirname: path.resolve(location),
         filter: /(.+)\.js$/,
         excludeDirs: /^\.(git|svn)$/,
-        flatten: true
+        flatten: true,
       },
       (err, modules) => {
         if (err) {
@@ -32,9 +32,9 @@ async function configure(models) {
       primaryKey: 'id',
       datastore: 'default',
       attributes: {
-        id: { type: 'number', autoMigrations: { autoIncrement: true } }
-      }
-    }
+        id: { type: 'number', autoMigrations: { autoIncrement: true } },
+      },
+    },
   };
 
   for (const id in models) {
@@ -102,3 +102,5 @@ async function init() {
 }
 
 module.exports = init();
+
+henri.log.info('model module loaded.');

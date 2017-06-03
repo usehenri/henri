@@ -33,5 +33,7 @@ if (!global['henri']) {
   global['henri'] = {};
 }
 
+henri.log.info('server module loaded.');
+
 global['henri'].app = app;
 global['henri'].start = start;

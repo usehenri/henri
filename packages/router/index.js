@@ -11,9 +11,9 @@ function register(verb, route, controller, fn) {
   }
   const name = `${verb} ${route}`;
   const entry = {};
-  entry[
-    name
-  ] = `${controller}${typeof fn !== 'function' ? ' (unknown controller)' : ' (ok)'}`;
+  entry[name] = `${controller}${typeof fn !== 'function'
+    ? ' (unknown controller)'
+    : ' (ok)'}`;
   henri._globalRoutes.push(entry);
 }
 
@@ -46,3 +46,5 @@ if (next) {
     henri.start(global['_initialDelay'] || null);
   });
 }
+
+henri.log.info('router module loaded.');
