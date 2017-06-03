@@ -1,6 +1,7 @@
 const webpack = require('webpack');
 const path = require('path');
 const glob = require('glob');
+
 const dir = path.resolve(process.cwd(), 'app/views');
 
 module.exports = {
@@ -69,6 +70,9 @@ module.exports = {
                 root: ['.'],
                 alias: {
                   styles: './styles',
+                  components: './components',
+                  assets: './assets',
+                  helpers: './helpers',
                 },
                 cwd: dir,
               },
