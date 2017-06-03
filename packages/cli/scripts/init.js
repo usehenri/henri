@@ -28,9 +28,9 @@ const main = (args, name) => {
   pkg.dependencies = pkg.dependencies || {};
 
   // Add required dependencies
-  pkg.dependencies['next'] = pkg.dependencies['next'] || '2.4.0';
-  pkg.dependencies['react'] = pkg.dependencies['react'] || '15.5.4';
-  pkg.dependencies['react-dom'] = pkg.dependencies['react-dom'] || '15.5.4';
+  pkg.dependencies['next'] = pkg.dependencies['next'] || '^3.0.0-beta9';
+  pkg.dependencies['react'] = pkg.dependencies['react'] || '^15.5.4';
+  pkg.dependencies['react-dom'] = pkg.dependencies['react-dom'] || '^15.5.4';
 
   // Import existing devDependencies if present
   pkg.devDependencies = pkg.devDependencies || {};
@@ -40,7 +40,7 @@ const main = (args, name) => {
     start: 'henri server',
     production: 'henri production',
     update: 'henri update',
-    eject: 'henri eject'
+    eject: 'henri eject',
   };
 
   // Write package.json to filesystem
@@ -69,7 +69,7 @@ const main = (args, name) => {
 
   fs.copySync(templatePath, cwd);
   fs.moveSync(path.resolve(cwd, 'gitignore'), path.resolve(cwd, '.gitignore'), {
-    overwrite: true
+    overwrite: true,
   });
 
   console.log(' - Generating a new default.json config file...');
@@ -79,10 +79,10 @@ const main = (args, name) => {
     log: 'main.log',
     stores: {
       default: {
-        adapter: 'disk'
-      }
+        adapter: 'disk',
+      },
     },
-    secret: `${buf.toString('hex')}`
+    secret: `${buf.toString('hex')}`,
   };
 
   fs.writeFileSync(
