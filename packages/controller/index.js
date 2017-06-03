@@ -9,7 +9,7 @@ function load(location) {
         filter: /(.+)\.js$/,
         excludeDirs: /^\.(git|svn)$/,
         flatten: true,
-        keepDirectoryPath: true
+        keepDirectoryPath: true,
       },
       (err, modules) => {
         if (err) {
@@ -44,3 +44,5 @@ async function init() {
 }
 
 module.exports = init();
+
+henri.log.info('controller module loaded.');

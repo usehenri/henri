@@ -13,8 +13,8 @@ const options = {
   usernameField: 'email',
   jwt: {
     jwtFromRequest: ExtractJwt.fromAuthHeader(),
-    secretOrKey: henri.config.get('secret')
-  }
+    secretOrKey: henri.config.get('secret'),
+  },
 };
 
 async function encrypt(password) {
@@ -86,11 +86,11 @@ app.use(
     cookie: {
       path: '/',
       httpOnly: true,
-      maxAge: 365 * 24 * 60 * 60 * 1000 // e.g. 1 year
+      maxAge: 365 * 24 * 60 * 60 * 1000, // e.g. 1 year
     },
     store: new NedbStore({
-      filename: '.tmp/nedb-sessions.db'
-    })
+      filename: '.tmp/nedb-sessions.db',
+    }),
   })
 );
 
@@ -112,7 +112,7 @@ app.post(
   '/login',
   passport.authenticate('local', {
     successRedirect: '/success',
-    failureRedirect: '/failure'
+    failureRedirect: '/failure',
   })
 );
 
@@ -124,5 +124,7 @@ app.get('/logout', function(req, res) {
 
 global['henri'].user = {
   encrypt,
-  compare
+  compare,
 };
+
+henri.log.info('user module loaded.');
