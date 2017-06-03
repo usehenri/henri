@@ -6,6 +6,7 @@ const dir = path.resolve(process.cwd(), 'app/views');
 
 module.exports = {
   webpack: (config, { dev }) => {
+    config.resolveLoader.modules.push(path.resolve(__dirname, 'node_modules'));
     config.module.rules.push(
       {
         test: /\.(css|scss)/,
@@ -65,7 +66,7 @@ module.exports = {
         options: {
           plugins: [
             [
-              'module-resolver',
+              require.resolve('babel-plugin-module-resolver'),
               {
                 root: ['.'],
                 alias: {
@@ -78,7 +79,7 @@ module.exports = {
               },
             ],
             [
-              'wrap-in-js',
+              require.resolve('babel-plugin-wrap-in-js'),
               {
                 extensions: ['css$', 'scss$'],
               },
