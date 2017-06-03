@@ -8,10 +8,9 @@ log.add(winston.transports.Console, { colorize: true });
 if (config.has('log') && typeof config.get('log') === 'string') {
   log.info(`logger initialized. also logging to ${config.get('log')}`);
   log.add(winston.transports.File, { filename: `logs/${config.get('log')}` });
+} else {
+  log.warn('no file set in configuration file: logging to console only');
 }
 
-if (!global['henri']) {
-  global['henri'] = {};
-}
-
-global['henri'].log = log;
+// We don't use addModule as it is not yet registered
+henri.log = log;

@@ -1,9 +1,21 @@
+// Remove config warning when no file is available
+process.env.SUPPRESS_NO_CONFIG_WARNING = true;
+
 const config = require('config');
 
 if (!global['henri']) {
-  global['henri'] = {};
+  global['henri'] = {
+    _modules: {},
+  };
 }
 
-global['henri'].config = config;
+// We don't use addModule as it is not yet registered
+henri.config = config;
+
+require('@usehenri/log');
 
 require('./checks');
+
+require('./register');
+
+henri.addModule('config', config, true);

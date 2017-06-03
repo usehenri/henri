@@ -7,13 +7,19 @@ const ExtractJwt = require('passport-jwt').ExtractJwt;
 const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcrypt-nodejs');
 
-const { app } = henri;
+const { app, config, log } = henri;
+
+if (!config.has('secret')) {
+  // TODO: Document more...
+  log.error('You should provide a secret in your configuration file.');
+  process.exit(-1);
+}
 
 const options = {
   usernameField: 'email',
   jwt: {
     jwtFromRequest: ExtractJwt.fromAuthHeader(),
-    secretOrKey: henri.config.get('secret'),
+    secretOrKey: config.get('secret'),
   },
 };
 

@@ -8,7 +8,6 @@
   "dependencies": {
     "@usehenri/config": "^0.10.0",
     "@usehenri/controller": "^0.10.0",
-    "@usehenri/log": "^0.10.0",
     "@usehenri/model": "^0.10.0",
     "@usehenri/router": "^0.10.0",
     "@usehenri/server": "^0.10.0",

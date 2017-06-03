@@ -4,7 +4,6 @@ const main = ({ skipView }, cb) => {
   async function init() {
     try {
       require('@usehenri/config');
-      require('@usehenri/log');
       require('@usehenri/server');
       require('@usehenri/user');
       await require('@usehenri/model');
