@@ -21,12 +21,24 @@ app.use(express.static(path.join(__dirname, 'app/public')));
 function start(delay) {
   const { config, log } = henri;
   const port = config.has('port') ? config.get('port') : 3000;
-  app.listen(port, function() {
-    const bootTiming = delay
-      ? ` (took ${Math.round(process.hrtime(delay)[1] / 1000000)}ms)`
-      : '';
-    log.info(`server started on port ${port}${bootTiming}`);
-  });
+
+  app
+    .listen(port, function() {
+      const bootTiming = delay
+        ? ` (took ${Math.round(process.hrtime(delay)[1] / 1000000)}ms)`
+        : '';
+      log.info(`server started on port ${port}${bootTiming}`);
+    })
+    .on('error', err => {
+      if (err.code === 'EADDRINUSE') {
+        log.error(`port ${port} is already in use`);
+        console.log('');
+        log.error('modify your config or kill the other process');
+        console.log('');
+        process.exit(-1);
+      }
+      log.error(err);
+    });
 }
 
 if (!global['henri']) {
