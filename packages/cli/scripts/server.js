@@ -1,24 +1,9 @@
-const main = ({ skipView }, cb) => {
-  global['_initialDelay'] = process.hrtime();
+const nodemon = require('nodemon');
 
-  async function init() {
-    try {
-      require('@usehenri/config');
-      require('@usehenri/server');
-      require('@usehenri/user');
-      await require('@usehenri/model');
-      await require('@usehenri/controller');
-      !skipView && (await require('@usehenri/view'));
-      require('@usehenri/router');
-      if (typeof cb === 'function') {
-        cb();
-      }
-    } catch (error) {
-      console.dir(error, { colors: true });
-    }
-  }
-
-  init();
-};
+function main() {
+  nodemon(
+    '-e "js json" --ignore .tmp --ignore logs/ --ignore app/views --exec "henri start-henri"'
+  );
+}
 
 module.exports = main;
