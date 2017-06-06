@@ -6,6 +6,11 @@ const config = require('config');
 if (!global['henri']) {
   global['henri'] = {
     _modules: {},
+    _loaders: {
+      list: [],
+    },
+    _models: [],
+    _globalRoutes: [],
   };
 }
 
@@ -17,5 +22,11 @@ require('@usehenri/log');
 require('./checks');
 
 require('./register');
+
+function reload() {
+  henri.config = require('config');
+}
+
+henri.addLoader(reload);
 
 henri.addModule('config', config, true);

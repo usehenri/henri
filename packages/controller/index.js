@@ -1,6 +1,8 @@
 const includeAll = require('include-all');
 const path = require('path');
 
+const { log } = henri;
+
 function load(location) {
   return new Promise((resolve, reject) => {
     includeAll.optional(
@@ -10,6 +12,7 @@ function load(location) {
         excludeDirs: /^\.(git|svn)$/,
         flatten: true,
         keepDirectoryPath: true,
+        force: true,
       },
       (err, modules) => {
         if (err) {
@@ -32,16 +35,21 @@ async function configure(controllers) {
       }
     }
   }
-  if (!global['henri']) {
-    global['henri'] = {};
-  }
 
-  global['henri'].controllers = configured;
+  henri.controllers = configured;
 }
 
 async function init() {
   await configure(await load('./app/controllers'));
 }
+
+async function reload() {
+  delete henri.controllers;
+  await init();
+  log.warn('controllers reloaded');
+}
+
+henri.addLoader(reload);
 
 module.exports = init();
 
