@@ -31,4 +31,10 @@ henri.addModule = (name, func, force) => {
   log.info(`${name} module loaded.`);
 };
 
+henri.addLoader = func => {
+  if (process.env.NODE_ENV !== 'production' && typeof func === 'function') {
+    henri._loaders.list.push(func);
+  }
+};
+
 henri.version = require('./package.json').version;

@@ -1,5 +1,5 @@
 const waterline = require('waterline');
-const { log, user, config } = henri;
+const { log, user } = henri;
 const includeAll = require('include-all');
 const _ = require('lodash');
 const path = require('path');
@@ -12,6 +12,7 @@ function load(location) {
         filter: /(.+)\.js$/,
         excludeDirs: /^\.(git|svn)$/,
         flatten: true,
+        force: true,
       },
       (err, modules) => {
         if (err) {
@@ -24,6 +25,7 @@ function load(location) {
 }
 
 async function configure(models) {
+  const { config } = henri;
   const configuration = {
     adapters: {},
     datastores: {},
@@ -74,10 +76,8 @@ async function configure(models) {
       };
     }
   }
-  if (!global['henri']) {
-    global['henri'] = {};
-  }
-  global['henri'].models = models;
+
+  henri.models = models;
 
   return configuration;
 }
@@ -86,13 +86,28 @@ async function start(configuration) {
   return new Promise((resolve, reject) => {
     waterline.start(configuration, (err, orm) => {
       if (err) return reject(err);
+      henri.orm = orm;
       const { models } = configuration;
       for (const id in models) {
         const model = models[id];
         const name = _.capitalize(model.identity);
         global[name] = waterline.getModel(model.identity, orm);
+        henri._models.push(name);
       }
       resolve();
+    });
+  });
+}
+
+async function stop() {
+  return new Promise((resolve, reject) => {
+    waterline.stop(henri.orm, err => {
+      if (err) {
+        log.error('something went wrong while stopping the orm', err);
+        return resolve(err);
+      }
+      log.warn('models (orm) gracefully stopped');
+      return resolve();
     });
   });
 }
@@ -100,6 +115,16 @@ async function start(configuration) {
 async function init() {
   await start(await configure(await load('./app/models')));
 }
+
+async function reload() {
+  await stop();
+  henri._models.forEach(name => delete global[name]);
+  henri._models = [];
+  await init();
+  log.warn('models are reloaded');
+}
+
+henri.addLoader(reload);
 
 module.exports = init();
 
