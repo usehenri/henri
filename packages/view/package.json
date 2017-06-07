@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/view",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "henri view handler",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
