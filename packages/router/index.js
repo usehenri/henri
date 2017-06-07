@@ -6,6 +6,8 @@ async function init(reload = false) {
   const { controllers } = henri;
   henri.router = express.Router();
 
+  middlewares();
+
   const routes = require(path.resolve('./app/routes'));
 
   for (const key in routes) {
@@ -54,6 +56,24 @@ function register(verb, route, controller, fn) {
     ? ' (unknown controller)'
     : ' (ok)'}`;
   henri._globalRoutes.push(entry);
+}
+
+function middlewares(router) {
+  henri.router.use((req, res, cb) => {
+    res.locals._req = req;
+    delete res.render;
+    res.render = (route, data) => {
+      const opts = {
+        data,
+        query: req.query,
+      };
+      if (req.url.startsWith('/_data/')) {
+        return res.json(data);
+      }
+      next.render(req, res, route, opts);
+    };
+    cb();
+  });
 }
 
 async function reload() {

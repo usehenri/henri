@@ -13,21 +13,6 @@ const reactView = next({
   conf,
 });
 
-app.use((req, res, next) => {
-  res.locals._req = req;
-  res.render = (route, data) => {
-    const opts = {
-      data,
-      query: req.query,
-    };
-    if (req.url.startsWith('/_data/')) {
-      return res.json(data);
-    }
-    reactView.render(req, res, route, opts);
-  };
-  next();
-});
-
 global['henri'].next = reactView;
 
 henri.log.info('view module loaded.');
