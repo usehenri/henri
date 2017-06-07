@@ -6,7 +6,6 @@ const { version, commands } = require('./utils');
 
 const yarnExists = spawn.sync('yarn', ['help']);
 const cwd = process.cwd();
-const templatePath = path.resolve(__dirname, '../template/');
 
 const check = file => fs.existsSync(path.join(cwd, file));
 
@@ -66,6 +65,8 @@ const main = (args, name) => {
   }
 
   console.log(' - Copying new directory structure...');
+
+  const templatePath = path.resolve(__dirname, '../template/default/');
 
   fs.copySync(templatePath, cwd);
   fs.moveSync(path.resolve(cwd, 'gitignore'), path.resolve(cwd, '.gitignore'), {

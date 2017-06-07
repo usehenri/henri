@@ -10,6 +10,7 @@ const chokidar = require('chokidar');
 const { config, log } = henri;
 
 const app = express();
+const port = config.has('port') ? config.get('port') : 3000;
 
 app.use(timings);
 app.use(compress());
@@ -22,8 +23,6 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'app/public')));
 
 function start(delay) {
-  const port = config.has('port') ? config.get('port') : 3000;
-
   app
     .listen(port, function() {
       const bootTiming = delay
