@@ -20,9 +20,9 @@
   },
   "devDependencies": {
     "@types/chalk": "^0.4.31",
-    "@types/fs-extra": "^3.0.1",
+    "@types/fs-extra": "^3.0.3",
     "@types/minimist": "^1.2.0",
-    "@types/node": "^7.0.18"
+    "@types/node": "^7.0.29"
   },
   "commands": [
     "server",
