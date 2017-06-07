@@ -1,0 +1,25 @@
+.list {
+    padding: 50px;
+    text-align: center;
+}
+
+.photo {
+    display: inline-block;
+}
+
+.photoLink {
+    color: #333;
+    vertical-align: middle;
+    cursor: pointer;
+    background: #eee;
+    display: inline-block;
+    width: 250px;
+    height: 250px;
+    line-height: 250px;
+    margin: 10px;
+    border: 2px solid transparent;
+}
+
+.photoLink:hover {
+    border-color: orange;
+}
