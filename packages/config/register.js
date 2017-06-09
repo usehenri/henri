@@ -37,4 +37,10 @@ henri.addLoader = func => {
   }
 };
 
+henri.addReaper = func => {
+  if (typeof func === 'function') {
+    henri._reapers.list.unshift(func);
+  }
+};
+
 henri.version = require('./package.json').version;

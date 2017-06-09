@@ -9,6 +9,9 @@ if (!global['henri']) {
     _loaders: {
       list: [],
     },
+    _reapers: {
+      list: [],
+    },
     _models: [],
     _globalRoutes: [],
   };
