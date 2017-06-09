@@ -6,11 +6,17 @@ const compress = require('compression');
 const cors = require('cors');
 const path = require('path');
 const chokidar = require('chokidar');
+const {
+  choosePort,
+  prepareUrls,
+} = require('react-dev-utils/WebpackDevServerUtils');
+const openBrowser = require('react-dev-utils/openBrowser');
 
 const { config, log } = henri;
 
 const app = express();
-const port = config.has('port') ? config.get('port') : 3000;
+
+let port = config.has('port') ? config.get('port') : 3000;
 
 app.use(timings);
 app.use(compress());
@@ -22,14 +28,20 @@ app.use(cookieParser());
 
 app.use(express.static(path.join(__dirname, 'app/public')));
 
-function start(delay) {
+async function start(delay) {
+  port = process.env.NODE_ENV !== 'production'
+    ? await choosePort('0.0.0.0', port)
+    : port;
   app
     .listen(port, function() {
       const bootTiming = delay
         ? ` (took ${Math.round(process.hrtime(delay)[1] / 1000000)}ms)`
         : '';
+      const urls = prepareUrls('http', '0.0.0.0', port);
       log.info(`server started on port ${port}${bootTiming}`);
       process.env.NODE_ENV !== 'production' && watch();
+      process.env.NODE_ENV !== 'production' &&
+        openBrowser(urls.localUrlForBrowser);
     })
     .on('error', handleError);
 }
