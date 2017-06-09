@@ -51,16 +51,33 @@ async function watch() {
   const watcher = chokidar.watch('.', { ignored });
   watcher.on('ready', () => {
     watcher.on('all', (event, path) => {
-      const loaders = henri._loaders.list;
       log.warn('changes detected in', path);
-      reload(loaders);
+      reload();
     });
     log.info('watching filesystem for changes...');
   });
+  process.stdin.resume();
+  process.stdin.on('data', async data => {
+    data = data.toString();
+    const chr = data.charCodeAt(0);
+    if (chr === 3) {
+      await henri.stopORM();
+      console.log('');
+      log.warn('exiting application...');
+      console.log('');
+      process.exit(0);
+    }
+    if (chr === 18) {
+      log.warn('user-requested server reload...');
+      reload();
+    }
+  });
+  process.stdin.setRawMode(true);
 }
 
-async function reload(loaders) {
+async function reload() {
   const start = process.hrtime();
+  const loaders = henri._loaders.list;
   Object.keys(require.cache).forEach(function(id) {
     delete require.cache[id];
   });
