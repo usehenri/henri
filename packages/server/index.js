@@ -26,7 +26,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-app.use(express.static(path.join(__dirname, 'app/public')));
+app.use(express.static(path.resolve(process.cwd(), 'app/views/public')));
 
 async function start(delay) {
   port = process.env.NODE_ENV !== 'production'
