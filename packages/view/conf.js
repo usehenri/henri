@@ -41,7 +41,7 @@ module.exports = {
             options: {
               plugins: loader => [
                 require('postcss-easy-import')({ prefix: '_' }),
-                require('autoprefixer')(),
+                require('postcss-cssnext')(),
               ],
             },
           },
