@@ -126,7 +126,7 @@ async function reload() {
 
 henri.addLoader(reload);
 
-henri.stopORM = stop;
+henri.addReaper(stop);
 
 module.exports = init();
 

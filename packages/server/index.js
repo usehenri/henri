@@ -61,8 +61,7 @@ async function watch() {
     data = data.toString();
     const chr = data.charCodeAt(0);
     if (chr === 3) {
-      await henri.stopORM();
-      console.log('');
+      await stop();
       log.warn('exiting application...');
       console.log('');
       process.exit(0);
@@ -89,6 +88,22 @@ async function reload() {
     }
     const end = Math.round(process.hrtime(start)[1] / 1000000);
     log.info(`server hot reload completed in ${end}ms`);
+  } catch (e) {
+    log.error(e);
+  }
+}
+
+async function stop() {
+  const start = process.hrtime();
+  const reapers = henri._reapers.list;
+  try {
+    if (reapers.length > 0) {
+      for (reaper of reapers) {
+        await reaper();
+      }
+    }
+    const end = Math.round(process.hrtime(start)[1] / 1000000);
+    log.warn(`server tear down completed in ${end}ms`);
   } catch (e) {
     log.error(e);
   }
