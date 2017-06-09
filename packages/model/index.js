@@ -126,6 +126,8 @@ async function reload() {
 
 henri.addLoader(reload);
 
+henri.stopORM = stop;
+
 module.exports = init();
 
 henri.log.info('model module loaded.');
