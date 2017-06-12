@@ -6,8 +6,8 @@
   "devDependencies": {
     "husky": "^0.13.3",
     "lerna": "2.0.0-rc.5",
-    "lint-staged": "^3.5.0",
-    "prettier": "^1.4.1"
+    "lint-staged": "^3.6.1",
+    "prettier": "^1.4.4"
   },
   "lint-staged": {
     "*.js": [
