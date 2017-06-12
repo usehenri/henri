@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/user",
-  "version": "0.13.1",
+  "version": "0.15.0",
   "description": "henri user management",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
