@@ -53,4 +53,4 @@ henri.addLoader(reload);
 
 module.exports = init();
 
-henri.log.info('controller module loaded.');
+log.info('controller module loaded.');

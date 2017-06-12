@@ -55,7 +55,7 @@ async function compare(password, hash, user) {
 }
 
 async function checkLocal(email, password, done) {
-  henri.log.info('in check local', email, password);
+  log.info('in check local', email, password);
   try {
     const user = await User.findOne({ email: email });
     await compare(password, user.password);
@@ -123,7 +123,7 @@ app.post(
 );
 
 app.get('/logout', function(req, res) {
-  henri.log.info('Logging out user', req.user);
+  log.info('Logging out user', req.user);
   req.logout();
   res.redirect('/');
 });
@@ -133,4 +133,4 @@ global['henri'].user = {
   compare,
 };
 
-henri.log.info('user module loaded.');
+log.info('user module loaded.');
