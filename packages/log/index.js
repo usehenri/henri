@@ -1,9 +1,35 @@
 const winston = require('winston');
+const chalk = require('chalk');
+const path = require('path');
+const stringWidth = require('string-width');
+const notifier = require('node-notifier');
 const { config } = henri;
 
 const log = new winston.Logger();
 
-log.add(winston.transports.Console, { colorize: true });
+log.add(winston.transports.Console, {
+  colorize: true,
+  formatter: function(options) {
+    // thanks to https://github.com/geowarin/friendly-errors-webpack-plugin/
+    const color = getColor(options.level);
+    const date = new Date();
+    const dateString = chalk.grey(date.toLocaleTimeString());
+    const title = chalk[color].inverse(` ${options.level.toUpperCase()} `);
+    const message = chalk[color](options.message ? options.message : '');
+    const meta = chalk[color](
+      options.meta && Object.keys(options.meta).length
+        ? '\n\t' + JSON.stringify(options.meta, null, 2)
+        : ''
+    );
+    const fullMsg = `${title} ${message || meta}`;
+    let space =
+      process.stdout.columns - stringWidth(fullMsg) - stringWidth(dateString);
+    if (space <= 0) {
+      space = 10;
+    }
+    return `${fullMsg}${' '.repeat(space)}${dateString}`;
+  },
+});
 
 if (config.has('log') && typeof config.get('log') === 'string') {
   log.info(`logger initialized. also logging to ${config.get('log')}`);
@@ -12,5 +38,34 @@ if (config.has('log') && typeof config.get('log') === 'string') {
   log.warn('no file set in configuration file: logging to console only');
 }
 
+function getColor(level) {
+  switch (level.toLowerCase()) {
+    case 'error':
+      return 'red';
+    case 'warn':
+      return 'yellow';
+    case 'info':
+      return 'green';
+    case 'verbose':
+      return 'white';
+    case 'debug':
+      return 'blue';
+    case 'silly':
+      return 'magenta';
+    default:
+      return 'red';
+  }
+}
+
+function notify(title = 'No title', message = 'No message') {
+  if (process.env.NODE_ENV !== 'production') {
+    notifier.notify({
+      title,
+      message,
+      icon: path.join(__dirname, 'henri.png'),
+    });
+  }
+}
 // We don't use addModule as it is not yet registered
 henri.log = log;
+henri.notify = notify;

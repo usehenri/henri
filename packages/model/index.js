@@ -130,4 +130,4 @@ henri.addReaper(stop);
 
 module.exports = init();
 
-henri.log.info('model module loaded.');
+log.info('model module loaded.');

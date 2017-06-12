@@ -12,7 +12,7 @@ const {
 } = require('react-dev-utils/WebpackDevServerUtils');
 const openBrowser = require('react-dev-utils/openBrowser');
 
-const { config, log } = henri;
+const { config, log, notify } = henri;
 
 const app = express();
 
@@ -88,6 +88,8 @@ async function reload() {
     }
     const end = Math.round(process.hrtime(start)[1] / 1000000);
     log.info(`server hot reload completed in ${end}ms`);
+    console.log('');
+    notify('Hot-reload', 'Server-side hot reload completed..');
   } catch (e) {
     log.error(e);
   }
@@ -127,4 +129,4 @@ henri.app = app;
 henri.express = express;
 henri.start = start;
 
-henri.log.info('server module loaded.');
+log.info('server module loaded.');
