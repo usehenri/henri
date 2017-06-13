@@ -40,8 +40,7 @@ async function start(delay) {
       const urls = prepareUrls('http', '0.0.0.0', port);
       log.info(`server started on port ${port}${bootTiming}`);
       process.env.NODE_ENV !== 'production' && watch();
-      process.env.NODE_ENV !== 'production' &&
-        openBrowser(urls.localUrlForBrowser);
+      henri.localUrlForBrowser = urls.localUrlForBrowser;
     })
     .on('error', handleError);
 }
@@ -70,8 +69,23 @@ async function watch() {
       log.warn('user-requested server reload...');
       reload();
     }
+    if (chr === 14 || chr === 15) {
+      if (henri.localUrlForBrowser) {
+        openBrowser(henri.localUrlForBrowser);
+      }
+    }
   });
   process.stdin.setRawMode(true);
+  setTimeout(() => {
+    console.log('');
+    const cmdCtrl = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
+    log.info(`To reload the server codebase, use ${cmdCtrl}+R`);
+    log.info(
+      `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${cmdCtrl}+N`
+    );
+    log.info(`To quit, use ${cmdCtrl}+C`);
+    console.log('');
+  }, 2 * 1000);
 }
 
 async function reload() {
