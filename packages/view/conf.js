@@ -12,6 +12,10 @@ try {
   const conf = require(path.resolve(process.cwd(), 'config', 'webpack.js'));
   if (typeof conf.webpack === 'function') {
     userConfig = conf.webpack;
+  } else {
+    log.error(
+      `Can't load your config/webpack.js file. It should export a function.`
+    );
   }
 } catch (e) {}
 
