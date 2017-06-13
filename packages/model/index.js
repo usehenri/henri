@@ -57,9 +57,11 @@ async function configure(models) {
       config.get(`stores.${storeName}`)
     );
     const { adapter } = configuration.datastores[storeName];
+
     configuration.datastores[storeName].adapter = `sails-${adapter}`;
-    // TODO: Change this to @usehenri/<pkg> package in the future
-    configuration.adapters[`sails-${adapter}`] = require(`sails-${adapter}`);
+
+    configuration.adapters[`sails-${adapter}`] = getAdapter(adapter);
+
     if (id === 'user') {
       log.info('Found a user model, overloading it.');
       model.attributes.email = { type: 'string', required: true };
@@ -82,10 +84,41 @@ async function configure(models) {
   return configuration;
 }
 
+function getAdapter(adapter) {
+  const valid = ['disk', 'mysql', 'mongo', 'postgresql'];
+  if (valid.indexOf(adapter) < 0) {
+    console.log('');
+    log.error(
+      `Adapter '${adapter}' is not valid. Check your configuration file.`
+    );
+    console.log('');
+    process.exit(-1);
+  }
+  try {
+    const pkg = require(`@usehenri/${adapter}`);
+    return pkg;
+  } catch (e) {
+    console.dir(e);
+    console.log('');
+    log.error(`Unable to load database adapter: ${adapter}. Seems like you`);
+    log.error(`should install it using: npm install @usehenri/${adapter}`);
+    console.log('');
+    process.exit(-1);
+  }
+}
+
 async function start(configuration) {
   return new Promise((resolve, reject) => {
     waterline.start(configuration, (err, orm) => {
-      if (err) return reject(err);
+      if (err) {
+        if (err.code === 'badConfiguration') {
+          console.log('');
+          log.error('The database connection configuration is invalid.');
+          console.log('');
+          process.exit(-1);
+        }
+        return reject(err);
+      }
       henri.orm = orm;
       const { models } = configuration;
       for (const id in models) {

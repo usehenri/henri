@@ -1,0 +1,14 @@
+{
+  "name": "@usehenri/mongo",
+  "version": "0.15.0",
+  "description": "henri mongo database connector",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "sails-mongo": "1.0.0-9"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.29"
+  }
+}
