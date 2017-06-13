@@ -32,6 +32,7 @@ log.add(winston.transports.Console, {
 });
 
 if (config.has('log') && typeof config.get('log') === 'string') {
+  console.log('');
   log.info(`logger initialized. also logging to ${config.get('log')}`);
   log.add(winston.transports.File, { filename: `logs/${config.get('log')}` });
 } else {
