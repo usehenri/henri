@@ -1,0 +1,14 @@
+{
+  "name": "@usehenri/disk",
+  "version": "0.15.0",
+  "description": "henri disk database connector",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "sails-disk": "1.0.0-11"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.29"
+  }
+}
