@@ -2,10 +2,21 @@ const webpack = require('webpack');
 const path = require('path');
 const glob = require('glob');
 
+const { log } = henri;
+
 const dir = path.resolve(process.cwd(), 'app/views');
 
+let userConfig = null;
+
+try {
+  const conf = require(path.resolve(process.cwd(), 'config', 'webpack.js'));
+  if (typeof conf.webpack === 'function') {
+    userConfig = conf.webpack;
+  }
+} catch (e) {}
+
 module.exports = {
-  webpack: (config, { dev }) => {
+  webpack: async (config, { dev }) => {
     config.resolveLoader.modules.push(path.resolve(__dirname, 'node_modules'));
     config.module.rules.push(
       {
@@ -90,6 +101,43 @@ module.exports = {
         },
       }
     );
+    if (userConfig) {
+      config = await userConfig(config, { dev }, webpack);
+      if (
+        !config ||
+        !config.module ||
+        !config.module.rules ||
+        !config.resolveLoader
+      ) {
+        console.log('');
+        log.error(
+          'Seems like you removed stuff from your webpack configuration...'
+        );
+        log.error('');
+        log.error(
+          'Are you sure that you are returning the config passed as argument?'
+        );
+        log.error('');
+        log.error(
+          'Check the syntax of config/webpack.js. See below for a jQuery example:'
+        );
+        log.error('');
+        log.error('    module.exports = {');
+        log.error('      webpack: async (config, { dev }, webpack) => {');
+        log.error('        config.plugins.push(');
+        log.error('          new webpack.ProvidePlugin({');
+        log.error("            $: 'jquery',");
+        log.error("            jQuery: 'jquery',");
+        log.error('          })');
+        log.error('        );');
+        log.error('        return config;');
+        log.error('      },');
+        log.error('    };');
+        log.error('');
+        console.log('');
+        process.exit(-1);
+      }
+    }
     return config;
   },
 };
