@@ -27,7 +27,7 @@ const main = (args, name) => {
   pkg.dependencies = pkg.dependencies || {};
 
   // Add required dependencies
-  pkg.dependencies['next'] = pkg.dependencies['next'] || '^3.0.0-beta9';
+  pkg.dependencies['next'] = pkg.dependencies['next'] || '^3.0.0-beta14';
   pkg.dependencies['react'] = pkg.dependencies['react'] || '^15.5.4';
   pkg.dependencies['react-dom'] = pkg.dependencies['react-dom'] || '^15.5.4';
 
