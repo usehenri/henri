@@ -41,7 +41,7 @@ async function configure(models) {
 
   for (const id in models) {
     const model = models[id];
-    if (!model.store && !config.has('stores.default')) {
+    if (!model.datastore && !config.has('stores.default')) {
       throw new Error(
         `There is no default store and ${model.identity} is missing one`
       );
@@ -100,7 +100,7 @@ function getAdapter(adapter) {
   } catch (e) {
     console.dir(e);
     console.log('');
-    log.error(`Unable to load database adapter: ${adapter}. Seems like you`);
+    log.error(`Unable to load database adapter '${adapter}'. Seems like you`);
     log.error(`should install it using: npm install @usehenri/${adapter}`);
     console.log('');
     process.exit(-1);
