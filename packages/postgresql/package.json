@@ -1,0 +1,14 @@
+{
+  "name": "@usehenri/postgresql",
+  "version": "0.15.0",
+  "description": "henri postgresql database connector",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "sails-postgresql": "1.0.0-10"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.29"
+  }
+}
