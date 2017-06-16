@@ -12,7 +12,7 @@ const {
 } = require('react-dev-utils/WebpackDevServerUtils');
 const openBrowser = require('react-dev-utils/openBrowser');
 
-const { config, log, notify } = henri;
+const { config, cwd, log, notify } = henri;
 
 const app = express();
 
@@ -26,7 +26,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-app.use(express.static(path.resolve(process.cwd(), 'app/views/public')));
+app.use(express.static(path.resolve(cwd, 'app/views/public')));
 
 async function start(delay) {
   port = process.env.NODE_ENV !== 'production'

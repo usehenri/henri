@@ -1,6 +1,7 @@
 // Registering some global functions & variables
 
-var stack = require('callsite');
+const path = require('path');
+const stack = require('callsite');
 
 const { log } = henri;
 
@@ -43,4 +44,10 @@ henri.addReaper = func => {
   }
 };
 
-henri.version = require('./package.json').version;
+henri.release = henri.version = require('./package.json').version;
+
+henri.isProduction = process.env.NODE_ENV === 'production';
+
+henri.isTest = process.env.NODE_ENV === 'test';
+
+henri.cwd = process.cwd();

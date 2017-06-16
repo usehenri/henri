@@ -1,6 +1,6 @@
 const path = require('path');
 
-const { app, log, next, express } = henri;
+const { app, log, view, express } = henri;
 
 async function init(reload = false) {
   const { controllers } = henri;
@@ -30,19 +30,13 @@ async function init(reload = false) {
     henri.router.get('/_routes', (req, res) => res.json(henri._globalRoutes));
   }
 
-  if (next && !reload) {
-    next.prepare().then(() => {
-      const handle = next.getRequestHandler();
-      henri.router.get('*', (req, res) => {
-        return handle(req, res);
-      });
+  if (view && !reload) {
+    view.prepare().then(() => {
+      view.fallback(henri.router);
       henri.start(global['_initialDelay'] || null);
     });
   } else {
-    const handle = next.getRequestHandler();
-    henri.router.get('*', (req, res) => {
-      return handle(req, res);
-    });
+    view.fallback(henri.router);
   }
 }
 
@@ -70,7 +64,7 @@ function middlewares(router) {
       if (req.url.startsWith('/_data/')) {
         return res.json(data);
       }
-      next.render(req, res, route, opts);
+      view.render(req, res, route, opts);
     };
     cb();
   });
