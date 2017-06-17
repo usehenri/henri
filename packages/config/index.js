@@ -14,7 +14,7 @@ if (!global['henri']) {
       list: [],
     },
     _models: [],
-    _globalRoutes: [],
+    _routes: [],
     folders: {
       view: path.resolve('./app/views'),
     },

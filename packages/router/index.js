@@ -27,7 +27,7 @@ async function init(reload = false) {
   }
 
   if (process.env.NODE_ENV !== 'production') {
-    henri.router.get('/_routes', (req, res) => res.json(henri._globalRoutes));
+    henri.router.get('/_routes', (req, res) => res.json(henri._routes));
   }
 
   if (view && !reload) {
@@ -49,7 +49,7 @@ function register(verb, route, controller, fn) {
   entry[name] = `${controller}${typeof fn !== 'function'
     ? ' (unknown controller)'
     : ' (ok)'}`;
-  henri._globalRoutes.push(entry);
+  henri._routes.push(entry);
 }
 
 function middlewares(router) {
