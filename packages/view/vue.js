@@ -37,4 +37,4 @@ async function render(req, res, route, opts) {
   res.send(html);
 }
 
-module.exports = { fallback, instance, prepare, render };
+module.exports = { fallback, prepare, render };
