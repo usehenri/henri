@@ -63,4 +63,4 @@ function render(req, res, route, opts) {
   instance.render(req, res, route, opts);
 }
 
-module.exports = { fallback, instance, prepare, render };
+module.exports = { fallback, prepare, render };
