@@ -1,6 +1,6 @@
 const path = require('path');
 
-const { app, log, next, express } = henri;
+const { app, log, view, express } = henri;
 
 async function init(reload = false) {
   const { controllers } = henri;
@@ -27,22 +27,16 @@ async function init(reload = false) {
   }
 
   if (process.env.NODE_ENV !== 'production') {
-    henri.router.get('/_routes', (req, res) => res.json(henri._globalRoutes));
+    henri.router.get('/_routes', (req, res) => res.json(henri._routes));
   }
 
-  if (next && !reload) {
-    next.prepare().then(() => {
-      const handle = next.getRequestHandler();
-      henri.router.get('*', (req, res) => {
-        return handle(req, res);
-      });
+  if (view && !reload) {
+    view.prepare().then(() => {
+      view.fallback(henri.router);
       henri.start(global['_initialDelay'] || null);
     });
   } else {
-    const handle = next.getRequestHandler();
-    henri.router.get('*', (req, res) => {
-      return handle(req, res);
-    });
+    view.fallback(henri.router);
   }
 }
 
@@ -55,7 +49,7 @@ function register(verb, route, controller, fn) {
   entry[name] = `${controller}${typeof fn !== 'function'
     ? ' (unknown controller)'
     : ' (ok)'}`;
-  henri._globalRoutes.push(entry);
+  henri._routes.push(entry);
 }
 
 function middlewares(router) {
@@ -70,7 +64,7 @@ function middlewares(router) {
       if (req.url.startsWith('/_data/')) {
         return res.json(data);
       }
-      next.render(req, res, route, opts);
+      view.render(req, res, route, opts);
     };
     cb();
   });

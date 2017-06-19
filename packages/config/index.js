@@ -1,6 +1,7 @@
 // Remove config warning when no file is available
 process.env.SUPPRESS_NO_CONFIG_WARNING = true;
 
+const path = require('path');
 const config = require('config');
 
 if (!global['henri']) {
@@ -13,7 +14,10 @@ if (!global['henri']) {
       list: [],
     },
     _models: [],
-    _globalRoutes: [],
+    _routes: [],
+    folders: {
+      view: path.resolve('./app/views'),
+    },
   };
 }
 
@@ -22,9 +26,9 @@ henri.config = config;
 
 require('@usehenri/log');
 
-require('./checks');
-
 require('./register');
+
+require('./checks');
 
 function reload() {
   henri.config = require('config');

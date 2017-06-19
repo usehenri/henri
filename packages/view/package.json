@@ -10,6 +10,7 @@
     "babel-plugin-module-resolver": "^2.7.1",
     "babel-plugin-wrap-in-js": "^1.1.1",
     "glob": "^7.1.2",
+    "module-alias": "^2.0.0",
     "node-sass": "^4.5.3",
     "postcss-cssnext": "^2.11.0",
     "postcss-easy-import": "^2.1.0",

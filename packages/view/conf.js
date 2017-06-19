@@ -2,14 +2,14 @@ const webpack = require('webpack');
 const path = require('path');
 const glob = require('glob');
 
-const { log } = henri;
+const { cwd, log } = henri;
 
-const dir = path.resolve(process.cwd(), 'app/views');
+const dir = path.resolve(cwd, 'app/views');
 
 let userConfig = null;
 
 try {
-  const conf = require(path.resolve(process.cwd(), 'config', 'webpack.js'));
+  const conf = require(path.resolve(cwd, 'config', 'webpack.js'));
   if (typeof conf.webpack === 'function') {
     userConfig = conf.webpack;
   } else {
@@ -21,6 +21,7 @@ try {
 
 module.exports = {
   webpack: async (config, { dev }) => {
+    config = substituteReact(config);
     config.resolveLoader.modules.push(path.resolve(__dirname, 'node_modules'));
     config.module.rules.push(
       {
@@ -105,6 +106,7 @@ module.exports = {
         },
       }
     );
+
     if (userConfig) {
       config = await userConfig(config, { dev }, webpack);
       if (
@@ -145,3 +147,28 @@ module.exports = {
     return config;
   },
 };
+
+function substituteReact(config) {
+  if (henri.config.get('renderer').toLowerCase() === 'preact') {
+    if (!henri.isProduction) {
+      log.warn(`using React instead of preact for development`);
+      return config;
+    }
+    config.resolve.alias = {
+      react: 'preact-compat/dist/preact-compat',
+      'react-dom': 'preact-compat/dist/preact-compat',
+    };
+    return config;
+  }
+  if (henri.config.get('renderer').toLowerCase() === 'inferno') {
+    if (!henri.isProduction) {
+      log.warn(`using React instead of Inferno for development`);
+      return config;
+    }
+    config.resolve.alias = {
+      react: 'inferno-compat',
+      'react-dom': 'inferno-compat',
+    };
+  }
+  return config;
+}
