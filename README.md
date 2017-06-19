@@ -8,32 +8,28 @@
   </p>
 </a>
 
-# henri - a powerful api coupled with react ssr
+# henri - the versatile javascript framework
 [![NPM](https://nodei.co/npm/henri.svg?downloads=true&downloadRank=true)](https://nodei.co/npm/henri/)
 
 [![npm version](https://img.shields.io/npm/v/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![npm downloads](https://img.shields.io/npm/dm/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![bitHound Dependencies](https://www.bithound.io/github/simplehub/henri/badges/dependencies.svg)](https://www.bithound.io/github/simplehub/henri/master/dependencies/npm)
 
-<<<<<<< HEAD
-henri is a simple way to start using [Feathers](http://feathersjs.com/) and [Next.js](https://github.com/zeit/next.js)
-
-- [How to use](#how-to-use)
-  - [Examples](#examples)
-  - [Basic setup](#basic-setup)
-- [Server example](#server)
-- [Client helpers](#client)
-  - [withClient](#withclient)
-  - [withAuth](#withauth)
-  - [withLock](#withlock)
-  - [withData](#withdata)
-=======
-henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM
+henri is an easy to learn rails-like, server-side rendered (react & vue) with powerful ORMs
 
 - [How to use](#how-to-use)
 - [Configuration](#configuration)
 - [Models](#models)
+  - MongoDB
+  - MariaDB/MySQL
+  - Postgresql
+  - MSSQL
 - [Views](#views)
+  - [React](#react)
+    - [Inferno](#inferno)
+    - [Preact](#preact)
+  - [Vue.js](#vue)
+  - [Template (template literal)](#template)
 - [Controllers](#controllers)
 - [Routes](#routes)
 >>>>>>> 8993dcb... docs(cli): adding some documentation
@@ -56,15 +52,23 @@ henri is an easy to learn rails-like, react server-side rendered framework with 
 The above command will create a directory structure similar to this:
 
 ```
-├── app/
-│   ├── controllers/
-│   ├── helpers/
-│   ├── models/
-│   ├── views/
-│   ├── routes.js
-├── config/
-│   ├── default.json
-├── logs/
+├── app
+│   ├── controllers
+│   ├── helpers
+│   ├── models
+│   └── views
+│       ├── assets
+│       ├── components
+│       ├── pages
+│       ├── public
+│       │   ├── css
+│       │   ├── fonts
+│       │   ├── img
+│       │   ├── js
+│       │   └── patterns
+│       └── styles
+├── config
+└── logs
 ├── package.json
 ```
 
@@ -114,6 +118,8 @@ They will be autoloaded and available throughout your application.
 You can have multiple adapters and you can have relations between models living
 on different adapters, thanks to [waterline](https://github.com/balderdashy/waterline)
 
+Also, we support [mongoose](http://mongoosejs.com/) for MongoDB and [sequalize](http://docs.sequelizejs.com/) for SQLs
+
 ```js
 // app/models/User.js
 
@@ -137,7 +143,7 @@ module.exports = {
 ```
 
 ```js
-# app/models/Tasks.js
+// app/models/Tasks.js
 
 module.exports = {
   identity: 'tasks',
