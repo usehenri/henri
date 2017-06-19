@@ -34,6 +34,7 @@ async function render(req, res, route, opts) {
     req,
     res,
   });
+  // TODO: add error and redirected validation...
   res.send(html);
 }
 
