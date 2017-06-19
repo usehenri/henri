@@ -13,8 +13,6 @@ const instance = {
     if (!data) {
       return res.status(404).send('Not Found');
     }
-
-    console.log(opts.data);
     const script = new vm.Script('`' + data.replace(/`/g, '\\`') + '`');
 
     try {
@@ -60,6 +58,7 @@ function getFile(route) {
     }
     return data.toString('utf8');
   } catch (e) {
+    // Maybe we should cache 404s also..
     log.error(`404 - ${route} ${fullRoute} ${pathToFile}`);
     return null;
   }
