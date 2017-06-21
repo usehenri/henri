@@ -1,6 +1,6 @@
 const path = require('path');
 const Nuxt = require(path.resolve(process.cwd(), 'node_modules', 'nuxt'));
-const { log } = henri;
+const { cwd, log } = henri;
 
 let conf = {};
 
@@ -30,7 +30,9 @@ function fallback(router) {
 }
 
 async function render(req, res, route, opts) {
-  const { html, error, redirected } = await instance.render(route, {
+  /* html, error, redirected */
+
+  const { html } = await instance.render(route, {
     req,
     res,
   });

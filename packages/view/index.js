@@ -1,10 +1,4 @@
-const path = require('path');
-
-const url = require('url');
-
-const viewFolder = path.resolve('./app/views');
-
-const { app, log, config } = henri;
+const { log, config } = henri;
 
 const renderer = config.has('renderer') ? config.get('renderer') : 'template';
 
@@ -27,6 +21,6 @@ if (!allowed.hasOwnProperty(renderer)) {
   process.exit(-1);
 }
 
-henri.view = loader = require(`./${allowed[renderer]}`);
+henri.view = require(`./${allowed[renderer]}`);
 
 log.info('view module loaded.');

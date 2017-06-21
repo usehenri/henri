@@ -1,5 +1,5 @@
+/* global User */
 const session = require('express-session');
-const nedbSessions = require('nedb-session-store');
 
 const passport = require('passport');
 const JwtStrategy = require('passport-jwt').Strategy;
@@ -47,7 +47,7 @@ async function compare(password, hash, user) {
         return reject(err);
       }
       if (!ok) {
-        return reject('Invalid credentials');
+        return reject(new Error('Invalid credentials'));
       }
       return resolve(true);
     });
@@ -59,10 +59,8 @@ async function checkLocal(email, password, done) {
   try {
     const user = await User.findOne({ email: email });
     await compare(password, user.password);
-    console.log('auth done!');
     done(null, user);
   } catch (error) {
-    console.log('invalid credentials', error);
     done(null, false, 'Invalid credentials.');
   }
 }

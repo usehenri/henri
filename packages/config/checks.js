@@ -25,7 +25,6 @@ const checkPackages = packages => {
 
   if (missing.length > 0) {
     const multi = missing.length > 1;
-    const listing = missing.join(' ');
     const msg = multi
       ? missing.map(
           (val, i) =>

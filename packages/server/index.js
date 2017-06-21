@@ -96,7 +96,7 @@ async function reload() {
   });
   try {
     if (loaders.length > 0) {
-      for (loader of loaders) {
+      for (let loader of loaders) {
         await loader();
       }
     }
@@ -114,7 +114,7 @@ async function stop() {
   const reapers = henri._reapers.list;
   try {
     if (reapers.length > 0) {
-      for (reaper of reapers) {
+      for (let reaper of reapers) {
         await reaper();
       }
     }

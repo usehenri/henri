@@ -1,0 +1,12 @@
+{
+  "extends": "standard",
+  "globals": {
+    "henri": true
+  },
+  "rules": {
+    "semi": "off",
+    "comma-dangle": "off",
+    "space-before-function-paren": "off",
+    "no-console": "warn"
+  }
+}

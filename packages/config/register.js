@@ -1,6 +1,5 @@
 // Registering some global functions & variables
 
-const path = require('path');
 const stack = require('callsite');
 
 const { log } = henri;

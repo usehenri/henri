@@ -44,7 +44,7 @@ const help = args => {
     henri (${version})
 
     Usage
-      $ henri new <folder> [-f | --force]
+      $ henri new <folder> [-f | --force]
 
     Available commands
       ${Array.from(commands).join(', ')}

@@ -1,7 +1,6 @@
 const spawn = require('cross-spawn');
 const fs = require('fs-extra');
 const path = require('path');
-const chalk = require('chalk');
 const { version, commands } = require('./utils');
 
 const yarnExists = spawn.sync('yarn', ['help']);
@@ -17,7 +16,7 @@ const main = (args, name) => {
   // Modify or create a new package.json file
   let pkg = {};
   try {
-    const pkg = require(path.resolve(cwd, 'package.json'));
+    pkg = require(path.resolve(cwd, 'package.json'));
   } catch (e) {}
 
   console.log('');
@@ -118,7 +117,7 @@ const help = args => {
     henri (${version})
 
     Usage
-      $ henri init [-f | --force]
+      $ henri init [-f | --force]
 
     Available commands
       ${Array.from(commands).join(', ')}

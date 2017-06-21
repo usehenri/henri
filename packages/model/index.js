@@ -98,7 +98,6 @@ function getAdapter(adapter) {
     const pkg = require(`@usehenri/${adapter}`);
     return pkg;
   } catch (e) {
-    console.dir(e);
     console.log('');
     log.error(`Unable to load database adapter '${adapter}'. Seems like you`);
     log.error(`should install it using: npm install @usehenri/${adapter}`);

@@ -1,6 +1,6 @@
 const path = require('path');
 
-const { app, log, view, express } = henri;
+const { log, view, express } = henri;
 
 async function init(reload = false) {
   const { controllers } = henri;
