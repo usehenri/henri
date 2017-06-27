@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/disk",
-  "version": "0.15.0",
+  "version": "0.15.2",
   "description": "henri disk database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
