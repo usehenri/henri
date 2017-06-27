@@ -1,7 +1,13 @@
+const { cwd, log } = henri;
 const path = require('path');
-const next = require(path.resolve(process.cwd(), 'node_modules', 'next'));
+const nextPath = path.resolve(cwd, 'node_modules', 'next');
+const next = require(nextPath);
+const builder = require(path.resolve(nextPath, 'dist/server/build')).default;
+
 const conf = require('./conf');
 const moduleAlias = require('module-alias');
+
+let instance = null;
 
 const renderer = henri.config.get('renderer').toLowerCase();
 
@@ -42,13 +48,22 @@ if (henri.isProduction) {
   }
 }
 
-const instance = next({
-  dir: henri.folders.view,
-  dev: !henri.isProduction,
-  conf,
-});
+async function prepare() {
+  if (henri.isProduction) {
+    log.info('building next.js pages for production');
+    try {
+      await builder(henri.folders.view, conf);
+    } catch (e) {
+      log.error(e);
+    }
+  }
+  log.info('starting next.js instance...');
+  instance = next({
+    dir: henri.folders.view,
+    dev: !henri.isProduction,
+    conf,
+  });
 
-function prepare() {
   return instance.prepare();
 }
 
