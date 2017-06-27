@@ -9,6 +9,6 @@
     "sails-mysql": "1.0.0-14"
   },
   "devDependencies": {
-    "@types/node": "^7.0.29"
+    "@types/node": "^8.0.4"
   }
 }

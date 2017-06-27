@@ -14,8 +14,8 @@
   },
   "devDependencies": {
     "@types/config": "^0.0.32",
-    "@types/lodash": "^4.14.65",
-    "@types/node": "^7.0.29",
+    "@types/lodash": "^4.14.67",
+    "@types/node": "^8.0.4",
     "@types/waterline": "^0.11.1"
   }
 }

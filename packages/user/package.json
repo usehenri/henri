@@ -17,7 +17,7 @@
   "devDependencies": {
     "@types/bcrypt-nodejs": "^0.0.30",
     "@types/express-session": "^1.15.0",
-    "@types/node": "^7.0.29",
+    "@types/node": "^8.0.4",
     "@types/passport": "^0.3.3",
     "@types/passport-jwt": "^2.0.20",
     "@types/passport-local": "^1.0.30"

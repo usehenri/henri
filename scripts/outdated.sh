@@ -1,3 +1,3 @@
 #!/bin/bash
 
-for dir in ./packages/*; do (cd "$dir" && echo "" && echo "$dir" && npm outdated); done
+for dir in ./packages/*; do (cd "$dir" && echo "" && echo "$dir" && yarn outdated); done

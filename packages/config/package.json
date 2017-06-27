@@ -12,6 +12,6 @@
   },
   "devDependencies": {
     "@types/config": "^0.0.32",
-    "@types/node": "^7.0.29"
+    "@types/node": "^8.0.4"
   }
 }
