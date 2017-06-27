@@ -40,6 +40,7 @@ module.exports = {
             loader: 'postcss-loader',
             options: {
               plugins: loader => [
+                require('cssnano')(),
                 require('postcss-easy-import')({ prefix: '_' }),
                 require('autoprefixer')(),
               ],
@@ -56,6 +57,7 @@ module.exports = {
             loader: 'postcss-loader',
             options: {
               plugins: loader => [
+                require('cssnano')(),
                 require('postcss-easy-import')({ prefix: '_' }),
                 require('postcss-cssnext')(),
               ],
