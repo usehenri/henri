@@ -6,12 +6,11 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/log": "^0.15.2",
     "callsite": "^1.0.0",
     "config": "^1.26.1"
   },
   "devDependencies": {
     "@types/config": "^0.0.32",
-    "@types/node": "^8.0.4"
+    "@types/node": "^8.0.7"
   }
 }

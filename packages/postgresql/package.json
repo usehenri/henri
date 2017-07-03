@@ -9,6 +9,6 @@
     "sails-postgresql": "1.0.0-10"
   },
   "devDependencies": {
-    "@types/node": "^8.0.4"
+    "@types/node": "^8.0.7"
   }
 }
