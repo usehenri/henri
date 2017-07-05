@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/user",
-  "version": "0.9.0-alpha.5",
+  "version": "0.9.3",
   "description": "henri user management",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
@@ -16,8 +16,8 @@
   },
   "devDependencies": {
     "@types/bcrypt-nodejs": "^0.0.30",
-    "@types/express-session": "^0.0.32",
-    "@types/node": "^7.0.18",
+    "@types/express-session": "^1.15.0",
+    "@types/node": "^7.0.22",
     "@types/passport": "^0.3.3",
     "@types/passport-jwt": "^2.0.19",
     "@types/passport-local": "^1.0.30"

@@ -1,6 +1,6 @@
 {
   "name": "henri",
-  "version": "0.9.1",
+  "version": "0.9.3",
   "description": "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
   "main": "index.js",
   "scripts": {
@@ -20,14 +20,14 @@
   },
   "homepage": "https://github.com/usehenri/henri#readme",
   "dependencies": {
-    "@usehenri/cli": "0.9.0-alpha.7",
-    "@usehenri/config": "0.9.0-alpha.5",
-    "@usehenri/controller": "0.9.0-alpha.5",
-    "@usehenri/log": "0.9.0-alpha.5",
-    "@usehenri/model": "0.9.0-alpha.5",
-    "@usehenri/router": "0.9.0-alpha.5",
-    "@usehenri/server": "0.9.0-alpha.5",
-    "@usehenri/user": "0.9.0-alpha.5",
-    "@usehenri/view": "0.9.0-alpha.5"
+    "@usehenri/cli": "^0.9.3",
+    "@usehenri/config": "^0.9.3",
+    "@usehenri/controller": "^0.9.3",
+    "@usehenri/log": "^0.9.3",
+    "@usehenri/model": "^0.9.3",
+    "@usehenri/router": "^0.9.3",
+    "@usehenri/server": "^0.9.3",
+    "@usehenri/user": "^0.9.3",
+    "@usehenri/view": "^0.9.3"
   }
 }
