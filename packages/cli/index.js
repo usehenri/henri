@@ -9,7 +9,7 @@ if (!module.parent) {
     
     Please, use ${chalk.cyan('henri')} or install it via:
 
-    # ${yarnExists ? 'yarn add global' : 'npm install -g'} @usehenri/henri
+    # ${yarnExists ? 'yarn add global' : 'npm install -g'} henri
 
     `
   );
