@@ -67,6 +67,19 @@ function notify(title = 'No title', message = 'No message') {
     });
   }
 }
+
+log.fatalError = msg => {
+  // eslint-disable-next-line no-console
+  console.log('');
+  const lines = msg.split('\n');
+  for (let line of lines) {
+    log.error(line);
+  }
+  // eslint-disable-next-line no-console
+  console.log('');
+  process.exit(-1);
+};
+
 // We don't use addModule as it is not yet registered
 henri.log = log;
 henri.notify = notify;
