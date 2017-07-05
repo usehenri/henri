@@ -3,6 +3,7 @@
   "version": "0.15.2",
   "description": "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
   "main": "index.js",
+  "preferGlobal": true,
   "scripts": {
     "lint": "prettier *.js"
   },
