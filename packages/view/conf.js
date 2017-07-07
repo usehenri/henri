@@ -34,7 +34,13 @@ module.exports = {
       {
         test: /\.css$/,
         use: [
-          'babel-loader',
+          {
+            loader: 'cache-loader',
+            options: {
+              cacheDirectory: path.resolve(dir, '.cache'),
+            },
+          },
+          { loader: 'babel-loader', options: { cacheDirectory: true } },
           'raw-loader',
           {
             loader: 'postcss-loader',
@@ -51,7 +57,13 @@ module.exports = {
       {
         test: /\.s(a|c)ss$/,
         use: [
-          'babel-loader',
+          {
+            loader: 'cache-loader',
+            options: {
+              cacheDirectory: path.resolve(dir, '.cache'),
+            },
+          },
+          { loader: 'babel-loader', options: { cacheDirectory: true } },
           'raw-loader',
           {
             loader: 'postcss-loader',
@@ -76,36 +88,47 @@ module.exports = {
       },
       {
         test: /\.js(\?[^?]*)?$/,
-        loader: 'babel-loader',
         include: [dir],
         exclude(str) {
           return /node_modules/.test(str);
         },
-        options: {
-          plugins: [
-            [
-              require.resolve('babel-plugin-module-resolver'),
-              {
-                root: ['.'],
-                alias: {
-                  styles: './styles',
-                  components: './components',
-                  assets: './assets',
-                  helpers: './helpers',
-                },
-                cwd: dir,
-              },
-            ],
-            [
-              require.resolve('babel-plugin-wrap-in-js'),
-              {
-                extensions: ['css$', 'scss$'],
-              },
-            ],
-          ],
-          presets: ['next/babel'],
-          ignore: [],
-        },
+        use: [
+          {
+            loader: 'cache-loader',
+            options: {
+              cacheDirectory: path.resolve(dir, '.cache'),
+            },
+          },
+          {
+            loader: 'babel-loader',
+            options: {
+              cacheDirectory: true,
+              plugins: [
+                [
+                  require.resolve('babel-plugin-module-resolver'),
+                  {
+                    root: ['.'],
+                    alias: {
+                      styles: './styles',
+                      components: './components',
+                      assets: './assets',
+                      helpers: './helpers',
+                    },
+                    cwd: dir,
+                  },
+                ],
+                [
+                  require.resolve('babel-plugin-wrap-in-js'),
+                  {
+                    extensions: ['css$', 'scss$'],
+                  },
+                ],
+              ],
+              presets: ['next/babel'],
+              ignore: [],
+            },
+          },
+        ],
       }
     );
 
