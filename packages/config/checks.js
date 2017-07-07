@@ -9,10 +9,8 @@ const checkPackages = packages => {
   let missing = [];
 
   if (!Array.isArray(packages)) {
-    log.error('');
-    log.error('checkPackages() should take an array...');
-    log.error('');
-    process.exit(-1);
+    log.fatalError('checkPackages() should take an array...');
+    return false;
   }
 
   for (let pkg of packages) {
@@ -27,22 +25,17 @@ const checkPackages = packages => {
     const multi = missing.length > 1;
     const msg = multi
       ? missing.map(
-          (val, i) =>
-            i === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`
-        )
+        (val, i) =>
+          i === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`
+      )
       : missing;
-    console.log('');
-    log.error('');
-    log.error(`Unable to load ${msg.join(' ')} from the current project.`);
-    log.error('');
-    log.error(`Try installing ${multi ? 'them' : 'it'}:`);
-    log.error('');
-    log.error(
-      `# ${yarnExists ? 'yarn add' : 'npm install'} ${missing.join(' ')}`
-    );
-    log.error('');
-    console.log('');
-    process.exit(-1);
+
+    log.fatalError(`Unable to load ${msg.join(' ')} from the current project.
+    
+    Try installing ${multi ? 'them' : 'it'}:
+    
+      # ${yarnExists ? 'yarn add' : 'npm install'} ${missing.join(' ')}
+    `);
   }
 };
 
