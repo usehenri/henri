@@ -23,7 +23,7 @@
   "lint-staged": {
     "*.js": [
       "prettier --trailing-comma es5 --single-quote --write",
-      "eslint",
+      "eslint --fix",
       "git add"
     ]
   },
