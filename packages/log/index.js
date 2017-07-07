@@ -77,7 +77,7 @@ log.fatalError = msg => {
   }
   // eslint-disable-next-line no-console
   console.log('');
-  process.exit(-1);
+  throw new Error(msg);
 };
 
 // We don't use addModule as it is not yet registered
