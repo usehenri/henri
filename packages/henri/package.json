@@ -26,5 +26,8 @@
   "homepage": "https://github.com/usehenri/henri#readme",
   "dependencies": {
     "@usehenri/cli": "^0.15.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^20.0.2"
   }
 }

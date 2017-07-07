@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@types/config": "^0.0.32",
+    "@types/jest": "^20.0.2",
     "@types/node": "^8.0.7"
   }
 }

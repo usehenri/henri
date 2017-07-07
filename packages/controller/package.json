@@ -9,6 +9,7 @@
     "include-all": "^4.0.3"
   },
   "devDependencies": {
+    "@types/jest": "^20.0.2",
     "@types/node": "^8.0.7"
   }
 }
