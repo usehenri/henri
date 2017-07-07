@@ -17,10 +17,10 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
 - [How to use](#how-to-use)
 - [Configuration](#configuration)
 - [Models](#models)
-  - MongoDB
-  - MariaDB/MySQL
-  - Postgresql
-  - MSSQL
+  - [Disk](#disk)
+  - [MongoDB](#mongodb)
+  - [MariaDB/MySQL](#mysql)
+  - [Postgresql](#postgresql)
 - [Views](#views)
   - [React](#react)
     - [Inferno](#inferno)
@@ -29,7 +29,6 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
   - [Template (template literal)](#template)
 - [Controllers](#controllers)
 - [Routes](#routes)
->>>>>>> 8993dcb... docs(cli): adding some documentation
 - [Plans, plans!](#plans)
 
 ## How to use
@@ -37,7 +36,11 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
 ### To install:
 
 ```bash
-  npm install henri --save
+  yarn global add henri
+
+  # or
+
+  npm install -g henri
 ```
 
 ### To create a new project:
@@ -65,6 +68,9 @@ The above command will create a directory structure similar to this:
 │       │   └── patterns
 │       └── styles
 ├── config
+│   ├── default.json
+│   ├── production.json
+│   └── webpack.js            <- Overload Next.js webpack settings
 └── logs
 ├── package.json
 ```
@@ -100,9 +106,14 @@ You can have a `default.json`, `production.json`, etc.
       "password": "somepass",
       "host": "somedb01.dbland.com",
       "database": "thedb"
+    },
+    "mongo": {
+      "adapter": "mongo",
+      "url": "mongodb://user:pass@mongoserver.com:10914/henri-test"
     }
   },
-  "secret": "25bb9ed0b0c44cc3549f1a09fc082a1aa3ec91fbd4ce9a090b"
+  "secret": "25bb9ed0b0c44cc3549f1a09fc082a1aa3ec91fbd4ce9a090b",
+  "renderer": "react"
 }
 ```
 
@@ -114,8 +125,6 @@ They will be autoloaded and available throughout your application.
 
 You can have multiple adapters and you can have relations between models living
 on different adapters, thanks to [waterline](https://github.com/balderdashy/waterline)
-
-Also, we support [mongoose](http://mongoosejs.com/) for MongoDB and [sequalize](http://docs.sequelizejs.com/) for SQLs
 
 ```js
 // app/models/User.js
@@ -130,7 +139,7 @@ Also, we support [mongoose](http://mongoosejs.com/) for MongoDB and [sequalize](
 module.exports = {
   identity: 'user',
   datastore: 'sql01', // see the demo configuration up there
-  attributes: {
+  schema: {
     firstName: { type: 'string' },
     lastName: { type: 'string' },
     tasks: { collection: 'tasks' }
@@ -145,7 +154,7 @@ module.exports = {
 module.exports = {
   identity: 'tasks',
   datastore: 'default', // see the demo configuration up there
-  attributes: {
+  schema: {
     name: { type: 'string', required: true },
     category: {
       type: 'string',
@@ -157,6 +166,59 @@ module.exports = {
   }
 };
 
+```
+
+### Disk
+
+The disk adapter is using waterline (and NeDB) to provide disk-based storage.
+
+This is not for production and you can easily port your models to other waterline-connected adapters.
+
+```bash
+  yarn add henri @usehenri/disk
+
+  # or
+
+  npm install @usehenri/disk --save
+```
+
+### MongoDB
+
+The MongoDB adapter is using waterline to provide a MongoDB ODM.
+
+
+```bash
+  yarn add henri @usehenri/mongo
+
+  # or
+
+  npm install @usehenri/mongo --save
+```
+
+### MySQL
+
+The MariaDB/MySQL adapter is using waterline to provide a MySQL ORM.
+
+
+```bash
+  yarn add henri @usehenri/mysql
+
+  # or
+
+  npm install @usehenri/mysql --save
+```
+
+### PostgreSQL
+
+The PostgreSQL adapter is using waterline to provide a PostgreSQL ORM.
+
+
+```bash
+  yarn add henri @usehenri/postgresql
+
+  # or
+
+  npm install @usehenri/postgresql --save
 ```
 
 ## Views

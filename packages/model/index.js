@@ -1,5 +1,5 @@
 const waterline = require('waterline');
-const { log, user } = henri;
+const { cwd, log, user } = henri;
 const includeAll = require('include-all');
 const _ = require('lodash');
 const path = require('path');
@@ -41,17 +41,17 @@ async function configure(models) {
 
   for (const id in models) {
     const model = models[id];
-    if (!model.datastore && !config.has('stores.default')) {
+    if (!model.store && !config.has('stores.default')) {
       throw new Error(
         `There is no default store and ${model.identity} is missing one`
       );
     }
-    if (model.datastore && !config.has(`stores.${model.datastore}`)) {
+    if (model.store && !config.has(`stores.${model.store}`)) {
       throw new Error(
-        `It seems like ${model.datastore} is not configured. ${model.identity} is using it.`
+        `It seems like ${model.store} is not configured. ${model.identity} is using it.`
       );
     }
-    const storeName = model.datastore || 'default';
+    const storeName = model.store || 'default';
     configuration.datastores[storeName] = Object.assign(
       {},
       config.get(`stores.${storeName}`)
@@ -61,6 +61,10 @@ async function configure(models) {
     configuration.datastores[storeName].adapter = `sails-${adapter}`;
 
     configuration.adapters[`sails-${adapter}`] = getAdapter(adapter);
+
+    // This will be useful when integrating mongoose and sequalize
+    model.attributes = Object.assign({}, model.schema);
+    delete model.schema;
 
     if (id === 'user') {
       log.info('Found a user model, overloading it.');
@@ -95,7 +99,11 @@ function getAdapter(adapter) {
     process.exit(-1);
   }
   try {
-    const pkg = require(`@usehenri/${adapter}`);
+    const pkg = require(path.resolve(
+      cwd,
+      'node_modules',
+      `@usehenri/${adapter}`
+    ));
     return pkg;
   } catch (e) {
     console.log('');
