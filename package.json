@@ -1,7 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "precommit": "lint-staged"
+    "precommit": "lint-staged",
+    "prepublish": "cp README.md packages/henri"
   },
   "devDependencies": {
     "eslint": "^4.0.0",

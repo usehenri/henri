@@ -1,22 +1,32 @@
+
 <a href="http://usehenri.io" target="_blank">
   <p align="center">
     <img width="100" alt="" src="https://raw.githubusercontent.com/simplehub/henri/master/henri.png">
   </p>
 </a>
 
-# henri - a powerful api coupled with react ssr
+# henri - the versatile javascript framework
 [![NPM](https://nodei.co/npm/henri.svg?downloads=true&downloadRank=true)](https://nodei.co/npm/henri/)
 
 [![npm version](https://img.shields.io/npm/v/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![npm downloads](https://img.shields.io/npm/dm/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
-[![bitHound Overall Score](https://www.bithound.io/github/usehenri/henri/badges/score.svg)](https://www.bithound.io/github/usehenri/henri)
+[![bitHound Dependencies](https://www.bithound.io/github/simplehub/henri/badges/dependencies.svg)](https://www.bithound.io/github/simplehub/henri/master/dependencies/npm)
 
-henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM
+henri is an easy to learn rails-like, server-side rendered (react & vue) with powerful ORMs
 
 - [How to use](#how-to-use)
 - [Configuration](#configuration)
 - [Models](#models)
+  - [Disk](#disk)
+  - [MongoDB](#mongodb)
+  - [MariaDB/MySQL](#mysql)
+  - [Postgresql](#postgresql)
 - [Views](#views)
+  - [React](#react)
+    - [Inferno](#inferno)
+    - [Preact](#preact)
+  - [Vue.js](#vue)
+  - [Template (template literal)](#template)
 - [Controllers](#controllers)
 - [Routes](#routes)
 - [Plans, plans!](#plans)
@@ -26,6 +36,10 @@ henri is an easy to learn rails-like, react server-side rendered framework with 
 ### To install:
 
 ```bash
+  yarn global add henri
+
+  # or
+
   npm install -g henri
 ```
 
@@ -38,15 +52,26 @@ henri is an easy to learn rails-like, react server-side rendered framework with 
 The above command will create a directory structure similar to this:
 
 ```
-├── app/
-│   ├── controllers/
-│   ├── helpers/
-│   ├── models/
-│   ├── views/
-│   ├── routes.js
-├── config/
+├── app
+│   ├── controllers
+│   ├── helpers
+│   ├── models
+│   └── views
+│       ├── assets
+│       ├── components
+│       ├── pages
+│       ├── public
+│       │   ├── css
+│       │   ├── fonts
+│       │   ├── img
+│       │   ├── js
+│       │   └── patterns
+│       └── styles
+├── config
 │   ├── default.json
-├── logs/
+│   ├── production.json
+│   └── webpack.js            <- Overload Next.js webpack settings
+└── logs
 ├── package.json
 ```
 
@@ -81,9 +106,14 @@ You can have a `default.json`, `production.json`, etc.
       "password": "somepass",
       "host": "somedb01.dbland.com",
       "database": "thedb"
+    },
+    "mongo": {
+      "adapter": "mongo",
+      "url": "mongodb://user:pass@mongoserver.com:10914/henri-test"
     }
   },
-  "secret": "25bb9ed0b0c44cc3549f1a09fc082a1aa3ec91fbd4ce9a090b"
+  "secret": "25bb9ed0b0c44cc3549f1a09fc082a1aa3ec91fbd4ce9a090b",
+  "renderer": "react"
 }
 ```
 
@@ -108,8 +138,8 @@ on different adapters, thanks to [waterline](https://github.com/balderdashy/wate
 
 module.exports = {
   identity: 'user',
-  datastore: 'sql01', // see the demo configuration up there
-  attributes: {
+  store: 'sql01', // see the demo configuration up there
+  schema: {
     firstName: { type: 'string' },
     lastName: { type: 'string' },
     tasks: { collection: 'tasks' }
@@ -119,12 +149,12 @@ module.exports = {
 ```
 
 ```js
-# app/models/Tasks.js
+// app/models/Tasks.js
 
 module.exports = {
   identity: 'tasks',
-  datastore: 'default', // see the demo configuration up there
-  attributes: {
+  store: 'default', // see the demo configuration up there
+  schema: {
     name: { type: 'string', required: true },
     category: {
       type: 'string',
@@ -138,14 +168,80 @@ module.exports = {
 
 ```
 
+### Disk
+
+The disk adapter is using waterline (and NeDB) to provide disk-based storage.
+
+This is not for production and you can easily port your models to other waterline-connected adapters.
+
+```bash
+  yarn add henri @usehenri/disk
+
+  # or
+
+  npm install @usehenri/disk --save
+```
+
+### MongoDB
+
+The MongoDB adapter is using waterline to provide a MongoDB ODM.
+
+
+```bash
+  yarn add henri @usehenri/mongo
+
+  # or
+
+  npm install @usehenri/mongo --save
+```
+
+### MySQL
+
+The MariaDB/MySQL adapter is using waterline to provide a MySQL ORM.
+
+
+```bash
+  yarn add henri @usehenri/mysql
+
+  # or
+
+  npm install @usehenri/mysql --save
+```
+
+### PostgreSQL
+
+The PostgreSQL adapter is using waterline to provide a PostgreSQL ORM.
+
+
+```bash
+  yarn add henri @usehenri/postgresql
+
+  # or
+
+  npm install @usehenri/postgresql --save
+```
+
 ## Views
 
+You can use [React](#react), [Vue](#vue) and template literals as renderer. They are all server-side rendered and the first two options use webpack to push updates to the browser.
+
+### React
 We use [next.js](https://github.com/zeit/next.js) to render pages and inject
 data from controllers. You can only add pages and if the defined routes don't
 match, and next matches a route, it will be rendered. 
 
 The data injected into the view can be refetched with the `/_data/` suffix.
 
+Usage (config file):
+
+```json
+{
+  "renderer": "react"
+}
+
+```
+
+Example:
 ```jsx
 
 // app/views/pages/log.js 
@@ -162,6 +258,122 @@ export default (data) => (
 
 ```
 
+You can also add webpack configuration in `config/webpack.js`:
+
+```js
+// If you want to have jQuery as a global...
+
+module.exports = {
+  webpack: async (config, { dev }, webpack) => {
+    config.plugins.push(
+      new webpack.ProvidePlugin({
+        $: 'jquery',
+        jQuery: 'jquery',
+      })
+    );
+    return config;
+  },
+};
+
+```
+
+#### Inferno
+
+You can use Inferno instead of React in production. In development, React will be used for hot re/loading.
+
+Installation:
+
+```bash
+yarn add react react-dom next inferno inferno-compat inferno-server
+```
+Usage (config file):
+
+```json
+{
+  "renderer": "inferno"
+}
+
+```
+
+#### Preact
+
+You can use Preact instead of React in production. In development, React will be used for hot re/loading.
+
+Installation:
+
+```bash
+yarn add react react-dom next preact preact-compat
+```
+Usage (config file):
+
+```json
+{
+  "renderer": "preact"
+}
+
+```
+
+### Vue.js
+We use [Nuxt.js](https://nuxtjs.org/) to render pages and inject
+data from controllers. You can only add pages and if the defined routes don't
+match, and nuxt matches a route, it will be rendered. 
+
+The data injected into the view can be refetched with the `/_data/` suffix.
+
+Usage (config file):
+
+```json
+{
+  "renderer": "vue"
+}
+
+```
+
+Example:
+```vue
+
+<template>
+  <div>
+    <h1>Welcome!</h1>
+    <nuxt-link to="/about">About page</nuxt-link>
+  </div>
+</template>
+
+```
+
+
+### Template
+
+The template literal renderer is a simple home-made addons that reads the html files relative to `app/views/pages` and processes it as a template literal in a Node VM and injects data.
+
+The data injected into the view can be refetched with the `/_data/` suffix.
+
+Usage (config file):
+
+```json
+{
+  "renderer": "template"
+}
+
+```
+
+Example:
+```html
+
+<html>
+
+<head>
+  <title>Hello!</title>
+</head>
+
+<body>
+
+  <li>Some data: ${data.hello}</li>
+</body>
+
+</html>
+
+```
 
 ## Controllers
 
@@ -232,7 +444,6 @@ module.exports = {
 
 ## Plans
 
- - Add server reload
  - Add helpers integration
  - Add documentation!
  - Build a website

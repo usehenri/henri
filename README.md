@@ -138,7 +138,7 @@ on different adapters, thanks to [waterline](https://github.com/balderdashy/wate
 
 module.exports = {
   identity: 'user',
-  datastore: 'sql01', // see the demo configuration up there
+  store: 'sql01', // see the demo configuration up there
   schema: {
     firstName: { type: 'string' },
     lastName: { type: 'string' },
@@ -153,7 +153,7 @@ module.exports = {
 
 module.exports = {
   identity: 'tasks',
-  datastore: 'default', // see the demo configuration up there
+  store: 'default', // see the demo configuration up there
   schema: {
     name: { type: 'string', required: true },
     category: {
@@ -223,12 +223,25 @@ The PostgreSQL adapter is using waterline to provide a PostgreSQL ORM.
 
 ## Views
 
+You can use [React](#react), [Vue](#vue) and template literals as renderer. They are all server-side rendered and the first two options use webpack to push updates to the browser.
+
+### React
 We use [next.js](https://github.com/zeit/next.js) to render pages and inject
 data from controllers. You can only add pages and if the defined routes don't
 match, and next matches a route, it will be rendered. 
 
 The data injected into the view can be refetched with the `/_data/` suffix.
 
+Usage (config file):
+
+```json
+{
+  "renderer": "react"
+}
+
+```
+
+Example:
 ```jsx
 
 // app/views/pages/log.js 
@@ -245,6 +258,122 @@ export default (data) => (
 
 ```
 
+You can also add webpack configuration in `config/webpack.js`:
+
+```js
+// If you want to have jQuery as a global...
+
+module.exports = {
+  webpack: async (config, { dev }, webpack) => {
+    config.plugins.push(
+      new webpack.ProvidePlugin({
+        $: 'jquery',
+        jQuery: 'jquery',
+      })
+    );
+    return config;
+  },
+};
+
+```
+
+#### Inferno
+
+You can use Inferno instead of React in production. In development, React will be used for hot re/loading.
+
+Installation:
+
+```bash
+yarn add react react-dom next inferno inferno-compat inferno-server
+```
+Usage (config file):
+
+```json
+{
+  "renderer": "inferno"
+}
+
+```
+
+#### Preact
+
+You can use Preact instead of React in production. In development, React will be used for hot re/loading.
+
+Installation:
+
+```bash
+yarn add react react-dom next preact preact-compat
+```
+Usage (config file):
+
+```json
+{
+  "renderer": "preact"
+}
+
+```
+
+### Vue.js
+We use [Nuxt.js](https://nuxtjs.org/) to render pages and inject
+data from controllers. You can only add pages and if the defined routes don't
+match, and nuxt matches a route, it will be rendered. 
+
+The data injected into the view can be refetched with the `/_data/` suffix.
+
+Usage (config file):
+
+```json
+{
+  "renderer": "vue"
+}
+
+```
+
+Example:
+```vue
+
+<template>
+  <div>
+    <h1>Welcome!</h1>
+    <nuxt-link to="/about">About page</nuxt-link>
+  </div>
+</template>
+
+```
+
+
+### Template
+
+The template literal renderer is a simple home-made addons that reads the html files relative to `app/views/pages` and processes it as a template literal in a Node VM and injects data.
+
+The data injected into the view can be refetched with the `/_data/` suffix.
+
+Usage (config file):
+
+```json
+{
+  "renderer": "template"
+}
+
+```
+
+Example:
+```html
+
+<html>
+
+<head>
+  <title>Hello!</title>
+</head>
+
+<body>
+
+  <li>Some data: ${data.hello}</li>
+</body>
+
+</html>
+
+```
 
 ## Controllers
 
