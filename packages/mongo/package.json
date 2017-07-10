@@ -9,7 +9,6 @@
     "sails-mongo": "1.0.0-9"
   },
   "devDependencies": {
-    "@types/jest": "^20.0.2",
-    "@types/node": "^8.0.7"
+    "@types/node": "^8.0.10"
   }
 }

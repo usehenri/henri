@@ -14,7 +14,7 @@
     "glob": "^7.1.2",
     "module-alias": "^2.0.0",
     "node-sass": "^4.5.3",
-    "postcss-cssnext": "^3.0.0",
+    "postcss-cssnext": "^3.0.2",
     "postcss-easy-import": "^2.1.0",
     "postcss-loader": "^2.0.5",
     "raw-loader": "^0.5.1",
@@ -22,7 +22,6 @@
     "webpack": "^3.1.0"
   },
   "devDependencies": {
-    "@types/jest": "^20.0.2",
-    "@types/node": "^8.0.7"
+    "@types/node": "^8.0.10"
   }
 }
