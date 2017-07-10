@@ -1,7 +1,7 @@
 const includeAll = require('include-all');
 const path = require('path');
 
-const { log } = henri;
+const { config, log } = henri;
 
 function load(location) {
   return new Promise((resolve, reject) => {
@@ -14,10 +14,8 @@ function load(location) {
         keepDirectoryPath: true,
         force: true,
       },
-      (err, modules) => {
-        if (err) {
-          return reject(err);
-        }
+      // with optional, it should silently fail...
+      (none, modules) => {
         return resolve(modules);
       }
     );
@@ -40,7 +38,13 @@ async function configure(controllers) {
 }
 
 async function init() {
-  await configure(await load('./app/controllers'));
+  await configure(
+    await load(
+      config.has('location.controllers')
+        ? path.resolve(config.get('location.controllers'))
+        : './app/controllers'
+    )
+  );
 }
 
 async function reload() {

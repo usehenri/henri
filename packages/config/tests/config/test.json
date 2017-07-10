@@ -1,3 +1,6 @@
 {
-  "abc": "c"
+  "abc": "c",
+  "location": {
+    "controllers": "./packages/controller/tests/controllers"
+  }
 }
