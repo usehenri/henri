@@ -3,7 +3,8 @@
   "scripts": {
     "precommit": "lint-staged",
     "prepublish": "cp README.md packages/henri",
-    "test": "jest --coverage --watch"
+    "test": "jest --coverage --forceExit --runInBand --verbose --bail",
+    "test:watch": "jest --coverage --watch"
   },
   "devDependencies": {
     "@types/jest": "^20.0.2",
