@@ -6,6 +6,6 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^8.0.7"
+    "@types/node": "^8.0.10"
   }
 }

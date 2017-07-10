@@ -12,7 +12,7 @@
     "winston": "^2.3.1"
   },
   "devDependencies": {
-    "@types/node": "^8.0.7",
+    "@types/node": "^8.0.10",
     "@types/winston": "^2.3.3"
   }
 }
