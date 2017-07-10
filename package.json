@@ -3,6 +3,7 @@
   "scripts": {
     "precommit": "lint-staged",
     "prepublish": "cp README.md packages/henri",
+    "pretest": "lerna bootstrap",
     "test": "jest --coverage --forceExit --runInBand --verbose --bail",
     "test:watch": "jest --coverage --watch"
   },
