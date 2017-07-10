@@ -3,6 +3,7 @@ const chalk = require('chalk');
 const yarnExists = spawn.sync('yarn', ['help']);
 
 if (!module.parent) {
+  // eslint-disable-next-line no-console
   console.log(
     `
     This module should not be run directly. 
@@ -13,7 +14,7 @@ if (!module.parent) {
 
     `
   );
-  process.exit(-1);
+  process.exit(1);
 }
 
 const argv = require('minimist')(process.argv.slice(2));

@@ -2,16 +2,23 @@
   "private": true,
   "scripts": {
     "precommit": "lint-staged",
-    "prepublish": "cp README.md packages/henri"
+    "prepublish": "cp README.md packages/henri",
+    "pretest": "lerna bootstrap",
+    "test": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail && codecov",
+    "test:watch": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch "
   },
   "devDependencies": {
+    "@types/jest": "^20.0.2",
+    "codecov": "^2.2.0",
     "eslint": "^4.2.0",
     "eslint-config-standard": "^10.2.1",
     "eslint-plugin-import": "^2.6.1",
+    "eslint-plugin-jest": "^20.0.3",
     "eslint-plugin-node": "^5.0.0",
     "eslint-plugin-promise": "^3.5.0",
     "eslint-plugin-standard": "^3.0.1",
     "husky": "^0.14.3",
+    "jest": "^20.0.4",
     "lerna": "^2.0.0",
     "lint-staged": "^4.0.0",
     "prettier": "^1.5.2"
@@ -19,8 +26,27 @@
   "lint-staged": {
     "*.js": [
       "prettier --trailing-comma es5 --single-quote --write",
-      "eslint",
+      "eslint --fix",
       "git add"
+    ]
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "modulePathIgnorePatterns": [
+      "template/.*",
+      "node_modules/*",
+      "packages/.*/build",
+      "packages/.*/build-es5",
+      "packages/jest-runtime/src/__tests__/test_root.*",
+      "website/.*",
+      "integration_tests/runtime-internal-module-registry/__mocks__"
+    ],
+    "collectCoverageFrom": [
+      "**/packages/**/**/*.js",
+      "!**/bin/**",
+      "!**/cli/**",
+      "!**/perf/**",
+      "!**/test/**"
     ]
   }
 }

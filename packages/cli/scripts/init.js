@@ -25,11 +25,6 @@ const main = (args, name) => {
   // Import existing dependencies if present
   pkg.dependencies = pkg.dependencies || {};
 
-  // Add required dependencies
-  pkg.dependencies['next'] = pkg.dependencies['next'] || '^3.0.0-beta14';
-  pkg.dependencies['react'] = pkg.dependencies['react'] || '^15.6.0';
-  pkg.dependencies['react-dom'] = pkg.dependencies['react-dom'] || '^15.6.0';
-
   // Import existing devDependencies if present
   pkg.devDependencies = pkg.devDependencies || {};
 
@@ -111,6 +106,7 @@ const main = (args, name) => {
   );
 };
 
+// eslint-disable-next-line no-unused-vars
 const help = args => {
   console.log(
     `
@@ -128,4 +124,5 @@ const help = args => {
   );
   process.exit(0);
 };
+
 module.exports = main;

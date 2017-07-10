@@ -7,17 +7,17 @@ const { log } = henri;
 henri.addModule = (name, func, force) => {
   const info = stack()[1];
 
+  // should check if func is a function?
+
   if (henri.hasOwnProperty(name) && !force) {
     const { time, filename, line } = henri._modules[name];
     const timeDiff = Date.now() - time;
-    log.error(`unable to register module '${name}' as it already exists`);
-    log.error(
-      `it was registered in ${filename}:${line} about ${timeDiff}ms ago`
-    );
-    log.error(
-      `you tried to register from ${info.getFileName()}:${info.getLineNumber()}`
-    );
-    process.exit(-1);
+    log.fatalError(`unable to register module '${name}' as it already exists
+
+    it was registered in ${filename}:${line} about ${timeDiff}ms ago
+    
+    you tried to register from ${info.getFileName()}:${info.getLineNumber()}`);
+    return;
   }
   henri[name] = func;
 
