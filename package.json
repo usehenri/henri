@@ -4,8 +4,8 @@
     "precommit": "lint-staged",
     "prepublish": "cp README.md packages/henri",
     "pretest": "lerna bootstrap",
-    "test": "jest --coverage --forceExit --runInBand --verbose --bail",
-    "test:watch": "jest --coverage --watch"
+    "test": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail",
+    "test:watch": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch "
   },
   "devDependencies": {
     "@types/jest": "^20.0.2",
