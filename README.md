@@ -11,7 +11,7 @@
 [![npm version](https://img.shields.io/npm/v/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![npm downloads](https://img.shields.io/npm/dm/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![Build Status](https://travis-ci.org/usehenri/henri.svg?branch=master)](https://travis-ci.org/usehenri/henri)
-[![codecov](https://codecov.io/gh/usehenri/henri/branch/master/graph/badge.svg)](https://codecov.io/gh/usehenri/henri)
+[![Coverage Status](https://coveralls.io/repos/github/usehenri/henri/badge.svg)](https://coveralls.io/github/usehenri/henri)
 
 henri is an easy to learn rails-like, server-side rendered (react & vue) with powerful ORMs
 

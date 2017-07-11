@@ -10,7 +10,6 @@
   },
   "devDependencies": {
     "@types/jest": "^20.0.2",
-    "codecov": "^2.2.0",
     "coveralls": "^2.13.1",
     "eslint": "^4.2.0",
     "eslint-config-standard": "^10.2.1",
