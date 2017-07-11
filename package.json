@@ -4,7 +4,8 @@
     "precommit": "lint-staged",
     "prepublish": "cp README.md packages/henri",
     "pretest": "lerna bootstrap",
-    "test": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail && coveralls",
+    "test": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail",
+    "coveralls": "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
     "test:watch": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch "
   },
   "devDependencies": {
@@ -22,6 +23,7 @@
     "jest": "^20.0.4",
     "lerna": "^2.0.0",
     "lint-staged": "^4.0.0",
+    "nyc": "^11.0.3",
     "prettier": "^1.5.2"
   },
   "lint-staged": {
