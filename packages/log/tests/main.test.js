@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 
 describe('log', () => {
-  beforeEach(() => {
+  beforeAll(async () => {
     process.env.ALLOW_CONFIG_MUTATIONS = true;
     const logsDirecory = path.resolve(process.cwd(), 'logs');
     if (!fs.existsSync(logsDirecory)) {
@@ -17,14 +17,18 @@ describe('log', () => {
   test('log to console', () => {
     expect(henri.log.transports.console).toBeDefined();
   });
-  test('should log to a file', () => {
+  test('should log to a file', done => {
     const filename = path.resolve(
       process.cwd(),
       'logs',
       `${henri.config.get('log')}`
     );
-    expect(fs.existsSync(filename)).toBe(true);
     expect(henri.log.transports.file).toBeDefined();
+    setTimeout(() => {
+      if (fs.existsSync(filename)) {
+        done();
+      }
+    }, 500);
   });
   test('notify', () => {
     expect(henri.notify).toBeDefined();
