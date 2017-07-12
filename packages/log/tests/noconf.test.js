@@ -1,0 +1,43 @@
+describe('log (no conf)', () => {
+  beforeAll(() => {
+    henri = {
+      config: new Set(),
+    };
+    require('../index.js');
+  });
+  test('initialize', () => {
+    expect(henri.log).toBeDefined();
+  });
+  test('log to console', () => {
+    expect(henri.log.transports.console).toBeDefined();
+  });
+  test('should not log to a file', () => {
+    expect(henri.log.transports.file).toBeUndefined();
+  });
+  test('notify', () => {
+    expect(henri.notify).toBeDefined();
+    expect(() =>
+      henri.notify('henri framework', 'seems like notification works')
+    ).not.toThrow();
+  });
+  test('fatalError', () => {
+    // eslint-disable-next-line no-console
+    console.log = jest.fn();
+    henri.log.error = jest.fn();
+    expect(() => henri.log.fatalError('ohh no..')).toThrow();
+    // eslint-disable-next-line no-console
+    expect(console.log).toHaveBeenCalledTimes(2);
+    expect(henri.log.error).toHaveBeenCalledTimes(1);
+  });
+  test('getColor', () => {
+    const { log: { getColor } } = henri;
+    expect(getColor).toBeDefined();
+    expect(getColor('ERROR')).toBe('red');
+    expect(getColor('wArN')).toBe('yellow');
+    expect(getColor('info')).toBe('green');
+    expect(getColor('verbose')).toBe('white');
+    expect(getColor('debug')).toBe('blue');
+    expect(getColor('sillY')).toBe('magenta');
+    expect(getColor('paint me red')).toBe('red');
+  });
+});

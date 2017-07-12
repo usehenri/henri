@@ -1,4 +1,5 @@
 {
+  "log": "test.log",
   "abc": "c",
   "location": {
     "controllers": "./packages/controller/tests/controllers"
