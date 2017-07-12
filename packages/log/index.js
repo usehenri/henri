@@ -24,6 +24,7 @@ log.add(winston.transports.Console, {
     const fullMsg = `${title} ${message || meta}`;
     let space =
       process.stdout.columns - stringWidth(fullMsg) - stringWidth(dateString);
+    /* istanbul ignore if */
     if (space <= 0) {
       space = 10;
     }
