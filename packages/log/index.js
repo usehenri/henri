@@ -32,9 +32,12 @@ log.add(winston.transports.Console, {
 });
 
 if (config.has('log') && typeof config.get('log') === 'string') {
+  // eslint-disable-next-line no-console
   console.log('');
   log.info(`logger initialized. also logging to ${config.get('log')}`);
-  log.add(winston.transports.File, { filename: `logs/${config.get('log')}` });
+  log.add(winston.transports.File, {
+    filename: path.resolve(process.cwd(), 'logs', `${config.get('log')}`),
+  });
 } else {
   log.warn('no file set in configuration file: logging to console only');
 }
@@ -60,7 +63,7 @@ function getColor(level) {
 
 function notify(title = 'No title', message = 'No message') {
   if (process.env.NODE_ENV !== 'production') {
-    notifier.notify({
+    return notifier.notify({
       title,
       message,
       icon: path.join(__dirname, 'henri.png'),
@@ -82,4 +85,5 @@ log.fatalError = msg => {
 
 // We don't use addModule as it is not yet registered
 henri.log = log;
+henri.log.getColor = getColor;
 henri.notify = notify;
