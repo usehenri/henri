@@ -20,7 +20,7 @@ describe('controllers', () => {
     expect(henri.controllers['b#cd']).not.toBeDefined();
     henri.controllers['a#bc']({}, { send: res1 });
     expect(res1).toBeCalled();
-    reloader = henri._loaders.list.pop();
+    reloader = henri._loaders.pop();
     expect(reloader).toBeDefined();
     henri.config.location.controllers =
       './packages/controller/tests/controllers-two';

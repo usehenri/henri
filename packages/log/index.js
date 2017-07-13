@@ -84,6 +84,9 @@ log.fatalError = msg => {
   throw new Error(msg);
 };
 
+// eslint-disable-next-line no-console
+log.space = () => console.log(' ');
+
 // We don't use addModule as it is not yet registered
 henri.log = log;
 henri.log.getColor = getColor;
