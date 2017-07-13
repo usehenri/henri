@@ -2,7 +2,7 @@
 
 const stack = require('callsite');
 
-const { log } = henri;
+const { getDiff, log, notify } = henri;
 
 henri.addModule = (name, func, force) => {
   const info = stack()[1];
@@ -33,20 +33,57 @@ henri.addModule = (name, func, force) => {
 
 henri.addLoader = func => {
   if (process.env.NODE_ENV !== 'production' && typeof func === 'function') {
-    henri._loaders.list.push(func);
+    henri._loaders.push(func);
   }
 };
 
-henri.addReaper = func => {
+henri.addUnloader = func => {
   if (typeof func === 'function') {
-    henri._reapers.list.unshift(func);
+    henri._unloaders.unshift(func);
+  } else {
+    log.error('you tried to register an unloader which is not a function');
   }
 };
 
-henri.release = henri.version = require('./package.json').version;
+henri.setStatus = (key, value = false) => {
+  henri.status[key] = value;
+};
 
-henri.isProduction = process.env.NODE_ENV === 'production';
+henri.getStatus = key => {
+  return henri.status[key] || false;
+};
 
-henri.isTest = process.env.NODE_ENV === 'test';
+henri.reload = async () => {
+  const start = process.hrtime();
+  const loaders = henri._loaders;
+  Object.keys(require.cache).forEach(function(id) {
+    delete require.cache[id];
+  });
+  try {
+    if (loaders.length > 0) {
+      for (let loader of loaders) {
+        await loader();
+      }
+    }
+    log.info(`server hot reload completed in ${getDiff(start)}ms`);
+    log.space();
+    notify('Hot-reload', 'Server-side hot reload completed..');
+  } catch (e) {
+    log.error(e);
+  }
+};
 
-henri.cwd = process.cwd();
+henri.stop = async () => {
+  const start = process.hrtime();
+  const reapers = henri._unloaders;
+  try {
+    if (reapers.length > 0) {
+      for (let reaper of reapers) {
+        await reaper();
+      }
+    }
+    log.warn(`server tear down completed in ${getDiff(start)}ms`);
+  } catch (e) {
+    log.error(e);
+  }
+};

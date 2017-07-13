@@ -22,7 +22,7 @@ describe('config module', () => {
       expect(henri.config).toBeDefined();
       delete henri.config;
       expect(henri.config).toBeUndefined();
-      henri._loaders.list[0]();
+      henri._loaders[0]();
       expect(henri.config).toBeDefined();
     });
   });

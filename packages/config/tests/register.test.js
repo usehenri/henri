@@ -23,14 +23,29 @@ describe('register', () => {
     expect(Object.keys(henri._loaders).length).toBe(num);
     process.env.NODE_ENV = 'test';
   });
-  test('reapers list should be populated', () => {
-    const num = Object.keys(henri._reapers.list).length;
-    henri.addReaper(() => {});
-    expect(Object.keys(henri._reapers.list).length).toBeGreaterThan(num);
+
+  test('reload', async () => {
+    const reloader = jest.fn();
+    henri.addLoader(reloader);
+    await henri.reload();
+    expect(reloader).toHaveBeenCalledTimes(1);
+    await henri.reload();
+    await henri.reload();
+    expect(reloader).toHaveBeenCalledTimes(3);
   });
-  test('reapers should be functions', () => {
-    const num = Object.keys(henri._reapers.list).length;
-    henri.addReaper(' ');
-    expect(Object.keys(henri._reapers.list).length).toBe(num);
+
+  test('addUnloader', () => {
+    henri.log.error = jest.fn();
+    henri.addUnloader('boo');
+    expect(henri.log.error).toHaveBeenCalledTimes(1);
+  });
+  test('stop', async () => {
+    const unloader = jest.fn();
+    henri.addUnloader(unloader);
+    henri.stop();
+    expect(unloader).toHaveBeenCalledTimes(1);
+    await henri.stop();
+    await henri.stop();
+    expect(unloader).toHaveBeenCalledTimes(3);
   });
 });

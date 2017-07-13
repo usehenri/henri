@@ -7,17 +7,14 @@ const config = require('config');
 if (!global['henri']) {
   global['henri'] = {
     _modules: {},
-    _loaders: {
-      list: [],
-    },
-    _reapers: {
-      list: [],
-    },
+    _loaders: [],
+    _unloaders: [],
     _models: [],
     _routes: [],
     folders: {
       view: path.resolve('./app/views'),
     },
+    status: {},
   };
 }
 
@@ -26,11 +23,14 @@ henri.config = config;
 
 require('@usehenri/log');
 
+require('./helpers');
+
 require('./register');
 
 require('./checks');
 
 function reload() {
+  delete henri.config;
   henri.config = require('config');
 }
 
