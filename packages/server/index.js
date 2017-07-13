@@ -34,7 +34,6 @@ async function start(delay, cb = null) {
 
   port = henri.isTest ? await detect(port) : port;
   port = henri.isDev ? await choosePort('0.0.0.0', port) : port;
-  app.use('*', (req, res) => res.status(404).end('page not found'));
   return app
     .listen(port, function() {
       const bootTiming = delay ? ` (took ${henri.getDiff(delay)}ms)` : '';
@@ -111,6 +110,6 @@ henri.app = app;
 henri.express = express;
 henri.start = start;
 
-module.exports = { start, handleError };
+module.exports = { start, handleError, watch };
 
 log.info('server module loaded.');
