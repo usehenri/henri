@@ -166,7 +166,7 @@ async function reload() {
 
 henri.addLoader(reload);
 
-henri.addReaper(stop);
+henri.addUnloader(stop);
 
 module.exports = init();
 
