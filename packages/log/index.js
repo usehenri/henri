@@ -63,7 +63,7 @@ function getColor(level) {
 }
 
 function notify(title = 'No title', message = 'No message') {
-  if (process.env.NODE_ENV !== 'production') {
+  if (henri.isDev) {
     return notifier.notify({
       title,
       message,
