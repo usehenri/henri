@@ -26,6 +26,7 @@ describe('register', () => {
 
   test('reload', async () => {
     const reloader = jest.fn();
+    henri.notify = jest.fn();
     henri.addLoader(reloader);
     await henri.reload();
     expect(reloader).toHaveBeenCalledTimes(1);
