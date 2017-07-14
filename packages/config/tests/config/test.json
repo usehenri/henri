@@ -1,8 +1,14 @@
 {
   "log": "test.log",
   "abc": "c",
+  "stores": {
+    "default": {
+      "adapter": "disk"
+    }
+  },
   "location": {
-    "controllers": "./packages/controller/tests/controllers"
+    "controllers": "./packages/controller/tests/controllers",
+    "models": "./packages/model/tests/models"
   },
   "secret": "nfiwuef9we8f9"
 }

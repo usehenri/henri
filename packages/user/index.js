@@ -35,9 +35,9 @@ async function encrypt(password, rounds = 10) {
         `password encryption rounds higher than 15,000 can really slow down execution`
       );
       henri.passwordHashWarning = true;
-      if (henri.isTest) {
-        rounds = 10;
-      }
+    }
+    if (henri.isTest) {
+      rounds = 10;
     }
     bcrypt.genSalt(rounds, (err, salt) => {
       if (err) {
