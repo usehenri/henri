@@ -11,8 +11,7 @@ const { app, config, log } = henri;
 
 if (!config.has('secret')) {
   // TODO: Document more...
-  log.error('You should provide a secret in your configuration file.');
-  process.exit(-1);
+  log.fatalError('You should provide a secret in your configuration file.');
 }
 
 const options = {
@@ -23,9 +22,24 @@ const options = {
   },
 };
 
-async function encrypt(password) {
+async function encrypt(password, rounds = 10) {
   return new Promise((resolve, reject) => {
-    bcrypt.genSalt(10, (err, salt) => {
+    if (typeof password !== 'string') {
+      return reject(new Error('you must provide a string to encrypt'));
+    }
+    if (password.length < 6) {
+      return reject(new Error('minimum password string is 6 characters'));
+    }
+    if ((rounds < 1 || rounds > 15000) && !henri.passwordHashWarning) {
+      log.warn(
+        `password encryption rounds higher than 15,000 can really slow down execution`
+      );
+      henri.passwordHashWarning = true;
+      if (henri.isTest) {
+        rounds = 10;
+      }
+    }
+    bcrypt.genSalt(rounds, (err, salt) => {
       if (err) {
         return reject(err);
       }

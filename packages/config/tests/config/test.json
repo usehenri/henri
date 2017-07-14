@@ -3,5 +3,6 @@
   "abc": "c",
   "location": {
     "controllers": "./packages/controller/tests/controllers"
-  }
+  },
+  "secret": "nfiwuef9we8f9"
 }
