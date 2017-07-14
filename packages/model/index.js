@@ -1,10 +1,10 @@
 const waterline = require('waterline');
 const { cwd, log, user } = henri;
-const includeAll = require('include-all');
 const _ = require('lodash');
 const path = require('path');
 
 function load(location) {
+  const includeAll = require('include-all');
   return new Promise((resolve, reject) => {
     includeAll.optional(
       {
@@ -42,12 +42,12 @@ async function configure(models) {
   for (const id in models) {
     const model = models[id];
     if (!model.store && !config.has('stores.default')) {
-      throw new Error(
+      return log.fatalError(
         `There is no default store and ${model.identity} is missing one`
       );
     }
     if (model.store && !config.has(`stores.${model.store}`)) {
-      throw new Error(
+      return log.fatalError(
         `It seems like ${model.store} is not configured. ${model.identity} is using it.`
       );
     }
@@ -91,26 +91,19 @@ async function configure(models) {
 function getAdapter(adapter) {
   const valid = ['disk', 'mysql', 'mongo', 'postgresql'];
   if (valid.indexOf(adapter) < 0) {
-    console.log('');
-    log.error(
+    return log.fatalError(
       `Adapter '${adapter}' is not valid. Check your configuration file.`
     );
-    console.log('');
-    process.exit(-1);
   }
   try {
-    const pkg = require(path.resolve(
-      cwd,
-      'node_modules',
-      `@usehenri/${adapter}`
-    ));
+    const pkg = henri.isTest
+      ? require(`@usehenri/${adapter}`)
+      : require(path.resolve(cwd, 'node_modules', `@usehenri/${adapter}`));
     return pkg;
   } catch (e) {
-    console.log('');
-    log.error(`Unable to load database adapter '${adapter}'. Seems like you`);
-    log.error(`should install it using: npm install @usehenri/${adapter}`);
-    console.log('');
-    process.exit(-1);
+    return log.fatalError(`
+    Unable to load database adapter '${adapter}'. Seems like you 
+    should install it using: npm install @usehenri/${adapter}`);
   }
 }
 
@@ -119,10 +112,9 @@ async function start(configuration) {
     waterline.start(configuration, (err, orm) => {
       if (err) {
         if (err.code === 'badConfiguration') {
-          console.log('');
-          log.error('The database connection configuration is invalid.');
-          console.log('');
-          process.exit(-1);
+          return log.fatalError(
+            'The database connection configuration is invalid.'
+          );
         }
         return reject(err);
       }
@@ -147,13 +139,23 @@ async function stop() {
         return resolve(err);
       }
       log.warn('models (orm) gracefully stopped');
+      henri._models.forEach(name => delete global[name]);
       return resolve();
     });
   });
 }
 
 async function init() {
-  await start(await configure(await load('./app/models')));
+  const { config } = henri;
+  await start(
+    await configure(
+      await load(
+        config.has('location.models')
+          ? path.resolve(config.get('location.models'))
+          : './app/models'
+      )
+    )
+  );
 }
 
 async function reload() {

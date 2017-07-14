@@ -7,6 +7,7 @@
   "license": "MIT",
   "dependencies": {
     "config": "^1.26.1",
+    "@usehenri/disk": "^0.15.2",
     "include-all": "^4.0.3",
     "lodash": "^4.17.4",
     "sails-disk": "1.0.0-11",
