@@ -1,14 +1,25 @@
 const path = require('path');
 
-const { log, view, express } = henri;
+const { express, log, view } = henri;
 
 async function init(reload = false) {
-  const { controllers } = henri;
+  const { config, controllers } = henri;
   henri.router = express.Router();
 
   middlewares();
 
-  const routes = require(path.resolve('./app/routes'));
+  let routes = null;
+  try {
+    routes = require(config.has('location.routes')
+      ? path.resolve(config.get('location.routes'))
+      : './app/routes');
+  } catch (e) {
+    log.warn('unable to load routes from filesystem');
+    routes = {};
+  }
+  if (config.has('routes') && Object.keys(config.get('routes')).length > 1) {
+    routes = Object.assign({}, routes, config.get('routes'));
+  }
 
   for (const key in routes) {
     const controller = routes[key];
@@ -36,7 +47,8 @@ async function init(reload = false) {
       henri.start(global['_initialDelay'] || null);
     });
   } else {
-    view.fallback(henri.router);
+    view && view.fallback(henri.router);
+    !view && log.warn('unable to register view fallback route');
   }
 }
 
@@ -45,11 +57,9 @@ function register(verb, route, controller, fn) {
     henri.router[verb](route, fn);
   }
   const name = `${verb} ${route}`;
-  const entry = {};
-  entry[name] = `${controller}${typeof fn !== 'function'
+  henri._routes[name] = `${controller}${typeof fn !== 'function'
     ? ' (unknown controller)'
     : ' (ok)'}`;
-  henri._routes.push(entry);
 }
 
 function middlewares(router) {
