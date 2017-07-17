@@ -6,6 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "devDependencies": {
+    "@types/jest": "^20.0.2",
     "@types/node": "^8.0.10"
   }
 }
