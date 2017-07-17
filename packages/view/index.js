@@ -11,14 +11,11 @@ const allowed = {
 };
 
 if (!allowed.hasOwnProperty(renderer)) {
-  console.log('');
-  log.error(
-    `Unable to load '${renderer}' renderer. See your configuration file...`
-  );
-  log.error('');
-  log.error(`Valid entries are: ${Object.keys(allowed).join(' ')}`);
-  console.log('');
-  process.exit(-1);
+  log.fatalError(`
+  Unable to load '${renderer}' renderer. See your configuration file...
+  
+  Valid entries are: ${Object.keys(allowed).join(' ')}
+  `);
 }
 
 henri.view = require(`./${allowed[renderer]}`);

@@ -4,7 +4,7 @@ const nextPath = path.resolve(cwd, 'node_modules', 'next');
 const next = require(nextPath);
 const builder = require(path.resolve(nextPath, 'dist/server/build')).default;
 
-const conf = require('./conf');
+const conf = henri.isTest ? {} : require('./conf');
 const moduleAlias = require('module-alias');
 
 let instance = null;
@@ -59,7 +59,7 @@ async function prepare() {
   }
   log.info('starting next.js instance...');
   instance = next({
-    dir: henri.folders.view,
+    dir: path.resolve(cwd, henri.folders.view),
     dev: !henri.isProduction,
     conf,
   });

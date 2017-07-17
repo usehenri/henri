@@ -42,10 +42,14 @@ async function init(reload = false) {
   }
 
   if (view && !reload) {
-    view.prepare().then(() => {
-      view.fallback(henri.router);
-      henri.start(global['_initialDelay'] || null);
-    });
+    try {
+      view.prepare().then(() => {
+        view.fallback(henri.router);
+        henri.start(global['_initialDelay'] || null);
+      });
+    } catch (error) {
+      log.error('unable to start renderer: ', error);
+    }
   } else {
     view && view.fallback(henri.router);
     !view && log.warn('unable to register view fallback route');
