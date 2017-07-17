@@ -8,7 +8,13 @@
   },
   "location": {
     "controllers": "./packages/controller/tests/controllers",
-    "models": "./packages/model/tests/models"
+    "models": "./packages/model/tests/models",
+    "routes": "./packages/router/tests/routes"
+  },
+  "routes": {
+    "get /abc": "a#bc",
+    "/def": "main#def",
+    "PosT /ghi": "main#ghi"
   },
   "secret": "nfiwuef9we8f9"
 }
