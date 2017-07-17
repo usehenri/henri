@@ -12,7 +12,9 @@ if (!global['henri']) {
     _models: [],
     _routes: [],
     folders: {
-      view: path.resolve('./app/views'),
+      view: config.has('location.view')
+        ? config.get('location.view')
+        : path.resolve('./app/views'),
     },
     status: {},
   };
