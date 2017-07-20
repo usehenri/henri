@@ -35,4 +35,5 @@ data/
 
 dist
 
+.tmp/*
 .changelog
