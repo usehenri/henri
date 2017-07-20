@@ -10,7 +10,7 @@ class Log {
     this.customWidth = customWidth;
 
     this.winston = new winston.Logger();
-    this.setup({ customWidth });
+    this.setup();
 
     return this;
   }
@@ -24,7 +24,12 @@ class Log {
   }
 
   setup() {
-    const { config = new Set() } = henri;
+    let config = new Map();
+
+    /* istanbul ignore if */
+    if (global['henri'] && global['henri'].config) {
+      config = henri.config;
+    }
 
     this.winston.add(winston.transports.Console, {
       colorize: true,
@@ -54,6 +59,7 @@ class Log {
       },
     });
 
+    /* istanbul ignore next */
     if (config.has('log') && typeof config.get('log') === 'string') {
       // eslint-disable-next-line no-console
       console.log('');
@@ -70,26 +76,32 @@ class Log {
     }
   }
 
+  /* istanbul ignore next */
   error(...args) {
     this.winston.error(...args);
   }
 
+  /* istanbul ignore next */
   warn(...args) {
     this.winston.warn(...args);
   }
 
+  /* istanbul ignore next */
   info(...args) {
     this.winston.info(...args);
   }
 
+  /* istanbul ignore next */
   verbose(...args) {
     this.winston.verbose(...args);
   }
 
+  /* istanbul ignore next */
   debug(...args) {
     this.winston.debug(...args);
   }
 
+  /* istanbul ignore next */
   silly(...args) {
     this.winston.silly(...args);
   }
@@ -110,6 +122,7 @@ class Log {
     throw new Error(msg);
   }
 
+  /* istanbul ignore next */
   notify(title = 'No title', message = 'No message') {
     if (henri.isDev) {
       return notifier.notify({
@@ -120,9 +133,10 @@ class Log {
     }
   }
 
+  /* istanbul ignore next */
   space() {
     // eslint-disable-next-line no-console
-    console.log(' ');
+    return console.log(' ');
   }
 }
 

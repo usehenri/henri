@@ -17,6 +17,11 @@ describe('log', () => {
   test('log to console', () => {
     expect(henri.log.winston.transports.console).toBeDefined();
   });
+  test('should hold static function', () => {
+    const Log = require('../index');
+    expect(Log.name()).toBe('log');
+    expect(Log.reloadable()).toBeFalsy();
+  });
   test('should log to a file', done => {
     const filename = path.resolve(
       process.cwd(),
@@ -55,5 +60,11 @@ describe('log', () => {
     expect(getColor('debug')).toBe('blue');
     expect(getColor('sillY')).toBe('magenta');
     expect(getColor('paint me red')).toBe('red');
+  });
+  test('all level methods', () => {
+    const { log } = henri;
+    log.winston.info = jest.fn();
+    log.info('ah');
+    expect(log.winston.info).toHaveBeenCalledTimes(1);
   });
 });
