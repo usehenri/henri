@@ -36,6 +36,8 @@ const main = (args, name) => {
     eject: 'henri eject',
   };
 
+  pkg.henri = version;
+
   // Write package.json to filesystem
   fs.writeFileSync(
     path.join(cwd, 'package.json'),
