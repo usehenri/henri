@@ -28,6 +28,6 @@
     "@usehenri/cli": "^0.15.5"
   },
   "devDependencies": {
-    "@types/jest": "^20.0.2"
+    "@types/jest": "^20.0.5"
   }
 }
