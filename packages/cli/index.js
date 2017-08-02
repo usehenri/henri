@@ -22,10 +22,11 @@ const argv = require('minimist')(process.argv.slice(2));
 const command = argv._.shift();
 
 switch (command) {
-  case 'server':
+  case 'clean':
+  case 'console':
   case 'init':
   case 'new':
-  case 'console':
+  case 'server':
   case 'start-henri':
     const cmd = require(`./scripts/${command}`);
     cmd(argv);

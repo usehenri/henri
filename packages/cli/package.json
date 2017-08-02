@@ -16,7 +16,9 @@
     "chalk": "^2.0.1",
     "cross-spawn": "^5.1.0",
     "fs-extra": "^4.0.1",
-    "minimist": "^1.2.0"
+    "inquirer": "^3.2.1",
+    "minimist": "^1.2.0",
+    "rimraf": "^2.6.1"
   },
   "devDependencies": {
     "@types/chalk": "^0.4.31",
@@ -25,5 +27,11 @@
     "@types/minimist": "^1.2.0",
     "@types/node": "^8.0.10"
   },
-  "commands": ["server", "new", "init", "console"]
+  "commands": [
+    "server",
+    "new",
+    "init",
+    "console",
+    "clean"
+  ]
 }
