@@ -12,7 +12,7 @@ async function init(reload = false) {
   try {
     routes = require(config.has('location.routes')
       ? path.resolve(config.get('location.routes'))
-      : './app/routes');
+      : path.resolve('./app/routes'));
   } catch (e) {
     log.warn('unable to load routes from filesystem');
     routes = {};
