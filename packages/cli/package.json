@@ -25,10 +25,5 @@
     "@types/minimist": "^1.2.0",
     "@types/node": "^8.0.10"
   },
-  "commands": [
-    "server",
-    "new",
-    "init",
-    "console"
-  ]
+  "commands": ["server", "new", "init", "console"]
 }
