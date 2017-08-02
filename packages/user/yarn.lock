@@ -12,9 +12,9 @@
   dependencies:
     "@types/node" "*"
 
-"@types/express-session@^1.15.0":
-  version "1.15.0"
-  resolved "https://registry.yarnpkg.com/@types/express-session/-/express-session-1.15.0.tgz#9b6822192faa80073148d32a17248f8e6c1e79e2"
+"@types/express-session@^1.15.2":
+  version "1.15.2"
+  resolved "https://registry.yarnpkg.com/@types/express-session/-/express-session-1.15.2.tgz#3d936febc0252bea472557cdae1aa2e377ac5e10"
   dependencies:
     "@types/express" "*"
     "@types/node" "*"
@@ -26,9 +26,9 @@
     "@types/express-serve-static-core" "*"
     "@types/serve-static" "*"
 
-"@types/jest@^20.0.2":
-  version "20.0.2"
-  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-20.0.2.tgz#86c751121fb53dbd39bb1a08c45083da13f2dc67"
+"@types/jest@^20.0.5":
+  version "20.0.5"
+  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-20.0.5.tgz#f463e58b2de6e801f40e33b05db894babdbad98c"
 
 "@types/mime@*":
   version "1.3.1"
@@ -38,13 +38,13 @@
   version "8.0.7"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.7.tgz#fb0ad04b5b6f6eabe0372a32a8f1fbba5c130cae"
 
-"@types/node@^8.0.10":
-  version "8.0.12"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.12.tgz#0560c3e8c9e3da0aa07d0b86e0b0a02b5fd29480"
+"@types/node@^8.0.19":
+  version "8.0.19"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.19.tgz#e46e2b0243de7d03f15b26b45c59ebb84f657a4e"
 
-"@types/passport-jwt@^2.0.20":
-  version "2.0.21"
-  resolved "https://registry.yarnpkg.com/@types/passport-jwt/-/passport-jwt-2.0.21.tgz#a53480d29887ca1679acfad899f3efe7fe5ea191"
+"@types/passport-jwt@^2.0.22":
+  version "2.0.22"
+  resolved "https://registry.yarnpkg.com/@types/passport-jwt/-/passport-jwt-2.0.22.tgz#7e2e58a330853fe0bfd67be24ef95f446012f946"
   dependencies:
     "@types/express" "*"
     "@types/passport-strategy" "*"
@@ -148,13 +148,7 @@ crc@3.4.4:
   version "3.4.4"
   resolved "https://registry.yarnpkg.com/crc/-/crc-3.4.4.tgz#9da1e980e3bd44fc5c93bf5ab3da3378d85e466b"
 
-debug@2.6.7:
-  version "2.6.7"
-  resolved "https://registry.yarnpkg.com/debug/-/debug-2.6.7.tgz#92bad1f6d05bbb6bba22cca88bcd0ec894c2861e"
-  dependencies:
-    ms "2.0.0"
-
-debug@^2.2.0:
+debug@2.6.8, debug@^2.2.0:
   version "2.6.8"
   resolved "https://registry.yarnpkg.com/debug/-/debug-2.6.8.tgz#e731531ca2ede27d188222427da17821d68ff4fc"
   dependencies:
@@ -195,14 +189,14 @@ esprima-fb@~3001.0001.0000-dev-harmony-fb, esprima-fb@~3001.1.0-dev-harmony-fb:
   version "3001.1.0-dev-harmony-fb"
   resolved "https://registry.yarnpkg.com/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz#b77d37abcd38ea0b77426bb8bc2922ce6b426411"
 
-express-session@^1.15.3:
-  version "1.15.3"
-  resolved "https://registry.yarnpkg.com/express-session/-/express-session-1.15.3.tgz#db545f0435a7b1b228ae02da8197f65141735c67"
+express-session@^1.15.4:
+  version "1.15.4"
+  resolved "https://registry.yarnpkg.com/express-session/-/express-session-1.15.4.tgz#5e2cdcf6defe3c1eda4e980f13b986cc58cfb954"
   dependencies:
     cookie "0.3.1"
     cookie-signature "1.0.6"
     crc "3.4.4"
-    debug "2.6.7"
+    debug "2.6.8"
     depd "~1.1.0"
     on-headers "~1.0.1"
     parseurl "~1.3.1"

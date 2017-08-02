@@ -8,12 +8,12 @@
   "dependencies": {
     "chalk": "^2.0.1",
     "node-notifier": "^5.1.2",
-    "string-width": "^2.0.0",
+    "string-width": "^2.1.1",
     "winston": "^2.3.1"
   },
   "devDependencies": {
-    "@types/jest": "^20.0.2",
-    "@types/node": "^8.0.10",
-    "@types/winston": "^2.3.3"
+    "@types/jest": "^20.0.5",
+    "@types/node": "^8.0.19",
+    "@types/winston": "^2.3.4"
   }
 }
