@@ -77,6 +77,7 @@ const main = (args, name) => {
         adapter: 'disk',
       },
     },
+    renderer: 'react',
     secret: `${buf.toString('hex')}`,
   };
 
