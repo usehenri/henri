@@ -15,18 +15,14 @@
   resolved "https://registry.yarnpkg.com/@types/config/-/config-0.0.32.tgz#c106055802d78e234e28374adc4dad460d098558"
 
 "@types/jest@^20.0.5":
-  version "20.0.5"
-  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-20.0.5.tgz#f463e58b2de6e801f40e33b05db894babdbad98c"
+  version "20.0.6"
+  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-20.0.6.tgz#7e0ba76ddfacb42ee9bb0d8833e5208cf0680431"
 
 "@types/lodash@^4.14.71":
   version "4.14.71"
   resolved "https://registry.yarnpkg.com/@types/lodash/-/lodash-4.14.71.tgz#0dc383f78981216ac76e2f2c3afd998e0450e4c1"
 
-"@types/node@*":
-  version "8.0.4"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.4.tgz#d0ca03fa4a3d7ab66c1f4e78a0fd06e30e46a7a9"
-
-"@types/node@^8.0.10":
+"@types/node@*", "@types/node@^8.0.10":
   version "8.0.19"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.19.tgz#e46e2b0243de7d03f15b26b45c59ebb84f657a4e"
 
@@ -48,8 +44,8 @@ acorn@^1.0.3:
   resolved "https://registry.yarnpkg.com/acorn/-/acorn-1.2.2.tgz#c8ce27de0acc76d896d2b1fad3df588d9e82f014"
 
 acorn@^5.0.0:
-  version "5.0.3"
-  resolved "https://registry.yarnpkg.com/acorn/-/acorn-5.0.3.tgz#c460df08491463f028ccb82eab3730bf01087b3d"
+  version "5.1.1"
+  resolved "https://registry.yarnpkg.com/acorn/-/acorn-5.1.1.tgz#53fe161111f912ab999ee887a90a0bc52822fd75"
 
 amdefine@>=0.0.4:
   version "1.0.1"
@@ -575,15 +571,15 @@ walker@1.0.7:
     makeerror "1.0.x"
 
 waterline-schema@^1.0.0-7:
-  version "1.0.0-17"
-  resolved "https://registry.yarnpkg.com/waterline-schema/-/waterline-schema-1.0.0-17.tgz#2dc3fe89993739c09147f0aa7b3a1f730dc6a248"
+  version "1.0.0-18"
+  resolved "https://registry.yarnpkg.com/waterline-schema/-/waterline-schema-1.0.0-18.tgz#5a61c8f42b481676944fb0d075658fba938121c9"
   dependencies:
     "@sailshq/lodash" "^3.10.2"
     rttc "^10.0.0-1"
 
 waterline-utils@^1.3.7:
-  version "1.3.14"
-  resolved "https://registry.yarnpkg.com/waterline-utils/-/waterline-utils-1.3.14.tgz#ceec0e2f7bc42063774ad2c4b8672930f2839ce4"
+  version "1.3.15"
+  resolved "https://registry.yarnpkg.com/waterline-utils/-/waterline-utils-1.3.15.tgz#49ba52d65399d47bba7cc9599cf2e4b43e09fe68"
   dependencies:
     "@sailshq/lodash" "^3.10.2"
     async "2.0.1"
