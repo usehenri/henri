@@ -45,7 +45,6 @@ async function start(delay, cb = null) {
       henri.setStatus('http', true);
       typeof cb === 'function' && cb();
     })
-    .on('error', typeof cb === 'function' && cb)
     .on('error', handleError);
 }
 
