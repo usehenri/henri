@@ -1,6 +1,10 @@
 // Remove config warning when no file is available
 process.env.SUPPRESS_NO_CONFIG_WARNING = true;
 
+if (process.env.NODE_ENV !== 'production') {
+  process.on('unhandledRejection', r => console.log(r));
+}
+
 const path = require('path');
 const config = require('config');
 const Log = require('@usehenri/log');
