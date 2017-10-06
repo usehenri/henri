@@ -78,7 +78,10 @@ function middlewares(router) {
       if (req.url.startsWith('/_data/')) {
         return res.json(data);
       }
-      view.render(req, res, route, opts);
+      return res.format({
+        default: () => view.render(req, res, route, opts),
+        json: () => res.json(data),
+      });
     };
     cb();
   });
