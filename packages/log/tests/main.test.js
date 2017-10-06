@@ -15,7 +15,12 @@ describe('log', () => {
     expect(henri.log).toBeDefined();
   });
   test('log to console', () => {
-    expect(henri.log.transports.console).toBeDefined();
+    expect(henri.log.winston.transports.console).toBeDefined();
+  });
+  test('should hold static function', () => {
+    const Log = require('../index');
+    expect(Log.name()).toBe('log');
+    expect(Log.reloadable()).toBeFalsy();
   });
   test('should log to a file', done => {
     const filename = path.resolve(
@@ -23,7 +28,7 @@ describe('log', () => {
       'logs',
       `${henri.config.get('log')}`
     );
-    expect(henri.log.transports.file).toBeDefined();
+    expect(henri.log.winston.transports.file).toBeDefined();
     setTimeout(() => {
       if (fs.existsSync(filename)) {
         done();
@@ -31,9 +36,9 @@ describe('log', () => {
     }, 500);
   });
   test('notify', () => {
-    expect(henri.notify).toBeDefined();
+    expect(henri.log.notify).toBeDefined();
     expect(() =>
-      henri.notify('henri framework', 'seems like notification works')
+      henri.log.notify('henri framework', 'seems like notification works')
     ).not.toThrow();
   });
   test('fatalError', () => {
@@ -55,5 +60,11 @@ describe('log', () => {
     expect(getColor('debug')).toBe('blue');
     expect(getColor('sillY')).toBe('magenta');
     expect(getColor('paint me red')).toBe('red');
+  });
+  test('all level methods', () => {
+    const { log } = henri;
+    log.winston.info = jest.fn();
+    log.info('ah');
+    expect(log.winston.info).toHaveBeenCalledTimes(1);
   });
 });

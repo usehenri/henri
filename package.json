@@ -4,30 +4,33 @@
     "precommit": "lint-staged",
     "prepublish": "cp README.md packages/henri",
     "pretest": "lerna bootstrap",
-    "test": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail",
-    "coveralls": "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
-    "test:watch": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch --notify"
+    "test":
+      "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail",
+    "coveralls":
+      "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
+    "test:watch":
+      "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch --notify"
   },
   "devDependencies": {
-    "@types/jest": "^20.0.6",
-    "coveralls": "^2.13.1",
-    "eslint": "^4.4.1",
+    "@types/jest": "^21.1.1",
+    "coveralls": "^3.0.0",
+    "eslint": "^4.5.0",
     "eslint-config-standard": "^10.2.1",
     "eslint-plugin-import": "^2.6.1",
-    "eslint-plugin-jest": "^20.0.3",
+    "eslint-plugin-jest": "^21.2.0",
     "eslint-plugin-node": "^5.1.1",
     "eslint-plugin-promise": "^3.5.0",
     "eslint-plugin-standard": "^3.0.1",
     "husky": "^0.14.3",
-    "jest": "^20.0.4",
-    "lerna": "^2.0.0",
-    "lint-staged": "^4.0.3",
-    "next": "3.0.1-beta.16",
-    "nuxt": "^1.0.0-alpha.5",
+    "jest": "^21.0.2",
+    "lerna": "^2.4.0",
+    "lint-staged": "^4.0.4",
+    "next": "^4.0.0-beta.3",
+    "nuxt": "^1.0.0-rc11",
     "nyc": "^11.1.0",
-    "prettier": "^1.5.3",
-    "react": "^15.6.1",
-    "react-dom": "^15.6.1"
+    "prettier": "^1.7.2",
+    "react": "^16.0.0",
+    "react-dom": "^16.0.0"
   },
   "lint-staged": {
     "*.js": [
@@ -44,6 +47,11 @@
       "node_modules/*",
       "packages/.*/build",
       "packages/.*/build-es5",
+      "packages/model",
+      "packages/waterline",
+      "packages/mongo",
+      "packages/mysql",
+      "packages/disk",
       "packages/jest-runtime/src/__tests__/test_root.*",
       "website/.*",
       "integration_tests/runtime-internal-module-registry/__mocks__"

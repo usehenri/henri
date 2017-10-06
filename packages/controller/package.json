@@ -9,6 +9,6 @@
     "include-all": "^4.0.3"
   },
   "devDependencies": {
-    "@types/node": "^8.0.10"
+    "@types/node": "^8.0.32"
   }
 }

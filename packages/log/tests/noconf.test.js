@@ -1,23 +1,22 @@
 describe('log (no conf)', () => {
   beforeAll(() => {
-    henri = {
-      config: new Set(),
-    };
-    require('../index.js');
+    const Log = require('../index.js');
+    global['henri'] = {};
+    henri.log = new Log();
   });
   test('initialize', () => {
     expect(henri.log).toBeDefined();
   });
   test('log to console', () => {
-    expect(henri.log.transports.console).toBeDefined();
+    expect(henri.log.winston.transports.console).toBeDefined();
   });
   test('should not log to a file', () => {
-    expect(henri.log.transports.file).toBeUndefined();
+    expect(henri.log.winston.transports.file).toBeUndefined();
   });
   test('notify', () => {
-    expect(henri.notify).toBeDefined();
+    expect(henri.log.notify).toBeDefined();
     expect(() =>
-      henri.notify('henri framework', 'seems like notification works')
+      henri.log.notify('henri framework', 'seems like notification works')
     ).not.toThrow();
   });
   test('fatalError', () => {

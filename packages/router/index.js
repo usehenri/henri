@@ -12,7 +12,7 @@ async function init(reload = false) {
   try {
     routes = require(config.has('location.routes')
       ? path.resolve(config.get('location.routes'))
-      : './app/routes');
+      : path.resolve('./app/routes'));
   } catch (e) {
     log.warn('unable to load routes from filesystem');
     routes = {};
@@ -78,7 +78,10 @@ function middlewares(router) {
       if (req.url.startsWith('/_data/')) {
         return res.json(data);
       }
-      view.render(req, res, route, opts);
+      return res.format({
+        default: () => view.render(req, res, route, opts),
+        json: () => res.json(data),
+      });
     };
     cb();
   });

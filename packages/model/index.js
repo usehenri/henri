@@ -1,6 +1,4 @@
-const waterline = require('waterline');
-const { cwd, log, user } = henri;
-const _ = require('lodash');
+const { cwd, log } = henri;
 const path = require('path');
 
 function load(location) {
@@ -26,122 +24,87 @@ function load(location) {
 
 async function configure(models) {
   const { config } = henri;
+  delete henri.stores;
+  henri.stores = {};
   const configuration = {
     adapters: {},
-    datastores: {},
-    models: models,
-    defaultModelSettings: {
-      primaryKey: 'id',
-      datastore: 'default',
-      attributes: {
-        id: { type: 'number', autoMigrations: { autoIncrement: true } },
-      },
-    },
+    models: {},
   };
 
   for (const id in models) {
     const model = models[id];
+
     if (!model.store && !config.has('stores.default')) {
       return log.fatalError(
         `There is no default store and ${model.identity} is missing one`
       );
     }
+
     if (model.store && !config.has(`stores.${model.store}`)) {
       return log.fatalError(
         `It seems like ${model.store} is not configured. ${model.identity} is using it.`
       );
     }
+
     const storeName = model.store || 'default';
-    configuration.datastores[storeName] = Object.assign(
-      {},
-      config.get(`stores.${storeName}`)
-    );
-    const { adapter } = configuration.datastores[storeName];
 
-    configuration.datastores[storeName].adapter = `sails-${adapter}`;
-
-    configuration.adapters[`sails-${adapter}`] = getAdapter(adapter);
-
-    // This will be useful when integrating mongoose and sequalize
-    model.attributes = Object.assign({}, model.schema);
-    delete model.schema;
-
-    if (id === 'user') {
-      log.info('Found a user model, overloading it.');
-      model.attributes.email = { type: 'string', required: true };
-      model.attributes.password = { type: 'string', required: true };
-      model.beforeCreate = async (values, cb) => {
-        values.password = await user.encrypt(values.password);
-        cb();
+    const getStore = name => {
+      if (henri.stores[name]) {
+        return henri.stores[name];
+      }
+      const store = config.get(`stores.${name}`);
+      const valid = {
+        mongoose: 'mongoose',
       };
-      model.beforeUpdate = async (values, cb) => {
-        if (values.hasOwnProperty('password')) {
-          values.password = await user.encrypt(values.password);
-        }
-        cb();
-      };
-    }
+      if (valid.hasOwnProperty(store.adapter) < 0) {
+        return log.fatalError(
+          `Adapter '${store.adapter}' is not valid. Check your configuration file.`
+        );
+      }
+      const conn = valid[store.adapter];
+      try {
+        const Pkg = henri.isTest
+          ? require(`@usehenri/${conn}`)
+          : require(path.resolve(cwd, 'node_modules', `@usehenri/${conn}`));
+        henri.stores[name] = new Pkg(name, store);
+        return henri.stores[name];
+      } catch (e) {
+        return log.fatalError(`
+        Unable to load database adapter '${store.adapter}'. Seems like you 
+        should install it using: npm install @usehenri/${store.adapter}`);
+      }
+    };
+
+    const store = getStore(storeName);
+
+    global[model.globalId] = store.addModel(model);
+    henri._models.push(model.globalId);
+    configuration.adapters[storeName] = store;
   }
-
-  henri.models = models;
-
   return configuration;
 }
 
-function getAdapter(adapter) {
-  const valid = ['disk', 'mysql', 'mongo', 'postgresql'];
-  if (valid.indexOf(adapter) < 0) {
-    return log.fatalError(
-      `Adapter '${adapter}' is not valid. Check your configuration file.`
-    );
-  }
-  try {
-    const pkg = henri.isTest
-      ? require(`@usehenri/${adapter}`)
-      : require(path.resolve(cwd, 'node_modules', `@usehenri/${adapter}`));
-    return pkg;
-  } catch (e) {
-    return log.fatalError(`
-    Unable to load database adapter '${adapter}'. Seems like you 
-    should install it using: npm install @usehenri/${adapter}`);
-  }
-}
-
 async function start(configuration) {
-  return new Promise((resolve, reject) => {
-    waterline.start(configuration, (err, orm) => {
-      if (err) {
-        if (err.code === 'badConfiguration') {
-          return log.fatalError(
-            'The database connection configuration is invalid.'
-          );
-        }
-        return reject(err);
-      }
-      henri.orm = orm;
-      const { models } = configuration;
-      for (const id in models) {
-        const model = models[id];
-        const name = _.capitalize(model.identity);
-        global[name] = waterline.getModel(model.identity, orm);
-        henri._models.push(name);
-      }
-      resolve();
-    });
+  return new Promise(async (resolve, reject) => {
+    for (var store in henri.stores) {
+      await henri.stores[store].start();
+    }
+    return resolve();
   });
 }
 
 async function stop() {
-  return new Promise((resolve, reject) => {
-    waterline.stop(henri.orm, err => {
-      if (err) {
-        log.error('something went wrong while stopping the orm', err);
-        return resolve(err);
-      }
-      log.warn('models (orm) gracefully stopped');
-      henri._models.forEach(name => delete global[name]);
+  return new Promise(async (resolve, reject) => {
+    if (henri.stores.length < 1) {
+      log.warn('no models/stores needed to be stopped.');
       return resolve();
-    });
+    }
+    for (var store in henri.stores) {
+      await henri.stores[store].stop();
+    }
+    henri._models.forEach(name => delete global[name]);
+    log.warn('models (orm) gracefully stopped');
+    return resolve();
   });
 }
 

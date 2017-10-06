@@ -9,11 +9,11 @@
     "chalk": "^2.0.1",
     "node-notifier": "^5.1.2",
     "string-width": "^2.1.1",
-    "winston": "^2.3.1"
+    "winston": "^2.4.0"
   },
   "devDependencies": {
-    "@types/jest": "^20.0.5",
-    "@types/node": "^8.0.19",
+    "@types/jest": "^21.1.2",
+    "@types/node": "^8.0.32",
     "@types/winston": "^2.3.4"
   }
 }

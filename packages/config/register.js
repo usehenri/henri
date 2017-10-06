@@ -2,7 +2,7 @@
 
 const stack = require('callsite');
 
-const { getDiff, log, notify } = henri;
+const { getDiff, log } = henri;
 
 henri.addModule = (name, func, force) => {
   const info = stack()[1];
@@ -67,7 +67,7 @@ henri.reload = async () => {
     }
     log.info(`server hot reload completed in ${getDiff(start)}ms`);
     log.space();
-    notify('Hot-reload', 'Server-side hot reload completed..');
+    log.notify('Hot-reload', 'Server-side hot reload completed..');
   } catch (e) {
     log.error(e);
   }

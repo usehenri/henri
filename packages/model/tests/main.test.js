@@ -43,7 +43,9 @@ describe('models', () => {
     expect(users[0].password).not.toBe('delectorskaya');
   });
   test('update', async () => {
-    const user1 = await User.find({}).limit(1).meta({ fetch: true });
+    const user1 = await User.find({})
+      .limit(1)
+      .meta({ fetch: true });
     const userUpdate = Object.assign({}, user1[0]);
     userUpdate.password = 'someOtherPass';
     const user2 = await User.update({ id: userUpdate.id })

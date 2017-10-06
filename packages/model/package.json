@@ -6,16 +6,11 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/disk": "^0.15.5",
-    "config": "^1.26.1",
-    "include-all": "^4.0.3",
-    "lodash": "^4.17.4",
-    "sails-disk": "1.0.0-11",
-    "waterline": "^0.13.0-rc11"
+    "include-all": "^4.0.3"
   },
   "devDependencies": {
-    "@types/config": "^0.0.32",
-    "@types/jest": "^20.0.5",
+    "@types/config": "^0.0.33",
+    "@types/jest": "^21.1.2",
     "@types/lodash": "^4.14.71",
     "@types/node": "^8.0.10",
     "@types/waterline": "^0.11.1"

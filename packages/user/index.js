@@ -17,7 +17,7 @@ if (!config.has('secret')) {
 const options = {
   usernameField: 'email',
   jwt: {
-    jwtFromRequest: ExtractJwt.fromAuthHeader(),
+    jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
     secretOrKey: config.get('secret'),
   },
 };
