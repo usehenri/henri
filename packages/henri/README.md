@@ -20,8 +20,6 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
 - [Models](#models)
   - [Disk](#disk)
   - [MongoDB](#mongodb)
-  - [MariaDB/MySQL](#mysql)
-  - [Postgresql](#postgresql)
 - [Views](#views)
   - [React](#react)
     - [Inferno](#inferno)
@@ -99,18 +97,11 @@ You can have a `default.json`, `production.json`, etc.
   "log": "main.log", 
   "stores": { 
     "default": {
-      "adapter": "disk"
-    },
-    "sql01": {
-      "adapter": "mysql",
-      "user": "someuser",
-      "password": "somepass",
-      "host": "somedb01.dbland.com",
-      "database": "thedb"
-    },
-    "mongo": {
       "adapter": "mongo",
       "url": "mongodb://user:pass@mongoserver.com:10914/henri-test"
+    },
+    "dev": {
+      "adapter": "disk"
     }
   },
   "secret": "25bb9ed0b0c44cc3549f1a09fc082a1aa3ec91fbd4ce9a090b",
@@ -138,12 +129,11 @@ on different adapters, thanks to [waterline](https://github.com/balderdashy/wate
 // beforeUpdate: encrypts the password
 
 module.exports = {
-  identity: 'user',
-  store: 'sql01', // see the demo configuration up there
+  store: 'dev', // see the demo configuration up there
   schema: {
     firstName: { type: 'string' },
-    lastName: { type: 'string' },
-    tasks: { collection: 'tasks' }
+    lastName: String,
+    tasks: {  }
   }
 };
 
@@ -153,7 +143,6 @@ module.exports = {
 // app/models/Tasks.js
 
 module.exports = {
-  identity: 'tasks',
   store: 'default', // see the demo configuration up there
   schema: {
     name: { type: 'string', required: true },
@@ -171,9 +160,9 @@ module.exports = {
 
 ### Disk
 
-The disk adapter is using waterline (and NeDB) to provide disk-based storage.
+The disk adapter is using a promisified NeDB to provide disk-based storage.
 
-This is not for production and you can easily port your models to other waterline-connected adapters.
+This is not for production and you can easily port your models to other adapters.
 
 ```bash
   yarn add henri @usehenri/disk
@@ -185,41 +174,16 @@ This is not for production and you can easily port your models to other waterlin
 
 ### MongoDB
 
-The MongoDB adapter is using waterline to provide a MongoDB ODM.
+The MongoDB adapter is using mongoose to provide a MongoDB ODM.
 
 
 ```bash
+  yarn add henri @usehenri/mongo
   yarn add henri @usehenri/mongo
 
   # or
 
   npm install @usehenri/mongo --save
-```
-
-### MySQL
-
-The MariaDB/MySQL adapter is using waterline to provide a MySQL ORM.
-
-
-```bash
-  yarn add henri @usehenri/mysql
-
-  # or
-
-  npm install @usehenri/mysql --save
-```
-
-### PostgreSQL
-
-The PostgreSQL adapter is using waterline to provide a PostgreSQL ORM.
-
-
-```bash
-  yarn add henri @usehenri/postgresql
-
-  # or
-
-  npm install @usehenri/postgresql --save
 ```
 
 ## Views
@@ -382,6 +346,8 @@ You can easily add controllers under `app/controllers`.
 
 They will be autoloaded and available throughout your application.
 
+Controllers are auto-reloaded on save.
+
 ```js
 // app/controllers/User.js
 
@@ -424,7 +390,10 @@ be rendered if no routes match before.
 Routes are a simple object with a key standing as a route or an action verb
 (used by express) and a route.
 
-Each route define here will also have a `/_data/` route attached that will return
+If you want to access the `res.render` data, you can make the call with 
+`application/json` header. Everything else will be rendered.
+
+Each route defined here will also have a `/_data/` route attached that will return
 only the data injected into the view if you use `res.render`. 
 
 As with the `/log` route above, fetching `/log` will give you a SSR React page and
