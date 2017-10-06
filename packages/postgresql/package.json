@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/postgresql",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "description": "henri postgresql database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
