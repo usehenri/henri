@@ -1,12 +1,12 @@
 {
   "name": "@usehenri/config",
-  "version": "0.15.5",
+  "version": "0.16.0",
   "description": "henri configuration manager",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/log": "^0.15.5",
+    "@usehenri/log": "^0.16.0",
     "callsite": "^1.0.0",
     "config": "^1.26.1"
   },

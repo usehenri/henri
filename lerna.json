@@ -1,9 +1,9 @@
 {
-  "lerna": "2.0.0",
+  "lerna": "2.2.0",
   "conventionalCommits": "true",
   "packages": [
     "packages/*"
   ],
   "npmClient": "yarn",
-  "version": "0.15.5"
+  "version": "0.16.0"
 }

@@ -1,7 +1,20 @@
 # Change Log
 
 All notable changes to this project will be documented in this file.
-See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
+
+<a name="0.16.0"></a>
+# [0.16.0](https://github.com/usehenri/henri/compare/v0.15.5...v0.16.0) (2017-10-06)
+
+
+### Features
+
+* **cli:** adding clean command ([ed90bf7](https://github.com/usehenri/henri/commit/ed90bf7))
+* **cli:** adding react by default (next) ([4716354](https://github.com/usehenri/henri/commit/4716354))
+* **cli:** check if it's a valid henri installation ([240d009](https://github.com/usehenri/henri/commit/240d009))
+
+
+
 
 <a name="0.15.5"></a>
 ## 0.15.5 (2017-07-17)

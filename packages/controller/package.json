@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/controller",
-  "version": "0.15.5",
+  "version": "0.16.0",
   "description": "henri controllers loader",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",

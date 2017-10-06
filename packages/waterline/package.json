@@ -1,12 +1,14 @@
 {
-  "name": "@usehenri/model",
+  "name": "@usehenri/waterline",
   "version": "0.16.0",
-  "description": "henri model loader",
+  "description": "henri waterline database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "include-all": "^4.0.3"
+    "@usehenri/disk": "^0.16.0",
+    "lodash": "^4.17.4",
+    "waterline": "0.13.1-3"
   },
   "devDependencies": {
     "@types/config": "^0.0.33",

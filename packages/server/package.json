@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/server",
-  "version": "0.15.5",
+  "version": "0.16.0",
   "description": "henri http server (express)",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",

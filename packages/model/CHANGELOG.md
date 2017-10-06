@@ -1,7 +1,18 @@
 # Change Log
 
 All notable changes to this project will be documented in this file.
-See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
+
+<a name="0.16.0"></a>
+# [0.16.0](https://github.com/usehenri/henri/compare/v0.15.5...v0.16.0) (2017-10-06)
+
+
+### Features
+
+* **model:** removing waterline support and adding mongoose ([8438dce](https://github.com/usehenri/henri/commit/8438dce))
+
+
+
 
 <a name="0.15.5"></a>
 ## 0.15.5 (2017-07-17)

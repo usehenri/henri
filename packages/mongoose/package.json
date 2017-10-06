@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/mongoose",
-  "version": "0.15.5",
+  "version": "0.16.0",
   "description": "henri mongoose database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
