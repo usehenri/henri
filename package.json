@@ -4,9 +4,12 @@
     "precommit": "lint-staged",
     "prepublish": "cp README.md packages/henri",
     "pretest": "lerna bootstrap",
-    "test": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail",
-    "coveralls": "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
-    "test:watch": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch --notify"
+    "test":
+      "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail",
+    "coveralls":
+      "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
+    "test:watch":
+      "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch --notify"
   },
   "devDependencies": {
     "@types/jest": "^21.1.1",
@@ -44,6 +47,11 @@
       "node_modules/*",
       "packages/.*/build",
       "packages/.*/build-es5",
+      "packages/model",
+      "packages/waterline",
+      "packages/mongo",
+      "packages/mysql",
+      "packages/disk",
       "packages/jest-runtime/src/__tests__/test_root.*",
       "website/.*",
       "integration_tests/runtime-internal-module-registry/__mocks__"

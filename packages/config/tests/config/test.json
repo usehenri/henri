@@ -3,7 +3,7 @@
   "abc": "c",
   "stores": {
     "default": {
-      "adapter": "disk"
+      "adapter": "mongoose"
     }
   },
   "location": {
