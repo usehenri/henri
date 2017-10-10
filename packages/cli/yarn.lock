@@ -29,24 +29,24 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.25.tgz#66ecaf4df93f5281b48427ee96fbcdfc4f0cdce1"
 
 "@types/node@^8.0.10":
-  version "8.0.33"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.33.tgz#1126e94374014e54478092830704f6ea89df04cd"
+  version "8.0.34"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.34.tgz#55f801fa2ddb2a40dd6dfc15ecfe1dde9c129fe9"
 
-"@usehenri/config@^0.16.0":
-  version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/config/-/config-0.16.0.tgz#1e0fc9c933ddba02609833d08bbea68ca2b85c7e"
+"@usehenri/config@^0.16.1":
+  version "0.16.1"
+  resolved "https://registry.yarnpkg.com/@usehenri/config/-/config-0.16.1.tgz#235590d8c00e74d4582e8b259b8eca64d8345548"
   dependencies:
-    "@usehenri/log" "^0.16.0"
+    "@usehenri/log" "^0.16.1"
     callsite "^1.0.0"
     config "^1.26.1"
 
-"@usehenri/controller@^0.16.0":
+"@usehenri/controller@^0.16.1":
   version "0.16.2"
   resolved "https://registry.yarnpkg.com/@usehenri/controller/-/controller-0.16.2.tgz#622bfa3d7acb6da54a614121ba813f1f780a1baa"
   dependencies:
     include-all "^4.0.3"
 
-"@usehenri/log@^0.16.0":
+"@usehenri/log@^0.16.1":
   version "0.16.2"
   resolved "https://registry.yarnpkg.com/@usehenri/log/-/log-0.16.2.tgz#2145f9c2eed868d6daff5c5decb7c9fcf33f1088"
   dependencies:
@@ -55,7 +55,7 @@
     string-width "^2.0.0"
     winston "^2.3.1"
 
-"@usehenri/model@^0.16.0":
+"@usehenri/model@^0.16.1":
   version "0.16.2"
   resolved "https://registry.yarnpkg.com/@usehenri/model/-/model-0.16.2.tgz#4cc97b7ba933fea98b52cc9b7f37b6118f3a5149"
   dependencies:
@@ -65,13 +65,13 @@
     sails-disk "1.0.0-11"
     waterline "^0.13.0-rc11"
 
-"@usehenri/router@^0.16.0":
-  version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/router/-/router-0.16.0.tgz#97db6a41d1e4016db5819783a76900cf5007dd4d"
+"@usehenri/router@^0.16.1":
+  version "0.16.1"
+  resolved "https://registry.yarnpkg.com/@usehenri/router/-/router-0.16.1.tgz#05404fa5875dd0d6548f90c3868ea097ada9685e"
 
-"@usehenri/server@^0.16.0":
-  version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/server/-/server-0.16.0.tgz#467ff1fbd4774defd6f24c44d684586caae3847f"
+"@usehenri/server@^0.16.1":
+  version "0.16.1"
+  resolved "https://registry.yarnpkg.com/@usehenri/server/-/server-0.16.1.tgz#d203948193d0f93d2fcc4ebd31d63b1e80fd7d7b"
   dependencies:
     body-parser "^1.17.2"
     chokidar "^1.7.0"
@@ -85,9 +85,9 @@
     server-timings "^1.0.4"
     supertest "^3.0.0"
 
-"@usehenri/user@^0.16.0":
-  version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/user/-/user-0.16.0.tgz#c1d3744b869435452ea49f581b33c250ec06b64b"
+"@usehenri/user@^0.16.1":
+  version "0.16.1"
+  resolved "https://registry.yarnpkg.com/@usehenri/user/-/user-0.16.1.tgz#7ad6e77666103fecc28ec2eb9486533d1163689a"
   dependencies:
     bcrypt-nodejs "^0.0.3"
     express-session "^1.15.4"
@@ -97,9 +97,9 @@
     passport-jwt "^3.0.0"
     passport-local "^1.0.0"
 
-"@usehenri/view@^0.16.0":
-  version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/view/-/view-0.16.0.tgz#0dd8105b86fd6f85f8279d962271cd5cae00bf83"
+"@usehenri/view@^0.16.1":
+  version "0.16.1"
+  resolved "https://registry.yarnpkg.com/@usehenri/view/-/view-0.16.1.tgz#3377c298e9fc85f987ab17e33cf20a3b6b23d33a"
   dependencies:
     babel-loader "^7.1.1"
     babel-plugin-module-resolver "^2.7.1"

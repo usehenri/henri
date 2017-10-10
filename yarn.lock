@@ -5266,9 +5266,9 @@ netrc@^0.1.4:
   version "0.1.4"
   resolved "https://registry.yarnpkg.com/netrc/-/netrc-0.1.4.tgz#6be94fcaca8d77ade0a9670dc460914c94472444"
 
-next@^4.0.0-beta.3:
-  version "4.0.0-beta.3"
-  resolved "https://registry.yarnpkg.com/next/-/next-4.0.0-beta.3.tgz#dbc12d07c0c84bb57ee8d61524a6cb600a08ef1b"
+next@^4.0.1:
+  version "4.0.1"
+  resolved "https://registry.yarnpkg.com/next/-/next-4.0.1.tgz#58af1d00a47ac989ea3297403141b47c6ad39cf7"
   dependencies:
     ansi-html "0.0.7"
     babel-core "6.26.0"
@@ -5314,7 +5314,7 @@ next@^4.0.0-beta.3:
     send "0.15.6"
     source-map-support "0.4.18"
     strip-ansi "4.0.0"
-    styled-jsx "^2.0.0-beta.1"
+    styled-jsx "2.0.1"
     touch "3.1.0"
     unfetch "3.0.0"
     url "0.11.0"
@@ -7739,9 +7739,9 @@ strong-log-transformer@^1.0.6:
     moment "^2.6.0"
     through "^2.3.4"
 
-styled-jsx@^2.0.0-beta.1:
-  version "2.0.0-beta1"
-  resolved "https://registry.yarnpkg.com/styled-jsx/-/styled-jsx-2.0.0-beta1.tgz#2acb5aad06fada054d6c8133d4d18168f5859ffa"
+styled-jsx@2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/styled-jsx/-/styled-jsx-2.0.1.tgz#ba0023aba1a88a4031d1c5c926ffe72bbd3871f1"
   dependencies:
     babel-plugin-syntax-jsx "6.18.0"
     babel-types "6.23.0"
