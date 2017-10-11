@@ -79,8 +79,9 @@ function middlewares(router) {
         return res.json(data);
       }
       return res.format({
-        default: () => view.render(req, res, route, opts),
+        html: () => view.render(req, res, route, opts),
         json: () => res.json(data),
+        default: () => view.render(req, res, route, opts),
       });
     };
     cb();
