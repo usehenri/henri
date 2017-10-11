@@ -54,8 +54,8 @@ bignumber.js@2.1.4:
   resolved "https://registry.yarnpkg.com/bignumber.js/-/bignumber.js-2.1.4.tgz#29b3bb693dbb238e88b72eac2fb89650888b2d59"
 
 bluebird@^3.4.6:
-  version "3.5.0"
-  resolved "https://registry.yarnpkg.com/bluebird/-/bluebird-3.5.0.tgz#791420d7f551eea2897453a8a77653f96606d67c"
+  version "3.5.1"
+  resolved "https://registry.yarnpkg.com/bluebird/-/bluebird-3.5.1.tgz#d9551f9de98f1fcda1e683d17ee91a0602ee2eb9"
 
 brace-expansion@^1.1.7:
   version "1.1.8"
@@ -95,8 +95,8 @@ convert-to-ecmascript-compatible-varname@0.1.4:
   resolved "https://registry.yarnpkg.com/convert-to-ecmascript-compatible-varname/-/convert-to-ecmascript-compatible-varname-0.1.4.tgz#49ff46e96c1d356a91d4b83e5ffe0133c3c8ac14"
 
 core-js@^2.4.0:
-  version "2.5.0"
-  resolved "https://registry.yarnpkg.com/core-js/-/core-js-2.5.0.tgz#569c050918be6486b3837552028ae0466b717086"
+  version "2.5.1"
+  resolved "https://registry.yarnpkg.com/core-js/-/core-js-2.5.1.tgz#ae6874dc66937789b80754ff5428df66819ca50b"
 
 core-util-is@~1.0.0:
   version "1.0.2"
@@ -109,8 +109,8 @@ debug@2.2.0:
     ms "0.7.1"
 
 debug@^2.1.3:
-  version "2.6.8"
-  resolved "https://registry.yarnpkg.com/debug/-/debug-2.6.8.tgz#e731531ca2ede27d188222427da17821d68ff4fc"
+  version "2.6.9"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-2.6.9.tgz#5d128515df134ff327e90a4c93f4e077a536341f"
   dependencies:
     ms "2.0.0"
 
@@ -180,8 +180,8 @@ flagged-respawn@^0.3.2:
   resolved "https://registry.yarnpkg.com/flagged-respawn/-/flagged-respawn-0.3.2.tgz#ff191eddcd7088a675b2610fffc976be9b8074b5"
 
 flaverr@^1.1.1:
-  version "1.2.2"
-  resolved "https://registry.yarnpkg.com/flaverr/-/flaverr-1.2.2.tgz#25f8b0a12f004aeda3bd1ed8aa6025d7dce72057"
+  version "1.2.4"
+  resolved "https://registry.yarnpkg.com/flaverr/-/flaverr-1.2.4.tgz#24108b6a690c1da218a2352abeb66e3391857a68"
   dependencies:
     "@sailshq/lodash" "^3.10.2"
 
@@ -586,11 +586,10 @@ regenerator-runtime@^0.11.0:
   resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.11.0.tgz#7e54fe5b5ccd5d6624ea6255c3473be090b802e1"
 
 regex-cache@^0.4.2:
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/regex-cache/-/regex-cache-0.4.3.tgz#9b1a6c35d4d0dfcef5711ae651e8e9d3d7114145"
+  version "0.4.4"
+  resolved "https://registry.yarnpkg.com/regex-cache/-/regex-cache-0.4.4.tgz#75bdc58a2a1496cec48a12835bc54c8d562336dd"
   dependencies:
     is-equal-shallow "^0.1.3"
-    is-primitive "^2.0.0"
 
 remove-trailing-separator@^1.0.1:
   version "1.1.0"
@@ -618,8 +617,8 @@ resolve@^1.1.6, resolve@^1.1.7:
     path-parse "^1.0.5"
 
 rimraf@^2.2.8:
-  version "2.6.1"
-  resolved "https://registry.yarnpkg.com/rimraf/-/rimraf-2.6.1.tgz#c2338ec643df7a1b7fe5c54fa86f57428a55f33d"
+  version "2.6.2"
+  resolved "https://registry.yarnpkg.com/rimraf/-/rimraf-2.6.2.tgz#2ed8150d24a16ea8651e6d6ef0f47c4158ce7a36"
   dependencies:
     glob "^7.0.5"
 
@@ -692,8 +691,8 @@ waterline-sql-builder@^1.0.0-2:
     waterline-utils "^1.3.8"
 
 waterline-utils@^1.3.10, waterline-utils@^1.3.8:
-  version "1.3.18"
-  resolved "https://registry.yarnpkg.com/waterline-utils/-/waterline-utils-1.3.18.tgz#bd186ee076fc679059ea298c36465839116b45db"
+  version "1.3.23"
+  resolved "https://registry.yarnpkg.com/waterline-utils/-/waterline-utils-1.3.23.tgz#990f3271a36c769954b5ab3144dc63ea10ee7726"
   dependencies:
     "@sailshq/lodash" "^3.10.2"
     async "2.0.1"

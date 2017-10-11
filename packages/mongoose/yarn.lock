@@ -9,8 +9,8 @@
     "@types/node" "*"
 
 "@types/mongodb@*":
-  version "2.2.11"
-  resolved "https://registry.yarnpkg.com/@types/mongodb/-/mongodb-2.2.11.tgz#595cd869afa1c4cf6ee8935eb25a0783ab46e6aa"
+  version "2.2.13"
+  resolved "https://registry.yarnpkg.com/@types/mongodb/-/mongodb-2.2.13.tgz#671a342a401400ecc23dfd786f744fd11967f866"
   dependencies:
     "@types/bson" "*"
     "@types/node" "*"
@@ -22,11 +22,7 @@
     "@types/mongodb" "*"
     "@types/node" "*"
 
-"@types/node@*":
-  version "8.0.25"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.25.tgz#66ecaf4df93f5281b48427ee96fbcdfc4f0cdce1"
-
-"@types/node@^8.0.10":
+"@types/node@*", "@types/node@^8.0.10":
   version "8.0.34"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.34.tgz#55f801fa2ddb2a40dd6dfc15ecfe1dde9c129fe9"
 
