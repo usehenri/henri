@@ -69,7 +69,6 @@ async function compare(password, hash, user) {
 }
 
 async function checkLocal(email, password, done) {
-  log.info('in check local', email, password);
   try {
     const user = await User.findOne({ email: email });
     await compare(password, user.password);
