@@ -30,6 +30,8 @@ app.use(cookieParser());
 app.use(express.static(path.resolve(cwd, 'app/views/public')));
 
 async function start(delay, cb = null) {
+  app.use((req, res, next) => henri.router(req, res, next));
+
   if (henri.getStatus('http') && typeof cb === 'function') return cb();
 
   port = henri.isTest ? await detect(port) : port;
@@ -55,6 +57,7 @@ async function watch() {
     'logs/',
     '.tmp/',
     '.eslintrc',
+    '.*',
   ];
   const watcher = chokidar.watch('.', { ignored });
   watcher.on('ready', () => {
@@ -103,15 +106,13 @@ function handleError(err) {
   if (err.code === 'EADDRINUSE') {
     log.fatalError(`
     port ${port} is already in use
-
+    
     modify your config or kill the other process
     `);
   }
   log.error(err);
 }
 henri.router = undefined;
-
-app.use((req, res, next) => henri.router(req, res, next));
 
 henri.app = app;
 henri.express = express;
