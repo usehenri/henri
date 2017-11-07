@@ -115,7 +115,9 @@ class Log {
     console.log('');
     const lines = msg.split('\n');
     for (let line of lines) {
-      this.error(line);
+      if (line.length > 2) {
+        this.error(line);
+      }
     }
     // eslint-disable-next-line no-console
     console.log('');
