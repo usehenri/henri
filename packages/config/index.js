@@ -16,6 +16,7 @@ if (!global['henri']) {
     _unloaders: [],
     _models: [],
     _routes: [],
+    _middlewares: [],
     folders: {
       view: config.has('location.view')
         ? config.get('location.view')

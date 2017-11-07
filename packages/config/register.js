@@ -45,6 +45,10 @@ henri.addUnloader = func => {
   }
 };
 
+henri.addMiddleware = func => {
+  henri._middlewares.push(func);
+};
+
 henri.setStatus = (key, value = false) => {
   henri.status[key] = value;
 };

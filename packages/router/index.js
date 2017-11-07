@@ -61,12 +61,15 @@ function register(verb, route, controller, fn) {
     henri.router[verb](route, fn);
   }
   const name = `${verb} ${route}`;
-  henri._routes[name] = `${controller}${typeof fn !== 'function'
-    ? ' (unknown controller)'
-    : ' (ok)'}`;
+  henri._routes[name] = `${controller}${
+    typeof fn !== 'function' ? ' (unknown controller)' : ' (ok)'
+  }`;
 }
 
 function middlewares(router) {
+  if (henri._middlewares.length > 0) {
+    henri._middlewares.map(func => func());
+  }
   henri.router.use((req, res, cb) => {
     res.locals._req = req;
     delete res.render;

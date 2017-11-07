@@ -125,18 +125,22 @@ passport.deserializeUser(function(id, done) {
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.post(
-  '/login',
-  passport.authenticate('local', {
-    successRedirect: '/success',
-    failureRedirect: '/failure',
-  })
-);
+henri.addMiddleware(() => {
+  henri.router.post(
+    '/login',
+    passport.authenticate('local', {
+      successRedirect: '/success',
+      failureRedirect: '/failure',
+    })
+  );
+});
 
-app.get('/logout', function(req, res) {
-  log.info('Logging out user', req.user);
-  req.logout();
-  res.redirect('/');
+henri.addMiddleware(() => {
+  henri.router.get('/logout', function(req, res) {
+    log.info('Logging out user', req.user);
+    req.logout();
+    res.redirect('/');
+  });
 });
 
 global['henri'].user = {
