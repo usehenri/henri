@@ -6,9 +6,9 @@
   version "3.10.2"
   resolved "https://registry.yarnpkg.com/@sailshq/lodash/-/lodash-3.10.2.tgz#1567d47345364c2c2e2077bc113487b1dfe62154"
 
-"@types/node@^8.0.32":
-  version "8.0.34"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.34.tgz#55f801fa2ddb2a40dd6dfc15ecfe1dde9c129fe9"
+"@types/node@^8.0.47":
+  version "8.0.50"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.50.tgz#dc545448e128c88c4eec7cd64025fcc3b7604541"
 
 include-all@^4.0.3:
   version "4.0.3"
