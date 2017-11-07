@@ -6,10 +6,10 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "mongoose": "^4.11.6"
+    "mongoose": "^4.13.0"
   },
   "devDependencies": {
-    "@types/mongoose": "^4.7.19",
-    "@types/node": "^8.0.10"
+    "@types/mongoose": "^4.7.24",
+    "@types/node": "^8.0.47"
   }
 }

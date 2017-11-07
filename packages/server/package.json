@@ -14,16 +14,16 @@
     "detect-port": "^1.2.1",
     "express": "^4.15.3",
     "path": "^0.12.7",
-    "react-dev-utils": "^4.0.0",
+    "react-dev-utils": "^4.2.1",
     "server-timings": "^1.0.4",
     "supertest": "^3.0.0"
   },
   "devDependencies": {
-    "@types/body-parser": "^1.16.3",
+    "@types/body-parser": "^1.16.7",
     "@types/compression": "^0.0.34",
     "@types/cookie-parser": "^1.4.0",
-    "@types/express": "^4.0.35",
-    "@types/jest": "^21.1.2",
-    "@types/node": "^8.0.19"
+    "@types/express": "^4.0.39",
+    "@types/jest": "^21.1.5",
+    "@types/node": "^8.0.47"
   }
 }

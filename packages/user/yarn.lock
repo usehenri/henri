@@ -6,69 +6,77 @@
   version "0.0.30"
   resolved "https://registry.yarnpkg.com/@types/bcrypt-nodejs/-/bcrypt-nodejs-0.0.30.tgz#4cdd96b49293b3932122e4b7e29543e35e6bae58"
 
+"@types/body-parser@*":
+  version "1.16.7"
+  resolved "https://registry.yarnpkg.com/@types/body-parser/-/body-parser-1.16.7.tgz#455fc23fd0ddaaeda6cd6cbb653558276e5920fa"
+  dependencies:
+    "@types/express" "*"
+    "@types/node" "*"
+
 "@types/express-serve-static-core@*":
-  version "4.0.53"
-  resolved "https://registry.yarnpkg.com/@types/express-serve-static-core/-/express-serve-static-core-4.0.53.tgz#1723a35d1447f2c55e13c8721eab3448e42f4d82"
+  version "4.0.56"
+  resolved "https://registry.yarnpkg.com/@types/express-serve-static-core/-/express-serve-static-core-4.0.56.tgz#4ed556dcff9012cce6b016e214fdc5ef6e99db7d"
   dependencies:
     "@types/node" "*"
 
-"@types/express-session@^1.15.2":
-  version "1.15.3"
-  resolved "https://registry.yarnpkg.com/@types/express-session/-/express-session-1.15.3.tgz#39b6995393832284a1f368f4f1ae48acaab2aac9"
+"@types/express-session@^1.15.5":
+  version "1.15.5"
+  resolved "https://registry.yarnpkg.com/@types/express-session/-/express-session-1.15.5.tgz#e6c181b00b786d92c97ca1a79d133602854ae9fe"
   dependencies:
     "@types/express" "*"
     "@types/node" "*"
 
 "@types/express@*":
-  version "4.0.37"
-  resolved "https://registry.yarnpkg.com/@types/express/-/express-4.0.37.tgz#625ac3765169676e01897ca47011c26375784971"
+  version "4.0.39"
+  resolved "https://registry.yarnpkg.com/@types/express/-/express-4.0.39.tgz#1441f21d52b33be8d4fa8a865c15a6a91cd0fa09"
   dependencies:
+    "@types/body-parser" "*"
     "@types/express-serve-static-core" "*"
     "@types/serve-static" "*"
 
-"@types/jest@^21.1.2":
-  version "21.1.2"
-  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-21.1.2.tgz#05ebfa64817b626694ced56745a7949281981048"
+"@types/jest@^21.1.5":
+  version "21.1.5"
+  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-21.1.5.tgz#3db93d069d12602ca115d3604550e15131d8eb7a"
 
 "@types/mime@*":
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/@types/mime/-/mime-2.0.0.tgz#5a7306e367c539b9f6543499de8dd519fac37a8b"
 
-"@types/node@*", "@types/node@^8.0.19":
-  version "8.0.34"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.34.tgz#55f801fa2ddb2a40dd6dfc15ecfe1dde9c129fe9"
+"@types/node@*", "@types/node@^8.0.47":
+  version "8.0.50"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.50.tgz#dc545448e128c88c4eec7cd64025fcc3b7604541"
 
-"@types/passport-jwt@^2.0.22":
-  version "2.0.24"
-  resolved "https://registry.yarnpkg.com/@types/passport-jwt/-/passport-jwt-2.0.24.tgz#a4b8745dc526419f0e97488105394d49a4a25940"
+"@types/passport-jwt@^3.0.0":
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/@types/passport-jwt/-/passport-jwt-3.0.0.tgz#8a4681282a3817d86acd07e7a5fbdc582e2747ab"
   dependencies:
     "@types/express" "*"
     "@types/passport-strategy" "*"
 
-"@types/passport-local@^1.0.30":
-  version "1.0.31"
-  resolved "https://registry.yarnpkg.com/@types/passport-local/-/passport-local-1.0.31.tgz#804df8caa3bd8520a9ed9c7f204d132290664a0e"
+"@types/passport-local@^1.0.32":
+  version "1.0.32"
+  resolved "https://registry.yarnpkg.com/@types/passport-local/-/passport-local-1.0.32.tgz#0856e3772c46ab8ac89aacf5535fa001a2ce5a13"
   dependencies:
     "@types/express" "*"
     "@types/passport" "*"
     "@types/passport-strategy" "*"
 
 "@types/passport-strategy@*":
-  version "0.2.31"
-  resolved "https://registry.yarnpkg.com/@types/passport-strategy/-/passport-strategy-0.2.31.tgz#458049fc962580eaee6a836ad8c09f9256e77e68"
+  version "0.2.32"
+  resolved "https://registry.yarnpkg.com/@types/passport-strategy/-/passport-strategy-0.2.32.tgz#0c1fb2e3b83621c8faf68c92f37898453ef60f71"
   dependencies:
     "@types/express" "*"
     "@types/passport" "*"
 
-"@types/passport@*", "@types/passport@^0.3.3":
-  version "0.3.4"
-  resolved "https://registry.yarnpkg.com/@types/passport/-/passport-0.3.4.tgz#82929c7427091ba73273fcb963fdef8056bddbe7"
+"@types/passport@*", "@types/passport@^0.3.5":
+  version "0.3.5"
+  resolved "https://registry.yarnpkg.com/@types/passport/-/passport-0.3.5.tgz#2089c7046d120e8bb92aa4ed86338c9c62ef7853"
   dependencies:
     "@types/express" "*"
 
 "@types/serve-static@*":
-  version "1.7.32"
-  resolved "https://registry.yarnpkg.com/@types/serve-static/-/serve-static-1.7.32.tgz#0f6732e4dab0813771dd8fc8fe14940f34728b4c"
+  version "1.13.0"
+  resolved "https://registry.yarnpkg.com/@types/serve-static/-/serve-static-1.13.0.tgz#2ef359d8d5982bc011a7a8fa36016e629e8b7635"
   dependencies:
     "@types/express-serve-static-core" "*"
     "@types/mime" "*"
@@ -320,8 +328,8 @@ lie@3.0.2:
     unreachable-branch-transform "^0.3.0"
 
 localforage@^1.3.0:
-  version "1.5.2"
-  resolved "https://registry.yarnpkg.com/localforage/-/localforage-1.5.2.tgz#bf873025aa0e4a827bc07c20039ae00e0ee9acae"
+  version "1.5.3"
+  resolved "https://registry.yarnpkg.com/localforage/-/localforage-1.5.3.tgz#698aa16af1022340b240be9d93192e8af022ff16"
   dependencies:
     lie "3.0.2"
 
@@ -358,16 +366,16 @@ mkdirp@~0.5.1:
     minimist "0.0.8"
 
 moment@2.x.x:
-  version "2.19.0"
-  resolved "https://registry.yarnpkg.com/moment/-/moment-2.19.0.tgz#44f675ef6b944942762581b1c179fb679e599d67"
+  version "2.19.1"
+  resolved "https://registry.yarnpkg.com/moment/-/moment-2.19.1.tgz#56da1a2d1cbf01d38b7e1afc31c10bcfa1929167"
 
 ms@2.0.0, ms@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
 
-nedb-session-store@^1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/nedb-session-store/-/nedb-session-store-1.1.1.tgz#e26569456cbd9dbb86ee4e17e566b64c5b29ed0e"
+nedb-session-store@^1.1.2:
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/nedb-session-store/-/nedb-session-store-1.1.2.tgz#2507885754cb405d627a754e8903ec79adcac906"
   dependencies:
     nedb "^1.5.0"
 
@@ -393,9 +401,9 @@ parseurl@^1.3.1, parseurl@~1.3.2:
   version "1.3.2"
   resolved "https://registry.yarnpkg.com/parseurl/-/parseurl-1.3.2.tgz#fc289d4ed8993119460c156253262cdc8de65bf3"
 
-passport-jwt@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/passport-jwt/-/passport-jwt-3.0.0.tgz#7d9e4ff0fa0522108540ce1fcfa83bbd8faa29c9"
+passport-jwt@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/passport-jwt/-/passport-jwt-3.0.1.tgz#e4f7276dad8bd251d43c6fc38883130b963272f6"
   dependencies:
     jsonwebtoken "^7.0.0"
     passport-strategy "^1.0.0"
@@ -422,8 +430,8 @@ pause@0.0.1:
   resolved "https://registry.yarnpkg.com/pause/-/pause-0.0.1.tgz#1d408b3fdb76923b9543d96fb4c9dfd535d9cb5d"
 
 private@~0.1.5:
-  version "0.1.7"
-  resolved "https://registry.yarnpkg.com/private/-/private-0.1.7.tgz#68ce5e8a1ef0a23bb570cc28537b5332aba63ef1"
+  version "0.1.8"
+  resolved "https://registry.yarnpkg.com/private/-/private-0.1.8.tgz#2381edb3689f7a53d653190060fcf822d2f368ff"
 
 process-nextick-args@~1.0.6:
   version "1.0.7"
@@ -492,8 +500,8 @@ string_decoder@~1.0.3:
     safe-buffer "~5.1.0"
 
 superagent@^3.0.0:
-  version "3.6.3"
-  resolved "https://registry.yarnpkg.com/superagent/-/superagent-3.6.3.tgz#eb95fcb576a9d23a730a9d0789731b5379a36cdc"
+  version "3.8.0"
+  resolved "https://registry.yarnpkg.com/superagent/-/superagent-3.8.0.tgz#87e3ed536c8860c08c7c7d1225da9a80cab064c6"
   dependencies:
     component-emitter "^1.2.0"
     cookiejar "^2.1.0"

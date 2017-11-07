@@ -6,9 +6,9 @@
   version "3.10.2"
   resolved "https://registry.yarnpkg.com/@sailshq/lodash/-/lodash-3.10.2.tgz#1567d47345364c2c2e2077bc113487b1dfe62154"
 
-"@types/node@^8.0.10":
-  version "8.0.34"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.34.tgz#55f801fa2ddb2a40dd6dfc15ecfe1dde9c129fe9"
+"@types/node@^8.0.47":
+  version "8.0.50"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.50.tgz#dc545448e128c88c4eec7cd64025fcc3b7604541"
 
 async@2.0.1:
   version "2.0.1"
@@ -32,11 +32,11 @@ core-util-is@~1.0.0:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/core-util-is/-/core-util-is-1.0.2.tgz#b5fd54220aa2bc5ab57aab7140c940754503c1a7"
 
-debug@2.2.0:
-  version "2.2.0"
-  resolved "https://registry.yarnpkg.com/debug/-/debug-2.2.0.tgz#f87057e995b1a1f6ae6a4960664137bc56f039da"
+debug@3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-3.1.0.tgz#5bb5a0672628b64149566ba16819e61518c67261"
   dependencies:
-    ms "0.7.1"
+    ms "2.0.0"
 
 es6-promise@3.2.1:
   version "3.2.1"
@@ -71,12 +71,12 @@ lodash@^4.8.0:
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.4.tgz#78203a4d1c328ae1d86dca6460e369b57f4055ae"
 
 machine@^13.0.0-17:
-  version "13.0.0-23"
-  resolved "https://registry.yarnpkg.com/machine/-/machine-13.0.0-23.tgz#f25cbc5255c12c93e4aee867d9d9b440bc60b747"
+  version "13.0.0-24"
+  resolved "https://registry.yarnpkg.com/machine/-/machine-13.0.0-24.tgz#50b0fa4a71db571fcddda5b1c5e2605a83144087"
   dependencies:
     "@sailshq/lodash" "^3.10.2"
     convert-to-ecmascript-compatible-varname "0.1.4"
-    debug "2.2.0"
+    debug "3.1.0"
     include-all "^1.0.5"
     rttc "^9.8.1"
     switchback "^2.0.1"
@@ -96,9 +96,9 @@ mongodb@2.2.25:
     mongodb-core "2.1.9"
     readable-stream "2.1.5"
 
-ms@0.7.1:
-  version "0.7.1"
-  resolved "https://registry.yarnpkg.com/ms/-/ms-0.7.1.tgz#9cd13c03adbff25b65effde7ce864ee952017098"
+ms@2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
 
 process-nextick-args@~1.0.6:
   version "1.0.7"
