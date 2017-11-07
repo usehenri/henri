@@ -8,10 +8,10 @@
   "dependencies": {
     "@usehenri/log": "^0.16.1",
     "callsite": "^1.0.0",
-    "config": "^1.26.1"
+    "config": "^1.27.0"
   },
   "devDependencies": {
     "@types/config": "^0.0.33",
-    "@types/node": "^8.0.32"
+    "@types/node": "^8.0.47"
   }
 }
