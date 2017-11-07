@@ -49,7 +49,13 @@ async function start(delay, cb = null) {
 }
 
 async function watch() {
-  const ignored = ['node_modules/', 'app/views/**', 'logs/', '.tmp/'];
+  const ignored = [
+    'node_modules/',
+    'app/views/**',
+    'logs/',
+    '.tmp/',
+    '.eslintrc',
+  ];
   const watcher = chokidar.watch('.', { ignored });
   watcher.on('ready', () => {
     watcher.on('all', (event, path) => {
@@ -84,7 +90,9 @@ async function watch() {
     const cmdCtrl = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
     log.info(`To reload the server codebase, use ${cmdCtrl}+R`);
     log.info(
-      `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${cmdCtrl}+N`
+      `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${
+        cmdCtrl
+      }+N`
     );
     log.info(`To quit, use ${cmdCtrl}+C`);
     log.space();

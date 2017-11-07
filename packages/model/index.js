@@ -1,5 +1,6 @@
 const { cwd, log } = henri;
 const path = require('path');
+const fs = require('fs');
 
 function load(location) {
   const includeAll = require('include-all');
@@ -42,7 +43,9 @@ async function configure(models) {
 
     if (model.store && !config.has(`stores.${model.store}`)) {
       return log.fatalError(
-        `It seems like ${model.store} is not configured. ${model.identity} is using it.`
+        `It seems like ${model.store} is not configured. ${
+          model.identity
+        } is using it.`
       );
     }
 
@@ -58,7 +61,9 @@ async function configure(models) {
       };
       if (valid.hasOwnProperty(store.adapter) < 0) {
         return log.fatalError(
-          `Adapter '${store.adapter}' is not valid. Check your configuration file.`
+          `Adapter '${
+            store.adapter
+          }' is not valid. Check your configuration file.`
         );
       }
       const conn = valid[store.adapter];
@@ -88,6 +93,17 @@ async function start(configuration) {
   return new Promise(async (resolve, reject) => {
     for (var store in henri.stores) {
       await henri.stores[store].start();
+    }
+    if (henri._models.length > 0) {
+      const eslintFile = path.resolve(cwd, '.eslintrc');
+      console.log(eslintFile);
+      try {
+        const eslintRc = JSON.parse(fs.readFileSync(eslintFile, 'utf8'));
+        henri._models.map(modelName => (eslintRc.globals[modelName] = true));
+        fs.writeFileSync(eslintFile, JSON.stringify(eslintRc));
+      } catch (e) {
+        console.log(e);
+      }
     }
     return resolve();
   });
