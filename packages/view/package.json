@@ -12,16 +12,16 @@
     "cache-loader": "^1.0.3",
     "cssnano": "^3.10.0",
     "glob": "^7.1.2",
-    "module-alias": "^2.0.1",
+    "module-alias": "^2.0.2",
     "node-sass": "^4.5.3",
     "postcss-cssnext": "^3.0.2",
     "postcss-easy-import": "^2.1.0",
-    "postcss-loader": "^2.0.5",
+    "postcss-loader": "^2.0.8",
     "raw-loader": "^0.5.1",
     "sass-loader": "^6.0.5",
-    "webpack": "^3.5.1"
+    "webpack": "^3.8.1"
   },
   "devDependencies": {
-    "@types/node": "^8.0.10"
+    "@types/node": "^8.0.47"
   }
 }
