@@ -2,17 +2,17 @@
 # yarn lockfile v1
 
 
-"@types/jest@^21.1.2":
-  version "21.1.2"
-  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-21.1.2.tgz#05ebfa64817b626694ced56745a7949281981048"
+"@types/jest@^21.1.5":
+  version "21.1.5"
+  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-21.1.5.tgz#3db93d069d12602ca115d3604550e15131d8eb7a"
 
-"@types/node@*", "@types/node@^8.0.32":
-  version "8.0.34"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.34.tgz#55f801fa2ddb2a40dd6dfc15ecfe1dde9c129fe9"
+"@types/node@*", "@types/node@^8.0.47":
+  version "8.0.50"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.50.tgz#dc545448e128c88c4eec7cd64025fcc3b7604541"
 
-"@types/winston@^2.3.4":
-  version "2.3.6"
-  resolved "https://registry.yarnpkg.com/@types/winston/-/winston-2.3.6.tgz#0f0954b9e16abd40598dc6e9cc2ea43044237997"
+"@types/winston@^2.3.7":
+  version "2.3.7"
+  resolved "https://registry.yarnpkg.com/@types/winston/-/winston-2.3.7.tgz#2ea18b2dc772d459b6af0f587447704df31afec2"
   dependencies:
     "@types/node" "*"
 
@@ -30,9 +30,9 @@ async@~1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/async/-/async-1.0.0.tgz#f8fc04ca3a13784ade9e1641af98578cfbd647a9"
 
-chalk@^2.0.1:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/chalk/-/chalk-2.1.0.tgz#ac5becf14fa21b99c6c92ca7a7d7cfd5b17e743e"
+chalk@^2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/chalk/-/chalk-2.3.0.tgz#b5ea48efc9c1793dccc9b4767c93914d3f2d52ba"
   dependencies:
     ansi-styles "^3.1.0"
     escape-string-regexp "^1.0.5"
@@ -119,8 +119,8 @@ strip-ansi@^4.0.0:
     ansi-regex "^3.0.0"
 
 supports-color@^4.0.0:
-  version "4.4.0"
-  resolved "https://registry.yarnpkg.com/supports-color/-/supports-color-4.4.0.tgz#883f7ddabc165142b2a61427f3352ded195d1a3e"
+  version "4.5.0"
+  resolved "https://registry.yarnpkg.com/supports-color/-/supports-color-4.5.0.tgz#be7a0de484dec5c5cddf8b3d59125044912f635b"
   dependencies:
     has-flag "^2.0.0"
 
