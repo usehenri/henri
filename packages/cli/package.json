@@ -13,7 +13,7 @@
     "@usehenri/server": "^0.16.1",
     "@usehenri/user": "^0.16.1",
     "@usehenri/view": "^0.16.1",
-    "chalk": "^2.0.1",
+    "chalk": "^2.3.0",
     "cross-spawn": "^5.1.0",
     "fs-extra": "^4.0.1",
     "inquirer": "^3.2.1",
@@ -21,11 +21,11 @@
     "rimraf": "^2.6.1"
   },
   "devDependencies": {
-    "@types/chalk": "^0.4.31",
-    "@types/fs-extra": "^4.0.0",
-    "@types/jest": "^21.1.2",
+    "@types/chalk": "^2.2.0",
+    "@types/fs-extra": "^4.0.3",
+    "@types/jest": "^21.1.5",
     "@types/minimist": "^1.2.0",
-    "@types/node": "^8.0.10"
+    "@types/node": "^8.0.47"
   },
   "commands": [
     "server",
