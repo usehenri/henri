@@ -1,6 +1,7 @@
 const request = require('supertest');
 require('../../config/index.js');
 delete henri.app;
+henri._user = {};
 require('../../server/index.js');
 require('../index.js');
 
@@ -21,14 +22,12 @@ describe('user', () => {
     expect(henri.user.encrypt).toBeDefined();
     expect(henri.user.compare).toBeDefined();
   });
-  test('register login route', async () => {
-    await request(henri._url).post('login').expect(302);
-  });
-  test('register logout route', async () => {
-    await request(henri._url).get('logout').expect(302);
-  });
   test('middlewares are present', async () => {
-    await request(henri._url).get('').expect(404);
+    await request(henri._url)
+      .get('')
+      .expect(404);
+    expect(henri._middlewares).toBeDefined();
+    expect(henri._middlewares.length).toBe(2);
     expect(requestWatch._passport).toBeDefined();
     expect(requestWatch._passport.instance).toBeDefined();
   });
