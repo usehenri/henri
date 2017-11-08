@@ -57,8 +57,12 @@ async function watch() {
     'logs/',
     '.tmp/',
     '.eslintrc',
-    '.*',
+    '.git',
   ];
+  if (config.has('ignore') && Array.isArray(config.get('ignore'))) {
+    ignored.concat(config.get('ignore'));
+  }
+  log.debug(`filesystem watch ignore: ${ignored.join(' ')}`);
   const watcher = chokidar.watch('.', { ignored });
   watcher.on('ready', () => {
     watcher.on('all', (event, path) => {
@@ -66,6 +70,10 @@ async function watch() {
       henri.reload();
     });
     log.info('watching filesystem for changes...');
+    config.has('ignore') &&
+      log.info(
+        `we will ignore these folders: ${config.get('ignore').join(' ')}`
+      );
   });
   process.stdin.resume();
   process.stdin.on('data', async data => {
