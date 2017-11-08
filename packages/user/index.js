@@ -126,12 +126,8 @@ if (henri._user) {
   app.use(passport.session());
 
   henri.addMiddleware(() => {
-    henri.router.post(
-      '/login',
-      passport.authenticate('local', {
-        successRedirect: '/success',
-        failureRedirect: '/failure',
-      })
+    henri.router.post('/login', passport.authenticate('local'), (req, res) =>
+      res.send('authenticated')
     );
   });
 
@@ -142,6 +138,8 @@ if (henri._user) {
       res.redirect('/');
     });
   });
+
+  henri.passport = passport;
 
   log.info('user module loaded.');
 } else {

@@ -91,3 +91,8 @@ henri.stop = async () => {
     log.error(e);
   }
 };
+
+henri.passport = {
+  authenticate: () =>
+    log.error('passport is not initialized. missing user model?'),
+};
