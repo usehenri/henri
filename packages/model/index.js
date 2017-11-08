@@ -95,15 +95,13 @@ async function start(configuration) {
       await henri.stores[store].start();
     }
     if (henri._models.length > 0) {
+      // TODO: Add some way of backing up data and restoring if fails
       const eslintFile = path.resolve(cwd, '.eslintrc');
-      console.log(eslintFile);
       try {
         const eslintRc = JSON.parse(fs.readFileSync(eslintFile, 'utf8'));
         henri._models.map(modelName => (eslintRc.globals[modelName] = true));
         fs.writeFileSync(eslintFile, JSON.stringify(eslintRc));
-      } catch (e) {
-        console.log(e);
-      }
+      } catch (e) {} // Do nothing
     }
     return resolve();
   });
