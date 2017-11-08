@@ -25,7 +25,9 @@ function load(location) {
 
 async function configure(models) {
   const { config } = henri;
+  const user = config.has('user') ? config.get('user').toLowerCase() : 'user';
   delete henri.stores;
+  delete henri._user;
   henri.stores = {};
   const configuration = {
     adapters: {},
@@ -82,7 +84,7 @@ async function configure(models) {
 
     const store = getStore(storeName);
 
-    global[model.globalId] = store.addModel(model);
+    global[model.globalId] = store.addModel(model, user);
     henri._models.push(model.globalId);
     configuration.adapters[storeName] = store;
   }

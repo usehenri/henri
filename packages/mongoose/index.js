@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { log, user } = henri;
+const { log } = henri;
 
 if (global.Promise) {
   mongoose.Promise = global.Promise;
@@ -16,10 +16,11 @@ class Mongoose {
     this.mongoose = mongoose;
   }
 
-  addModel(model) {
+  addModel(model, user) {
+    let isUser = false;
     const schema = new this.mongoose.Schema(model.schema, model.options || {});
-    if (model.identity === 'user' || model.identity === 'users') {
-      log.info('Found a user model, overloading it.');
+    if (model.identity === user) {
+      log.info(`Found a user model (${model.globalId}), overloading it.`);
       schema.add({ email: { type: String, required: true } });
       schema.add({ password: { type: String, required: true } });
       schema.pre('save', async function(next) {
@@ -27,8 +28,12 @@ class Mongoose {
         this.password = await user.encrypt(this.password);
         next();
       });
+      isUser = true;
     }
     const instance = this.mongoose.model(model.globalId, schema);
+    if (isUser) {
+      henri._user = instance;
+    }
     this.models[model.globalId] = instance;
     return this.models[model.globalId];
   }

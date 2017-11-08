@@ -5,8 +5,8 @@ const main = ({ skipView }, cb) => {
     try {
       require('@usehenri/config');
       require('@usehenri/server');
-      require('@usehenri/user');
       await require('@usehenri/model');
+      require('@usehenri/user');
       await require('@usehenri/controller');
       !skipView && (await require('@usehenri/view'));
       require('@usehenri/router');
