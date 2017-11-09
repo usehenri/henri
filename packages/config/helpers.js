@@ -9,4 +9,7 @@ henri.isTest = process.env.NODE_ENV === 'test';
 
 henri.cwd = process.cwd();
 
-henri.getDiff = ms => Math.round(process.hrtime(ms)[1] / 1000000);
+henri.getDiff = ms => {
+  const diff = process.hrtime(ms);
+  return Math.round(diff[0] * 1000 + diff[1] / 1e6);
+};

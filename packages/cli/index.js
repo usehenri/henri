@@ -1,5 +1,6 @@
 const spawn = require('cross-spawn');
 const chalk = require('chalk');
+const updateNotifier = require('update-notifier');
 const yarnExists = spawn.sync('yarn', ['help']);
 
 if (!module.parent) {
@@ -17,21 +18,27 @@ if (!module.parent) {
   process.exit(1);
 }
 
-const argv = require('minimist')(process.argv.slice(2));
+module.exports = (pkg, args) => {
+  const argv = require('minimist')(args.slice(2));
+  updateNotifier({ pkg, updateCheckInterval: 1000 }).notify({
+    defer: false,
+    isGlobal: true,
+  });
 
-const command = argv._.shift();
+  const command = argv._.shift();
 
-switch (command) {
-  case 'clean':
-  case 'console':
-  case 'init':
-  case 'new':
-  case 'server':
-  case 'start-henri':
-    const cmd = require(`./scripts/${command}`);
-    cmd(argv);
-    break;
-  default:
-    const help = require('./scripts/help');
-    help();
-}
+  switch (command) {
+    case 'clean':
+    case 'console':
+    case 'init':
+    case 'new':
+    case 'server':
+    case 'start-henri':
+      const cmd = require(`./scripts/${command}`);
+      cmd(argv);
+      break;
+    default:
+      const help = require('./scripts/help');
+      help();
+  }
+};
