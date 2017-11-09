@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.17.0"></a>
+# [0.17.0](https://github.com/usehenri/henri/compare/v0.16.1...v0.17.0) (2017-11-09)
+
+
+### Bug Fixes
+
+* **user:** do not show password or login info. letfover from first draft ([47ad7ff](https://github.com/usehenri/henri/commit/47ad7ff))
+
+
+### Features
+
+* **router:** adding support for custom middlewares ([00f0401](https://github.com/usehenri/henri/commit/00f0401))
+* **user:** add support for custom user model (defaults to 'user' ([5180d61](https://github.com/usehenri/henri/commit/5180d61))
+* **user:** no longer redirect on login. you will receive a 200 or 401. ([c56736f](https://github.com/usehenri/henri/commit/c56736f))
+
+
+
+
 <a name="0.16.1"></a>
 ## [0.16.1](https://github.com/usehenri/henri/compare/v0.16.0...v0.16.1) (2017-10-06)
 

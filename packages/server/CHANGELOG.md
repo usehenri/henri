@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.17.0"></a>
+# [0.17.0](https://github.com/usehenri/henri/compare/v0.16.1...v0.17.0) (2017-11-09)
+
+
+### Bug Fixes
+
+* **server:** race condition with passport js middlewares ([3c4237d](https://github.com/usehenri/henri/commit/3c4237d))
+
+
+### Features
+
+* **model:** add models to global namespace in eslint automatically ([6cf5846](https://github.com/usehenri/henri/commit/6cf5846))
+* **server:** it is now possible to add specific folder to ignore (hot reload) ([988ff1f](https://github.com/usehenri/henri/commit/988ff1f))
+
+
+
+
 <a name="0.16.1"></a>
 ## [0.16.1](https://github.com/usehenri/henri/compare/v0.16.0...v0.16.1) (2017-10-06)
 

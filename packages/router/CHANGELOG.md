@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.17.0"></a>
+# [0.17.0](https://github.com/usehenri/henri/compare/v0.16.1...v0.17.0) (2017-11-09)
+
+
+### Bug Fixes
+
+* **router:** rearrange the res.format to match html also ([292f0c5](https://github.com/usehenri/henri/commit/292f0c5))
+
+
+### Features
+
+* **router:** adding support for custom middlewares ([00f0401](https://github.com/usehenri/henri/commit/00f0401))
+
+
+
+
 <a name="0.16.1"></a>
 ## [0.16.1](https://github.com/usehenri/henri/compare/v0.16.0...v0.16.1) (2017-10-06)
 
