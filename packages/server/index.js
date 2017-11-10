@@ -49,7 +49,7 @@ async function start(delay, cb = null) {
     })
     .on('error', handleError);
 }
-
+/* istanbul ignore next */
 async function watch() {
   const ignored = [
     'node_modules/',

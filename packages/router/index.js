@@ -9,6 +9,7 @@ async function init(reload = false) {
   middlewares();
 
   let routes = null;
+  /* istanbul ignore next */
   try {
     routes = require(config.has('location.routes')
       ? path.resolve(config.get('location.routes'))
@@ -17,6 +18,7 @@ async function init(reload = false) {
     log.warn('unable to load routes from filesystem');
     routes = {};
   }
+  /* istanbul ignore next */
   if (config.has('routes') && Object.keys(config.get('routes')).length > 1) {
     routes = Object.assign({}, routes, config.get('routes'));
   }
@@ -36,11 +38,11 @@ async function init(reload = false) {
       log.error(`${key} => ${controller}: unknown controller for route `);
     }
   }
-
+  /* istanbul ignore next */
   if (process.env.NODE_ENV !== 'production') {
     henri.router.get('/_routes', (req, res) => res.json(henri._routes));
   }
-
+  /* istanbul ignore next */
   if (view && !reload) {
     try {
       view.prepare().then(() => {
@@ -65,7 +67,7 @@ function register(verb, route, controller, fn) {
     typeof fn !== 'function' ? ' (unknown controller)' : ' (ok)'
   }`;
 }
-
+/* istanbul ignore next */
 function middlewares(router) {
   if (henri._middlewares.length > 0) {
     henri._middlewares.map(func => func());
@@ -81,6 +83,7 @@ function middlewares(router) {
       if (req.url.startsWith('/_data/')) {
         return res.json(data);
       }
+      /* istanbul ignore next */
       return res.format({
         html: () => view.render(req, res, route, opts),
         json: () => res.json(data),

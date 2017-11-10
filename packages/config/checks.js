@@ -29,7 +29,7 @@ const checkPackages = packages => {
           i === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`
       )
       : missing;
-
+    /* istanbul ignore next */
     log.fatalError(`Unable to load ${msg.join(' ')} from the current project.
     
     Try installing ${multi ? 'them' : 'it'}:

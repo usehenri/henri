@@ -124,13 +124,13 @@ if (henri._user) {
 
   app.use(passport.initialize());
   app.use(passport.session());
-
+  /* istanbul ignore next */
   henri.addMiddleware(() => {
     henri.router.post('/login', passport.authenticate('local'), (req, res) =>
       res.send('authenticated')
     );
   });
-
+  /* istanbul ignore next */
   henri.addMiddleware(() => {
     henri.router.get('/logout', function(req, res) {
       log.info('Logging out user', req.user);
@@ -143,6 +143,7 @@ if (henri._user) {
 
   log.info('user module loaded.');
 } else {
+  /* istanbul ignore next */
   log.warn('no user model defined; will not load user module');
 }
 

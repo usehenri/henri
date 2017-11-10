@@ -21,6 +21,7 @@ henri.addModule = (name, func, force) => {
   }
   henri[name] = func;
 
+  /* istanbul ignore next */
   henri._modules[name] = {
     filename: info.getFileName(),
     line: info.getLineNumber(),
@@ -60,10 +61,12 @@ henri.getStatus = key => {
 henri.reload = async () => {
   const start = process.hrtime();
   const loaders = henri._loaders;
+  /* istanbul ignore next */
   Object.keys(require.cache).forEach(function(id) {
     delete require.cache[id];
   });
   try {
+    /* istanbul ignore next */
     if (loaders.length > 0) {
       for (let loader of loaders) {
         await loader();
@@ -73,6 +76,7 @@ henri.reload = async () => {
     log.space();
     log.notify('Hot-reload', 'Server-side hot reload completed..');
   } catch (e) {
+    /* istanbul ignore next */
     log.error(e);
   }
 };
@@ -81,6 +85,7 @@ henri.stop = async () => {
   const start = process.hrtime();
   const reapers = henri._unloaders;
   try {
+    /* istanbul ignore next */
     if (reapers.length > 0) {
       for (let reaper of reapers) {
         await reaper();
@@ -88,6 +93,7 @@ henri.stop = async () => {
     }
     log.warn(`server tear down completed in ${getDiff(start)}ms`);
   } catch (e) {
+    /* istanbul ignore next */
     log.error(e);
   }
 };

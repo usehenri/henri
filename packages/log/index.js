@@ -39,12 +39,15 @@ class Log {
         const color = getColor(options.level);
         const dateString = chalk.grey(new Date().toLocaleTimeString());
         const title = chalk[color].inverse(` ${options.level.toUpperCase()} `);
+        /* istanbul ignore next */
         const message = chalk[color](options.message ? options.message : '');
+        /* istanbul ignore next */
         const meta = chalk[color](
           options.meta && Object.keys(options.meta).length
             ? '\n\t' + JSON.stringify(options.meta, null, 2)
             : ''
         );
+        /* istanbul ignore next */
         const fullMsg = `${title} ${message || meta}`;
 
         let space =
@@ -115,6 +118,7 @@ class Log {
     console.log('');
     const lines = msg.split('\n');
     for (let line of lines) {
+      /* istanbul ignore next */
       if (line.length > 2) {
         this.error(line);
       }

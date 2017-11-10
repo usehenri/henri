@@ -49,6 +49,8 @@ describe('log', () => {
     // eslint-disable-next-line no-console
     expect(console.log).toHaveBeenCalledTimes(2);
     expect(henri.log.error).toHaveBeenCalledTimes(1);
+    expect(() => henri.log.fatalError('o')).toThrow();
+    expect(henri.log.error).toHaveBeenCalledTimes(1);
   });
   test('getColor', () => {
     const { log: { getColor } } = henri;
