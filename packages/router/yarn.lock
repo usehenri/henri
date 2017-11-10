@@ -2,10 +2,3 @@
 # yarn lockfile v1
 
 
-"@types/jest@^21.1.5":
-  version "21.1.5"
-  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-21.1.5.tgz#3db93d069d12602ca115d3604550e15131d8eb7a"
-
-"@types/node@^8.0.47":
-  version "8.0.50"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.50.tgz#dc545448e128c88c4eec7cd64025fcc3b7604541"

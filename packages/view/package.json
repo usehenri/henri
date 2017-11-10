@@ -20,8 +20,5 @@
     "raw-loader": "^0.5.1",
     "sass-loader": "^6.0.5",
     "webpack": "^3.8.1"
-  },
-  "devDependencies": {
-    "@types/node": "^8.0.47"
   }
 }

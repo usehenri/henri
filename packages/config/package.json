@@ -9,9 +9,5 @@
     "@usehenri/log": "^0.17.0",
     "callsite": "^1.0.0",
     "config": "^1.27.0"
-  },
-  "devDependencies": {
-    "@types/config": "^0.0.33",
-    "@types/node": "^8.0.47"
   }
 }

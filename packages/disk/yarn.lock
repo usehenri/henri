@@ -6,10 +6,6 @@
   version "3.10.2"
   resolved "https://registry.yarnpkg.com/@sailshq/lodash/-/lodash-3.10.2.tgz#1567d47345364c2c2e2077bc113487b1dfe62154"
 
-"@types/node@^8.0.47":
-  version "8.0.50"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.50.tgz#dc545448e128c88c4eec7cd64025fcc3b7604541"
-
 acorn@^1.0.3:
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/acorn/-/acorn-1.2.2.tgz#c8ce27de0acc76d896d2b1fad3df588d9e82f014"
