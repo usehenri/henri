@@ -102,7 +102,7 @@ async function start(configuration) {
       try {
         const eslintRc = JSON.parse(fs.readFileSync(eslintFile, 'utf8'));
         henri._models.map(modelName => (eslintRc.globals[modelName] = true));
-        fs.writeFileSync(eslintFile, JSON.stringify(eslintRc));
+        fs.writeFileSync(eslintFile, JSON.stringify(eslintRc, null, 2));
       } catch (e) {} // Do nothing
     }
     return resolve();
