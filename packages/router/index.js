@@ -78,6 +78,7 @@ function middlewares(router) {
     res.render = (route, data) => {
       const opts = {
         data,
+        user: req.user || {},
         query: req.query,
       };
       if (req.url.startsWith('/_data/')) {

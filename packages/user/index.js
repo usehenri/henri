@@ -116,9 +116,8 @@ if (henri._user) {
   });
 
   passport.deserializeUser(function(id, done) {
-    henri._user.find({ id: id }, (err, user) => {
-      delete user.password;
-      done(err, user);
+    henri._user.find({ _id: id }, { password: 0 }, (err, user) => {
+      done(err, user.length > 0 ? user[0] : {});
     });
   });
 
