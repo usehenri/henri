@@ -4,9 +4,5 @@
   "description": "henri router",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
-  "license": "MIT",
-  "devDependencies": {
-    "@types/jest": "^21.1.5",
-    "@types/node": "^8.0.47"
-  }
+  "license": "MIT"
 }

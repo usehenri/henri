@@ -7,8 +7,5 @@
   "license": "MIT",
   "dependencies": {
     "sails-mysql": "1.0.0-14"
-  },
-  "devDependencies": {
-    "@types/node": "^8.0.47"
   }
 }

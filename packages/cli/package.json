@@ -16,17 +16,10 @@
     "chalk": "^2.3.0",
     "cross-spawn": "^5.1.0",
     "fs-extra": "^4.0.1",
-    "inquirer": "^3.2.1",
+    "inquirer": "^4.0.0",
     "minimist": "^1.2.0",
     "rimraf": "^2.6.1",
     "update-notifier": "^2.3.0"
-  },
-  "devDependencies": {
-    "@types/chalk": "^2.2.0",
-    "@types/fs-extra": "^4.0.3",
-    "@types/jest": "^21.1.5",
-    "@types/minimist": "^1.2.0",
-    "@types/node": "^8.0.47"
   },
   "commands": [
     "server",

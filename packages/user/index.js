@@ -116,21 +116,20 @@ if (henri._user) {
   });
 
   passport.deserializeUser(function(id, done) {
-    henri._user.find({ id: id }, (err, user) => {
-      delete user.password;
-      done(err, user);
+    henri._user.find({ _id: id }, { password: 0 }, (err, user) => {
+      done(err, user && user.length > 0 ? user[0] : {});
     });
   });
 
   app.use(passport.initialize());
   app.use(passport.session());
-
+  /* istanbul ignore next */
   henri.addMiddleware(() => {
     henri.router.post('/login', passport.authenticate('local'), (req, res) =>
       res.send('authenticated')
     );
   });
-
+  /* istanbul ignore next */
   henri.addMiddleware(() => {
     henri.router.get('/logout', function(req, res) {
       log.info('Logging out user', req.user);
@@ -143,6 +142,7 @@ if (henri._user) {
 
   log.info('user module loaded.');
 } else {
+  /* istanbul ignore next */
   log.warn('no user model defined; will not load user module');
 }
 

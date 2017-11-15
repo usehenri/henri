@@ -49,4 +49,13 @@ describe('register', () => {
     await henri.stop();
     expect(unloader).toHaveBeenCalledTimes(3);
   });
+  test('passport message', () => {
+    henri.log.error = jest.fn();
+    henri.passport.authenticate();
+    expect(henri.log.error).toHaveBeenCalledTimes(1);
+  });
+  test('setStatus', () => {
+    henri.setStatus('boo');
+    expect(henri.getStatus('boo')).toBeFalsy();
+  });
 });

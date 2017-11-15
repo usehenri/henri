@@ -2,21 +2,13 @@
 # yarn lockfile v1
 
 
-"@types/config@^0.0.33":
-  version "0.0.33"
-  resolved "https://registry.yarnpkg.com/@types/config/-/config-0.0.33.tgz#2b256fe9744e9a3f913f551a9aa4660c41f28c4b"
-
-"@types/node@^8.0.47":
-  version "8.0.50"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.50.tgz#dc545448e128c88c4eec7cd64025fcc3b7604541"
-
 callsite@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/callsite/-/callsite-1.0.0.tgz#280398e5d664bd74038b6f0905153e6e8af1bc20"
 
-config@^1.27.0:
-  version "1.28.0"
-  resolved "https://registry.yarnpkg.com/config/-/config-1.28.0.tgz#666740053a81489905f26087c8656394c193507d"
+config@^1.28.1:
+  version "1.28.1"
+  resolved "https://registry.yarnpkg.com/config/-/config-1.28.1.tgz#7625d2a1e4c90f131d8a73347982d93c3873282d"
   dependencies:
     json5 "0.4.0"
     os-homedir "1.0.2"

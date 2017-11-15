@@ -2,30 +2,6 @@
 # yarn lockfile v1
 
 
-"@types/bson@*":
-  version "1.0.4"
-  resolved "https://registry.yarnpkg.com/@types/bson/-/bson-1.0.4.tgz#94260b6b96fa459346959c9216799d8919e95d2b"
-  dependencies:
-    "@types/node" "*"
-
-"@types/mongodb@*":
-  version "2.2.15"
-  resolved "https://registry.yarnpkg.com/@types/mongodb/-/mongodb-2.2.15.tgz#42577d8a92b9840dad440acf92fea6435c1fcfb3"
-  dependencies:
-    "@types/bson" "*"
-    "@types/node" "*"
-
-"@types/mongoose@^4.7.24":
-  version "4.7.25"
-  resolved "https://registry.yarnpkg.com/@types/mongoose/-/mongoose-4.7.25.tgz#d31b34c1ade8e1649f41710094275204ba07388d"
-  dependencies:
-    "@types/mongodb" "*"
-    "@types/node" "*"
-
-"@types/node@*", "@types/node@^8.0.47":
-  version "8.0.50"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.50.tgz#dc545448e128c88c4eec7cd64025fcc3b7604541"
-
 async@2.1.4:
   version "2.1.4"
   resolved "https://registry.yarnpkg.com/async/-/async-2.1.4.tgz#2d2160c7788032e4dd6cbe2502f1f9a2c8f6cde4"
@@ -97,9 +73,9 @@ mongodb@2.2.33:
     mongodb-core "2.1.17"
     readable-stream "2.2.7"
 
-mongoose@^4.13.0:
-  version "4.13.0"
-  resolved "https://registry.yarnpkg.com/mongoose/-/mongoose-4.13.0.tgz#81bb266e045d66ac8dfdd84fc6749c873d7a6ac4"
+mongoose@^4.13.2:
+  version "4.13.2"
+  resolved "https://registry.yarnpkg.com/mongoose/-/mongoose-4.13.2.tgz#9639241ce9cd1dfedcd164aef941c09c9eb12b1a"
   dependencies:
     async "2.1.4"
     bson "~1.0.4"

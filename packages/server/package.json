@@ -17,13 +17,5 @@
     "react-dev-utils": "^4.2.1",
     "server-timings": "^1.0.4",
     "supertest": "^3.0.0"
-  },
-  "devDependencies": {
-    "@types/body-parser": "^1.16.7",
-    "@types/compression": "^0.0.34",
-    "@types/cookie-parser": "^1.4.0",
-    "@types/express": "^4.0.39",
-    "@types/jest": "^21.1.5",
-    "@types/node": "^8.0.47"
   }
 }

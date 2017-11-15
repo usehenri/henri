@@ -7,8 +7,5 @@
   "license": "MIT",
   "dependencies": {
     "sails-mongo": "1.0.0-9"
-  },
-  "devDependencies": {
-    "@types/node": "^8.0.47"
   }
 }
