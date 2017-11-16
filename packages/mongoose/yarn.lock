@@ -73,9 +73,9 @@ mongodb@2.2.33:
     mongodb-core "2.1.17"
     readable-stream "2.2.7"
 
-mongoose@^4.13.2:
-  version "4.13.2"
-  resolved "https://registry.yarnpkg.com/mongoose/-/mongoose-4.13.2.tgz#9639241ce9cd1dfedcd164aef941c09c9eb12b1a"
+mongoose@^4.13.3:
+  version "4.13.3"
+  resolved "https://registry.yarnpkg.com/mongoose/-/mongoose-4.13.3.tgz#8cc6d03cccd8e44f741d07a95f70d515563b6cff"
   dependencies:
     async "2.1.4"
     bson "~1.0.4"

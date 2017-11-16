@@ -6,6 +6,6 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "mongoose": "^4.13.2"
+    "mongoose": "^4.13.3"
   }
 }
