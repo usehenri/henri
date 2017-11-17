@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.18.0"></a>
+# [0.18.0](https://github.com/usehenri/henri/compare/v0.17.0...v0.18.0) (2017-11-17)
+
+
+### Bug Fixes
+
+* **user:** sometimes, user can be empty ([8cab0b1](https://github.com/usehenri/henri/commit/8cab0b1))
+
+
+### Features
+
+* **user:** inject user properly  into context ([2a3ef61](https://github.com/usehenri/henri/commit/2a3ef61))
+
+
+
+
 <a name="0.17.0"></a>
 # [0.17.0](https://github.com/usehenri/henri/compare/v0.16.1...v0.17.0) (2017-11-09)
 

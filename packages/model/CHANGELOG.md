@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.18.0"></a>
+# [0.18.0](https://github.com/usehenri/henri/compare/v0.17.0...v0.18.0) (2017-11-17)
+
+
+### Bug Fixes
+
+* **model:** pretty-print json file to eslintrc ([14fd689](https://github.com/usehenri/henri/commit/14fd689))
+
+
+
+
 <a name="0.17.0"></a>
 # [0.17.0](https://github.com/usehenri/henri/compare/v0.16.1...v0.17.0) (2017-11-09)
 

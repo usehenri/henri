@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/mongo",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "henri mongo database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
