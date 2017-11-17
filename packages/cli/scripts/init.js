@@ -80,6 +80,8 @@ const main = (args, name) => {
       },
     },
     renderer: 'react',
+    baseRole: 'guest',
+    user: 'user',
     secret: `${buf.toString('hex')}`,
   };
 
