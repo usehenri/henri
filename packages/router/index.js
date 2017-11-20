@@ -75,7 +75,7 @@ function middlewares(router) {
   henri.router.use((req, res, cb) => {
     res.locals._req = req;
     delete res.render;
-    res.render = (route, data) => {
+    res.render = (route, data = {}) => {
       const opts = {
         data,
         user: req.user || {},
