@@ -1,7 +1,8 @@
 {
   "name": "henri",
   "version": "0.18.0",
-  "description": "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
+  "description":
+    "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
   "main": "index.js",
   "preferGlobal": true,
   "scripts": {
