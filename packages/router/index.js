@@ -24,7 +24,55 @@ async function init(reload = false) {
   }
 
   for (const key in routes) {
-    const controller = routes[key];
+    let controller = routes[key];
+    const routeKey = key.split(' ');
+    let verb = routeKey.length > 1 ? routeKey[0].toLowerCase() : 'get';
+    let route =
+      routeKey.length > 1 ? routeKey[1].replace('/', '') : key.replace('/', '');
+    if (typeof controller === 'string') {
+      controller = { controller: controller };
+    }
+    if (verb === 'ressources') {
+      routes[`get /${route}`] = {
+        ...controller,
+        controller: `${controller.controller}#index`,
+      };
+      routes[`get /${route}/new`] = {
+        ...controller,
+        controller: `${controller.controller}#new`,
+      };
+      routes[`post /${route}`] = {
+        ...controller,
+        controller: `${controller.controller}#create`,
+      };
+      routes[`get /${route}/:id`] = {
+        ...controller,
+        controller: `${controller.controller}#show`,
+      };
+      routes[`get /${route}/:id/edit`] = {
+        ...controller,
+        controller: `${controller.controller}#edit`,
+      };
+      routes[`patch /${route}/:id`] = {
+        ...controller,
+        controller: `${controller.controller}#update`,
+      };
+      routes[`put /${route}/:id`] = {
+        ...controller,
+        controller: `${controller.controller}#update`,
+      };
+      routes[`delete /${route}/:id`] = {
+        ...controller,
+        controller: `${controller.controller}#destroy`,
+      };
+      delete routes[key];
+    } else {
+      routes[key] = controller;
+    }
+  }
+
+  for (const key in routes) {
+    const controller = routes[key].controller;
     const routeKey = key.split(' ');
     let verb = routeKey.length > 1 ? routeKey[0].toLowerCase() : 'get';
     let route = routeKey.length > 1 ? routeKey[1] : key;
@@ -32,7 +80,7 @@ async function init(reload = false) {
     if (controllers.hasOwnProperty(controller)) {
       register(verb, route, controller, controllers[controller]);
       register(verb, `/_data${route}`, controller, controllers[controller]);
-      log.info(`${key} => ${controller}: registered.`);
+      log.info(`${key} => ${controller}: registered`);
     } else {
       register(verb, route, controller);
       log.error(`${key} => ${controller}: unknown controller for route `);
