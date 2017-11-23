@@ -24,14 +24,8 @@ async function init(reload = false) {
   }
 
   for (const key in routes) {
-    let controller = routes[key];
-    const routeKey = key.split(' ');
-    let verb = routeKey.length > 1 ? routeKey[0].toLowerCase() : 'get';
-    let route =
-      routeKey.length > 1 ? routeKey[1].replace('/', '') : key.replace('/', '');
-    if (typeof controller === 'string') {
-      controller = { controller: controller };
-    }
+    const [verb, route, controller] = parseRoute(key, routes[key]);
+
     if (verb === 'resources') {
       const scope = controller.scope ? `/${controller.scope}/` : '/';
       controller.resources = route;
@@ -67,11 +61,8 @@ async function init(reload = false) {
   }
 
   for (const key in routes) {
-    const controller = routes[key].controller;
-    const roles = routes[key].roles || null;
-    const routeKey = key.split(' ');
-    let verb = routeKey.length > 1 ? routeKey[0].toLowerCase() : 'get';
-    let route = routeKey.length > 1 ? routeKey[1] : key;
+    const [verb, route, opts] = parseRoute(key, routes[key]);
+    const { roles, controller } = opts;
 
     if (controllers.hasOwnProperty(controller)) {
       register(verb, route, routes[key], controllers[controller], roles);
@@ -167,6 +158,48 @@ function middlewares(router) {
     cb();
   });
 }
+
+const parseRoute = (key, args) => {
+  let controller = args;
+  const routeKey = key.split(' ');
+  let verb = routeKey.length > 1 ? routeKey[0].toLowerCase() : 'get';
+  let route = routeKey.length > 1 ? routeKey[1] : key;
+  if (typeof controller === 'string') {
+    controller = { controller: controller };
+  }
+  if (!verbs.includes(verb)) {
+    verb = 'get';
+    log.warn(`the verb used in ${key} is unknown. using GET instead.`);
+  }
+  return [verb, route, controller];
+};
+
+const verbs = [
+  'checkout',
+  'copy',
+  'delete',
+  'get',
+  'head',
+  'lock',
+  'merge',
+  'mkactivity',
+  'mkcol',
+  'move',
+  'm-search',
+  'notify',
+  'options',
+  'patch',
+  'post',
+  'purge',
+  'put',
+  'report',
+  'search',
+  'subscribe',
+  'trace',
+  'unlock',
+  'unsubscribe',
+  'resources',
+];
 
 async function reload() {
   await init(true);

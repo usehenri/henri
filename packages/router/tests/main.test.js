@@ -15,6 +15,7 @@ describe('router', () => {
   });
   test('fs routes', () => {
     const routes = henri._routes;
+    console.dir(henri);
     expect(routes['get /fs'].active).toBeFalsy();
     expect(routes['get /unfs'].active).toBeFalsy();
   });
