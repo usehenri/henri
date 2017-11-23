@@ -13,7 +13,7 @@ const {
 const openBrowser = require('react-dev-utils/openBrowser');
 const detect = require('detect-port');
 
-const { config, cwd, log } = henri;
+const { clearConsole, config, cwd, log } = henri;
 
 const app = express();
 
@@ -66,7 +66,11 @@ async function watch() {
   const watcher = chokidar.watch('.', { ignored });
   watcher.on('ready', () => {
     watcher.on('all', (event, path) => {
+      clearConsole();
+      log.space();
       log.warn('changes detected in', path);
+      log.space();
+      log.space();
       henri.reload();
     });
     log.info('watching filesystem for changes...');
@@ -86,7 +90,11 @@ async function watch() {
       process.exit(0);
     }
     if (chr === 18) {
+      clearConsole();
+      log.space();
       log.warn('user-requested server reload...');
+      log.space();
+      log.space();
       henri.reload();
     }
     if (chr === 14 || chr === 15) {

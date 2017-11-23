@@ -1,6 +1,7 @@
 // Registering some global functions & variables
 
 const stack = require('callsite');
+const readline = require('readline');
 
 const { getDiff, log } = henri;
 
@@ -98,6 +99,16 @@ henri.stop = async () => {
   }
 };
 
+henri.clearConsole = () => {
+  // Thanks to friendly-errors-webpack-plugin
+  if (process.stdout.isTTY) {
+    // Fill screen with blank lines. Then move to 0 (beginning of visible part) and clear it
+    const blank = '\n'.repeat(process.stdout.rows);
+    console.log(blank);
+    readline.cursorTo(process.stdout, 0, 0);
+    readline.clearScreenDown(process.stdout);
+  }
+};
 henri.passport = {
   authenticate: () =>
     log.error('passport is not initialized. missing user model?'),
