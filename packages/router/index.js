@@ -32,9 +32,9 @@ async function init(reload = false) {
     if (typeof controller === 'string') {
       controller = { controller: controller };
     }
-    if (verb === 'ressources') {
+    if (verb === 'resources') {
       const scope = controller.scope ? `/${controller.scope}/` : '/';
-      controller.ressources = route;
+      controller.resources = route;
       routes[`get ${scope}${route}`] = Object.assign({}, controller, {
         controller: `${controller.controller}#index`,
       });
