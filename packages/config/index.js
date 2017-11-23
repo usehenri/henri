@@ -17,7 +17,7 @@ if (!global['henri']) {
     _loaders: [],
     _unloaders: [],
     _models: [],
-    _routes: [],
+    _routes: {},
     _middlewares: [],
     _user: null,
     folders: {
