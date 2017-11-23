@@ -35,28 +35,28 @@ async function init(reload = false) {
     if (verb === 'ressources') {
       const scope = controller.scope ? `/${controller.scope}/` : '/';
       controller.ressources = route;
-      routes[`get ${scope}${route}`] = Object.assign(controller, {
+      routes[`get ${scope}${route}`] = Object.assign({}, controller, {
         controller: `${controller.controller}#index`,
       });
-      routes[`get ${scope}${route}/new`] = Object.assign(controller, {
+      routes[`get ${scope}${route}/new`] = Object.assign({}, controller, {
         controller: `${controller.controller}#new`,
       });
-      routes[`post ${scope}${route}`] = Object.assign(controller, {
+      routes[`post ${scope}${route}`] = Object.assign({}, controller, {
         controller: `${controller.controller}#create`,
       });
-      routes[`get ${scope}${route}/:id`] = Object.assign(controller, {
+      routes[`get ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#show`,
       });
-      routes[`get ${scope}${route}/:id/edit`] = Object.assign(controller, {
+      routes[`get ${scope}${route}/:id/edit`] = Object.assign({}, controller, {
         controller: `${controller.controller}#edit`,
       });
-      routes[`patch ${scope}${route}/:id`] = Object.assign(controller, {
+      routes[`patch ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#update`,
       });
-      routes[`put ${scope}${route}/:id`] = Object.assign(controller, {
+      routes[`put ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#update`,
       });
-      routes[`delete ${scope}${route}/:id`] = Object.assign(controller, {
+      routes[`delete ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#destroy`,
       });
 
@@ -130,6 +130,10 @@ function register(verb, route, opts, fn, roles) {
     } else {
       henri.router[verb](route, fn);
     }
+  } else {
+    henri.router[verb](route, (req, res) =>
+      res.status(501).send({ msg: 'Not implemented' })
+    );
   }
   const name = `${verb} ${route}`;
   henri._routes[name] = Object.assign(opts, {
