@@ -35,38 +35,31 @@ async function init(reload = false) {
     if (verb === 'ressources') {
       const scope = controller.scope ? `/${controller.scope}/` : '/';
       controller.ressources = route;
-      routes[`get ${scope}${route}`] = {
-        ...controller,
+      routes[`get ${scope}${route}`] = Object.assign(controller, {
         controller: `${controller.controller}#index`,
-      };
-      routes[`get ${scope}${route}/new`] = {
-        ...controller,
+      });
+      routes[`get ${scope}${route}/new`] = Object.assign(controller, {
         controller: `${controller.controller}#new`,
-      };
-      routes[`post ${scope}${route}`] = {
-        ...controller,
+      });
+      routes[`post ${scope}${route}`] = Object.assign(controller, {
         controller: `${controller.controller}#create`,
-      };
-      routes[`get ${scope}${route}/:id`] = {
-        ...controller,
+      });
+      routes[`get ${scope}${route}/:id`] = Object.assign(controller, {
         controller: `${controller.controller}#show`,
-      };
-      routes[`get ${scope}${route}/:id/edit`] = {
-        ...controller,
+      });
+      routes[`get ${scope}${route}/:id/edit`] = Object.assign(controller, {
         controller: `${controller.controller}#edit`,
-      };
-      routes[`patch ${scope}${route}/:id`] = {
-        ...controller,
+      });
+      routes[`patch ${scope}${route}/:id`] = Object.assign(controller, {
         controller: `${controller.controller}#update`,
-      };
-      routes[`put ${scope}${route}/:id`] = {
-        ...controller,
+      });
+      routes[`put ${scope}${route}/:id`] = Object.assign(controller, {
         controller: `${controller.controller}#update`,
-      };
-      routes[`delete ${scope}${route}/:id`] = {
-        ...controller,
+      });
+      routes[`delete ${scope}${route}/:id`] = Object.assign(controller, {
         controller: `${controller.controller}#destroy`,
-      };
+      });
+
       delete routes[key];
     } else {
       routes[key] = controller;
@@ -139,7 +132,9 @@ function register(verb, route, opts, fn, roles) {
     }
   }
   const name = `${verb} ${route}`;
-  henri._routes[name] = { ...opts, active: typeof fn === 'function' };
+  henri._routes[name] = Object.assign(opts, {
+    active: typeof fn === 'function',
+  });
 }
 /* istanbul ignore next */
 function middlewares(router) {
