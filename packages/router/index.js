@@ -34,6 +34,7 @@ async function init(reload = false) {
     }
     if (verb === 'ressources') {
       const scope = controller.scope ? `/${controller.scope}/` : '/';
+      controller.ressources = route;
       routes[`get ${scope}${route}`] = {
         ...controller,
         controller: `${controller.controller}#index`,
@@ -74,16 +75,25 @@ async function init(reload = false) {
 
   for (const key in routes) {
     const controller = routes[key].controller;
+    const roles = routes[key].roles || null;
     const routeKey = key.split(' ');
     let verb = routeKey.length > 1 ? routeKey[0].toLowerCase() : 'get';
     let route = routeKey.length > 1 ? routeKey[1] : key;
 
     if (controllers.hasOwnProperty(controller)) {
-      register(verb, route, controller, controllers[controller]);
-      register(verb, `/_data${route}`, controller, controllers[controller]);
-      log.info(`${key} => ${controller}: registered`);
+      register(verb, route, routes[key], controllers[controller], roles);
+      register(
+        verb,
+        `/_data${route}`,
+        routes[key],
+        controllers[controller],
+        roles
+      );
+      log.info(
+        `${key} => ${controller}: registered ${(roles && 'with roles') || ''}`
+      );
     } else {
-      register(verb, route, controller);
+      register(verb, route, routes[key]);
       log.error(`${key} => ${controller}: unknown controller for route `);
     }
   }
@@ -107,14 +117,29 @@ async function init(reload = false) {
   }
 }
 
-function register(verb, route, controller, fn) {
+function register(verb, route, opts, fn, roles) {
   if (typeof fn === 'function') {
-    henri.router[verb](route, fn);
+    if (roles) {
+      henri.router[verb](
+        route,
+        async function(req, res, next) {
+          if (
+            req.isAuthenticated() &&
+            req.user &&
+            (await req.user.hasRole(roles))
+          ) {
+            return next();
+          }
+          return res.redirect('/login');
+        },
+        fn
+      );
+    } else {
+      henri.router[verb](route, fn);
+    }
   }
   const name = `${verb} ${route}`;
-  henri._routes[name] = `${controller}${
-    typeof fn !== 'function' ? ' (unknown controller)' : ' (ok)'
-  }`;
+  henri._routes[name] = { ...opts, active: typeof fn === 'function' };
 }
 /* istanbul ignore next */
 function middlewares(router) {
