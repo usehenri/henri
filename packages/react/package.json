@@ -1,0 +1,26 @@
+{
+  "name": "@usehenri/react",
+  "version": "0.18.0",
+  "description": "react components for henri",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "build": "taskr",
+    "prepublish": "taskr release"
+  },
+  "devDependencies": {
+    "@taskr/babel": "^1.1.0",
+    "@taskr/esnext": "^1.1.0",
+    "@taskr/clear": "^1.1.0",
+    "@taskr/watch": "^1.1.0",
+    "taskr": "^1.1.0"
+  },
+  "files": ["dist", "forms.js", "withHenri.js"],
+  "dependencies": {
+    "axios": "^0.17.1",
+    "prop-types": "^15.6.0",
+    "validator": "^9.1.1"
+  }
+}
