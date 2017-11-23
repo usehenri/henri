@@ -33,35 +33,36 @@ async function init(reload = false) {
       controller = { controller: controller };
     }
     if (verb === 'ressources') {
-      routes[`get /${route}`] = {
+      const scope = controller.scope ? `/${controller.scope}/` : '/';
+      routes[`get ${scope}${route}`] = {
         ...controller,
         controller: `${controller.controller}#index`,
       };
-      routes[`get /${route}/new`] = {
+      routes[`get ${scope}${route}/new`] = {
         ...controller,
         controller: `${controller.controller}#new`,
       };
-      routes[`post /${route}`] = {
+      routes[`post ${scope}${route}`] = {
         ...controller,
         controller: `${controller.controller}#create`,
       };
-      routes[`get /${route}/:id`] = {
+      routes[`get ${scope}${route}/:id`] = {
         ...controller,
         controller: `${controller.controller}#show`,
       };
-      routes[`get /${route}/:id/edit`] = {
+      routes[`get ${scope}${route}/:id/edit`] = {
         ...controller,
         controller: `${controller.controller}#edit`,
       };
-      routes[`patch /${route}/:id`] = {
+      routes[`patch ${scope}${route}/:id`] = {
         ...controller,
         controller: `${controller.controller}#update`,
       };
-      routes[`put /${route}/:id`] = {
+      routes[`put ${scope}${route}/:id`] = {
         ...controller,
         controller: `${controller.controller}#update`,
       };
-      routes[`delete /${route}/:id`] = {
+      routes[`delete ${scope}${route}/:id`] = {
         ...controller,
         controller: `${controller.controller}#destroy`,
       };
