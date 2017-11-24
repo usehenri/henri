@@ -13,9 +13,12 @@ export default ComposedComponent => {
       this.state = {
         data: props.data || {},
       };
-      this.fetchData = this.fetchData.bind(this);
+      this.hydrate = this.hydrate.bind(this);
+      this.fetch = this.fetch.bind(this);
     }
+
     static displayName = `withHenri(${getDisplayName(ComposedComponent)})`;
+
     static async getInitialProps(ctx) {
       const { query: { data, user } } = ctx;
       let composedInitialProps = {};
@@ -25,9 +28,12 @@ export default ComposedComponent => {
       return { data, user, ...composedInitialProps };
     }
 
-    async fetchData() {
-      axios
-        .get(document.location)
+    async hydrate(data = {}) {
+      axios({
+        method: 'get',
+        url: document.location,
+        data,
+      })
         .then(resp => {
           this.setState({ data: resp.data });
         })
@@ -36,24 +42,45 @@ export default ComposedComponent => {
         });
     }
 
+    async fetch(route, method = 'get') {
+      return new Promise((resolve, reject) => {
+        axios({
+          method,
+          url: route,
+        })
+          .then(resp => {
+            resolve(resp);
+          })
+          .catch(err => {
+            reject(err);
+          });
+      });
+    }
+
     getChildContext() {
       return {
         // Contains the data passed down. Key should match names
-        fetchData: this.fetchData,
+        hydrate: this.hydrate,
+        fetch: this.fetch,
       };
     }
+
     render() {
       return (
         <ComposedComponent
-          fetchData={this.fetchData}
+          hydrate={this.hydrate}
+          fetch={this.fetch}
           {...this.props}
           data={this.state.data}
         />
       );
     }
   }
+
   WithHenri.childContextTypes = {
-    fetchData: PropTypes.func,
+    hydrate: PropTypes.func,
+    fetch: PropTypes.func,
   };
+
   return WithHenri;
 };
