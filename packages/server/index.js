@@ -5,6 +5,7 @@ const timings = require('server-timings');
 const compress = require('compression');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const chokidar = require('chokidar');
 const {
   choosePort,
@@ -12,6 +13,7 @@ const {
 } = require('react-dev-utils/WebpackDevServerUtils');
 const openBrowser = require('react-dev-utils/openBrowser');
 const detect = require('detect-port');
+const prettier = require('prettier');
 
 const { clearConsole, config, cwd, log } = henri;
 
@@ -59,19 +61,26 @@ async function watch() {
     '.eslintrc',
     '.git',
   ];
+
   if (config.has('ignore') && Array.isArray(config.get('ignore'))) {
     ignored.concat(config.get('ignore'));
   }
   log.debug(`filesystem watch ignore: ${ignored.join(' ')}`);
   const watcher = chokidar.watch('.', { ignored });
   watcher.on('ready', () => {
-    watcher.on('all', (event, path) => {
+    watcher.on('all', async (event, path) => {
+      if (henri.getStatus('locked')) {
+        return;
+      }
+      henri.setStatus('locked', true);
       clearConsole();
       log.space();
       log.warn('changes detected in', path);
       log.space();
       log.space();
-      henri.reload();
+      await checkSyntax(path);
+      setTimeout(() => henri.setStatus('locked', false), 750);
+      !henri.getStatus('locked') && henri.reload();
     });
     log.info('watching filesystem for changes...');
     config.has('ignore') &&
@@ -128,6 +137,40 @@ function handleError(err) {
   }
   log.error(err);
 }
+
+const checkSyntax = file => {
+  return new Promise(resolve => {
+    fs.readFile(file, 'utf8', (err, data) => {
+      if (err) {
+        log.error('error in writefile');
+        console.log(err);
+        return resolve();
+      }
+      try {
+        prettier.format(data.toString(), {
+          singleQuote: true,
+          trailingComma: 'es5',
+        });
+        henri.setStatus('locked', false);
+        return resolve();
+        // Will enable later...
+        /* fs.writeFile(file, code, 'utf8', err => {
+          if (err) {
+            log.error('error in writefile');
+            console.log(err);
+            return resolve();
+          }
+        }); */
+      } catch (e) {
+        log.error(`Trying to reload but caught an error:`);
+        console.log(' ');
+        console.log(e.message);
+        resolve();
+      }
+    });
+  });
+};
+
 henri.router = undefined;
 
 henri.app = app;
