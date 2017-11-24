@@ -15,13 +15,14 @@ describe('router', () => {
   });
   test('fs routes', () => {
     const routes = henri._routes;
-    expect(routes['get /fs']).toBe('main#fs (unknown controller)');
-    expect(routes['get /unfs']).toBe('main#fs (unknown controller)');
+    console.dir(henri);
+    expect(routes['get /fs'].active).toBeFalsy();
+    expect(routes['get /unfs'].active).toBeFalsy();
   });
   test('config routes', () => {
     const routes = henri._routes;
-    expect(routes['get /abc']).toBe('a#bc (ok)');
-    expect(routes['get /def']).toBe('main#def (unknown controller)');
+    expect(routes['get /abc'].active).toBeTruthy();
+    expect(routes['get /def'].active).toBeFalsy();
   });
   test('normalize verbs', () => {
     const routes = henri._routes;
@@ -30,8 +31,8 @@ describe('router', () => {
   });
   test('create data routes', () => {
     const routes = henri._routes;
-    expect(routes['get /abc']).toBe('a#bc (ok)');
-    expect(routes['get /_data/abc']).toBe('a#bc (ok)');
+    expect(routes['get /abc'].active).toBeTruthy();
+    expect(routes['get /_data/abc'].active).toBeTruthy();
   });
   test('should reload', async () => {
     henri.log.warn = jest.fn();
