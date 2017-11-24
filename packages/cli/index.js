@@ -28,6 +28,7 @@ module.exports = (pkg, args) => {
   const command = argv._.shift();
 
   switch (command) {
+    case 'about':
     case 'clean':
     case 'console':
     case 'init':
