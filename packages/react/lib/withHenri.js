@@ -42,11 +42,12 @@ export default ComposedComponent => {
         });
     }
 
-    async fetch(route, method = 'get') {
+    async fetch(route, method = 'get', data = {}) {
       return new Promise((resolve, reject) => {
         axios({
           method,
           url: route,
+          data,
         })
           .then(resp => {
             resolve(resp);

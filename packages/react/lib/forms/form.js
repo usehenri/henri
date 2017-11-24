@@ -110,13 +110,17 @@ class Form extends Component {
   };
 
   submit = (action, data) => {
-    const { debug = false, onSuccess = null, onFail = '' } = this.props;
-    const { fetchData = null } = this.context;
-    axios
-      .post(action, data)
+    const {
+      debug = false,
+      onSuccess = null,
+      onFail = '',
+      method = 'post',
+    } = this.props;
+    const { hydrate = null } = this.context;
+    axios({ method, url: action, data })
       .then(resp => {
         this.setState({ error: null });
-        fetchData && fetchData();
+        hydrate && hydrate();
         onSuccess && onSuccess(data);
         debug && console.log('form post successful!');
         this.clear();
@@ -182,6 +186,7 @@ Form.propTypes = {
   name: PropTypes.string,
   debug: PropTypes.bool,
   action: PropTypes.string,
+  method: PropTypes.string,
 };
 
 Form.childContextTypes = {
@@ -196,7 +201,8 @@ Form.childContextTypes = {
 };
 
 Form.contextTypes = {
-  fetchData: PropTypes.func,
+  hydrate: PropTypes.func,
+  fetch: PropTypes.func,
 };
 
 export default Form;
