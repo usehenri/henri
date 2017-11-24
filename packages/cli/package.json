@@ -18,8 +18,18 @@
     "fs-extra": "^4.0.1",
     "inquirer": "^4.0.0",
     "minimist": "^1.2.0",
+    "prettier": "^1.8.2",
     "rimraf": "^2.6.1",
     "update-notifier": "^2.3.0"
   },
-  "commands": ["about", "server", "new", "init", "console", "clean"]
+  "commands": [
+    "about",
+    "clean",
+    "console",
+    "g",
+    "generate",
+    "init",
+    "server",
+    "new"
+  ]
 }

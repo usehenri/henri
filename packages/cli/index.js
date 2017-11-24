@@ -31,6 +31,8 @@ module.exports = (pkg, args) => {
     case 'about':
     case 'clean':
     case 'console':
+    case 'g':
+    case 'generate':
     case 'init':
     case 'new':
     case 'server':
