@@ -169,6 +169,9 @@ const views = (file, args) => {
   code += `</tr>
         {${lower}.length === 0 && '<tr>Nothing to show</tr>'}
         {${lower}.length > 0 && ${lower}.map(v => {
+          // Not easy to do template literals within another one... concat!
+          const show = "/_scaffold/${lower}/" + v._id;
+          const edit = "/_scaffold/${lower}/" + v._id + "/edit";
           return (
             <tr key={v._id}>`;
   if (args.length > 0) {
@@ -179,8 +182,8 @@ const views = (file, args) => {
     });
   }
   code += `
-  <td><a href="/_scaffold/${lower}/{v._id}">Show</a></td>
-  <td><a href="/_scaffold/${lower}/{v._id}/edit">Edit</a></td>
+  <td><a href={show}>Show</a></td>
+  <td><a href={edit}>Edit</a></td>
   <td><a href="#" onClick={(e) => {
     fetch("/_scaffold/${lower}/" + v._id, 'delete'); hydrate()
   }}>Destroy</a></td>
@@ -200,8 +203,10 @@ const views = (file, args) => {
   import React from 'react';
   import { Button, Form, Input } from '@usehenri/react/forms';
   
-  const ${doc}Form = ({route, data = {}, action, button = 'Create'}) => (
-    <Form action={route} data={data}>
+  const ${
+  doc
+}Form = ({route, data = {}, action, button = 'Create', method}) => (
+    <Form action={route} data={data} method={method}>
   `;
   if (args.length > 0) {
     args.map(v => {
@@ -249,16 +254,20 @@ const views = (file, args) => {
   import withHenri from '@usehenri/react/withHenri';
   import CreateForm from './_form'
   
-  const New = () => (
+  const Edit = ({ data: { ${lower} = [] }}) => (
     <div>
-      <h2>New ${doc}</h2>
+      <h2>Edit ${doc}</h2>
       <hr />
-      <CreateForm route="/_scaffold/${lower}" button="Create" />
+      <CreateForm 
+      route={getPath(${lower}._id)}
+      button="Update" data={${lower}} method='patch'/>
   </div>);
 
-  export default withHenri(New);
+  const getPath = (id) => "/_scaffold/${lower}/" + id
+
+  export default withHenri(Edit);
   `;
-  output('view', `views/pages/_scaffold/${lower}`, 'new', code);
+  output('view', `views/pages/_scaffold/${lower}`, 'edit', code);
 };
 
 const routes = (key, opts) => {
