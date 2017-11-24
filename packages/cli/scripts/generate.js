@@ -15,7 +15,7 @@ const main = args => {
       controller(args._);
       break;
     case 'scaffold':
-      // scaffold(args._);
+      scaffold(args._);
       break;
     default:
       help();
@@ -54,14 +54,236 @@ const controller = ([file, ...args], inner) => {
   output('controller', 'controllers', file, code);
 };
 
+const scaffold = ([file, ...args]) => {
+  model([capitalize(file), ...args]);
+  resources(file);
+  routes(`resources ${file.toLowerCase()}`, {
+    controller: file.toLowerCase(),
+    scope: '_scaffold',
+  });
+  views(file, args);
+};
+
+const resources = file => {
+  const doc = capitalize(file);
+  const lower = file.toLowerCase();
+  let code = `const { log } = henri; module.exports = {`;
+
+  code += `index: async (req, res) => {
+    log.info('calling ${lower}#index')
+    res.render('/_scaffold/${lower}/index', {
+      ${lower}: await ${doc}.find(),
+    });
+  },`;
+
+  code += `new: async (req, res) => {
+    log.info('calling ${lower}#new')
+    res.render('/_scaffold/${lower}/new')
+  },`;
+
+  code += `create: async (req, res) => {
+    log.info('calling ${lower}#create')
+    const data = req.body;
+    const doc = new ${doc}(data);
+    const errors = await doc.validate()
+
+    if (errors) {
+      return res.status(400).send({msg: 'failed', error: errors.message});
+    }
+    await doc.save();
+    return res.send({ msg: 'success'});
+  },`;
+
+  code += `show: async (req, res) => {
+    log.info('calling ${lower}#show')
+    if (!req.params._id) {
+      return res.render('/_scaffold/${lower}/show')
+    }
+    return res.render('/_scaffold/${lower}/show', {
+      ${lower}: await ${doc}.findOne({ _id: req.params._id }),
+    })
+  },`;
+
+  code += `edit: async (req, res) => {
+    log.info('calling ${lower}#edit')
+    if (!req.params._id) {
+      return res.render('/_scaffold/${lower}/edit')
+    }
+    return res.render('/_scaffold/${lower}/edit', {
+      ${lower}: await ${doc}.findOne({ _id: req.params._id }),
+    })
+  },`;
+
+  code += `update: async (req, res) => {
+    log.info('calling ${lower}#update')
+    if (!req.params._id) {
+      return res.status(400).send({msg: 'invalid id'})
+    }
+    ${doc}.update({ _id: req.params._id }, { $set: req.body }, (err) => {
+      if (err) {
+        return res.status(400).send({msg: 'failed', error: err.message});
+      }
+      return res.send({ msg: 'success'});
+    })
+  },`;
+
+  code += `destroy: async (req, res) => {
+    log.info('calling ${lower}#destroy')
+    if (!req.params._id) {
+      return res.status(400).send({msg: 'invalid id'})
+    }
+    ${doc}.remove({ _id: req.params._id }, (err) => {
+      if (err) {
+        return res.status(400).send({msg: 'failed', error: err.message});
+      }
+      return res.send({ msg: 'success'});
+    })
+  },
+}`;
+  output('controller', 'controllers', file, code);
+};
+
+const views = (file, args) => {
+  const doc = capitalize(file);
+  const lower = file.toLowerCase();
+  let code = `
+  import React from 'react';
+  import withHenri from '@usehenri/react/withHenri';
+  
+  const Index = ({ data: { ${lower} = [] }, fetch, hydrate }) => (
+    <div>
+      <h2>Listing ${doc}</h2>
+      <hr />
+      <table>
+      <tbody>
+        <tr>
+  `;
+  if (args.length > 0) {
+    args.map(v => {
+      const parts = v.split(':');
+      const name = parts[0];
+      code += `<td>${capitalize(name)}</td>`;
+    });
+  }
+
+  code += `</tr>
+        {${lower}.length === 0 && '<tr>Nothing to show</tr>'}
+        {${lower}.length > 0 && ${lower}.map(v => {
+          return (
+            <tr key={v._id}>`;
+  if (args.length > 0) {
+    args.map(v => {
+      const parts = v.split(':');
+      const name = parts[0];
+      code += `<td>{v.${name}}</td>`;
+    });
+  }
+  code += `
+  <td><a href="/_scaffold/${lower}/{v._id}">Show</a></td>
+  <td><a href="/_scaffold/${lower}/{v._id}/edit">Edit</a></td>
+  <td><a href="#" onClick={(e) => {
+    fetch("/_scaffold/${lower}/" + v._id, 'delete'); hydrate()
+  }}>Destroy</a></td>
+  </tr>
+)})}
+      </tbody>
+      </table>
+      <a href="/_scaffold/${lower}/new">New ${doc}</a>
+    </div>
+  );
+    
+  export default withHenri(Index);
+  `;
+  output('view', `views/pages/_scaffold/${lower}`, 'index', code);
+
+  code = `
+  import React from 'react';
+  import { Button, Form, Input } from '@usehenri/react/forms';
+  
+  const ${doc}Form = ({route, data = {}, action, button = 'Create'}) => (
+    <Form action={route} data={data}>
+  `;
+  if (args.length > 0) {
+    args.map(v => {
+      const parts = v.split(':');
+      const name = parts[0];
+      code += `  <Input
+      name="${name}"
+      placeholder="${name}"
+      required
+      validation={{
+        isLength: { min: 1 },
+      }}
+      errorMsg={{
+        isLength: 'Minimum 1 char',
+      }}
+    />`;
+    });
+  }
+  code += `
+    <Button>{button} ${doc}</Button>
+  </Form>);
+
+  export default ${doc}Form;
+  `;
+  output('view', `views/pages/_scaffold/${lower}`, '_form', code);
+
+  code = `
+  import React from 'react';
+  import withHenri from '@usehenri/react/withHenri';
+  import CreateForm from './_form'
+  
+  const New = () => (
+    <div>
+      <h2>New ${doc}</h2>
+      <hr />
+      <CreateForm route="/_scaffold/${lower}" button="Create" />
+  </div>);
+
+  export default withHenri(New);
+  `;
+  output('view', `views/pages/_scaffold/${lower}`, 'new', code);
+
+  code = `
+  import React from 'react';
+  import withHenri from '@usehenri/react/withHenri';
+  import CreateForm from './_form'
+  
+  const New = () => (
+    <div>
+      <h2>New ${doc}</h2>
+      <hr />
+      <CreateForm route="/_scaffold/${lower}" button="Create" />
+  </div>);
+
+  export default withHenri(New);
+  `;
+  output('view', `views/pages/_scaffold/${lower}`, 'new', code);
+};
+
+const routes = (key, opts) => {
+  let code = `module.exports = `;
+  const location = path.join(cwd, 'app', 'routes.js');
+  const actual = require(location);
+  actual[key] = opts;
+  code += util.inspect(actual);
+  fs.outputFileSync(location, prettier.format(code));
+  console.log(`> added route "${key}" @ ${location}`);
+};
+
 const output = (type, dir, file, code) => {
   const location = path.join(cwd, 'app', dir, `${file}.js`);
   fs.outputFileSync(
     path.join(cwd, 'app', dir, `${file}.js`),
-    prettier.format(code)
+    prettier.format(code, {
+      singleQuote: true,
+      trailingComma: 'es5',
+    })
   );
   console.log(`> created ${type} "${file}" @ ${location}`);
 };
+
+const capitalize = word => word.charAt(0).toUpperCase() + word.slice(1);
 
 const help = args => {
   console.log(
