@@ -21,11 +21,5 @@
     "rimraf": "^2.6.1",
     "update-notifier": "^2.3.0"
   },
-  "commands": [
-    "server",
-    "new",
-    "init",
-    "console",
-    "clean"
-  ]
+  "commands": ["about", "server", "new", "init", "console", "clean"]
 }
