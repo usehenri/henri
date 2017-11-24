@@ -21,6 +21,7 @@ const main = async () => {
   // Base list of potential junk to clean
   const initials = [
     '.tmp',
+    'logs',
     'node_modules',
     'app/views/.cache',
     'app/views/.next',
@@ -54,6 +55,8 @@ const main = async () => {
       for (let dir of answer.ans) {
         console.log(`> Deleting ${dir}`);
         rimraf.sync(path.resolve(process.cwd(), dir));
+        console.log(`> Touching ${dir}`);
+        fs.ensureDirSync(path.resolve(process.cwd(), dir));
       }
     })
     .catch(err => {
