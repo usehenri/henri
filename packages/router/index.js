@@ -55,6 +55,25 @@ async function init(reload = false) {
       });
 
       delete routes[key];
+    } else if (verb === 'crud') {
+      const scope = controller.scope ? `/${controller.scope}/` : '/';
+      controller.resources = route;
+      routes[`get ${scope}${route}`] = Object.assign({}, controller, {
+        controller: `${controller.controller}#index`,
+      });
+      routes[`post ${scope}${route}`] = Object.assign({}, controller, {
+        controller: `${controller.controller}#create`,
+      });
+      routes[`patch ${scope}${route}/:_id`] = Object.assign({}, controller, {
+        controller: `${controller.controller}#update`,
+      });
+      routes[`put ${scope}${route}/:_id`] = Object.assign({}, controller, {
+        controller: `${controller.controller}#update`,
+      });
+      routes[`delete ${scope}${route}/:_id`] = Object.assign({}, controller, {
+        controller: `${controller.controller}#destroy`,
+      });
+      delete routes[key];
     } else {
       routes[key] = controller;
     }
@@ -202,6 +221,7 @@ const verbs = [
   'unlock',
   'unsubscribe',
   'resources',
+  'crud',
 ];
 
 async function reload() {
