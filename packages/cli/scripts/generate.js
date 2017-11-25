@@ -70,19 +70,16 @@ const resources = file => {
   let code = `const { log } = henri; module.exports = {`;
 
   code += `index: async (req, res) => {
-    log.info('calling ${lower}#index')
     res.render('/_scaffold/${lower}/index', {
       ${lower}: await ${doc}.find(),
     });
   },`;
 
   code += `new: async (req, res) => {
-    log.info('calling ${lower}#new')
     res.render('/_scaffold/${lower}/new')
   },`;
 
   code += `create: async (req, res) => {
-    log.info('calling ${lower}#create')
     const data = req.body;
     const doc = new ${doc}(data);
     const errors = await doc.validate()
@@ -95,17 +92,15 @@ const resources = file => {
   },`;
 
   code += `show: async (req, res) => {
-    log.info('calling ${lower}#show')
     if (!req.params._id) {
       return res.render('/_scaffold/${lower}/show')
     }
     return res.render('/_scaffold/${lower}/show', {
-      ${lower}: await ${doc}.findOne({ _id: req.params._id }),
+      ${lower}: await ${doc}.find({ _id: req.params._id }),
     })
   },`;
 
   code += `edit: async (req, res) => {
-    log.info('calling ${lower}#edit')
     if (!req.params._id) {
       return res.render('/_scaffold/${lower}/edit')
     }
@@ -115,7 +110,6 @@ const resources = file => {
   },`;
 
   code += `update: async (req, res) => {
-    log.info('calling ${lower}#update')
     if (!req.params._id) {
       return res.status(400).send({msg: 'invalid id'})
     }
@@ -128,7 +122,6 @@ const resources = file => {
   },`;
 
   code += `destroy: async (req, res) => {
-    log.info('calling ${lower}#destroy')
     if (!req.params._id) {
       return res.status(400).send({msg: 'invalid id'})
     }
@@ -268,6 +261,28 @@ const views = (file, args) => {
   export default withHenri(Edit);
   `;
   output('view', `views/pages/_scaffold/${lower}`, 'edit', code);
+
+  code = `
+  import React from 'react';
+  import withHenri from '@usehenri/react/withHenri';
+  
+  const Show = ({ data: { ${lower} = [] }}) => (
+    <div>
+      <h2>Show {${lower}[0]._id.toString()}</h2>
+      <hr />`;
+
+  if (args.length > 0) {
+    args.map(v => {
+      const parts = v.split(':');
+      const name = parts[0];
+      code += `<div>${name}: {${lower}[0].${name}}</div>`;
+    });
+  }
+  code += `</div>);
+
+  export default withHenri(Show);
+  `;
+  output('view', `views/pages/_scaffold/${lower}`, 'show', code);
 };
 
 const routes = (key, opts) => {
