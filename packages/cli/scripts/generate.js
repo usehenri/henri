@@ -17,6 +17,9 @@ const main = args => {
     case 'scaffold':
       scaffold(args._);
       break;
+    case 'crud':
+      buildCrud(args._);
+      break;
     default:
       help();
   }
@@ -64,6 +67,15 @@ const scaffold = ([file, ...args]) => {
   views(file, args);
 };
 
+const buildCrud = ([file, ...args]) => {
+  model([capitalize(file), ...args]);
+  crud(file);
+  routes(`crud ${file.toLowerCase()}`, {
+    controller: file.toLowerCase(),
+    scope: '_crud',
+  });
+};
+
 const resources = file => {
   const doc = capitalize(file);
   const lower = file.toLowerCase();
@@ -107,6 +119,56 @@ const resources = file => {
     return res.render('/_scaffold/${lower}/edit', {
       ${lower}: await ${doc}.findOne({ _id: req.params._id }),
     })
+  },`;
+
+  code += `update: async (req, res) => {
+    if (!req.params._id) {
+      return res.status(400).send({msg: 'invalid id'})
+    }
+    ${doc}.update({ _id: req.params._id }, { $set: req.body }, (err) => {
+      if (err) {
+        return res.status(400).send({msg: 'failed', error: err.message});
+      }
+      return res.send({ msg: 'success'});
+    })
+  },`;
+
+  code += `destroy: async (req, res) => {
+    if (!req.params._id) {
+      return res.status(400).send({msg: 'invalid id'})
+    }
+    ${doc}.remove({ _id: req.params._id }, (err) => {
+      if (err) {
+        return res.status(400).send({msg: 'failed', error: err.message});
+      }
+      return res.send({ msg: 'success'});
+    })
+  },
+}`;
+  output('controller', 'controllers', file, code);
+};
+
+const crud = file => {
+  const doc = capitalize(file);
+  const lower = file.toLowerCase();
+  let code = `const { log } = henri; module.exports = {`;
+
+  code += `index: async (req, res) => {
+    res.render('/_scaffold/${lower}/index', {
+      ${lower}: await ${doc}.find(),
+    });
+  },`;
+
+  code += `create: async (req, res) => {
+    const data = req.body;
+    const doc = new ${doc}(data);
+    const errors = await doc.validate()
+
+    if (errors) {
+      return res.status(400).send({msg: 'failed', error: errors.message});
+    }
+    await doc.save();
+    return res.send({ msg: 'success'});
   },`;
 
   code += `update: async (req, res) => {
@@ -291,7 +353,13 @@ const routes = (key, opts) => {
   const actual = require(location);
   actual[key] = opts;
   code += util.inspect(actual);
-  fs.outputFileSync(location, prettier.format(code));
+  fs.outputFileSync(
+    location,
+    prettier.format(code, {
+      singleQuote: true,
+      trailingComma: 'es5',
+    })
+  );
   console.log(`> added route "${key}" @ ${location}`);
 };
 
