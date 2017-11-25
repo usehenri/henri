@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.19.0"></a>
+# [0.19.0](https://github.com/usehenri/henri/compare/v0.18.0...v0.19.0) (2017-11-25)
+
+
+### Features
+
+* **server:** check the file changes with prettier and output errors (and don't reload) ([8fa958c](https://github.com/usehenri/henri/commit/8fa958c))
+* **server:** clear the terminal on reload ([8f6e868](https://github.com/usehenri/henri/commit/8f6e868))
+
+
+
+
 <a name="0.18.0"></a>
 # [0.18.0](https://github.com/usehenri/henri/compare/v0.17.0...v0.18.0) (2017-11-17)
 

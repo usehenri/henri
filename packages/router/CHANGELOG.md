@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.19.0"></a>
+# [0.19.0](https://github.com/usehenri/henri/compare/v0.18.0...v0.19.0) (2017-11-25)
+
+
+### Bug Fixes
+
+* **router:** fix object assign to create new object and return a 501 error on controller-less routes ([3d5950f](https://github.com/usehenri/henri/commit/3d5950f))
+* **router:** rename ressources to resources to match rails convention (en francais?) ([918a8c3](https://github.com/usehenri/henri/commit/918a8c3))
+* **router:** return empty data to prevent exception ([bff9c36](https://github.com/usehenri/henri/commit/bff9c36))
+* **router:** use _id instead of id.. consistent with mongodb models (why not?) ([6f1341b](https://github.com/usehenri/henri/commit/6f1341b))
+
+
+### Features
+
+* **router:** add crud type routes (resources without views) ([344774a](https://github.com/usehenri/henri/commit/344774a))
+* **router:** add the ressources for routes ([6db1c50](https://github.com/usehenri/henri/commit/6db1c50))
+* **router:** adding scope to ressources ([99ff697](https://github.com/usehenri/henri/commit/99ff697))
+* **router:** it is now possible to embed roles in routes definition ([007a109](https://github.com/usehenri/henri/commit/007a109))
+* **router:** parsing routes and validating verbs ([1fe95f3](https://github.com/usehenri/henri/commit/1fe95f3))
+
+
+
+
 <a name="0.18.0"></a>
 # [0.18.0](https://github.com/usehenri/henri/compare/v0.17.0...v0.18.0) (2017-11-17)
 
