@@ -38,19 +38,19 @@ async function init(reload = false) {
       routes[`post ${scope}${route}`] = Object.assign({}, controller, {
         controller: `${controller.controller}#create`,
       });
-      routes[`get ${scope}${route}/:_id`] = Object.assign({}, controller, {
+      routes[`get ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#show`,
       });
-      routes[`get ${scope}${route}/:_id/edit`] = Object.assign({}, controller, {
+      routes[`get ${scope}${route}/:id/edit`] = Object.assign({}, controller, {
         controller: `${controller.controller}#edit`,
       });
-      routes[`patch ${scope}${route}/:_id`] = Object.assign({}, controller, {
+      routes[`patch ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#update`,
       });
-      routes[`put ${scope}${route}/:_id`] = Object.assign({}, controller, {
+      routes[`put ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#update`,
       });
-      routes[`delete ${scope}${route}/:_id`] = Object.assign({}, controller, {
+      routes[`delete ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#destroy`,
       });
 
@@ -64,13 +64,13 @@ async function init(reload = false) {
       routes[`post ${scope}${route}`] = Object.assign({}, controller, {
         controller: `${controller.controller}#create`,
       });
-      routes[`patch ${scope}${route}/:_id`] = Object.assign({}, controller, {
+      routes[`patch ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#update`,
       });
-      routes[`put ${scope}${route}/:_id`] = Object.assign({}, controller, {
+      routes[`put ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#update`,
       });
-      routes[`delete ${scope}${route}/:_id`] = Object.assign({}, controller, {
+      routes[`delete ${scope}${route}/:id`] = Object.assign({}, controller, {
         controller: `${controller.controller}#destroy`,
       });
       delete routes[key];
