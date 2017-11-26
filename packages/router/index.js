@@ -84,14 +84,8 @@ async function init(reload = false) {
     const { roles, controller } = opts;
 
     if (controllers.hasOwnProperty(controller)) {
-      register(verb, route, routes[key], controllers[controller], roles);
-      register(
-        verb,
-        `/_data${route}`,
-        routes[key],
-        controllers[controller],
-        roles
-      );
+      register(verb, route, routes[key], controller, roles);
+      register(verb, `/_data${route}`, routes[key], controller, roles);
       log.info(
         `${key} => ${controller}: registered ${(roles && 'with roles') || ''}`
       );
@@ -120,7 +114,9 @@ async function init(reload = false) {
   }
 }
 
-function register(verb, route, opts, fn, roles) {
+function register(verb, route, opts, controller, roles) {
+  const { controllers } = henri;
+  const fn = controllers[controller];
   if (typeof fn === 'function') {
     if (roles) {
       henri.router[verb](
@@ -148,10 +144,18 @@ function register(verb, route, opts, fn, roles) {
       res.status(501).send({ msg: 'Not implemented' })
     );
   }
+
   const name = `${verb} ${route}`;
   henri._routes[name] = Object.assign(opts, {
     active: typeof fn === 'function',
   });
+
+  // Ideally, populate with information from path-to-regexp for better
+  // parameters matching client-side...
+  if (typeof fn === 'function' && !/data/.test(route)) {
+    const [name, action] = controller.split('#');
+    henri._paths[`${action}_${name}_path`] = { route, method: verb };
+  }
 }
 /* istanbul ignore next */
 function middlewares(router) {
@@ -164,6 +168,7 @@ function middlewares(router) {
     res.render = (route, data = {}) => {
       const opts = {
         data,
+        paths: henri._paths,
         user: req.user || {},
         query: req.query,
       };

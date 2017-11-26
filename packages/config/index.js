@@ -17,8 +17,9 @@ if (!global['henri']) {
     _loaders: [],
     _unloaders: [],
     _models: [],
-    _routes: {},
     _middlewares: [],
+    _paths: {},
+    _routes: {},
     _user: null,
     folders: {
       view: config.has('location.view')
