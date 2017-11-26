@@ -20,12 +20,12 @@ export default ComposedComponent => {
     static displayName = `withHenri(${getDisplayName(ComposedComponent)})`;
 
     static async getInitialProps(ctx) {
-      const { query: { data, user } } = ctx;
+      const { query: { data, user, paths } } = ctx;
       let composedInitialProps = {};
       if (ComposedComponent.getInitialProps) {
         composedInitialProps = await ComposedComponent.getInitialProps(ctx);
       }
-      return { data, user, ...composedInitialProps };
+      return { data, user, paths, ...composedInitialProps };
     }
 
     async hydrate(data = {}) {
@@ -42,7 +42,7 @@ export default ComposedComponent => {
         });
     }
 
-    async fetch(route, method = 'get', data = {}) {
+    fetch = async ({ route = '/', method = 'get' }, data = {}) => {
       return new Promise((resolve, reject) => {
         axios({
           method,
@@ -56,13 +56,59 @@ export default ComposedComponent => {
             reject(err);
           });
       });
-    }
+    };
+
+    pathFor = (path = null, params = null, plain = true) => {
+      const { paths } = this.props;
+      let response = {
+        route: '',
+        method: 'get',
+        // We want to return an object for funcs, and string as a helper
+        __proto__: {
+          toString() {
+            return this.route;
+          },
+        },
+      };
+
+      if (path && paths[path]) {
+        // this will render the default route with method
+        if (params === null) {
+          return paths[path];
+        }
+        // If a string is provide, defaults to id (client side for mongo ids)
+        if (typeof params === 'string') {
+          response.route = paths[path].route.replace(':id', params);
+          response.method = paths[path].method;
+          return response;
+        }
+        // If we use only typeof (string), on node, it is parsed as a
+        // ObjectID object, therefor missing the last if. This is for SSR or _ids
+        if (params.id && params.toString()) {
+          response.route = paths[path].route.replace(':id', params.toString());
+          response.method = paths[path].method;
+          return response;
+        }
+        // We might have a bunch of params, iterating...
+        if (params.length > 0) {
+          let route = path;
+          Object.keys(params).map(
+            v => (route = route.replace(`:${v}`, params[v]))
+          );
+          response.route = route;
+          response.method = paths[path].method;
+          return response;
+        }
+      }
+      console.warn(`unable to match filler for route ${path} in pathFor`);
+    };
 
     getChildContext() {
       return {
         // Contains the data passed down. Key should match names
         hydrate: this.hydrate,
         fetch: this.fetch,
+        pathFor: this.pathFor,
       };
     }
 
@@ -71,6 +117,7 @@ export default ComposedComponent => {
         <ComposedComponent
           hydrate={this.hydrate}
           fetch={this.fetch}
+          pathFor={this.pathFor}
           {...this.props}
           data={this.state.data}
         />
@@ -81,6 +128,7 @@ export default ComposedComponent => {
   WithHenri.childContextTypes = {
     hydrate: PropTypes.func,
     fetch: PropTypes.func,
+    pathFor: PropTypes.func,
   };
 
   return WithHenri;
