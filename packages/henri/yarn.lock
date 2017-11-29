@@ -6,28 +6,29 @@
   version "3.10.2"
   resolved "https://registry.yarnpkg.com/@sailshq/lodash/-/lodash-3.10.2.tgz#1567d47345364c2c2e2077bc113487b1dfe62154"
 
-"@usehenri/cli@^0.18.0":
-  version "0.18.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.18.0.tgz#0beaf5609c90176ed4ff2fcd61fad581ba2fa48c"
+"@usehenri/cli@^0.19.0":
+  version "0.19.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.19.0.tgz#ef907f677856576a65a04e47ae24502dea68b46a"
   dependencies:
-    "@usehenri/config" "^0.18.0"
+    "@usehenri/config" "^0.19.0"
     "@usehenri/controller" "^0.18.0"
     "@usehenri/model" "^0.18.0"
-    "@usehenri/router" "^0.18.0"
-    "@usehenri/server" "^0.18.0"
+    "@usehenri/router" "^0.19.0"
+    "@usehenri/server" "^0.19.0"
     "@usehenri/user" "^0.18.0"
-    "@usehenri/view" "^0.18.0"
+    "@usehenri/view" "^0.19.0"
     chalk "^2.3.0"
     cross-spawn "^5.1.0"
     fs-extra "^4.0.1"
     inquirer "^4.0.0"
     minimist "^1.2.0"
+    prettier "^1.8.2"
     rimraf "^2.6.1"
     update-notifier "^2.3.0"
 
-"@usehenri/config@^0.18.0":
-  version "0.18.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/config/-/config-0.18.0.tgz#e5cd920bb519957764ac114b20e98f21b7f69e52"
+"@usehenri/config@^0.19.0":
+  version "0.19.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/config/-/config-0.19.0.tgz#ac6ab5234a3f8bdbf4933c2296f786d80c72c2b1"
   dependencies:
     "@usehenri/log" "^0.18.0"
     callsite "^1.0.0"
@@ -54,13 +55,13 @@
   dependencies:
     include-all "^4.0.3"
 
-"@usehenri/router@^0.18.0":
-  version "0.18.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/router/-/router-0.18.0.tgz#3df1fb002842cba17341414a647646bf28678ce9"
+"@usehenri/router@^0.19.0":
+  version "0.19.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/router/-/router-0.19.0.tgz#558b16395f1504e896cad37b22e5f9359e517791"
 
-"@usehenri/server@^0.18.0":
-  version "0.18.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/server/-/server-0.18.0.tgz#0cd861bf896649789b1c3d613a75edd59b3b2130"
+"@usehenri/server@^0.19.0":
+  version "0.19.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/server/-/server-0.19.0.tgz#2eb839072cd779133cda4a2216f63599f77c28d6"
   dependencies:
     body-parser "^1.17.2"
     chokidar "^1.7.0"
@@ -70,6 +71,7 @@
     detect-port "^1.2.1"
     express "^4.15.3"
     path "^0.12.7"
+    prettier "^1.8.2"
     react-dev-utils "^4.2.1"
     server-timings "^1.0.4"
     supertest "^3.0.0"
@@ -86,18 +88,18 @@
     passport-jwt "^3.0.1"
     passport-local "^1.0.0"
 
-"@usehenri/view@^0.18.0":
-  version "0.18.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/view/-/view-0.18.0.tgz#296a8f5f69081670611651677fc934acea1452f7"
+"@usehenri/view@^0.19.0":
+  version "0.19.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/view/-/view-0.19.0.tgz#0b4dd042fb5f0c9c7b7151dfdbb6cf714548f442"
   dependencies:
     babel-loader "^7.1.1"
     babel-plugin-module-resolver "^3.0.0"
     babel-plugin-wrap-in-js "^1.1.1"
-    cache-loader "^1.0.3"
+    cache-loader "^1.2.0"
     cssnano "^3.10.0"
     glob "^7.1.2"
-    module-alias "^2.0.2"
-    node-sass "^4.6.1"
+    module-alias "^2.0.3"
+    node-sass "^4.7.2"
     postcss-cssnext "^3.0.2"
     postcss-easy-import "^3.0.0"
     postcss-loader "^2.0.8"
@@ -138,7 +140,7 @@ address@1.0.3, address@^1.0.1:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/address/-/address-1.0.3.tgz#b5f50631f8d6cec8bd20c963963afb55e06cbce9"
 
-ajv-keywords@^2.0.0:
+ajv-keywords@^2.0.0, ajv-keywords@^2.1.0:
   version "2.1.1"
   resolved "https://registry.yarnpkg.com/ajv-keywords/-/ajv-keywords-2.1.1.tgz#617997fc5f60576894c435f940d819e135b80762"
 
@@ -666,13 +668,14 @@ bytes@3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/bytes/-/bytes-3.0.0.tgz#d32815404d689699f85a4ea4fa8755dd13a96048"
 
-cache-loader@^1.0.3:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/cache-loader/-/cache-loader-1.1.0.tgz#79e35201eb432bedad89058c1a39e46255fbb723"
+cache-loader@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/cache-loader/-/cache-loader-1.2.0.tgz#cdc313ae53b3c13ce8ee0c9296cf16c736b15252"
   dependencies:
     async "^2.4.1"
     loader-utils "^1.1.0"
     mkdirp "^0.5.1"
+    schema-utils "^0.4.2"
 
 callsite@^1.0.0:
   version "1.0.0"
@@ -2905,9 +2908,9 @@ mixin-object@^2.0.1:
   dependencies:
     minimist "0.0.8"
 
-module-alias@^2.0.2:
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/module-alias/-/module-alias-2.0.2.tgz#6af6b3a638a4b5460ddd6bc7705ce7b4cb27c9a5"
+module-alias@^2.0.3:
+  version "2.0.3"
+  resolved "https://registry.yarnpkg.com/module-alias/-/module-alias-2.0.3.tgz#d1aa64b594588f8e76203cd2782045438cad3ef5"
 
 moment@2.x.x:
   version "2.19.1"
@@ -3016,9 +3019,9 @@ node-pre-gyp@^0.6.36:
     tar "^2.2.1"
     tar-pack "^3.4.0"
 
-node-sass@^4.6.1:
-  version "4.7.1"
-  resolved "https://registry.yarnpkg.com/node-sass/-/node-sass-4.7.1.tgz#bec978ab33b5cf56825bf72922323a56ebaf4f66"
+node-sass@^4.7.2:
+  version "4.7.2"
+  resolved "https://registry.yarnpkg.com/node-sass/-/node-sass-4.7.2.tgz#9366778ba1469eb01438a9e8592f4262bcb6794e"
   dependencies:
     async-foreach "^0.1.3"
     chalk "^1.1.1"
@@ -3904,6 +3907,10 @@ preserve@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/preserve/-/preserve-0.2.0.tgz#815ed1f6ebc65926f865b310c0713bcb3315ce4b"
 
+prettier@^1.8.2:
+  version "1.8.2"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.8.2.tgz#bff83e7fd573933c607875e5ba3abbdffb96aeb8"
+
 private@~0.1.5:
   version "0.1.8"
   resolved "https://registry.yarnpkg.com/private/-/private-0.1.8.tgz#2381edb3689f7a53d653190060fcf822d2f368ff"
@@ -4409,6 +4416,14 @@ schema-utils@^0.3.0:
   resolved "https://registry.yarnpkg.com/schema-utils/-/schema-utils-0.3.0.tgz#f5877222ce3e931edae039f17eb3716e7137f8cf"
   dependencies:
     ajv "^5.0.0"
+
+schema-utils@^0.4.2:
+  version "0.4.2"
+  resolved "https://registry.yarnpkg.com/schema-utils/-/schema-utils-0.4.2.tgz#86d92aedf4dfc51c9b321ef16bd33a9417b122d0"
+  dependencies:
+    ajv "^5.0.0"
+    ajv-keywords "^2.1.0"
+    chalk "^2.3.0"
 
 scss-tokenizer@^0.2.3:
   version "0.2.3"
