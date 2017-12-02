@@ -5,16 +5,12 @@ const fs = require('fs');
 const { cwd, validInstall } = require('./utils');
 
 const main = async () => {
-  l('');
-  l('About your henri setup:');
-  l('');
+  l('About your henri setup:', true);
   l(`henri version:         ${require('../package.json').version}`);
   l(`Node version:          ${await run('node -v')}`);
   l(`yarn version:          ${await run('yarn -v')}`);
   l(`npm version:           ${await run('npm -v')}`);
-  l('');
-  l(`henri project:         ${validInstall() ? 'yes' : 'no'}`);
-  l('');
+  l(`henri project:         ${validInstall() ? 'yes' : 'no'}`, true);
   l(`@usehenri/disk:        ${packageResolve('disk')}`);
   l(`@usehenri/mongoose:    ${packageResolve('mongoose')}`);
   l(`@usehenri/mysql:       ${packageResolve('mysql')}`);
@@ -35,7 +31,11 @@ const main = async () => {
   l('');
 };
 
-const l = text => console.log(` ${text}`);
+const l = (text, pad) => {
+  pad && console.log(' ');
+  console.log(` ${text}`);
+  pad && console.log(' ');
+};
 
 const run = cmd => {
   return new Promise((resolve, reject) => {

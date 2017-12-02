@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // Adding henri:clean cli
 // might have to add inquirer
 
@@ -18,24 +19,7 @@ const main = async () => {
     `);
     process.exit(1);
   }
-  // Base list of potential junk to clean
-  const initials = [
-    '.tmp',
-    'logs',
-    'node_modules',
-    'app/views/.cache',
-    'app/views/.next',
-    'app/something',
-  ];
-
-  // Keep only existing directories/files
-  const existing = initials.filter(dir =>
-    fs.existsSync(path.resolve(process.cwd(), dir))
-  );
-  const choices = existing.map(dir => {
-    return { name: dir };
-  });
-
+  const choices = getExistingDirectories();
   inquirer
     .prompt([
       {
@@ -64,6 +48,26 @@ const main = async () => {
       process.exit(1);
     });
   // Check if valid project and wipe temp folders
+};
+
+const getExistingDirectories = () => {
+  // Base list of potential junk to clean
+  const initials = [
+    '.tmp',
+    'logs',
+    'node_modules',
+    'app/views/.cache',
+    'app/views/.next',
+    'app/something',
+  ];
+  const existing = initials.filter(dir =>
+    fs.existsSync(path.resolve(process.cwd(), dir))
+  );
+  const choices = existing.map(dir => {
+    return { name: dir };
+  });
+
+  return choices;
 };
 
 module.exports = main;
