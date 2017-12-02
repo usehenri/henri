@@ -19,6 +19,6 @@
     "postcss-loader": "^2.0.9",
     "raw-loader": "^0.5.1",
     "sass-loader": "^6.0.5",
-    "webpack": "^3.8.1"
+    "webpack": "^3.9.1"
   }
 }
