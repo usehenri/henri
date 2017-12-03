@@ -7,8 +7,8 @@ async function init(reload = false) {
   henri.router = express.Router();
 
   middlewares();
+  let routes = {};
 
-  let routes = null;
   /* istanbul ignore next */
   try {
     routes = require(config.has('location.routes')
@@ -16,7 +16,6 @@ async function init(reload = false) {
       : path.resolve('./app/routes'));
   } catch (e) {
     log.warn('unable to load routes from filesystem');
-    routes = {};
   }
   /* istanbul ignore next */
   if (config.has('routes') && Object.keys(config.get('routes')).length > 1) {
@@ -25,57 +24,11 @@ async function init(reload = false) {
 
   for (const key in routes) {
     const [verb, route, controller] = parseRoute(key, routes[key]);
+    routes[key] = controller;
 
-    if (verb === 'resources') {
-      const scope = controller.scope ? `/${controller.scope}/` : '/';
+    if (verb === 'resources' || verb === 'crud') {
       controller.resources = route;
-      routes[`get ${scope}${route}`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#index`,
-      });
-      routes[`get ${scope}${route}/new`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#new`,
-      });
-      routes[`post ${scope}${route}`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#create`,
-      });
-      routes[`get ${scope}${route}/:id`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#show`,
-      });
-      routes[`get ${scope}${route}/:id/edit`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#edit`,
-      });
-      routes[`patch ${scope}${route}/:id`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#update`,
-      });
-      routes[`put ${scope}${route}/:id`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#update`,
-      });
-      routes[`delete ${scope}${route}/:id`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#destroy`,
-      });
-
-      delete routes[key];
-    } else if (verb === 'crud') {
-      const scope = controller.scope ? `/${controller.scope}/` : '/';
-      controller.resources = route;
-      routes[`get ${scope}${route}`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#index`,
-      });
-      routes[`post ${scope}${route}`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#create`,
-      });
-      routes[`patch ${scope}${route}/:id`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#update`,
-      });
-      routes[`put ${scope}${route}/:id`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#update`,
-      });
-      routes[`delete ${scope}${route}/:id`] = Object.assign({}, controller, {
-        controller: `${controller.controller}#destroy`,
-      });
-      delete routes[key];
-    } else {
-      routes[key] = controller;
+      routes = buildResources({ verb, routes, controller, route, key });
     }
   }
 
@@ -114,10 +67,32 @@ async function init(reload = false) {
   }
 }
 
+const buildResources = ({ verb, routes, controller, route, key }) => {
+  const scope = controller.scope ? `/${controller.scope}/` : '/';
+
+  routes[`get ${scope}${route}`] = buildRoute(controller, 'index');
+  routes[`get ${scope}${route}/:id/edit`] = buildRoute(controller, 'edit');
+  routes[`patch ${scope}${route}/:id`] = buildRoute(controller, 'update');
+  routes[`put ${scope}${route}/:id`] = buildRoute(controller, 'update');
+  routes[`delete ${scope}${route}/:id`] = buildRoute(controller, 'destroy');
+
+  if (verb === 'resources') {
+    routes[`get ${scope}${route}/new`] = buildRoute(controller, 'new');
+    routes[`post ${scope}${route}`] = buildRoute(controller, 'create');
+    routes[`get ${scope}${route}/:id`] = buildRoute(controller, 'show');
+  }
+
+  delete routes[key];
+  return routes;
+};
+
+const buildRoute = (controller, method) =>
+  Object.assign({}, controller, {
+    controller: `${controller.controller}#${method}`,
+  });
+
 function register(verb, route, opts, controller, roles) {
-  const { controllers } = henri;
-  const fn = controllers[controller];
-  if (typeof fn === 'function') {
+  if (typeof henri.controllers[controller] === 'function') {
     if (roles) {
       henri.router[verb](
         route,
@@ -134,10 +109,10 @@ function register(verb, route, opts, controller, roles) {
           }
           return res.redirect('/login');
         },
-        fn
+        henri.controllers[controller]
       );
     } else {
-      henri.router[verb](route, fn);
+      henri.router[verb](route, henri.controllers[controller]);
     }
   } else {
     henri.router[verb](route, (req, res) =>
