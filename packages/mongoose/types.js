@@ -1,3 +1,50 @@
-const mongoose = require('mongoose');
+const types = require('mongoose').SchemaTypes;
 
-module.exports = mongoose.Schema.Types;
+module.exports = {
+  // Mongoose specific
+  String: types.String,
+  Number: types.Number,
+  Boolean: types.Boolean,
+  DocumentArray: types.DocumentArray,
+  Embedded: types.Embedded,
+  Array: types.Array,
+  Buffer: types.Buffer,
+  Date: types.Date,
+  ObjectId: types.ObjectId,
+  Mixed: types.Mixed,
+  Decimal128: types.Decimal128,
+  Object: types.Mixed,
+  Bool: types.Boolean,
+
+  // Sequelize specific
+  STRING: types.String,
+  CHAR: types.String,
+  TEXT: types.String,
+  TINYINT: types.Number,
+  SMALLINT: types.Number,
+  MEDIUMINT: types.Number,
+  INTEGER: types.Number,
+  BIGINT: types.Number,
+  FLOAT: types.Number,
+  DOUBLE: types.Number,
+  DECIMAL: types.Number,
+  REAL: types.Number,
+  BOOLEAN: types.Boolean,
+  BLOB: types.String,
+  ENUM: types.Array,
+  DATE: types.Date,
+  DATEONLY: types.Date,
+  TIME: types.Date,
+  NOW: types.Date,
+  UUID: types.ObjectId,
+  UUIDV1: types.ObjectId,
+  UUIDV4: types.ObjectId,
+  HSTORE: types.Mixed,
+  JSON: types.Mixed,
+  JSONB: types.Mixed,
+  ARRAY: types.Array,
+  RANGE: types.mixed,
+  GEOMETRY: types.Mixed,
+  GEOGRAPHY: types.Mixed,
+  VIRTUAL: types.Mixed,
+};
