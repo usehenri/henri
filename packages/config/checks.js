@@ -5,13 +5,8 @@ const yarnExists = spawn('yarn', ['help']);
 
 const { cwd, log } = henri;
 
-const checkPackages = packages => {
+const checkPackages = (packages = []) => {
   let missing = [];
-
-  if (!Array.isArray(packages)) {
-    log.fatalError('checkPackages() should take an array...');
-    return false;
-  }
 
   for (let pkg of packages) {
     try {
@@ -22,21 +17,24 @@ const checkPackages = packages => {
   }
 
   if (missing.length > 0) {
-    const multi = missing.length > 1;
-    const msg = multi
-      ? missing.map(
-        (val, i) =>
-          i === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`
-      )
-      : missing;
+    const msg = generateMessage(missing);
     /* istanbul ignore next */
     log.fatalError(`Unable to load ${msg.join(' ')} from the current project.
     
-    Try installing ${multi ? 'them' : 'it'}:
+    Try installing ${missing.length > 1 ? 'them' : 'it'}:
     
       # ${yarnExists ? 'yarn add' : 'npm install'} ${missing.join(' ')}
     `);
   }
+};
+
+const generateMessage = missing => {
+  if (missing.length > 1) {
+    return missing.map(
+      (val, i) => (i === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`)
+    );
+  }
+  return missing;
 };
 
 henri.checkPackages = checkPackages;

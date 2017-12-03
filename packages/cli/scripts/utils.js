@@ -45,4 +45,17 @@ const abort = (msg, fail = false) => {
   process.exit(fail ? 1 : 0);
 };
 
-module.exports = { abort, version, commands, cwd, check, validInstall };
+const helpHeader = () =>
+  `
+  henri (${version})
+  `;
+
+module.exports = {
+  abort,
+  version,
+  commands,
+  cwd,
+  check,
+  validInstall,
+  helpHeader,
+};

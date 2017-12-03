@@ -1,10 +1,9 @@
-const { version, commands } = require('./utils');
+const { commands, helpHeader } = require('./utils');
 
 const main = args => {
   console.log(
     `
-    henri ${version}
-
+    ${helpHeader}
     Usage
       $ henri <command>
 

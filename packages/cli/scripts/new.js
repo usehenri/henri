@@ -1,6 +1,6 @@
 const fs = require('fs-extra');
 const path = require('path');
-const { version, commands, check, cwd } = require('./utils');
+const { commands, check, cwd, helpHeader } = require('./utils');
 
 const main = args => {
   // Do we have the force flag on?
@@ -41,8 +41,7 @@ const main = args => {
 const help = args => {
   console.log(
     `
-    henri (${version})
-
+    ${helpHeader}
     Usage
       $ henri new <folder> [-f | --force]
 
