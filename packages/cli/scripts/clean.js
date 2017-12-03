@@ -8,46 +8,31 @@ const inquirer = require('inquirer');
 const fs = require('fs-extra');
 const rimraf = require('rimraf');
 
-const { validInstall } = require('./utils');
+const { abort, validInstall } = require('./utils');
 
 const main = async () => {
-  if (!validInstall()) {
-    console.log(`
-      Seems like you are not in an henri project.
+  validInstall({ fail: true });
 
-      Aborting...
-    `);
-    process.exit(1);
-  }
-  const choices = getExistingDirectories();
+  const opts = {
+    type: 'checkbox',
+    message: 'Choose folders to delete',
+    name: 'ans',
+    choices: getExistingDirectories(),
+  };
+
   inquirer
-    .prompt([
-      {
-        type: 'checkbox',
-        message: 'Choose folders to delete',
-        name: 'ans',
-        choices: choices,
-      },
-    ])
+    .prompt([opts])
     .then(answer => {
       if (answer.ans && answer.ans.lenght < 1) {
-        console.log(`
-          I will not delete anything.
-        `);
-        process.exit(0);
+        abort('I will not delete anything.');
       }
       for (let dir of answer.ans) {
-        console.log(`> Deleting ${dir}`);
-        rimraf.sync(path.resolve(process.cwd(), dir));
-        console.log(`> Touching ${dir}`);
-        fs.ensureDirSync(path.resolve(process.cwd(), dir));
+        remove(dir);
       }
     })
     .catch(err => {
-      console.dir(err);
-      process.exit(1);
+      abort(err, true);
     });
-  // Check if valid project and wipe temp folders
 };
 
 const getExistingDirectories = () => {
@@ -68,6 +53,13 @@ const getExistingDirectories = () => {
   });
 
   return choices;
+};
+
+const remove = dir => {
+  console.log(`> Deleting ${dir}`);
+  rimraf.sync(path.resolve(process.cwd(), dir));
+  console.log(`> Touching ${dir}`);
+  fs.ensureDirSync(path.resolve(process.cwd(), dir));
 };
 
 module.exports = main;

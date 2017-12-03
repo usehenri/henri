@@ -1,0 +1,42 @@
+ import React from 'react'; 
+ import withHenri from '@usehenri/react/withHenri'; 
+
+ const Index = ({ data: { {{lower}} = [] }, fetch, hydrate }) => (
+  <div>
+    <h2>Listing {{doc}}</h2>
+    <hr />
+    <table>
+      <tbody>
+        <tr>
+          {{#each keys}}
+          <td>{{this}}</td>
+          {{/each}}
+        </tr>
+        { {{lower}}.length === 0 && '<tr>Nothing to show</tr>' } 
+        { {{lower}}.length > 0 && {{lower}}.map(v => (
+          <tr key={v._id}>
+            {{#each keys}}
+            <td>
+              <td>{v.{{this}} }</td>
+            </td>
+            {{/each}}
+            <td>
+              <a href={`/_scaffold/{{lower}}/${v._id}`}>Show</a>
+            </td>
+            <td>
+              <a href={`/_scaffold/{{lower}}/${v._id}/edit`}>Edit</a>
+            </td>
+            <td>
+              <a href="#" onClick={(e)=> { fetch(`/_scaffold/{{lower}}/${v._id}`, 'delete'); hydrate() }}>
+                Destroy
+              </a>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <a href="/_scaffold/{{lower}}/new">New {{doc}}</a>
+  </div>
+); 
+
+export default withHenri(Index);

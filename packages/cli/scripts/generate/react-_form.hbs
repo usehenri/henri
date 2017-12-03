@@ -1,0 +1,23 @@
+import React from 'react';
+import { Button, Form, Input } from '@usehenri/react/forms';
+
+const {{doc}}Form = ({route, data = {}, action, button = 'Create', method}) => (
+  <Form action={route} data={data} method={method}>
+    {{#each keys}}
+      <Input
+        name="{{this}}"
+        placeholder="{{this}}"
+        required
+        validation=\{{
+          isLength: { min: 1 },
+        }}
+        errorMsg=\{{
+          isLength: 'Minimum 1 char',
+        }}
+      />
+    {{/each}}
+    <Button>{button} {{doc}}</Button>
+  </Form>
+);
+
+export default {{doc}}Form;

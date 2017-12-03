@@ -1,0 +1,13 @@
+import React from 'react';
+import withHenri from '@usehenri/react/withHenri';
+
+const Show = ({ data: { {{lower}} = [] }}) => (
+  <div>
+    <h2>Show { {{lower}}[0]._id.toString()}</h2>
+    <hr />
+    {{#each keys}}
+      <div>{{this}}: { {{lower}}[0].{{this}} }</div>
+    {{/each}}
+  </div>);
+
+  export default withHenri(Show);

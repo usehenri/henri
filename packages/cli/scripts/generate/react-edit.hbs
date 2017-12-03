@@ -1,0 +1,16 @@
+import React from 'react';
+import withHenri from '@usehenri/react/withHenri';
+import CreateForm from './_form'
+
+const Edit = ({ data: { {{lower}} = [] }}) => (
+  <div>
+    <h2>Edit {{doc}}</h2>
+    <hr />
+    <CreateForm 
+    route={getPath({{lower}}._id)}
+    button="Update" data={ {{lower}} } method='patch'/>
+</div>);
+
+const getPath = (id) => "/_scaffold/{{lower}}/" + id
+
+export default withHenri(Edit);

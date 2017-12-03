@@ -1,0 +1,13 @@
+import React from 'react';
+import withHenri from '@usehenri/react/withHenri';
+import CreateForm from './_form';
+
+const New = () => (
+  <div>
+    <h2>New {{ doc }}</h2>
+    <hr />
+    <CreateForm route="/_scaffold/{{lower}}" button="Create" />
+  </div>
+);
+
+export default withHenri(New);
