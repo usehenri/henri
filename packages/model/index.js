@@ -36,59 +36,62 @@ async function configure(models) {
 
   for (const id in models) {
     const model = models[id];
-
-    if (!model.store && !config.has('stores.default')) {
-      return log.fatalError(
-        `There is no default store and ${model.identity} is missing one`
-      );
-    }
-
-    if (model.store && !config.has(`stores.${model.store}`)) {
-      return log.fatalError(
-        `It seems like ${model.store} is not configured. ${
-          model.identity
-        } is using it.`
-      );
-    }
-
+    checkStoreOrDie(model);
     const storeName = model.store || 'default';
-
-    const getStore = name => {
-      if (henri.stores[name]) {
-        return henri.stores[name];
-      }
-      const store = config.get(`stores.${name}`);
-      const valid = {
-        mongoose: 'mongoose',
-      };
-      if (valid.hasOwnProperty(store.adapter) < 0) {
-        return log.fatalError(
-          `Adapter '${
-            store.adapter
-          }' is not valid. Check your configuration file.`
-        );
-      }
-      const conn = valid[store.adapter];
-      try {
-        const Pkg = henri.isTest
-          ? require(`@usehenri/${conn}`)
-          : require(path.resolve(cwd, 'node_modules', `@usehenri/${conn}`));
-        henri.stores[name] = new Pkg(name, store);
-        return henri.stores[name];
-      } catch (e) {
-        return log.fatalError(`
-        Unable to load database adapter '${store.adapter}'. Seems like you 
-        should install it using: npm install @usehenri/${store.adapter}`);
-      }
-    };
-
     const store = getStore(storeName);
-
     global[model.globalId] = store.addModel(model, user);
     henri._models.push(model.globalId);
     configuration.adapters[storeName] = store;
   }
   return configuration;
+}
+
+function checkStoreOrDie(model) {
+  const { config } = henri;
+  if (!model.store && !config.has('stores.default')) {
+    return log.fatalError(
+      `There is no default store and ${model.identity} is missing one`
+    );
+  }
+
+  if (model.store && !config.has(`stores.${model.store}`)) {
+    return log.fatalError(
+      `It seems like ${model.store} is not configured. ${
+        model.identity
+      } is using it.`
+    );
+  }
+}
+
+async function getStore(name) {
+  const { config } = henri;
+  if (henri.stores[name]) {
+    return henri.stores[name];
+  }
+  const store = config.get(`stores.${name}`);
+  const valid = {
+    mongoose: 'mongoose',
+    disk: 'disk',
+    mysql: 'mysql',
+  };
+  if (valid.hasOwnProperty(store.adapter) < 0) {
+    return log.fatalError(
+      `Adapter '${store.adapter}' is not valid. Check your configuration file.`
+    );
+  }
+  const conn = valid[store.adapter];
+  try {
+    const Pkg = henri.isTest
+      ? require(`@usehenri/${conn}`)
+      : require(path.resolve(cwd, 'node_modules', `@usehenri/${conn}`));
+    henri.stores[name] = new Pkg(name, store);
+    return henri.stores[name];
+  } catch (e) {
+    console.log(e);
+    return log.fatalError(`
+    Unable to load database adapter '${store.adapter}'. Seems like you 
+    should install it using: npm install @usehenri/${store.adapter}`);
+  }
 }
 
 async function start(configuration) {
