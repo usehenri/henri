@@ -1,42 +1,11 @@
-// Remove config warning when no file is available
-process.env.SUPPRESS_NO_CONFIG_WARNING = true;
-
-/* istanbul ignore next */
-if (process.env.NODE_ENV !== 'production') {
-  process.on('unhandledRejection', r => console.log(r));
-}
-
-const path = require('path');
-const config = require('config');
+const Henri = require('./henri');
 const Log = require('@usehenri/log');
 
 /* istanbul ignore next */
-if (!global['henri']) {
-  global['henri'] = {
-    _modules: {},
-    _loaders: [],
-    _unloaders: [],
-    _models: [],
-    _middlewares: [],
-    _paths: {},
-    _routes: {},
-    _user: null,
-    folders: {
-      view: config.has('location.view')
-        ? config.get('location.view')
-        : path.resolve('./app/views'),
-    },
-    status: {},
-  };
-}
+global['henri'] = henri = new Henri();
 
 // We don't use addModule as it is not yet registered
-henri.config = config;
 henri.log = new Log();
-
-require('./helpers');
-
-require('./register');
 
 require('./checks');
 
@@ -46,5 +15,3 @@ function reload() {
 }
 
 henri.addLoader(reload);
-
-henri.addModule('config', config, true);

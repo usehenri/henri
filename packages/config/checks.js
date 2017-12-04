@@ -37,4 +37,4 @@ const generateMessage = missing => {
   return missing;
 };
 
-henri.checkPackages = checkPackages;
+henri.addModule('checkPackages', checkPackages);
