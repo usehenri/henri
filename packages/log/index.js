@@ -11,7 +11,7 @@ class Log {
 
     this.winston = new winston.Logger();
     this.setup();
-
+    this.file = this.file.bind(this);
     return this;
   }
 
@@ -35,20 +35,7 @@ class Log {
       colorize: true,
       customWidth: this.customWidth,
       formatter: options => {
-        // thanks to https://github.com/geowarin/friendly-errors-webpack-plugin/
-        const color = getColor(options.level);
-        const dateString = chalk.grey(new Date().toLocaleTimeString());
-        const title = chalk[color].inverse(` ${options.level.toUpperCase()} `);
-        /* istanbul ignore next */
-        const message = chalk[color](options.message ? options.message : '');
-        /* istanbul ignore next */
-        const meta = chalk[color](
-          options.meta && Object.keys(options.meta).length
-            ? '\n\t' + JSON.stringify(options.meta, null, 2)
-            : ''
-        );
-        /* istanbul ignore next */
-        const fullMsg = `${title} ${message || meta}`;
+        const { dateString, fullMsg } = output(options);
 
         let space =
           (this.customWidth || process.stdout.columns) -
@@ -61,7 +48,10 @@ class Log {
         return `${fullMsg}${' '.repeat(space)}${dateString}`;
       },
     });
+    this.file(config);
+  }
 
+  file(config) {
     /* istanbul ignore next */
     if (config.has('log') && typeof config.get('log') === 'string') {
       // eslint-disable-next-line no-console
@@ -146,23 +136,34 @@ class Log {
   }
 }
 
+function output(options) {
+  const color = getColor(options.level);
+  const dateString = chalk.grey(new Date().toLocaleTimeString());
+  const title = chalk[color].inverse(` ${options.level.toUpperCase()} `);
+  /* istanbul ignore next */
+  const message = chalk[color](options.message ? options.message : '');
+  /* istanbul ignore next */
+  const meta = chalk[color](
+    options.meta && Object.keys(options.meta).length
+      ? '\n\t' + JSON.stringify(options.meta, null, 2)
+      : ''
+  );
+  /* istanbul ignore next */
+  const fullMsg = `${title} ${message || meta}`;
+
+  return { dateString, fullMsg };
+}
+
 function getColor(level) {
-  switch (level.toLowerCase()) {
-    case 'error':
-      return 'red';
-    case 'warn':
-      return 'yellow';
-    case 'info':
-      return 'green';
-    case 'verbose':
-      return 'white';
-    case 'debug':
-      return 'blue';
-    case 'silly':
-      return 'magenta';
-    default:
-      return 'red';
-  }
+  const colors = {
+    error: 'red',
+    warn: 'yellow',
+    info: 'green',
+    verbose: 'white',
+    debug: 'blue',
+    silly: 'magenta',
+  };
+  return colors[level.toLowerCase()] || 'red';
 }
 
 module.exports = Log;
