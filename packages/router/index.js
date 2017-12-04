@@ -3,54 +3,19 @@ const path = require('path');
 const { express, log, view } = henri;
 
 async function init(reload = false) {
-  const { config, controllers } = henri;
   henri.router = express.Router();
-
   middlewares();
-  let routes = {};
-
-  /* istanbul ignore next */
-  try {
-    routes = require(config.has('location.routes')
-      ? path.resolve(config.get('location.routes'))
-      : path.resolve('./app/routes'));
-  } catch (e) {
-    log.warn('unable to load routes from filesystem');
-  }
-  /* istanbul ignore next */
-  if (config.has('routes') && Object.keys(config.get('routes')).length > 1) {
-    routes = Object.assign({}, routes, config.get('routes'));
-  }
-
-  for (const key in routes) {
-    const [verb, route, controller] = parseRoute(key, routes[key]);
-    routes[key] = controller;
-
-    if (verb === 'resources' || verb === 'crud') {
-      controller.resources = route;
-      routes = buildResources({ verb, routes, controller, route, key });
-    }
-  }
-
-  for (const key in routes) {
-    const [verb, route, opts] = parseRoute(key, routes[key]);
-    const { roles, controller } = opts;
-
-    if (controllers.hasOwnProperty(controller)) {
-      register(verb, route, routes[key], controller, roles);
-      register(verb, `/_data${route}`, routes[key], controller, roles);
-      log.info(
-        `${key} => ${controller}: registered ${(roles && 'with roles') || ''}`
-      );
-    } else {
-      register(verb, route, routes[key]);
-      log.error(`${key} => ${controller}: unknown controller for route `);
-    }
-  }
+  let routes = fetchRoutes();
+  routes = parseResources(routes);
+  addRoutes(routes);
   /* istanbul ignore next */
   if (process.env.NODE_ENV !== 'production') {
     henri.router.get('/_routes', (req, res) => res.json(henri._routes));
   }
+  startView();
+}
+
+function startView(reload = false) {
   /* istanbul ignore next */
   if (view && !reload) {
     try {
@@ -67,7 +32,60 @@ async function init(reload = false) {
   }
 }
 
-const buildResources = ({ verb, routes, controller, route, key }) => {
+function parseResources(routes) {
+  for (const key in routes) {
+    const [verb, route, controller] = parseRoute(key, routes[key]);
+    routes[key] = controller;
+
+    if (verb === 'resources' || verb === 'crud') {
+      controller.resources = route;
+      routes = buildResources({ verb, routes, controller, route, key });
+    }
+  }
+}
+
+function addRoutes(routes) {
+  const { controllers } = henri;
+  for (const key in routes) {
+    const [verb, route, opts] = parseRoute(key, routes[key]);
+    const { roles, controller } = opts;
+
+    if (controllers.hasOwnProperty(controller)) {
+      register({ verb, route, opts: routes[key], controller, roles });
+      register({
+        verb,
+        route: `/_data${route}`,
+        opts: routes[key],
+        controller,
+        roles,
+      });
+      log.info(
+        `${key} => ${controller}: registered ${(roles && 'with roles') || ''}`
+      );
+    } else {
+      register({ verb, route, opts: routes[key] });
+      log.error(`${key} => ${controller}: unknown controller for route `);
+    }
+  }
+}
+
+function fetchRoutes(routes) {
+  const { config } = henri;
+  /* istanbul ignore next */
+  try {
+    routes = require(config.has('location.routes')
+      ? path.resolve(config.get('location.routes'))
+      : path.resolve('./app/routes'));
+  } catch (e) {
+    log.warn('unable to load routes from filesystem');
+  }
+  /* istanbul ignore next */
+  if (config.has('routes') && Object.keys(config.get('routes')).length > 1) {
+    routes = Object.assign({}, routes, config.get('routes'));
+  }
+}
+
+function buildResources({ verb, routes, controller, route, key }) {
   const scope = controller.scope ? `/${controller.scope}/` : '/';
 
   routes[`get ${scope}${route}`] = buildRoute(controller, 'index');
@@ -84,42 +102,15 @@ const buildResources = ({ verb, routes, controller, route, key }) => {
 
   delete routes[key];
   return routes;
-};
+}
 
-const buildRoute = (controller, method) =>
+function buildRoute(controller, method) {
   Object.assign({}, controller, {
     controller: `${controller.controller}#${method}`,
   });
+}
 
-function register(verb, route, opts, controller, roles) {
-  if (typeof henri.controllers[controller] === 'function') {
-    if (roles) {
-      henri.router[verb](
-        route,
-        async function(req, res, next) {
-          if (req.params._id && req.params._id.includes('favicon.')) {
-            return res.status(404).send();
-          }
-          if (
-            req.isAuthenticated() &&
-            req.user &&
-            (await req.user.hasRole(roles))
-          ) {
-            return next();
-          }
-          return res.redirect('/login');
-        },
-        henri.controllers[controller]
-      );
-    } else {
-      henri.router[verb](route, henri.controllers[controller]);
-    }
-  } else {
-    henri.router[verb](route, (req, res) =>
-      res.status(501).send({ msg: 'Not implemented' })
-    );
-  }
-
+function register({ verb, route, opts, controller, roles }) {
   const name = `${verb} ${route}`;
   henri._routes[name] = Object.assign(opts, {
     active: typeof fn === 'function',
@@ -131,7 +122,39 @@ function register(verb, route, opts, controller, roles) {
     const [name, action] = controller.split('#');
     henri._paths[`${action}_${name}_path`] = { route, method: verb };
   }
+
+  if (typeof henri.controllers[controller] !== 'function') {
+    return henri.router[verb](route, (req, res) =>
+      res.status(501).send({ msg: 'Not implemented' })
+    );
+  }
+  addToExpress({ verb, route, controller, roles });
 }
+
+function addToExpress({ verb, route, controller, roles }) {
+  if (!roles) {
+    return henri.router[verb](route, henri.controllers[controller]);
+  }
+
+  henri.router[verb](
+    route,
+    async function(req, res, next) {
+      if (req.params._id && req.params._id.includes('favicon.')) {
+        return res.status(404).send();
+      }
+      if (
+        req.isAuthenticated() &&
+        req.user &&
+        (await req.user.hasRole(roles))
+      ) {
+        return next();
+      }
+      return res.redirect('/login');
+    },
+    henri.controllers[controller]
+  );
+}
+
 /* istanbul ignore next */
 function middlewares(router) {
   if (henri._middlewares.length > 0) {
