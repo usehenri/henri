@@ -6,15 +6,7 @@ const yarnExists = spawn('yarn', ['help']);
 const { cwd, log } = henri;
 
 const checkPackages = (packages = []) => {
-  let missing = [];
-
-  for (let pkg of packages) {
-    try {
-      require.resolve(path.resolve(cwd, 'node_modules', pkg));
-    } catch (e) {
-      missing.push(pkg);
-    }
-  }
+  let missing = checkMissing(packages);
 
   if (missing.length > 0) {
     const msg = generateMessage(missing);
@@ -27,6 +19,19 @@ const checkPackages = (packages = []) => {
     `);
   }
 };
+
+function checkMissing(packages) {
+  let missing = [];
+
+  for (let pkg of packages) {
+    try {
+      require.resolve(path.resolve(cwd, 'node_modules', pkg));
+    } catch (e) {
+      missing.push(pkg);
+    }
+  }
+  return missing;
+}
 
 const generateMessage = missing => {
   if (missing.length > 1) {

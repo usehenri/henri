@@ -1,5 +1,5 @@
 const path = require('path');
-const config = require('config');
+const Config = require('./config');
 const stack = require('callsite');
 const readline = require('readline');
 
@@ -12,7 +12,7 @@ class Henri {
     this.setup = this.setup.bind(this);
     this.setEnv(NODE_ENV);
     this.setup();
-    this.config = config;
+    this.config = new Config();
     this.settings = {
       package: require('./package.json'),
       arch,
@@ -62,7 +62,7 @@ class Henri {
 
     /* istanbul ignore next */
     if (process.env.NODE_ENV !== 'production') {
-      process.on('unhandledRejection', r => console.log(r));
+      process.on('unhandledRejection', r => console.log(r)); // eslint-disable-line no-console
     }
   }
 
@@ -115,7 +115,7 @@ class Henri {
   }
 
   hasModule(name, info, force = false) {
-    if (this.hasOwnProperty(name) && !force) {
+    if (typeof this[name] !== 'undefined' && !force) {
       const { log } = this;
       const { time, filename, line } = this._modules[name];
       const timeDiff = Date.now() - time;
@@ -131,7 +131,6 @@ class Henri {
     const { log, diff } = this;
     const start = diff();
     const loaders = this._loaders;
-    console.log(loaders);
     /* istanbul ignore next */
     Object.keys(require.cache).forEach(function(id) {
       delete require.cache[id];
@@ -183,7 +182,7 @@ class Henri {
     if (process.stdout.isTTY) {
       // Fill screen with blank lines. Then move to 0 (beginning of visible part) and clear it
       const blank = '\n'.repeat(process.stdout.rows);
-      console.log(blank);
+      console.log(blank); // eslint-disable-line no-console
       readline.cursorTo(process.stdout, 0, 0);
       readline.clearScreenDown(process.stdout);
     }

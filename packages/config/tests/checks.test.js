@@ -5,11 +5,6 @@ describe('checks', () => {
   test('checkPackages exists', () => {
     expect(henri.checkPackages).toBeDefined();
   });
-  test('takes an array', () => {
-    henri.log.fatalError = jest.fn();
-    henri.checkPackages();
-    expect(henri.log.fatalError).toBeCalled();
-  });
   test('throws on missing packages', () => {
     henri.log.fatalError = jest.fn();
     henri.checkPackages(['a', 'ss']);
