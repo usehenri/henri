@@ -21,6 +21,15 @@ const app = express();
 
 let port = config.has('port') ? config.get('port') : 3000;
 
+const ignored = [
+  'node_modules/',
+  'app/views/**',
+  'logs/',
+  '.tmp/',
+  '.eslintrc',
+  '.git',
+];
+
 app.use(timings);
 app.use(compress());
 app.options('*', cors());
@@ -40,7 +49,7 @@ async function start(delay, cb = null) {
   port = henri.isDev ? await choosePort('0.0.0.0', port) : port;
   return app
     .listen(port, function() {
-      const bootTiming = delay ? ` (took ${henri.getDiff(delay)}ms)` : '';
+      const bootTiming = delay ? ` (took ${henri.diff(delay)}ms)` : '';
       const urls = prepareUrls('http', '0.0.0.0', port);
       log.info(`server started on port ${port}${bootTiming}`);
       henri.isDev && watch();
@@ -53,15 +62,6 @@ async function start(delay, cb = null) {
 }
 /* istanbul ignore next */
 async function watch() {
-  const ignored = [
-    'node_modules/',
-    'app/views/**',
-    'logs/',
-    '.tmp/',
-    '.eslintrc',
-    '.git',
-  ];
-
   if (config.has('ignore') && Array.isArray(config.get('ignore'))) {
     ignored.concat(config.get('ignore'));
   }
@@ -88,43 +88,51 @@ async function watch() {
         `we will ignore these folders: ${config.get('ignore').join(' ')}`
       );
   });
-  process.stdin.resume();
-  process.stdin.on('data', async data => {
-    data = data.toString();
-    const chr = data.charCodeAt(0);
-    if (chr === 3) {
-      await henri.stop();
-      log.warn('exiting application...');
-      log.space();
-      process.exit(0);
-    }
-    if (chr === 18) {
-      clearConsole();
-      log.space();
-      log.warn('user-requested server reload...');
-      log.space();
-      log.space();
-      henri.reload();
-    }
-    if (chr === 14 || chr === 15) {
-      if (henri._url) {
-        openBrowser(henri._url);
-      }
-    }
-  });
-  process.stdin.setRawMode(true);
+  keyboardShortcuts();
+
   setTimeout(() => {
     log.space();
     const cmdCtrl = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
     log.info(`To reload the server codebase, use ${cmdCtrl}+R`);
     log.info(
-      `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${
-        cmdCtrl
-      }+N`
+      `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${cmdCtrl}+N`
     );
     log.info(`To quit, use ${cmdCtrl}+C`);
     log.space();
   }, 2 * 1000);
+}
+
+function keyboardShortcuts() {
+  process.stdin.resume();
+  process.stdin.on('data', async data => {
+    const chr = data.toString().charCodeAt(0);
+    const open = () => henri._url && openBrowser(henri._url);
+    const actions = {
+      '3': async () => {
+        await henri.stop();
+        log.warn('exiting application...');
+        log.space();
+        process.exit(0);
+      },
+      '18': async () => {
+        clearConsole();
+        log.space();
+        log.warn('user-requested server reload...');
+        log.space();
+        henri.reload();
+      },
+      '14': () => {
+        open();
+      },
+      '15': () => {
+        open();
+      },
+    };
+    if (typeof actions[chr] !== 'undefined') {
+      actions[chr]();
+    }
+  });
+  process.stdin.setRawMode(true);
 }
 
 function handleError(err) {
@@ -146,30 +154,35 @@ const checkSyntax = file => {
         console.log(err);
         return resolve();
       }
-      try {
-        prettier.format(data.toString(), {
-          singleQuote: true,
-          trailingComma: 'es5',
-        });
-        henri.setStatus('locked', false);
-        return resolve();
-        // Will enable later...
-        /* fs.writeFile(file, code, 'utf8', err => {
-          if (err) {
-            log.error('error in writefile');
-            console.log(err);
-            return resolve();
-          }
-        }); */
-      } catch (e) {
-        log.error(`Trying to reload but caught an error:`);
-        console.log(' ');
-        console.log(e.message);
-        resolve();
-      }
+      parseData(resolve, file, data);
     });
   });
 };
+
+function parseData(resolve, file, data) {
+  try {
+    const ext = path.extname(file);
+    if (ext === '.json') {
+      JSON.parse(data);
+      henri.setStatus('locked', false);
+      return resolve();
+    }
+    if (ext === '.js') {
+      prettier.format(data.toString(), {
+        singleQuote: true,
+        trailingComma: 'es5',
+      });
+      henri.setStatus('locked', false);
+      return resolve();
+    }
+    resolve();
+  } catch (e) {
+    log.error(`Trying to reload but caught an error:`);
+    console.log(' '); // eslint-disable-line no-console
+    console.log(e.message); // eslint-disable-line no-console
+    resolve();
+  }
+}
 
 henri.router = undefined;
 
