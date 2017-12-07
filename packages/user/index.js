@@ -16,12 +16,6 @@ async function encrypt(password, rounds = 10) {
     if (password.length < 6) {
       return reject(new Error('minimum password string is 6 characters'));
     }
-    if ((rounds < 1 || rounds > 15000) && !henri.passwordHashWarning) {
-      log.warn(
-        `password encryption rounds higher than 15,000 can really slow down execution`
-      );
-      henri.passwordHashWarning = true;
-    }
     if (henri.isTest) {
       rounds = 10;
     }
@@ -115,10 +109,16 @@ if (henri._user) {
     done(null, user.id);
   });
 
-  passport.deserializeUser(function(id, done) {
-    henri._user.find({ _id: id }, { password: 0 }, (err, user) => {
-      done(err, user && user.length > 0 ? user[0] : {});
-    });
+  passport.deserializeUser(async function(id, done) {
+    // sconsole.log('hello');
+    try {
+      const user = await henri._user.find({ _id: id }, { password: 0 });
+      // console.log(user);
+      return done(null, user && user.length > 0 ? user[0] : undefined);
+    } catch (e) {
+      // console.log(e);
+      return done(e, null);
+    }
   });
 
   app.use(passport.initialize());

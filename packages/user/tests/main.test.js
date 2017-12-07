@@ -44,14 +44,4 @@ describe('user', () => {
     await expect(compare(password, hash)).resolves.toBe(true);
     await expect(compare('lydia', hash)).rejects.toBeDefined();
   });
-  test('encryption warning', async () => {
-    delete henri.passwordHashWarning;
-    henri.log.warn = jest.fn();
-    expect(henri.passwordHashWarning).toBeUndefined();
-    await expect(encrypt(password, 15001)).resolves.toBeDefined();
-    expect(henri.log.warn).toHaveBeenCalledTimes(1);
-    expect(henri.passwordHashWarning).toBeDefined();
-    await expect(encrypt(password, 15001)).resolves.toBeDefined();
-    expect(henri.log.warn).toHaveBeenCalledTimes(1);
-  });
 });
