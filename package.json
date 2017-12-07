@@ -19,23 +19,25 @@
     "@types/express-session": "^1.15.5",
     "@types/fs-extra": "^4.0.5",
     "@types/jest": "^21.1.8",
-    "@types/lodash": "^4.14.86",
+    "@types/lodash": "^4.14.88",
     "@types/minimist": "^1.2.0",
     "@types/mongoose": "^4.7.28",
-    "@types/node": "^8.0.53",
+    "@types/node": "^8.0.56",
     "@types/passport": "^0.4.1",
     "@types/passport-jwt": "^3.0.0",
     "@types/passport-local": "^1.0.32",
     "@types/waterline": "^0.11.1",
     "@types/winston": "^2.3.7",
     "babel-eslint": "^8.0.3",
+    "babel-plugin-syntax-object-rest-spread": "^6.13.0",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "coveralls": "^3.0.0",
     "eslint": "^4.12.1",
     "eslint-config-react-app": "^2.0.1",
     "eslint-config-standard": "^10.2.1",
     "eslint-plugin-flowtype": "^2.39.1",
     "eslint-plugin-import": "^2.8.0",
-    "eslint-plugin-jest": "^21.3.2",
+    "eslint-plugin-jest": "^21.4.2",
     "eslint-plugin-jsx-a11y": "^6.0.2",
     "eslint-plugin-node": "^5.2.1",
     "eslint-plugin-promise": "^3.6.0",
@@ -45,10 +47,10 @@
     "jest": "^21.0.2",
     "lerna": "^2.5.1",
     "lint-staged": "^6.0.0",
-    "next": "^4.1.4",
+    "next": "^4.2.0",
     "nuxt": "^1.0.0-rc11",
     "nyc": "^11.3.0",
-    "prettier": "^1.8.2",
+    "prettier": "^1.9.1",
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
     "supertest": "^3.0.0"
@@ -71,7 +73,10 @@
       "packages/model",
       "packages/waterline",
       "packages/mongo",
+      "packages/postgresql",
+      "packages/mssql",
       "packages/react",
+      "packages/sequelize",
       "packages/mysql",
       "packages/disk",
       "packages/jest-runtime/src/__tests__/test_root.*",
@@ -86,5 +91,8 @@
       "!**/perf/**",
       "!**/test/**"
     ]
-  }
+  },
+    "workspaces": [
+	        "packages/*"
+		  ]
 }

@@ -1,9 +1,8 @@
 {
   "lerna": "2.2.0",
   "conventionalCommits": "true",
-  "packages": [
-    "packages/*"
-  ],
+  "packages": ["packages/*"],
   "npmClient": "yarn",
+  "useWorkspaces": true,
   "version": "0.19.0"
 }
