@@ -6,7 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "camo": "^0.12.3",
-    "nedb": "^1.8.0"
+    "@usehenri/sequelize": "^0.18.0",
+    "sqlite3": "^3.1.13"
   }
 }
