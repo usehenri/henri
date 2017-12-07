@@ -9,7 +9,7 @@
     "babel-loader": "^7.1.1",
     "babel-plugin-module-resolver": "^3.0.0",
     "babel-plugin-wrap-in-js": "^1.1.1",
-    "cache-loader": "^1.2.0",
+    "cache-loader": "1.0.3",
     "cssnano": "^3.10.0",
     "glob": "^7.1.2",
     "module-alias": "^2.0.3",
@@ -19,6 +19,6 @@
     "postcss-loader": "^2.0.9",
     "raw-loader": "^0.5.1",
     "sass-loader": "^6.0.5",
-    "webpack": "^3.9.1"
+    "webpack": "^3.10.0"
   }
 }
