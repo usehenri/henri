@@ -1,5 +1,4 @@
 import React from 'react';
-import Photo from './frame';
 
 export default class extends React.Component {
   dismiss(e) {
@@ -9,18 +8,8 @@ export default class extends React.Component {
       }
     }
   }
-
-  render() {
-    return (
-      <div
-        ref={el => (this._shim = el)}
-        className="shim"
-        onClick={e => this.dismiss(e)}
-      >
-        <div ref={el => (this._photoWrap = el)} className="photo">
-          <Photo id={this.props.id} />
-        </div>
-        <style jsx>{`
+  getStyle() {
+    return `
           .shim {
             position: fixed;
             background: rgba(0,0,0,.65);
@@ -36,7 +25,20 @@ export default class extends React.Component {
             width: 100%;
             margin-top: -250px;
           }
-        `}</style>
+        `;
+  }
+
+  render() {
+    return (
+      <div
+        ref={el => (this._shim = el)}
+        className="shim"
+        onClick={e => this.dismiss(e)}
+      >
+        <div ref={el => (this._photoWrap = el)} className="photo">
+          <Photo id={this.props.id} />
+        </div>
+        <style jsx>{this.getStyle()}</style>
       </div>
     );
   }
