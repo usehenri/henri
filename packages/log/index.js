@@ -8,10 +8,20 @@ class Log {
   constructor({ customWidth = null } = {}) {
     this.since = Date.now();
     this.customWidth = customWidth;
-
     this.winston = new winston.Logger();
+    this._time = process.uptime();
+    this._timeSkipped = 0;
     this.setup();
     this.file = this.file.bind(this);
+    this.time = this.time.bind(this);
+    this.setup = this.setup.bind(this);
+    this.error = this.error.bind(this);
+    this.warn = this.warn.bind(this);
+    this.info = this.info.bind(this);
+    this.verbose = this.verbose.bind(this);
+    this.debug = this.debug.bind(this);
+    this.silly = this.silly.bind(this);
+    this.output = this.output.bind(this);
     return this;
   }
 
@@ -35,7 +45,7 @@ class Log {
       colorize: true,
       customWidth: this.customWidth,
       formatter: options => {
-        const { dateString, fullMsg } = output(options);
+        const { dateString, fullMsg } = this.output(options);
 
         let space =
           (this.customWidth || process.stdout.columns) -
@@ -134,24 +144,35 @@ class Log {
     // eslint-disable-next-line no-console
     return console.log(' ');
   }
-}
 
-function output(options) {
-  const color = getColor(options.level);
-  const dateString = chalk.grey(new Date().toLocaleTimeString());
-  const title = chalk[color].inverse(` ${options.level.toUpperCase()} `);
-  /* istanbul ignore next */
-  const message = chalk[color](options.message ? options.message : '');
-  /* istanbul ignore next */
-  const meta = chalk[color](
-    options.meta && Object.keys(options.meta).length
-      ? '\n\t' + JSON.stringify(options.meta, null, 2)
-      : ''
-  );
-  /* istanbul ignore next */
-  const fullMsg = `${title} ${message || meta}`;
+  time() {
+    const delta = Math.round((process.uptime() - this._time) * 1000, 1);
+    if (delta < 6 && this._timeSkipped < 3) {
+      this._timeSkipped++;
+      return '';
+    }
+    this._timeSkipped = 0;
+    this._time = process.uptime();
+    return `+${delta}ms`;
+  }
 
-  return { dateString, fullMsg };
+  output(options) {
+    const color = getColor(options.level);
+    const dateString = chalk.grey(new Date().toLocaleTimeString());
+    const title = chalk[color].inverse(` ${options.level.toUpperCase()} `);
+    /* istanbul ignore next */
+    const message = chalk[color](options.message ? options.message : '');
+    /* istanbul ignore next */
+    const meta = chalk[color](
+      options.meta && Object.keys(options.meta).length
+        ? '\n\t' + JSON.stringify(options.meta, null, 2)
+        : ''
+    );
+    /* istanbul ignore next */
+    const fullMsg = `${title} ${message || meta} ${chalk['grey'](this.time())}`;
+
+    return { dateString, fullMsg };
+  }
 }
 
 function getColor(level) {
