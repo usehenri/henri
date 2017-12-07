@@ -17,6 +17,7 @@ function load(location) {
         if (err) {
           return reject(err);
         }
+        log.info('models loaded from disk');
         return resolve(modules);
       }
     );
@@ -34,11 +35,11 @@ async function configure(models) {
     models: {},
   };
 
-  for (const id in models) {
+  for (const id of Object.keys(models)) {
     const model = models[id];
     checkStoreOrDie(model);
     const storeName = model.store || 'default';
-    const store = getStore(storeName);
+    const store = await getStore(storeName);
     global[model.globalId] = store.addModel(model, user);
     henri._models.push(model.globalId);
     configuration.adapters[storeName] = store;
@@ -73,21 +74,28 @@ async function getStore(name) {
     mongoose: 'mongoose',
     disk: 'disk',
     mysql: 'mysql',
+    mariadb: 'mysql',
+    postgresql: 'postgresql',
+    mssql: 'mssql',
   };
-  if (valid.hasOwnProperty(store.adapter) < 0) {
+  if (typeof valid[store.adapter] === 'undefined') {
     return log.fatalError(
       `Adapter '${store.adapter}' is not valid. Check your configuration file.`
     );
   }
   const conn = valid[store.adapter];
+  const Pkg = requirePackage(store, conn);
+  henri.stores[name] = new Pkg(name, store);
+  return henri.stores[name];
+}
+
+function requirePackage(store, conn) {
   try {
     const Pkg = henri.isTest
       ? require(`@usehenri/${conn}`)
       : require(path.resolve(cwd, 'node_modules', `@usehenri/${conn}`));
-    henri.stores[name] = new Pkg(name, store);
-    return henri.stores[name];
+    return Pkg;
   } catch (e) {
-    console.log(e);
     return log.fatalError(`
     Unable to load database adapter '${store.adapter}'. Seems like you 
     should install it using: npm install @usehenri/${store.adapter}`);
@@ -96,7 +104,7 @@ async function getStore(name) {
 
 async function start(configuration) {
   return new Promise(async (resolve, reject) => {
-    for (var store in henri.stores) {
+    for (const store of Object.keys(henri.stores)) {
       await henri.stores[store].start();
     }
     if (henri._models.length > 0) {
@@ -118,7 +126,7 @@ async function stop() {
       log.warn('no models/stores needed to be stopped.');
       return resolve();
     }
-    for (var store in henri.stores) {
+    for (const store of Object.keys(henri.stores)) {
       await henri.stores[store].stop();
     }
     henri._models.forEach(name => delete global[name]);
