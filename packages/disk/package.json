@@ -1,12 +1,12 @@
 {
   "name": "@usehenri/disk",
-  "version": "0.18.0",
+  "version": "0.20.0",
   "description": "henri disk database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/sequelize": "^0.18.0",
+    "@usehenri/sequelize": "^0.20.0",
     "sqlite3": "^3.1.13"
   }
 }

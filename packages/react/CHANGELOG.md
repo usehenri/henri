@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.20.0"></a>
+# [0.20.0](https://github.com/usehenri/henri/compare/v0.19.0...v0.20.0) (2017-12-07)
+
+
+### Features
+
+* **react:** add a helper to render named routes (pathFor) ([952a16c](https://github.com/usehenri/henri/commit/952a16c))
+
+
+### Performance Improvements
+
+* **react:** uglify distributed libraries ([3e72b49](https://github.com/usehenri/henri/commit/3e72b49))
+
+
+
+
 <a name="0.19.0"></a>
 # [0.19.0](https://github.com/usehenri/henri/compare/v0.18.0...v0.19.0) (2017-11-25)
 

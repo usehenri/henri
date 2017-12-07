@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/router",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "henri router",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",

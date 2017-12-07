@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.20.0"></a>
+# [0.20.0](https://github.com/usehenri/henri/compare/v0.19.0...v0.20.0) (2017-12-07)
+
+
+### Bug Fixes
+
+* **user:** remove bcrypt round check as this is low level enough. ([cd32d9c](https://github.com/usehenri/henri/commit/cd32d9c))
+
+
+### Features
+
+* **disk:** using sequelize with sqlite ([4057150](https://github.com/usehenri/henri/commit/4057150))
+* **log:** adding a timestamp to monitor long calls ([2c1be45](https://github.com/usehenri/henri/commit/2c1be45))
+* **model:** base for new db adapters and optimization ([ccc5e2d](https://github.com/usehenri/henri/commit/ccc5e2d))
+* **mssql:** using sequelize with tedious (mssql) ([0b47556](https://github.com/usehenri/henri/commit/0b47556))
+* **mysql:** using sequelize with mysql2 (mysql, mariadb) ([06dc7f8](https://github.com/usehenri/henri/commit/06dc7f8))
+* **postgresql:** using sequelize with pg ([0538271](https://github.com/usehenri/henri/commit/0538271))
+* **react:** add a helper to render named routes (pathFor) ([952a16c](https://github.com/usehenri/henri/commit/952a16c))
+* **router:** go back to :id params ([26e19d4](https://github.com/usehenri/henri/commit/26e19d4))
+* **router:** provide named routes to the client if needed ([354f689](https://github.com/usehenri/henri/commit/354f689))
+* **sequelize:** base class for sequelize adapters ([286f6ae](https://github.com/usehenri/henri/commit/286f6ae))
+
+
+### Performance Improvements
+
+* **react:** uglify distributed libraries ([3e72b49](https://github.com/usehenri/henri/commit/3e72b49))
+
+
+
+
 <a name="0.19.0"></a>
 # [0.19.0](https://github.com/usehenri/henri/compare/v0.18.0...v0.19.0) (2017-11-25)
 
