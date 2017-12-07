@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/mysql",
-  "version": "0.20.0",
+  "version": "0.20.1",
   "description": "henri mariadb/mysql database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
