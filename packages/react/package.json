@@ -26,6 +26,6 @@
   "dependencies": {
     "axios": "^0.17.1",
     "prop-types": "^15.6.0",
-    "validator": "^9.1.2"
+    "validator": "^9.2.0"
   }
 }

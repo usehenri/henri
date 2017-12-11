@@ -4,12 +4,9 @@
     "precommit": "lint-staged",
     "prepublish": "cp README.md packages/henri",
     "pretest": "lerna bootstrap",
-    "test":
-      "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail",
-    "coveralls":
-      "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
-    "test:watch":
-      "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch --notify"
+    "test": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --forceExit --runInBand --verbose --bail",
+    "coveralls": "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
+    "test:watch": "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch --notify"
   },
   "devDependencies": {
     "@types/bcrypt-nodejs": "^0.0.30",
@@ -25,7 +22,7 @@
     "@types/lodash": "^4.14.88",
     "@types/minimist": "^1.2.0",
     "@types/mongoose": "^4.7.28",
-    "@types/node": "^8.0.56",
+    "@types/node": "^8.0.57",
     "@types/passport": "^0.4.1",
     "@types/passport-jwt": "^3.0.0",
     "@types/passport-local": "^1.0.32",
@@ -35,10 +32,10 @@
     "babel-plugin-syntax-object-rest-spread": "^6.13.0",
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "coveralls": "^3.0.0",
-    "eslint": "^4.12.1",
+    "eslint": "^4.13.0",
     "eslint-config-react-app": "^2.0.1",
-    "eslint-config-standard": "^10.2.1",
-    "eslint-plugin-flowtype": "^2.39.1",
+    "eslint-config-standard": "^11.0.0-beta.0",
+    "eslint-plugin-flowtype": "^2.40.1",
     "eslint-plugin-import": "^2.8.0",
     "eslint-plugin-jest": "^21.4.2",
     "eslint-plugin-jsx-a11y": "^6.0.2",
@@ -50,7 +47,7 @@
     "jest": "^21.0.2",
     "lerna": "^2.5.1",
     "lint-staged": "^6.0.0",
-    "next": "^4.2.0",
+    "next": "^4.2.1",
     "nuxt": "^1.0.0-rc11",
     "nyc": "^11.3.0",
     "prettier": "^1.9.1",
