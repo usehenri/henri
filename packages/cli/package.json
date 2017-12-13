@@ -15,11 +15,11 @@
     "@usehenri/view": "^0.20.1",
     "chalk": "^2.3.0",
     "cross-spawn": "^5.1.0",
-    "fs-extra": "^4.0.3",
+    "fs-extra": "^5.0.0",
     "handlebars": "^4.0.11",
     "inquirer": "^4.0.1",
     "minimist": "^1.2.0",
-    "prettier": "^1.9.1",
+    "prettier": "^1.9.2",
     "rimraf": "^2.6.2",
     "update-notifier": "^2.3.0"
   },
