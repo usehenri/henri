@@ -17,7 +17,7 @@
     "cross-spawn": "^5.1.0",
     "fs-extra": "^5.0.0",
     "handlebars": "^4.0.11",
-    "inquirer": "^4.0.1",
+    "inquirer": "^5.0.0",
     "minimist": "^1.2.0",
     "prettier": "^1.9.2",
     "rimraf": "^2.6.2",
