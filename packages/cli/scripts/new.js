@@ -41,7 +41,7 @@ const main = args => {
 const help = args => {
   console.log(
     `
-    ${helpHeader}
+    ${helpHeader()}
     Usage
       $ henri new <folder> [-f | --force]
 

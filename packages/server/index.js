@@ -21,15 +21,6 @@ const app = express();
 
 let port = config.has('port') ? config.get('port') : 3000;
 
-const ignored = [
-  'node_modules/',
-  'app/views/**',
-  'logs/',
-  '.tmp/',
-  '.eslintrc',
-  '.git',
-];
-
 app.use(timings);
 app.use(compress());
 app.options('*', cors());
@@ -62,11 +53,16 @@ async function start(delay, cb = null) {
 }
 /* istanbul ignore next */
 async function watch() {
-  if (config.has('ignore') && Array.isArray(config.get('ignore'))) {
-    ignored.concat(config.get('ignore'));
-  }
-  log.debug(`filesystem watch ignore: ${ignored.join(' ')}`);
-  const watcher = chokidar.watch('.', { ignored });
+  let watching = [
+    'app/controllers',
+    'app/helpers',
+    'app/models',
+    'app/routes.js',
+    'config/',
+    './**.json',
+    './**.lock',
+  ];
+  const watcher = chokidar.watch(watching);
   watcher.on('ready', () => {
     watcher.on('all', async (event, path) => {
       if (henri.getStatus('locked')) {
@@ -83,10 +79,6 @@ async function watch() {
       !henri.getStatus('locked') && henri.reload();
     });
     log.info('watching filesystem for changes...');
-    config.has('ignore') &&
-      log.info(
-        `we will ignore these folders: ${config.get('ignore').join(' ')}`
-      );
   });
   keyboardShortcuts();
 

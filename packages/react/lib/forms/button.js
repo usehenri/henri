@@ -2,7 +2,12 @@ import React from 'react';
 import PropTypes from 'prop-types';
 
 const Button = (
-  { children, className = '', label, type = 'submit' },
+  {
+    children,
+    className = 'btn btn-primary block full-width m-b',
+    label,
+    type = 'submit',
+  },
   { disabled = null, _henriForm = false }
 ) => {
   !_henriForm && console.warn('Button component used outside henri form.');

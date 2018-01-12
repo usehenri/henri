@@ -4,8 +4,9 @@ import PropTypes from 'prop-types';
 const Input = (
   {
     disabled = false,
-    className = null,
-    errorClassName = null,
+    className = 'form-control',
+    baseClassName = 'form-group',
+    errorClassName = 'help-block m-b-none',
     errorMsg,
     name,
     placeholder,
@@ -21,7 +22,7 @@ const Input = (
   const hasError = !!context.errors[name];
   context.addSanitizer(name, sanitation);
   return (
-    <div className={`${hasError && 'has-error'}`}>
+    <div className={`${baseClassName} ${hasError && 'has-error'}`}>
       <input
         type={type}
         name={name}

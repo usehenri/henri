@@ -3,7 +3,7 @@ const { commands, helpHeader } = require('./utils');
 const main = args => {
   console.log(
     `
-    ${helpHeader}
+    ${helpHeader()}
     Usage
       $ henri <command>
 

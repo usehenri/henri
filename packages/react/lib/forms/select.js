@@ -4,7 +4,8 @@ import PropTypes from 'prop-types';
 const Select = (
   {
     disabled = false,
-    className = null,
+    className = 'form-control m-b',
+    baseClassName = 'form-group',
     errorClassName = null,
     errorMsg,
     name,
@@ -22,7 +23,7 @@ const Select = (
   const hasError = !!context.errors[name];
   context.addSanitizer(name, sanitation);
   return (
-    <div className={`${hasError && 'has-error'}`}>
+    <div className={`${baseClassName} ${hasError && 'has-error'}`}>
       <select
         className={className}
         name={name}
