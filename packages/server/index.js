@@ -16,8 +16,18 @@ const detect = require('detect-port');
 const prettier = require('prettier');
 
 const { clearConsole, config, cwd, log } = henri;
-
 const app = express();
+const server = require('http').Server(app);
+const io = require('socket.io')(server);
+
+henri.socket = io;
+
+try {
+  const cb = require(path.resolve(cwd, 'app/sockets/index.js'));
+  io.on('connection', socket => cb(socket));
+} catch (e) {
+  log.warn('unable to load app/sockets/index.js.. ws callback disabled');
+}
 
 let port = config.has('port') ? config.get('port') : 3000;
 
@@ -38,7 +48,7 @@ async function start(delay, cb = null) {
 
   port = henri.isTest ? await detect(port) : port;
   port = henri.isDev ? await choosePort('0.0.0.0', port) : port;
-  return app
+  return server
     .listen(port, function() {
       const bootTiming = delay ? ` (took ${henri.diff(delay)}ms)` : '';
       const urls = prepareUrls('http', '0.0.0.0', port);

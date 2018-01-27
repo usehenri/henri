@@ -17,6 +17,7 @@
     "prettier": "^1.9.2",
     "react-dev-utils": "^4.2.1",
     "server-timings": "^1.0.4",
+    "socket.io": "^2.0.4",
     "supertest": "^3.0.0"
   }
 }
