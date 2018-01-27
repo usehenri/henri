@@ -1,10 +1,13 @@
 import React from 'react';
 import axios from 'axios';
 import PropTypes from 'prop-types';
+import ws from 'socket.io-client';
 
 function getDisplayName(Component) {
   return Component.displayName || Component.name || 'Unknown';
 }
+
+const socket = typeof window === 'undefined' ? {} : ws();
 
 export default ComposedComponent => {
   class WithHenri extends React.Component {
@@ -20,12 +23,12 @@ export default ComposedComponent => {
     static displayName = `withHenri(${getDisplayName(ComposedComponent)})`;
 
     static async getInitialProps(ctx) {
-      const { query: { data, user, paths } } = ctx;
+      const { query: { data, user, paths, localUrl } } = ctx;
       let composedInitialProps = {};
       if (ComposedComponent.getInitialProps) {
         composedInitialProps = await ComposedComponent.getInitialProps(ctx);
       }
-      return { data, user, paths, ...composedInitialProps };
+      return { data, user, paths, localUrl, ...composedInitialProps };
     }
 
     async hydrate(data = {}) {
@@ -103,12 +106,26 @@ export default ComposedComponent => {
       console.warn(`unable to match filler for route ${path} in pathFor`);
     };
 
+    getRoute = (route = null) => {
+      const { paths } = this.props;
+      if (
+        route &&
+        typeof paths[route] !== 'undefined' &&
+        typeof paths[route].route !== 'undefined'
+      ) {
+        return paths[route].route;
+      }
+      return 'route-not-found';
+    };
+
     getChildContext() {
       return {
         // Contains the data passed down. Key should match names
         hydrate: this.hydrate,
         fetch: this.fetch,
         pathFor: this.pathFor,
+        getRoute: this.getRoute,
+        socket: socket,
       };
     }
 
@@ -118,6 +135,8 @@ export default ComposedComponent => {
           hydrate={this.hydrate}
           fetch={this.fetch}
           pathFor={this.pathFor}
+          getRoute={this.getRoute}
+          socket={socket}
           {...this.props}
           data={this.state.data}
         />
@@ -128,7 +147,9 @@ export default ComposedComponent => {
   WithHenri.childContextTypes = {
     hydrate: PropTypes.func,
     fetch: PropTypes.func,
+    socket: PropTypes.func,
     pathFor: PropTypes.func,
+    getRoute: PropTypes.func,
   };
 
   return WithHenri;

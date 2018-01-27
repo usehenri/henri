@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import Validation from './validation';
-import axios from 'axios';
 
 class Form extends Component {
   constructor(props) {
@@ -116,8 +115,8 @@ class Form extends Component {
       onFail = '',
       method = 'post',
     } = this.props;
-    const { hydrate = null } = this.context;
-    axios({ method, url: action, data })
+    const { hydrate = null, fetch } = this.context;
+    fetch({ method, route: action }, data)
       .then(resp => {
         this.setState({ error: null });
         hydrate && hydrate();
@@ -163,6 +162,8 @@ class Form extends Component {
       handleSubmit: this.handleSubmit,
       // Add a sanitizer for validation
       addSanitizer: this.addSanitizer,
+      // Reset the form
+      clear: this.clear,
       // Warn if not within form
       _henriForm: true,
     };
@@ -197,6 +198,7 @@ Form.childContextTypes = {
   handleChange: PropTypes.func,
   handleSubmit: PropTypes.func,
   addSanitizer: PropTypes.func,
+  clear: PropTypes.func,
   _henriForm: PropTypes.bool,
 };
 

@@ -27,7 +27,12 @@ const Select = (
       <select
         className={className}
         name={name}
-        value={context.data[name] || ''}
+        value={
+          (context.data[name] && context.data[name]._id) ||
+          context.data[name] ||
+          choices[0]._id ||
+          ''
+        }
         onChange={e => context.handleChange(e)}
       >
         {choices.map(item => (

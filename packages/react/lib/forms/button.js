@@ -7,6 +7,7 @@ const Button = (
     className = 'btn btn-primary block full-width m-b',
     label,
     type = 'submit',
+    ...props
   },
   { disabled = null, _henriForm = false }
 ) => {
@@ -16,6 +17,7 @@ const Button = (
       type={type}
       className={`${className} ${disabled && 'disabled'}`}
       disabled={disabled}
+      {...props}
     >
       {label || children || ''}
     </button>
