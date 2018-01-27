@@ -43,6 +43,7 @@ function middlewares(router) {
       const opts = {
         data,
         paths: henri._paths,
+        localUrl: henri._url,
         user: req.user || {},
         query: req.query,
       };
