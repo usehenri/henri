@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/config",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "description": "henri configuration manager",
   "main": "lib/index.js",
   "author": "Felix-Antoine Paradis",

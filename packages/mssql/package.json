@@ -1,12 +1,12 @@
 {
   "name": "@usehenri/mssql",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "description": "henri mssql database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/sequelize": "^0.20.0",
+    "@usehenri/sequelize": "^0.20.2",
     "tedious": "^2.1.5"
   }
 }

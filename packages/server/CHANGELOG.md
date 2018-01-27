@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.20.2"></a>
+## [0.20.2](https://github.com/usehenri/henri/compare/v0.20.1...v0.20.2) (2018-01-27)
+
+
+### Bug Fixes
+
+* **cli:** helper header is a function ([33ed0b9](https://github.com/usehenri/henri/commit/33ed0b9))
+
+
+
+
 <a name="0.20.1"></a>
 ## [0.20.1](https://github.com/usehenri/henri/compare/v0.20.0...v0.20.1) (2017-12-07)
 
