@@ -6,6 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
+    "babel-core": "^6.26.0",
     "babel-loader": "^7.1.1",
     "babel-plugin-module-resolver": "^3.0.0",
     "babel-plugin-wrap-in-js": "^1.1.1",
@@ -14,7 +15,7 @@
     "glob": "^7.1.2",
     "module-alias": "^2.0.3",
     "node-sass": "^4.7.2",
-    "postcss-cssnext": "^3.0.2",
+    "postcss-cssnext": "^3.1.0",
     "postcss-easy-import": "^3.0.0",
     "postcss-loader": "^2.0.10",
     "raw-loader": "^0.5.1",
