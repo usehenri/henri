@@ -60,7 +60,7 @@ class Mongoose {
   async start() {
     return new Promise((resolve, reject) => {
       mongoose
-        .connect(this.config.url || this.config.host, { useMongoClient: true })
+        .connect(this.config.url || this.config.host)
         .then(() => resolve(), err => reject(err));
     });
   }
