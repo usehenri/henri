@@ -1,7 +1,9 @@
 const path = require('path');
+const fs = require('fs');
 const Config = require('./config');
 const stack = require('callsite');
 const readline = require('readline');
+const prettier = require('prettier');
 
 class Henri {
   constructor() {
@@ -54,6 +56,8 @@ class Henri {
     this.hasModule = this.hasModule.bind(this);
     this.reload = this.reload.bind(this);
     this.stop = this.stop.bind(this);
+    this.syntax = this.syntax.bind(this);
+    this._parseSyntax = this._parseSyntax.bind(this);
   }
 
   setProcess() {
@@ -185,6 +189,36 @@ class Henri {
       console.log(blank); // eslint-disable-line no-console
       readline.cursorTo(process.stdout, 0, 0);
       readline.clearScreenDown(process.stdout);
+    }
+  }
+
+  async syntax(location, onSuccess) {
+    const { log } = this;
+    return new Promise(resolve => {
+      fs.readFile(location, 'utf8', (err, data) => {
+        if (err) {
+          log.error(`unable to check the syntax of ${location}`);
+          return resolve(false);
+        }
+        this._parseSyntax(resolve, location, data, onSuccess);
+      });
+    });
+  }
+
+  _parseSyntax(resolve, file, data, onSuccess = null) {
+    const { log } = this;
+    try {
+      prettier.format(data.toString(), {
+        singleQuote: true,
+        trailingComma: 'es5',
+      });
+      typeof onSuccess === 'function' && onSuccess();
+      return resolve();
+    } catch (e) {
+      log.error(`while parsing ${file}`);
+      console.log(' '); // eslint-disable-line no-console
+      console.log(e.message); // eslint-disable-line no-console
+      resolve();
     }
   }
 }
