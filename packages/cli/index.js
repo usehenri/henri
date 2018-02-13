@@ -18,12 +18,22 @@ if (!module.parent) {
   process.exit(1);
 }
 
+// eslint-disable-next-line complexity
 module.exports = (pkg, args) => {
   const argv = require('minimist')(args.slice(2));
   updateNotifier({ pkg, updateCheckInterval: 1000 }).notify({
     defer: false,
     isGlobal: true,
   });
+
+  if (typeof argv['production'] !== 'undefined') {
+    process.env.NODE_ENV = 'production';
+  }
+
+  if (typeof argv['debug'] !== 'undefined') {
+    process.env.DEBUG =
+      typeof argv['debug'] === 'boolean' ? '*' : argv['debug'];
+  }
 
   const command = argv._.shift();
 
