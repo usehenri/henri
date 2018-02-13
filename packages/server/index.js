@@ -7,6 +7,8 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const chokidar = require('chokidar');
+const Websocket = require('@usehenri/websocket');
+
 const {
   choosePort,
   prepareUrls,
@@ -18,16 +20,8 @@ const prettier = require('prettier');
 const { clearConsole, config, cwd, log } = henri;
 const app = express();
 const server = require('http').Server(app);
-const io = require('socket.io')(server);
-
-henri.socket = io;
-
-try {
-  const cb = require(path.resolve(cwd, 'app/sockets/index.js'));
-  io.on('connection', socket => cb(socket));
-} catch (e) {
-  log.warn('unable to load app/sockets/index.js.. ws callback disabled');
-}
+const ws = new Websocket(server);
+ws.init();
 
 let port = config.has('port') ? config.get('port') : 3000;
 
@@ -68,6 +62,7 @@ async function watch() {
     'app/helpers',
     'app/models',
     'app/routes.js',
+    'app/websocket',
     'config/',
     './**.json',
     './**.lock',

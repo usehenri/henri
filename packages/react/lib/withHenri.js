@@ -7,7 +7,7 @@ function getDisplayName(Component) {
   return Component.displayName || Component.name || 'Unknown';
 }
 
-const socket = typeof window === 'undefined' ? {} : ws();
+const socket = typeof window === 'undefined' ? () => {} : ws();
 
 export default ComposedComponent => {
   class WithHenri extends React.Component {
