@@ -35,6 +35,7 @@ app.use(cookieParser());
 
 app.use(express.static(path.resolve(cwd, 'app/views/public')));
 
+// eslint-disable-next-line complexity
 async function start(delay, cb = null) {
   app.use((req, res, next) => henri.router(req, res, next));
 

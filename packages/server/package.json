@@ -8,7 +8,7 @@
   "dependencies": {
     "@usehenri/websocket": "latest",
     "body-parser": "^1.17.2",
-    "chokidar": "^2.0.1",
+    "chokidar": "^2.0.2",
     "compression": "^1.7.1",
     "cookie-parser": "^1.4.3",
     "cors": "^2.8.4",
