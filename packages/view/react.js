@@ -1,19 +1,18 @@
 const { cwd, log } = henri;
 const path = require('path');
-const nextPath = path.resolve(cwd, 'node_modules', 'next');
-const next = require(nextPath);
-const builder = require(path.resolve(nextPath, 'dist/server/build')).default;
+const next = require('next');
+const builder = require(path.resolve(require.resolve('next'), '../build'))
+  .default;
 
 const conf = henri.isTest ? {} : require('./conf');
 const moduleAlias = require('module-alias');
 
 let instance = null;
-
 const renderer = henri.config.get('renderer').toLowerCase();
 
 switch (renderer) {
   case 'react':
-    henri.checkPackages(['react', 'react-dom', 'next']);
+    henri.checkPackages(['react', 'react-dom', 'react-hot-loader']);
     break;
   case 'preact':
     henri.checkPackages([

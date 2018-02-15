@@ -15,6 +15,7 @@
     "cssnano": "^3.10.0",
     "glob": "^7.1.2",
     "module-alias": "^2.0.3",
+    "next": "^5.0.1-canary.5",
     "node-sass": "^4.7.2",
     "postcss-cssnext": "^3.1.0",
     "postcss-easy-import": "^3.0.0",

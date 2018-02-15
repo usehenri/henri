@@ -22,7 +22,10 @@ try {
 module.exports = {
   webpack: async (config, { dev }) => {
     config = substituteReact(config);
-    config.resolveLoader.modules.push(path.resolve(__dirname, 'node_modules'));
+    // config.resolveLoader.modules.push(path.resolve(__dirname, 'node_modules'));
+    config.resolveLoader.modules.push(
+      path.resolve(require.resolve('next'), '../../../..')
+    );
     config.module.rules.push(
       {
         test: /\.(css|scss)/,
@@ -124,7 +127,7 @@ module.exports = {
                   },
                 ],
               ],
-              presets: ['next/babel'],
+              presets: [require.resolve('next/babel')],
               ignore: [],
             },
           },
