@@ -1,6 +1,9 @@
 const { cwd, log } = henri;
 const path = require('path');
 const fs = require('fs');
+const { mergeTypes, mergeResolvers } = require('merge-graphql-schemas');
+const { makeExecutableSchema } = require('graphql-tools');
+const { graphqlExpress, graphiqlExpress } = require('apollo-server-express');
 
 function load(location) {
   const includeAll = require('include-all');
@@ -43,7 +46,9 @@ async function configure(models) {
     global[model.globalId] = store.addModel(model, user);
     henri._models.push(model.globalId);
     configuration.adapters[storeName] = store;
+    extractGraph(model);
   }
+  mergeGraph();
   return configuration;
 }
 
@@ -102,6 +107,38 @@ function requirePackage(store, conn) {
   }
 }
 
+function extractGraph(model) {
+  if (typeof model.graphql === 'undefined') {
+    return;
+  }
+  const { types = null, resolvers = null } = model.graphql;
+
+  if (typeof types === 'string') {
+    henri._graphql.typesList.push(types);
+  }
+  if (typeof resolvers === 'object') {
+    henri._graphql.resolversList.push(resolvers);
+  }
+}
+
+function mergeGraph() {
+  let should = false;
+  if (henri._graphql.typesList.length > 0) {
+    should = true;
+    henri._graphql.types = mergeTypes(henri._graphql.typesList);
+  }
+  if (henri._graphql.resolversList.length > 0) {
+    should = true;
+    henri._graphql.resolvers = mergeResolvers(henri._graphql.resolversList);
+  }
+  if (should) {
+    henri._graphql.schema = makeExecutableSchema({
+      typeDefs: henri._graphql.types,
+      resolvers: henri._graphql.resolvers,
+    });
+  }
+}
+
 async function start(configuration) {
   return new Promise(async (resolve, reject) => {
     for (const store of Object.keys(henri.stores)) {
@@ -137,6 +174,23 @@ async function stop() {
 
 async function init() {
   const { config } = henri;
+  henri._graphql = {
+    resolversList: [],
+    typesList: [],
+    schema: null,
+    types: null,
+    resolvers: null,
+    register: () => {
+      henri.router.use(
+        '/graphql',
+        graphqlExpress({ schema: henri._graphql.schema })
+      );
+      henri.router.use(
+        '/graphiql',
+        graphiqlExpress({ endpointURL: '/graphql' })
+      );
+    },
+  };
   await start(
     await configure(
       await load(
@@ -150,6 +204,7 @@ async function init() {
 
 async function reload() {
   await stop();
+  delete henri._graphql;
   henri._models.forEach(name => delete global[name]);
   henri._models = [];
   await init();

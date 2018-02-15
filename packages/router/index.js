@@ -36,6 +36,9 @@ function middlewares(router) {
   if (henri._middlewares.length > 0) {
     henri._middlewares.map(func => func());
   }
+  if (henri._graphql.schema) {
+    henri._graphql.register();
+  }
   henri.router.use((req, res, cb) => {
     res.locals._req = req;
     delete res.render;
