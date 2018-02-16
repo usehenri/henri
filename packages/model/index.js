@@ -4,6 +4,7 @@ const fs = require('fs');
 const { mergeTypes, mergeResolvers } = require('merge-graphql-schemas');
 const { makeExecutableSchema } = require('graphql-tools');
 const { graphqlExpress, graphiqlExpress } = require('apollo-server-express');
+const { runQuery } = require('apollo-server-core');
 
 function load(location) {
   const includeAll = require('include-all');
@@ -190,6 +191,14 @@ async function init() {
         graphiqlExpress({ endpointURL: '/graphql' })
       );
     },
+  };
+  henri.graphql = async (query = `{ No query }`, context = {}) => {
+    if (henri._graphql && !henri._graphql.schema) {
+      return 'No graphql schema found.';
+    }
+    const { schema } = henri._graphql;
+
+    return runQuery({ schema, query, context });
   };
   await start(
     await configure(
