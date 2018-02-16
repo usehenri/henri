@@ -9,11 +9,9 @@
     "coveralls":
       "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
     "test:watch":
-      "NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch --notify",
-    "publish-beta":
-      "lerna publish --yes --skip-git --exact --cd-version=prerelease --preid=alpha.${COMMIT_SHA:0:6}"
+      "cross-env NODE_CONFIG_DIR=./packages/config/tests/config jest --coverage --runInBand --verbose --bail --watch --notify",
+    "publish-canary": "lerna publish --yes --skip-git --exact -c"
   },
-
   "devDependencies": {
     "@types/bcrypt-nodejs": "^0.0.30",
     "@types/body-parser": "^1.16.7",
@@ -38,6 +36,7 @@
     "babel-plugin-syntax-object-rest-spread": "^6.13.0",
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "coveralls": "^3.0.0",
+    "cross-env": "^5.1.3",
     "eslint": "^4.17.0",
     "eslint-config-react-app": "^2.1.0",
     "eslint-config-standard": "^11.0.0-beta.0",
