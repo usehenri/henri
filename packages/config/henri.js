@@ -196,6 +196,11 @@ class Henri {
     return stack();
   }
 
+  // Mock function to get the data to be linted
+  gql(ast) {
+    return `${ast}`;
+  }
+
   async syntax(location, onSuccess) {
     const { log } = this;
     return new Promise(resolve => {
