@@ -192,6 +192,10 @@ class Henri {
     }
   }
 
+  stack() {
+    return stack();
+  }
+
   async syntax(location, onSuccess) {
     const { log } = this;
     return new Promise(resolve => {
