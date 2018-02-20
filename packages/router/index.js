@@ -43,9 +43,7 @@ function middlewares(router) {
     res.locals._req = req;
     delete res.render;
     res.render = async (route, { data = {}, graphql = null }) => {
-      log.inspect(data);
       data = (graphql && (await henri.graphql(graphql))) || data;
-      log.inspect(data);
       const opts = {
         data: (graphql && data.data) || data,
         errors: graphql && data.errors,
