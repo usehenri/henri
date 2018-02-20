@@ -39,6 +39,8 @@ class RouteHandler {
   prepare() {
     const { controllers, log } = henri;
     const routes = this.expended;
+    const stats = { good: 0, failed: 0 };
+    const output = ['routing: '];
     for (let key of Object.keys(routes)) {
       const { verb, route, controller, roles } = routes[key];
 
@@ -51,14 +53,22 @@ class RouteHandler {
           controller,
           roles,
         });
-        log.info(
-          `${key} => ${controller}: registered ${(roles && 'with roles') || ''}`
+        output.push(() =>
+          log.info(
+            `${key} => ${controller}: registered ${(roles && 'with roles') ||
+              ''}`
+          )
         );
+        stats.good++;
       } else {
         this.register({ verb, route, opts: routes[key] });
-        log.error(`${key} => ${controller}: unknown controller for route `);
+        output.push(() =>
+          log.error(`${key} => ${controller}: unknown controller for route `)
+        );
+        stats.failed++;
       }
     }
+    this.generateSummary(output, stats);
   }
 
   register({ verb, route, opts, controller, roles }) {
@@ -103,6 +113,27 @@ class RouteHandler {
       },
       henri.controllers[controller]
     );
+  }
+
+  generateSummary(output, { good = 0, failed = 0 }) {
+    const { log } = henri;
+    const result = [];
+    let level = 'error';
+    if (output.length < 0) {
+      return;
+    }
+    if (good > 0) {
+      result.push(`${good} routes loaded`);
+      level = 'info';
+    }
+    if (failed > 0) {
+      result.push(`${failed} routes had errors`);
+      level = good > 0 ? 'warn' : level;
+      good === 0 &&
+        result.push('There might be a syntax error in one of your controllers');
+    }
+
+    log.inspect(output, true, result.join('; '), level);
   }
 }
 
