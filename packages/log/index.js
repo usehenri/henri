@@ -1,7 +1,10 @@
 const winston = require('winston');
 const chalk = require('chalk');
 const path = require('path');
+const util = require('util');
 const stringWidth = require('string-width');
+const moment = require('moment');
+const inquirer = require('inquirer');
 const notifier = require('node-notifier');
 
 class Log {
@@ -11,6 +14,7 @@ class Log {
     this.winston = new winston.Logger();
     this._time = process.uptime();
     this._timeSkipped = 0;
+    this._inspections = [];
     this.setup();
     this.file = this.file.bind(this);
     this.time = this.time.bind(this);
@@ -18,6 +22,7 @@ class Log {
     this.error = this.error.bind(this);
     this.warn = this.warn.bind(this);
     this.info = this.info.bind(this);
+    this.inspect = this.inspect.bind(this);
     this.verbose = this.verbose.bind(this);
     this.debug = this.debug.bind(this);
     this.silly = this.silly.bind(this);
@@ -109,6 +114,124 @@ class Log {
     this.winston.silly(...args);
   }
 
+  inspect(
+    obj,
+    doNotParse = false,
+    msg = 'Something was added to inspection buffer',
+    level = 'info'
+  ) {
+    if (this.isProduction) {
+      return;
+    }
+
+    let data;
+
+    if (doNotParse) {
+      data = obj;
+    } else {
+      data = util.inspect(obj, {
+        depth: 8,
+        colors: true,
+        maxArrayLength: 8,
+      });
+    }
+
+    const site = henri.stack()[2];
+    const inspection = {
+      doNotParse,
+      msg,
+      level,
+      date: new Date(),
+      delta: process.uptime(),
+      data,
+      lines: doNotParse ? data.length : data.split('\n').length,
+      stack: site,
+      funcName: site.getFunctionName() || 'anonymous',
+      filename: site.getFileName(),
+      filePos: site.getLineNumber(),
+    };
+    this._inspections.push(inspection);
+    let size =
+      this._inspections.length > 1 ? ` [${this._inspections.length}]` : '';
+    this[level](`${msg}${size}; Ctrl+I for infos...`);
+  }
+  // eslint-disable-next-line complexity
+  getInspection() {
+    if (this._inspections.length < 1) {
+      return this.warn('inspection buffer is empty. nothing to show.');
+    }
+    if (this._inspections.length > 1) {
+      henri.clearConsole();
+      process.stdin.pause();
+      const opts = {
+        type: 'list',
+        message: 'Choose from entries below',
+        name: 'key',
+        choices: this._inspections.map((v, i) => {
+          return {
+            name: `${v.msg} (${v.funcName}) => ${moment(v.date).fromNow()}`,
+            value: i,
+          };
+        }),
+      };
+      opts.choices.push(new inquirer.Separator());
+      opts.choices.push({ name: 'Clear all/empty list', value: 'clear' });
+
+      inquirer
+        .prompt([opts])
+        .then(answer => {
+          if (answer.key === 'clear') {
+            this._inspections = [];
+          } else {
+            const line = this._inspections.splice(answer.key, 1);
+            this.showInspection(line.pop());
+          }
+          process.stdin.resume();
+          process.stdin.setRawMode(true);
+        })
+        .catch(err => {
+          this.error('An error occurred while parsing the choices...', err);
+          process.stdin.resume();
+          process.stdin.setRawMode(true);
+        });
+    } else {
+      const item = this._inspections.pop();
+      this.showInspection(item);
+    }
+  }
+  showInspection(data) {
+    henri.clearConsole();
+    console.log(chalk[getColor(data.level)](`> ${data.msg}`));
+    console.log(
+      '  ·',
+      chalk.white(`${data.lines} ${data.doNotParse ? 'items' : 'lines'},`),
+      chalk.green(`${moment(data.date).fromNow()}`)
+    );
+    if (data.doNotParse) {
+      this.line();
+      data.data.forEach(v => typeof v === 'function' && v());
+      this.line(19);
+    } else {
+      console.log(
+        '  ·',
+        chalk.green(
+          `${data.stack.getFileName()}:${data.stack.getLineNumber()}`
+        ),
+        '=>',
+        chalk.blue(data.stack.getFunctionName() || 'anonymous')
+      );
+
+      this.line();
+      console.log(data.data);
+    }
+    let ending =
+      this._inspections.length > 0
+        ? `${this._inspections.length} to go. Ctrl+I for more...`
+        : 'Done!';
+    console.log('>', chalk.green(ending));
+    this.line();
+  }
+
   getColor(color) {
     return getColor(color);
   }
@@ -143,6 +266,12 @@ class Log {
   space() {
     // eslint-disable-next-line no-console
     return console.log(' ');
+  }
+
+  /* istanbul ignore next */
+  line(times = 1) {
+    // eslint-disable-next-line no-console
+    times > 0 && console.log('\n') && this.line(times--);
   }
 
   time() {

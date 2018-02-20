@@ -125,6 +125,9 @@ function keyboardShortcuts() {
       '15': () => {
         open();
       },
+      '9': () => {
+        log.getInspection();
+      },
     };
     if (typeof actions[chr] !== 'undefined') {
       actions[chr]();
