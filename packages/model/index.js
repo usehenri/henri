@@ -176,20 +176,26 @@ async function stop() {
 async function init() {
   const { config } = henri;
   henri._graphql = {
-    resolversList: [],
-    typesList: [],
-    schema: null,
-    types: null,
+    active: false,
+    endpoint: (config.has('graphql') && config.get('graphql')) || '/_henri/gql',
     resolvers: null,
+    resolversList: [],
+    schema: null,
+    typesList: [],
+    types: null,
     register: () => {
+      henri._graphql.active = true;
       henri.router.use(
-        '/graphql',
+        henri._graphql.endpoint,
         graphqlExpress({ schema: henri._graphql.schema })
       );
-      henri.router.use(
-        '/graphiql',
-        graphiqlExpress({ endpointURL: '/graphql' })
-      );
+      if (!henri.isProduction) {
+        log.info('starting graphiql interface');
+        henri.router.use(
+          '/_henri/graphiql',
+          graphiqlExpress({ endpointURL: henri._graphql.endpoint })
+        );
+      }
     },
   };
   henri.graphql = async (query = `{ No query }`, context = {}) => {

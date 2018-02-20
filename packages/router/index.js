@@ -42,9 +42,17 @@ function middlewares(router) {
   henri.router.use((req, res, cb) => {
     res.locals._req = req;
     delete res.render;
-    res.render = (route, data = {}) => {
+    res.render = async (route, { data = {}, graphql = null }) => {
+      log.inspect(data);
+      data = (graphql && (await henri.graphql(graphql))) || data;
+      log.inspect(data);
       const opts = {
-        data,
+        data: (graphql && data.data) || data,
+        errors: graphql && data.errors,
+        graphql: {
+          endpoint: (henri._graphql.active && henri._graphql.endpoint) || false,
+          query: graphql || false,
+        },
         paths: henri._paths,
         localUrl: henri._url,
         user: req.user || {},
