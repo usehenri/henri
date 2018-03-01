@@ -174,12 +174,11 @@ This is not for production and you can easily port your models to other adapters
 The MongoDB adapter is using mongoose to provide a MongoDB ODM.
 
 ```bash
-  yarn add henri @usehenri/mongo
-  yarn add henri @usehenri/mongo
+  yarn add henri @usehenri/mongoose
 
   # or
 
-  npm install @usehenri/mongo --save
+  npm install @usehenri/mongoose --save
 ```
 
 ## Views
@@ -408,7 +407,6 @@ module.exports = {
 * Add helpers integration
 * Add documentation!
 * Build a website
-* Add React HOC to handle data and refresh
 * Report bugs!
 
 ## Contributing
@@ -419,7 +417,6 @@ module.exports = {
 
 * [Next.js](https://github.com/zeit/next.js)
 * [Express](https://expressjs.com/)
-* [Waterline](https://github.com/balderdashy/waterline)
 
 ## Author
 

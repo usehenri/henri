@@ -1,4 +1,3 @@
-
 <a href="http://usehenri.io" target="_blank">
   <p align="center">
     <img width="100" alt="" src="https://raw.githubusercontent.com/simplehub/henri/master/henri.png">
@@ -15,20 +14,20 @@
 
 henri is an easy to learn rails-like, server-side rendered (react & vue) with powerful ORMs
 
-- [How to use](#how-to-use)
-- [Configuration](#configuration)
-- [Models](#models)
-  - [Disk](#disk)
-  - [MongoDB](#mongodb)
-- [Views](#views)
-  - [React](#react)
-    - [Inferno](#inferno)
-    - [Preact](#preact)
-  - [Vue.js](#vue)
-  - [Template (template literal)](#template)
-- [Controllers](#controllers)
-- [Routes](#routes)
-- [Plans, plans!](#plans)
+* [How to use](#how-to-use)
+* [Configuration](#configuration)
+* [Models](#models)
+  * [Disk](#disk)
+  * [MongoDB](#mongodb)
+* [Views](#views)
+  * [React](#react)
+    * [Inferno](#inferno)
+    * [Preact](#preact)
+  * [Vue.js](#vue)
+  * [Template (template literal)](#template)
+* [Controllers](#controllers)
+* [Routes](#routes)
+* [Plans, plans!](#plans)
 
 ## How to use
 
@@ -94,8 +93,8 @@ You can have a `default.json`, `production.json`, etc.
 
 ```json
 {
-  "log": "main.log", 
-  "stores": { 
+  "log": "main.log",
+  "stores": {
     "default": {
       "adapter": "mongo",
       "url": "mongodb://user:pass@mongoserver.com:10914/henri-test"
@@ -113,7 +112,7 @@ You can have a `default.json`, `production.json`, etc.
 
 You can easily add models under `app/models`.
 
-They will be autoloaded and available throughout your application. 
+They will be autoloaded and available throughout your application.
 
 You can have multiple adapters and you can have relations between models living
 on different adapters, thanks to [waterline](https://github.com/balderdashy/waterline)
@@ -133,10 +132,9 @@ module.exports = {
   schema: {
     firstName: { type: 'string' },
     lastName: String,
-    tasks: {  }
-  }
+    tasks: {},
+  },
 };
-
 ```
 
 ```js
@@ -149,13 +147,12 @@ module.exports = {
     category: {
       type: 'string',
       validations: {
-        isIn: ['urgent', 'high', 'medium', 'low']
+        isIn: ['urgent', 'high', 'medium', 'low'],
       },
-      defaultsTo: 'low'
-    }
-  }
+      defaultsTo: 'low',
+    },
+  },
 };
-
 ```
 
 ### Disk
@@ -176,14 +173,12 @@ This is not for production and you can easily port your models to other adapters
 
 The MongoDB adapter is using mongoose to provide a MongoDB ODM.
 
-
 ```bash
-  yarn add henri @usehenri/mongo
-  yarn add henri @usehenri/mongo
+  yarn add henri @usehenri/mongoose
 
   # or
 
-  npm install @usehenri/mongo --save
+  npm install @usehenri/mongoose --save
 ```
 
 ## Views
@@ -191,9 +186,10 @@ The MongoDB adapter is using mongoose to provide a MongoDB ODM.
 You can use [React](#react), [Vue](#vue) and template literals as renderer. They are all server-side rendered and the first two options use webpack to push updates to the browser.
 
 ### React
+
 We use [next.js](https://github.com/zeit/next.js) to render pages and inject
 data from controllers. You can only add pages and if the defined routes don't
-match, and next matches a route, it will be rendered. 
+match, and next matches a route, it will be rendered.
 
 The data injected into the view can be refetched with the `/_data/` suffix.
 
@@ -203,24 +199,24 @@ Usage (config file):
 {
   "renderer": "react"
 }
-
 ```
 
 Example:
-```jsx
 
-// app/views/pages/log.js 
+```jsx
+// app/views/pages/log.js
 
 import React from 'react';
 import Link from 'next/link';
 
-export default (data) => (
+export default data => (
   <div>
     <div>{data}</div>
-    <Link href="/home"><a>Home</a></Link>
+    <Link href="/home">
+      <a>Home</a>
+    </Link>
   </div>
 );
-
 ```
 
 You can also add webpack configuration in `config/webpack.js`:
@@ -239,7 +235,6 @@ module.exports = {
     return config;
   },
 };
-
 ```
 
 #### Inferno
@@ -251,13 +246,13 @@ Installation:
 ```bash
 yarn add react react-dom next inferno inferno-compat inferno-server
 ```
+
 Usage (config file):
 
 ```json
 {
   "renderer": "inferno"
 }
-
 ```
 
 #### Preact
@@ -269,19 +264,20 @@ Installation:
 ```bash
 yarn add react react-dom next preact preact-compat
 ```
+
 Usage (config file):
 
 ```json
 {
   "renderer": "preact"
 }
-
 ```
 
 ### Vue.js
+
 We use [Nuxt.js](https://nuxtjs.org/) to render pages and inject
 data from controllers. You can only add pages and if the defined routes don't
-match, and nuxt matches a route, it will be rendered. 
+match, and nuxt matches a route, it will be rendered.
 
 The data injected into the view can be refetched with the `/_data/` suffix.
 
@@ -291,21 +287,18 @@ Usage (config file):
 {
   "renderer": "vue"
 }
-
 ```
 
 Example:
-```vue
 
+```vue
 <template>
   <div>
     <h1>Welcome!</h1>
     <nuxt-link to="/about">About page</nuxt-link>
   </div>
 </template>
-
 ```
-
 
 ### Template
 
@@ -319,12 +312,11 @@ Usage (config file):
 {
   "renderer": "template"
 }
-
 ```
 
 Example:
-```html
 
+```html
 <html>
 
 <head>
@@ -337,7 +329,6 @@ Example:
 </body>
 
 </html>
-
 ```
 
 ## Controllers
@@ -390,11 +381,11 @@ be rendered if no routes match before.
 Routes are a simple object with a key standing as a route or an action verb
 (used by express) and a route.
 
-If you want to access the `res.render` data, you can make the call with 
+If you want to access the `res.render` data, you can make the call with
 `application/json` header. Everything else will be rendered.
 
 Each route defined here will also have a `/_data/` route attached that will return
-only the data injected into the view if you use `res.render`. 
+only the data injected into the view if you use `res.render`.
 
 As with the `/log` route above, fetching `/log` will give you a SSR React page and
 calling `/_data/log` will return a json object containing the users.
@@ -405,31 +396,28 @@ calling `/_data/log` will return a json object containing the users.
 module.exports = {
   '/test': 'user#info', // default to 'get /test'
   '/abc/:id': 'moo#iii', // as this controller does not exists, route won't be loaded
-  '/user/find': 'user#fetch', 
+  '/user/find': 'user#fetch',
   'get /poo': 'user#postinfo',
-  'post /poo': 'user#create'
+  'post /poo': 'user#create',
 };
-
 ```
 
 ## Plans
 
- - Add helpers integration
- - Add documentation!
- - Build a website
- - Add React HOC to handle data and refresh
- - Report bugs!
+* Add helpers integration
+* Add documentation!
+* Build a website
+* Report bugs!
 
 ## Contributing
 
- - Submit issues, pull requests, anything!
+* Submit issues, pull requests, anything!
 
 ## Thanks to the following and their contributors
 
-  - [Next.js](https://github.com/zeit/next.js)
-  - [Express](https://expressjs.com/)
-  - [Waterline](https://github.com/balderdashy/waterline)
+* [Next.js](https://github.com/zeit/next.js)
+* [Express](https://expressjs.com/)
 
 ## Author
 
-  - Félix-Antoine Paradis ([@reel](https://github.com/reel))
+* Félix-Antoine Paradis ([@reel](https://github.com/reel))
