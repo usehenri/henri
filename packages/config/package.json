@@ -8,6 +8,7 @@
   "dependencies": {
     "@usehenri/log": "^0.20.0",
     "callsite": "^1.0.0",
-    "config": "^1.29.4"
+    "config": "^1.30.0",
+    "cross-spawn": "^6.0.4"
   }
 }

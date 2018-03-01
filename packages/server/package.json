@@ -15,7 +15,7 @@
     "detect-port": "^1.2.1",
     "express": "^4.15.3",
     "path": "^0.12.7",
-    "prettier": "^1.9.2",
+    "prettier": "^1.11.1",
     "react-dev-utils": "^5.0.0",
     "server-timings": "^2.0.1",
     "supertest": "^3.0.0"

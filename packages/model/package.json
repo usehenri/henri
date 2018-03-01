@@ -11,6 +11,6 @@
     "graphql": "^0.13.0",
     "graphql-tools": "^2.21.0",
     "include-all": "^4.0.3",
-    "merge-graphql-schemas": "^1.4.0"
+    "merge-graphql-schemas": "^1.5.0"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "name": "@usehenri/mailer",
+  "version": "0.20.0",
+  "description": "henri mailer",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "nodemailer": "^4.6.0"
+  }
+}
