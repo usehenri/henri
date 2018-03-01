@@ -1,7 +1,7 @@
-const spawn = require('child_process').spawnSync;
+const spawn = require('cross-spawn');
 const path = require('path');
 
-const yarnExists = spawn('yarn', ['help']);
+const yarnExists = spawn.sync('yarn', ['help']);
 
 const { cwd, log } = henri;
 
