@@ -41,8 +41,15 @@ function middlewares(router) {
   }
   henri.router.use((req, res, cb) => {
     res.locals._req = req;
+    req._henri = {
+      paths: henri._paths,
+      localUrl: henri._url,
+      user: req.user || {},
+      query: req.query,
+    };
     delete res.render;
-    res.render = async (route, { data = {}, graphql = null }) => {
+    res.render = async (route, extras = {}) => {
+      let { data = {}, graphql = null } = extras;
       data = (graphql && (await henri.graphql(graphql))) || data;
       const opts = {
         data: (graphql && data.data) || data,
@@ -57,7 +64,7 @@ function middlewares(router) {
         query: req.query,
       };
       if (req.url.startsWith('/_data/')) {
-        return res.json(data);
+        return res.json(opts);
       }
       /* istanbul ignore next */
       return res.format({
