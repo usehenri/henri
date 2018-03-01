@@ -8,14 +8,14 @@ const inquirer = require('inquirer');
 const notifier = require('node-notifier');
 
 class Log {
-  constructor({ customWidth = null } = {}) {
+  constructor({ customWidth = null, config = null } = {}) {
     this.since = Date.now();
     this.customWidth = customWidth;
     this.winston = new winston.Logger();
     this._time = process.uptime();
     this._timeSkipped = 0;
     this._inspections = [];
-    this.setup();
+    this.setup(config);
     this.file = this.file.bind(this);
     this.time = this.time.bind(this);
     this.setup = this.setup.bind(this);
@@ -38,12 +38,12 @@ class Log {
     return false;
   }
 
-  setup() {
+  setup(providedConfig) {
     let config = new Map();
 
     /* istanbul ignore if */
-    if (global['henri'] && global['henri'].config) {
-      config = henri.config;
+    if (providedConfig) {
+      config = providedConfig;
     }
 
     this.winston.add(winston.transports.Console, {
