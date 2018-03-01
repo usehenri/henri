@@ -18,22 +18,12 @@ if (!module.parent) {
   process.exit(1);
 }
 
-// eslint-disable-next-line complexity
 module.exports = (pkg, args) => {
   const argv = require('minimist')(args.slice(2));
-  updateNotifier({ pkg, updateCheckInterval: 1000 }).notify({
-    defer: false,
-    isGlobal: true,
-  });
 
-  if (typeof argv['production'] !== 'undefined') {
-    process.env.NODE_ENV = 'production';
-  }
+  setGlobalEnv(argv);
 
-  if (typeof argv['debug'] !== 'undefined') {
-    process.env.DEBUG =
-      typeof argv['debug'] === 'boolean' ? '*' : argv['debug'];
-  }
+  startDesktopNotifier(pkg);
 
   const command = argv._.shift();
 
@@ -55,3 +45,32 @@ module.exports = (pkg, args) => {
       help();
   }
 };
+
+function startDesktopNotifier(pkg) {
+  if (process.env.NODE_ENV !== 'production') {
+    updateNotifier({ pkg, updateCheckInterval: 1000 }).notify({
+      defer: false,
+      isGlobal: true,
+    });
+  }
+}
+
+function setGlobalEnv(argv) {
+  if (typeof argv['production'] !== 'undefined') {
+    process.env.NODE_ENV = 'production';
+  }
+
+  if (typeof argv['debug'] !== 'undefined') {
+    process.env.DEBUG =
+      typeof argv['debug'] === 'boolean' ? '*' : argv['debug'];
+  }
+
+  if (typeof argv['inspect'] !== 'undefined') {
+    const inspector = require('inspector');
+    inspector.open(
+      argv['inspect'] || 9229,
+      '127.0.0.1',
+      typeof argv['wait'] !== 'undefined'
+    );
+  }
+}
