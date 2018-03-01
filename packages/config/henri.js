@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const Config = require('./config');
+const Log = require('@usehenri/log');
 const stack = require('callsite');
 const readline = require('readline');
 const prettier = require('prettier');
@@ -15,6 +16,7 @@ class Henri {
     this.setEnv(NODE_ENV);
     this.setup();
     this.config = new Config();
+    this.log = new Log({ config: this.config });
     this.settings = {
       package: require('./package.json'),
       arch,
