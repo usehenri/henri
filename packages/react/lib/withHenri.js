@@ -23,7 +23,15 @@ export default ComposedComponent => {
     static displayName = `withHenri(${getDisplayName(ComposedComponent)})`;
 
     static async getInitialProps(ctx) {
-      const { query: { data, user, paths, localUrl } } = ctx;
+      let props = Object.assign({}, ctx);
+      if (!props.paths && !props.req) {
+        const result = await axios.get(`/_data${ctx.pathname}`);
+        props.query = result.data;
+      }
+      if (props.req && props.req._henri) {
+        props.query = Object.assign({}, props.req._henri, props.query);
+      }
+      const { query: { data, user, paths, localUrl } } = props;
       let composedInitialProps = {};
       if (ComposedComponent.getInitialProps) {
         composedInitialProps = await ComposedComponent.getInitialProps(ctx);
