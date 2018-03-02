@@ -69,7 +69,7 @@ function middlewares(router) {
       /* istanbul ignore next */
       return res.format({
         html: () => view.render(req, res, route, opts),
-        json: () => res.json(data),
+        json: () => res.json(opts),
         default: () => view.render(req, res, route, opts),
       });
     };
