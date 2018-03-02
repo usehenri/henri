@@ -46,7 +46,7 @@ export default ComposedComponent => {
         data,
       })
         .then(resp => {
-          this.setState({ data: resp.data });
+          this.setState({ data: resp.data && resp.data.data });
         })
         .catch(err => {
           console.log('error fetching data', err);

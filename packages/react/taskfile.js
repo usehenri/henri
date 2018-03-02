@@ -4,7 +4,7 @@ export async function compile(task) {
 
 export async function lib(task, opts) {
   await task
-    .source(opts.src || 'lib/**/*.js')
+    .source(opts.src || 'src/**/*.js')
     .babel()
     .uglify({
       compress: {
@@ -20,5 +20,5 @@ export async function release(task, opts) {
 
 export default async function(task) {
   await task.start('lib');
-  await task.watch('lib/**/*.js', 'lib');
+  await task.watch('src/**/*.js', 'lib');
 }

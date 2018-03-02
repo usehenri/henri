@@ -30,7 +30,7 @@ const Select = (
         value={
           (context.data[name] && context.data[name]._id) ||
           context.data[name] ||
-          choices[0]._id ||
+          (choices[0] && choices[0]._id) ||
           ''
         }
         onChange={e => context.handleChange(e)}
