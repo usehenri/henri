@@ -10,18 +10,19 @@ class FormHtmlEditor extends Component {
   }
 
   render() {
-    const { validation = {}, sanitation = {} } = this.props;
+    const { validation = {}, sanitation = {}, name } = this.props;
     const ReactQuill = this.ReactQuill;
     if (typeof window !== 'undefined' && ReactQuill) {
       return (
         <ReactQuill
           onChange={value =>
             this.context.handleChange(
-              { target: { name: this.props.name, value } },
+              { target: { name, value } },
               validation,
               sanitation
             )
           }
+          defaultValue={this.context.data[name] || ''}
           theme="snow"
           {...this.props}
         />
