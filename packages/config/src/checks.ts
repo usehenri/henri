@@ -1,3 +1,4 @@
+import henri from './henri';
 const spawn = require('cross-spawn');
 const path = require('path');
 
@@ -20,7 +21,7 @@ const checkPackages = (packages = []) => {
   }
 };
 
-function checkMissing(packages) {
+function checkMissing(packages: string[]) {
   let missing = [];
 
   for (let pkg of packages) {
@@ -33,7 +34,7 @@ function checkMissing(packages) {
   return missing;
 }
 
-const generateMessage = missing => {
+const generateMessage = (missing: string[]) => {
   if (missing.length > 1) {
     return missing.map(
       (val, i) => (i === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`)

@@ -1,7 +1,8 @@
 const config = require('config');
 
-class Config {
-  constructor(opts) {
+export default class Config {
+  config: any;
+  constructor(opts?: object) {
     if (!opts) {
       return config;
     }
@@ -9,22 +10,20 @@ class Config {
     return this.config;
   }
 
-  has(key) {
+  has(key: string): any {
     if (typeof this.config[key] !== 'undefined') {
       return this.config[key];
     }
     return false;
   }
 
-  get(key) {
+  get(key: string) {
     return (
       this.has(key) || new Error(`Configuration key ${key} does not exists`)
     );
   }
 
-  set(key, value) {
+  set(key: string, value: any) {
     this.config[key] = value;
   }
 }
-
-module.exports = Config;

@@ -1,45 +1,41 @@
 const path = require('path');
 const fs = require('fs');
-const Config = require('./config');
+import Config from './config';
+import validator from 'validator';
 const Log = require('@usehenri/log');
 const stack = require('callsite');
 const readline = require('readline');
 const prettier = require('prettier');
 
 class Henri {
+  config: Config;
+  cwd: string;
+  env: string | undefined;
+  folders: any;
+  isDev: boolean;
+  isProduction: boolean;
+  isTest: boolean;
+  log: any;
+  release: string | undefined;
+  settings: any;
+  status: any;
+  validator: IValidatorStatic;
+  version: string | undefined;
+  _modules: any;
+  _loaders: any;
+  _unloaders: any;
+  _models: any;
+  _middlewares: any;
+  _paths: any;
+  _routes: any;
+  _user: any;
   constructor() {
     this.setProcess();
     const { env: { NODE_ENV }, arch, platform } = process;
     this.env = NODE_ENV;
-    this.setEnv = this.setEnv.bind(this);
-    this.setup = this.setup.bind(this);
-    this.setEnv(NODE_ENV);
-    this.setup();
-    this.config = new Config();
-    this.log = new Log({ config: this.config });
-    this.settings = {
-      package: require('./package.json'),
-      arch,
-      platform,
-    };
-    this.release = this.settings.package.version || undefined;
-    this.version = this.release;
-    this.cwd = process.cwd();
-    this.folders = {
-      view: this.config.has('location.view')
-        ? this.config.get('location.view')
-        : path.resolve('./app/views'),
-    };
-    this.status = {};
-  }
-
-  setEnv(NODE_ENV) {
     this.isProduction = NODE_ENV === 'production';
     this.isDev = NODE_ENV !== 'production' && NODE_ENV !== 'test';
     this.isTest = NODE_ENV === 'test';
-  }
-
-  setup() {
     this._modules = {};
     this._loaders = [];
     this._unloaders = [];
@@ -48,6 +44,28 @@ class Henri {
     this._paths = {};
     this._routes = {};
     this._user = null;
+    this.setup = this.setup.bind(this);
+    this.setup();
+    this.config = new Config();
+    this.log = new Log({ config: this.config });
+    this.settings = {
+      package: { version: '0.22.0' },
+      arch,
+      platform,
+    };
+    this.release = this.settings.package.version || undefined;
+    this.version = this.release;
+    this.cwd = process.cwd();
+    this.validator = validator;
+    this.folders = {
+      view: this.config.has('location.view')
+        ? this.config.get('location.view')
+        : path.resolve('./app/views'),
+    };
+    this.status = {};
+  }
+
+  setup() {
     this.setProcess = this.setProcess.bind(this);
     this.addLoader = this.addLoader.bind(this);
     this.addUnloader = this.addUnloader.bind(this);
@@ -64,7 +82,7 @@ class Henri {
 
   setProcess() {
     // Remove config warning when no file is available
-    process.env.SUPPRESS_NO_CONFIG_WARNING = true;
+    process.env.SUPPRESS_NO_CONFIG_WARNING = 'true';
 
     /* istanbul ignore next */
     if (process.env.NODE_ENV !== 'production') {
@@ -72,13 +90,13 @@ class Henri {
     }
   }
 
-  addLoader(func) {
+  addLoader(func: any) {
     if (!this.isProduction && typeof func === 'function') {
       this._loaders.push(func);
     }
   }
 
-  addUnloader(func) {
+  addUnloader(func: any) {
     if (typeof func === 'function') {
       this._unloaders.unshift(func);
     } else {
@@ -88,25 +106,26 @@ class Henri {
     }
   }
 
-  addMiddleware(func) {
+  addMiddleware(func: any) {
     this._middlewares.push(func);
   }
 
-  setStatus(key, value = false) {
+  setStatus(key: string, value = false) {
     this.status[key] = value;
   }
 
-  getStatus(key) {
+  getStatus(key: string) {
     return this.status[key] || undefined;
   }
 
-  addModule(name, func, force) {
+  addModule(name: string, func: any, force?: boolean) {
     const { hasModule, log } = this;
     const info = stack()[1];
 
     hasModule(name, info, force);
-
+    // @ts-ignore
     this[name] = func;
+    // @ts-ignore
     this[name] = this[name].bind(this);
 
     /* istanbul ignore next */
@@ -120,7 +139,8 @@ class Henri {
     log.info(`${name} module loaded.`);
   }
 
-  hasModule(name, info, force = false) {
+  hasModule(name: string, info: any, force = false) {
+    // @ts-ignore
     if (typeof this[name] !== 'undefined' && !force) {
       const { log } = this;
       const { time, filename, line } = this._modules[name];
@@ -148,6 +168,7 @@ class Henri {
           await loader();
         }
       }
+      // @ts-ignore
       log.info(`server hot reload completed in ${diff(start)}ms`);
       log.space();
       log.notify('Hot-reload', 'Server-side hot reload completed..');
@@ -168,6 +189,7 @@ class Henri {
           await reaper();
         }
       }
+      // @ts-ignore
       log.warn(`server tear down completed in ${diff(start)}ms`);
     } catch (e) {
       /* istanbul ignore next */
@@ -175,7 +197,7 @@ class Henri {
     }
   }
 
-  diff(ms = null) {
+  diff(ms?: [number, number] | undefined): [number, number] | number {
     if (!ms) {
       return process.hrtime();
     }
@@ -187,26 +209,26 @@ class Henri {
     // Thanks to friendly-errors-webpack-plugin
     if (process.stdout.isTTY) {
       // Fill screen with blank lines. Then move to 0 (beginning of visible part) and clear it
-      const blank = '\n'.repeat(process.stdout.rows);
+      const blank = '\n'.repeat(process.stdout.rows || 1);
       console.log(blank); // eslint-disable-line no-console
       readline.cursorTo(process.stdout, 0, 0);
       readline.clearScreenDown(process.stdout);
     }
   }
 
-  stack() {
+  public stack() {
     return stack();
   }
 
   // Mock function to get the data to be linted
-  gql(ast) {
+  gql(ast: string) {
     return `${ast}`;
   }
 
-  async syntax(location, onSuccess) {
+  async syntax(location: string, onSuccess: any) {
     const { log } = this;
     return new Promise(resolve => {
-      fs.readFile(location, 'utf8', (err, data) => {
+      fs.readFile(location, 'utf8', (err: Error, data: string) => {
         if (err) {
           log.error(`unable to check the syntax of ${location}`);
           return resolve(false);
@@ -216,7 +238,7 @@ class Henri {
     });
   }
 
-  _parseSyntax(resolve, file, data, onSuccess = null) {
+  _parseSyntax(resolve: any, file: string, data: string, onSuccess?: any) {
     const { log } = this;
     try {
       prettier.format(data.toString(), {
@@ -234,4 +256,5 @@ class Henri {
   }
 }
 
-module.exports = Henri;
+// @ts-ignore
+export default new Henri();

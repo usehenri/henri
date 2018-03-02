@@ -9,6 +9,11 @@
     "@usehenri/log": "^0.20.0",
     "callsite": "^1.0.0",
     "config": "^1.30.0",
-    "cross-spawn": "^6.0.4"
+    "cross-spawn": "^6.0.4",
+    "validator": "^9.4.1"
+  },
+  "devDependencies": {
+    "@types/validator": "^9.4.0",
+    "typescript": "^2.7.2"
   }
 }
