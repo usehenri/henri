@@ -1,4 +1,4 @@
-const { cwd, log } = henri;
+const { cwd, log, utils: { checkPackages } } = henri;
 const path = require('path');
 const next = require('next');
 const builder = require(path.resolve(require.resolve('next'), '../build'))
@@ -12,19 +12,13 @@ const renderer = henri.config.get('renderer').toLowerCase();
 
 switch (renderer) {
   case 'react':
-    henri.checkPackages(['react', 'react-dom', 'react-hot-loader']);
+    checkPackages(['react', 'react-dom', 'react-hot-loader']);
     break;
   case 'preact':
-    henri.checkPackages([
-      'react',
-      'react-dom',
-      'next',
-      'preact',
-      'preact-compat',
-    ]);
+    checkPackages(['react', 'react-dom', 'next', 'preact', 'preact-compat']);
     break;
   case 'inferno':
-    henri.checkPackages([
+    checkPackages([
       'react',
       'react-dom',
       'next',
