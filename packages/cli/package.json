@@ -6,7 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/config": "^0.20.2",
+    "@usehenri/core": "^0.20.2",
     "@usehenri/controller": "^0.18.0",
     "@usehenri/model": "^0.20.0",
     "@usehenri/router": "^0.20.2",
