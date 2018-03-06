@@ -7,7 +7,6 @@
     }
   },
   "location": {
-    "controllers": "./packages/controller/tests/controllers",
     "models": "./packages/model/tests/models",
     "routes": "./packages/router/tests/routes",
     "view": "./packages/view/tests/location"

@@ -1,42 +1,19 @@
 const path = require('path');
 const fs = require('fs');
-import Config from './config';
-import validator from 'validator';
-const Log = require('@usehenri/log');
-const stack = require('callsite');
+const validator = require('validator');
 const readline = require('readline');
 const prettier = require('prettier');
+const Modules = require('./modules');
 
 class Henri {
-  config: Config;
-  cwd: string;
-  env: string | undefined;
-  folders: any;
-  isDev: boolean;
-  isProduction: boolean;
-  isTest: boolean;
-  log: any;
-  release: string | undefined;
-  settings: any;
-  status: any;
-  validator: IValidatorStatic;
-  version: string | undefined;
-  _modules: any;
-  _loaders: any;
-  _unloaders: any;
-  _models: any;
-  _middlewares: any;
-  _paths: any;
-  _routes: any;
-  _user: any;
-  constructor() {
+  constructor(runlevel = 6) {
     this.setProcess();
     const { env: { NODE_ENV }, arch, platform } = process;
     this.env = NODE_ENV;
     this.isProduction = NODE_ENV === 'production';
     this.isDev = NODE_ENV !== 'production' && NODE_ENV !== 'test';
     this.isTest = NODE_ENV === 'test';
-    this._modules = {};
+    this.modules = new Modules(this);
     this._loaders = [];
     this._unloaders = [];
     this._models = [];
@@ -46,34 +23,29 @@ class Henri {
     this._user = null;
     this.setup = this.setup.bind(this);
     this.setup();
-    this.config = new Config();
-    this.log = new Log({ config: this.config });
     this.settings = {
       package: { version: '0.22.0' },
       arch,
       platform,
+      runlevel,
     };
+    Object.freeze(this.settings);
     this.release = this.settings.package.version || undefined;
     this.version = this.release;
     this.cwd = process.cwd();
     this.validator = validator;
     this.folders = {
-      view: this.config.has('location.view')
-        ? this.config.get('location.view')
-        : path.resolve('./app/views'),
+      view: path.resolve('./app/views'),
     };
     this.status = {};
+    this.utils = require('./utils');
   }
 
   setup() {
     this.setProcess = this.setProcess.bind(this);
-    this.addLoader = this.addLoader.bind(this);
-    this.addUnloader = this.addUnloader.bind(this);
     this.addMiddleware = this.addMiddleware.bind(this);
     this.setStatus = this.setStatus.bind(this);
     this.getStatus = this.getStatus.bind(this);
-    this.addModule = this.addModule.bind(this);
-    this.hasModule = this.hasModule.bind(this);
     this.reload = this.reload.bind(this);
     this.stop = this.stop.bind(this);
     this.syntax = this.syntax.bind(this);
@@ -90,67 +62,16 @@ class Henri {
     }
   }
 
-  addLoader(func: any) {
-    if (!this.isProduction && typeof func === 'function') {
-      this._loaders.push(func);
-    }
-  }
-
-  addUnloader(func: any) {
-    if (typeof func === 'function') {
-      this._unloaders.unshift(func);
-    } else {
-      this.log.error(
-        'you tried to register an unloader which is not a function'
-      );
-    }
-  }
-
-  addMiddleware(func: any) {
+  addMiddleware(func) {
     this._middlewares.push(func);
   }
 
-  setStatus(key: string, value = false) {
+  setStatus(key, value = false) {
     this.status[key] = value;
   }
 
-  getStatus(key: string) {
+  getStatus(key) {
     return this.status[key] || undefined;
-  }
-
-  addModule(name: string, func: any, force?: boolean) {
-    const { hasModule, log } = this;
-    const info = stack()[1];
-
-    hasModule(name, info, force);
-    // @ts-ignore
-    this[name] = func;
-    // @ts-ignore
-    this[name] = this[name].bind(this);
-
-    /* istanbul ignore next */
-    this._modules[name] = {
-      filename: info.getFileName(),
-      line: info.getLineNumber(),
-      func: info.getFunctionName() || 'anonymous',
-      time: Date.now(),
-    };
-
-    log.info(`${name} module loaded.`);
-  }
-
-  hasModule(name: string, info: any, force = false) {
-    // @ts-ignore
-    if (typeof this[name] !== 'undefined' && !force) {
-      const { log } = this;
-      const { time, filename, line } = this._modules[name];
-      const timeDiff = Date.now() - time;
-      log.fatalError(`unable to register module '${name}' as it already exists
-  
-      it was registered in ${filename}:${line} about ${timeDiff}ms ago
-      
-      you tried to register from ${info.getFileName()}:${info.getLineNumber()}`);
-    }
   }
 
   async reload() {
@@ -173,6 +94,8 @@ class Henri {
       log.space();
       log.notify('Hot-reload', 'Server-side hot reload completed..');
     } catch (e) {
+      console.log('got some error deep in here');
+      console.log(e);
       /* istanbul ignore next */
       log.error(e);
     }
@@ -197,7 +120,7 @@ class Henri {
     }
   }
 
-  diff(ms?: [number, number] | undefined): [number, number] | number {
+  diff(ms = null) {
     if (!ms) {
       return process.hrtime();
     }
@@ -216,19 +139,15 @@ class Henri {
     }
   }
 
-  public stack() {
-    return stack();
-  }
-
   // Mock function to get the data to be linted
-  gql(ast: string) {
+  gql(ast) {
     return `${ast}`;
   }
 
-  async syntax(location: string, onSuccess: any) {
+  async syntax(location, onSuccess) {
     const { log } = this;
     return new Promise(resolve => {
-      fs.readFile(location, 'utf8', (err: Error, data: string) => {
+      fs.readFile(location, 'utf8', (err, data) => {
         if (err) {
           log.error(`unable to check the syntax of ${location}`);
           return resolve(false);
@@ -238,7 +157,7 @@ class Henri {
     });
   }
 
-  _parseSyntax(resolve: any, file: string, data: string, onSuccess?: any) {
+  _parseSyntax(resolve, file, data, onSuccess) {
     const { log } = this;
     try {
       prettier.format(data.toString(), {
@@ -256,5 +175,4 @@ class Henri {
   }
 }
 
-// @ts-ignore
-export default new Henri();
+module.exports = new Henri();

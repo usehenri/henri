@@ -1,0 +1,26 @@
+{
+  "name": "@usehenri/core",
+  "version": "0.20.2",
+  "description": "henri core package",
+  "main": "src/index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "callsite": "^1.0.0",
+    "chalk": "^2.3.1",
+    "config": "^1.30.0",
+    "cross-spawn": "^6.0.4",
+    "import-fresh": "^2.0.0",
+    "include-all": "^4.0.3",
+    "inquirer": "^5.1.0",
+    "moment": "^2.20.1",
+    "node-notifier": "^5.2.1",
+    "string-width": "^2.1.1",
+    "validator": "^9.4.1",
+    "winston": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/validator": "^9.4.0",
+    "typescript": "^2.7.2"
+  }
+}

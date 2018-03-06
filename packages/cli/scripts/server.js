@@ -3,11 +3,10 @@ const main = ({ skipView }, cb) => {
 
   async function init() {
     try {
-      require('@usehenri/config');
+      require('@usehenri/core');
       require('@usehenri/server');
       await require('@usehenri/model');
       require('@usehenri/user');
-      await require('@usehenri/controller');
       !skipView && (await require('@usehenri/view'));
       require('@usehenri/router');
       if (typeof cb === 'function') {
