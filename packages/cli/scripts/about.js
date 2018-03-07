@@ -10,7 +10,10 @@ const main = async () => {
   l(`Node version:          ${await run('node -v')}`);
   l(`yarn version:          ${await run('yarn -v')}`);
   l(`npm version:           ${await run('npm -v')}`);
-  l(`henri project:         ${validInstall() ? 'yes' : 'no'}`, true);
+  l(
+    `henri project:         ${validInstall({ fatal: false }) ? 'yes' : 'no'}`,
+    true
+  );
   l(`@usehenri/disk:        ${packageResolve('disk')}`);
   l(`@usehenri/mongoose:    ${packageResolve('mongoose')}`);
   l(`@usehenri/mysql:       ${packageResolve('mysql')}`);

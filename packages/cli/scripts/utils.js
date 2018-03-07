@@ -24,8 +24,8 @@ const validInstall = args => {
   }
 };
 
-const notHenri = ({ fatal = false }) => {
-  if (abort) {
+const notHenri = ({ fatal = false } = {}) => {
+  if (fatal) {
     abort(
       `
     Seems like you are not in an henri project.
