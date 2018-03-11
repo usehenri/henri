@@ -60,7 +60,6 @@ class Henri {
     this.cwd = process.cwd();
 
     /* istanbul ignore next */
-
     process.on('unhandledRejection', (reason, p) =>
       this.pen.fatal('promise', reason, null, p)
     );
@@ -114,17 +113,14 @@ class Henri {
     const start = diff();
     const reapers = this._unloaders;
     try {
-      /* istanbul ignore next */
       if (reapers.length > 0) {
         for (let reaper of reapers) {
           await reaper();
         }
       }
-      // @ts-ignore
       pen.warn('henri', `server tear down completed in ${diff(start)}ms`);
       return true;
     } catch (e) {
-      /* istanbul ignore next */
       pen.error(e);
       return false;
     }

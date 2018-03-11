@@ -88,6 +88,7 @@ describe('henri', () => {
     const errorStopper = () => {
       throw new Error('abc');
     };
+    expect(await henri.stop()).toBeTruthy();
 
     henri._unloaders.push(stopper);
     expect(await henri.stop()).toBeTruthy();
