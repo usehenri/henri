@@ -1,11 +1,10 @@
 const main = ({ skipView }, cb) => {
   global['_initialDelay'] = process.hrtime();
+  process.env.SUPPRESS_NO_CONFIG_WARNING = 'true';
 
   async function init() {
     try {
-      require('@usehenri/core');
-      require('@usehenri/server');
-      await require('@usehenri/model');
+      await require('@usehenri/core')();
       require('@usehenri/user');
       !skipView && (await require('@usehenri/view'));
       require('@usehenri/router');
@@ -13,6 +12,7 @@ const main = ({ skipView }, cb) => {
         cb();
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.dir(error, { colors: true });
       process.exit(-1);
     }
