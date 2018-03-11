@@ -25,38 +25,47 @@ class BaseModuleClass {
      * Reloadable modules are teared down in reverse order and loaded in order
      */
     this.runlevel = 5;
+
+    /** not reloadable by default */
+    this.reloadable = false;
+
     /** the key that we should bind to to display terminal info. */
     this.key = null;
   }
 
   /** this is called when the modules started */
   init() {
-    console.log(this.name, 'init method is not implemented');
+    this._out(this.name, 'init method is not implemented');
   }
 
   /** method to be called if 'key' is defined */
   info() {
-    console.log(this.name, 'info method is not implemented');
+    this._out(this.name, 'info method is not implemented');
   }
 
   /** will be called if reloadable === true */
   reload() {
-    console.log(this.name, 'reload method is not implemented');
+    this._out(this.name, 'reload method is not implemented');
   }
 
   /** method to set things up before starting */
   setup() {
-    console.log(this.name, 'setup method is not implemented');
+    this._out(this.name, 'setup method is not implemented');
   }
 
   /** this should be called by init after setup */
   start() {
-    console.log(this.name, 'start method is not implemented');
+    this._out(this.name, 'start method is not implemented');
   }
 
   /** will be called if reloadable and on clean teardown */
   stop() {
-    console.log(this.name, 'stop method is not implemented');
+    this._out(this.name, 'stop method is not implemented');
+  }
+
+  _out(...args) {
+    // eslint-disable-next-line no-console
+    return console.log(...args);
   }
 }
 
