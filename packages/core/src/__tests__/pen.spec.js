@@ -92,21 +92,50 @@ describe('pen', () => {
       pen.fatal('test', 'msg');
       expect(pen.shout).toHaveBeenCalled();
     });
+    describe('fatal', () => {
+      test('should parse error on fatal', () => {
+        pen.error = jest.fn();
+        pen.line = jest.fn();
+        pen.fatal('test', new Error(), `some big error...`);
+        expect(pen.error).toBeCalled();
+        expect(pen.line).toHaveBeenCalledTimes(4);
+      });
 
-    test('should parse error on fatal', () => {
-      pen.error = jest.fn();
-      pen.line = jest.fn();
-      pen.fatal('test', new Error(), `some big error...`);
-      expect(pen.error).toBeCalled();
-      expect(pen.line).toHaveBeenCalledTimes(4);
-    });
+      test('should show object', () => {
+        pen.error = jest.fn();
+        pen.line = jest.fn();
+        pen.fatal('test', 'error', `some big error...`, { inspect: 'me' });
+        expect(pen.error).toBeCalled();
+        expect(pen.line).toHaveBeenCalledTimes(6);
+      });
 
-    test('should show object', () => {
-      pen.error = jest.fn();
-      pen.line = jest.fn();
-      pen.fatal('test', 'error', `some big error...`, { inspect: 'me' });
-      expect(pen.error).toBeCalled();
-      expect(pen.line).toHaveBeenCalledTimes(6);
+      /* eslint-disable no-console */
+      test('should handle testing?', () => {
+        process.exit = jest.fn();
+        pen.inTesting = true;
+        pen.notTest = true;
+        pen.fatal('test', 'info');
+        expect(process.exit).toHaveBeenCalledTimes(1);
+      });
+
+      test('should have default value in fatal', () => {
+        pen.error = jest.fn();
+        pen.fatal();
+        expect(pen.error).toBeCalledWith('fatal', 'unknown error');
+      });
+
+      test('should handle long message in full desc', () => {
+        pen.error = jest.fn();
+        const long = `
+        this
+        is
+        a
+        long
+        dessc
+        `;
+        pen.fatal('test', 'short desc', long);
+        expect(pen.error).toHaveBeenCalledTimes(15);
+      });
     });
 
     test('should keep time', async () => {
@@ -124,20 +153,31 @@ describe('pen', () => {
       expect(space).toEqual(10);
     });
 
-    test('should handle testing?', () => {
-      console.log = jest.fn();
-      pen.inTesting = true;
-      pen.notTest = true;
-      pen.shout('test', 'info');
-      expect(console.log).toHaveBeenCalledTimes(4);
-    });
-
+    /* eslint-disable no-console */
     test('should have a working queue', () => {
+      // eslint-disable-next-line no-console
       console.log = jest.fn();
       pen.queue('a');
       pen.queue('b');
       pen.queue('c');
       pen.dequeue();
+      pen.dequeue();
+      expect(console.log).toHaveBeenCalledTimes(3);
+    });
+
+    /* eslint-disable no-console */
+    test('should print have line-feed (default)', () => {
+      console.log = jest.fn();
+      pen.notTest = true;
+      pen.line();
+      expect(console.log).toHaveBeenCalledTimes(1);
+    });
+
+    /* eslint-disable no-console */
+    test('should print have line-feed (x times)', () => {
+      console.log = jest.fn(() => true);
+      pen.notTest = true;
+      pen.line(3);
       expect(console.log).toHaveBeenCalledTimes(3);
     });
   });
@@ -154,8 +194,18 @@ describe('pen', () => {
 
     test('should notify', () => {
       expect(henri.pen.notify('title', 'hello')).toBeFalsy();
+
       henri.isDev = true;
       expect(henri.pen.notify('title', 'hello')).toBeTruthy();
+
+      expect(pen.notify()).toBeFalsy();
+    });
+
+    test('should initialize in production', () => {
+      henri.isProduction = true;
+      expect(pen.initialized).toBeFalsy();
+      pen.info('test', 'first message');
+      expect(pen.initialized).toBeTruthy();
     });
   });
 });

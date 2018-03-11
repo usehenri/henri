@@ -58,7 +58,7 @@ class Pen extends BaseModule {
     this.shout(name, 'silly', ...args);
   }
 
-  fatal(name, summary = 'unknown error', full = null, obj = null) {
+  fatal(name = 'fatal', summary = 'unknown error', full = null, obj = null) {
     this.line(2);
     this.error(name, summary);
     this.line(1);
@@ -191,14 +191,17 @@ class Pen extends BaseModule {
     }
   }
 
-  notify(title = 'No title', message = 'No message') {
+  notify(title = null, message = null) {
+    if (!title && !message) {
+      return false;
+    }
     if (henri.isDev) {
       notifier.notify({
         title,
         message,
         icon: path.join(__dirname, 'henri.png'),
       });
-      return true;
+      return { title, message };
     }
     return false;
   }
