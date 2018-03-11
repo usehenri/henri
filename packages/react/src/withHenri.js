@@ -69,7 +69,7 @@ export default ComposedComponent => {
       });
     };
 
-    pathFor = (path = null, params = null, plain = true) => {
+    pathFor = (path = null, params = null, plain = false) => {
       const { paths } = this.props;
       let response = {
         route: '',
@@ -91,7 +91,7 @@ export default ComposedComponent => {
         if (typeof params === 'string') {
           response.route = paths[path].route.replace(':id', params);
           response.method = paths[path].method;
-          return response;
+          return response.route;
         }
         // If we use only typeof (string), on node, it is parsed as a
         // ObjectID object, therefor missing the last if. This is for SSR or _ids
@@ -114,14 +114,16 @@ export default ComposedComponent => {
       console.warn(`unable to match filler for route ${path} in pathFor`);
     };
 
-    getRoute = (route = null) => {
+    getRoute = (route = null, id = null) => {
       const { paths } = this.props;
       if (
         route &&
         typeof paths[route] !== 'undefined' &&
         typeof paths[route].route !== 'undefined'
       ) {
-        return paths[route].route;
+        return id
+          ? paths[route].route.replace(':id', id.toString())
+          : paths[route].route;
       }
       return 'route-not-found';
     };
