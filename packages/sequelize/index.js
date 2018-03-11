@@ -54,7 +54,6 @@ class Sql {
         return JSON.parse(this.getDataValue('roles'));
       },
       set: function(val) {
-        // console.log('booo', val);
         return this.setDataValue('roles', JSON.stringify(val));
       },
     };

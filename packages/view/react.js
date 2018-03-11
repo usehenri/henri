@@ -45,14 +45,14 @@ async function prepare() {
   if (henri.isProduction) {
     log.info('building next.js pages for production');
     try {
-      await builder(henri.folders.view, conf);
+      await builder(path.resolve(cwd, './app/views'), conf);
     } catch (e) {
       log.error(e);
     }
   }
   log.info('starting next.js instance...');
   instance = next({
-    dir: path.resolve(cwd, henri.folders.view),
+    dir: path.resolve(cwd, './app/views'),
     dev: !henri.isProduction,
     conf,
   });

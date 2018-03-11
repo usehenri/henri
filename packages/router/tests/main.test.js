@@ -7,7 +7,7 @@ async function start(done) {
   done();
 }
 
-describe('router', () => {
+xdescribe('router', () => {
   beforeAll(done => start(done));
   test('initializes', () => {
     expect(henri.router).toBeDefined();

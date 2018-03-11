@@ -82,7 +82,7 @@ async function reload() {
   log.warn('routes reloaded');
 }
 
-henri.addLoader(reload);
+henri.modules.loader(reload);
 
 module.exports = init();
 

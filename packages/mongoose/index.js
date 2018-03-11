@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { config, log } = henri;
+const { config, pen } = henri;
 
 if (global.Promise) {
   mongoose.Promise = global.Promise;
@@ -8,7 +8,7 @@ if (global.Promise) {
 class Mongoose {
   constructor(name, config) {
     if (!config.url && !config.host) {
-      log.fatalError(`Missing url or host in store ${name}`);
+      pen.fatal('mongoose', `Missing url or host in store ${name}`);
     }
     this.name = name;
     this.config = config;
@@ -37,7 +37,7 @@ class Mongoose {
   }
 
   overload(schema, model, user) {
-    log.info(`Found a user model (${model.globalId}), overloading it.`);
+    pen.info('mongoose', `user model`, model.globalId, `overloading...`);
     schema.add({ email: { type: String, required: true } });
     schema.add({ password: { type: String, required: true } });
     const baseRole = (config.has('baseRole') && [config.get('baseRole')]) || [];
