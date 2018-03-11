@@ -1,45 +1,32 @@
-const henri = require('../henri');
-const Config = require('../config');
+const init = require('../index');
 const BaseModule = require('../base/module');
 
+let henri = null;
+
 describe('config', () => {
-  beforeEach(() => {
-    require('../index');
-  });
+  beforeAll(async () => (henri = await init('.', 1)));
 
-  test('should be accessible from henri', () => {
+  test('should be defined', () => {
     expect(henri.config).toBeDefined();
-    expect(henri.config.name).toBe('config');
   });
 
-  test('loads data', () => {
-    const data = henri.config.get('abc');
-    expect(data).toEqual('c');
+  test('should extend BaseModule', () => {
+    expect(henri.config).toBeInstanceOf(BaseModule);
   });
 
-  test('should suppress warnings', () => {
-    expect(process.env.SUPPRESS_NO_CONFIG_WARNING).toBeTruthy();
+  test('should throw if key is not there', () => {
+    expect(() => henri.config.get('boo')).toThrow();
   });
 
-  test('inherits from BaseModule', () => {
-    const newConfig = new Config();
-    expect(newConfig).toBeInstanceOf(Config);
-    expect(newConfig).toBeInstanceOf(BaseModule);
-    expect(henri.config.reload).toBeDefined();
-    expect(henri.config.init).toBeDefined();
-    expect(henri.config.setup).toBeDefined();
-    expect(henri.config.start).toBeDefined();
-    expect(henri.config.stop).toBeDefined();
+  test('should not throw if in safe mode', () => {
+    expect(henri.config.get('boo', true)).toBeFalsy();
   });
 
-  test('it reloads', () => {
-    expect(henri.config.reloadable).toBeTruthy();
-    henri.config.reload();
+  test('should tell if key is present', () => {
+    expect(henri.config.has('moo')).toBeFalsy();
   });
 
-  test('has a safe mode', () => {
-    expect(() => henri.config.get('unknown key')).toThrow();
-    expect(() => henri.config.get('unknown key', true)).not.toThrow();
-    expect(henri.config.get('unknown key', true)).toBeFalsy();
+  test('should reload', () => {
+    expect(henri.config.reload()).toBeTruthy();
   });
 });

@@ -3,11 +3,23 @@ const { importFresh } = require('./utils');
 const BaseModule = require('./base/module');
 
 class Config extends BaseModule {
-  constructor() {
+  constructor(henri) {
     super();
+    this.reloadable = true;
+    this.runlevel = 1;
     this.name = 'config';
     this.config = config;
     this.reloadable = true;
+    this.henri = henri;
+
+    this.get = this.get.bind(this);
+    this.has = this.has.bind(this);
+    this.reload = this.reload.bind(this);
+    return this;
+  }
+
+  init() {
+    return this;
   }
 
   get(key, safe = false) {
@@ -24,6 +36,7 @@ class Config extends BaseModule {
   reload() {
     delete this.config;
     this.config = importFresh('config');
+    return true;
   }
 }
 
