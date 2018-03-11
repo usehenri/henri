@@ -1,43 +1,36 @@
-const path = require('path');
-const fs = require('fs');
 const validator = require('validator');
-const readline = require('readline');
-const prettier = require('prettier');
 const Modules = require('./modules');
+const Pen = require('./pen');
 
 class Henri {
   constructor(runlevel = 6) {
+    process.env.SUPPRESS_NO_CONFIG_WARNING = 'true';
+
     this.setProcess();
-    const { env: { NODE_ENV }, arch, platform } = process;
-    this.env = NODE_ENV;
-    this.isProduction = NODE_ENV === 'production';
-    this.isDev = NODE_ENV !== 'production' && NODE_ENV !== 'test';
-    this.isTest = NODE_ENV === 'test';
-    this.modules = new Modules(this);
+    Object.freeze(this.settings);
+
     this._loaders = [];
     this._unloaders = [];
     this._models = [];
+    this._controllers = [];
     this._middlewares = [];
     this._paths = {};
     this._routes = {};
     this._user = null;
+
+    this.pen = new Pen();
+    this.modules = new Modules(this);
+
     this.setup = this.setup.bind(this);
     this.setup();
-    this.settings = {
-      package: { version: '0.22.0' },
-      arch,
-      platform,
-      runlevel,
-    };
-    Object.freeze(this.settings);
-    this.release = this.settings.package.version || undefined;
-    this.version = this.release;
-    this.cwd = process.cwd();
-    this.validator = validator;
-    this.folders = {
-      view: path.resolve('./app/views'),
-    };
+
+    this.release = this.settings.package;
+    this.runlevel = runlevel;
+    this.prefix = '.';
+
     this.status = {};
+
+    this.validator = validator;
     this.utils = require('./utils');
   }
 
@@ -48,18 +41,29 @@ class Henri {
     this.getStatus = this.getStatus.bind(this);
     this.reload = this.reload.bind(this);
     this.stop = this.stop.bind(this);
-    this.syntax = this.syntax.bind(this);
-    this._parseSyntax = this._parseSyntax.bind(this);
   }
 
   setProcess() {
-    // Remove config warning when no file is available
-    process.env.SUPPRESS_NO_CONFIG_WARNING = 'true';
+    const { env: { NODE_ENV }, arch, platform } = process;
+
+    this.env = NODE_ENV;
+    this.isProduction = NODE_ENV === 'production';
+    this.isDev = NODE_ENV !== 'production' && NODE_ENV !== 'test';
+    this.isTest = NODE_ENV === 'test';
+
+    this.settings = {
+      package: require('../package.json').version,
+      arch,
+      platform,
+    };
+
+    this.cwd = process.cwd();
 
     /* istanbul ignore next */
-    if (process.env.NODE_ENV !== 'production') {
-      process.on('unhandledRejection', r => console.log(r)); // eslint-disable-line no-console
-    }
+
+    process.on('unhandledRejection', (reason, p) =>
+      this.pen.fatal('promise', reason, null, p)
+    );
   }
 
   addMiddleware(func) {
@@ -75,34 +79,38 @@ class Henri {
   }
 
   async reload() {
-    const { log, diff } = this;
+    const { pen, diff } = this;
+
     const start = diff();
     const loaders = this._loaders;
+
     /* istanbul ignore next */
     Object.keys(require.cache).forEach(function(id) {
       delete require.cache[id];
     });
+
     try {
-      /* istanbul ignore next */
       if (loaders.length > 0) {
         for (let loader of loaders) {
           await loader();
         }
       }
-      // @ts-ignore
-      log.info(`server hot reload completed in ${diff(start)}ms`);
-      log.space();
-      log.notify('Hot-reload', 'Server-side hot reload completed..');
+
+      pen.info('henri', `server hot reload completed in ${diff(start)}ms`);
+      pen.line();
+      pen.notify('Hot-reload', 'Server-side hot reload completed..');
+
+      return true;
     } catch (e) {
-      console.log('got some error deep in here');
-      console.log(e);
-      /* istanbul ignore next */
-      log.error(e);
+      pen.error('henri', 'caught some error reloading');
+      pen.error(e);
+
+      return false;
     }
   }
 
   async stop() {
-    const { log, diff } = this;
+    const { pen, diff } = this;
     const start = diff();
     const reapers = this._unloaders;
     try {
@@ -113,10 +121,12 @@ class Henri {
         }
       }
       // @ts-ignore
-      log.warn(`server tear down completed in ${diff(start)}ms`);
+      pen.warn('henri', `server tear down completed in ${diff(start)}ms`);
+      return true;
     } catch (e) {
       /* istanbul ignore next */
-      log.error(e);
+      pen.error(e);
+      return false;
     }
   }
 
@@ -128,50 +138,9 @@ class Henri {
     return Math.round(diff[0] * 1000 + diff[1] / 1e6);
   }
 
-  clearConsole() {
-    // Thanks to friendly-errors-webpack-plugin
-    if (process.stdout.isTTY) {
-      // Fill screen with blank lines. Then move to 0 (beginning of visible part) and clear it
-      const blank = '\n'.repeat(process.stdout.rows || 1);
-      console.log(blank); // eslint-disable-line no-console
-      readline.cursorTo(process.stdout, 0, 0);
-      readline.clearScreenDown(process.stdout);
-    }
-  }
-
   // Mock function to get the data to be linted
   gql(ast) {
     return `${ast}`;
-  }
-
-  async syntax(location, onSuccess) {
-    const { log } = this;
-    return new Promise(resolve => {
-      fs.readFile(location, 'utf8', (err, data) => {
-        if (err) {
-          log.error(`unable to check the syntax of ${location}`);
-          return resolve(false);
-        }
-        this._parseSyntax(resolve, location, data, onSuccess);
-      });
-    });
-  }
-
-  _parseSyntax(resolve, file, data, onSuccess) {
-    const { log } = this;
-    try {
-      prettier.format(data.toString(), {
-        singleQuote: true,
-        trailingComma: 'es5',
-      });
-      typeof onSuccess === 'function' && onSuccess();
-      return resolve();
-    } catch (e) {
-      log.error(`while parsing ${file}`);
-      console.log(' '); // eslint-disable-line no-console
-      console.log(e.message); // eslint-disable-line no-console
-      resolve();
-    }
   }
 }
 

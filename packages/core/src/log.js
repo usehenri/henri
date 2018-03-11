@@ -1,6 +1,6 @@
 const BaseModuleClass = require('./base/module');
 const henri = require('./henri');
-
+const { getColor } = require('./utils');
 const winston = require('winston');
 const chalk = require('chalk');
 const path = require('path');
@@ -8,11 +8,11 @@ const util = require('util');
 const stringWidth = require('string-width');
 const moment = require('moment');
 const inquirer = require('inquirer');
-const notifier = require('node-notifier');
 
 class Log extends BaseModuleClass {
   constructor({ customWidth = null } = {}) {
     super();
+    this.runlevel = 1;
     this.name = 'log';
     this.reloadable = false;
     this.since = Date.now();
@@ -21,7 +21,7 @@ class Log extends BaseModuleClass {
     this._time = process.uptime();
     this._timeSkipped = 0;
     this._inspections = [];
-    this.setup();
+
     this.file = this.file.bind(this);
     this.time = this.time.bind(this);
     this.setup = this.setup.bind(this);
@@ -36,45 +36,43 @@ class Log extends BaseModuleClass {
     return this;
   }
 
-  setup() {
-    this.winston.add(winston.transports.Console, {
-      colorize: true,
-      customWidth: this.customWidth,
-      formatter: options => {
-        const { dateString, fullMsg } = this.output(options);
+  init() {
+    return new Promise(resolve => {
+      this.winston.add(winston.transports.Console, {
+        colorize: true,
+        customWidth: this.customWidth,
+        formatter: options => {
+          const { dateString, fullMsg } = this.output(options);
 
-        let space =
-          // @ts-ignore
-          (this.customWidth || process.stdout.columns) -
-          stringWidth(fullMsg) -
-          stringWidth(dateString);
-        /* istanbul ignore if */
-        if (space <= 0) {
-          space = 10;
-        }
-        return `${fullMsg}${' '.repeat(space)}${dateString}`;
-      },
+          let space =
+            // @ts-ignore
+            (this.customWidth || process.stdout.columns) -
+            stringWidth(fullMsg) -
+            stringWidth(dateString);
+          /* istanbul ignore if */
+          if (space <= 0) {
+            space = 10;
+          }
+          return `${fullMsg}${' '.repeat(space)}${dateString}`;
+        },
+      });
+      this.file();
+      resolve();
     });
-    this.file();
   }
 
   file() {
-    const { config } = henri;
+    const { config, pen } = henri;
+
     /* istanbul ignore next */
     if (config.has('log') && typeof config.get('log') === 'string') {
-      // eslint-disable-next-line no-console
-      !henri.isTest && console.log('');
-      !henri.isTest &&
-        this.winston.info(
-          `logger initialized. also logging to ${config.get('log')}`
-        );
+      pen.info('log', 'target', `${config.get('log')}`);
+
       this.winston.add(winston.transports.File, {
         filename: path.resolve(process.cwd(), 'logs', `${config.get('log')}`),
       });
     } else {
-      this.winston.warn(
-        'no file set in configuration file: logging to console only'
-      );
+      pen.warn('log', 'no config', 'console only');
     }
   }
 
@@ -244,17 +242,6 @@ class Log extends BaseModuleClass {
   }
 
   /* istanbul ignore next */
-  notify(title = 'No title', message = 'No message') {
-    if (henri.isDev) {
-      return notifier.notify({
-        title,
-        message,
-        icon: path.join(__dirname, 'henri.png'),
-      });
-    }
-  }
-
-  /* istanbul ignore next */
   space() {
     // eslint-disable-next-line no-console
     return console.log(' ');
@@ -294,18 +281,6 @@ class Log extends BaseModuleClass {
 
     return { dateString, fullMsg };
   }
-}
-
-function getColor(level) {
-  const colors = {
-    error: 'red',
-    warn: 'yellow',
-    info: 'green',
-    verbose: 'white',
-    debug: 'blue',
-    silly: 'magenta',
-  };
-  return colors[level.toLowerCase()] || 'red';
 }
 
 module.exports = Log;

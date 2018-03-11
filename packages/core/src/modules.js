@@ -1,10 +1,11 @@
 const { stack } = require('./utils');
 const BaseModule = require('./base/module');
+const path = require('path');
 
 class Modules {
   constructor(henri) {
     this.henri = henri;
-    this.modules = {};
+    this.modules = new Map();
     this.store = [[], [], [], [], [], [], []];
     this.order = [];
 
@@ -17,52 +18,76 @@ class Modules {
   }
 
   async add(func) {
+    const { pen } = this.henri;
+
     const info = stack()[1];
 
     validate(func, info);
 
-    this.has(func.name, info);
+    const existing = this.modules.get(func.name);
 
-    this.modules[func.name] = {
+    if (existing) {
+      crashOnDuplicateModule(existing, func, info, pen);
+    }
+
+    this.modules.set(func.name, {
       filename: info.getFileName(),
       line: info.getLineNumber(),
       func: info.getFunctionName() || 'anonymous',
       time: Date.now(),
-    };
-    if (func.runlevel <= this.henri.settings.runlevel) {
-      this.store[func.runlevel].push(func);
-    }
+    });
+
+    this.store[func.runlevel].push(func);
   }
 
-  init() {
-    if (this.henri.settings.runlevel < 6) {
-      henri.log.warn(
-        `running at limited level; ${this.henri.settings.runlevel}`
-      );
+  async init(prefix, level) {
+    const { pen } = this.henri;
+
+    if (prefix !== this.henri.prefix) {
+      changeCurrentDirectory(prefix, pen);
+      pen.warn('modules', 'cwd change', this.henri.cwd, process.cwd());
+      this.henri.cwd = process.cwd();
     }
 
-    this.order = this.store.reduce((a, b) => a.concat(b));
-    this.stopOrder = this.store.reduceRight((a, b) => a.concat(b));
+    this.henri.prefix = prefix;
+    this.henri.runlevel = level;
+    this.store.splice(parseInt(level) + 1);
 
-    if (this.order.length < 1) {
-      throw new Error('available to load. why should I run?');
-    }
+    return new Promise(async resolve => {
+      if (this.henri.runlevel < 6) {
+        pen.warn('modules', 'running at limited level', this.henri.runlevel);
+      }
 
-    this.order.forEach(async (V, i, t) => {
-      this.henri[V.name] = V;
-      typeof V.init === 'function' && (await V.init());
-      console.log(`> ${V.name} module is loaded (${i + 1}/${t.length}).`);
-      // TODO: don't quite know if next statement removal will have consequences
-      // this.henri[name] = this.henri[name].bind(this.henri);
+      this.order = this.store.reduce((a, b) => a.concat(b));
+      this.stopOrder = this.store.reduceRight((a, b) => a.concat(b));
+
+      if (this.order.length < 1) {
+        throw new Error('available to load. why should I run?');
+      }
+
+      let count = 0;
+      let size = this.order.length;
+      for (let mod of this.order) {
+        count++;
+        this.henri[mod.name] = mod;
+        if (typeof mod.init === 'function') {
+          await mod.init();
+        }
+        pen.info(mod.name, `module`, `loaded`, `${count}/${size}`);
+      }
+      pen.info('modules', 'loading', '...done!');
+      resolve();
     });
   }
 
   reload() {
+    const { pen } = this.henri;
+
     this.order.forEach(async (V, i, t) => {
       if (V.reloadable && typeof V.reload === 'function') {
         await V.reload();
       }
-      console.log(`> ${V.name} module is reloaded (${i + 1}/${t.length}).`);
+      pen.info(V.name, `module is reloaded`, `${i + 1}/${t.length}`);
     });
   }
 
@@ -71,11 +96,13 @@ class Modules {
       const { log } = this.henri;
       const { time, filename, line } = this.modules[name];
       const timeDiff = Date.now() - time;
-      log.fatalError(`unable to register module '${name}' as it already exists
+      log.fatalError(
+        `unable to register module '${name}' as it already exists
   
       it was registered in ${filename}:${line} about ${timeDiff}ms ago
       
-      you tried to register from ${info.getFileName()}:${info.getLineNumber()}`);
+      you tried to register from ${info.getFileName()}:${info.getLineNumber()}`
+      );
     }
     return false;
   }
@@ -87,12 +114,11 @@ class Modules {
   }
 
   unloader(func) {
+    const { pen } = this.henri;
     if (typeof func === 'function') {
       this.henri._unloaders.unshift(func);
     } else {
-      this.henri.log.error(
-        'you tried to register an unloader which is not a function'
-      );
+      pen.error('you tried to register an unloader which is not a function');
     }
   }
 }
@@ -133,3 +159,34 @@ function validate(obj, info) {
 }
 
 module.exports = Modules;
+
+function crashOnDuplicateModule(existing, func, info, pen) {
+  pen.error(
+    'modules',
+    'duplicate',
+    func.name,
+    `original`,
+    `${existing.filename}:${existing.line}`
+  );
+  pen.error(
+    'modules',
+    `duplicate`,
+    func.name,
+    'new',
+    `${info.getFileName()}:${info.getLineNumber()}`
+  );
+
+  pen.fatal(
+    'modules',
+    'you have a module trying to load over another...',
+    'check your modules? see: https://usehenri.io/e/dup_mods'
+  );
+}
+
+function changeCurrentDirectory(prefix, pen) {
+  try {
+    process.chdir(path.resolve(process.cwd(), prefix));
+  } catch (e) {
+    pen.fatal('modules', `unable to change current directory to ${prefix}`);
+  }
+}

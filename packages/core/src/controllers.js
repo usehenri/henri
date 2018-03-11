@@ -47,23 +47,17 @@ class Controllers extends BaseModule {
       }
     }
 
-    henri.controllers = configured;
+    henri._controllers = configured;
   }
 
   async init() {
-    const { config } = this.henri;
-    await this.configure(
-      await this.load(
-        config.has('location.controllers')
-          ? path.resolve(config.get('location.controllers'))
-          : './app/controllers'
-      )
-    );
+    await this.configure(await this.load('./app/controllers'));
   }
 
   async reload() {
-    delete this.henri.controllers;
+    delete this.henri._controllers;
     await this.init();
+    return true;
   }
 }
 
