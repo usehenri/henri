@@ -1,42 +1,81 @@
 const spawn = require('cross-spawn');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const { cwd, validInstall } = require('./utils');
 
+let output = '';
+
 const main = async () => {
+  const data = getData();
+
   l('About your henri setup:', true);
-  l(`henri version:         ${require('../package.json').version}`);
-  l(`Node version:          ${await run('node -v')}`);
-  l(`yarn version:          ${await run('yarn -v')}`);
-  l(`npm version:           ${await run('npm -v')}`);
-  l(
-    `henri project:         ${validInstall({ fatal: false }) ? 'yes' : 'no'}`,
-    true
-  );
-  l(`@usehenri/disk:        ${packageResolve('disk')}`);
-  l(`@usehenri/mongoose:    ${packageResolve('mongoose')}`);
-  l(`@usehenri/mysql:       ${packageResolve('mysql')}`);
-  l(`@usehenri/postgresql:  ${packageResolve('postgresql')}`);
-  l(`@usehenri/mssql:       ${packageResolve('mssql')}`);
-  l(`@usehenri/redis:       ${packageResolve('redis')}`);
-  l(`@usehenri/rabbitmq:    ${packageResolve('rabbitmq')}`);
+  l(`henri version:         ${data[0]}`);
+  l(`Node version:          ${data[1]}`);
+  l(`yarn version:          ${data[2]}`);
+  l(`npm version:           ${data[3]}`);
+  l(`henri project:         ${data[4] ? 'yes' : 'no'}`, true);
+  l(`@usehenri/disk:        ${data[5]}`);
+  l(`@usehenri/mongoose:    ${data[6]}`);
+  l(`@usehenri/mysql:       ${data[7]}`);
+  l(`@usehenri/postgresql:  ${data[8]}`);
+  l(`@usehenri/mssql:       ${data[9]}`);
+  l(`@usehenri/redis:       ${data[10]}`);
+  l(`@usehenri/rabbitmq:    ${data[11]}`);
   l('');
-  l(`next:                  ${depsResolve('next')}`);
-  l(`nuxt:                  ${depsResolve('nuxt')}`);
-  l(`react:                 ${depsResolve('react')}`);
-  l(`react-dom:             ${depsResolve('react-dom')}`);
+  l(`next:                  ${data[12]}`);
+  l(`nuxt:                  ${data[13]}`);
+  l(`react:                 ${data[14]}`);
+  l(`react-dom:             ${data[15]}`);
   l('');
-  l(`models:                ${await ls('app/models')}`);
-  l(`views:                 ${await ls('app/views/pages')}`);
-  l(`controllers:           ${await ls('app/controllers')}`);
-  l(`helpers:               ${await ls('app/helpers')}`);
+  l(`models:                ${data[16]}`);
+  l(`views:                 ${data[17]}`);
+  l(`controllers:           ${data[18]}`);
+  l(`helpers:               ${data[19]}`);
+  digest();
+};
+
+const getData = async () => {
+  const data = await Promise.all([
+    require('../package.json').version,
+    run('node -v'),
+    run('yarn -v'),
+    run('npm -v'),
+    validInstall({ fatal: false }),
+    packageResolve('disk'),
+    packageResolve('mongoose'),
+    packageResolve('mysql'),
+    packageResolve('postgresql'),
+    packageResolve('mssql'),
+    packageResolve('redis'),
+    packageResolve('rabbitmq'),
+    depsResolve('next'),
+    depsResolve('nuxt'),
+    depsResolve('react'),
+    depsResolve('react-dom'),
+    ls('app/models'),
+    ls('app/views/pages'),
+    ls('app/controllers'),
+    ls('app/helpers'),
+  ]);
+  return data;
+};
+
+const digest = () => {
+  const hmac = crypto.createHmac('sha256', 'henri about data');
+
+  hmac.update(output);
+  const result = hmac.digest('hex');
+  l('');
+  l(`You can share this key: ${result} `);
   l('');
 };
 
 const l = (text, pad) => {
   pad && console.log(' ');
   console.log(` ${text}`);
+  output = output + text;
   pad && console.log(' ');
 };
 
@@ -50,6 +89,7 @@ const run = cmd => {
     output.on('close', () =>
       resolve((data && data.toString().trim()) || 'Not installed')
     );
+    output.on('error', () => resolve('Not installed'));
   });
 };
 
