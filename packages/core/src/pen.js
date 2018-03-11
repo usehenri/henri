@@ -193,12 +193,14 @@ class Pen extends BaseModule {
 
   notify(title = 'No title', message = 'No message') {
     if (henri.isDev) {
-      return notifier.notify({
+      notifier.notify({
         title,
         message,
         icon: path.join(__dirname, 'henri.png'),
       });
+      return true;
     }
+    return false;
   }
 }
 

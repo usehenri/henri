@@ -125,10 +125,11 @@ describe('pen', () => {
     });
 
     test('should handle testing?', () => {
+      console.log = jest.fn();
       pen.inTesting = true;
       pen.notTest = true;
-      const { space } = pen.shout('test', 'info');
-      expect(space).toEqual(10);
+      pen.shout('test', 'info');
+      expect(console.log).toHaveBeenCalledTimes(4);
     });
 
     test('should have a working queue', () => {
