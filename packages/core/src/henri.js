@@ -12,7 +12,7 @@ class Henri {
     this._loaders = [];
     this._unloaders = [];
     this._models = [];
-    this._controllers = [];
+    this.controllers = [];
     this._middlewares = [];
     this._paths = {};
     this._routes = {};
@@ -89,6 +89,7 @@ class Henri {
     });
 
     try {
+      this.modules.reload();
       if (loaders.length > 0) {
         for (let loader of loaders) {
           await loader();

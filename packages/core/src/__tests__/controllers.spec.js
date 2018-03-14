@@ -11,7 +11,7 @@ describe('controllers', () => {
   });
 
   test('should has a private property on henri', () => {
-    expect(henri._controllers).toBeDefined();
+    expect(henri.controllers).toBeDefined();
   });
 
   test('should extend BaseModule', () => {
@@ -31,12 +31,12 @@ describe('controllers', () => {
       },
     };
 
-    expect(Object.keys(henri._controllers)).toHaveLength(0);
+    expect(Object.keys(henri.controllers)).toHaveLength(0);
     await henri.controller.configure(controllers);
-    expect(henri._controllers['someFolder/index#index']).toBeDefined();
-    expect(henri._controllers['someFolder/index#create']).toBeDefined();
-    expect(henri._controllers['other#update']).toBeDefined();
-    expect(henri._controllers['other#badStuff']).toBeUndefined();
+    expect(henri.controllers['someFolder/index#index']).toBeDefined();
+    expect(henri.controllers['someFolder/index#create']).toBeDefined();
+    expect(henri.controllers['other#update']).toBeDefined();
+    expect(henri.controllers['other#badStuff']).toBeUndefined();
   });
 
   test('should reload', () => {

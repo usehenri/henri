@@ -17,16 +17,14 @@ function checkPackages(packages = []) {
 
   if (missing.length > 0) {
     const msg = generateMessage(missing);
-    /* istanbul ignore next */
-    henri.log.fatalError(`Unable to load ${msg.join(
-      ' '
-    )} from the current project.
+    return `Unable to load ${msg.join(' ')} from the current project.
     
     Try installing ${missing.length > 1 ? 'them' : 'it'}:
     
       # ${yarnExists ? 'yarn add' : 'npm install'} ${missing.join(' ')}
-    `);
+    `;
   }
+  return true;
 }
 
 function checkMissing(packages) {
@@ -34,7 +32,7 @@ function checkMissing(packages) {
 
   for (let pkg of packages) {
     try {
-      require.resolve(path.resolve(henri.cwd, 'node_modules', pkg));
+      require.resolve(path.resolve(process.cwd(), 'node_modules', pkg));
     } catch (e) {
       missing.push(pkg);
     }
@@ -51,7 +49,7 @@ const generateMessage = missing => {
   return missing;
 };
 
-function getColor(level) {
+function getColor(level = 'error') {
   const colors = {
     error: 'red',
     warn: 'yellow',
@@ -72,15 +70,14 @@ function clearConsole() {
     readline.cursorTo(process.stdout, 0, 0);
     readline.clearScreenDown(process.stdout);
   }
+  return true;
 }
 
 async function syntax(location, onSuccess) {
-  const { log } = this;
   return new Promise(resolve => {
     fs.readFile(location, 'utf8', (err, data) => {
       if (err) {
-        log.error(`unable to check the syntax of ${location}`);
-        return resolve(false);
+        return resolve(`unable to check the syntax of ${location}`);
       }
       parseSyntax(resolve, location, data, onSuccess);
     });
@@ -88,7 +85,6 @@ async function syntax(location, onSuccess) {
 }
 
 function parseSyntax(resolve, file, data, onSuccess) {
-  const { log } = this;
   try {
     prettier.format(data.toString(), {
       singleQuote: true,
@@ -97,9 +93,9 @@ function parseSyntax(resolve, file, data, onSuccess) {
     typeof onSuccess === 'function' && onSuccess();
     return resolve();
   } catch (e) {
-    log.error(`while parsing ${file}`);
+    console.log(`while parsing ${file}`); // eslint-disable-line no-console
     console.log(' '); // eslint-disable-line no-console
-    console.log(e.message); // eslint-disable-line no-console
+    console.log(e); // eslint-disable-line no-console
     resolve();
   }
 }

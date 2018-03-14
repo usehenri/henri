@@ -134,7 +134,7 @@ describe('pen', () => {
         dessc
         `;
         pen.fatal('test', 'short desc', long);
-        expect(pen.error).toHaveBeenCalledTimes(15);
+        expect(pen.error).toHaveBeenCalled();
       });
     });
 

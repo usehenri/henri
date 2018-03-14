@@ -53,10 +53,11 @@ class RouteHandler {
           controller,
           roles,
         });
+        const [name, action] = controller.split('#');
         output.push(() =>
           log.info(
             `${key} => ${controller}: registered ${(roles && 'with roles') ||
-              ''}`
+              ''} (${action}_${name}_path)`
           )
         );
         stats.good++;
@@ -83,9 +84,10 @@ class RouteHandler {
       henri._paths[`${action}_${name}_path`] = { route, method: verb };
     }
 
-    if (fn === false) {
+    if (fn === false && !henri.isProduction) {
+      henri.pen.error(verb, route, controller);
       return henri.router[verb](route, (req, res) =>
-        res.status(501).send({ msg: 'Not implemented' })
+        res.status(501).send({ msg: 'Not implemented', route, method: verb })
       );
     }
     this.addToExpress({ verb, route, controller, roles });
@@ -132,8 +134,6 @@ class RouteHandler {
       good === 0 &&
         result.push('There might be a syntax error in one of your controllers');
     }
-
-    log.inspect(output, true, result.join('; '), level);
   }
 }
 

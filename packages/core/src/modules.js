@@ -9,38 +9,48 @@ class Modules {
     this.store = [[], [], [], [], [], [], []];
     this.order = [];
 
+    // legacy stores
+    this._loaders = [];
+    this._unloaders = [];
+
     this.init = this.init.bind(this);
     this.reload = this.reload.bind(this);
     this.add = this.add.bind(this);
-    this.has = this.has.bind(this);
     this.loader = this.loader.bind(this);
     this.unloader = this.unloader.bind(this);
   }
 
-  async add(func) {
+  add(func) {
     const { pen } = this.henri;
 
     const info = stack()[1];
 
-    validate(func, info);
+    const obj = validate(func, info, pen);
 
-    const existing = this.modules.get(func.name);
-
-    if (existing) {
-      crashOnDuplicateModule(existing, func, info, pen);
+    if (!obj) {
+      return false;
     }
 
-    this.modules.set(func.name, {
+    const existing =
+      this.modules.get(obj.name) || typeof this.henri[obj.name] !== 'undefined';
+
+    if (existing) {
+      return crashOnDuplicateModule(existing, obj, info, pen);
+    }
+
+    this.modules.set(obj.name, {
       filename: info.getFileName(),
       line: info.getLineNumber(),
-      func: info.getFunctionName() || 'anonymous',
+      func: info.getFunctionName(),
       time: Date.now(),
     });
 
-    this.store[func.runlevel].push(func);
+    this.store[obj.runlevel].push(obj);
+
+    return true;
   }
 
-  async init(prefix, level) {
+  async init(prefix = '.', level = 6) {
     const { pen } = this.henri;
 
     if (prefix !== this.henri.prefix) {
@@ -89,76 +99,71 @@ class Modules {
       }
       pen.info(V.name, `module is reloaded`, `${i + 1}/${t.length}`);
     });
-  }
 
-  has(name, info, force = false) {
-    if (typeof this.henri[name] !== 'undefined' && !force) {
-      const { log } = this.henri;
-      const { time, filename, line } = this.modules[name];
-      const timeDiff = Date.now() - time;
-      log.fatalError(
-        `unable to register module '${name}' as it already exists
-  
-      it was registered in ${filename}:${line} about ${timeDiff}ms ago
-      
-      you tried to register from ${info.getFileName()}:${info.getLineNumber()}`
-      );
-    }
-    return false;
+    return true;
   }
 
   loader(func) {
     if (!this.isProduction && typeof func === 'function') {
-      this.henri._loaders.push(func);
+      this._loaders.push(func);
     }
   }
 
   unloader(func) {
     const { pen } = this.henri;
     if (typeof func === 'function') {
-      this.henri._unloaders.unshift(func);
+      this._unloaders.unshift(func);
     } else {
-      pen.error('you tried to register an unloader which is not a function');
-    }
-  }
-}
-
-function validate(obj, info) {
-  const file = info.getFileName();
-  const line = info.getLineNumber();
-  const func = info.getFunctionName() || 'anonymous';
-  const label = `${file}:${line} :: ${func}`;
-
-  if (!(obj instanceof BaseModule)) {
-    throw new Error(`${label} is not extending BaseModule`);
-  }
-
-  if (typeof obj.runlevel !== 'number') {
-    throw new Error(`${label} runlevel is not defined`);
-  }
-
-  if (typeof obj.name !== 'string') {
-    throw new Error(`${label} name is not a string`);
-  }
-
-  if (obj.runlevel < 0 || obj.runlevel > 6) {
-    throw new Error(`${obj.name} runlevel is out of range`);
-  }
-
-  if (typeof obj.init !== 'function') {
-    throw new Error(`${obj.name} init is not a function`);
-  }
-
-  if (obj.reloadable) {
-    if (typeof obj.reload !== 'function') {
-      throw new Error(
-        `${obj.name} has no valid reload function. Is it reloadable?`
+      pen.error(
+        'modules',
+        'you tried to register an unloader which is not a function'
       );
     }
   }
 }
 
-module.exports = Modules;
+function validate(obj, info, pen) {
+  const file = info.getFileName();
+  const line = info.getLineNumber();
+  const func = info.getFunctionName();
+  const label = `${file}:${line} :: ${func}`;
+
+  if (!(obj instanceof BaseModule)) {
+    pen.fatal('modules', `${label} is not extending BaseModule`);
+    return false;
+  }
+
+  if (typeof obj.runlevel !== 'number') {
+    pen.fatal('modules', `${label} runlevel is not defined`);
+    return false;
+  }
+
+  if (typeof obj.name !== 'string') {
+    pen.fatal('modules', `${label} name is not a string`);
+    return false;
+  }
+
+  if (obj.runlevel < 0 || obj.runlevel > 6) {
+    pen.fatal('modules', `${obj.name} runlevel is out of range`);
+    return false;
+  }
+
+  if (typeof obj.init !== 'function') {
+    pen.fatal('modules', `${obj.name} init is not a function`);
+    return false;
+  }
+
+  if (obj.reloadable) {
+    if (typeof obj.reload !== 'function') {
+      pen.fatal(
+        'modules',
+        `${obj.name} has no valid reload function. Is it reloadable?`
+      );
+      return false;
+    }
+  }
+  return obj;
+}
 
 function crashOnDuplicateModule(existing, func, info, pen) {
   pen.error(
@@ -190,3 +195,5 @@ function changeCurrentDirectory(prefix, pen) {
     pen.fatal('modules', `unable to change current directory to ${prefix}`);
   }
 }
+
+module.exports = Modules;

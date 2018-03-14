@@ -47,7 +47,7 @@ class Controllers extends BaseModule {
       }
     }
 
-    henri._controllers = configured;
+    henri.controllers = configured;
   }
 
   async init() {
@@ -55,7 +55,7 @@ class Controllers extends BaseModule {
   }
 
   async reload() {
-    delete this.henri._controllers;
+    delete this.henri.controllers;
     await this.init();
     return true;
   }

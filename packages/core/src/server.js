@@ -32,7 +32,7 @@ async function watch() {
     './**.lock',
   ];
   const watcher = chokidar.watch(watching);
-  const { log, clearConsole } = henri;
+  const { log, utils: { clearConsole } } = henri;
   watcher.on('ready', () => {
     watcher.on('all', async (event, path) => {
       if (henri.getStatus('locked')) {
@@ -53,19 +53,17 @@ async function watch() {
   keyboardShortcuts();
 
   setTimeout(() => {
-    log.space();
     const cmdCtrl = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
     log.info(`To reload the server codebase, use ${cmdCtrl}+R`);
     log.info(
       `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${cmdCtrl}+N`
     );
     log.info(`To quit, use ${cmdCtrl}+C`);
-    log.space();
   }, 2 * 1000);
 }
 
 function keyboardShortcuts() {
-  const { log, clearConsole } = henri;
+  const { log, utils: { clearConsole } } = henri;
   process.stdin.resume();
   process.stdin.on('data', async data => {
     const chr = data.toString().charCodeAt(0);
