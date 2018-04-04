@@ -25,12 +25,16 @@
   ],
   "dependencies": {
     "axios": "^0.18.0",
+    "cache-loader": "^1.2.2",
     "draft-js": "^0.10.5",
+    "node-sass": "^4.8.3",
     "prop-types": "^15.6.1",
+    "raw-loader": "^0.5.1",
     "react": "^16.3.1",
     "react-dom": "^16.3.1",
     "react-quill": "^1.2.7",
     "react-rte": "^0.16.1",
+    "sass-loader": "^6.0.7",
     "socket.io-client": "^2.1.0",
     "validator": "^9.4.0"
   }

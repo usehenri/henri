@@ -25,7 +25,7 @@ export default ComposedComponent => {
     static async getInitialProps(ctx) {
       let props = Object.assign({}, ctx);
       if (!props.paths && !props.req) {
-        const result = await axios.get(`/_data${ctx.pathname}`);
+        const result = await axios.get(ctx.pathname);
         props.query = result.data;
       }
       if (props.req && props.req._henri) {
