@@ -6,7 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/core": "latest",
+    "@usehenri/core": "0.20.2",
     "chalk": "^2.3.1",
     "cross-spawn": "^6.0.4",
     "fs-extra": "^5.0.0",
