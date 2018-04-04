@@ -3,17 +3,21 @@ const includeAll = require('include-all');
 const path = require('path');
 
 class Controllers extends BaseModule {
-  constructor(henri) {
+  constructor() {
     super();
     this.reloadable = true;
     this.runlevel = 2;
-    this.name = 'controller';
-    this.henri = henri;
+    this.name = 'controllers';
+    this.henri = null;
+
+    this._controllers = new Map();
 
     this.load = this.load.bind(this);
     this.configure = this.configure.bind(this);
     this.init = this.init.bind(this);
     this.reload = this.reload.bind(this);
+    this.get = this.get.bind(this);
+    this.set = this.set.bind(this);
   }
 
   load(location) {
@@ -36,28 +40,50 @@ class Controllers extends BaseModule {
   }
 
   async configure(controllers) {
-    const configured = {};
     for (const id in controllers) {
       const controller = controllers[id];
       for (const key in controller) {
         const method = controller[key];
         if (typeof method === 'function') {
-          configured[`${id}#${key}`] = method;
+          this._controllers.set(`${id}#${key}`, method);
         }
       }
     }
-
-    henri.controllers = configured;
   }
 
   async init() {
     await this.configure(await this.load('./app/controllers'));
+    return this.name;
   }
 
   async reload() {
-    delete this.henri.controllers;
+    this._controllers.clear();
     await this.init();
-    return true;
+    return this.name;
+  }
+
+  get(key) {
+    return this._controllers.get(key);
+  }
+
+  set(key, value) {
+    if (typeof value === 'function') {
+      this._controllers.set(key, value);
+      return true;
+    }
+    return false;
+  }
+
+  all() {
+    return Array.from(this._controllers);
+  }
+
+  size() {
+    return this._controllers.size;
+  }
+
+  stop() {
+    return false;
   }
 }
 

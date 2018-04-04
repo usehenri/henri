@@ -1,21 +1,18 @@
-const init = require('../index');
 const BaseModule = require('../base/module');
-
-let henri = null;
+const Henri = require('../henri');
 
 describe('controllers', () => {
-  beforeAll(async () => (henri = await init('.', 2)));
-
-  test('should be defined', () => {
-    expect(henri.controller).toBeDefined();
+  beforeEach(() => {
+    this.henri = new Henri({ runlevel: 2 });
+    this.henri.init();
   });
 
-  test('should has a private property on henri', () => {
-    expect(henri.controllers).toBeDefined();
+  test('should be defined', () => {
+    expect(this.henri.controllers).toBeDefined();
   });
 
   test('should extend BaseModule', () => {
-    expect(henri.controller).toBeInstanceOf(BaseModule);
+    expect(this.henri.controllers).toBeInstanceOf(BaseModule);
   });
 
   test('should load controllers and expose them', async () => {
@@ -31,17 +28,26 @@ describe('controllers', () => {
       },
     };
 
-    expect(Object.keys(henri.controllers)).toHaveLength(0);
-    await henri.controller.configure(controllers);
-    expect(henri.controllers['someFolder/index#index']).toBeDefined();
-    expect(henri.controllers['someFolder/index#create']).toBeDefined();
-    expect(henri.controllers['other#update']).toBeDefined();
-    expect(henri.controllers['other#badStuff']).toBeUndefined();
+    expect(this.henri.controllers.size()).toEqual(0);
+    await this.henri.controllers.configure(controllers);
+    expect(this.henri.controllers.get('someFolder/index#index')).toBeTruthy();
+    expect(this.henri.controllers.get('someFolder/index#create')).toBeTruthy();
+    expect(this.henri.controllers.get('other#update')).toBeTruthy();
+    expect(this.henri.controllers.get('other#badStuff')).toBeUndefined();
   });
 
   test('should reload', () => {
-    expect(henri.controller.reload()).toBeTruthy();
+    expect(this.henri.controllers.reload()).toBeTruthy();
+  });
+
+  test('should have get/set', () => {
+    expect(this.henri.controllers.set('some#stuff', () => 'abc')).toBeTruthy();
+    expect(this.henri.controllers.get('some#stuff')).toBeTruthy();
+
+    expect(this.henri.controllers.set('some/stuff', 'abc')).toBeFalsy();
+    expect(this.henri.controllers.get('some/stuff')).toBeFalsy();
   });
 
   xtest('should load filesystem structure');
+  xtest('possibly freeze the private properties (this._controllers)');
 });

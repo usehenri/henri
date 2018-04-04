@@ -6,6 +6,9 @@
 
 class BaseModuleClass {
   constructor() {
+    /** make henri available to the module */
+    this.henri = null;
+
     /** the name given to the module */
     this.name = 'unnamed';
     /**
@@ -43,11 +46,6 @@ class BaseModuleClass {
     this._out(this.name, 'info method is not implemented');
   }
 
-  /** will be called if reloadable === true */
-  reload() {
-    this._out(this.name, 'reload method is not implemented');
-  }
-
   /** method to set things up before starting */
   setup() {
     this._out(this.name, 'setup method is not implemented');
@@ -56,11 +54,6 @@ class BaseModuleClass {
   /** this should be called by init after setup */
   start() {
     this._out(this.name, 'start method is not implemented');
-  }
-
-  /** will be called if reloadable and on clean teardown */
-  stop() {
-    this._out(this.name, 'stop method is not implemented');
   }
 
   _out(...args) {

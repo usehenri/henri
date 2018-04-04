@@ -13,10 +13,10 @@ describe('base module', () => {
   test('should have default methods', () => {
     expect(base.init).toBeDefined();
     expect(base.info).toBeDefined();
-    expect(base.reload).toBeDefined();
+    expect(base.reload).toBeUndefined();
     expect(base.setup).toBeDefined();
     expect(base.start).toBeDefined();
-    expect(base.stop).toBeDefined();
+    expect(base.stop).toBeUndefined();
   });
 
   test('should return console', () => {
@@ -32,11 +32,9 @@ describe('base module', () => {
 
     base.init();
     base.info();
-    base.reload();
     base.setup();
     base.start();
-    base.stop();
 
-    expect(base._out).toHaveBeenCalledTimes(6);
+    expect(base._out).toHaveBeenCalledTimes(4);
   });
 });

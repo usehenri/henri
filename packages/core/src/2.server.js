@@ -32,38 +32,38 @@ async function watch() {
     './**.lock',
   ];
   const watcher = chokidar.watch(watching);
-  const { log, utils: { clearConsole } } = henri;
+  const { pen, utils: { clearConsole } } = henri;
   watcher.on('ready', () => {
     watcher.on('all', async (event, path) => {
-      if (henri.getStatus('locked')) {
+      if (henri.status.get('locked')) {
         return;
       }
-      henri.setStatus('locked', true);
+      henri.status.set('locked', true);
       clearConsole();
-      log.space();
-      log.warn('changes detected in', path);
-      log.space();
-      log.space();
+      pen.line();
+      pen.warn('server', 'changes detected in', path);
+      pen.line(2);
       await checkSyntax(path);
-      setTimeout(() => henri.setStatus('locked', false), 750);
-      !henri.getStatus('locked') && henri.reload();
+      setTimeout(() => henri.status.set('locked', false), 750);
+      !henri.status.get('locked') && henri.reload();
     });
-    log.info('watching filesystem for changes...');
+    pen.info('server', 'watching filesystem for changes...');
   });
   keyboardShortcuts();
 
   setTimeout(() => {
     const cmdCtrl = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
-    log.info(`To reload the server codebase, use ${cmdCtrl}+R`);
-    log.info(
+    pen.info('server', `To reload the server codebase, use ${cmdCtrl}+R`);
+    pen.info(
+      'server',
       `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${cmdCtrl}+N`
     );
-    log.info(`To quit, use ${cmdCtrl}+C`);
+    pen.info('server', `To quit, use ${cmdCtrl}+C`);
   }, 2 * 1000);
 }
 
 function keyboardShortcuts() {
-  const { log, utils: { clearConsole } } = henri;
+  const { pen, utils: { clearConsole } } = henri;
   process.stdin.resume();
   process.stdin.on('data', async data => {
     const chr = data.toString().charCodeAt(0);
@@ -71,15 +71,15 @@ function keyboardShortcuts() {
     const actions = {
       '3': async () => {
         await henri.stop();
-        log.warn('exiting application...');
-        log.space();
+        pen.warn('server', 'exiting application...');
+        pen.line();
         process.exit(0);
       },
       '18': async () => {
         clearConsole();
-        log.space();
-        log.warn('user-requested server reload...');
-        log.space();
+        pen.line();
+        pen.warn('server', 'user-requested server reload...');
+        pen.line();
         henri.reload();
       },
       '14': () => {
@@ -87,9 +87,6 @@ function keyboardShortcuts() {
       },
       '15': () => {
         open();
-      },
-      '9': () => {
-        log.getInspection();
       },
     };
     if (typeof actions[chr] !== 'undefined') {
@@ -100,15 +97,18 @@ function keyboardShortcuts() {
 }
 
 function handleError(err) {
-  const { log } = henri;
+  const { pen } = henri;
   if (err.code === 'EADDRINUSE') {
-    log.fatalError(`
+    pen.fatal(
+      'server',
+      `
     port is already in use
     
     modify your config or kill the other process
-    `);
+    `
+    );
   }
-  log.error(err);
+  pen.error('server', err);
 }
 
 const checkSyntax = file => {
@@ -116,8 +116,8 @@ const checkSyntax = file => {
   return new Promise(resolve => {
     fs.readFile(file, 'utf8', (err, data) => {
       if (err) {
-        pen.error('error in writefile');
-        pen.error(err);
+        pen.error('server', 'error in writefile');
+        pen.error('server', err);
         return resolve();
       }
       parseData(resolve, file, data);
@@ -131,7 +131,7 @@ function parseData(resolve, file, data) {
     const ext = path.extname(file);
     if (ext === '.json') {
       JSON.parse(data);
-      henri.setStatus('locked', false);
+      henri.status.set('locked', false);
       return resolve();
     }
     if (ext === '.js') {
@@ -139,31 +139,30 @@ function parseData(resolve, file, data) {
         singleQuote: true,
         trailingComma: 'es5',
       });
-      henri.setStatus('locked', false);
+      henri.status.set('locked', false);
       return resolve();
     }
     resolve();
   } catch (e) {
-    pen.error(`Trying to reload but caught an error:`);
+    pen.error('server', `Trying to reload but caught an error:`);
     console.log(' '); // eslint-disable-line no-console
     console.log(e.message); // eslint-disable-line no-console
     resolve();
   }
 }
 
-module.exports = { handleError, watch };
-
 class Server extends BaseModule {
-  constructor(henri) {
+  constructor() {
     super();
-    this.reloadable = true;
-    this.runlevel = 3;
+    this.runlevel = 2;
     this.name = 'server';
-    this.henri = henri;
+    this.henri = null;
     this.reloadable = false;
 
     this.port = 3000;
+    this.url = '';
     this.app = null;
+    this.express = null;
     this.httpServer = null;
 
     this.init = this.init.bind(this);
@@ -179,43 +178,49 @@ class Server extends BaseModule {
     this.port = henri.config.has('port') ? henri.config.get('port') : 3000;
 
     app.use(timings);
+
     if (this.henri.isProduction) {
       app.use(compress());
     }
+
     app.options('*', cors());
     app.use(cors());
     app.use(bodyParser.json());
     app.use(bodyParser.urlencoded({ extended: true }));
     app.use(cookieParser());
 
-    app.use(express.static(path.resolve(this.henri.cwd, 'app/views/public')));
+    app.use(express.static(path.resolve(this.henri.cwd(), 'app/views/public')));
 
-    this.henri.router = undefined;
-    this.henri.app = app;
-    this.henri.express = express;
-    this.henri.start = this.start;
+    this.app = app;
+    this.express = express;
+    return this.name;
   }
 
   async start(delay, cb = null) {
     let { app, henri, httpServer, port } = this;
-    app.use((req, res, next) => henri.router(req, res, next));
 
-    if (henri.getStatus('http') && typeof cb === 'function') return cb();
+    app.use((req, res, next) => henri.router.handler(req, res, next));
+
+    // if (henri.getStatus('http') && typeof cb === 'function') return cb();
 
     port = henri.isTest ? await detect(port) : port;
     port = henri.isDev ? await choosePort('0.0.0.0', port) : port;
     return httpServer
       .listen(port, function() {
-        const bootTiming = delay ? ` (took ${henri.diff(delay)}ms)` : '';
+        henri.pen.info('server', 'listenning');
         const urls = prepareUrls('http', '0.0.0.0', port);
-        henri.log.info(`server started on port ${port}${bootTiming}`);
         henri.isDev && watch();
-        henri._url = urls.localUrlForBrowser;
-        henri._port = port;
-        henri.setStatus('http', true);
+
+        this.url = urls.localUrlForBrowser;
+        this.port = port;
+
         typeof cb === 'function' && cb();
       })
       .on('error', handleError);
+  }
+
+  stop() {
+    return false;
   }
 }
 
