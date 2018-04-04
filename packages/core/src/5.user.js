@@ -11,7 +11,7 @@ class User extends BaseModule {
   constructor() {
     super();
     this.reloadable = false;
-    this.runlevel = 5;
+    this.runlevel = 3;
     this.name = 'user';
     this.henri = null;
 
@@ -139,13 +139,13 @@ class User extends BaseModule {
       this.henri.server.app.use(passport.initialize());
       this.henri.server.app.use(passport.session());
       /* istanbul ignore next */
-      this.henri.router.addMiddleware(app => {
+      this.henri.addMiddleware(app => {
         app.post('/login', passport.authenticate('local'), (req, res) =>
           res.send('authenticated')
         );
       });
       /* istanbul ignore next */
-      this.henri.router.addMiddleware(app => {
+      this.henri.addMiddleware(app => {
         app.get('/logout', function(req, res) {
           pen.info('user', 'Logging out', req.user);
           req.logout();
