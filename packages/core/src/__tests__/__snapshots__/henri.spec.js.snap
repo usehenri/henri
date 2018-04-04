@@ -64,7 +64,7 @@ Henri {
   "settings": Object {
     "arch": "x64",
     "package": "0.20.2",
-    "platform": "win32",
+    "platform": "linux",
   },
   "status": Map {},
   "utils": Object {

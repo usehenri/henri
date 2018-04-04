@@ -11,8 +11,8 @@ class HenriBase {
 
     this.settings = {
       package: require('../../package.json').version,
-      arch,
-      platform,
+      arch: this.isTest ? 'x64' : arch,
+      platform: this.isTest ? 'linux' : platform,
     };
 
     Object.freeze(this.settings);
