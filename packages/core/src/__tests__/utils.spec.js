@@ -30,14 +30,16 @@ describe('utils', () => {
     process.stdout.isTTY = false;
     expect(utils.clearConsole()).toBeTruthy();
     process.stdout.isTTY = true;
-    let rows = Object.assign(process.stdout.rows);
-    process.stdout.rows = null;
-    expect(utils.clearConsole()).toBeTruthy();
-    process.stdout.rows = rows;
   });
 
-  xtest('should check syntax', () => {
-    // console.log(utils.syntax('./packages/core/src/utils.js'));
-    expect(utils.syntax('./packages/core/src/utils.js')).resolves();
+  test('should check syntax', async () => {
+    expect(await utils.syntax('./packages/core/src/utils.djs')).toEqual(
+      expect.stringContaining('unable to check the syntax')
+    );
+    expect(await utils.syntax('./packages/core/src/utils.js')).toBeTruthy();
+  });
+
+  test('should have importFresh', () => {
+    expect(utils.importFresh('path')).toBeTruthy();
   });
 });

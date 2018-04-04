@@ -1,0 +1,40 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`henri should match snapshot 1`] = `
+Modules {
+  "add": [Function],
+  "henri": Object {},
+  "init": [Function],
+  "initialized": false,
+  "modules": Map {},
+  "order": Array [
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+  ],
+  "reload": [Function],
+  "reloadable": Array [
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+  ],
+  "stopOrder": Array [],
+  "store": Array [
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+    Array [],
+  ],
+}
+`;

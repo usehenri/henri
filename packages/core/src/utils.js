@@ -10,7 +10,7 @@ function importFresh(pkg) {
   return _importFresh(pkg);
 }
 
-const yarnExists = spawn.sync('yarn', ['help']);
+const yarnExists = () => spawn.sync('yarn', ['help']);
 
 function checkPackages(packages = []) {
   let missing = checkMissing(packages);
@@ -91,12 +91,12 @@ function parseSyntax(resolve, file, data, onSuccess) {
       trailingComma: 'es5',
     });
     typeof onSuccess === 'function' && onSuccess();
-    return resolve();
+    return resolve(true);
   } catch (e) {
     console.log(`while parsing ${file}`); // eslint-disable-line no-console
     console.log(' '); // eslint-disable-line no-console
     console.log(e); // eslint-disable-line no-console
-    resolve();
+    resolve(e);
   }
 }
 

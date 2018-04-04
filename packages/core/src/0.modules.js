@@ -1,23 +1,19 @@
 const { stack } = require('./utils');
 const BaseModule = require('./base/module');
-const path = require('path');
 
 class Modules {
   constructor(henri) {
     this.henri = henri;
     this.modules = new Map();
     this.store = [[], [], [], [], [], [], []];
-    this.order = [];
-
-    // legacy stores
-    this._loaders = [];
-    this._unloaders = [];
+    this.order = [[], [], [], [], [], [], []];
+    this.reloadable = [[], [], [], [], [], [], []];
+    this.stopOrder = [];
+    this.initialized = false;
 
     this.init = this.init.bind(this);
     this.reload = this.reload.bind(this);
     this.add = this.add.bind(this);
-    this.loader = this.loader.bind(this);
-    this.unloader = this.unloader.bind(this);
   }
 
   add(func) {
@@ -30,6 +26,8 @@ class Modules {
     if (!obj) {
       return false;
     }
+
+    obj.henri = this.henri;
 
     const existing =
       this.modules.get(obj.name) || typeof this.henri[obj.name] !== 'undefined';
@@ -50,74 +48,86 @@ class Modules {
     return true;
   }
 
-  async init(prefix = '.', level = 6) {
+  async init() {
     const { pen } = this.henri;
 
-    if (prefix !== this.henri.prefix) {
-      changeCurrentDirectory(prefix, pen);
-      pen.warn('modules', 'cwd change', this.henri.cwd, process.cwd());
-      this.henri.cwd = process.cwd();
+    this.store.splice(parseInt(this.henri.runlevel) + 1);
+
+    // this.order = this.store.reduce((a, b) => a.concat(b));
+    this.stopOrder = this.store.reduceRight((a, b) => a.concat(b));
+
+    if (this.stopOrder.length < 1) {
+      pen.fatal('modules', 'init', 'no modules loaded before init');
     }
 
-    this.henri.prefix = prefix;
-    this.henri.runlevel = level;
-    this.store.splice(parseInt(level) + 1);
+    let count = 0;
+    let size = this.stopOrder.length;
+    for (let level of this.store) {
+      if (level.length > 0) {
+        let runlevel = 0;
 
-    return new Promise(async resolve => {
-      if (this.henri.runlevel < 6) {
-        pen.warn('modules', 'running at limited level', this.henri.runlevel);
-      }
-
-      this.order = this.store.reduce((a, b) => a.concat(b));
-      this.stopOrder = this.store.reduceRight((a, b) => a.concat(b));
-
-      if (this.order.length < 1) {
-        throw new Error('available to load. why should I run?');
-      }
-
-      let count = 0;
-      let size = this.order.length;
-      for (let mod of this.order) {
-        count++;
-        this.henri[mod.name] = mod;
-        if (typeof mod.init === 'function') {
-          await mod.init();
+        for (let obj of level) {
+          runlevel = obj.runlevel;
+          this.order[obj.runlevel].push(obj.init);
+          this.henri[obj.name] = obj;
+          if (obj.reloadable && typeof obj.reload === 'function') {
+            this.reloadable[obj.runlevel].push(obj.reload);
+          }
         }
-        pen.info(mod.name, `module`, `loaded`, `${count}/${size}`);
-      }
-      pen.info('modules', 'loading', '...done!');
-      resolve();
-    });
-  }
 
-  reload() {
-    const { pen } = this.henri;
-
-    this.order.forEach(async (V, i, t) => {
-      if (V.reloadable && typeof V.reload === 'function') {
-        await V.reload();
+        let result = await Promise.all(this.order[runlevel].map(f => f()));
+        for (let name of result) {
+          count++;
+          pen.info(`modules`, name, `loaded`, `${count}/${size}`);
+        }
       }
-      pen.info(V.name, `module is reloaded`, `${i + 1}/${t.length}`);
-    });
+    }
+
+    pen.info('modules', 'loading', '...done!');
+
+    this.initialized = true;
 
     return true;
   }
 
-  loader(func) {
-    if (!this.isProduction && typeof func === 'function') {
-      this._loaders.push(func);
+  async reload() {
+    const { pen } = this.henri;
+
+    if (!this.initialized) {
+      pen.warn('modules', 'cannot reload when not initialized');
+      return false;
     }
+
+    for (let id of Object.keys(require.cache)) {
+      // istanbul ignore next
+      delete require.cache[id];
+    }
+
+    let count = 0;
+    const max = this.reloadable.reduce((a, b) => a.concat(b));
+    for (let level of this.reloadable) {
+      if (level.length > 0) {
+        const result = await Promise.all(level.map(f => f()));
+        for (let name of result) {
+          count++;
+          pen.info(`modules`, name, `reloaded`, `${count}/${max.length}`);
+        }
+      }
+    }
+
+    return true;
   }
 
-  unloader(func) {
+  async stop() {
     const { pen } = this.henri;
-    if (typeof func === 'function') {
-      this._unloaders.unshift(func);
-    } else {
-      pen.error(
-        'modules',
-        'you tried to register an unloader which is not a function'
-      );
+
+    for (let mod of this.stopOrder) {
+      this.henri[mod.name] = mod;
+      if (typeof mod.stop === 'function') {
+        if (await mod.stop()) {
+          pen.info(`modules`, mod.name, `stopped`);
+        }
+      }
     }
   }
 }
@@ -186,14 +196,6 @@ function crashOnDuplicateModule(existing, func, info, pen) {
     'you have a module trying to load over another...',
     'check your modules? see: https://usehenri.io/e/dup_mods'
   );
-}
-
-function changeCurrentDirectory(prefix, pen) {
-  try {
-    process.chdir(path.resolve(process.cwd(), prefix));
-  } catch (e) {
-    pen.fatal('modules', `unable to change current directory to ${prefix}`);
-  }
 }
 
 module.exports = Modules;

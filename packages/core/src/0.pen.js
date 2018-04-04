@@ -18,20 +18,11 @@ class Pen extends BaseModule {
     this.notTest = process.env.NODE_ENV !== 'test';
     this.longest = 12;
     this.buffer = [];
-    this._time = process.uptime();
+    this._time =
+      process.env.NODE_ENV === 'test' ? '42424242' : process.uptime();
     this._timeSkipped = 0;
     this.initialized = false;
     this.inTesting = inTesting;
-
-    this.time = this.time.bind(this);
-    this.error = this.error.bind(this);
-    this.warn = this.warn.bind(this);
-    this.info = this.info.bind(this);
-    this.verbose = this.verbose.bind(this);
-    this.debug = this.debug.bind(this);
-    this.silly = this.silly.bind(this);
-    this.output = this.output.bind(this);
-    this.dequeue = this.dequeue.bind(this);
   }
 
   error(name, ...args) {
@@ -149,11 +140,13 @@ class Pen extends BaseModule {
     if (!this.initialized) {
       this.initialized = true;
       this.line(1);
-      this.info(
-        'henri',
-        henri.release,
-        henri.isProduction ? chalk.green('production') : chalk.red('dev')
-      );
+      if (typeof global['henri'] !== 'undefined') {
+        this.info(
+          'henri',
+          henri.release,
+          henri.isProduction ? chalk.green('production') : chalk.red('dev')
+        );
+      }
       this.line(1);
     }
     if (this.longest < name.length) {
@@ -179,23 +172,11 @@ class Pen extends BaseModule {
     return { data, space };
   }
 
-  queue(data) {
-    this.buffer.push(data);
-  }
-
-  dequeue() {
-    const data = this.buffer.splice(0);
-    if (data.length > 0) {
-      // eslint-disable-next-line no-console
-      data.map(v => console.log(v));
-    }
-  }
-
   notify(title = null, message = null) {
     if (!title && !message) {
       return false;
     }
-    if (henri.isDev) {
+    if (henri && henri.isDev) {
       notifier.notify({
         title,
         message,

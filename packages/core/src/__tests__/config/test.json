@@ -1,0 +1,14 @@
+{
+  "abc": "c",
+  "stores": {
+    "default": {
+      "adapter": "mongoose"
+    }
+  },
+  "routes": {
+    "get /abc": "a#bc",
+    "/def": "main#def",
+    "PosT /ghi": "main#ghi"
+  },
+  "secret": "nfiwuef9we8f9"
+}
