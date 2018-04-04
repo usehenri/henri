@@ -6,6 +6,6 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "sequelize": "^4.35.1"
+    "sequelize": "^4.37.5"
   }
 }
