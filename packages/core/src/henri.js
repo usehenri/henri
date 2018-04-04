@@ -4,9 +4,11 @@ const Pen = require('./0.pen');
 const validator = require('validator');
 
 const Config = require('./0.config');
+const Graphql = require('./1.graphql');
 const Controllers = require('./2.controllers');
 const Server = require('./2.server');
 const Model = require('./2.model');
+const View = require('./3.view');
 const Router = require('./4.router');
 const User = require('./5.user');
 
@@ -23,6 +25,7 @@ class Henri extends HenriBase {
     this.utils = require('./utils');
 
     this.status = new Map();
+    this._middlewares = [];
 
     !this.isTest && (global['henri'] = this);
 
@@ -35,11 +38,13 @@ class Henri extends HenriBase {
 
   async init() {
     this.modules.add(new Config());
+    this.modules.add(new Graphql());
     this.modules.add(new Controllers());
     this.modules.add(new Server());
     this.modules.add(new Model());
     this.modules.add(new Router());
     this.modules.add(new User());
+    this.modules.add(new View());
 
     await this.modules.init();
   }
@@ -62,6 +67,14 @@ class Henri extends HenriBase {
 
   async stop() {
     return this.modules.stop();
+  }
+
+  addMiddleware(func) {
+    this._middlewares.push(func);
+  }
+
+  gql(ast) {
+    return `${ast}`;
   }
 }
 
