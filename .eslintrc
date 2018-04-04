@@ -14,11 +14,7 @@
     "jest/no-disabled-tests": "warn",
     "jest/no-focused-tests": "error",
     "jest/no-identical-title": "error",
-    "jest/valid-expect": "error",
-    "complexity": [2, 4],
-    "max-statements": [2, 25],
-    "max-params": ["error", 4],
-    "max-depth": ["error", 4]
+    "jest/valid-expect": "error"
   },
   "plugins": ["jest"]
 }
