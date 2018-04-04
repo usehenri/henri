@@ -6,6 +6,6 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "nodemailer": "^4.6.0"
+    "nodemailer": "^4.6.4"
   }
 }
