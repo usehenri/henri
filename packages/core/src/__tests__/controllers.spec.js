@@ -2,9 +2,9 @@ const BaseModule = require('../base/module');
 const Henri = require('../henri');
 
 describe('controllers', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     this.henri = new Henri({ runlevel: 2 });
-    this.henri.init();
+    await this.henri.init();
   });
 
   test('should be defined', () => {

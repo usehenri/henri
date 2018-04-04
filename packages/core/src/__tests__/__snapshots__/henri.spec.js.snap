@@ -2,6 +2,7 @@
 
 exports[`henri general should match snapshot 1`] = `
 Henri {
+  "_middlewares": Array [],
   "cwd": [Function],
   "env": "test",
   "isDev": false,

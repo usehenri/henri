@@ -175,7 +175,9 @@ class Server extends BaseModule {
     // const ws = new Websocket(this.httpServer);
     // ws.init();
 
-    this.port = henri.config.has('port') ? henri.config.get('port') : 3000;
+    this.port = this.henri.config.has('port')
+      ? this.henri.config.get('port')
+      : 3000;
 
     app.use(timings);
 
@@ -207,7 +209,7 @@ class Server extends BaseModule {
     port = henri.isDev ? await choosePort('0.0.0.0', port) : port;
     return httpServer
       .listen(port, function() {
-        henri.pen.info('server', 'listenning');
+        henri.pen.info('server', 'ready for battle');
         const urls = prepareUrls('http', '0.0.0.0', port);
         henri.isDev && watch();
 
