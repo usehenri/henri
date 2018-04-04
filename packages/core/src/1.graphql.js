@@ -8,7 +8,7 @@ class Graphql extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
-    this.runlevel = 3;
+    this.runlevel = 1;
     this.name = 'graphql';
     this.henri = null;
 
@@ -19,10 +19,12 @@ class Graphql extends BaseModule {
     this.resolvers = null;
     this.schema = null;
     this.endpoint = '/_henri/gql';
+    this.active = false;
 
-    this.start = this.start.bind(this);
     this.init = this.init.bind(this);
-    this.stop = this.stop.bind(this);
+    this.extract = this.extract.bind(this);
+    this.merge = this.merge.bind(this);
+    this.run = this.run.bind(this);
     this.reload = this.reload.bind(this);
   }
 
@@ -31,18 +33,21 @@ class Graphql extends BaseModule {
       this.endpoint = this.henri.config.get('graphql');
     }
 
-    this.henri.router.use(
-      henri._graphql.endpoint,
-      graphqlExpress({ schema: henri._graphql.schema })
-    );
+    this.henri.addMiddleware(app => {
+      app.use(this.endpoint, graphqlExpress({ schema: this.schema }));
+    });
 
     if (!this.henri.isProduction) {
       this.henri.pen.info('graphql', 'started graphiql browser');
-      this.henri.router.use(
-        '/_henri/graphiql',
-        graphiqlExpress({ endpointURL: this.endpoint })
-      );
+      this.henri.addMiddleware(app => {
+        app.use(
+          '/_henri/graphiql',
+          graphiqlExpress({ endpointURL: this.endpoint })
+        );
+      });
     }
+
+    return this.name;
   }
 
   extract(model) {
@@ -75,10 +80,13 @@ class Graphql extends BaseModule {
     }
 
     if (should) {
+      this.active = true;
       this.schema = makeExecutableSchema({
         typeDefs: this.types,
         resolvers: this.resolvers,
       });
+    } else {
+      this.active = false;
     }
   }
 
@@ -90,6 +98,15 @@ class Graphql extends BaseModule {
     const { schema } = this;
 
     return runQuery({ schema, query, context });
+  }
+
+  async reload() {
+    this.typesList = [];
+    this.resolversList = [];
+
+    this.types = null;
+    this.resolvers = null;
+    this.schema = null;
   }
 }
 
