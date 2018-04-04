@@ -80,7 +80,12 @@ class Model extends BaseModule {
       this.ids.push(model.globalId);
       configuration.adapters[storeName] = store;
       this.models.push(model);
+      if (model.graphql) {
+        this.henri.graphql.extract(model);
+      }
     }
+
+    this.henri.graphql.merge();
 
     return configuration;
   }
