@@ -97,21 +97,24 @@ class Router extends BaseModule {
   }
 
   startView(reload = false) {
-    const { pen, view } = this.henri;
+    const { pen } = this.henri;
     /* istanbul ignore next */
     if (this.henri.view && !reload) {
       try {
-        this.henri.view.prepare().then(() => {
-          this.henri.view.fallback(this.handler);
+        this.henri.view.engine.prepare().then(() => {
+          this.henri.view.engine.fallback(this.handler);
           this.henri.server.start();
         });
       } catch (error) {
         pen.error('router', 'unable to start renderer', error);
       }
     } else {
-      view && view.fallback(this.handler);
-      !reload && this.henri.server.start();
-      !view && pen.warn('router', 'unable to register view fallback route');
+      if (this.henri.view) {
+        this.henri.view && this.henri.view.engine.fallback(this.handler);
+        !reload && this.henri.server.start();
+      } else {
+        pen.warn('router', 'unable to register view fallback route');
+      }
     }
   }
 
@@ -131,11 +134,15 @@ class Router extends BaseModule {
       this._paths[`${action}_${name}_path`] = { route, method: verb };
     }
 
-    if (fn === false && !henri.isProduction) {
-      this.henri.pen.error('router', verb, route, controller);
-      return this.handler[verb](route, (req, res) =>
-        res.status(501).send({ msg: 'Not implemented', route, method: verb })
-      );
+    if (fn === false) {
+      if (!henri.isProduction) {
+        this.henri.pen.error('router', verb, route, controller);
+        return this.handler[verb](route, (req, res) =>
+          res.status(501).send({ msg: 'Not implemented', route, method: verb })
+        );
+      } else {
+        return false;
+      }
     }
 
     if (!roles) {
@@ -162,12 +169,8 @@ class Router extends BaseModule {
   }
 
   middlewares(router) {
-    if (this._middlewares.length > 0) {
-      this._middlewares.map(func => func(this.handler));
-    }
-
-    if (henri._graphql && henri._graphql.schema) {
-      henri._graphql.register();
+    if (this.henri._middlewares.length > 0) {
+      this.henri._middlewares.map(func => func(this.handler));
     }
 
     this.handler.use((req, res, cb) => {
@@ -181,7 +184,9 @@ class Router extends BaseModule {
       delete res.render;
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
-        data = (graphql && (await henri.graphql(graphql))) || data;
+
+        data = (graphql && (await henri.graphql.run(graphql))) || data;
+
         let opts = {
           data: (graphql && data.data) || data,
           errors: graphql && data.errors,
@@ -190,25 +195,22 @@ class Router extends BaseModule {
           user: req.user || {},
           query: req.query,
         };
+
         if (henri.graphql) {
           opts.graphql = {
-            endpoint:
-              (henri._graphql.active && henri._graphql.endpoint) || false,
+            endpoint: (henri.graphql.active && henri.graphql.endpoint) || false,
             query: graphql || false,
           };
         }
+
         return res.format({
-          html: () => this.henri.view.render(req, res, route, opts),
+          html: () => this.henri.view.engine.render(req, res, route, opts),
           json: () => res.json(opts),
-          default: () => this.henri.view.render(req, res, route, opts),
+          default: () => this.henri.view.engine.render(req, res, route, opts),
         });
       };
       cb();
     });
-  }
-
-  addMiddleware(func) {
-    this._middlewares.push(func);
   }
 
   stop() {
