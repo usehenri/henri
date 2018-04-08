@@ -1,10 +1,10 @@
-const header = () => `const { log } = henri; module.exports = {`;
+const header = () => `const { pen } = henri; module.exports = {`;
 
 const index = (lower, doc) => {
   return `
   index: async (req, res) => {
     res.render('/_scaffold/${lower}/index', { 
-      ${lower}: await ${doc}.find() 
+      data: { ${lower}: await ${doc}.find() }
     }); 
   },`;
 };
@@ -30,7 +30,7 @@ const show = (lower, doc) => {
     return res.render('/_scaffold/${lower}/show')
   }
   return res.render('/_scaffold/${lower}/show', {
-    ${lower}: await ${doc}.find({ _id: req.params.id }),
+    data: { ${lower}: await ${doc}.find({ _id: req.params.id }) },
   })
 },`;
 };
@@ -41,7 +41,7 @@ const edit = (lower, doc) => {
       return res.render('/_scaffold/${lower}/edit')
     }
     return res.render('/_scaffold/${lower}/edit', {
-      ${lower}: await ${doc}.findOne({ _id: req.params.id }),
+      data: { ${lower}: await ${doc}.findOne({ _id: req.params.id }) },
     })
   },`;
 };
