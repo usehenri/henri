@@ -11,15 +11,17 @@ const allowed = {
 class View extends BaseModule {
   constructor() {
     super();
-    this.reloadable = false;
+    this.reloadable = true;
     this.runlevel = 3;
     this.name = 'view';
     this.henri = null;
+    this.consoleOnly = true;
 
     this.renderer = 'template';
     this.engine = null;
 
     this.init = this.init.bind(this);
+    this.reload = this.reload.bind(this);
   }
 
   init() {
@@ -43,6 +45,13 @@ class View extends BaseModule {
     const Engine = require(`./engines/${allowed[this.renderer]}`);
     this.engine = new Engine(this.henri);
 
+    return this.name;
+  }
+
+  async reload() {
+    if (typeof this.engine.reload === 'function') {
+      await this.engine.reload();
+    }
     return this.name;
   }
 }
