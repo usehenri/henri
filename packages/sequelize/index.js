@@ -1,6 +1,6 @@
 const Sequelize = require('sequelize');
 
-const { config, log } = henri;
+const { config, pen } = henri;
 
 class Sql {
   constructor(name, config) {
@@ -43,7 +43,10 @@ class Sql {
   }
 
   overload(schema, model, user) {
-    log.info(`Found a user model (${model.globalId}), overloading it.`);
+    pen.info(
+      'sequelize',
+      `Found a user model (${model.globalId}), overloading it.`
+    );
     schema.email = { type: Sequelize.STRING, required: true };
     schema.password = { type: Sequelize.STRING, required: true };
     const baseRole = (config.has('baseRole') && [config.get('baseRole')]) || '';

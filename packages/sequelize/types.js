@@ -3,7 +3,7 @@ const Sequelize = require('sequelize');
 module.exports = {
   // Mongoose specific
   String: Sequelize.STRING,
-  Number: Sequelize.NUMBER,
+  Number: Sequelize.INTEGER,
   Boolean: Sequelize.BOOLEAN,
   DocumentArray: Sequelize.ARRAY,
   Embedded: Sequelize.STRING,
@@ -25,6 +25,7 @@ module.exports = {
   MEDIUMINT: Sequelize.MEDIUMINT,
   INTEGER: Sequelize.INTEGER,
   BIGINT: Sequelize.BIGINT,
+  NUMBER: Sequelize.NUMBER,
   FLOAT: Sequelize.FLOAT,
   DOUBLE: Sequelize.DOUBLE,
   DECIMAL: Sequelize.DECIMAL,
