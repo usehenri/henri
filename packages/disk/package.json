@@ -6,7 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/sequelize": "^0.20.2",
-    "sqlite3": "^4.0.0"
+    "sails-disk": "^1.0.1",
+    "waterline": "^0.13.3"
   }
 }
