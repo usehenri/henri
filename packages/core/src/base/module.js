@@ -34,6 +34,8 @@ class BaseModuleClass {
 
     /** the key that we should bind to to display terminal info. */
     this.key = null;
+
+    this.consoleOnly = false;
   }
 
   /** this is called when the modules started */

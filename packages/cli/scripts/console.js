@@ -10,10 +10,10 @@ try {
   name = require(path.resolve(process.cwd(), 'package.json')).name || 'henri';
 } catch (e) {}
 
-const main = args => {
+const main = async args => {
   const prompt = `${chalk.blue.bold(name)}${chalk.white.bold('> ')}`;
 
-  server({ skipView: true }, () => {
+  await server({ consoleOnly: true }, () => {
     repl.start({ prompt, useGlobal: true });
   });
 };

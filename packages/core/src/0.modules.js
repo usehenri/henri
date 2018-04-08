@@ -19,6 +19,10 @@ class Modules {
   add(func) {
     const { pen } = this.henri;
 
+    if (this.henri.consoleOnly && func.consoleOnly) {
+      return false;
+    }
+
     const info = stack()[1];
 
     const obj = validate(func, info, pen);
