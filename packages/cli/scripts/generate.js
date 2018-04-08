@@ -182,7 +182,7 @@ const help = args => {
       $ henri generate <command> <target> [options]
 
     Available commands
-      model, controller, scaffold
+      model, controller, crud, scaffold
 
     Examples
 
