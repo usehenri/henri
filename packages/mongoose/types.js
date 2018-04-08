@@ -25,6 +25,7 @@ module.exports = {
   MEDIUMINT: types.Number,
   INTEGER: types.Number,
   BIGINT: types.Number,
+  NUMBER: types.Number,
   FLOAT: types.Number,
   DOUBLE: types.Number,
   DECIMAL: types.Number,
