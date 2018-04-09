@@ -1,5 +1,6 @@
 const BaseModule = require('../base/module');
 const Henri = require('../henri');
+const Controllers = require('../2.controllers');
 
 describe('controllers', () => {
   beforeEach(async () => {
@@ -13,6 +14,11 @@ describe('controllers', () => {
 
   test('should extend BaseModule', () => {
     expect(this.henri.controllers).toBeInstanceOf(BaseModule);
+  });
+
+  test('should match snapshot', () => {
+    const controllers = new Controllers();
+    expect(controllers).toMatchSnapshot();
   });
 
   test('should load controllers and expose them', async () => {

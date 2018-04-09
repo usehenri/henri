@@ -1,5 +1,4 @@
 const BaseModule = require('./base/module');
-const includeAll = require('include-all');
 const path = require('path');
 
 class Controllers extends BaseModule {
@@ -21,6 +20,7 @@ class Controllers extends BaseModule {
   }
 
   load(location) {
+    const includeAll = require('include-all');
     return new Promise((resolve, reject) => {
       includeAll.optional(
         {
