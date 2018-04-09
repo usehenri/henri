@@ -58,7 +58,7 @@ Henri {
     "reloadable": false,
     "runlevel": 5,
   },
-  "prefix": ".",
+  "prefix": "./packages/demo",
   "release": "0.20.2",
   "runlevel": 1,
   "settings": Object {

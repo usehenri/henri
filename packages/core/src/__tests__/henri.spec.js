@@ -50,13 +50,17 @@ describe('henri', () => {
     });
 
     it('should have . as default folder', () => {
+      process.env.NODE_ENV = 'dev';
       const henri = new Henri();
       expect(henri.prefix).toEqual('.');
+      process.env.NODE_ENV = 'test';
     });
 
     it('should accept a new folder', () => {
+      process.env.NODE_ENV = 'dev';
       const henri = new Henri({ cwd: './packages' });
       expect(henri.prefix).toEqual('./packages');
+      process.env.NODE_ENV = 'test';
     });
   });
 });
