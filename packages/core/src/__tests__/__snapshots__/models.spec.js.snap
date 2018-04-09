@@ -1,0 +1,25 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`models should match snapshot 1`] = `
+Model {
+  "addToEslintRc": [Function],
+  "checkStoreOrDie": [Function],
+  "configure": [Function],
+  "getStore": [Function],
+  "henri": null,
+  "ids": Array [],
+  "init": [Function],
+  "key": null,
+  "load": [Function],
+  "loadStore": [Function],
+  "models": Array [],
+  "name": "model",
+  "reload": [Function],
+  "reloadable": true,
+  "reset": [Function],
+  "runlevel": 2,
+  "start": [Function],
+  "stop": [Function],
+  "stores": Object {},
+}
+`;

@@ -1,25 +1,7 @@
 const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
-
-function checkStoreOrDie(model) {
-  const { config, pen } = henri;
-  if (!model.store && !config.has('stores.default')) {
-    return pen.fatal(
-      'models',
-      `There is no default store and ${model.identity} is missing one`
-    );
-  }
-
-  if (model.store && !config.has(`stores.${model.store}`)) {
-    return pen.fatal(
-      'models',
-      `It seems like ${model.store} is not configured. ${
-        model.identity
-      } is using it.`
-    );
-  }
-}
+const _ = require('lodash');
 
 class Model extends BaseModule {
   constructor() {
@@ -33,10 +15,17 @@ class Model extends BaseModule {
     this.models = [];
     this.stores = {};
 
-    this.start = this.start.bind(this);
+    this.load = this.load.bind(this);
+    this.configure = this.configure.bind(this);
+    this.reset = this.reset.bind(this);
+    this.loadStore = this.loadStore.bind(this);
+    this.getStore = this.getStore.bind(this);
     this.init = this.init.bind(this);
+    this.start = this.start.bind(this);
     this.stop = this.stop.bind(this);
     this.reload = this.reload.bind(this);
+    this.addToEslintRc = this.addToEslintRc.bind(this);
+    this.checkStoreOrDie = this.checkStoreOrDie.bind(this);
   }
 
   async load(location) {
@@ -70,10 +59,10 @@ class Model extends BaseModule {
       adapters: {},
       models: {},
     };
-
     for (const id of Object.keys(models)) {
       const model = models[id];
-      checkStoreOrDie(model);
+      this.checkStoreOrDie(model);
+      model.globalId = _.capitalize(model.globalId);
       const storeName = model.store || 'default';
       const store = await this.getStore(storeName);
       global[model.globalId] = store.addModel(model, user);
@@ -188,8 +177,12 @@ class Model extends BaseModule {
   }
 
   async reload() {
-    await this.stop();
-    await this.init();
+    try {
+      await this.stop();
+      await this.init();
+    } catch (error) {
+      henri.pen.error('model', error);
+    }
     return this.name;
   }
 
@@ -200,6 +193,25 @@ class Model extends BaseModule {
       this.ids.map(modelName => (eslintRc.globals[modelName] = true));
       fs.writeFileSync(eslintFile, JSON.stringify(eslintRc, null, 2));
     } catch (e) {} // Do nothing
+  }
+
+  checkStoreOrDie(model) {
+    const { config, pen } = this.henri;
+    if (!model.store && !config.has('stores.default')) {
+      return pen.fatal(
+        'models',
+        `There is no default store and ${model.identity} is missing one`
+      );
+    }
+
+    if (model.store && !config.has(`stores.${model.store}`)) {
+      return pen.fatal(
+        'models',
+        `It seems like ${model.store} is not configured. ${
+          model.identity
+        } is using it.`
+      );
+    }
   }
 }
 
