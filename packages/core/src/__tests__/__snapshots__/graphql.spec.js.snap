@@ -1,0 +1,40 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`graphql merge should compile schema 1`] = `
+Object {
+  "data": Object {
+    "artworks": Array [
+      Object {
+        "title": "Le bonheur de vivre",
+        "year": 1905,
+      },
+      Object {
+        "title": "Music",
+        "year": 1910,
+      },
+    ],
+  },
+}
+`;
+
+exports[`graphql should match snapshot 1`] = `
+Graphql {
+  "active": false,
+  "endpoint": "/_henri/gql",
+  "extract": [Function],
+  "henri": null,
+  "init": [Function],
+  "key": null,
+  "merge": [Function],
+  "name": "graphql",
+  "reload": [Function],
+  "reloadable": true,
+  "resolvers": null,
+  "resolversList": Array [],
+  "run": [Function],
+  "runlevel": 1,
+  "schema": null,
+  "types": null,
+  "typesList": Array [],
+}
+`;
