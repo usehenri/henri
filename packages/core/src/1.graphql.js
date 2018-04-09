@@ -52,10 +52,10 @@ class Graphql extends BaseModule {
 
   extract(model) {
     if (typeof model.graphql === 'undefined') {
-      return;
+      return false;
     }
 
-    const { types = null, resolvers = null } = model.graphql;
+    const { types = null, resolvers = {} } = model.graphql;
 
     if (typeof types === 'string') {
       this.typesList.push(types);
@@ -104,9 +104,11 @@ class Graphql extends BaseModule {
     this.typesList = [];
     this.resolversList = [];
 
+    this.active = false;
     this.types = null;
     this.resolvers = null;
     this.schema = null;
+    return this.name;
   }
 }
 
