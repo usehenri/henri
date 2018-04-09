@@ -22,33 +22,32 @@ const prettier = require('prettier');
 /* istanbul ignore next */
 async function watch() {
   let watching = [
-    'app/controllers',
-    'app/helpers',
-    'app/models',
+    'app/controllers/**',
+    'app/helpers/**',
+    'app/models/**',
     'app/routes.js',
-    'app/websocket',
+    'app/websocket/**',
+    'app/views/partials/**/*.html',
     'config/',
     './**.json',
     './**.lock',
   ];
-  const watcher = chokidar.watch(watching);
   const { pen, utils: { clearConsole } } = henri;
-  watcher.on('ready', () => {
-    watcher.on('all', async (event, path) => {
-      if (henri.status.get('locked')) {
-        return;
-      }
-      henri.status.set('locked', true);
-      clearConsole();
-      pen.line();
-      pen.warn('server', 'changes detected in', path);
-      pen.line(2);
-      await checkSyntax(path);
-      setTimeout(() => henri.status.set('locked', false), 750);
-      !henri.status.get('locked') && henri.reload();
-    });
-    pen.info('server', 'watching filesystem for changes...');
+  henri.status.set('locked', true);
+  chokidar.watch(watching).on('all', async (event, path) => {
+    if (henri.status.get('locked')) {
+      return;
+    }
+    henri.status.set('locked', true);
+    clearConsole();
+    pen.line();
+    pen.warn('server', 'changes detected in', path);
+    pen.line(2);
+    await checkSyntax(path);
+    setTimeout(() => henri.status.set('locked', false), 3000);
+    !henri.status.get('locked') && henri.reload();
   });
+
   keyboardShortcuts();
 
   setTimeout(() => {
@@ -59,7 +58,8 @@ async function watch() {
       `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${cmdCtrl}+N`
     );
     pen.info('server', `To quit, use ${cmdCtrl}+C`);
-  }, 2 * 1000);
+    henri.status.set('locked', false);
+  }, 1 * 1000);
 }
 
 function keyboardShortcuts() {
@@ -114,6 +114,10 @@ function handleError(err) {
 const checkSyntax = file => {
   const { pen } = henri;
   return new Promise(resolve => {
+    if (path.extname(file) === '.html') {
+      henri.status.set('locked', false);
+      return resolve();
+    }
     fs.readFile(file, 'utf8', (err, data) => {
       if (err) {
         pen.error('server', 'error in writefile');
