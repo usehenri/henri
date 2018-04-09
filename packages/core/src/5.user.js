@@ -156,7 +156,7 @@ class User extends BaseModule {
       this.henri.passport = passport;
     } else {
       /* istanbul ignore next */
-      pen.warn('no user model defined; will not load user module');
+      pen.warn('user', 'no user model defined; will not load user module');
     }
     return this.name;
   }
