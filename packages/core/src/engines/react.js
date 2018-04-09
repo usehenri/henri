@@ -19,7 +19,7 @@ class ReactEngine {
     this.render = this.render.bind(this);
   }
   init() {
-    const { checkPackages } = this.henri;
+    const { utils: { checkPackages } } = this.henri;
 
     switch (this.renderer) {
       case 'react':
