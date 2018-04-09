@@ -42,8 +42,12 @@ class View extends BaseModule {
       `
       );
     }
+
     const Engine = require(`./engines/${allowed[this.renderer]}`);
+
     this.engine = new Engine(this.henri);
+
+    this.engine.init && this.engine.init();
 
     return this.name;
   }
