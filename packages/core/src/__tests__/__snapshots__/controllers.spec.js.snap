@@ -1,0 +1,18 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`controllers should match snapshot 1`] = `
+Controllers {
+  "_controllers": Map {},
+  "configure": [Function],
+  "get": [Function],
+  "henri": null,
+  "init": [Function],
+  "key": null,
+  "load": [Function],
+  "name": "controllers",
+  "reload": [Function],
+  "reloadable": true,
+  "runlevel": 2,
+  "set": [Function],
+}
+`;
