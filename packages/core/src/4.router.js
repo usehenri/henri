@@ -96,17 +96,16 @@ class Router extends BaseModule {
     return this.name;
   }
 
-  startView(reload = false) {
+  async startView(reload = false) {
     const { pen } = this.henri;
     /* istanbul ignore next */
     if (this.henri.view && !reload) {
       try {
-        this.henri.view.engine.prepare().then(() => {
-          this.henri.view.engine.fallback(this.handler);
-          this.henri.server.start();
-        });
+        await this.henri.view.engine.prepare();
+        this.henri.view.engine.fallback(this.handler);
+        this.henri.server.start();
       } catch (error) {
-        pen.error('router', 'unable to start renderer', error);
+        pen.fatal('router', 'unable to start renderer', error);
       }
     } else {
       if (this.henri.view) {
@@ -242,14 +241,14 @@ class Route {
     if (this.verb === 'resources' || this.verb === 'crud') {
       const route = trim(this.route, '/');
       this.buildResource(`get`, `${this.scope}${route}`, 'index');
-      this.buildResource(`get`, `${this.scope}${route}/:id/edit`, 'edit');
+      this.buildResource(`post`, `${this.scope}${route}`, 'create');
       this.buildResource(`patch`, `${this.scope}${route}/:id`, 'update');
       this.buildResource(`put`, `${this.scope}${route}/:id`, 'update');
       this.buildResource(`delete`, `${this.scope}${route}/:id`, 'destroy');
 
       if (this.verb === 'resources') {
+        this.buildResource(`get`, `${this.scope}${route}/:id/edit`, 'edit');
         this.buildResource(`get`, `${this.scope}${route}/new`, 'new');
-        this.buildResource(`post`, `${this.scope}${route}`, 'create');
         this.buildResource(`get`, `${this.scope}${route}/:id`, 'show');
       }
     } else {
