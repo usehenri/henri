@@ -1,6 +1,6 @@
-const config = require('config');
-const { importFresh } = require('./utils');
 const BaseModule = require('./base/module');
+const path = require('path');
+const _ = require('lodash');
 
 class Config extends BaseModule {
   constructor() {
@@ -8,7 +8,7 @@ class Config extends BaseModule {
     this.reloadable = true;
     this.runlevel = 0;
     this.name = 'config';
-    this.config = config;
+    this.config = null;
     this.reloadable = true;
     this.henri = null;
 
@@ -16,27 +16,44 @@ class Config extends BaseModule {
     this.has = this.has.bind(this);
     this.reload = this.reload.bind(this);
     this.init = this.init.bind(this);
-    return this;
   }
 
   init() {
-    return this.name;
+    try {
+      this.config = require(path.join(
+        this.henri.cwd(),
+        'config',
+        `${process.env.NODE_ENV || 'dev'}.json`
+      ));
+      return this.name;
+    } catch (e) {}
+
+    try {
+      this.config = require(path.join(
+        this.henri.cwd(),
+        'config',
+        'default.json'
+      ));
+      return this.name;
+    } catch (e) {}
+    console.error('nothing to do...');
+    console.log('conf', this.config);
   }
 
   get(key, safe = false) {
-    if (safe && !this.config.has(key)) {
+    if (safe && !this.has(key)) {
       return false;
     }
-    return this.config.get(key);
+    return _.get(this.config, key);
   }
 
   has(key) {
-    return this.config.has(key);
+    return _.has(this.config, key);
   }
 
-  reload() {
+  async reload() {
     delete this.config;
-    this.config = importFresh('config');
+    await this.init();
     return this.name;
   }
 
