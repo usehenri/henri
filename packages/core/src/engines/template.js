@@ -104,13 +104,13 @@ class TemplateEngine {
       route
     )}.html`;
 
-    if (henri.isProduction && this.cache.has(pathToFile)) {
+    if (this.henri.isProduction && this.cache.has(pathToFile)) {
       return this.cache.get(pathToFile);
     }
 
     try {
       const data = fs.readFileSync(pathToFile);
-      if (henri.isProduction) {
+      if (this.henri.isProduction) {
         this.cache.set(pathToFile, data);
       }
       return data.toString('utf8');
