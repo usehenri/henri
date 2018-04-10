@@ -7,10 +7,10 @@ const Config = require('./0.config');
 const Graphql = require('./1.graphql');
 const Controllers = require('./2.controllers');
 const Server = require('./2.server');
-const Model = require('./2.model');
+const Model = require('./3.model');
 const View = require('./3.view');
-const Router = require('./4.router');
-const User = require('./5.user');
+const User = require('./4.user');
+const Router = require('./5.router');
 
 const path = require('path');
 

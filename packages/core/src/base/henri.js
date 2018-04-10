@@ -11,7 +11,7 @@ class HenriBase {
     this.consoleOnly = CONSOLE_ONLY || false;
 
     this.settings = {
-      package: require('../../package.json').version,
+      package: this.isTest ? '0.42.0' : require('../../package.json').version,
       arch: this.isTest ? 'x64' : arch,
       platform: this.isTest ? 'linux' : platform,
     };

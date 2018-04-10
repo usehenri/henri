@@ -6,7 +6,7 @@ class Model extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
-    this.runlevel = 4;
+    this.runlevel = 3;
     this.name = 'model';
     this.henri = null;
 

@@ -61,11 +61,11 @@ Henri {
     "runlevel": 5,
   },
   "prefix": "./packages/demo",
-  "release": "0.20.2",
+  "release": "0.42.0",
   "runlevel": 1,
   "settings": Object {
     "arch": "x64",
-    "package": "0.20.2",
+    "package": "0.42.0",
     "platform": "linux",
   },
   "status": Map {},

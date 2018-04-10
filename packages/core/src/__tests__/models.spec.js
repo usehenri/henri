@@ -1,11 +1,11 @@
 const BaseModule = require('../base/module');
 const Henri = require('../henri');
-const Model = require('../2.model');
+const Model = require('../3.model');
 
 xdescribe('models', () => {
   beforeAll(async () => {
     this.henri = new Henri({
-      runlevel: 4,
+      runlevel: 3,
     });
     await this.henri.init();
   });

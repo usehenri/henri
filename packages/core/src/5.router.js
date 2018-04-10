@@ -7,7 +7,7 @@ class Router extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
-    this.runlevel = 4;
+    this.runlevel = 5;
     this.name = 'router';
     this.henri = null;
 
