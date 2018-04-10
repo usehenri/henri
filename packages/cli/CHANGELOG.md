@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.21.2"></a>
+## [0.21.2](https://github.com/usehenri/henri/compare/v0.21.1...v0.21.2) (2018-04-10)
+
+
+### Bug Fixes
+
+* **cli:** better packages usage ([4eaae0f](https://github.com/usehenri/henri/commit/4eaae0f))
+
+
+
+
 <a name="0.21.1"></a>
 ## [0.21.1](https://github.com/usehenri/henri/compare/v0.21.0...v0.21.1) (2018-04-10)
 
