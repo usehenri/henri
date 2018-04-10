@@ -104,15 +104,6 @@ describe('pen', () => {
         expect(this.pen.line).toHaveBeenCalledTimes(6);
       });
 
-      /* eslint-disable no-console */
-      test('should handle testing?', () => {
-        process.exit = jest.fn();
-        this.pen.inTesting = true;
-        this.pen.notTest = true;
-        this.pen.fatal('test', 'info');
-        expect(process.exit).toHaveBeenCalledTimes(1);
-      });
-
       test('should have default value in fatal', () => {
         this.pen.error = jest.fn();
         this.pen.fatal();
@@ -143,12 +134,6 @@ describe('pen', () => {
       expect(this.pen.time()).not.toEqual('');
     });
 
-    xtest('should handle long messages', () => {
-      const boo = this.pen.shout('test', 'info', 'a'.repeat(1000));
-      console.log(boo);
-      expect(boo).toEqual(10);
-    });
-
     /* eslint-disable no-console *
 
     /* eslint-disable no-console */
@@ -168,9 +153,13 @@ describe('pen', () => {
     });
   });
   describe('bootstrapped', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       this.henri = new Henri({ runlevel: 0 });
-      this.henri.init();
+      await this.henri.init();
+    });
+
+    afterEach(async () => {
+      await this.henri.stop();
     });
 
     test('should be defined', () => {

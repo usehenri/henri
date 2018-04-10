@@ -3,9 +3,13 @@ const Henri = require('../henri');
 const Controllers = require('../2.controllers');
 
 describe('controllers', () => {
-  beforeEach(async () => {
+  beforeAll(async () => {
     this.henri = new Henri({ runlevel: 2 });
     await this.henri.init();
+  });
+
+  afterAll(async () => {
+    await this.henri.stop();
   });
 
   test('should be defined', () => {
@@ -33,8 +37,6 @@ describe('controllers', () => {
         badStuff: 'really bad stuff',
       },
     };
-
-    expect(this.henri.controllers.size()).toEqual(0);
     await this.henri.controllers.configure(controllers);
     expect(this.henri.controllers.get('someFolder/index#index')).toBeTruthy();
     expect(this.henri.controllers.get('someFolder/index#create')).toBeTruthy();

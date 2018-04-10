@@ -3,9 +3,13 @@ const Henri = require('../henri');
 const Graphql = require('../1.graphql');
 
 describe('graphql', () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     this.henri = new Henri({ runlevel: 1 });
-    this.henri.init();
+    await this.henri.init();
+  });
+
+  afterAll(async () => {
+    await this.henri.stop();
   });
 
   test('should be defined', () => {

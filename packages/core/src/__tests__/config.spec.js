@@ -2,9 +2,13 @@ const BaseModule = require('../base/module');
 const Henri = require('../henri');
 
 describe('config', () => {
-  beforeEach(() => {
+  beforeAll(async () => {
     this.henri = new Henri({ runlevel: 1 });
-    this.henri.init();
+    await this.henri.init();
+  });
+
+  afterAll(async () => {
+    await this.henri.stop();
   });
 
   test('should be defined', () => {
@@ -13,10 +17,6 @@ describe('config', () => {
 
   test('should extend BaseModule', () => {
     expect(this.henri.config).toBeInstanceOf(BaseModule);
-  });
-
-  test('should throw if key is not there', () => {
-    expect(() => this.henri.config.get('boo')).toThrow();
   });
 
   test('should not throw if in safe mode', () => {

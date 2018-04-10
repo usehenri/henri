@@ -98,7 +98,7 @@ class Pen extends BaseModule {
       this.error(name, 'See error stack before the object, up there!');
     }
     this.line(2);
-    this.inTesting && process.exit();
+    // this.inTesting && process.exit();
     return true;
   }
 
