@@ -104,7 +104,7 @@ class User extends BaseModule {
       passport.use(jwtLogin);
       passport.use(localLogin);
 
-      const NedbStore = require('nedb-session-store')(session);
+      const connector = this.henri.model.getSessionConnector(session);
 
       this.henri.server.app.use(
         session({
@@ -117,9 +117,7 @@ class User extends BaseModule {
             httpOnly: true,
             maxAge: 365 * 24 * 60 * 60 * 1000, // e.g. 1 year
           },
-          store: new NedbStore({
-            filename: '.tmp/nedb-sessions.db',
-          }),
+          store: connector,
         })
       );
 

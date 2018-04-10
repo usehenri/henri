@@ -5,6 +5,7 @@ const { pen } = henri;
 
 class Disk {
   constructor(name, config) {
+    this.adapterName = 'disk';
     this.name = name;
     this.config = config;
     this.models = {};
@@ -62,6 +63,14 @@ class Disk {
 
   getModels() {
     return this.models || {};
+  }
+
+  getSessionConnector(session) {
+    const NedbStore = require('nedb-session-store')(session);
+
+    return new NedbStore({
+      filename: '.tmp/nedb-sessions.db',
+    });
   }
 
   async start() {

@@ -10,10 +10,13 @@ class Mongoose {
     if (!config.url && !config.host) {
       pen.fatal('mongoose', `Missing url or host in store ${name}`);
     }
+    this.adapterName = 'mongoose';
     this.name = name;
     this.config = config;
     this.models = {};
     this.mongoose = mongoose;
+
+    this.getSessionConnector = this.getSessionConnector.bind(this);
   }
 
   addModel(model, user) {
@@ -55,6 +58,15 @@ class Mongoose {
 
   getModels() {
     return this.mongoose.models || {};
+  }
+
+  getSessionConnector(session) {
+    const MongoStore = require('connect-mongo')(session);
+
+    return new MongoStore({
+      mongooseConnection: this.mongoose.connection,
+      collection: 'henriSessions',
+    });
   }
 
   async start() {

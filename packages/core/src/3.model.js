@@ -202,6 +202,26 @@ class Model extends BaseModule {
     } catch (e) {} // Do nothing
   }
 
+  getSessionConnector(session, name = 'default') {
+    try {
+      const connector = this.stores[name].getSessionConnector(session);
+
+      if (connector instanceof session.MemoryStore) {
+        this.henri.pen.error('model', 'session', 'using MemoryStore instead');
+      } else {
+        this.henri.pen.info(
+          'model',
+          'session',
+          `${this.stores[name].name} (${this.stores[name].adapterName})`
+        );
+      }
+
+      return connector;
+    } catch (e) {
+      this.henri.pen.fatal('model', e);
+    }
+  }
+
   checkStoreOrDie(model) {
     const { config, pen } = this.henri;
     if (!model.store && !config.has('stores.default')) {

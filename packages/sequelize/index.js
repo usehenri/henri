@@ -66,6 +66,14 @@ class Sql {
     return this.models || {};
   }
 
+  getSessionConnector(session) {
+    const SequelizeStore = require('connect-session-sequelize')(session);
+
+    return new SequelizeStore({
+      db: this.connector,
+    });
+  }
+
   async start() {
     return new Promise((resolve, reject) => {
       this.connector

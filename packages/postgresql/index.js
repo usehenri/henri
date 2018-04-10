@@ -8,6 +8,7 @@ class Postgresql extends Sql {
     if (!config.url) {
       log.fatalError(`Missing url or host in store ${name}`);
     }
+    this.adapterName = 'postgresql';
     this.connector = new this.Sequelize(config.url, {
       dialectModulePath: require.resolve('pg'),
     });

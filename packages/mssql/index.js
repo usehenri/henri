@@ -8,6 +8,7 @@ class MsSQL extends Sql {
     if (!config.url) {
       log.fatalError(`Missing url or host in store ${name}`);
     }
+    this.adapterName = 'mssql';
     this.connector = new this.Sequelize(config.url, {
       dialect: 'mssql',
       dialectModulePath: require.resolve('tedious'),

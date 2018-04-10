@@ -9,6 +9,7 @@ class MySQL extends Sql {
     if (!config.url) {
       log.fatalError(`Missing url or host in store ${name}`);
     }
+    this.adapterName = 'mysql';
     this.connector = new this.Sequelize(config.url, {
       ...opts,
       dialectModulePath: require.resolve('mysql2'),

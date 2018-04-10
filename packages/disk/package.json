@@ -6,6 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
+    "nedb-session-store": "^1.1.2",
     "sails-disk": "^1.0.1",
     "waterline": "^0.13.3"
   }

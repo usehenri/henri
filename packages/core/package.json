@@ -29,7 +29,6 @@
     "lodash": "^4.17.5",
     "merge-graphql-schemas": "^1.5.0",
     "moment": "^2.22.0",
-    "nedb-session-store": "^1.1.2",
     "node-notifier": "^5.2.1",
     "passport": "^0.4.0",
     "passport-jwt": "^4.0.0",
