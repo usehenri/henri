@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "onboard": true,
+  "dependencies": {
+    "@usehenri/disk": "^0.20.2",
+    "nuxt": "^1.4.0"
+  }
+}
