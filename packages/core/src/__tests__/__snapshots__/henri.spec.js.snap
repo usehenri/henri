@@ -3,6 +3,7 @@
 exports[`henri general should match snapshot 1`] = `
 Henri {
   "_middlewares": Array [],
+  "consoleOnly": false,
   "cwd": [Function],
   "env": "test",
   "isDev": false,
@@ -48,6 +49,7 @@ Henri {
     "_time": "42424242",
     "_timeSkipped": 0,
     "buffer": Array [],
+    "consoleOnly": false,
     "henri": null,
     "inTesting": true,
     "initialized": false,

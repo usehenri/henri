@@ -134,7 +134,7 @@ class Router extends BaseModule {
     }
 
     if (fn === false) {
-      if (!henri.isProduction) {
+      if (!this.henri.isProduction) {
         this.henri.pen.error('router', verb, route, controller);
         return this.handler[verb](route, (req, res) =>
           res.status(501).send({ msg: 'Not implemented', route, method: verb })
@@ -184,7 +184,7 @@ class Router extends BaseModule {
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
 
-        data = (graphql && (await henri.graphql.run(graphql))) || data;
+        data = (graphql && (await this.henri.graphql.run(graphql))) || data;
 
         let opts = {
           data: (graphql && data.data) || data,
@@ -195,7 +195,7 @@ class Router extends BaseModule {
           query: req.query,
         };
 
-        if (henri.graphql) {
+        if (this.henri.graphql) {
           opts.graphql = {
             endpoint: (henri.graphql.active && henri.graphql.endpoint) || false,
             query: graphql || false,

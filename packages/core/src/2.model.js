@@ -1,13 +1,12 @@
 const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
-const _ = require('lodash');
 
 class Model extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
-    this.runlevel = 2;
+    this.runlevel = 4;
     this.name = 'model';
     this.henri = null;
 
@@ -60,17 +59,20 @@ class Model extends BaseModule {
       models: {},
     };
     for (const id of Object.keys(models)) {
-      const model = models[id];
-      this.checkStoreOrDie(model);
-      model.globalId = _.capitalize(model.globalId);
-      const storeName = model.store || 'default';
-      const store = await this.getStore(storeName);
-      global[model.globalId] = store.addModel(model, user);
-      this.ids.push(model.globalId);
-      configuration.adapters[storeName] = store;
-      this.models.push(model);
-      if (model.graphql) {
-        this.henri.graphql.extract(model);
+      try {
+        const model = models[id];
+        this.checkStoreOrDie(model);
+        const storeName = model.store || 'default';
+        const store = await this.getStore(storeName);
+        global[model.globalId] = store.addModel(model, user);
+        this.ids.push(model.globalId);
+        configuration.adapters[storeName] = store;
+        this.models.push(model);
+        if (model.graphql) {
+          this.henri.graphql.extract(model);
+        }
+      } catch (e) {
+        throw e;
       }
     }
 
@@ -94,9 +96,11 @@ class Model extends BaseModule {
   loadStore(store, conn) {
     const { cwd, pen } = this.henri;
     try {
-      const Pkg = henri.isTest
-        ? require(`@usehenri/${conn}`)
-        : require(path.resolve(cwd(), 'node_modules', `@usehenri/${conn}`));
+      const Pkg = require(path.resolve(
+        cwd(),
+        'node_modules',
+        `@usehenri/${conn}`
+      ));
       return Pkg;
     } catch (e) {
       return pen.fatal(
@@ -135,8 +139,11 @@ class Model extends BaseModule {
     }
 
     const Pkg = this.loadStore(store, valid[store.adapter]);
-
-    this.stores[name] = new Pkg(name, store);
+    try {
+      this.stores[name] = new Pkg(name, store);
+    } catch (e) {
+      console.log('model', 'store', store.adapter, 'unable to load');
+    }
 
     return this.stores[name];
   }

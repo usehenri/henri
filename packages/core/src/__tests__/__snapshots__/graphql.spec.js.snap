@@ -20,6 +20,7 @@ Object {
 exports[`graphql should match snapshot 1`] = `
 Graphql {
   "active": false,
+  "consoleOnly": false,
   "endpoint": "/_henri/gql",
   "extract": [Function],
   "henri": null,

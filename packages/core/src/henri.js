@@ -50,7 +50,10 @@ class Henri extends HenriBase {
   }
 
   changeDirectory() {
-    if (this.prefix !== '.') {
+    if (
+      this.prefix !== '.' &&
+      require(path.join(process.cwd(), './package.json')).onboard !== true
+    ) {
       const target = path.resolve(process.cwd(), this.prefix);
       try {
         process.chdir(target);
