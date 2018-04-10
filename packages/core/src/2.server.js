@@ -9,6 +9,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const chokidar = require('chokidar');
+const boom = require('boom');
 // const Websocket = require('@usehenri/websocket');
 
 const {
@@ -168,6 +169,8 @@ class Server extends BaseModule {
     this.app = null;
     this.express = null;
     this.httpServer = null;
+
+    this.boom = boom;
 
     this.init = this.init.bind(this);
     this.start = this.start.bind(this);
