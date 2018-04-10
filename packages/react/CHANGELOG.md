@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.21.0"></a>
+# [0.21.0](https://github.com/usehenri/henri/compare/v0.20.2...v0.21.0) (2018-04-10)
+
+
+### Bug Fixes
+
+* **react:** display initial value in editor ([a6ec701](https://github.com/usehenri/henri/commit/a6ec701))
+* **react:** move files to src/ to harmonize with TypeScript integration ([683d36e](https://github.com/usehenri/henri/commit/683d36e))
+* **react:** routes not working well ([a3ce9a7](https://github.com/usehenri/henri/commit/a3ce9a7))
+
+
+### Features
+
+* **react:** adding package deps and removing /_data/ calls ([c67696e](https://github.com/usehenri/henri/commit/c67696e))
+* **react:** this will likely change in the future; refetch data if we use client-side router ([f49f18a](https://github.com/usehenri/henri/commit/f49f18a))
+* **websocket:** add ws support with socket.io - closes [#35](https://github.com/usehenri/henri/issues/35) ([2318924](https://github.com/usehenri/henri/commit/2318924))
+
+
+
+
 <a name="0.20.2"></a>
 ## [0.20.2](https://github.com/usehenri/henri/compare/v0.20.1...v0.20.2) (2018-01-27)
 

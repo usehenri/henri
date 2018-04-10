@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.21.0"></a>
+# [0.21.0](https://github.com/usehenri/henri/compare/v0.20.2...v0.21.0) (2018-04-10)
+
+
+### Bug Fixes
+
+* **cli:** about command not working well ([3d12d17](https://github.com/usehenri/henri/commit/3d12d17))
+* **cli:** about was failing on windows, using cross-spawn ([ee80cf2](https://github.com/usehenri/henri/commit/ee80cf2))
+* **cli:** add back the console only startup mode ([4c915be](https://github.com/usehenri/henri/commit/4c915be))
+* **cli:** add crud to the help message ([1616527](https://github.com/usehenri/henri/commit/1616527))
+* **cli:** better about! ([f86e7b4](https://github.com/usehenri/henri/commit/f86e7b4))
+* **cli:** data should be present in the return (data or graphql) ([5bc73a2](https://github.com/usehenri/henri/commit/5bc73a2))
+
+
+### Features
+
+* **cli:** adding --debug and --production flags ([7794837](https://github.com/usehenri/henri/commit/7794837))
+* **cli:** inspect flag -- works really well with vscode ([e2feae6](https://github.com/usehenri/henri/commit/e2feae6))
+* **cli:** we now depend on [@usehenri](https://github.com/usehenri)/core mainly ([1453067](https://github.com/usehenri/henri/commit/1453067))
+* **core:** consolidating core ([9f72b35](https://github.com/usehenri/henri/commit/9f72b35))
+* **core:** moving things to core. adding modules ([14a8c5c](https://github.com/usehenri/henri/commit/14a8c5c))
+
+
+
+
 <a name="0.20.2"></a>
 ## [0.20.2](https://github.com/usehenri/henri/compare/v0.20.1...v0.20.2) (2018-01-27)
 

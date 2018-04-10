@@ -3,6 +3,78 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.21.0"></a>
+# [0.21.0](https://github.com/usehenri/henri/compare/v0.20.2...v0.21.0) (2018-04-10)
+
+
+### Bug Fixes
+
+* **cli:** about command not working well ([3d12d17](https://github.com/usehenri/henri/commit/3d12d17))
+* **cli:** about was failing on windows, using cross-spawn ([ee80cf2](https://github.com/usehenri/henri/commit/ee80cf2))
+* **cli:** add back the console only startup mode ([4c915be](https://github.com/usehenri/henri/commit/4c915be))
+* **cli:** add crud to the help message ([1616527](https://github.com/usehenri/henri/commit/1616527))
+* **cli:** better about! ([f86e7b4](https://github.com/usehenri/henri/commit/f86e7b4))
+* **cli:** data should be present in the return (data or graphql) ([5bc73a2](https://github.com/usehenri/henri/commit/5bc73a2))
+* **config:** load Log directly in class creation ([7beeba1](https://github.com/usehenri/henri/commit/7beeba1))
+* **config:** using cross-spawn to harmonize usage ([9276b1f](https://github.com/usehenri/henri/commit/9276b1f))
+* **core:** better watch support and no html file linting? ([086c221](https://github.com/usehenri/henri/commit/086c221))
+* **core:** indentation problem ([bb16439](https://github.com/usehenri/henri/commit/bb16439))
+* **core:** middleware switching ([7ea60f4](https://github.com/usehenri/henri/commit/7ea60f4))
+* **core:** need to await init ([ff8aa9e](https://github.com/usehenri/henri/commit/ff8aa9e))
+* **core:** template should use this.henri ([b3ecfde](https://github.com/usehenri/henri/commit/b3ecfde))
+* **henri:** add cross-env to get env vars on windows.. ([e3af194](https://github.com/usehenri/henri/commit/e3af194))
+* **log:** we can take a custom configuration ([b20275f](https://github.com/usehenri/henri/commit/b20275f))
+* **mongoose:** use correct type of Numbers (Integers) ([844ca9d](https://github.com/usehenri/henri/commit/844ca9d))
+* **react:** display initial value in editor ([a6ec701](https://github.com/usehenri/henri/commit/a6ec701))
+* **react:** move files to src/ to harmonize with TypeScript integration ([683d36e](https://github.com/usehenri/henri/commit/683d36e))
+* **react:** routes not working well ([a3ce9a7](https://github.com/usehenri/henri/commit/a3ce9a7))
+* **router:** hydrate data structure should be the same as injected ([33e8365](https://github.com/usehenri/henri/commit/33e8365))
+* **router:** make sure henri._graphql is defined.. ([6c07d2a](https://github.com/usehenri/henri/commit/6c07d2a))
+* **router:** remove unwanted log.inspect() ([3c01ce7](https://github.com/usehenri/henri/commit/3c01ce7))
+* **router:** starting view with await and fixing crud route building ([5a99857](https://github.com/usehenri/henri/commit/5a99857))
+* **view:** call the engine init function, yep, call it ([a4b277b](https://github.com/usehenri/henri/commit/a4b277b))
+* **view:** should call the good checkPackages? ([fc21732](https://github.com/usehenri/henri/commit/fc21732))
+
+
+### Features
+
+* **cli:** adding --debug and --production flags ([7794837](https://github.com/usehenri/henri/commit/7794837))
+* **cli:** inspect flag -- works really well with vscode ([e2feae6](https://github.com/usehenri/henri/commit/e2feae6))
+* **cli:** we now depend on [@usehenri](https://github.com/usehenri)/core mainly ([1453067](https://github.com/usehenri/henri/commit/1453067))
+* **config:** add henri.syntax to run code by prettier before loading ([133da00](https://github.com/usehenri/henri/commit/133da00))
+* **config:** adding a gql function to simplify parsing in IDEs ([7c85235](https://github.com/usehenri/henri/commit/7c85235))
+* **config:** first take at integrating TypeScript -- ([7a2a328](https://github.com/usehenri/henri/commit/7a2a328))
+* **core:** adding a BaseModule; modules should extend this ([9705410](https://github.com/usehenri/henri/commit/9705410))
+* **core:** adding all modules and moving middleware management ([54715d1](https://github.com/usehenri/henri/commit/54715d1))
+* **core:** adding boom for better responses ([5b80ced](https://github.com/usehenri/henri/commit/5b80ced))
+* **core:** consolidating core ([9f72b35](https://github.com/usehenri/henri/commit/9f72b35))
+* **core:** correcting graphql target ([40c1eae](https://github.com/usehenri/henri/commit/40c1eae))
+* **core:** graphql support ([53419e5](https://github.com/usehenri/henri/commit/53419e5))
+* **core:** moving things to core. adding modules ([14a8c5c](https://github.com/usehenri/henri/commit/14a8c5c))
+* **core:** moving view module ([11918bf](https://github.com/usehenri/henri/commit/11918bf))
+* **core:** we no longer use config package ([86160d6](https://github.com/usehenri/henri/commit/86160d6))
+* **demo:** initial package creation ([a5fd497](https://github.com/usehenri/henri/commit/a5fd497))
+* **disk:** changing back to waterline and sails-disk ([aba475f](https://github.com/usehenri/henri/commit/aba475f))
+* **henri:** exposing stack dump for other uses ([72e94e5](https://github.com/usehenri/henri/commit/72e94e5))
+* **henri:** initial TS base configuration ([fc2c416](https://github.com/usehenri/henri/commit/fc2c416))
+* **henri:** upgrades made easy. monday mornings will never be the same. ([861420b](https://github.com/usehenri/henri/commit/861420b))
+* **log:** adding inspection buffer that can be read with Ctrl+I. Closes [#36](https://github.com/usehenri/henri/issues/36) ([ea59031](https://github.com/usehenri/henri/commit/ea59031))
+* **model:** adding support for GraphQL on the backend + GraphiQL ([769ba1f](https://github.com/usehenri/henri/commit/769ba1f))
+* **model:** skeleton to support graphql server side ([4d6afd8](https://github.com/usehenri/henri/commit/4d6afd8))
+* **model:** using henri.graphql(), you can do server-side query ([199d0b4](https://github.com/usehenri/henri/commit/199d0b4))
+* **mongoose:** upgrade to mongoose 5.0.x ([572c9d6](https://github.com/usehenri/henri/commit/572c9d6))
+* **react:** adding package deps and removing /_data/ calls ([c67696e](https://github.com/usehenri/henri/commit/c67696e))
+* **react:** this will likely change in the future; refetch data if we use client-side router ([f49f18a](https://github.com/usehenri/henri/commit/f49f18a))
+* **router:** aggregate routes -> controllers binding status ([cd676cf](https://github.com/usehenri/henri/commit/cd676cf))
+* **router:** we change the default output signature. nested { data: {}} ([b475133](https://github.com/usehenri/henri/commit/b475133))
+* **view:** pinning next.js in [@usehenri](https://github.com/usehenri)/view ([4c27d0b](https://github.com/usehenri/henri/commit/4c27d0b))
+* **view:** use handlebars instead of template literals, reload partials ([b0e16ab](https://github.com/usehenri/henri/commit/b0e16ab))
+* **vue:** adding vue (nuxt.js) support to the new view handler ([05869b6](https://github.com/usehenri/henri/commit/05869b6))
+* **websocket:** add ws support with socket.io - closes [#35](https://github.com/usehenri/henri/issues/35) ([2318924](https://github.com/usehenri/henri/commit/2318924))
+
+
+
+
 <a name="0.20.2"></a>
 ## [0.20.2](https://github.com/usehenri/henri/compare/v0.20.1...v0.20.2) (2018-01-27)
 

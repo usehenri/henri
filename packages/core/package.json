@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/core",
-  "version": "0.20.2",
+  "version": "0.21.0",
   "description": "henri core package",
   "main": "src/index.js",
   "author": "Felix-Antoine Paradis",

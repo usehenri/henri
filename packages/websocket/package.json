@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/websocket",
-  "version": "0.20.2",
+  "version": "0.21.0",
   "description": "henri websocket loader",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
