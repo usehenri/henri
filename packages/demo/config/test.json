@@ -1,0 +1,9 @@
+{
+  "stores": {
+    "default": {
+      "adapter": "disk"
+    }
+  },
+  "secret": "nfiwuef9we8f9",
+  "graphql": "/_henri/graph"
+}
