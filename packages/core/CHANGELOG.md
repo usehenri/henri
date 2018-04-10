@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.21.1"></a>
+## [0.21.1](https://github.com/usehenri/henri/compare/v0.21.0...v0.21.1) (2018-04-10)
+
+
+### Bug Fixes
+
+* **core:** reordering packages ([de5655f](https://github.com/usehenri/henri/commit/de5655f))
+* **view:** get next from the run dir ([e826ff9](https://github.com/usehenri/henri/commit/e826ff9))
+
+
+
+
 <a name="0.21.0"></a>
 # [0.21.0](https://github.com/usehenri/henri/compare/v0.20.2...v0.21.0) (2018-04-10)
 
