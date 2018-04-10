@@ -1,5 +1,5 @@
 const path = require('path');
-const next = require('next');
+const next = require(path.resolve(require.resolve('next')));
 
 const builder = require(path.resolve(require.resolve('next'), '../build'))
   .default;
