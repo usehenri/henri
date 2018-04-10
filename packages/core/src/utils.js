@@ -1,14 +1,9 @@
-const _importFresh = require('import-fresh');
 const spawn = require('cross-spawn');
 const path = require('path');
 const fs = require('fs');
 const prettier = require('prettier');
 const stack = require('callsite');
 const readline = require('readline');
-
-function importFresh(pkg) {
-  return _importFresh(pkg);
-}
 
 const yarnExists = () => spawn.sync('yarn', ['help']);
 
@@ -104,7 +99,6 @@ module.exports = {
   checkPackages,
   clearConsole,
   getColor,
-  importFresh,
   stack,
   syntax,
   yarnExists,

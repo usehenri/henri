@@ -38,8 +38,4 @@ describe('utils', () => {
     );
     expect(await utils.syntax('./packages/core/src/utils.js')).toBeTruthy();
   });
-
-  test('should have importFresh', () => {
-    expect(utils.importFresh('path')).toBeTruthy();
-  });
 });

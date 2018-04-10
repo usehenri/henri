@@ -73,7 +73,6 @@ Henri {
     "checkPackages": [Function],
     "clearConsole": [Function],
     "getColor": [Function],
-    "importFresh": [Function],
     "stack": [Function],
     "syntax": [Function],
     "yarnExists": [Function],

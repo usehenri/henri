@@ -105,7 +105,7 @@ class Router extends BaseModule {
         this.henri.view.engine.fallback(this.handler);
         this.henri.server.start();
       } catch (error) {
-        pen.fatal('router', 'unable to start renderer', error);
+        pen.fatal('router', error);
       }
     } else {
       if (this.henri.view) {
