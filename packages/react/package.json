@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/react",
-  "version": "0.21.2",
+  "version": "0.21.3",
   "description": "react components for henri",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
@@ -20,6 +20,7 @@
   },
   "files": [
     "dist",
+    "engine",
     "forms.js",
     "withHenri.js"
   ],
