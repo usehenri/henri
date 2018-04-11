@@ -4,6 +4,7 @@ const fs = require('fs');
 const prettier = require('prettier');
 const stack = require('callsite');
 const readline = require('readline');
+const bounce = require('bounce');
 
 const yarnExists = () => spawn.sync('yarn', ['help']);
 
@@ -96,6 +97,7 @@ function parseSyntax(resolve, file, data, onSuccess) {
 }
 
 module.exports = {
+  bounce,
   checkPackages,
   clearConsole,
   getColor,

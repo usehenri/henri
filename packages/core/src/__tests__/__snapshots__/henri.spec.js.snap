@@ -70,6 +70,14 @@ Henri {
   },
   "status": Map {},
   "utils": Object {
+    "bounce": Object {
+      "background": [Function],
+      "ignore": [Function],
+      "isBoom": [Function],
+      "isError": [Function],
+      "isSystem": [Function],
+      "rethrow": [Function],
+    },
     "checkPackages": [Function],
     "clearConsole": [Function],
     "getColor": [Function],
