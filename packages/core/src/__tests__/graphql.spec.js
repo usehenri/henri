@@ -22,6 +22,7 @@ describe('graphql', () => {
 
   test('should match snapshot', () => {
     const gql = new Graphql();
+
     expect(gql).toMatchSnapshot();
   });
 
@@ -64,10 +65,10 @@ describe('graphql', () => {
 
       const model = {
         graphql: {
+          resolvers: { Query: { artworks: () => data } },
           types: `
             type Query { artworks: [Artwork], artwork: Artwork }
           `,
-          resolvers: { Query: { artworks: () => data } },
         },
       };
 
@@ -100,6 +101,7 @@ describe('graphql', () => {
       expect(this.henri.graphql.active).toBeTruthy();
 
       let result = await this.henri.graphql.run(`{ artworks { title, year }}`);
+
       expect(result).toMatchSnapshot();
     });
 
@@ -114,6 +116,7 @@ describe('graphql', () => {
       expect(this.henri.graphql.active).toBeFalsy();
 
       const result = await this.henri.graphql.run();
+
       expect(result).toEqual('No graphql schema found.');
     });
   });

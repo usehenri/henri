@@ -1,10 +1,8 @@
 const Waterline = require('waterline');
 const disk = require('sails-disk');
 
-const { pen } = henri;
-
 class Disk {
-  constructor(name, config) {
+  constructor(name, config, henri) {
     this.adapterName = 'disk';
     this.name = name;
     this.config = config;
@@ -12,18 +10,22 @@ class Disk {
     this.user = null;
     this.waterline = new Waterline();
     this.instance = null;
+    this.henri = henri;
   }
 
   addModel(model, user) {
     let obj = Object.assign({}, model);
+    let isUser = false;
+
     if (obj.identity === user) {
       obj = this.overload(obj, user);
       this.user = obj.globalId;
+      isUser = true;
     }
 
     obj.schema._id = {
-      type: 'number',
       autoMigrations: { autoIncrement: true },
+      type: 'number',
     };
     obj.primaryKey = '_id';
 
@@ -34,16 +36,21 @@ class Disk {
     delete obj.graphql;
 
     const instance = Waterline.Model.extend(obj);
+
     this.waterline.registerModel(instance);
+    if (isUser) {
+      henri._user = instance;
+    }
     this.models[obj.globalId] = instance;
+
     return this.models[obj.globalId];
   }
 
   overload(model, user) {
-    pen.info('disk', `user model`, model.globalId, `overloading...`);
+    this.pen.info('disk', `user model`, model.globalId, `overloading...`);
 
-    model.schema.email = { type: 'string', required: true };
-    model.schema.password = { type: 'string', required: true };
+    model.schema.email = { required: true, type: 'string' };
+    model.schema.password = { required: true, type: 'string' };
 
     model.beforeCreate = async (values, cb) => {
       values.password = await user.encrypt(values.password);
@@ -57,6 +64,7 @@ class Disk {
     };
     model.hasRole = async function(roles = []) {
       let given = Array.isArray(roles) ? roles : [roles];
+
       return given.every(element => this.roles.includes(element));
     };
   }
@@ -66,6 +74,7 @@ class Disk {
   }
 
   getSessionConnector(session) {
+    // eslint-disable-next-line global-require
     const NedbStore = require('nedb-session-store')(session);
 
     return new NedbStore({
@@ -74,7 +83,7 @@ class Disk {
   }
 
   async start() {
-    return new Promise((resolve, reject) => {
+    return new Promise(resolve => {
       var config = {
         adapters: {
           disk: disk,
@@ -86,13 +95,16 @@ class Disk {
           },
         },
       };
+
       this.waterline.initialize(config, (err, orm) => {
         if (err) {
-          pen.fatal('disk', err);
+          this.henri.pen.fatal('disk', err);
         }
         this.instance = orm;
         for (let name in this.models) {
-          global[name] = orm.collections[name.toLowerCase()];
+          if (typeof this.models[name] !== 'undefined') {
+            global[name] = orm.collections[name.toLowerCase()];
+          }
         }
         resolve();
       });
@@ -100,10 +112,15 @@ class Disk {
   }
 
   async stop() {
-    return new Promise((resolve, reject) => {
+    return new Promise(resolve => {
       this.waterline.teardown(err => {
         if (err) {
-          pen.error('disk', 'something went wrong while stopping the orm', err);
+          this.henri.pen.error(
+            'disk',
+            'something went wrong while stopping the orm',
+            err
+          );
+
           return resolve(err);
         }
         setTimeout(() => resolve(), 250);

@@ -10,7 +10,7 @@ const path = require('path');
 const fs = require('fs');
 const chokidar = require('chokidar');
 const boom = require('boom');
-// const Websocket = require('@usehenri/websocket');
+// REMOVED: const Websocket = require('@usehenri/websocket');
 
 const {
   choosePort,
@@ -20,7 +20,12 @@ const openBrowser = require('react-dev-utils/openBrowser');
 const detect = require('detect-port');
 const prettier = require('prettier');
 
-/* istanbul ignore next */
+/**
+ * Watch the filesystem in dev mode
+ *
+ * @async
+ * @return {void}
+ */
 async function watch() {
   let watching = [
     'app/controllers/**',
@@ -34,6 +39,7 @@ async function watch() {
     './**.lock',
   ];
   const { pen, utils: { clearConsole } } = henri;
+
   henri.status.set('locked', true);
   chokidar.watch(watching).on('all', async (event, path) => {
     if (henri.status.get('locked')) {
@@ -53,6 +59,7 @@ async function watch() {
 
   setTimeout(() => {
     const cmdCtrl = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
+
     pen.info('server', `To reload the server codebase, use ${cmdCtrl}+R`);
     pen.info(
       'server',
@@ -63,18 +70,30 @@ async function watch() {
   }, 1 * 1000);
 }
 
+/**
+ * Keyboard shortcuts
+ *
+ * @returns {void}
+ * @todo Move this to its own module with a menu and dynamic shortcuts
+ */
 function keyboardShortcuts() {
   const { pen, utils: { clearConsole } } = henri;
+
   process.stdin.resume();
   process.stdin.on('data', async data => {
+    /**
+     * Opens the browser at dev url
+     *
+     * @return {void}
+     */
+    const open = () => henri.server.url && openBrowser(henri.server.url);
     const chr = data.toString().charCodeAt(0);
-    const open = () => henri._url && openBrowser(henri._url);
     const actions = {
-      '3': async () => {
-        await henri.stop();
-        pen.warn('server', 'exiting application...');
-        pen.line();
-        process.exit(0);
+      '14': () => {
+        open();
+      },
+      '15': () => {
+        open();
       },
       '18': async () => {
         clearConsole();
@@ -83,13 +102,14 @@ function keyboardShortcuts() {
         pen.line();
         henri.reload();
       },
-      '14': () => {
-        open();
-      },
-      '15': () => {
-        open();
+      '3': async () => {
+        await henri.stop();
+        pen.warn('server', 'exiting application...');
+        pen.line();
+        process.exit(0);
       },
     };
+
     if (typeof actions[chr] !== 'undefined') {
       actions[chr]();
     }
@@ -97,8 +117,16 @@ function keyboardShortcuts() {
   process.stdin.setRawMode(true);
 }
 
+/**
+ * Handle port already in use errors?
+ *
+ * @param {any} err Error
+ * @returns {void}
+ * @todo move this somewhere else!
+ */
 function handleError(err) {
   const { pen } = henri;
+
   if (err.code === 'EADDRINUSE') {
     pen.fatal(
       'server',
@@ -112,31 +140,53 @@ function handleError(err) {
   pen.error('server', err);
 }
 
-const checkSyntax = file => {
+/**
+ * Load a file that has changed
+ *
+ * @param {any} file A file that triggered watch()
+ * @returns {Promise<any>} Result
+ * @todo move this to utils
+ */
+function checkSyntax(file) {
   const { pen } = henri;
+
   return new Promise(resolve => {
     if (path.extname(file) === '.html') {
       henri.status.set('locked', false);
+
       return resolve();
     }
     fs.readFile(file, 'utf8', (err, data) => {
       if (err) {
         pen.error('server', 'error in writefile');
         pen.error('server', err);
+
         return resolve();
       }
       parseData(resolve, file, data);
     });
   });
-};
+}
 
+/**
+ *  Parse a file from checkSyntax
+ *
+ * @param {Promise} resolve A promise
+ * @param {any} file A filename
+ * @param {any} data The data inside the file
+ * @returns {Promise} We always resolve
+ * @todo move this to utils
+ */
 function parseData(resolve, file, data) {
   const { pen } = henri;
+
   try {
     const ext = path.extname(file);
+
     if (ext === '.json') {
       JSON.parse(data);
       henri.status.set('locked', false);
+
       return resolve();
     }
     if (ext === '.js') {
@@ -145,18 +195,29 @@ function parseData(resolve, file, data) {
         trailingComma: 'es5',
       });
       henri.status.set('locked', false);
+
       return resolve();
     }
     resolve();
-  } catch (e) {
+  } catch (error) {
     pen.error('server', `Trying to reload but caught an error:`);
     console.log(' '); // eslint-disable-line no-console
-    console.log(e.message); // eslint-disable-line no-console
+    console.log(error.message); // eslint-disable-line no-console
     resolve();
   }
 }
 
+/**
+ * Server module
+ *
+ * @class Server
+ * @extends {BaseModule}
+ */
 class Server extends BaseModule {
+  /**
+   * Creates an instance of Server.
+   * @memberof Server
+   */
   constructor() {
     super();
     this.runlevel = 2;
@@ -176,11 +237,22 @@ class Server extends BaseModule {
     this.start = this.start.bind(this);
   }
 
-  init() {
+  /**
+   * Module initialization
+   * Called after being loaded by Modules
+   *
+   * @async
+   * @returns {!string} The name of the module
+   * @memberof Server
+   */
+  async init() {
     const app = (this.app = express());
+
+    // eslint-disable-next-line global-require
     this.httpServer = require('http').Server(this.app);
-    // const ws = new Websocket(this.httpServer);
-    // ws.init();
+
+    // WEBSOCKET: const ws = new Websocket(this.httpServer);
+    // WEBSOCKET: ws.init();
 
     this.port = this.henri.config.has('port')
       ? this.henri.config.get('port')
@@ -202,22 +274,31 @@ class Server extends BaseModule {
 
     this.app = app;
     this.express = express;
+
     return this.name;
   }
 
+  /**
+   * Start the server (called later from router)
+   *
+   * @param {number} delay ms delay
+   * @param {function} [cb=null] call back after running
+   * @returns {void} hangs perpetually in space, answering request...
+   * @memberof Server
+   */
   async start(delay, cb = null) {
     let { app, henri, httpServer, port } = this;
 
     app.use((req, res, next) => henri.router.handler(req, res, next));
 
-    // if (henri.getStatus('http') && typeof cb === 'function') return cb();
-
     port = henri.isTest ? await detect(port) : port;
     port = henri.isDev ? await choosePort('0.0.0.0', port) : port;
+
     return httpServer
       .listen(port, function() {
-        henri.pen.info('server', 'ready for battle');
         const urls = prepareUrls('http', '0.0.0.0', port);
+
+        henri.pen.info('server', 'ready for battle');
         henri.isDev && watch();
 
         this.url = urls.localUrlForBrowser;
@@ -228,7 +309,15 @@ class Server extends BaseModule {
       .on('error', handleError);
   }
 
-  stop() {
+  /**
+   * Stops the module
+   *
+   * @async
+   * @returns {(string|boolean)} Module name or false
+   * @memberof Server
+   * @todo wish we could stop that http/express instance in a clean manner...
+   */
+  static async stop() {
     return false;
   }
 }

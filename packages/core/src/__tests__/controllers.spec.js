@@ -22,22 +22,25 @@ describe('controllers', () => {
 
   test('should match snapshot', () => {
     const controllers = new Controllers();
+
     expect(controllers).toMatchSnapshot();
   });
 
   test('should load controllers and expose them', async () => {
     const mock = jest.fn();
     const controllers = {
-      'someFolder/index': {
-        index: () => mock,
-        create: () => mock,
-      },
       other: {
-        update: () => mock,
         badStuff: 'really bad stuff',
+        update: () => mock,
+      },
+      'someFolder/index': {
+        create: () => mock,
+        index: () => mock,
       },
     };
+
     await this.henri.controllers.configure(controllers);
+
     expect(this.henri.controllers.get('someFolder/index#index')).toBeTruthy();
     expect(this.henri.controllers.get('someFolder/index#create')).toBeTruthy();
     expect(this.henri.controllers.get('other#update')).toBeTruthy();
@@ -55,7 +58,4 @@ describe('controllers', () => {
     expect(this.henri.controllers.set('some/stuff', 'abc')).toBeFalsy();
     expect(this.henri.controllers.get('some/stuff')).toBeFalsy();
   });
-
-  xtest('should load filesystem structure');
-  xtest('possibly freeze the private properties (this._controllers)');
 });

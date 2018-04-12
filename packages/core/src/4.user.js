@@ -7,7 +7,17 @@ const ExtractJwt = require('passport-jwt').ExtractJwt;
 const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcrypt-nodejs');
 
+/**
+ * User module
+ *
+ * @class User
+ * @extends {BaseModule}
+ */
 class User extends BaseModule {
+  /**
+   * Creates an instance of User.
+   * @memberof User
+   */
   constructor() {
     super();
     this.reloadable = false;
@@ -15,9 +25,21 @@ class User extends BaseModule {
     this.name = 'user';
     this.henri = null;
 
+    this.encrypt = this.encrypt.bind(this);
+    this.compare = this.compare.bind(this);
     this.init = this.init.bind(this);
   }
 
+  /**
+   * Encrypt a password
+   *
+   * @async
+   * @static
+   * @param {any} password The password
+   * @param {number} [rounds=10] Rounds... rounds... rounds...
+   * @returns {Promise<string|err>} The hash or an error
+   * @memberof User
+   */
   async encrypt(password, rounds = 10) {
     return new Promise((resolve, reject) => {
       if (typeof password !== 'string') {
@@ -26,7 +48,7 @@ class User extends BaseModule {
       if (password.length < 6) {
         return reject(new Error('minimum password string is 6 characters'));
       }
-      if (henri.isTest) {
+      if (this.henri.isTest) {
         rounds = 10;
       }
       bcrypt.genSalt(rounds, (err, salt) => {
@@ -38,61 +60,101 @@ class User extends BaseModule {
           if (err) {
             return reject(err);
           }
+
           return resolve(hash);
         });
       });
     });
   }
 
-  async compare(password, hash, user) {
-    return new Promise((resolve, reject) => {
-      bcrypt.compare(password, hash, (err, ok) => {
-        if (err) {
-          return reject(err);
-        }
-        if (!ok) {
-          return reject(new Error('Invalid credentials'));
-        }
-        return resolve(true);
+  /**
+   * Compare a password with hash (after hashing given password)
+   *
+   * @async
+   * @static
+   * @param {string} password A password
+   * @param {string} hash A hash
+   * @param {object} user The user
+   * @returns {(Promise<boolean>|Error)} Good (true) or ERROR!
+   * @memberof User
+   */
+  async compare(password, hash) {
+    if (this.henri) {
+      return new Promise((resolve, reject) => {
+        bcrypt.compare(password, hash, (err, ok) => {
+          if (err) {
+            return reject(err);
+          }
+          if (!ok) {
+            return reject(new Error('Invalid credentials'));
+          }
+
+          return resolve(true);
+        });
       });
-    });
+    }
   }
 
+  /**
+   * Module initialization
+   * Called after being loaded by Modules
+   *
+   * @async
+   * @returns {!string} The name of the module
+   * @memberof User
+   */
   async init() {
     const { config, pen } = this.henri;
+
     if (this.henri._user) {
       if (!config.has('secret')) {
         // TODO: Document more...
-        pen.fatal(
-          'user',
+        throw new Error(
           'You should provide a secret in your configuration file.'
         );
       }
 
       const options = {
-        usernameField: 'email',
         jwt: {
           jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
           secretOrKey: config.get('secret'),
         },
+        usernameField: 'email',
       };
 
-      const checkLocal = async (email, password, done) => {
+      /**
+       * Check if
+       * @param {string} email An email
+       * @param {string} passwordHash A password hash
+       * @param {function} done A callback
+       * @returns {void}
+       */
+      const checkLocal = async (email, passwordHash, done) => {
         try {
           const user = await this.henri._user.findOne({ email: email });
-          await this.compare(password, user.password);
+
+          await this.compare(passwordHash, user.password);
           done(null, user);
         } catch (error) {
           done(null, false, 'Invalid credentials.');
         }
       };
 
+      /**
+       * Check the JWT
+       *
+       * @param {string} payload A payload
+       * @param {function} done A callback
+       * @returns {function} callback
+       */
       const checkJWT = async (payload, done) => {
         const user = await this.henri._user.findOne({ id: payload._id });
+
         if (user) {
           return done(null, user);
         }
-        done(null, false);
+
+        return done(null, false);
       };
 
       const localLogin = new LocalStrategy(
@@ -108,15 +170,15 @@ class User extends BaseModule {
 
       this.henri.server.app.use(
         session({
-          secret: henri.config.get('secret'),
+          cookie: {
+            httpOnly: true,
+            maxAge: 365 * 24 * 60 * 60 * 1000,
+            path: '/',
+          },
           name: 'henri.sid',
           resave: false,
           saveUninitialized: true,
-          cookie: {
-            path: '/',
-            httpOnly: true,
-            maxAge: 365 * 24 * 60 * 60 * 1000, // e.g. 1 year
-          },
+          secret: this.henri.config.get('secret'),
           store: connector,
         })
       );
@@ -128,20 +190,23 @@ class User extends BaseModule {
       passport.deserializeUser(async function(id, done) {
         try {
           const user = await henri._user.find({ _id: id }, { password: 0 });
+
           return done(null, user && user.length > 0 ? user[0] : undefined);
-        } catch (e) {
-          return done(e, null);
+        } catch (error) {
+          return done(error, null);
         }
       });
 
       this.henri.server.app.use(passport.initialize());
       this.henri.server.app.use(passport.session());
+
       /* istanbul ignore next */
       this.henri.addMiddleware(app => {
         app.post('/login', passport.authenticate('local'), (req, res) =>
           res.send('authenticated')
         );
       });
+
       /* istanbul ignore next */
       this.henri.addMiddleware(app => {
         app.get('/logout', function(req, res) {
@@ -156,10 +221,16 @@ class User extends BaseModule {
       /* istanbul ignore next */
       pen.warn('user', 'no user model defined; will not load user module');
     }
+
     return this.name;
   }
 
-  stop() {
+  /**
+   * Stops the module
+   * @async
+   * @returns {(string|boolean)} Module name or false
+   */
+  static async stop() {
     return false;
   }
 }

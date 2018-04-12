@@ -1,10 +1,16 @@
 {
-  "extends": "standard",
+  "extends": "eslint:recommended",
+
   "globals": {
     "henri": true
   },
   "env": {
-    "jest/globals": true
+    "jest/globals": true,
+    "node": true,
+    "es6": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2017
   },
   "rules": {
     "semi": "off",
@@ -14,7 +20,48 @@
     "jest/no-disabled-tests": "warn",
     "jest/no-focused-tests": "error",
     "jest/no-identical-title": "error",
-    "jest/valid-expect": "error"
+    "jest/valid-expect": "error",
+    "class-methods-use-this": "warn",
+    "accessor-pairs": "error",
+    "guard-for-in": "error",
+    "no-extra-bind": "error",
+    "prefer-promise-reject-errors": "error",
+    "vars-on-top": "warn",
+    "no-catch-shadow": "warn",
+    "global-require": "error",
+    "no-path-concat": "error",
+    "camelcase": "warn",
+    "capitalized-comments": "error",
+    "id-length": "error",
+    "lines-around-comment": ["error", { "beforeBlockComment": false }],
+    "lines-between-class-members": ["error", "always"],
+    "no-nested-ternary": "error",
+    "valid-jsdoc": "warn",
+    "require-jsdoc": [
+      "warn",
+      {
+        "require": {
+          "FunctionDeclaration": true,
+          "MethodDefinition": true,
+          "ClassDeclaration": true,
+          "ArrowFunctionExpression": true,
+          "FunctionExpression": true
+        }
+      }
+    ],
+    "padding-line-between-statements": [
+      "error",
+      { "blankLine": "always", "prev": ["const", "let", "var"], "next": "*" },
+      {
+        "blankLine": "any",
+        "prev": ["const", "let", "var"],
+        "next": ["const", "let", "var"]
+      },
+      { "blankLine": "always", "prev": "*", "next": "return" }
+    ],
+    "prefer-template": "error",
+    "sort-keys": "error",
+    "sort-vars": "error"
   },
   "plugins": ["jest"]
 }

@@ -1,20 +1,19 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`controllers should match snapshot 1`] = `
-Controllers {
-  "_controllers": Map {},
-  "configure": [Function],
+exports[`config in test should match snapshot 1`] = `
+Config {
+  "config": null,
   "consoleOnly": false,
   "get": [Function],
+  "has": [Function],
   "henri": null,
   "info": [Function],
   "init": [Function],
   "key": null,
-  "name": "controllers",
+  "name": "config",
   "reload": [Function],
   "reloadable": true,
-  "runlevel": 2,
-  "set": [Function],
+  "runlevel": 0,
   "setup": [Function],
   "start": [Function],
 }

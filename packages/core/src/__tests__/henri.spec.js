@@ -41,24 +41,29 @@ describe('henri', () => {
   describe('with options', () => {
     it('should have runlevel 6 by default', () => {
       const henri = new Henri();
+
       expect(henri.runlevel).toEqual(6);
     });
 
     it('should accept different runlevel', () => {
       const henri = new Henri({ runlevel: 2 });
+
       expect(henri.runlevel).toEqual(2);
     });
 
     it('should have . as default folder', () => {
       process.env.NODE_ENV = 'dev';
       const henri = new Henri();
+
       expect(henri.prefix).toEqual('.');
+
       process.env.NODE_ENV = 'test';
     });
 
     it('should accept a new folder', () => {
       process.env.NODE_ENV = 'dev';
       const henri = new Henri({ cwd: './packages' });
+
       expect(henri.prefix).toEqual('./packages');
       process.env.NODE_ENV = 'test';
     });

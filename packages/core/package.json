@@ -26,6 +26,7 @@
     "handlebars": "^4.0.11",
     "include-all": "^4.0.3",
     "inquirer": "^5.2.0",
+    "isomorphic-fetch": "^2.2.1",
     "lodash": "^4.17.5",
     "merge-graphql-schemas": "^1.5.0",
     "moment": "^2.22.0",

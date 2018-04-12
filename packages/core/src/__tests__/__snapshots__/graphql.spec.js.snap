@@ -24,6 +24,7 @@ Graphql {
   "endpoint": "/_henri/gql",
   "extract": [Function],
   "henri": null,
+  "info": [Function],
   "init": [Function],
   "key": null,
   "merge": [Function],
@@ -35,6 +36,8 @@ Graphql {
   "run": [Function],
   "runlevel": 1,
   "schema": null,
+  "setup": [Function],
+  "start": [Function],
   "types": null,
   "typesList": Array [],
 }

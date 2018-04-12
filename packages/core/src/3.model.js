@@ -1,8 +1,20 @@
 const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
+const includeAll = require('include-all');
+const bounce = require('bounce');
 
+/**
+ * Model module
+ *
+ * @class Model
+ * @extends {BaseModule}
+ */
 class Model extends BaseModule {
+  /**
+   * Creates an instance of Model.
+   * @memberof Model
+   */
   constructor() {
     super();
     this.reloadable = true;
@@ -14,7 +26,6 @@ class Model extends BaseModule {
     this.models = [];
     this.stores = {};
 
-    this.load = this.load.bind(this);
     this.configure = this.configure.bind(this);
     this.reset = this.reset.bind(this);
     this.loadStore = this.loadStore.bind(this);
@@ -27,14 +38,23 @@ class Model extends BaseModule {
     this.checkStoreOrDie = this.checkStoreOrDie.bind(this);
   }
 
-  async load(location) {
-    const includeAll = require('include-all');
+  /**
+   * Loads the files from disk
+   *
+   * @static
+   * @async
+   * @param {string} location defaults: ./app/models
+   * @returns {Promise<(Object|Error)>} list of objects
+   * @memberof Model
+   * @todo Change this to an inhouse loader with prettier validation
+   */
+  static async load(location) {
     return new Promise((resolve, reject) => {
       includeAll.optional(
         {
           dirname: path.resolve(location),
-          filter: /(.+)\.js$/,
           excludeDirs: /^\.(git|svn)$/,
+          filter: /(.+)\.js$/,
           flatten: true,
           force: true,
         },
@@ -42,12 +62,21 @@ class Model extends BaseModule {
           if (err) {
             return reject(err);
           }
+
           return resolve(modules);
         }
       );
     });
   }
 
+  /**
+   * Configure the models and adapters
+   *
+   * @param {object} models Models loaded from disk
+   * @returns {{ adapters: object, models: object}} Model configuration
+   * @throws
+   * @memberof Model
+   */
   async configure(models) {
     const { config } = this.henri;
     const user = config.has('user') ? config.get('user').toLowerCase() : 'user';
@@ -58,21 +87,29 @@ class Model extends BaseModule {
       adapters: {},
       models: {},
     };
+
     for (const id of Object.keys(models)) {
       try {
         const model = models[id];
+
         this.checkStoreOrDie(model);
+
         const storeName = model.store || 'default';
         const store = await this.getStore(storeName);
+
         global[model.globalId] = store.addModel(model, user);
         this.ids.push(model.globalId);
         configuration.adapters[storeName] = store;
+
         this.models.push(model);
+
         if (model.graphql) {
           this.henri.graphql.extract(model);
         }
-      } catch (e) {
-        throw e;
+      } catch (error) {
+        bounce.rethrow(error, 'system');
+
+        return {};
       }
     }
 
@@ -81,6 +118,12 @@ class Model extends BaseModule {
     return configuration;
   }
 
+  /**
+   * Resets private variables prior to reloading
+   *
+   * @returns {boolean} result
+   * @memberof Model
+   */
   reset() {
     delete this.henri._user;
     delete this.stores;
@@ -91,18 +134,33 @@ class Model extends BaseModule {
     this.stores = {};
     this.ids = [];
     this.models = [];
+
+    return true;
   }
 
+  /**
+   * Load dynamically a store constructor
+   *
+   * @param {object} store exerpt from store configuration
+   * @param {string} conn Adapter name (ex: disk, mongoose, mysql, ..)
+   * @returns {function} Adapter constructor
+   * @memberof Model
+   */
   loadStore(store, conn) {
     const { cwd, pen } = this.henri;
+
     try {
-      const Pkg = require(path.resolve(
+      // eslint-disable-next-line global-require
+      const Pkg = require(path.join(
         cwd(),
         'node_modules',
         `@usehenri/${conn}`
       ));
+
       return Pkg;
-    } catch (e) {
+    } catch (error) {
+      bounce.rethrow(error, 'system');
+
       return pen.fatal(
         'models',
         `
@@ -112,6 +170,13 @@ class Model extends BaseModule {
     }
   }
 
+  /**
+   * Get an existing store or return a new one
+   *
+   * @param {any} name Store name
+   * @returns {object} A store object
+   * @memberof Model
+   */
   getStore(name) {
     const { config, pen } = this.henri;
 
@@ -121,12 +186,12 @@ class Model extends BaseModule {
     const store = config.get(`stores.${name}`);
 
     const valid = {
-      mongoose: 'mongoose',
       disk: 'disk',
-      mysql: 'mysql',
       mariadb: 'mysql',
-      postgresql: 'postgresql',
+      mongoose: 'mongoose',
       mssql: 'mssql',
+      mysql: 'mysql',
+      postgresql: 'postgresql',
     };
 
     if (typeof valid[store.adapter] === 'undefined') {
@@ -139,69 +204,138 @@ class Model extends BaseModule {
     }
 
     const Pkg = this.loadStore(store, valid[store.adapter]);
+
     try {
       this.stores[name] = new Pkg(name, store);
-    } catch (e) {
-      console.log('model', 'store', store.adapter, 'unable to load');
+    } catch (error) {
+      bounce.rethrow(error, 'system');
+      pen.error('model', 'store', store.adapter, 'unable to load');
     }
 
     return this.stores[name];
   }
 
+  /**
+   * Module initialization
+   * Called after being loaded by Modules
+   *
+   * @async
+   * @returns {Promise<string>} The name of the module
+   * @memberof Model
+   */
   async init() {
     return new Promise(async resolve => {
-      await this.start(await this.configure(await this.load('./app/models')));
+      try {
+        await this.start(
+          await this.configure(await Model.load('./app/models'))
+        );
+      } catch (error) {
+        bounce.rethrow(error, 'system');
+      }
       resolve(this.name);
     });
   }
 
-  async start(configuration) {
-    return new Promise(async (resolve, reject) => {
-      for (const store of Object.keys(this.stores)) {
-        await this.stores[store].start();
+  /**
+   * Start the store adapters
+   *
+   * @async
+   * @returns {Promise<void>} result
+   * @memberof Model
+   */
+  async start() {
+    return new Promise(async resolve => {
+      try {
+        for (const store of Object.keys(this.stores)) {
+          await this.stores[store].start();
+        }
+      } catch (error) {
+        bounce.rethrow(error, 'system');
       }
       if (this.ids.length > 0) {
         this.addToEslintRc();
       }
+
       return resolve();
     });
   }
 
+  /**
+   * Stops the module
+   *
+   * @async
+   * @returns {(string|Promise|boolean)} Module name or false
+   * @memberof Model
+   */
   async stop() {
     const { pen } = this.henri;
-    return new Promise(async (resolve, reject) => {
+
+    return new Promise(async resolve => {
       if (this.stores.length < 1) {
         pen.warn('model', 'no models/stores needed to be stopped.');
+
         return resolve(true);
       }
-      for (const store of Object.keys(this.stores)) {
-        await this.stores[store].stop();
+      try {
+        for (const store of Object.keys(this.stores)) {
+          await this.stores[store].stop();
+        }
+      } catch (error) {
+        bounce.rethrow(error, 'system');
       }
       this.ids.forEach(name => delete global[name]);
       this.ids = [];
+
       return resolve(true);
     });
   }
 
+  /**
+   * Reloads the module
+   *
+   * @async
+   * @returns {string} Module name
+   * @memberof Model
+   */
   async reload() {
     try {
       await this.stop();
       await this.init();
     } catch (error) {
+      bounce.rethrow(error, 'system');
       henri.pen.error('model', error);
     }
+
     return this.name;
   }
 
+  /**
+   * Add models global ids to .eslintrc
+   *
+   * @return {void}
+   * @memberof Model
+   */
   addToEslintRc() {
     const eslintFile = path.resolve(this.henri.cwd(), '.eslintrc');
+
     try {
       const eslintRc = JSON.parse(fs.readFileSync(eslintFile, 'utf8'));
+
       this.ids.map(modelName => (eslintRc.globals[modelName] = true));
       fs.writeFileSync(eslintFile, JSON.stringify(eslintRc, null, 2));
-    } catch (e) {} // Do nothing
+    } catch (error) {
+      // Silently fail
+    }
   }
 
+  /**
+   * Gets the connect/express session storage connector from the db adapter
+   *
+   * @param {Express.Session} session The express session object
+   * @param {string} name The store to get
+   * @returns {Express.MemoryStore} Session.Store or Session.MemoryStore instance
+   * @memberof Model
+   */
   getSessionConnector(session, name = 'default') {
     try {
       const connector = this.stores[name].getSessionConnector(session);
@@ -217,13 +351,22 @@ class Model extends BaseModule {
       }
 
       return connector;
-    } catch (e) {
-      this.henri.pen.fatal('model', e);
+    } catch (error) {
+      bounce.rethrow(error, 'system');
+      this.henri.pen.fatal('model', error);
     }
   }
 
+  /**
+   * Check if the store exists or DIE DIE DIE!
+   *
+   * @param {any} model A model
+   * @returns {void}
+   * @memberof Model
+   */
   checkStoreOrDie(model) {
     const { config, pen } = this.henri;
+
     if (!model.store && !config.has('stores.default')) {
       return pen.fatal(
         'models',

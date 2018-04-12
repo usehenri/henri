@@ -10,6 +10,7 @@ describe('henri', () => {
 
   test('should match snapshot', () => {
     const mod = new Modules({});
+
     expect(mod).toMatchSnapshot();
   });
 
@@ -20,6 +21,7 @@ describe('henri', () => {
 
     test('should not allow duplicate', () => {
       this.henri.modules.add(new Runlevel0());
+
       expect(this.henri.modules.store[0]).toHaveLength(1);
 
       this.henri.modules.add(new Runlevel0());
@@ -29,19 +31,23 @@ describe('henri', () => {
         'you have a module trying to load over another...',
         'check your modules? see: https://usehenri.io/e/dup_mods'
       );
+
       expect(this.henri.modules.store[0]).toHaveLength(1);
     });
 
     test('should init properly', async () => {
       const init = jest.fn();
       const reload = jest.fn();
+      const stop = jest.fn();
+
       this.henri.modules.add(
         new WeirdModule({
-          name: 'd',
-          runlevel: 1,
           init,
-          reloadable: true,
+          name: 'd',
           reload,
+          reloadable: true,
+          runlevel: 1,
+          stop,
         })
       );
 
@@ -50,32 +56,54 @@ describe('henri', () => {
 
       expect(this.henri.modules.reload()).toBeTruthy();
       expect(reload).toHaveBeenCalledTimes(1);
+
+      expect(this.henri.modules.stop()).toBeTruthy();
+      expect(stop).toHaveBeenCalledTimes(1);
     });
 
     test('should not hit init() if not a function', () => {
+      console.log = jest.fn();
       this.henri.pen.fatal = jest.fn();
       this.henri.modules.add(
         new WeirdModule({
+          init: () => 'abc',
           name: 'd',
           runlevel: 1,
-          init: () => 'abc',
         })
       );
       this.henri.modules.add(new Runlevel1());
       this.henri.modules.store[1][0].init = 'abc';
       this.henri.modules.init();
       this.henri.modules.reload();
+      expect(console.log).toHaveBeenCalledTimes(1);
+    });
+
+    test('should be falsy if init/reload throws...', async () => {
+      this.henri.modules.add(
+        new WeirdModule({
+          init: () => {
+            throw new Error();
+          },
+          name: 'd',
+          reload: () => {
+            throw new Error();
+          },
+          runlevel: 1,
+        })
+      );
+      expect(await this.henri.modules.init()).toBeFalsy();
+      expect(await this.henri.modules.reload()).toBeFalsy();
     });
 
     test('should not hit reload() if not a function', () => {
       this.henri.pen.fatal = jest.fn();
       this.henri.modules.add(
         new WeirdModule({
-          name: 'd',
-          runlevel: 1,
           init: () => 'abc',
-          reloadable: false,
+          name: 'd',
           reload: 'abcdef',
+          reloadable: false,
+          runlevel: 1,
         })
       );
       this.henri.modules.init();
@@ -96,94 +124,73 @@ describe('henri', () => {
 
   describe('validations', () => {
     test('should only allow modules extending BaseModule', () => {
-      this.henri.pen.fatal = jest.fn();
-      this.henri.modules.add(new BadModule());
-      expect(this.henri.pen.fatal).toHaveBeenCalledWith(
-        'modules',
-        expect.stringContaining('is not extending BaseModule')
+      expect(() => this.henri.modules.add(new BadModule())).toThrow(
+        /is not extending BaseModule/
       );
     });
 
     test('should only allow modules with correct runlevel', () => {
-      this.henri.pen.fatal = jest.fn();
-      this.henri.modules.add(new WeirdModule({ runlevel: 'two' }));
+      expect(() =>
+        this.henri.modules.add(new WeirdModule({ runlevel: 'two' }))
+      ).toThrow(/runlevel is not defined/);
+    });
 
-      expect(this.henri.pen.fatal).toHaveBeenCalledWith(
-        'modules',
-        expect.stringContaining('runlevel is not defined')
-      );
+    test('should not add consoleonly modules', () => {
+      this.henri.consoleOnly = true;
+
+      expect(
+        this.henri.modules.add(new WeirdModule({ consoleOnly: true }))
+      ).toBeFalsy();
     });
 
     test('should only allow modules with correct names', () => {
-      this.henri.pen.fatal = jest.fn();
-      this.henri.modules.add(new WeirdModule({ name: -1, runlevel: 2 }));
-
-      expect(this.henri.pen.fatal).toHaveBeenCalledWith(
-        'modules',
-        expect.stringContaining('name is not a string')
-      );
-      expect(this.henri.pen.fatal).toHaveBeenCalledTimes(1);
+      expect(() =>
+        this.henri.modules.add(new WeirdModule({ name: -1, runlevel: 2 }))
+      ).toThrow(/name is not a string/);
     });
 
     test('should only allow modules with correct runlevel range', () => {
-      this.henri.pen.fatal = jest.fn();
-      this.henri.modules.add(new WeirdModule({ name: 'a', runlevel: -1 }));
+      expect(() =>
+        this.henri.modules.add(new WeirdModule({ name: 'a', runlevel: -1 }))
+      ).toThrow(/a runlevel is out of range/);
 
-      expect(this.henri.pen.fatal).toHaveBeenCalledWith(
-        'modules',
-        expect.stringContaining('a runlevel is out of range')
-      );
-
-      this.henri.modules.add(new WeirdModule({ name: 'b', runlevel: 7 }));
-
-      expect(this.henri.pen.fatal).toHaveBeenCalledWith(
-        'modules',
-        expect.stringContaining('b runlevel is out of range')
-      );
-      expect(this.henri.pen.fatal).toHaveBeenCalledTimes(2);
+      expect(() =>
+        this.henri.modules.add(new WeirdModule({ name: 'b', runlevel: 7 }))
+      ).toThrow(/b runlevel is out of range/);
     });
 
     test('should only allow modules with init function', () => {
-      this.henri.pen.fatal = jest.fn();
-      this.henri.modules.add(
-        new WeirdModule({ name: 'c', runlevel: 2, init: 'func' })
-      );
-
-      expect(this.henri.pen.fatal).toHaveBeenCalledWith(
-        'modules',
-        expect.stringContaining('c init is not a function')
-      );
-      expect(this.henri.pen.fatal).toHaveBeenCalledTimes(1);
+      expect(() =>
+        this.henri.modules.add(
+          new WeirdModule({ init: 'func', name: 'c', runlevel: 2 })
+        )
+      ).toThrow(/c init is not a function/);
     });
 
     test('should only allow modules with reload pairs', () => {
-      this.henri.pen.fatal = jest.fn();
       const init = jest.fn();
-      this.henri.modules.add(
-        new WeirdModule({
-          name: 'd',
-          runlevel: 2,
-          init: init,
-          reloadable: true,
-          reload: 'func',
-        })
-      );
 
-      this.henri.modules.add(
-        new WeirdModule({
-          name: 'd',
-          runlevel: 2,
-          init: init,
-        })
-      );
-
-      expect(this.henri.pen.fatal).toHaveBeenCalledWith(
-        'modules',
-        expect.stringContaining(
-          'd has no valid reload function. Is it reloadable?'
+      expect(() =>
+        this.henri.modules.add(
+          new WeirdModule({
+            init: init,
+            name: 'd',
+            reload: 'func',
+            reloadable: true,
+            runlevel: 2,
+          })
         )
-      );
-      expect(this.henri.pen.fatal).toHaveBeenCalledTimes(1);
+      ).toThrow(/has no valid reload function. Is it reloadable/);
+
+      expect(() =>
+        this.henri.modules.add(
+          new WeirdModule({
+            init: init,
+            name: 'd',
+            runlevel: 2,
+          })
+        )
+      ).not.toThrow();
     });
   });
 });
@@ -195,6 +202,7 @@ class Runlevel0 extends BaseModule {
     this.runlevel = 0;
     this.reloadable = true;
   }
+
   reload() {
     return true;
   }

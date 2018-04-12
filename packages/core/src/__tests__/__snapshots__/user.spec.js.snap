@@ -1,0 +1,18 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`user basic should match snapshot 1`] = `
+User {
+  "compare": [Function],
+  "consoleOnly": false,
+  "encrypt": [Function],
+  "henri": null,
+  "info": [Function],
+  "init": [Function],
+  "key": null,
+  "name": "user",
+  "reloadable": false,
+  "runlevel": 4,
+  "setup": [Function],
+  "start": [Function],
+}
+`;

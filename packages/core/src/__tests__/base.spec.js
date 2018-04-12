@@ -22,19 +22,19 @@ describe('base module', () => {
   test('should return console', () => {
     // eslint-disable-next-line no-console
     console.log = jest.fn();
-    base._out();
+    BaseModule._out();
     // eslint-disable-next-line no-console
     expect(console.log).toHaveBeenCalledTimes(1);
   });
 
   test('should have default messages', () => {
-    base._out = jest.fn();
+    BaseModule._out = jest.fn();
 
     base.init();
     base.info();
     base.setup();
     base.start();
 
-    expect(base._out).toHaveBeenCalledTimes(4);
+    expect(BaseModule._out).toHaveBeenCalledTimes(4);
   });
 });

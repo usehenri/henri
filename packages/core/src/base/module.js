@@ -1,15 +1,18 @@
 /**
- * BaseModuleClass
+ * Henri modules should extend this class
  *
- * henri modules should extend this class
+ * @class BaseModuleClass
  */
-
 class BaseModuleClass {
+  /**
+   * Creates an instance of BaseModuleClass.
+   * @memberof BaseModuleClass
+   */
   constructor() {
-    /** make henri available to the module */
+    /** Make henri available to the module */
     this.henri = null;
 
-    /** the name given to the module */
+    /** The name given to the module */
     this.name = 'unnamed';
     /**
      * Module runlevel
@@ -29,36 +32,67 @@ class BaseModuleClass {
      */
     this.runlevel = 5;
 
-    /** not reloadable by default */
+    /** Not reloadable by default */
     this.reloadable = false;
 
-    /** the key that we should bind to to display terminal info. */
+    /** The key that we should bind to to display terminal info. */
     this.key = null;
 
     this.consoleOnly = false;
+
+    this.init = this.init.bind(this);
+    this.info = this.info.bind(this);
+    this.setup = this.setup.bind(this);
+    this.start = this.start.bind(this);
   }
 
-  /** this is called when the modules started */
+  /**
+   * This is called when the modules started
+   *
+   * @returns {String} Message
+   * @memberof BaseModuleClass
+   */
   init() {
-    this._out(this.name, 'init method is not implemented');
+    BaseModuleClass._out(this.name, 'init method is not implemented');
   }
 
-  /** method to be called if 'key' is defined */
+  /**
+   * Method to be called if 'key' is defined
+   *
+   * @returns {String} Message
+   * @memberof BaseModuleClass
+   */
   info() {
-    this._out(this.name, 'info method is not implemented');
+    BaseModuleClass._out(this.name, 'info method is not implemented');
   }
 
-  /** method to set things up before starting */
+  /**
+   * Method to set things up before starting
+   *
+   * @returns {String} Message
+   * @memberof BaseModuleClass
+   */
   setup() {
-    this._out(this.name, 'setup method is not implemented');
+    BaseModuleClass._out(this.name, 'setup method is not implemented');
   }
 
-  /** this should be called by init after setup */
+  /**
+   * This should be called by init after setup
+   *
+   * @returns {String} Message
+   * @memberof BaseModuleClass
+   */
   start() {
-    this._out(this.name, 'start method is not implemented');
+    BaseModuleClass._out(this.name, 'start method is not implemented');
   }
 
-  _out(...args) {
+  /**
+   * Private method
+   *
+   * @returns {String} Message
+   * @memberof BaseModuleClass
+   */
+  static _out(...args) {
     // eslint-disable-next-line no-console
     return console.log(...args);
   }

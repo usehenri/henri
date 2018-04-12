@@ -1,10 +1,22 @@
 const { stack } = require('./utils');
 const BaseModule = require('./base/module');
+const bounce = require('bounce');
 
+/**
+ * Modules handler
+ *
+ * @class Modules
+ */
 class Modules {
+  /**
+   * Creates an instance of Modules.
+   * @param {Henri} henri Henri instance
+   * @memberof Modules
+   */
   constructor(henri) {
     this.henri = henri;
     this.modules = new Map();
+
     this.store = [[], [], [], [], [], [], []];
     this.order = [[], [], [], [], [], [], []];
     this.reloadable = [[], [], [], [], [], [], []];
@@ -16,6 +28,13 @@ class Modules {
     this.add = this.add.bind(this);
   }
 
+  /**
+   *  Adds a module to henri, not initialized yet
+   *
+   * @param {function} func Module constructor to be added
+   * @returns {boolean} Result
+   * @memberof Modules
+   */
   add(func) {
     const { pen } = this.henri;
 
@@ -42,8 +61,8 @@ class Modules {
 
     this.modules.set(obj.name, {
       filename: info.getFileName(),
-      line: info.getLineNumber(),
       func: info.getFunctionName(),
+      line: info.getLineNumber(),
       time: Date.now(),
     });
 
@@ -52,13 +71,22 @@ class Modules {
     return true;
   }
 
+  /**
+   * Initialize all the loaded modules
+   * this method calls all then modules init() methods, in their runlevel order
+   *
+   * @async
+   * @throws
+   * @returns {boolean} results
+   * @memberof Modules
+   */
   async init() {
     const { pen } = this.henri;
 
     this.store.splice(parseInt(this.henri.runlevel) + 1);
 
-    // this.order = this.store.reduce((a, b) => a.concat(b));
-    this.stopOrder = this.store.reduceRight((a, b) => a.concat(b));
+    // REMOVED: this.order = this.store.reduce((a, b) => a.concat(b));
+    this.stopOrder = this.store.reduceRight((prev, next) => prev.concat(next));
 
     if (this.stopOrder.length < 1) {
       pen.fatal('modules', 'init', 'no modules loaded before init');
@@ -66,6 +94,7 @@ class Modules {
 
     let count = 0;
     let size = this.stopOrder.length;
+
     for (let level of this.store) {
       if (level.length > 0) {
         let runlevel = 0;
@@ -78,8 +107,20 @@ class Modules {
             this.reloadable[obj.runlevel].push(obj.reload);
           }
         }
+        let result;
 
-        let result = await Promise.all(this.order[runlevel].map(f => f()));
+        try {
+          result = await Promise.all(
+            this.order[runlevel].map(
+              func => typeof func === 'function' && func()
+            )
+          );
+        } catch (error) {
+          bounce.rethrow(error, 'system');
+
+          return false;
+        }
+
         for (let name of result) {
           count++;
           pen.info(`modules`, name, `loaded`, `${count}/${size}`);
@@ -94,11 +135,20 @@ class Modules {
     return true;
   }
 
+  /**
+   * Reloads all the modules
+   *
+   * @async
+   * @throws
+   * @returns {boolean} reload status
+   * @memberof Modules
+   */
   async reload() {
     const { pen } = this.henri;
 
     if (!this.initialized) {
       pen.warn('modules', 'cannot reload when not initialized');
+
       return false;
     }
 
@@ -108,10 +158,22 @@ class Modules {
     }
 
     let count = 0;
-    const max = this.reloadable.reduce((a, b) => a.concat(b));
+    const max = this.reloadable.reduce((prev, next) => prev.concat(next));
+
     for (let level of this.reloadable) {
       if (level.length > 0) {
-        const result = await Promise.all(level.map(f => f()));
+        let result;
+
+        try {
+          result = await Promise.all(
+            level.map(func => typeof func === 'function' && func())
+          );
+        } catch (error) {
+          bounce.rethrow(error, 'system');
+
+          return false;
+        }
+
         for (let name of result) {
           count++;
           pen.info(`modules`, name, `reloaded`, `${count}/${max.length}`);
@@ -122,63 +184,89 @@ class Modules {
     return true;
   }
 
+  /**
+   * Stops the modules
+   *
+   * @async
+   * @returns {boolean} result
+   * @memberof Modules
+   */
   async stop() {
     const { pen } = this.henri;
 
     for (let mod of this.stopOrder) {
       this.henri[mod.name] = mod;
       if (typeof mod.stop === 'function') {
-        if (await mod.stop()) {
-          pen.info(`modules`, mod.name, `stopped`);
+        try {
+          if (await mod.stop()) {
+            pen.info(`modules`, mod.name, `stopped`);
+          }
+        } catch (error) {
+          bounce.rethrow(error, 'system');
+
+          return false;
         }
       }
     }
+
+    return true;
   }
 }
 
-function validate(obj, info, pen) {
+/**
+ * Validate new modules
+ *
+ * @throws Error
+ * @param {BaseModule} obj a module
+ * @param {stack} info the stack information
+ * @returns {BaseModule} the valid module
+ */
+function validate(obj, info) {
   const file = info.getFileName();
   const line = info.getLineNumber();
   const func = info.getFunctionName();
   const label = `${file}:${line} :: ${func}`;
 
   if (!(obj instanceof BaseModule)) {
-    pen.fatal('modules', `${label} is not extending BaseModule`);
-    return false;
+    throw new Error(`modules => ${label} is not extending BaseModule`);
   }
 
   if (typeof obj.runlevel !== 'number') {
-    pen.fatal('modules', `${label} runlevel is not defined`);
-    return false;
+    throw new Error(`modules => ${label} runlevel is not defined`);
   }
 
   if (typeof obj.name !== 'string') {
-    pen.fatal('modules', `${label} name is not a string`);
-    return false;
+    throw new Error(`modules => ${label} name is not a string`);
   }
 
   if (obj.runlevel < 0 || obj.runlevel > 6) {
-    pen.fatal('modules', `${obj.name} runlevel is out of range`);
-    return false;
+    throw new Error(`modules => ${obj.name} runlevel is out of range`);
   }
 
   if (typeof obj.init !== 'function') {
-    pen.fatal('modules', `${obj.name} init is not a function`);
-    return false;
+    throw new Error(`modules => ${obj.name} init is not a function`);
   }
 
   if (obj.reloadable) {
     if (typeof obj.reload !== 'function') {
-      pen.fatal(
-        'modules',
-        `${obj.name} has no valid reload function. Is it reloadable?`
+      throw new Error(
+        `modules => ${obj.name} has no valid reload function. Is it reloadable?`
       );
-      return false;
     }
   }
+
   return obj;
 }
 
+/**
+ * Crash the application on duplicate modules (overlapping)
+ *
+ * @param {BaseModule} existing the existing module
+ * @param {BaseModule} func the new module that collides
+ * @param {stack} info the new module stack
+ * @param {pen} pen the pen module (this.henri.pen)
+ * @returns {void}
+ */
 function crashOnDuplicateModule(existing, func, info, pen) {
   pen.error(
     'modules',

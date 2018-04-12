@@ -1,14 +1,25 @@
 const BaseModule = require('./base/module');
+const bounce = require('bounce');
 
 const allowed = {
-  react: 'react',
   inferno: 'react',
   preact: 'react',
-  vue: 'vue',
+  react: 'react',
   template: 'template',
+  vue: 'vue',
 };
 
+/**
+ *  View module
+ *
+ * @class View
+ * @extends {BaseModule}
+ */
 class View extends BaseModule {
+  /**
+   * Creates an instance of View.
+   * @memberof View
+   */
   constructor() {
     super();
     this.reloadable = true;
@@ -24,7 +35,16 @@ class View extends BaseModule {
     this.reload = this.reload.bind(this);
   }
 
-  init() {
+  /**
+   * Module initialization
+   * Called after being loaded by Modules
+   *
+   * @async
+   * @throws
+   * @returns {!string} The name of the module
+   * @memberof View
+   */
+  async init() {
     const { config, pen } = this.henri;
 
     this.renderer = config.has('renderer')
@@ -43,19 +63,37 @@ class View extends BaseModule {
       );
     }
 
+    // eslint-disable-next-line global-require
     const Engine = require(`./engines/${allowed[this.renderer]}`);
 
     this.engine = new Engine(this.henri);
 
-    this.engine.init && this.engine.init();
+    try {
+      this.engine.init && (await this.engine.init());
+    } catch (error) {
+      bounce.rethrow(error, 'system');
+    }
 
     return this.name;
   }
 
+  /**
+   * Reloads the module
+   *
+   * @async
+   * @throws
+   * @returns {string} Module name
+   * @memberof View
+   */
   async reload() {
     if (typeof this.engine.reload === 'function') {
-      await this.engine.reload();
+      try {
+        await this.engine.reload();
+      } catch (error) {
+        bounce.rethrow(error, 'system');
+      }
     }
+
     return this.name;
   }
 }

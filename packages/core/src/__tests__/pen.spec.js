@@ -42,6 +42,7 @@ describe('pen', () => {
 
     test('should resize padding', () => {
       const size = this.pen.longest;
+
       this.pen.info('some_long_module_spec', 'msg');
       expect(this.pen.longest).toBeGreaterThan(size);
     });
@@ -97,11 +98,13 @@ describe('pen', () => {
       });
 
       test('should show object', () => {
+        console.log = jest.fn();
         this.pen.error = jest.fn();
         this.pen.line = jest.fn();
         this.pen.fatal('test', 'error', `some big error...`, { inspect: 'me' });
         expect(this.pen.error).toBeCalled();
         expect(this.pen.line).toHaveBeenCalledTimes(6);
+        expect(console.log).toHaveBeenCalledTimes(1);
       });
 
       test('should have default value in fatal', () => {
@@ -119,6 +122,7 @@ describe('pen', () => {
         long
         dessc
         `;
+
         this.pen.fatal('test', 'short desc', long);
         expect(this.pen.error).toHaveBeenCalled();
       });
@@ -127,6 +131,7 @@ describe('pen', () => {
     test('should keep time', async () => {
       const time = this.pen._time;
       const skipped = this.pen._timeSkipped;
+
       expect(this.pen.time()).toEqual('');
       expect(this.pen._timeSkipped).toBeGreaterThanOrEqual(skipped);
       expect(parseInt(this.pen._time)).toBeGreaterThanOrEqual(parseInt(time));

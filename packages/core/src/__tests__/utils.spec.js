@@ -6,10 +6,14 @@ describe('utils', () => {
   });
 
   test('should have checkPackages', () => {
-    expect(utils.checkPackages(['jest'])).toBeTruthy();
-    expect(utils.checkPackages(['jest', 'cross-spawn'])).toBeTruthy();
-    expect(utils.checkPackages(['fsssss'])).toContain('Unable');
-    expect(utils.checkPackages(['aabbcc', 'ddeeff'])).toContain('Unable');
+    expect(() => utils.checkPackages(['bounce'])).toBeTruthy();
+    expect(() => utils.checkPackages(['bounce', 'cross-spawn'])).toBeTruthy();
+    expect(() => utils.checkPackages(['fsssss'])).toThrow(
+      /Unable to load fsssss from the current project./
+    );
+    expect(() => utils.checkPackages(['aabbcc', 'ddeeff'])).toThrow(
+      /Unable to load/
+    );
     expect(utils.checkPackages()).toBeTruthy();
   });
 

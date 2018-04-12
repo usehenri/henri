@@ -4,9 +4,20 @@ const { makeExecutableSchema } = require('graphql-tools');
 const { graphqlExpress, graphiqlExpress } = require('apollo-server-express');
 const { runQuery } = require('apollo-server-core');
 
+/**
+ * Graphqel module
+ *
+ * @class Graphql
+ * @extends {BaseModule}
+ */
 class Graphql extends BaseModule {
+  /**
+   * Creates an instance of Graphql.
+   * @memberof Graphql
+   */
   constructor() {
     super();
+
     this.reloadable = true;
     this.runlevel = 1;
     this.name = 'graphql';
@@ -28,7 +39,15 @@ class Graphql extends BaseModule {
     this.reload = this.reload.bind(this);
   }
 
-  init() {
+  /**
+   * Module initialization
+   * Called after being loaded by Modules
+   *
+   * @async
+   * @returns {!string} The name of the module
+   * @memberof Graphql
+   */
+  async init() {
     if (this.henri.config.has('graphql')) {
       this.endpoint = this.henri.config.get('graphql');
     }
@@ -50,6 +69,13 @@ class Graphql extends BaseModule {
     return this.name;
   }
 
+  /**
+   * Extract graphql items from a model (if any)
+   *
+   * @param {object} model a model
+   * @returns {boolean} status
+   * @memberof Graphql
+   */
   extract(model) {
     if (typeof model.graphql === 'undefined') {
       return false;
@@ -64,8 +90,17 @@ class Graphql extends BaseModule {
     if (typeof resolvers === 'object') {
       this.resolversList.push(resolvers);
     }
+
+    return true;
   }
 
+  /**
+   * Merge the graphql types and resolver
+   * After extracting from all the models, we merge and compile them
+   *
+   * @return {boolean} success?
+   * @memberof Graphql
+   */
   merge() {
     let should = false;
 
@@ -82,24 +117,43 @@ class Graphql extends BaseModule {
     if (should) {
       this.active = true;
       this.schema = makeExecutableSchema({
-        typeDefs: this.types,
         resolvers: this.resolvers,
+        typeDefs: this.types,
       });
     } else {
       this.active = false;
+
+      return false;
     }
+
+    return true;
   }
 
+  /**
+   * Run a Graphql query against compiled graphql
+   *
+   * @async
+   * @param {Graphql} [query=`{ No query }`]  the graphql query
+   * @param {?object} [context={}]  optional context
+   * @returns {(Promise<GraphQLResponse> | "No graphql schema found.")} value
+   * @memberof Graphql
+   */
   async run(query = `{ No query }`, context = {}) {
     if (!this.schema) {
       return 'No graphql schema found.';
     }
-
     const { schema } = this;
 
-    return runQuery({ schema, query, context });
+    return runQuery({ context, query, schema });
   }
 
+  /**
+   * Reloads the module
+   *
+   * @async
+   * @returns {string} Module name
+   * @memberof Graphql
+   */
   async reload() {
     this.typesList = [];
     this.resolversList = [];
@@ -108,6 +162,7 @@ class Graphql extends BaseModule {
     this.types = null;
     this.resolvers = null;
     this.schema = null;
+
     return this.name;
   }
 }
