@@ -1,5 +1,6 @@
 {
   "globals": {
-    "Artwork": true
+    "Artwork": true,
+    "User": true
   }
 }

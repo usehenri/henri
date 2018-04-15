@@ -1,4 +1,4 @@
 module.exports = {
-  '/list': 'main#list',
   'crud artwork': { controller: 'artwork' },
+  'post /register': 'user#create',
 };

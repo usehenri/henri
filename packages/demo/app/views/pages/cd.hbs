@@ -1,0 +1,16 @@
+<html>
+
+<head>
+  <title>Hello!</title>
+</head>
+
+<body>
+  {{> menu/left }} {{> somePartials }} {{#each artwork}}
+  <h1>{{title}}</h1>
+  <div>
+    {{year}}
+  </div>
+  {{/each}} {{> test}}
+</body>
+
+</html>
