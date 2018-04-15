@@ -206,7 +206,7 @@ class Model extends BaseModule {
     const Pkg = this.loadStore(store, valid[store.adapter]);
 
     try {
-      this.stores[name] = new Pkg(name, store);
+      this.stores[name] = new Pkg(name, store, this.henri);
     } catch (error) {
       bounce.rethrow(error, 'system');
       pen.error('model', 'store', store.adapter, 'unable to load');
