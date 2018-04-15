@@ -1,12 +1,24 @@
+/**
+ * Main entry point for henri cli
+ * @param {object} param0 if console only
+ * @param {function} cb a callback (we use this for console)
+ * @returns {void}
+ */
 const main = ({ consoleOnly = false }, cb) => {
-  process.env.SUPPRESS_NO_CONFIG_WARNING = 'true';
   if (consoleOnly) {
     process.env.CONSOLE_ONLY = 'true';
   }
 
+  /**
+   *  Init
+   * @returns {void}
+   */
   async function init() {
     try {
-      await require('@usehenri/core');
+      // eslint-disable-next-line global-require
+      const start = await require('@usehenri/core');
+
+      await start();
       if (typeof cb === 'function') {
         cb();
       }

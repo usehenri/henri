@@ -68,4 +68,13 @@ describe('henri', () => {
       process.env.NODE_ENV = 'test';
     });
   });
+
+  describe('main module', () => {
+    test('should not be null', () => {
+      // eslint-disable-next-line global-require
+      const start = require('../index');
+
+      expect(typeof start).toEqual('function');
+    });
+  });
 });

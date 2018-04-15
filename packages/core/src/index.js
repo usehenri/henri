@@ -5,10 +5,12 @@ const func = new Henri();
 /**
  * Starts the application
  *
- * @returns {Promise<void>} none
+ * @returns {Henri} henri instance
  */
 async function start() {
   await func.init();
+
+  return func;
 }
 
-start();
+module.exports = start;
