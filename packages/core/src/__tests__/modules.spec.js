@@ -91,8 +91,8 @@ describe('henri', () => {
           runlevel: 1,
         })
       );
-      expect(await this.henri.modules.init()).toBeFalsy();
-      expect(await this.henri.modules.reload()).toBeFalsy();
+      await expect(this.henri.modules.init()).rejects.toThrow();
+      await expect(this.henri.modules.reload()).resolves.toBeFalsy();
     });
 
     test('should not hit reload() if not a function', () => {
