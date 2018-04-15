@@ -191,7 +191,7 @@ class User extends BaseModule {
       /* istanbul ignore next */
       passport.deserializeUser(async function(id, done) {
         try {
-          const user = await henri._user.findOne({ _id: id }, { password: 0 });
+          const user = await henri._user.find({ _id: id }, { password: 0 });
 
           return done(null, user && user.length > 0 ? user[0] : undefined);
         } catch (error) {
