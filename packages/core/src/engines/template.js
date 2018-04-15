@@ -27,6 +27,8 @@ class TemplateEngine {
     this.fallback = this.fallback.bind(this);
     this.render = this.render.bind(this);
     this.getFile = this.getFile.bind(this);
+    this.prepare = this.prepare.bind(this);
+
     this.init();
   }
 
@@ -48,22 +50,14 @@ class TemplateEngine {
     this.instance = {
       render: async (req, res, route, opts) => {
         route = route === '/' ? '/index' : route;
-        const data = this.getFile(route);
+        const view = this.getFile(`./pages${route}`);
 
-        if (!data) {
+        if (!view) {
           return res.status(404).send('Not Found');
         }
 
-        let script;
-
         try {
-          script = this.hbs.compile(data);
-        } catch (error) {
-          return pen.error('template', error);
-        }
-
-        try {
-          const result = script(opts.data || {});
+          const result = view(opts.data || {});
 
           res.send(result);
         } catch (error) {
@@ -93,8 +87,10 @@ class TemplateEngine {
    * @returns {Promise} Self resolving promise (for compatibility)
    * @memberof TemplateEngine
    */
-  static async prepare() {
-    return new Promise(resolve => resolve());
+  async prepare() {
+    if (this.instance) {
+      return new Promise(resolve => resolve());
+    }
   }
 
   /**
@@ -105,6 +101,11 @@ class TemplateEngine {
    * @memberof TemplateEngine
    */
   fallback(router) {
+    router.use(
+      this.henri.server.express.static(
+        path.join(this.henri.cwd(), 'app/views/public')
+      )
+    );
     router.get('*', (req, res) => {
       return this.render(req, res, req.path, {});
     });
@@ -133,23 +134,25 @@ class TemplateEngine {
   registerPartials() {
     return new Promise((resolve, reject) => {
       glob(
-        '**/*.html',
+        '**/*.{hbs,html,htm}',
         { cwd: path.join(this.henri.cwd(), './app/views/partials') },
-        (err, files) => {
+        async (err, files) => {
           if (err) {
             return reject(err);
           }
           this.partials.map(view => this.hbs.unregisterPartial(view));
 
           this.partials = [];
+          await Promise.all(
+            files.map(async view => {
+              const fileName = view.replace(path.extname(view), '');
+              const data = this.getFile(`./partials/${fileName}`);
 
-          files.map(view => {
-            const fileName = view.replace('.html', '');
-            const data = this.getFile(`../partials/${fileName}`);
-
-            this.hbs.registerPartial(fileName, data);
-            this.partials.push(fileName);
-          });
+              this.hbs.registerPartial(fileName, data);
+              this.partials.push(fileName);
+              Promise.resolve();
+            })
+          );
           resolve(files);
         }
       );
@@ -165,30 +168,40 @@ class TemplateEngine {
    */
   getFile(route) {
     const fullRoute = route.slice(-1) === '/' ? `${route}index` : route;
-    const pathToFile = `${path.join(
-      this.henri.cwd(),
-      'app/views/pages',
-      route
-    )}.html`;
 
-    if (this.henri.isProduction && this.cache.has(pathToFile)) {
-      return this.cache.get(pathToFile);
+    if (this.henri.isProduction && this.cache.has(route)) {
+      return this.cache.get(route);
     }
 
     try {
-      const data = fs.readFileSync(pathToFile);
+      const files = glob.sync('**/*.{hbs,html,htm}', {
+        cwd: path.join(this.henri.cwd(), './app/views'),
+      });
+      const match = files.filter(file => file.includes(route.slice(2)));
 
-      if (this.henri.isProduction) {
-        this.cache.set(pathToFile, data);
+      if (match.length < 1) {
+        throw new Error('not found');
       }
 
-      return data.toString('utf8');
+      const pathToFile = path.join(this.henri.cwd(), 'app/views/', match[0]);
+
+      const data = fs.readFileSync(pathToFile);
+
+      let compiled;
+
+      try {
+        compiled = this.hbs.compile(data.toString('utf8'));
+      } catch (error) {
+        return this.henri.pen.error('template', error);
+      }
+
+      if (this.henri.isProduction) {
+        this.cache.set(route, compiled);
+      }
+
+      return compiled;
     } catch (error) {
-      // Maybe we should cache 404s also..
-      this.henri.pen.error(
-        'template',
-        `404 - ${route} ${fullRoute} ${pathToFile}`
-      );
+      this.henri.pen.error('template', `404 - ${route} ${fullRoute}`);
 
       return null;
     }
