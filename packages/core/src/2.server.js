@@ -7,7 +7,6 @@ const timings = require('server-timings');
 const compress = require('compression');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const chokidar = require('chokidar');
 const boom = require('boom');
 // REMOVED: const Websocket = require('@usehenri/websocket');
@@ -18,7 +17,6 @@ const {
 } = require('react-dev-utils/WebpackDevServerUtils');
 const openBrowser = require('react-dev-utils/openBrowser');
 const detect = require('detect-port');
-const prettier = require('prettier');
 
 /**
  * Watch the filesystem in dev mode
@@ -50,7 +48,7 @@ async function watch() {
     pen.line();
     pen.warn('server', 'changes detected in', path);
     pen.line(2);
-    await checkSyntax(path);
+    await henri.utils.checkSyntax(path);
     setTimeout(() => henri.status.set('locked', false), 3000);
     !henri.status.get('locked') && henri.reload();
   });
@@ -115,96 +113,6 @@ function keyboardShortcuts() {
     }
   });
   process.stdin.setRawMode(true);
-}
-
-/**
- * Handle port already in use errors?
- *
- * @param {any} err Error
- * @returns {void}
- * @todo move this somewhere else!
- */
-function handleError(err) {
-  const { pen } = henri;
-
-  if (err.code === 'EADDRINUSE') {
-    pen.fatal(
-      'server',
-      `
-    port is already in use
-    
-    modify your config or kill the other process
-    `
-    );
-  }
-  pen.error('server', err);
-}
-
-/**
- * Load a file that has changed
- *
- * @param {any} file A file that triggered watch()
- * @returns {Promise<any>} Result
- * @todo move this to utils
- */
-function checkSyntax(file) {
-  const { pen } = henri;
-
-  return new Promise(resolve => {
-    if (path.extname(file) === '.html') {
-      henri.status.set('locked', false);
-
-      return resolve();
-    }
-    fs.readFile(file, 'utf8', (err, data) => {
-      if (err) {
-        pen.error('server', 'error in writefile');
-        pen.error('server', err);
-
-        return resolve();
-      }
-      parseData(resolve, file, data);
-    });
-  });
-}
-
-/**
- *  Parse a file from checkSyntax
- *
- * @param {Promise} resolve A promise
- * @param {any} file A filename
- * @param {any} data The data inside the file
- * @returns {Promise} We always resolve
- * @todo move this to utils
- */
-function parseData(resolve, file, data) {
-  const { pen } = henri;
-
-  try {
-    const ext = path.extname(file);
-
-    if (ext === '.json') {
-      JSON.parse(data);
-      henri.status.set('locked', false);
-
-      return resolve();
-    }
-    if (ext === '.js') {
-      prettier.format(data.toString(), {
-        singleQuote: true,
-        trailingComma: 'es5',
-      });
-      henri.status.set('locked', false);
-
-      return resolve();
-    }
-    resolve();
-  } catch (error) {
-    pen.error('server', `Trying to reload but caught an error:`);
-    console.log(' '); // eslint-disable-line no-console
-    console.log(error.message); // eslint-disable-line no-console
-    resolve();
-  }
 }
 
 /**
@@ -287,26 +195,35 @@ class Server extends BaseModule {
    * @memberof Server
    */
   async start(delay, cb = null) {
-    let { app, henri, httpServer, port } = this;
+    return new Promise(async resolve => {
+      let { app, henri, httpServer, port } = this;
+      let self = this; // Oh no!
 
-    app.use((req, res, next) => henri.router.handler(req, res, next));
+      app.use((req, res, next) => henri.router.handler(req, res, next));
 
-    port = henri.isTest ? await detect(port) : port;
-    port = henri.isDev ? await choosePort('0.0.0.0', port) : port;
+      port = henri.isTest ? await detect(port) : port;
+      port = henri.isDev ? await choosePort('0.0.0.0', port) : port;
 
-    return httpServer
-      .listen(port, function() {
-        const urls = prepareUrls('http', '0.0.0.0', port);
+      httpServer
+        .listen(port, function() {
+          const urls = prepareUrls('http', '0.0.0.0', port);
 
-        henri.pen.info('server', 'ready for battle');
-        henri.isDev && watch();
+          henri.pen.info('server', 'ready for battle');
+          henri.isDev && watch();
 
-        this.url = urls.localUrlForBrowser;
-        this.port = port;
+          self.url = urls.localUrlForBrowser;
+          self.port = port;
 
-        typeof cb === 'function' && cb();
-      })
-      .on('error', handleError);
+          typeof cb === 'function' && cb();
+          resolve(true);
+        })
+        .on('error', error => {
+          if (error.code === 'EADDRINUSE') {
+            throw new Error(`port ${self.port} already in use`);
+          }
+          throw new Error(`unable to start server: ${error.message}`);
+        });
+    });
   }
 
   /**
@@ -317,7 +234,7 @@ class Server extends BaseModule {
    * @memberof Server
    * @todo wish we could stop that http/express instance in a clean manner...
    */
-  static async stop() {
+  async stop() {
     return false;
   }
 }

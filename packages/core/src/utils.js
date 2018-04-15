@@ -121,6 +121,11 @@ function clearConsole() {
  */
 async function syntax(location, onSuccess) {
   return new Promise(resolve => {
+    if (path.extname(location) === '.html') {
+      henri.status.set('locked', false);
+
+      return resolve();
+    }
     fs.readFile(location, 'utf8', (err, data) => {
       if (err) {
         return resolve(`unable to check the syntax of ${location}`);
@@ -141,10 +146,22 @@ async function syntax(location, onSuccess) {
  */
 function parseSyntax(resolve, file, data, onSuccess) {
   try {
-    prettier.format(data.toString(), {
-      singleQuote: true,
-      trailingComma: 'es5',
-    });
+    const ext = path.extname(file);
+
+    if (ext === '.json') {
+      JSON.parse(data);
+      henri.status.set('locked', false);
+
+      return resolve();
+    }
+
+    if (ext === '.js') {
+      prettier.format(data.toString(), {
+        singleQuote: true,
+        trailingComma: 'es5',
+      });
+      henri.status.set('locked', false);
+    }
     typeof onSuccess === 'function' && onSuccess();
 
     return resolve(true);

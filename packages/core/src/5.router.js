@@ -106,7 +106,7 @@ class Router extends BaseModule {
       );
     }
 
-    this.startView(reload);
+    await this.startView(reload);
 
     return this.name;
   }
@@ -143,33 +143,36 @@ class Router extends BaseModule {
    * @memberof Router
    */
   async startView(reload = false) {
-    const { pen } = this.henri;
+    return new Promise(async (resolve, reject) => {
+      const { pen } = this.henri;
 
-    /* istanbul ignore next */
+      /* istanbul ignore next */
+      if (this.henri.view && !reload) {
+        try {
+          await this.henri.view.engine.prepare();
+          this.henri.view.engine.fallback(this.handler);
+          await this.henri.server.start();
+        } catch (error) {
+          bounce.rethrow(error, 'system');
+          pen.fatal('router', error);
 
-    if (this.henri.view && !reload) {
-      try {
-        await this.henri.view.engine.prepare();
-        this.henri.view.engine.fallback(this.handler);
-        this.henri.server.start();
-      } catch (error) {
-        bounce.rethrow(error, 'system');
-        pen.fatal('router', error);
-
-        return false;
-      }
-    } else {
-      if (this.henri.view) {
-        this.henri.view && this.henri.view.engine.fallback(this.handler);
-        !reload && this.henri.server.start();
-
-        return true;
+          return reject(error);
+        }
       } else {
-        pen.warn('router', 'unable to register view fallback route');
-
-        return false;
+        if (this.henri.view) {
+          this.henri.view && this.henri.view.engine.fallback(this.handler);
+          try {
+            !reload && (await this.henri.server.start());
+          } catch (error) {
+            bounce.rethrow(error, 'system');
+          }
+        } else {
+          pen.warn('router', 'unable to register view fallback route');
+        }
       }
-    }
+
+      return resolve(true);
+    });
   }
 
   /**

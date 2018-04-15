@@ -52,29 +52,29 @@ class Henri extends HenriBase {
    * Module initialization
    *
    * @async
-   * @returns {boolean} success or not
+   * @returns {Promise<boolean>} success or not
    * @memberof Henri
    */
   async init() {
-    this.modules.add(new Config());
-    this.modules.add(new Graphql());
-    this.modules.add(new Controllers());
-    this.modules.add(new Server());
-    this.modules.add(new Model());
-    this.modules.add(new Router());
-    this.modules.add(new User());
-    this.modules.add(new View());
+    return new Promise(async resolve => {
+      this.modules.add(new Config());
+      this.modules.add(new Graphql());
+      this.modules.add(new Controllers());
+      this.modules.add(new Server());
+      this.modules.add(new Model());
+      this.modules.add(new Router());
+      this.modules.add(new User());
+      this.modules.add(new View());
 
-    try {
-      await this.modules.init();
-    } catch (error) {
-      bounce.rethrow(error, 'system');
-      this.pen.fatal('henri', 'unable to execute init()');
+      try {
+        await this.modules.init();
+      } catch (error) {
+        bounce.rethrow(error, 'system');
+        throw new Error('henri - unable to  execute init()');
+      }
 
-      return false;
-    }
-
-    return true;
+      return resolve(true);
+    });
   }
 
   /**

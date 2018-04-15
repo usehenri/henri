@@ -81,58 +81,70 @@ class Modules {
    * @memberof Modules
    */
   async init() {
-    const { pen } = this.henri;
+    return new Promise(async (resolve, reject) => {
+      const { pen } = this.henri;
 
-    this.store.splice(parseInt(this.henri.runlevel) + 1);
+      this.store.splice(parseInt(this.henri.runlevel) + 1);
 
-    // REMOVED: this.order = this.store.reduce((a, b) => a.concat(b));
-    this.stopOrder = this.store.reduceRight((prev, next) => prev.concat(next));
+      // REMOVED: this.order = this.store.reduce((a, b) => a.concat(b));
+      this.stopOrder = this.store.reduceRight((prev, next) =>
+        prev.concat(next)
+      );
 
-    if (this.stopOrder.length < 1) {
-      pen.fatal('modules', 'init', 'no modules loaded before init');
-    }
+      if (this.stopOrder.length < 1) {
+        pen.fatal('modules', 'init', 'no modules loaded before init');
+      }
 
-    let count = 0;
-    let size = this.stopOrder.length;
+      let count = 0;
+      let size = this.stopOrder.length;
 
-    for (let level of this.store) {
-      if (level.length > 0) {
-        let runlevel = 0;
+      for (let level of this.store) {
+        if (level.length > 0) {
+          let runlevel = 0;
 
-        for (let obj of level) {
-          runlevel = obj.runlevel;
-          this.order[obj.runlevel].push(obj.init);
-          this.henri[obj.name] = obj;
-          if (obj.reloadable && typeof obj.reload === 'function') {
-            this.reloadable[obj.runlevel].push(obj.reload);
+          for (let obj of level) {
+            runlevel = obj.runlevel;
+            this.order[obj.runlevel].push(obj.init);
+            this.henri[obj.name] = obj;
+            if (obj.reloadable && typeof obj.reload === 'function') {
+              this.reloadable[obj.runlevel].push(obj.reload);
+            }
+          }
+          let result;
+
+          try {
+            result = await Promise.all(
+              this.order[runlevel].map(
+                async func => typeof func === 'function' && (await func())
+              )
+            );
+          } catch (error) {
+            bounce.rethrow(error, 'system');
+            reject(error);
+          }
+
+          if (
+            typeof result !== 'undefined' &&
+            typeof result[Symbol.iterator] === 'function'
+          ) {
+            for (let name of result) {
+              count++;
+              pen.info(`modules`, name, `loaded`, `${count}/${size}`);
+            }
+          } else {
+            pen.error('modules', 'init', 'unable to init correctly');
+
+            return false;
           }
         }
-        let result;
-
-        try {
-          result = await Promise.all(
-            this.order[runlevel].map(
-              func => typeof func === 'function' && func()
-            )
-          );
-        } catch (error) {
-          bounce.rethrow(error, 'system');
-
-          return false;
-        }
-
-        for (let name of result) {
-          count++;
-          pen.info(`modules`, name, `loaded`, `${count}/${size}`);
-        }
       }
-    }
 
-    pen.info('modules', 'loading', '...done!');
+      pen.info('modules', 'loading', '...done!');
 
-    this.initialized = true;
+      this.initialized = true;
 
-    return true;
+      return resolve(true);
+    });
   }
 
   /**
@@ -166,7 +178,9 @@ class Modules {
 
         try {
           result = await Promise.all(
-            level.map(func => typeof func === 'function' && func())
+            level.map(
+              async func => typeof func === 'function' && (await func())
+            )
           );
         } catch (error) {
           bounce.rethrow(error, 'system');
