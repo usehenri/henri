@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.22.0"></a>
+# [0.22.0](https://github.com/usehenri/henri/compare/v0.21.3...v0.22.0) (2018-04-17)
+
+
+
+
+**Note:** Version bump only for package @usehenri/react
+
 <a name="0.21.3"></a>
 ## [0.21.3](https://github.com/usehenri/henri/compare/v0.21.2...v0.21.3) (2018-04-10)
 

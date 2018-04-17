@@ -1,12 +1,12 @@
 {
   "name": "@usehenri/sequelize",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "description": "henri sequalize class provider",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
     "connect-session-sequelize": "^5.2.1",
-    "sequelize": "^4.37.5"
+    "sequelize": "^4.37.6"
   }
 }

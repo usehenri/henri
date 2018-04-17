@@ -3,6 +3,27 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.22.0"></a>
+# [0.22.0](https://github.com/usehenri/henri/compare/v0.21.3...v0.22.0) (2018-04-17)
+
+
+### Bug Fixes
+
+* **user:** failing to deserialize. need upcoming fix for disk ([7bd2f1c](https://github.com/usehenri/henri/commit/7bd2f1c))
+
+
+### Features
+
+* **cli:** return a function (better tests) ([292e111](https://github.com/usehenri/henri/commit/292e111))
+* **core:** adding bounce to utils ([40b7671](https://github.com/usehenri/henri/commit/40b7671))
+* **core:** better error handling ([2be66b6](https://github.com/usehenri/henri/commit/2be66b6))
+* **model:** inject henri to the stores ([a32c29a](https://github.com/usehenri/henri/commit/a32c29a))
+* **template:** using promise to read partials et al ([ca73cc1](https://github.com/usehenri/henri/commit/ca73cc1))
+* **user:** session storage per database provider, closes [#34](https://github.com/usehenri/henri/issues/34) ([50d5831](https://github.com/usehenri/henri/commit/50d5831))
+
+
+
+
 <a name="0.21.2"></a>
 ## [0.21.2](https://github.com/usehenri/henri/compare/v0.21.1...v0.21.2) (2018-04-10)
 
