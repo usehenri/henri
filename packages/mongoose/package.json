@@ -7,6 +7,6 @@
   "license": "MIT",
   "dependencies": {
     "connect-mongo": "^2.0.1",
-    "mongoose": "^5.0.15"
+    "mongoose": "^5.0.16"
   }
 }
