@@ -46,7 +46,7 @@
     "react-dom": "^16.3.2",
     "react-quill": "^1.2.7",
     "react-rte": "^0.16.1",
-    "sass-loader": "^6.0.7",
+    "sass-loader": "^7.0.1",
     "socket.io-client": "^2.1.0",
     "validator": "^9.4.0"
   }
