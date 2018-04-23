@@ -3,11 +3,14 @@
   "version": "0.22.0",
   "description": "henri core package",
   "main": "src/index.js",
+  "bin": {
+    "henri-core": "src/index.js"
+  },
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "apollo-server-core": "^1.3.4",
-    "apollo-server-express": "^1.3.4",
+    "apollo-server-core": "^1.3.5",
+    "apollo-server-express": "^1.3.5",
     "bcrypt-nodejs": "^0.0.3",
     "boom": "^7.2.0",
     "bounce": "^1.2.0",
