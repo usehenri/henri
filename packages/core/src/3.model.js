@@ -365,18 +365,16 @@ class Model extends BaseModule {
    * @memberof Model
    */
   checkStoreOrDie(model) {
-    const { config, pen } = this.henri;
+    const { config } = this.henri;
 
     if (!model.store && !config.has('stores.default')) {
-      return pen.fatal(
-        'models',
+      throw new Error(
         `There is no default store and ${model.identity} is missing one`
       );
     }
 
     if (model.store && !config.has(`stores.${model.store}`)) {
-      return pen.fatal(
-        'models',
+      throw new Error(
         `It seems like ${model.store} is not configured. ${
           model.identity
         } is using it.`
