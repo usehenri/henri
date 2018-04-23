@@ -13,4 +13,11 @@ async function start() {
   return func;
 }
 
+if (!module.parent) {
+  func.pen.warn('boot', 'running from npm');
+  start();
+} else {
+  func.pen.warn('boot', 'running from cli');
+}
+
 module.exports = start;
