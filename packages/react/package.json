@@ -36,7 +36,7 @@
     "draft-js": "^0.10.5",
     "module-alias": "^2.0.6",
     "next": "^5.1.0",
-    "node-sass": "^4.8.3",
+    "node-sass": "4.9.0",
     "postcss-cssnext": "^3.1.0",
     "postcss-easy-import": "^3.0.0",
     "postcss-loader": "^2.1.4",
