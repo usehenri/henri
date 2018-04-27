@@ -36,7 +36,10 @@ async function watch() {
     './**.json',
     './**.lock',
   ];
-  const { pen, utils: { clearConsole } } = henri;
+  const {
+    pen,
+    utils: { clearConsole },
+  } = henri;
 
   henri.status.set('locked', true);
   chokidar.watch(watching).on('all', async (event, path) => {
@@ -48,7 +51,7 @@ async function watch() {
     pen.line();
     pen.warn('server', 'changes detected in', path);
     pen.line(2);
-    await henri.utils.checkSyntax(path);
+    await henri.utils.syntax(path);
     setTimeout(() => henri.status.set('locked', false), 3000);
     !henri.status.get('locked') && henri.reload();
   });
@@ -75,7 +78,10 @@ async function watch() {
  * @todo Move this to its own module with a menu and dynamic shortcuts
  */
 function keyboardShortcuts() {
-  const { pen, utils: { clearConsole } } = henri;
+  const {
+    pen,
+    utils: { clearConsole },
+  } = henri;
 
   process.stdin.resume();
   process.stdin.on('data', async data => {

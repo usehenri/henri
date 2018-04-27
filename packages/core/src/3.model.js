@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const includeAll = require('include-all');
 const bounce = require('bounce');
+const debug = require('debug')('henri:model');
 
 /**
  * Model module
@@ -36,6 +37,7 @@ class Model extends BaseModule {
     this.reload = this.reload.bind(this);
     this.addToEslintRc = this.addToEslintRc.bind(this);
     this.checkStoreOrDie = this.checkStoreOrDie.bind(this);
+    debug('constructor initialized');
   }
 
   /**
@@ -60,8 +62,11 @@ class Model extends BaseModule {
         },
         (err, modules) => {
           if (err) {
+            debug('load rejected');
+
             return reject(err);
           }
+          debug('loaded from fs');
 
           return resolve(modules);
         }
@@ -134,6 +139,7 @@ class Model extends BaseModule {
     this.stores = {};
     this.ids = [];
     this.models = [];
+    debug('done resetting');
 
     return true;
   }
@@ -156,6 +162,8 @@ class Model extends BaseModule {
         'node_modules',
         `@usehenri/${conn}`
       ));
+
+      debug('loaded adapter %s (%s)', store.adapter, conn);
 
       return Pkg;
     } catch (error) {
@@ -181,6 +189,8 @@ class Model extends BaseModule {
     const { config, pen } = this.henri;
 
     if (this.stores[name]) {
+      debug('store %s is already loaded, returning from cache', name);
+
       return this.stores[name];
     }
     const store = config.get(`stores.${name}`);
@@ -229,6 +239,7 @@ class Model extends BaseModule {
         await this.start(
           await this.configure(await Model.load('./app/models'))
         );
+        debug('init done');
       } catch (error) {
         bounce.rethrow(error, 'system');
       }
@@ -247,6 +258,7 @@ class Model extends BaseModule {
     return new Promise(async resolve => {
       try {
         for (const store of Object.keys(this.stores)) {
+          debug('starting store %s', store);
           await this.stores[store].start();
         }
       } catch (error) {
@@ -255,6 +267,7 @@ class Model extends BaseModule {
       if (this.ids.length > 0) {
         this.addToEslintRc();
       }
+      debug('start done');
 
       return resolve();
     });
@@ -279,12 +292,17 @@ class Model extends BaseModule {
       try {
         for (const store of Object.keys(this.stores)) {
           await this.stores[store].stop();
+          debug('stopped %s', store);
         }
       } catch (error) {
         bounce.rethrow(error, 'system');
       }
       this.ids.forEach(name => delete global[name]);
+      delete this.stores;
+
       this.ids = [];
+      this.stores = [];
+      debug('stop done');
 
       return resolve(true);
     });
@@ -299,8 +317,10 @@ class Model extends BaseModule {
    */
   async reload() {
     try {
+      debug('reloading began');
       await this.stop();
       await this.init();
+      debug('reloading done!');
     } catch (error) {
       bounce.rethrow(error, 'system');
       henri.pen.error('model', error);
