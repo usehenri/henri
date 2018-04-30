@@ -252,6 +252,7 @@ class Router extends BaseModule {
         query: req.query,
         user: req.user || {},
       };
+
       delete res.render;
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
@@ -277,6 +278,37 @@ class Router extends BaseModule {
         return res.format({
           default: () => this.henri.view.engine.render(req, res, route, opts),
           html: () => this.henri.view.engine.render(req, res, route, opts),
+          json: () => res.json(opts),
+        });
+      };
+
+      delete res.hbs;
+      res.hbs = async (route, extras = {}) => {
+        let { data = {}, graphql = null } = extras;
+
+        data = (graphql && (await this.henri.graphql.run(graphql))) || data;
+
+        let opts = {
+          data: (graphql && data.data) || data,
+          errors: graphql && data.errors,
+          localUrl: this.henri.server.url,
+          paths: this._paths,
+          query: req.query,
+          user: req.user || {},
+        };
+
+        if (this.henri.graphql) {
+          opts.graphql = {
+            endpoint: (henri.graphql.active && henri.graphql.endpoint) || false,
+            query: graphql || false,
+          };
+        }
+
+        return res.format({
+          default: () =>
+            this.henri.view.hbs.instance.render(req, res, route, opts),
+          html: () =>
+            this.henri.view.hbs.instance.render(req, res, route, opts),
           json: () => res.json(opts),
         });
       };
