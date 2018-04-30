@@ -1,9 +1,6 @@
 const mongoose = require('mongoose');
+const debug = require('debug')('henri:mongoose');
 const { config, pen } = henri;
-
-if (global.Promise) {
-  mongoose.Promise = global.Promise;
-}
 
 /**
  * Mongoose database adapter
@@ -19,6 +16,7 @@ class Mongoose {
    * @memberof Mongoose
    */
   constructor(name, config, henri) {
+    debug('constructor => init');
     if (!config.url && !config.host) {
       pen.fatal('mongoose', `Missing url or host in store ${name}`);
     }
@@ -26,7 +24,7 @@ class Mongoose {
     this.name = name;
     this.config = config;
     this.models = {};
-    this.mongoose = mongoose;
+    this.mongoose = new mongoose.Mongoose();
     this.henri = henri;
 
     this.addModel = this.addModel.bind(this);
@@ -35,6 +33,7 @@ class Mongoose {
     this.getSessionConnector = this.getSessionConnector.bind(this);
     this.start = this.start.bind(this);
     this.stop = this.stop.bind(this);
+    debug('constructor => done');
   }
 
   /**
@@ -47,8 +46,9 @@ class Mongoose {
    */
   addModel(model, user) {
     let isUser = false;
-
     const schema = new this.mongoose.Schema(model.schema, model.options || {});
+
+    debug('adding model', model.globalId);
 
     if (model.identity === user) {
       this.overload(schema, model, user);
@@ -77,6 +77,8 @@ class Mongoose {
    */
   overload(schema, model, user) {
     const { pen } = this.henri;
+
+    debug('overloading %s', model.globalId);
 
     pen.info('mongoose', `user model`, model.globalId, `overloading...`);
     schema.add({ email: { required: true, type: String } });
@@ -119,7 +121,7 @@ class Mongoose {
 
     return new MongoStore({
       collection: 'henriSessions',
-      mongooseConnection: this.mongoose.connection,
+      url: this.config.url,
     });
   }
 
@@ -130,10 +132,17 @@ class Mongoose {
    * @memberof Mongoose
    */
   async start() {
+    debug('starting %s', this.name);
+    this.mongoose.Promise = global.Promise;
+
     return new Promise((resolve, reject) => {
-      mongoose
-        .connect(this.config.url || this.config.host)
-        .then(() => resolve(), err => reject(err));
+      this.mongoose.connect(this.config.url || this.config.host).then(
+        () => {
+          debug('started %s', this.name);
+          resolve();
+        },
+        err => reject(err)
+      );
     });
   }
 
@@ -144,8 +153,18 @@ class Mongoose {
    * @memberof Mongoose
    */
   async stop() {
+    debug('stopping %s', this.name);
+
     return new Promise((resolve, reject) => {
-      mongoose.disconnect().then(() => resolve(), err => reject(err));
+      this.mongoose.disconnect().then(
+        () => {
+          delete this.mongoose;
+          this.mongoose = new mongoose.Mongoose();
+          debug('stopped %s', this.name);
+          setTimeout(() => resolve(), 500);
+        },
+        err => reject(err)
+      );
     });
   }
 }
