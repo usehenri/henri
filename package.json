@@ -9,7 +9,7 @@
     "coveralls": "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
     "publish-canary": "lerna publish --yes --skip-git --exact -c",
     "packages:clean": "lerna clean --yes",
-    "packages:install": "lerna exec -- yarn install --ignore-engines",
+    "packages:install": "lerna exec --concurrency 1 -- yarn install --ignore-engines",
     "packages:upgrade": "yarn upgrade-interactive --latest --ignore-engines && lerna exec --concurrency 1 -- yarn upgrade-interactive --latest --ignore-engines",
     "packages:bootstrap": "lerna bootstrap",
     "packages:maintenance": "yarn run packages:clean && yarn run packages:install && yarn run packages:upgrade && yarn run packages:bootstrap && exit"
@@ -28,7 +28,7 @@
     "@types/lodash": "^4.14.108",
     "@types/minimist": "^1.2.0",
     "@types/mongoose": "^5.0.10",
-    "@types/node": "^9.6.6",
+    "@types/node": "^10.0.1",
     "@types/passport": "^0.4.5",
     "@types/passport-jwt": "^3.0.1",
     "@types/passport-local": "^1.0.33",
@@ -54,12 +54,8 @@
     "jest": "^22.4.3",
     "lerna": "^2.11.0",
     "lint-staged": "^7.0.5",
-    "next": "5.1.0",
-    "nuxt": "^1.4.0",
     "nyc": "^11.7.1",
     "prettier": "^1.12.1",
-    "react": "^16.3.2",
-    "react-dom": "^16.3.2",
     "supertest": "^3.0.0"
   },
   "lint-staged": {
