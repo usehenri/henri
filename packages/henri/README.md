@@ -19,19 +19,29 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
 * [Models](#models)
   * [Disk](#disk)
   * [MongoDB](#mongodb)
+  * [MySQL](#mysql)
+  * [MSSQL](#mssql)
+  * [PostgreSQL](#PostgreSQL)
+* [GraphQL](#graphql)
 * [Views](#views)
   * [React](#react)
     * [Inferno](#inferno)
     * [Preact](#preact)
   * [Vue.js](#vue)
-  * [Template (template literal)](#template)
+  * [Handlebars](#handlebars)
+  * [Fetching data again](#fetching-data-again)
 * [Controllers](#controllers)
 * [Routes](#routes)
+  * [Roles](#roles)
+  * [CRUD](#crud)
+  * [Resources](#resources)
+  * [Scope](#scope)
+* [Under the hood](#under-the-hood)
 * [Plans, plans!](#plans)
 
 ## How to use
 
-### To install:
+### Install
 
 ```bash
   yarn global add henri
@@ -41,7 +51,7 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
   npm install -g henri
 ```
 
-### To create a new project:
+### Create a new project
 
 ```bash
   henri new <folder name>
@@ -49,7 +59,7 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
 
 The above command will create a directory structure similar to this:
 
-```
+```shell
 ├── app
 │   ├── controllers
 │   ├── helpers
@@ -73,7 +83,7 @@ The above command will create a directory structure similar to this:
 ├── package.json
 ```
 
-If you have a rails background, this might look familiar.
+If you have a _Ruby on Rails_ background, this might look familiar.
 
 One last step to start coding is:
 
@@ -86,17 +96,17 @@ And you're good to go!
 
 ## Configuration
 
-The configuration is a json file located in the `config` directory. We use
-the [config](https://github.com/lorenwest/node-config) package to load them.
+The configuration is a json file located in the `config` directory.
+
+henri will try to load the file matching your `NODE_ENV` and will fallback to `default`.
 
 You can have a `default.json`, `production.json`, etc.
 
 ```json
 {
-  "log": "main.log",
   "stores": {
     "default": {
-      "adapter": "mongo",
+      "adapter": "mongoose",
       "url": "mongodb://user:pass@mongoserver.com:10914/henri-test"
     },
     "dev": {
@@ -112,10 +122,9 @@ You can have a `default.json`, `production.json`, etc.
 
 You can easily add models under `app/models`.
 
-They will be autoloaded and available throughout your application.
+They will be autoloaded and available throughout your application (exposed globally).
 
-You can have multiple adapters and you can have relations between models living
-on different adapters, thanks to [waterline](https://github.com/balderdashy/waterline)
+We use [Mongoose](http://mongoosejs.com/) for MongoDB, [Sequelize](http://docs.sequelizejs.com/) for SQL adapters and [Waterline](https://github.com/balderdashy/waterline) for the disk adapter.
 
 ```js
 // app/models/User.js
@@ -157,12 +166,12 @@ module.exports = {
 
 ### Disk
 
-The disk adapter is using a promisified NeDB to provide disk-based storage.
+The disk adapter is using [Waterline](https://github.com/balderdashy/waterline) to provide disk-based storage.
 
 This is not for production and you can easily port your models to other adapters.
 
 ```bash
-  yarn add henri @usehenri/disk
+  yarn add @usehenri/disk
 
   # or
 
@@ -171,27 +180,61 @@ This is not for production and you can easily port your models to other adapters
 
 ### MongoDB
 
-The MongoDB adapter is using mongoose to provide a MongoDB ODM.
+The MongoDB adapter is using [Mongoose](http://mongoosejs.com/) to provide a MongoDB ODM.
 
 ```bash
-  yarn add henri @usehenri/mongoose
+  yarn add @usehenri/mongoose
 
   # or
 
   npm install @usehenri/mongoose --save
 ```
 
+### MySQL
+
+The MySQL adapter is using [Sequelize](http://docs.sequelizejs.com/) to provide a MySQL ORM.
+
+```bash
+  yarn add @usehenri/mysql
+
+  # or
+
+  npm install @usehenri/mysql --save
+```
+
+### MSSQL
+
+The MSSQL adapter is using [Sequelize](http://docs.sequelizejs.com/) to provide a MSSQL ORM.
+
+```bash
+  yarn add @usehenri/mssql
+
+  # or
+
+  npm install @usehenri/mssql --save
+```
+
+### PostgreSQL
+
+The PostgresQL adapter is also using [Sequelize](http://docs.sequelizejs.com/) to provide a PostgresQL ORM.
+
+```bash
+  yarn add @usehenri/postgresql
+
+  # or
+
+  npm install @usehenri/postgresql --save
+```
+
 ## Views
 
-You can use [React](#react), [Vue](#vue) and template literals as renderer. They are all server-side rendered and the first two options use webpack to push updates to the browser.
+You can use [React](#react), [Vue](#vue) and [Handlebars](#handlebars) as renderer. They are all server-side rendered and the first two options use webpack to push updates to the browser.
 
 ### React
 
 We use [next.js](https://github.com/zeit/next.js) to render pages and inject
 data from controllers. You can only add pages and if the defined routes don't
 match, and next matches a route, it will be rendered.
-
-The data injected into the view can be refetched with the `/_data/` suffix.
 
 Usage (config file):
 
@@ -244,7 +287,7 @@ You can use Inferno instead of React in production. In development, React will b
 Installation:
 
 ```bash
-yarn add react react-dom next inferno inferno-compat inferno-server
+yarn add react react-dom inferno inferno-compat inferno-server
 ```
 
 Usage (config file):
@@ -262,7 +305,7 @@ You can use Preact instead of React in production. In development, React will be
 Installation:
 
 ```bash
-yarn add react react-dom next preact preact-compat
+yarn add react react-dom preact preact-compat
 ```
 
 Usage (config file):
@@ -278,8 +321,6 @@ Usage (config file):
 We use [Nuxt.js](https://nuxtjs.org/) to render pages and inject
 data from controllers. You can only add pages and if the defined routes don't
 match, and nuxt matches a route, it will be rendered.
-
-The data injected into the view can be refetched with the `/_data/` suffix.
 
 Usage (config file):
 
@@ -300,11 +341,11 @@ Example:
 </template>
 ```
 
-### Template
+### Handlebars
 
-The template literal renderer is a simple home-made addons that reads the html files relative to `app/views/pages` and processes it as a template literal in a Node VM and injects data.
+The handlebars options renders your `.html` or `.hbs` files under `app/views/pages`.
 
-The data injected into the view can be refetched with the `/_data/` suffix.
+It will also load partials from `app/views/partials`
 
 Usage (config file):
 
@@ -316,7 +357,7 @@ Usage (config file):
 
 Example:
 
-```html
+```twig
 <html>
 
 <head>
@@ -324,12 +365,16 @@ Example:
 </head>
 
 <body>
-
-  <li>Some data: ${data.hello}</li>
+  {{> somePartials }}
+  <li>Some data: {{hello}}</li>
 </body>
 
 </html>
 ```
+
+### Fetching data again
+
+You can refetch data from any data-hydrated controller endpoint with GET using the `application/json` header.
 
 ## Controllers
 
@@ -384,23 +429,93 @@ Routes are a simple object with a key standing as a route or an action verb
 If you want to access the `res.render` data, you can make the call with
 `application/json` header. Everything else will be rendered.
 
-Each route defined here will also have a `/_data/` route attached that will return
-only the data injected into the view if you use `res.render`.
-
-As with the `/log` route above, fetching `/log` will give you a SSR React page and
-calling `/_data/log` will return a json object containing the users.
-
 ```js
 // app/routes.js
 
 module.exports = {
   '/test': 'user#info', // default to 'get /test'
+
   '/abc/:id': 'moo#iii', // as this controller does not exists, route won't be loaded
+
   '/user/find': 'user#fetch',
+
   'get /poo': 'user#postinfo',
+
   'post /poo': 'user#create',
+
+  'get /secured': {
+    controller: 'secureController#index',
+    roles: ['admin'],
+  },
+
+  'resources todo': {
+    controller: 'todo',
+  },
+
+  'crud categories': {
+    scope: 'api',
+    controller: 'categories',
+  },
 };
 ```
+
+### Roles
+
+You can specify an array of roles which need to be matched to access the routes.
+
+### CRUD
+
+The `crud` keyword (instead of http verbs) will create routes in a predefined way:
+
+```js
+// 'crud happy': 'life'
+
+GET /happy => life#index
+POST /happy => life#create
+PATCH /happy/:id => life#update
+PUT /happy/:id => life#update
+DELETE /happy/:id => life#destroy
+```
+
+### Resources
+
+The `resources` keyword (instead of http verbs) add views target to CRUD, ending up with:
+
+```js
+// 'resources happy': 'life'
+
+GET /happy => life#index
+POST /happy => life#create
+PATCH /happy/:id => life#update
+PUT /happy/:id => life#update
+DELETE /happy/:id => life#destroy
+
+GET /happy/:id/edit => life#edit
+GET /happy/new => life#new
+GET /happy/:id => life#show
+```
+
+### Scope
+
+You can add `scope` to your routes to prefix them with anything you want.
+
+## Under the hood
+
+### Vision
+
+_Bundle the best tools in a structured environment to provide a stable and fast-paced development experience._
+
+### Modules
+
+_We use a 7 levels boot system._
+
+1.  All modules are scanned and put in a sequence with same-level modules
+
+2.  We cycle from level 0 to 6, initializing all the same-level modules in a concurrent way
+
+3.  If the module is reloadable, it will unwind and rewind in the same sequence on reloads
+
+See the [Contributing](#contributing) section for more information
 
 ## Plans
 

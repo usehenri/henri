@@ -1,7 +1,8 @@
 {
   "name": "henri",
   "version": "0.23.0",
-  "description": "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
+  "description":
+    "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
   "main": "index.js",
   "preferGlobal": true,
   "scripts": {
@@ -15,7 +16,7 @@
     "henri": "bin/henri.js"
   },
   "engines": {
-    "node": ">=7.6.0"
+    "node": ">=7.6.0 <10.0.0"
   },
   "types": "./index.d.ts",
   "author": "Felix-Antoine Paradis",
