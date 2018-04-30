@@ -27,6 +27,7 @@ class View extends BaseModule {
     this.name = 'view';
     this.henri = null;
     this.consoleOnly = true;
+    this.hbs = undefined;
 
     this.renderer = 'template';
     this.engine = null;
@@ -48,7 +49,7 @@ class View extends BaseModule {
     const { config, pen } = this.henri;
 
     this.renderer = config.has('renderer')
-      ? config.get('renderer')
+      ? config.get('renderer').toLowerCase()
       : 'template';
 
     if (!allowed.hasOwnProperty(this.renderer)) {
@@ -64,9 +65,18 @@ class View extends BaseModule {
     }
 
     // eslint-disable-next-line global-require
-    const Engine = require(`./engines/${allowed[this.renderer]}`);
+    const Template = require(`./engines/template.js`);
 
-    this.engine = new Engine(this.henri);
+    this.hbs = new Template(this.henri);
+
+    if (this.renderer === 'template') {
+      this.engine = this.hbs;
+    } else {
+      // eslint-disable-next-line global-require
+      const Engine = require(`./engines/${allowed[this.renderer]}`);
+
+      this.engine = new Engine(this.henri);
+    }
 
     try {
       this.engine.init && (await this.engine.init());
