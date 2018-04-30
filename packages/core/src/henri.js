@@ -150,7 +150,7 @@ class Henri extends HenriBase {
    * @returns {string} same as 'ast' parameter
    * @memberof Henri
    */
-  static gql(ast) {
+  gql(ast) {
     return `${ast}`;
   }
 }
