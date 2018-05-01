@@ -36,6 +36,7 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
   * [CRUD](#crud)
   * [Resources](#resources)
   * [Scope](#scope)
+* [Mail](#mail)
 * [Under the hood](#under-the-hood)
 * [Plans, plans!](#plans)
 
@@ -498,6 +499,41 @@ GET /happy/:id => life#show
 ### Scope
 
 You can add `scope` to your routes to prefix them with anything you want.
+
+## Mail
+
+We use [nodemailer](https://nodemailer.com) to provide email capabilities.
+
+When running tests, we use nodemailer's ethereal fake-mail service.
+
+### Config
+
+```json
+{
+  "mail": {
+    // ...Same as nodemailer's config
+  }
+}
+```
+
+### Send
+
+We provide a wrapper around `nodemailer.SendMail`:
+
+```js
+await henri.mail.send({
+  from: '"Henri Server" <foo@example.com>', // sender address
+  to: 'bar@example.com, baz@example.com', // list of receivers
+  subject: 'Hello ✔', // Subject line
+  text: 'Hello world?', // plain text body
+  html: '<b>Hello world?</b>' // html body
+})
+```
+
+If you are using the test accounts, you will see a link to your email in the console.
+
+You can access nodemailer's package directly from `henri.mail.nodemailer` and
+transporter from `henri.mail.transporter`.
 
 ## Under the hood
 
