@@ -1,0 +1,25 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`mailer should match snapshot 1`] = `
+Mailer {
+  "config": undefined,
+  "consoleOnly": false,
+  "henri": undefined,
+  "info": [Function],
+  "init": [Function],
+  "key": null,
+  "name": "mail",
+  "nodemailer": Object {
+    "createTestAccount": [Function],
+    "createTransport": [Function],
+    "getTestMessageUrl": [Function],
+  },
+  "reloadable": false,
+  "runlevel": 1,
+  "send": [Function],
+  "setup": [Function],
+  "start": [Function],
+  "testAccount": undefined,
+  "transporter": undefined,
+}
+`;

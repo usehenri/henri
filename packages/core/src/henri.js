@@ -5,6 +5,7 @@ const utils = require('./utils');
 const validator = require('validator');
 
 const Config = require('./0.config');
+const Mailer = require('./1.mailer');
 const Graphql = require('./1.graphql');
 const Controllers = require('./2.controllers');
 const Server = require('./2.server');
@@ -58,6 +59,7 @@ class Henri extends HenriBase {
   async init() {
     return new Promise(async resolve => {
       this.modules.add(new Config());
+      this.modules.add(new Mailer());
       this.modules.add(new Graphql());
       this.modules.add(new Controllers());
       this.modules.add(new Server());
