@@ -35,19 +35,19 @@
     "babel-preset-env": "^1.6.1",
     "babel-preset-react": "^6.24.1",
     "cache-loader": "^1.2.2",
-    "caniuse-lite": "^1.0.30000832",
+    "caniuse-lite": "^1.0.30000835",
     "cssnano": "^3.10.0",
     "module-alias": "^2.0.6",
     "next": "^6.0.0",
     "node-sass": "^4.8.3",
     "postcss-cssnext": "^3.1.0",
     "postcss-easy-import": "^3.0.0",
-    "postcss-loader": "^2.1.4",
+    "postcss-loader": "^2.1.5",
     "prop-types": "^15.6.1",
     "raw-loader": "^0.5.1",
     "react-quill": "^1.2.7",
     "sass-loader": "^7.0.1",
     "socket.io-client": "^2.1.0",
-    "validator": "^9.4.0"
+    "validator": "^10.1.0"
   }
 }
