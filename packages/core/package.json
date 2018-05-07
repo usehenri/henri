@@ -42,7 +42,7 @@
     "react-dev-utils": "^5.0.1",
     "server-timings": "^2.0.1",
     "string-width": "^2.1.1",
-    "validator": "^9.4.1",
+    "validator": "^10.1.0",
     "webpack": "^3.10.0"
   },
   "devDependencies": {
