@@ -8,41 +8,45 @@ const { cwd, validInstall } = require('./utils');
 let output = '';
 
 const main = async () => {
-  const data = getData();
+  const data = await getData();
 
-  l('About your henri setup:', true);
-  l(`henri version:         ${data[0]}`);
-  l(`Node version:          ${data[1]}`);
-  l(`yarn version:          ${data[2]}`);
-  l(`npm version:           ${data[3]}`);
-  l(`henri project:         ${data[4] ? 'yes' : 'no'}`, true);
-  l(`@usehenri/disk:        ${data[5]}`);
-  l(`@usehenri/mongoose:    ${data[6]}`);
-  l(`@usehenri/mysql:       ${data[7]}`);
-  l(`@usehenri/postgresql:  ${data[8]}`);
-  l(`@usehenri/mssql:       ${data[9]}`);
-  l(`@usehenri/redis:       ${data[10]}`);
-  l(`@usehenri/rabbitmq:    ${data[11]}`);
-  l('');
-  l(`next:                  ${data[12]}`);
-  l(`nuxt:                  ${data[13]}`);
-  l(`react:                 ${data[14]}`);
-  l(`react-dom:             ${data[15]}`);
-  l('');
-  l(`models:                ${data[16]}`);
-  l(`views:                 ${data[17]}`);
-  l(`controllers:           ${data[18]}`);
-  l(`helpers:               ${data[19]}`);
+  line('About your henri setup:', true);
+  line(`henri version:         ${data[0]}`);
+  line(`Node version:          ${data[1]}`);
+  line(`yarn version:          ${data[2]}`);
+  line(`npm version:           ${data[3]}`);
+  line(`henri project:         ${data[4] ? 'yes' : 'no'}`, true);
+  line(`@usehenri/core:        ${data[5]}`);
+  line(`@usehenri/disk:        ${data[6]}`);
+  line(`@usehenri/mongoose:    ${data[7]}`);
+  line(`@usehenri/mysql:       ${data[8]}`);
+  line(`@usehenri/postgresql:  ${data[9]}`);
+  line(`@usehenri/mssql:       ${data[10]}`);
+  line(`@usehenri/redis:       ${data[11]}`);
+  line(`@usehenri/rabbitmq:    ${data[12]}`);
+  line(`@usehenri/react:       ${data[13]}`);
+  line('');
+  line(`next:                  ${data[14]}`);
+  line(`nuxt:                  ${data[15]}`);
+  line(`react:                 ${data[16]}`);
+  line(`react-dom:             ${data[17]}`);
+  line('');
+  line(`models:                ${data[18]}`);
+  line(`views:                 ${data[19]}`);
+  line(`controllers:           ${data[20]}`);
+  line(`helpers:               ${data[21]}`);
   digest();
 };
 
 const getData = async () => {
   const data = await Promise.all([
+    // eslint-disable-next-line
     require('../package.json').version,
     run('node -v'),
     run('yarn -v'),
     run('npm -v'),
     validInstall({ fatal: false }),
+    packageResolve('core'),
     packageResolve('disk'),
     packageResolve('mongoose'),
     packageResolve('mysql'),
@@ -50,6 +54,7 @@ const getData = async () => {
     packageResolve('mssql'),
     packageResolve('redis'),
     packageResolve('rabbitmq'),
+    packageResolve('react'),
     depsResolve('next'),
     depsResolve('nuxt'),
     depsResolve('react'),
@@ -59,6 +64,7 @@ const getData = async () => {
     ls('app/controllers'),
     ls('app/helpers'),
   ]);
+
   return data;
 };
 
@@ -67,12 +73,13 @@ const digest = () => {
 
   hmac.update(output);
   const result = hmac.digest('hex');
-  l('');
-  l(`You can share this key: ${result} `);
-  l('');
+
+  line('');
+  line(`You can share this key: ${result} `);
+  line('');
 };
 
-const l = (text, pad) => {
+const line = (text, pad) => {
   pad && console.log(' ');
   console.log(` ${text}`);
   output = output + text;
@@ -80,11 +87,12 @@ const l = (text, pad) => {
 };
 
 const run = cmd => {
-  return new Promise((resolve, reject) => {
+  return new Promise(resolve => {
     let data = '';
     const args = cmd.split(' ');
     const program = args.shift();
     const output = spawn(program, args);
+
     output.stdout.on('data', out => (data += out));
     output.on('close', () =>
       resolve((data && data.toString().trim()) || 'Not installed')
@@ -99,14 +107,15 @@ const ls = folder => {
       if (err) {
         return resolve('unreachable');
       }
-      files = files.filter(v => v[0] !== '.');
-      resolve(files.map(v => v.replace('.js', '')).join(', '));
+      files = files.filter(val => val[0] !== '.');
+      resolve(files.map(val => val.replace('.js', '')).join(', '));
     });
   });
 };
 
-const packageResolve = (name, scoped = false) => {
+const packageResolve = name => {
   try {
+    // eslint-disable-next-line
     const pkg = require(path.resolve(
       cwd,
       'node_modules',
@@ -114,22 +123,25 @@ const packageResolve = (name, scoped = false) => {
       name,
       'package.json'
     ));
+
     return pkg.version;
-  } catch (e) {
+  } catch (error) {
     return 'Not installed';
   }
 };
 
 const depsResolve = name => {
   try {
+    // eslint-disable-next-line
     const pkg = require(path.resolve(
       cwd,
       'node_modules',
       name,
       'package.json'
     ));
+
     return pkg.version;
-  } catch (e) {
+  } catch (error) {
     return 'Not installed';
   }
 };
