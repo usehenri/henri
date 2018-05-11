@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import Validation from './validation';
+import shallowEqual from 'shallowequal';
 
 class Form extends Component {
   constructor(props) {
@@ -10,6 +11,7 @@ class Form extends Component {
       errors: {},
       error: null,
       disabled: false,
+      modified: false,
     };
     this.name = this.props.name;
     this.sanitizers = {};
@@ -62,6 +64,7 @@ class Form extends Component {
         ...data,
         [name]: value,
       },
+      modified: true,
     }));
   };
 
@@ -146,6 +149,16 @@ class Form extends Component {
     // setTimeout(() => this.setState({ [name]: null }), 2500);
   };
 
+  componentDidMount = () => {
+    this.state.modified && this.setState({ modified: false });
+  };
+
+  componentDidUpdate = (prevProps, prevState) => {
+    if (!shallowEqual(prevState.data, this.state.data)) {
+      this.setState({ modified: true });
+    }
+  };
+
   getChildContext() {
     return {
       // Contains the data passed down. Key should match names
@@ -156,6 +169,8 @@ class Form extends Component {
       errors: this.state.errors,
       // Global form error
       error: this.state.error,
+      // Is the form modified?
+      modified: this.state.modified,
       // Send back the changes so we can update the state
       handleChange: this.handleChange,
       // If a component wants to trigger a submit
@@ -195,6 +210,7 @@ Form.childContextTypes = {
   disabled: PropTypes.bool,
   errors: PropTypes.object,
   error: PropTypes.any,
+  modified: PropTypes.bool,
   handleChange: PropTypes.func,
   handleSubmit: PropTypes.func,
   addSanitizer: PropTypes.func,

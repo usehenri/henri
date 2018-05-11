@@ -17,6 +17,7 @@ Error.contextTypes = {
   disabled: PropTypes.bool,
   errors: PropTypes.object,
   error: PropTypes.oneOf([PropTypes.string, PropTypes.bool]),
+  modified: PropTypes.bool,
   handleChange: PropTypes.func,
   handleSubmit: PropTypes.func,
   _henriForm: PropTypes.bool,
