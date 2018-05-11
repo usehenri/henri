@@ -6,11 +6,6 @@ export async function lib(task, opts) {
   await task
     .source(opts.src || 'src/**/*.js')
     .babel()
-    .uglify({
-      compress: {
-        join_vars: true,
-      },
-    })
     .target('dist/lib');
 }
 
