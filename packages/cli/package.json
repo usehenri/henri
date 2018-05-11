@@ -9,7 +9,7 @@
     "@usehenri/core": "^0.23.0",
     "chalk": "^2.4.1",
     "cross-spawn": "^6.0.4",
-    "fs-extra": "^6.0.0",
+    "fs-extra": "^6.0.1",
     "handlebars": "^4.0.11",
     "inquirer": "^5.1.0",
     "minimist": "^1.2.0",
