@@ -7,6 +7,7 @@ const fetch = require('isomorphic-fetch');
 describe('mailer', () => {
   beforeAll(async () => {
     this.henri = new Henri({ runlevel: 1 });
+    this.henri.forceMail = true;
     await this.henri.init();
   });
 
