@@ -50,7 +50,7 @@ class Mailer extends BaseModule {
 
     this.config = this.henri.config.get('mail', true);
 
-    if (this.henri.isTest) {
+    if ((this.henri.isTest && this.henri.forceMail) || this.config === 'test') {
       this.henri.pen.info('mail', 'creating test account');
 
       try {
@@ -78,6 +78,8 @@ class Mailer extends BaseModule {
         this.henri.pen.error('mail', 'unable to create test account');
         throw error;
       }
+    } else {
+      return this.name;
     }
 
     this.transporter = this.nodemailer.createTransport(this.config);
