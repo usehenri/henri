@@ -5,7 +5,7 @@ const { graphqlExpress, graphiqlExpress } = require('apollo-server-express');
 const { runQuery } = require('apollo-server-core');
 
 /**
- * Graphqel module
+ * GraphQL module
  *
  * @class Graphql
  * @extends {BaseModule}
