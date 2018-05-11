@@ -28,6 +28,7 @@ Button.contextTypes = {
   data: PropTypes.object,
   disabled: PropTypes.bool,
   errors: PropTypes.object,
+  modified: PropTypes.bool,
   handleChange: PropTypes.func,
   handleSubmit: PropTypes.func,
   _henriForm: PropTypes.bool,

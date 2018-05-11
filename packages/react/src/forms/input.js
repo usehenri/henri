@@ -53,6 +53,7 @@ Input.propTypes = {
 Input.contextTypes = {
   data: PropTypes.object,
   errors: PropTypes.object,
+  modified: PropTypes.bool,
   handleChange: PropTypes.func,
   handleSubmit: PropTypes.func,
   addSanitizer: PropTypes.func,
