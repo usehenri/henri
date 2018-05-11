@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.24.0"></a>
+# [0.24.0](https://github.com/usehenri/henri/compare/v0.23.0...v0.24.0) (2018-05-11)
+
+
+### Features
+
+* **demo:** add dockerfile ([08760fc](https://github.com/usehenri/henri/commit/08760fc))
+
+
+
+
 <a name="0.23.0"></a>
 # [0.23.0](https://github.com/usehenri/henri/compare/v0.22.0...v0.23.0) (2018-04-23)
 

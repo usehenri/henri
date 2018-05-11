@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.24.0"></a>
+# [0.24.0](https://github.com/usehenri/henri/compare/v0.23.0...v0.24.0) (2018-05-11)
+
+
+### Bug Fixes
+
+* **react:** BYO react and packages upgrade ([ea8ba47](https://github.com/usehenri/henri/commit/ea8ba47))
+* **react:** match nextjs babel tooling versions ([08bc7ed](https://github.com/usehenri/henri/commit/08bc7ed))
+
+
+### Features
+
+* **react:** add modified state to form context ([e5e3922](https://github.com/usehenri/henri/commit/e5e3922))
+
+
+
+
 <a name="0.23.0"></a>
 # [0.23.0](https://github.com/usehenri/henri/compare/v0.22.0...v0.23.0) (2018-04-23)
 
