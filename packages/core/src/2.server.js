@@ -8,7 +8,7 @@ const compress = require('compression');
 const cors = require('cors');
 const path = require('path');
 const chokidar = require('chokidar');
-const boom = require('boom');
+const boom = require('express-boom');
 // REMOVED: const Websocket = require('@usehenri/websocket');
 
 const {
@@ -145,8 +145,6 @@ class Server extends BaseModule {
     this.express = null;
     this.httpServer = null;
 
-    this.boom = boom;
-
     this.init = this.init.bind(this);
     this.start = this.start.bind(this);
   }
@@ -183,6 +181,8 @@ class Server extends BaseModule {
     app.use(bodyParser.json());
     app.use(bodyParser.urlencoded({ extended: true }));
     app.use(cookieParser());
+
+    app.use(boom());
 
     app.use(express.static(path.resolve(this.henri.cwd(), 'app/views/public')));
 

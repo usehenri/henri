@@ -202,7 +202,10 @@ class Router extends BaseModule {
         this.henri.pen.error('router', verb, route, controller);
 
         return this.handler[verb](route, (req, res) =>
-          res.status(501).send({ method: verb, msg: 'Not implemented', route })
+          res.boom.notImplemented('Controller not found', {
+            method: verb,
+            route,
+          })
         );
       } else {
         return false;
