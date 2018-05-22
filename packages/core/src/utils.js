@@ -5,6 +5,8 @@ const prettier = require('prettier');
 const stack = require('callsite');
 const readline = require('readline');
 const bounce = require('bounce');
+const debug = require('debug')('henri:utils');
+const inquirer = require('inquirer');
 
 /**
  *  Check if yarn exists
@@ -20,18 +22,39 @@ const yarnExists = () => spawn.sync('yarn', ['help']);
  * @param {any} [packages=[]] list of packages
  * @returns {boolean} they exist?
  */
-function checkPackages(packages = []) {
+async function checkPackages(packages = []) {
   let missing = checkMissing(packages);
 
   if (missing.length > 0) {
     const msg = generateMessage(missing);
 
-    throw new Error(`Unable to load ${msg.join(' ')} from the current project.
+    if (process.env['NODE_ENV'] === 'dev') {
+      await inquirer
+        .prompt({
+          choices: missing,
+          message:
+            'Do you want me to try to install missing packages? (ctrl+c to cancel)',
+          name: 'install',
+          type: 'checkbox',
+        })
+        .then(({ install }) => {
+          if (yarnExists) {
+            install.unshift('add');
+            spawn.sync('yarn', install);
+          } else {
+            install.unshift('i');
+            install.unshift('--save');
+            spawn.sync('npm', install);
+          }
+        });
+    } else {
+      throw new Error(`Unable to load ${msg.join(' ')} from the current project.
     
-    Try installing ${missing.length > 1 ? 'them' : 'it'}:
-    
-      # ${yarnExists ? 'yarn add' : 'npm install'} ${missing.join(' ')}
-    `);
+      Try installing ${missing.length > 1 ? 'them' : 'it'}:
+      
+        # ${yarnExists ? 'yarn add' : 'npm install'} ${missing.join(' ')}
+      `);
+    }
   }
 
   return true;
@@ -44,6 +67,8 @@ function checkPackages(packages = []) {
  * @returns  {Array<string>} missing packages
  */
 function checkMissing(packages) {
+  debug(`checking for missing packages in: ${packages.join(' ')}`);
+
   let missing = [];
 
   for (let pkg of packages) {
@@ -53,6 +78,8 @@ function checkMissing(packages) {
       missing.push(pkg);
     }
   }
+
+  missing.length > 0 && debug(`missing pkgs: ${missing.join(' ')}`);
 
   return missing;
 }

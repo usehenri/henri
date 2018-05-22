@@ -1,6 +1,8 @@
 const { stack } = require('./utils');
 const BaseModule = require('./base/module');
+
 const bounce = require('bounce');
+const debug = require('debug')('henri:modules');
 
 /**
  * Modules handler
@@ -81,6 +83,8 @@ class Modules {
    * @memberof Modules
    */
   async init() {
+    debug('starting init');
+
     return new Promise(async (resolve, reject) => {
       const { pen } = this.henri;
 
@@ -119,7 +123,9 @@ class Modules {
               )
             );
           } catch (error) {
+            pen.error('modules', `runlevel ${runlevel}`, error.message);
             bounce.rethrow(error, 'system');
+            debug(`error in runlevel ${runlevel}`, error);
             reject(error);
           }
 
