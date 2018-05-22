@@ -12,6 +12,8 @@
   "license": "ISC",
   "dependencies": {
     "@usehenri/disk": "latest",
-    "@usehenri/react": "latest"
+    "@usehenri/react": "latest",
+    "react": "^16.3.2",
+    "react-dom": "^16.3.2"
   }
 }
