@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.25.0"></a>
+# [0.25.0](https://github.com/usehenri/henri/compare/v0.24.0...v0.25.0) (2018-05-22)
+
+
+### Bug Fixes
+
+* **react:** missing packages in react template ([9dc57bd](https://github.com/usehenri/henri/commit/9dc57bd))
+
+
+### Features
+
+* **sequelize:** upgrading to 5.0.0-beta ([0173936](https://github.com/usehenri/henri/commit/0173936))
+
+
+
+
 <a name="0.24.0"></a>
 # [0.24.0](https://github.com/usehenri/henri/compare/v0.23.0...v0.24.0) (2018-05-11)
 
