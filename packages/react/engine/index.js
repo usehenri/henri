@@ -1,8 +1,14 @@
 const path = require('path');
 const next = require('next');
 
-const builder = require(path.resolve(require.resolve('next'), '../build'))
-  .default;
+let builder;
+
+// This code has moved in NextJS 6.4
+try {
+  builder = require(path.resolve(require.resolve('next'), '../build')).default;
+} catch (_) {
+  builder = require(path.resolve(require.resolve('next'), '../index')).default;
+}
 
 const moduleAlias = require('module-alias');
 
@@ -19,7 +25,9 @@ class ReactEngine {
     this.render = this.render.bind(this);
   }
   init() {
-    const { utils: { checkPackages } } = this.henri;
+    const {
+      utils: { checkPackages },
+    } = this.henri;
 
     switch (this.renderer) {
       case 'react':
