@@ -117,6 +117,7 @@ Henri {
     "isHexColor": [Function],
     "isHexadecimal": [Function],
     "isIP": [Function],
+    "isIPRange": [Function],
     "isISBN": [Function],
     "isISIN": [Function],
     "isISO31661Alpha2": [Function],
@@ -204,7 +205,7 @@ Henri {
     "toString": [Function],
     "trim": [Function],
     "unescape": [Function],
-    "version": "10.2.0",
+    "version": "10.4.0",
     "whitelist": [Function],
   },
 }
