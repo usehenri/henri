@@ -40,3 +40,4 @@ dist
 lib
 .tmp/*
 .changelog
+yalc.lock
