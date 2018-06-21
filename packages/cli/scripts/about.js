@@ -1,12 +1,17 @@
+// eslint-disable no-console
+
 const spawn = require('cross-spawn');
 const path = require('path');
 const fs = require('fs');
-const crypto = require('crypto');
 
 const { cwd, validInstall } = require('./utils');
 
 let output = '';
 
+/**
+ * Initial function
+ * @return {void}
+ */
 const main = async () => {
   const data = await getData();
 
@@ -35,9 +40,13 @@ const main = async () => {
   line(`views:                 ${data[19]}`);
   line(`controllers:           ${data[20]}`);
   line(`helpers:               ${data[21]}`);
-  digest();
 };
 
+/**
+ * Gets the data concurrently
+ *
+ * @returns {Promise<any>} The promise
+ */
 const getData = async () => {
   const data = await Promise.all([
     // eslint-disable-next-line
@@ -68,24 +77,29 @@ const getData = async () => {
   return data;
 };
 
-const digest = () => {
-  const hmac = crypto.createHmac('sha256', 'henri about data');
-
-  hmac.update(output);
-  const result = hmac.digest('hex');
-
-  line('');
-  line(`You can share this key: ${result} `);
-  line('');
-};
-
+/**
+ * Pads line of text
+ *
+ * @param {*} text The text
+ * @param {number} pad Amount to pad
+ * @return {void}
+ */
 const line = (text, pad) => {
+  // eslint-disable-next-line no-console
   pad && console.log(' ');
+  // eslint-disable-next-line no-console
   console.log(` ${text}`);
   output = output + text;
+  // eslint-disable-next-line no-console
   pad && console.log(' ');
 };
 
+/**
+ * Runs the command and returns status
+ *
+ * @param {*} cmd Command to run
+ * @returns {Promise<any>} A promise
+ */
 const run = cmd => {
   return new Promise(resolve => {
     let data = '';
@@ -101,6 +115,12 @@ const run = cmd => {
   });
 };
 
+/**
+ * Lists the folder content
+ *
+ * @param {*} folder Folder
+ * @returns {Promise<any>} A promise
+ */
 const ls = folder => {
   return new Promise(resolve => {
     fs.readdir(path.resolve(cwd, folder), (err, files) => {
@@ -113,6 +133,12 @@ const ls = folder => {
   });
 };
 
+/**
+ * Tries to resolve a package
+ *
+ * @param {*} name Package name
+ * @returns {string} Package version or Not Installed
+ */
 const packageResolve = name => {
   try {
     // eslint-disable-next-line
@@ -130,6 +156,12 @@ const packageResolve = name => {
   }
 };
 
+/**
+ * Tries to resolve a package deps
+ *
+ * @param {*} name Package name
+ * @returns {string} Package version or Not Installed
+ */
 const depsResolve = name => {
   try {
     // eslint-disable-next-line

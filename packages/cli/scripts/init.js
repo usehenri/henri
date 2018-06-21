@@ -7,9 +7,21 @@ const { version } = require('./utils');
 const yarnExists = spawn.sync('yarn', ['help']);
 const cwd = process.cwd();
 
+/**
+ * Checks if a file exists
+ *
+ * @param {string} file A file to check in cwd
+ * @returns {boolean} result
+ */
 const check = file => fs.existsSync(path.join(cwd, file));
 
-// command line arguments, name (if it's called from new command)
+/**
+ * Initialize a new install
+ *
+ * @param {any} args CLI arguments
+ * @param {any} name If true, called from new
+ * @returns {void} Nothing
+ */
 const main = (args, name) => {
   // Check the force flag
   const force = args.force === true || args.f === true;
@@ -46,11 +58,19 @@ const main = (args, name) => {
   `);
 };
 
+/**
+ * Creates a package.json file
+ * @returns {void}
+ */
 const buildPackage = () => {
   let pkg = {};
+
   try {
+    // eslint-disable-next-line
     pkg = require(path.resolve(cwd, 'package.json'));
-  } catch (e) {}
+  } catch (error) {
+    // It does not exists... no worries, we'll create it.
+  }
 
   console.log(' - Building new package file...');
 
@@ -62,10 +82,10 @@ const buildPackage = () => {
 
   // Add some runnable script
   pkg.scripts = {
-    start: 'henri server',
-    production: 'henri production',
-    update: 'henri update',
     eject: 'henri eject',
+    production: 'henri production',
+    start: 'henri server',
+    update: 'henri update',
   };
 
   pkg.henri = version;
@@ -77,6 +97,10 @@ const buildPackage = () => {
   );
 };
 
+/**
+ * Creates a readme
+ * @returns {void}
+ */
 const createReadme = () => {
   console.log(' - Adding new readme file...');
 
@@ -85,6 +109,10 @@ const createReadme = () => {
   }
 };
 
+/**
+ * Copies the template from @usehenri/cli/template
+ * @returns {void}
+ */
 const copyTemplate = () => {
   console.log(' - Copying new directory structure...');
 
@@ -96,21 +124,26 @@ const copyTemplate = () => {
   });
 };
 
+/**
+ * Generate boilerplate henri configuration
+ * @returns {void}
+ */
 const generateConfig = () => {
   console.log(' - Generating a new default.json config file...');
 
+  // eslint-disable-next-line
   const buf = require('crypto').randomBytes(64);
   const configuration = {
+    baseRole: 'guest',
     log: 'main.log',
+    renderer: 'react',
+    secret: `${buf.toString('hex')}`,
     stores: {
       default: {
         adapter: 'disk',
       },
     },
-    renderer: 'react',
-    baseRole: 'guest',
     user: 'user',
-    secret: `${buf.toString('hex')}`,
   };
 
   fs.writeFileSync(
@@ -119,12 +152,16 @@ const generateConfig = () => {
   );
 };
 
+/**
+ * Installs packages with yarn or npm
+ * @returns {void}
+ */
 const installPackages = () => {
-  console.log(' - Installing needed packages...');
-
   if (yarnExists) {
+    console.log(' - Installing needed packages using yarn...');
     spawn.sync('yarn');
   } else {
+    console.log(' - Installing needed packages using npm...');
     spawn.sync('npm', ['install']);
   }
 };

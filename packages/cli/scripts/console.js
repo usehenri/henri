@@ -7,10 +7,18 @@ const server = require('./server');
 let name = 'henri';
 
 try {
+  // eslint-disable-next-line global-require
   name = require(path.resolve(process.cwd(), 'package.json')).name || 'henri';
-} catch (e) {}
+} catch (error) {
+  // Do nothing
+}
 
-const main = async args => {
+/**
+ * Starts henri server then repl
+ *
+ * @return {void}
+ */
+const main = async () => {
   const prompt = `${chalk.blue.bold(name)}${chalk.white.bold('> ')}`;
 
   await server({ consoleOnly: true }, () => {

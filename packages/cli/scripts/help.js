@@ -1,6 +1,13 @@
 const { commands, helpHeader } = require('./utils');
 
-const main = args => {
+/**
+ * Show help
+ *
+ * @param {any} args CLI arguements
+ * @returns {void}
+ */
+const main = () => {
+  // eslint-disable-next-line
   console.log(
     `
     ${helpHeader()}

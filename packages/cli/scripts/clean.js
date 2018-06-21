@@ -1,7 +1,3 @@
-/* eslint-disable no-console */
-// Adding henri:clean cli
-// might have to add inquirer
-
 const path = require('path');
 
 const inquirer = require('inquirer');
@@ -10,14 +6,18 @@ const rimraf = require('rimraf');
 
 const { abort, validInstall } = require('./utils');
 
+/**
+ * Bootstrapping function
+ * @return {void}
+ */
 const main = async () => {
   validInstall({ fail: true });
 
   const opts = {
-    type: 'checkbox',
+    choices: getExistingDirectories(),
     message: 'Choose folders to delete',
     name: 'ans',
-    choices: getExistingDirectories(),
+    type: 'checkbox',
   };
 
   inquirer
@@ -35,6 +35,11 @@ const main = async () => {
     });
 };
 
+/**
+ * Get the existing directories
+ *
+ * @returns {object} list of directories
+ */
 const getExistingDirectories = () => {
   // Base list of potential junk to clean
   const initials = [
@@ -43,7 +48,6 @@ const getExistingDirectories = () => {
     'node_modules',
     'app/views/.cache',
     'app/views/.next',
-    'app/something',
   ];
   const existing = initials.filter(dir =>
     fs.existsSync(path.resolve(process.cwd(), dir))
@@ -55,9 +59,17 @@ const getExistingDirectories = () => {
   return choices;
 };
 
+/**
+ * Remove the directory
+ *
+ * @param {string} dir The directory
+ * @return {void}
+ */
 const remove = dir => {
+  // eslint-disable-next-line no-console
   console.log(`> Deleting ${dir}`);
   rimraf.sync(path.resolve(process.cwd(), dir));
+  // eslint-disable-next-line no-console
   console.log(`> Touching ${dir}`);
   fs.ensureDirSync(path.resolve(process.cwd(), dir));
 };
