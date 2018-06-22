@@ -6,7 +6,6 @@ async function check() {
     await utils.checkPackages([
       'react',
       'react-dom',
-      'react-hot-loader',
       'sass-loader',
       'raw-loader',
       'cache-loader',
