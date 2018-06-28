@@ -3,11 +3,12 @@ const next = require('next');
 
 let builder;
 
-// This code has moved in NextJS 6.4
+// This code has moved in NextJS 6.1.0
 try {
   builder = require(path.resolve(require.resolve('next'), '../build')).default;
 } catch (_) {
-  builder = require(path.resolve(require.resolve('next'), '../index')).default;
+  builder = require(path.resolve(require.resolve('next'), '../../build'))
+    .default;
 }
 
 const moduleAlias = require('module-alias');
@@ -98,6 +99,7 @@ class ReactEngine {
 
     if (this.henri.isProduction) {
       pen.info('view', 'building next.js pages for production');
+      console.log(builder);
       try {
         await builder(path.resolve(this.henri.cwd(), './app/views'), this.conf);
       } catch (e) {
