@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const next = require('next');
 
 let builder;
@@ -21,6 +22,7 @@ class ReactEngine {
     this.renderer = henri.config.get('renderer').toLowerCase();
 
     this.init = this.init.bind(this);
+    this.build = this.build.bind(this);
     this.prepare = this.prepare.bind(this);
     this.fallback = this.fallback.bind(this);
     this.render = this.render.bind(this);
@@ -94,16 +96,31 @@ class ReactEngine {
     }
   }
 
+  async build() {
+    const { pen } = this.henri;
+
+    try {
+      pen.info('view', 'building next.js pages for production');
+
+      await builder(path.resolve(this.henri.cwd(), './app/views'), this.conf);
+    } catch (err) {
+      pen.error('view', 'unable to generate a production build');
+      pen.error('view', err);
+    }
+  }
+
   async prepare() {
     const { pen } = this.henri;
 
     if (this.henri.isProduction) {
-      pen.info('view', 'building next.js pages for production');
-      console.log(builder);
-      try {
-        await builder(path.resolve(this.henri.cwd(), './app/views'), this.conf);
-      } catch (e) {
-        pen.error('view', e);
+      if (
+        !fs.existsSync(
+          path.resolve(this.henri.cwd(), './app/views/.next/BUILD_ID')
+        )
+      ) {
+        await this.build();
+      } else {
+        pen.info('view', 'reusing production build');
       }
     }
 
