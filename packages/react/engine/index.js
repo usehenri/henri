@@ -116,7 +116,8 @@ class ReactEngine {
       if (
         !fs.existsSync(
           path.resolve(this.henri.cwd(), './app/views/.next/BUILD_ID')
-        )
+        ) ||
+        process.env.FORCE_BUILD === 'true'
       ) {
         await this.build();
       } else {

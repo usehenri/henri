@@ -19,6 +19,7 @@ if (!module.parent) {
 }
 
 module.exports = (pkg, args) => {
+  // eslint-disable-next-line global-require
   const argv = require('minimist')(args.slice(2));
 
   setGlobalEnv(argv);
@@ -37,15 +38,26 @@ module.exports = (pkg, args) => {
     case 'new':
     case 'server':
     case 'start-henri':
+      // eslint-disable-next-line
       const cmd = require(`./scripts/${command}`);
+
       cmd(argv);
       break;
     default:
+      // eslint-disable-next-line
       const help = require('./scripts/help');
+
       help();
   }
 };
 
+/**
+ * Starts the desktop notification
+ * Possibly broken!
+ *
+ * @param {*} pkg Package
+ * @return {void}
+ */
 function startDesktopNotifier(pkg) {
   if (process.env.NODE_ENV !== 'production') {
     updateNotifier({ pkg, updateCheckInterval: 1000 }).notify({
@@ -55,6 +67,12 @@ function startDesktopNotifier(pkg) {
   }
 }
 
+/**
+ * Set various global variables from arguments
+ *
+ * @param {*} argv arguments
+ * @return {void}
+ */
 function setGlobalEnv(argv) {
   if (typeof argv['production'] !== 'undefined') {
     process.env.NODE_ENV = 'production';
@@ -66,11 +84,17 @@ function setGlobalEnv(argv) {
   }
 
   if (typeof argv['inspect'] !== 'undefined') {
+    // eslint-disable-next-line global-require
     const inspector = require('inspector');
+
     inspector.open(
       argv['inspect'] || 9229,
       '127.0.0.1',
       typeof argv['wait'] !== 'undefined'
     );
+  }
+
+  if (typeof argv['force-build'] !== 'undefined') {
+    process.env.FORCE_BUILD = 'true';
   }
 }

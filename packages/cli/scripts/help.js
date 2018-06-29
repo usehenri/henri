@@ -20,6 +20,7 @@ const main = () => {
     Available flags
       --production    same as NODE_ENV=production
       --debug[=*]     same as DEBUG. ex: --debug=express:*
+      --force-build   force a production rebuild (views)
 
     For more information run a command with the --help flag
       $ henri ${commands[0]} --help
