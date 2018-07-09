@@ -8,6 +8,6 @@
   "dependencies": {
     "connect-mongo": "^2.0.1",
     "debug": "^3.1.0",
-    "mongoose": "^5.1.7"
+    "mongoose": "^5.2.2"
   }
 }
