@@ -1,0 +1,21 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`models should match snapshot 1`] = `
+Workers {
+  "consoleOnly": false,
+  "files": Array [],
+  "getFiles": [Function],
+  "henri": undefined,
+  "info": [Function],
+  "init": [Function],
+  "key": null,
+  "name": "workers",
+  "reload": [Function],
+  "reloadable": true,
+  "runlevel": 5,
+  "setup": [Function],
+  "start": [Function],
+  "stop": [Function],
+  "workers": Object {},
+}
+`;

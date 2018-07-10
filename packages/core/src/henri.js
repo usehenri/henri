@@ -13,6 +13,7 @@ const Model = require('./3.model');
 const View = require('./3.view');
 const User = require('./4.user');
 const Router = require('./5.router');
+const Workers = require('./5.workers');
 
 const path = require('path');
 const bounce = require('bounce');
@@ -67,12 +68,13 @@ class Henri extends HenriBase {
       this.modules.add(new Router());
       this.modules.add(new User());
       this.modules.add(new View());
+      this.modules.add(new Workers());
 
       try {
         await this.modules.init();
       } catch (error) {
         bounce.rethrow(error, 'system');
-        throw new Error('henri - unable to  execute init()');
+        throw new Error('henri - unable to execute init()');
       }
 
       return resolve(true);
