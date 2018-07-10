@@ -171,31 +171,30 @@ async function syntax(location, onSuccess) {
  * @param {function} onSuccess callback
  * @returns {Promise} result
  */
-function parseSyntax(resolve, file, data, onSuccess) {
+async function parseSyntax(resolve, file, data, onSuccess) {
   try {
-    const ext = path.extname(file);
+    const fileInfo = await prettier.getFileInfo(file);
 
-    if (ext === '.json') {
+    if (fileInfo.inferredParser === 'json') {
       JSON.parse(data);
-      henri.status.set('locked', false);
-
-      return resolve();
     }
 
-    if (ext === '.js') {
-      prettier.format(data.toString(), {
-        singleQuote: true,
-        trailingComma: 'es5',
-      });
-      henri.status.set('locked', false);
+    if (fileInfo) {
+      prettier.format(data.toString(), { parser: fileInfo.inferredParser });
     }
+
+    henri.status.set('locked', false);
     typeof onSuccess === 'function' && onSuccess();
 
     return resolve(true);
   } catch (error) {
-    console.log(`while parsing ${file}`); // eslint-disable-line no-console
+    henri.pen.error(
+      'server',
+      `while parsing ${file}:${error.loc.start.line}:${error.loc.start.column}`
+    ); // eslint-disable-line no-console
     console.log(' '); // eslint-disable-line no-console
-    console.log(error); // eslint-disable-line no-console
+    console.log(error.message); // eslint-disable-line no-console
+    console.log(' '); // eslint-disable-line no-console
     resolve(error);
   }
 }
