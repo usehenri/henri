@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.27.0"></a>
+# [0.27.0](https://github.com/usehenri/henri/compare/v0.26.1...v0.27.0) (2018-07-12)
+
+
+### Bug Fixes
+
+* **utils:** simplify prettier's parsing ([4f78611](https://github.com/usehenri/henri/commit/4f78611))
+
+
+### Features
+
+* **workers:** add the workers module ([816e24e](https://github.com/usehenri/henri/commit/816e24e))
+
+
+
+
 <a name="0.26.1"></a>
 ## [0.26.1](https://github.com/usehenri/henri/compare/v0.26.0...v0.26.1) (2018-06-22)
 

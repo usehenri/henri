@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.27.0"></a>
+# [0.27.0](https://github.com/usehenri/henri/compare/v0.26.1...v0.27.0) (2018-07-12)
+
+
+### Bug Fixes
+
+* **react:** new builder location was wrong for production ([bf7fe8d](https://github.com/usehenri/henri/commit/bf7fe8d))
+
+
+### Features
+
+* **react:** add --force-build for views ([271ee77](https://github.com/usehenri/henri/commit/271ee77)), closes [#53](https://github.com/usehenri/henri/issues/53)
+* **react:** production build if needed only ([9f6e243](https://github.com/usehenri/henri/commit/9f6e243)), closes [#53](https://github.com/usehenri/henri/issues/53)
+
+
+
+
 <a name="0.26.1"></a>
 ## [0.26.1](https://github.com/usehenri/henri/compare/v0.26.0...v0.26.1) (2018-06-22)
 
