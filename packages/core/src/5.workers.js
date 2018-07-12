@@ -123,6 +123,8 @@ class Workers extends BaseModule {
    */
   async reload() {
     if (process.env.SKIP_WORKERS) {
+      this.henri.pen.warn('workers', 'workers are disabled');
+
       return this.name;
     }
 
