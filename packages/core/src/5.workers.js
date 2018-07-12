@@ -40,6 +40,12 @@ class Workers extends BaseModule {
    * @memberof Workers
    */
   async init() {
+    if (process.env.SKIP_WORKERS) {
+      this.henri.pen.warn('workers', 'skipping workers thread');
+
+      return this.name;
+    }
+
     const workerPath = path.join(this.henri.cwd(), 'app/workers');
 
     this.files = await this.getFiles();
@@ -76,18 +82,31 @@ class Workers extends BaseModule {
    * @memberof Workers
    */
   async stop() {
+    if (process.env.SKIP_WORKERS) {
+      return;
+    }
+
     return new Promise(resolve => {
       this.files.map(async file => {
         if (
           this.workers[file] &&
           typeof this.workers[file].stop === 'function'
         ) {
-          await this.workers[file].stop(this.henri);
-          this.henri.pen.info(
-            'workers',
-            this.workers[file].name || file,
-            'stopped'
-          );
+          try {
+            await this.workers[file].stop(this.henri);
+            this.henri.pen.info(
+              'workers',
+              this.workers[file].name || file,
+              'stopped'
+            );
+          } catch (error) {
+            this.henri.pen.error(
+              'workers',
+              this.workers[file].name || file,
+              'failed to stop',
+              error
+            );
+          }
         }
       });
 
@@ -103,6 +122,10 @@ class Workers extends BaseModule {
    * @memberof Workers
    */
   async reload() {
+    if (process.env.SKIP_WORKERS) {
+      return this.name;
+    }
+
     await this.stop();
 
     delete this.workers;

@@ -23,6 +23,7 @@ const main = () => {
       --inspect       start with debugging / profiling
       --wait          force wait / use with --inspect
       --force-build   force a production rebuild (views)
+      --skip-workers  do not start workers
 
     For more information run a command with the --help flag
       $ henri ${commands[0]} --help

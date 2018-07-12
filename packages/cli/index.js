@@ -97,4 +97,8 @@ function setGlobalEnv(argv) {
   if (typeof argv['force-build'] !== 'undefined') {
     process.env.FORCE_BUILD = 'true';
   }
+
+  if (typeof argv['skip-workers'] !== 'undefined') {
+    process.env.SKIP_WORKERS = 'true';
+  }
 }
