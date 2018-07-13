@@ -136,13 +136,18 @@ class Mongoose {
     this.mongoose.Promise = global.Promise;
 
     return new Promise((resolve, reject) => {
-      this.mongoose.connect(this.config.url || this.config.host).then(
-        () => {
-          debug('started %s', this.name);
-          resolve();
-        },
-        err => reject(err)
-      );
+      this.mongoose
+        .connect(
+          this.config.url || this.config.host,
+          { useNewUrlParser: true }
+        )
+        .then(
+          () => {
+            debug('started %s', this.name);
+            resolve();
+          },
+          err => reject(err)
+        );
     });
   }
 
