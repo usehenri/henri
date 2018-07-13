@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/mailer",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "henri mailer",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
