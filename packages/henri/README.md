@@ -14,30 +14,32 @@
 
 henri is an easy to learn rails-like, server-side rendered (react & vue) with powerful ORMs
 
-* [How to use](#how-to-use)
-* [Configuration](#configuration)
-* [Models](#models)
-  * [Disk](#disk)
-  * [MongoDB](#mongodb)
-  * [MySQL](#mysql)
-  * [MSSQL](#mssql)
-  * [PostgreSQL](#PostgreSQL)
-* [GraphQL](#graphql)
-* [Views](#views)
-  * [React](#react)
-    * [Inferno](#inferno)
-    * [Preact](#preact)
-  * [Vue.js](#vue)
-  * [Handlebars](#handlebars)
-  * [Fetching data again](#fetching-data-again)
-* [Controllers](#controllers)
-* [Routes](#routes)
-  * [Roles](#roles)
-  * [CRUD](#crud)
-  * [Resources](#resources)
-  * [Scope](#scope)
-* [Under the hood](#under-the-hood)
-* [Plans, plans!](#plans)
+- [How to use](#how-to-use)
+- [Configuration](#configuration)
+- [Models](#models)
+  - [Disk](#disk)
+  - [MongoDB](#mongodb)
+  - [MySQL](#mysql)
+  - [MSSQL](#mssql)
+  - [PostgreSQL](#PostgreSQL)
+- [GraphQL](#graphql)
+- [Views](#views)
+  - [React](#react)
+    - [Inferno](#inferno)
+    - [Preact](#preact)
+  - [Vue.js](#vue)
+  - [Handlebars](#handlebars)
+  - [Fetching data again](#fetching-data-again)
+- [Controllers](#controllers)
+- [Routes](#routes)
+  - [Roles](#roles)
+  - [CRUD](#crud)
+  - [Resources](#resources)
+  - [Scope](#scope)
+- [Mail](#mail)
+- [Workers](#workers)
+- [Under the hood](#under-the-hood)
+- [Plans, plans!](#plans)
 
 ## How to use
 
@@ -224,6 +226,100 @@ The PostgresQL adapter is also using [Sequelize](http://docs.sequelizejs.com/) t
   # or
 
   npm install @usehenri/postgresql --save
+```
+
+## GraphQL
+
+You can add a `graphql` key to your schema file and they will be automatically loaded, merged and available.
+
+### Definition
+
+```js
+// app/models/Task.js
+
+const types = require('@usehenri/mongoose/types');
+
+module.exports = {
+  schema: {
+    description: { type: types.STRING, required: true },
+    type: { type: types.ObjectId, ref: 'Type', required: true },
+    location: { type: types.ObjectId, ref: 'Location', required: true },
+    reference: { type: types.STRING, required: true },
+    notes: { type: types.STRING },
+    oos: { type: types.BOOLEAN, default: false },
+  },
+  options: {
+    timestamps: true,
+  },
+  graphql: {
+    types: `
+      type Task {
+        _id: ID!
+        reference: String!
+        description: String!
+        location: Location
+        type: Type
+        notes: String!
+        oos: Boolean
+      }
+      type Query {
+        tasks: [Task]
+        task(_id: ID!): Task
+      }
+    `,
+    resolvers: {
+      Query: {
+        tasks: async () => {
+          return Task.find()
+            .populate('type location')
+            .exec();
+        },
+        task: async (_, id) => await Task.findOne(id).populate('type'),
+      },
+    },
+  },
+};
+```
+
+### Query
+
+You will be able to query this anywhere. Even as an argument to `res.render()`. See below:
+
+```js
+// app/controllers/tasks.js
+
+// henri has a gql function which does nothing but help editors parse gql...!
+const { gql } = henri;
+
+module.exports = {
+  index: async (req, res) => {
+    return res.render('/tasks', {
+      graphql: gql`
+        {
+          tasks {
+            _id
+            reference
+            description
+            type {
+              _id
+              name
+              prefix
+              counter
+            }
+            location {
+              _id
+              name
+            }
+          }
+          locations {
+            _id
+            name
+          }
+        }
+      `,
+    });
+  },
+};
 ```
 
 ## Views
@@ -499,6 +595,65 @@ GET /happy/:id => life#show
 
 You can add `scope` to your routes to prefix them with anything you want.
 
+## Mail
+
+We use [nodemailer](https://nodemailer.com) to provide email capabilities.
+
+When running tests, we use nodemailer's ethereal fake-mail service.
+
+### Config
+
+```json
+{
+  "mail": {
+    // ...Same as nodemailer's config
+  }
+}
+```
+
+### Send
+
+We provide a wrapper around `nodemailer.SendMail`:
+
+```js
+await henri.mail.send({
+  from: '"Henri Server" <foo@example.com>', // sender address
+  to: 'bar@example.com, baz@example.com', // list of receivers
+  subject: 'Hello ✔', // Subject line
+  text: 'Hello world?', // plain text body
+  html: '<b>Hello world?</b>' // html body
+})
+```
+
+If you are using the test accounts, you will see a link to your email in the console.
+
+You can access nodemailer's package directly from `henri.mail.nodemailer` and
+transporter from `henri.mail.transporter`.
+
+## Workers
+
+You can add files under `app/workers` and they will be auto-loaded, watched and reloaded.
+
+If they export a `start()` and a `stop()` method, they will be call when initializing and tearing down (reload also).
+
+Example:
+
+```js
+let timer;
+
+const start = h => {
+  h.pen.info('worker started');
+  timer = setInterval(
+    () => h.pen.warn(`the argument is the henri object`),
+    5000
+  );
+};
+
+const stop = () => clearInterval(h);
+
+module.exports = { start, stop };
+```
+
 ## Under the hood
 
 ### Vision
@@ -519,20 +674,20 @@ See the [Contributing](#contributing) section for more information
 
 ## Plans
 
-* Add helpers integration
-* Add documentation!
-* Build a website
-* Report bugs!
+- Add helpers integration
+- Add documentation!
+- Build a website
+- Report bugs!
 
 ## Contributing
 
-* Submit issues, pull requests, anything!
+- Submit issues, pull requests, anything!
 
 ## Thanks to the following and their contributors
 
-* [Next.js](https://github.com/zeit/next.js)
-* [Express](https://expressjs.com/)
+- [Next.js](https://github.com/zeit/next.js)
+- [Express](https://expressjs.com/)
 
 ## Author
 
-* Félix-Antoine Paradis ([@reel](https://github.com/reel))
+- Félix-Antoine Paradis ([@reel](https://github.com/reel))
