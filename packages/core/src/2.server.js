@@ -35,7 +35,6 @@ async function watch() {
     'app/views/partials/**/*.html',
     'config/',
     './**.json',
-    './**.lock',
   ];
   const {
     pen,
