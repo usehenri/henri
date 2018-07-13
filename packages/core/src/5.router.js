@@ -257,8 +257,43 @@ class Router extends BaseModule {
       };
 
       delete res.render;
+
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
+
+        if (
+          Object.keys(extras).length > 0 &&
+          typeof extras.data === 'undefined' &&
+          typeof extras.graphql === 'undefined'
+        ) {
+          this.henri.isDev &&
+            this.henri.pen.warn(
+              'view',
+              route,
+              `res.render() second argument missing 'data' or 'graphql' key`
+            );
+
+          if (Object.values(extras).every(val => typeof val === 'string')) {
+            graphql = extras;
+            this.henri.isDev &&
+              this.henri.pen.warn(
+                'view',
+                route,
+                'assuming graphql as second argument'
+              );
+          }
+
+          if (Object.values(extras).every(val => typeof val === 'object')) {
+            data = extras;
+            this.henri.isDev &&
+              this.henri.pen.warn(
+                'view',
+                route,
+                `assuming orm object${Object.keys(extras).length > 1 &&
+                  's'} as second argument`
+              );
+          }
+        }
 
         data = (graphql && (await this.henri.graphql.run(graphql))) || data;
 
