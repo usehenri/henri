@@ -445,6 +445,9 @@ class Route {
    * @memberof Route
    */
   buildResource(verb, urlPath, method) {
+    if (this.opts.omit && this.opts.omit.includes(method)) {
+      return;
+    }
     const rebuilt = url.resolve(urlPath, '');
 
     this.result[`${verb} ${rebuilt}`] = this.buildOpts(verb, rebuilt, method);
