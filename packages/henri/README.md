@@ -551,6 +551,7 @@ module.exports = {
   'crud categories': {
     scope: 'api',
     controller: 'categories',
+    omit: ['destroy'], // DELETE route will not be loaded
   },
 };
 ```
@@ -594,6 +595,10 @@ GET /happy/:id => life#show
 ### Scope
 
 You can add `scope` to your routes to prefix them with anything you want.
+
+### Omit (crud & resources only)
+
+You can add `omit` array to your routes to prevent this route to be created.
 
 ## Mail
 
