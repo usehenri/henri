@@ -1,6 +1,7 @@
 const webpack = require('webpack');
 const path = require('path');
 const glob = require('glob');
+const withSass = require('@zeit/next-sass');
 
 const { cwd, pen } = henri;
 
@@ -20,65 +21,15 @@ try {
   }
 } catch (e) {}
 
-module.exports = {
+module.exports = withSass({
   webpack: async (config, { dev }) => {
-    config = substituteReact(config);
-    // config.resolveLoader.modules.push(path.resolve(__dirname, 'node_modules'));
     config.resolveLoader.modules.push(
       path.resolve(require.resolve('next'), '../../../..')
     );
     config.module.rules.push(
       {
-        test: /\.(css|scss)/,
-        loader: 'emit-file-loader',
-        options: {
-          name: 'dist/[path][name].[ext]',
-        },
-      },
-      {
-        test: /\.css$/,
-        use: [
-          {
-            loader: 'cache-loader',
-            options: {
-              cacheDirectory: path.resolve(dir, '.cache'),
-            },
-          },
-          { loader: 'babel-loader', options: { cacheDirectory: true } },
-          'raw-loader',
-          {
-            loader: 'postcss-loader',
-            options: {
-              plugins: loader => [
-                require('cssnano')(),
-                require('postcss-easy-import')({ prefix: '_' }),
-                require('autoprefixer')(),
-              ],
-            },
-          },
-        ],
-      },
-      {
         test: /\.s(a|c)ss$/,
         use: [
-          {
-            loader: 'cache-loader',
-            options: {
-              cacheDirectory: path.resolve(dir, '.cache'),
-            },
-          },
-          { loader: 'babel-loader', options: { cacheDirectory: true } },
-          'raw-loader',
-          {
-            loader: 'postcss-loader',
-            options: {
-              plugins: loader => [
-                require('cssnano')(),
-                require('postcss-easy-import')({ prefix: '_' }),
-                require('postcss-cssnext')(),
-              ],
-            },
-          },
           {
             loader: 'sass-loader',
             options: {
@@ -98,12 +49,6 @@ module.exports = {
         },
         use: [
           {
-            loader: 'cache-loader',
-            options: {
-              cacheDirectory: path.resolve(dir, '.cache'),
-            },
-          },
-          {
             loader: 'babel-loader',
             options: {
               cacheDirectory: true,
@@ -121,12 +66,6 @@ module.exports = {
                     cwd: dir,
                   },
                 ],
-                [
-                  require.resolve('babel-plugin-wrap-in-js'),
-                  {
-                    extensions: ['css$', 'scss$'],
-                  },
-                ],
               ],
               presets: [require.resolve('next/babel')],
               ignore: [],
@@ -135,7 +74,6 @@ module.exports = {
         ],
       }
     );
-
     if (userConfig) {
       config = await userConfig(config, { dev }, webpack);
       if (
@@ -181,29 +119,11 @@ module.exports = {
     }
     return config;
   },
-};
-
-function substituteReact(config) {
-  if (henri.config.get('renderer').toLowerCase() === 'preact') {
-    if (!henri.isProduction) {
-      pen.warn('react', `using React instead of preact for development`);
-      return config;
-    }
-    config.resolve.alias = {
-      react: 'preact-compat/dist/preact-compat',
-      'react-dom': 'preact-compat/dist/preact-compat',
-    };
-    return config;
-  }
-  if (henri.config.get('renderer').toLowerCase() === 'inferno') {
-    if (!henri.isProduction) {
-      pen.warn('react', `using React instead of Inferno for development`);
-      return config;
-    }
-    config.resolve.alias = {
-      react: 'inferno-compat',
-      'react-dom': 'inferno-compat',
-    };
-  }
-  return config;
-}
+  sassLoaderOptions: {
+    includePaths: ['styles', 'node_modules']
+      .map(d => path.join(__dirname, d))
+      .map(g => glob.sync(g))
+      .reduce((a, c) => a.concat(c), []),
+  },
+  useFileSystemPublicRoutes: false,
+});

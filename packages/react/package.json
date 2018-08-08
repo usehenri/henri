@@ -8,12 +8,14 @@
   "private": false,
   "scripts": {
     "build": "taskr",
+    "local": "taskr local",
     "prepublish": "taskr release"
   },
   "devDependencies": {
     "@taskr/babel": "1.1.0-next.1",
     "@taskr/clear": "1.1.0",
     "@taskr/esnext": "1.1.0",
+    "@taskr/shell": "^1.1.0",
     "@taskr/uglify": "1.1.0",
     "@taskr/watch": "1.1.0",
     "taskr": "1.1.0"
@@ -41,8 +43,7 @@
     "cssnano": "^3.10.0",
     "debug": "^3.1.0",
     "module-alias": "^2.1.0",
-    "next": "6.1.1",
-    "node-sass": "^4.8.3",
+    "next": "6.1.1-canary.4",
     "postcss-cssnext": "^3.1.0",
     "postcss-easy-import": "^3.0.0",
     "postcss-loader": "^2.1.6",

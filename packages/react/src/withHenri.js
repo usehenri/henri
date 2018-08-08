@@ -1,6 +1,7 @@
 import React from 'react';
 import axios from 'axios';
 import PropTypes from 'prop-types';
+import { withRouter } from 'next/router';
 import ws from 'socket.io-client';
 
 function getDisplayName(Component) {
@@ -13,9 +14,11 @@ export default ComposedComponent => {
   class WithHenri extends React.Component {
     constructor(props) {
       super(props);
+
       this.state = {
         data: props.data || {},
       };
+
       this.hydrate = this.hydrate.bind(this);
       this.fetch = this.fetch.bind(this);
     }
@@ -24,18 +27,27 @@ export default ComposedComponent => {
 
     static async getInitialProps(ctx) {
       let props = Object.assign({}, ctx);
+
       if (!props.paths && !props.req) {
         const result = await axios.get(ctx.pathname);
+
         props.query = result.data;
       }
+
       if (props.req && props.req._henri) {
         props.query = Object.assign({}, props.req._henri, props.query);
       }
-      const { query: { data, user, paths, localUrl } } = props;
+
+      const {
+        query: { data, user, paths, localUrl },
+      } = props;
+
       let composedInitialProps = {};
+
       if (ComposedComponent.getInitialProps) {
         composedInitialProps = await ComposedComponent.getInitialProps(ctx);
       }
+
       return { data, user, paths, localUrl, ...composedInitialProps };
     }
 
@@ -87,12 +99,14 @@ export default ComposedComponent => {
         if (params === null) {
           return paths[path];
         }
+
         // If a string is provide, defaults to id (client side for mongo ids)
         if (typeof params === 'string') {
           response.route = paths[path].route.replace(':id', params);
           response.method = paths[path].method;
           return response.route;
         }
+
         // If we use only typeof (string), on node, it is parsed as a
         // ObjectID object, therefor missing the last if. This is for SSR or _ids
         if (params.id && params.toString()) {
@@ -100,6 +114,7 @@ export default ComposedComponent => {
           response.method = paths[path].method;
           return response;
         }
+
         // We might have a bunch of params, iterating...
         if (params.length > 0) {
           let route = path;
@@ -111,13 +126,16 @@ export default ComposedComponent => {
           return response;
         }
       }
+
       console.warn(`unable to match filler for route ${path} in pathFor`);
     };
 
     getRoute = (route = null, id = null) => {
       const { paths } = this.props;
+
       if (
         route &&
+        paths &&
         typeof paths[route] !== 'undefined' &&
         typeof paths[route].route !== 'undefined'
       ) {
@@ -125,6 +143,7 @@ export default ComposedComponent => {
           ? paths[route].route.replace(':id', id.toString())
           : paths[route].route;
       }
+
       return 'route-not-found';
     };
 
@@ -162,5 +181,5 @@ export default ComposedComponent => {
     getRoute: PropTypes.func,
   };
 
-  return WithHenri;
+  return withRouter(WithHenri);
 };
