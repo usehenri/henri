@@ -24,6 +24,7 @@ class Router extends BaseModule {
 
     this._middlewares = [];
     this._paths = {};
+    this._roles = {};
 
     this.stats = { failed: 0, good: 0 };
     this.handler = null;
@@ -120,6 +121,7 @@ class Router extends BaseModule {
    */
   async reload() {
     this._paths = {};
+    this._roles = {};
     this.stats = { failed: 0, good: 0 };
     this.handler = null;
     this.activeRoutes = new Map();
@@ -186,15 +188,21 @@ class Router extends BaseModule {
     const action = this.henri.controllers.get(controller);
     const fn = typeof action === 'function';
     const name = `${verb} ${route}`;
+    let controllerName = '';
+    let controllerAction = '';
 
     this.activeRoutes.set(name, Object.assign({}, opts, { active: fn }));
 
     // Ideally, populate with information from path-to-regexp for better
     // ...parameters matching client-side...
     if (fn && !/data/.test(route)) {
-      const [name, action] = controller.split('#');
+      [controllerName, controllerAction] = controller.split('#');
 
-      this._paths[`${action}_${name}_path`] = { method: verb, route };
+      this._paths[`${controllerAction}_${controllerName}_path`] = {
+        method: verb,
+        roles,
+        route,
+      };
     }
 
     if (fn === false) {
@@ -213,8 +221,34 @@ class Router extends BaseModule {
     }
 
     if (!roles) {
+      if (typeof this._roles['guest'] === 'undefined') {
+        this._roles['guest'] = {};
+      }
+
+      this._roles['guest'][`${controllerAction}_${controllerName}_path`] = {
+        method: verb,
+        roles,
+        route,
+      };
+
       return this.handler[verb](route, action);
     }
+
+    if (!Array.isArray(roles)) {
+      roles = [roles];
+    }
+
+    roles.map(role => {
+      if (typeof this._roles[role] === 'undefined') {
+        this._roles[role] = {};
+      }
+
+      this._roles[role][`${controllerAction}_${controllerName}_path`] = {
+        method: verb,
+        roles,
+        route,
+      };
+    });
 
     this.handler[verb](
       route,
@@ -237,6 +271,30 @@ class Router extends BaseModule {
   }
 
   /**
+   * Get the paths based on users' roles
+   *
+   * @param {*} user The user or null
+   * @returns {object} List of paths
+   * @memberof Router
+   */
+  pathForRoles(user) {
+    let paths = {};
+
+    paths = Object.assign({}, this._roles['guest']);
+
+    if (user && user.roles) {
+      let roles = Array.isArray(user.roles) ? user.roles : [user.roles];
+
+      roles.forEach(role => {
+        typeof this._roles[role] === 'object' &&
+          Object.assign(paths, this._roles[role]);
+      });
+    }
+
+    return paths;
+  }
+
+  /**
    * Add middlewares to express
    *
    * @returns {boolean} success?
@@ -251,7 +309,7 @@ class Router extends BaseModule {
       res.locals._req = req;
       req._henri = {
         localUrl: this.henri.server.url,
-        paths: this._paths,
+        paths: this._roles['guest'],
         query: req.query,
         user: req.user || {},
       };
@@ -260,6 +318,8 @@ class Router extends BaseModule {
 
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
+
+        const allowedPaths = this.pathForRoles(req.user);
 
         if (
           Object.keys(extras).length > 0 &&
@@ -301,7 +361,7 @@ class Router extends BaseModule {
           data: (graphql && data.data) || data,
           errors: graphql && data.errors,
           localUrl: this.henri.server.url,
-          paths: this._paths,
+          paths: allowedPaths,
           query: req.query,
           user: req.user || {},
         };
@@ -326,11 +386,13 @@ class Router extends BaseModule {
 
         data = (graphql && (await this.henri.graphql.run(graphql))) || data;
 
+        const allowedPaths = this.pathForRoles(req.user);
+
         let opts = {
           data: (graphql && data.data) || data,
           errors: graphql && data.errors,
           localUrl: this.henri.server.url,
-          paths: this._paths,
+          paths: allowedPaths,
           query: req.query,
           user: req.user || {},
         };
