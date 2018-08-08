@@ -214,7 +214,9 @@ class User extends BaseModule {
         app.get('/logout', function(req, res) {
           pen.info('user', 'Logging out', req.user);
           req.logout();
-          res.redirect('/');
+          delete req.user;
+
+          return res.redirect('/');
         });
       });
 
