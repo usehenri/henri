@@ -10,11 +10,11 @@
   version "0.12.6"
   resolved "https://registry.yarnpkg.com/@types/graphql/-/graphql-0.12.6.tgz#3d619198585fcabe5f4e1adfb5cf5f3388c66c13"
 
-"@usehenri/cli@^0.27.0":
-  version "0.27.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.27.0.tgz#9d70ae6ad01020567544445089ce6d54f3f6e1cc"
+"@usehenri/cli@^0.28.0":
+  version "0.28.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.28.0.tgz#1d2b7961b81e60e6f7490cacc81e0b1d622d94ac"
   dependencies:
-    "@usehenri/core" "^0.27.0"
+    "@usehenri/core" "^0.28.0"
     chalk "^2.4.1"
     cross-spawn "^6.0.4"
     fs-extra "^6.0.1"
@@ -25,9 +25,9 @@
     rimraf "^2.6.2"
     update-notifier "^2.5.0"
 
-"@usehenri/core@^0.27.0":
-  version "0.27.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.27.0.tgz#7ce3c68e1aa0a484340216d7dabc6504d7981ba9"
+"@usehenri/core@^0.28.0":
+  version "0.28.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.28.0.tgz#f3b2e9d910b1679652e6f22749980f5225e6faa1"
   dependencies:
     apollo-server-core "^1.3.6"
     apollo-server-express "^1.3.6"

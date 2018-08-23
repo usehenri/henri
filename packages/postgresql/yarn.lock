@@ -6,9 +6,9 @@
   version "10.5.2"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.5.2.tgz#f19f05314d5421fe37e74153254201a7bf00a707"
 
-"@usehenri/sequelize@^0.27.0":
-  version "0.27.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.27.0.tgz#3a556cba5162b61a21ebaf14e563843535b60cda"
+"@usehenri/sequelize@^0.28.0":
+  version "0.28.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.28.0.tgz#c0490bda0f7079ecb323f6b5f5cd39951d053792"
   dependencies:
     connect-session-sequelize "^5.2.2"
     sequelize "^5.0.0-beta.5"

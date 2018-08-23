@@ -141,6 +141,7 @@ Henri {
     "isPort": [Function],
     "isPostalCode": [Function],
     "isPostalCodeLocales": Array [
+      "AD",
       "AT",
       "AU",
       "BE",
@@ -205,7 +206,7 @@ Henri {
     "toString": [Function],
     "trim": [Function],
     "unescape": [Function],
-    "version": "10.4.0",
+    "version": "10.6.0",
     "whitelist": [Function],
   },
 }

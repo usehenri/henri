@@ -6,9 +6,9 @@
   version "3.10.3"
   resolved "https://registry.yarnpkg.com/@sailshq/lodash/-/lodash-3.10.3.tgz#61b6fa3a5db3fe802409b0ba152bcc99e7d27a58"
 
-"@usehenri/disk@^0.27.0":
-  version "0.27.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/disk/-/disk-0.27.0.tgz#480ba1cffd6f4b5cd2aedcb08257e51677f1381d"
+"@usehenri/disk@^0.28.0":
+  version "0.28.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/disk/-/disk-0.28.0.tgz#b4f6a746226e2103e324f384fafd83307ecee803"
   dependencies:
     nedb-session-store "^1.1.2"
     sails-disk "^1.0.1"

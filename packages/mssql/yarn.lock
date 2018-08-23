@@ -6,9 +6,9 @@
   version "10.5.2"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.5.2.tgz#f19f05314d5421fe37e74153254201a7bf00a707"
 
-"@usehenri/sequelize@^0.27.0":
-  version "0.27.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.27.0.tgz#3a556cba5162b61a21ebaf14e563843535b60cda"
+"@usehenri/sequelize@^0.28.0":
+  version "0.28.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.28.0.tgz#c0490bda0f7079ecb323f6b5f5cd39951d053792"
   dependencies:
     connect-session-sequelize "^5.2.2"
     sequelize "^5.0.0-beta.5"
@@ -129,6 +129,10 @@ ms@2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
 
+native-duplexpair@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/native-duplexpair/-/native-duplexpair-1.0.0.tgz#7899078e64bf3c8a3d732601b3d40ff05db58fa0"
+
 process-nextick-args@~2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/process-nextick-args/-/process-nextick-args-2.0.0.tgz#a37d732f4271b4ab1ad070d35508e8290788ffaa"
@@ -211,15 +215,16 @@ string_decoder@~1.1.1:
   dependencies:
     safe-buffer "~5.1.0"
 
-tedious@^2.6.3:
-  version "2.6.3"
-  resolved "https://registry.yarnpkg.com/tedious/-/tedious-2.6.3.tgz#477aee5dfbcb0a598651464f9ad143b95b9b5bfc"
+tedious@^2.6.4:
+  version "2.6.4"
+  resolved "https://registry.yarnpkg.com/tedious/-/tedious-2.6.4.tgz#b3dee882458fbed8e7c8778156344f049dda3f38"
   dependencies:
     babel-runtime "^6.26.0"
     big-number "0.3.1"
     bl "^1.2.2"
     depd "^1.1.2"
     iconv-lite "^0.4.23"
+    native-duplexpair "^1.0.0"
     punycode "^2.1.0"
     readable-stream "^2.3.6"
     sprintf-js "^1.1.1"
