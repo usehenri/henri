@@ -1,3 +1,3 @@
 module.exports = {
-  'get /abc': 'main#abc',
+  'get /': 'main#home',
 };
