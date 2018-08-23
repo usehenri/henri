@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.29.0"></a>
+# [0.29.0](https://github.com/usehenri/henri/compare/v0.28.0...v0.29.0) (2018-08-23)
+
+
+### Bug Fixes
+
+* **router:** only give routes based on user roles ([7d63743](https://github.com/usehenri/henri/commit/7d63743))
+* **user:** make sure req.user is not available ([7968dfa](https://github.com/usehenri/henri/commit/7968dfa))
+
+
+### Features
+
+* **router:** add the omit key -- closes [#43](https://github.com/usehenri/henri/issues/43) ([a8c8f4d](https://github.com/usehenri/henri/commit/a8c8f4d))
+
+
+
+
+
 <a name="0.28.0"></a>
 # [0.28.0](https://github.com/usehenri/henri/compare/v0.27.0...v0.28.0) (2018-07-13)
 
