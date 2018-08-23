@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.29.2"></a>
+## [0.29.2](https://github.com/usehenri/henri/compare/v0.29.1...v0.29.2) (2018-08-23)
+
+
+### Bug Fixes
+
+* **cli:** update nextjs related packages ([c853ce9](https://github.com/usehenri/henri/commit/c853ce9))
+
+
+
+
+
 <a name="0.29.0"></a>
 # [0.29.0](https://github.com/usehenri/henri/compare/v0.28.0...v0.29.0) (2018-08-23)
 
