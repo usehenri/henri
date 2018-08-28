@@ -49,7 +49,7 @@ class User extends BaseModule {
         return reject(new Error('minimum password string is 6 characters'));
       }
       if (this.henri.isTest) {
-        rounds = 10;
+        rounds = 2;
       }
       bcrypt.genSalt(rounds, (err, salt) => {
         if (err) {
