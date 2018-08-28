@@ -1,6 +1,12 @@
 const path = require('path');
 const utils = require('../utils');
 
+/**
+ * Check defines the required packages and throws if they are not there
+ * It is called when you use this engine
+ *
+ * @returns {void}
+ */
 async function check() {
   try {
     await utils.checkPackages([
