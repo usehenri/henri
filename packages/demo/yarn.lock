@@ -6,13 +6,13 @@
   version "3.10.3"
   resolved "https://registry.yarnpkg.com/@sailshq/lodash/-/lodash-3.10.3.tgz#61b6fa3a5db3fe802409b0ba152bcc99e7d27a58"
 
-"@usehenri/disk@^0.28.0":
-  version "0.28.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/disk/-/disk-0.28.0.tgz#b4f6a746226e2103e324f384fafd83307ecee803"
+"@usehenri/disk@^0.29.0":
+  version "0.29.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/disk/-/disk-0.29.0.tgz#71dc9bb0db863b5a847d89b1bdcc3b1c82c8bc73"
   dependencies:
     nedb-session-store "^1.1.2"
     sails-disk "^1.0.1"
-    waterline "^0.13.4"
+    waterline "^0.13.5"
 
 acorn@^5.0.0:
   version "5.5.3"
@@ -433,9 +433,9 @@ waterline-utils@^1.3.7:
     flaverr "^1.1.1"
     fs-extra "0.30.0"
 
-waterline@^0.13.4:
-  version "0.13.4"
-  resolved "https://registry.yarnpkg.com/waterline/-/waterline-0.13.4.tgz#7de1547a63472d53167526c10372eb62a23419a9"
+waterline@^0.13.5:
+  version "0.13.5"
+  resolved "https://registry.yarnpkg.com/waterline/-/waterline-0.13.5.tgz#14fde1ef47bb214c9f44dd30db5c680dccfbbaab"
   dependencies:
     "@sailshq/lodash" "^3.10.2"
     anchor "^1.2.0"
