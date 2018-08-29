@@ -179,6 +179,7 @@ class User extends BaseModule {
           resave: false,
           saveUninitialized: true,
           secret: this.henri.config.get('secret'),
+
           store: connector,
         })
       );
