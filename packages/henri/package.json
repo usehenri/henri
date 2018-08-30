@@ -15,7 +15,7 @@
     "henri": "bin/henri.js"
   },
   "engines": {
-    "node": ">=7.6.0 <10.0.0"
+    "node": ">=10.0.0"
   },
   "types": "./index.d.ts",
   "author": "Felix-Antoine Paradis",
