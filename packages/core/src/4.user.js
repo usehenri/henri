@@ -49,7 +49,7 @@ class User extends BaseModule {
         return reject(new Error('minimum password string is 6 characters'));
       }
       if (this.henri.isTest) {
-        rounds = 10;
+        rounds = 3;
       }
       bcrypt.genSalt(rounds, (err, salt) => {
         if (err) {
@@ -131,7 +131,9 @@ class User extends BaseModule {
        */
       const checkLocal = async (email, passwordHash, done) => {
         try {
-          const user = await this.henri._user.findOne({ email: email });
+          const user = await this.henri._user.findOne({
+            email: email,
+          });
 
           await this.compare(passwordHash, user.password);
           done(null, user);
@@ -148,7 +150,9 @@ class User extends BaseModule {
        * @returns {function} callback
        */
       const checkJWT = async (payload, done) => {
-        const user = await this.henri._user.findOne({ id: payload._id });
+        const user = await this.henri._user.findOne({
+          id: payload._id,
+        });
 
         if (user) {
           return done(null, user);
@@ -158,7 +162,9 @@ class User extends BaseModule {
       };
 
       const localLogin = new LocalStrategy(
-        { usernameField: 'email' },
+        {
+          usernameField: 'email',
+        },
         checkLocal
       );
       const jwtLogin = new JwtStrategy(options.jwt, checkJWT);
@@ -191,7 +197,14 @@ class User extends BaseModule {
       /* istanbul ignore next */
       passport.deserializeUser(async function(id, done) {
         try {
-          const user = await henri._user.find({ _id: id }, { password: 0 });
+          const user = await henri._user.find(
+            {
+              _id: id,
+            },
+            {
+              password: 0,
+            }
+          );
 
           return done(null, user && user.length > 0 ? user[0] : undefined);
         } catch (error) {
