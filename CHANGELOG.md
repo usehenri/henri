@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.30.0"></a>
+# [0.30.0](https://github.com/usehenri/henri/compare/v0.29.3...v0.30.0) (2018-09-26)
+
+
+### Bug Fixes
+
+* **cli:** adding vue js eslint support by default ([f98fd40](https://github.com/usehenri/henri/commit/f98fd40))
+
+
+### Features
+
+* **henri:** henri should be used with Node 10+ ([de18480](https://github.com/usehenri/henri/commit/de18480))
+
+
+
+
+
 <a name="0.29.3"></a>
 ## [0.29.3](https://github.com/usehenri/henri/compare/v0.29.2...v0.29.3) (2018-08-29)
 
