@@ -71,24 +71,44 @@ class Mongoose {
    *
    * @param {any} schema The schema
    * @param {any} model  The model
-   * @param {any} user The user name
    * @returns {object} The model
    * @memberof Mongoose
    */
-  overload(schema, model, user) {
+  overload(schema, model) {
     const { pen } = this.henri;
 
     debug('overloading %s', model.globalId);
 
     pen.info('mongoose', `user model`, model.globalId, `overloading...`);
-    schema.add({ email: { required: true, type: String } });
-    schema.add({ password: { required: true, type: String } });
+    schema.add({
+      email: {
+        required: true,
+        type: String,
+      },
+    });
+    schema.add({
+      password: {
+        required: true,
+        type: String,
+      },
+    });
     const baseRole = (config.has('baseRole') && [config.get('baseRole')]) || [];
 
-    schema.add({ roles: { default: baseRole, type: Array } });
+    if (baseRole.length > 0) {
+      pen.info('mongoose', 'basic user role', baseRole);
+    } else {
+      pen.warn('mongoose', 'no basic user role. are you sure?');
+    }
+
+    schema.add({
+      roles: {
+        default: baseRole,
+        type: Array,
+      },
+    });
     schema.pre('save', async function(next) {
       if (!this.isModified('password')) return next();
-      this.password = await user.encrypt(this.password);
+      this.password = await henri.user.encrypt(this.password);
       next();
     });
     schema.methods.hasRole = async function(roles = []) {
@@ -139,7 +159,9 @@ class Mongoose {
       this.mongoose
         .connect(
           this.config.url || this.config.host,
-          { useNewUrlParser: true }
+          {
+            useNewUrlParser: true,
+          }
         )
         .then(
           () => {
