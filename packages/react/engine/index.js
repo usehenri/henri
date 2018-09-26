@@ -15,11 +15,11 @@ try {
 const moduleAlias = require('module-alias');
 
 class ReactEngine {
-  constructor(henri) {
+  constructor(thisHenri) {
     this.instance = null;
-    this.henri = henri;
-    this.conf = henri.isTest ? {} : require('./conf');
-    this.renderer = henri.config.get('renderer').toLowerCase();
+    this.henri = thisHenri;
+    this.conf = thisHenri.isTest ? {} : require('./conf');
+    this.renderer = thisHenri.config.get('renderer').toLowerCase();
 
     this.init = this.init.bind(this);
     this.build = this.build.bind(this);

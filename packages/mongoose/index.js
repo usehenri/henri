@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const debug = require('debug')('henri:mongoose');
-const { config, pen } = henri;
 
 /**
  * Mongoose database adapter
@@ -12,20 +11,20 @@ class Mongoose {
    * Creates an instance of Mongoose.
    * @param {string} name Store name
    * @param {any} config Store configuration
-   * @param {Henri} henri Current henri instance
+   * @param {Henri} thisHenri Current henri instance
    * @memberof Mongoose
    */
-  constructor(name, config, henri) {
+  constructor(name, config, thisHenri) {
     debug('constructor => init');
     if (!config.url && !config.host) {
-      pen.fatal('mongoose', `Missing url or host in store ${name}`);
+      thisHenri.pen.fatal('mongoose', `Missing url or host in store ${name}`);
     }
     this.adapterName = 'mongoose';
     this.name = name;
     this.config = config;
     this.models = {};
     this.mongoose = new mongoose.Mongoose();
-    this.henri = henri;
+    this.henri = thisHenri;
 
     this.addModel = this.addModel.bind(this);
     this.overload = this.overload.bind(this);
@@ -58,7 +57,7 @@ class Mongoose {
     const instance = this.mongoose.model(model.globalId, schema);
 
     if (isUser) {
-      henri._user = instance;
+      this.henri._user = instance;
     }
 
     this.models[model.globalId] = instance;
@@ -75,7 +74,7 @@ class Mongoose {
    * @memberof Mongoose
    */
   overload(schema, model) {
-    const { pen } = this.henri;
+    const { pen, config } = this.henri;
 
     debug('overloading %s', model.globalId);
 
@@ -108,7 +107,7 @@ class Mongoose {
     });
     schema.pre('save', async function(next) {
       if (!this.isModified('password')) return next();
-      this.password = await henri.user.encrypt(this.password);
+      this.password = await this.henri.user.encrypt(this.password);
       next();
     });
     schema.methods.hasRole = async function(roles = []) {
@@ -146,7 +145,7 @@ class Mongoose {
   }
 
   /**
-   * Start the store
+   * Starts the store
    *
    * @returns {Promise} Resolves or not
    * @memberof Mongoose

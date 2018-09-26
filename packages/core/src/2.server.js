@@ -240,6 +240,7 @@ class Server extends BaseModule {
    * @memberof Server
    * @todo wish we could stop that http/express instance in a clean manner...
    */
+  // eslint-disable-next-line
   async stop() {
     return false;
   }

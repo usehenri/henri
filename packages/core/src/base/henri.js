@@ -9,11 +9,15 @@ class HenriBase {
   /**
    * Creates an instance of HenriBase.
    *
-   * @param {any} [{ cwd = '.', runlevel = 6 }={}]Options for henri initialization
+   * @param {any} {} [{ cwd = '.', runlevel = 6 }={}] Options for henri initialization
    * @memberof HenriBase
    */
   constructor({ cwd = '.', runlevel = 6 } = {}) {
-    const { env: { NODE_ENV, CONSOLE_ONLY = false }, arch, platform } = process;
+    const {
+      env: { NODE_ENV, CONSOLE_ONLY = false },
+      arch,
+      platform,
+    } = process;
 
     this.env = NODE_ENV;
     this.isProduction = NODE_ENV === 'production';

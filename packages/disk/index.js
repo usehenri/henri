@@ -12,10 +12,10 @@ class Disk {
    *
    * @param {string} name Store name
    * @param {any} config Store configuration
-   * @param {Henri} henri Current henri instance
+   * @param {Henri} thisHenri Current henri instance
    * @memberof Disk
    */
-  constructor(name, config, henri) {
+  constructor(name, config, thisHenri) {
     this.adapterName = 'disk';
     this.name = name;
     this.config = config;
@@ -24,7 +24,7 @@ class Disk {
     this.waterline = new Waterline();
     this.instance = null;
     this.sessionPath = '.tmp/nedb-sessions.db';
-    this.henri = henri;
+    this.henri = thisHenri;
 
     this.addModel = this.addModel.bind(this);
     this.overload = this.overload.bind(this);
