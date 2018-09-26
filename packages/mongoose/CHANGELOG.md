@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.30.1"></a>
+## [0.30.1](https://github.com/usehenri/henri/compare/v0.30.0...v0.30.1) (2018-09-26)
+
+
+### Bug Fixes
+
+* **mongoose:** fix henri.user encryption ([640d44a](https://github.com/usehenri/henri/commit/640d44a))
+
+
+
+
+
 <a name="0.30.0"></a>
 # [0.30.0](https://github.com/usehenri/henri/compare/v0.29.3...v0.30.0) (2018-09-26)
 
