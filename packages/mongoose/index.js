@@ -107,7 +107,7 @@ class Mongoose {
     });
     schema.pre('save', async function(next) {
       if (!this.isModified('password')) return next();
-      this.password = await this.henri.user.encrypt(this.password);
+      this.password = await henri.user.encrypt(this.password);
       next();
     });
     schema.methods.hasRole = async function(roles = []) {
