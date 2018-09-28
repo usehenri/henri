@@ -261,10 +261,17 @@ class Router extends BaseModule {
           req.user &&
           (await req.user.hasRole(roles))
         ) {
-          return next();
-        }
+          henri.pen.info('router', 'got through');
 
-        return res.redirect('/login');
+          return next();
+        } else {
+          const reas = req.user && (await req.user.hasRole(roles));
+
+          henri.pen.warn('router', 'denied');
+          console.log(reas, req.user, roles);
+
+          return res.redirect('/login');
+        }
       },
       action
     );
