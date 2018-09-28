@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.30.3"></a>
+## [0.30.3](https://github.com/usehenri/henri/compare/v0.30.2...v0.30.3) (2018-09-28)
+
+
+### Bug Fixes
+
+* **router:** adding debug information ([f3b9817](https://github.com/usehenri/henri/commit/f3b9817))
+
+
+
+
+
 <a name="0.30.2"></a>
 ## [0.30.2](https://github.com/usehenri/henri/compare/v0.30.1...v0.30.2) (2018-09-26)
 
