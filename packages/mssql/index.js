@@ -1,12 +1,23 @@
 const Sql = require('@usehenri/sequelize');
 
-const { log } = henri;
-
+/**
+ * MSSQL database adapter
+ *
+ * @class MsSQL
+ * @extends {Sql}
+ */
 class MsSQL extends Sql {
-  constructor(name, config) {
-    super(name, config);
+  /**
+   * Creates an instance of MSSQL.
+   * @param {string} name Store name
+   * @param {any} config Store configuration
+   * @param {Henri} thisHenri Current henri instance
+   * @memberof MsSQL
+   */
+  constructor(name, config, thisHenri) {
+    super(name, config, thisHenri);
     if (!config.url) {
-      log.fatalError(`Missing url or host in store ${name}`);
+      thisHenri.pen.fatal('mssql', `Missing url or host in store ${name}`);
     }
     this.adapterName = 'mssql';
     this.connector = new this.Sequelize(config.url, {

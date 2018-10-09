@@ -1,13 +1,13 @@
 {
   "name": "@usehenri/mongoose",
-  "version": "0.29.0",
+  "version": "0.30.3",
   "description": "henri mongoose database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
     "connect-mongo": "^2.0.1",
-    "debug": "^3.1.0",
-    "mongoose": "^5.2.10"
+    "debug": "^4.0.1",
+    "mongoose": "^5.2.17"
   }
 }

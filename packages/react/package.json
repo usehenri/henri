@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/react",
-  "version": "0.29.0",
+  "version": "0.30.2",
   "description": "react components for henri",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
@@ -35,15 +35,15 @@
     "@babel/preset-react": "7.0.0",
     "axios": "^0.18.0",
     "babel-core": "7.0.0-bridge.0",
-    "babel-loader": "8.0.0",
+    "babel-loader": "8.0.2",
     "babel-plugin-module-resolver": "3.1.1",
     "babel-plugin-wrap-in-js": "1.1.1",
     "cache-loader": "^1.2.2",
-    "caniuse-lite": "^1.0.30000880",
-    "cssnano": "^4.1.0",
-    "debug": "^3.1.0",
+    "caniuse-lite": "^1.0.30000887",
+    "cssnano": "^4.1.1",
+    "debug": "^4.0.1",
     "module-alias": "^2.1.0",
-    "next": "7.0.0-canary.4",
+    "next": "7.0.0",
     "postcss-cssnext": "^3.1.0",
     "postcss-easy-import": "^3.0.0",
     "postcss-loader": "^3.0.0",
@@ -53,6 +53,6 @@
     "sass-loader": "^7.1.0",
     "shallowequal": "^1.1.0",
     "socket.io-client": "^2.1.1",
-    "validator": "^10.7.0"
+    "validator": "^10.8.0"
   }
 }

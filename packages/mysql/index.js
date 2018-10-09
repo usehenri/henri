@@ -1,16 +1,29 @@
 const Sql = require('@usehenri/sequelize');
 
-const { log } = henri;
-
+/**
+ * MySQL database adapter
+ *
+ * @class MySQL
+ * @extends {Sql}
+ */
 class MySQL extends Sql {
-  constructor(name, config) {
-    super(name, config);
-    const { url, adapter, ...opts } = config;
+  /**
+   *Creates an instance of MySQL.
+   * @param {string} name Store name
+   * @param {any} config Store configuration
+   * @param {Henri} thisHenri Current henri instance
+   * @memberof MySQL
+   */
+  constructor(name, config, thisHenri) {
+    super(name, config, thisHenri);
+
+    const { url, ...opts } = config;
+
     if (!config.url) {
-      log.fatalError(`Missing url or host in store ${name}`);
+      thisHenri.pen.fatal('mysql', `Missing url or host in store ${name}`);
     }
     this.adapterName = 'mysql';
-    this.connector = new this.Sequelize(config.url, {
+    this.connector = new this.Sequelize(url, {
       ...opts,
       dialectModulePath: require.resolve('mysql2'),
     });

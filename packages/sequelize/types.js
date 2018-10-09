@@ -1,3 +1,4 @@
+/* eslint-disable sort-keys */
 const Sequelize = require('sequelize');
 
 module.exports = {

@@ -3,8 +3,9 @@
 const pkg = require('../package.json');
 
 try {
+  // eslint-disable-next-line global-require
   require('@usehenri/cli')(pkg, process.argv);
-} catch (e) {
+} catch (error) {
   // eslint-disable-next-line no-console
   console.log(' ');
   // eslint-disable-next-line no-console
@@ -12,6 +13,6 @@ try {
   // eslint-disable-next-line no-console
   console.log(' ');
   // eslint-disable-next-line no-console
-  console.log(e);
+  console.log(error);
   process.exit(1);
 }

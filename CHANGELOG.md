@@ -3,6 +3,74 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.30.3"></a>
+## [0.30.3](https://github.com/usehenri/henri/compare/v0.30.2...v0.30.3) (2018-09-28)
+
+
+### Bug Fixes
+
+* **mongoose:** set correct henri instance ([80ceb57](https://github.com/usehenri/henri/commit/80ceb57))
+* **router:** adding debug information ([f3b9817](https://github.com/usehenri/henri/commit/f3b9817))
+
+
+
+
+
+<a name="0.30.2"></a>
+## [0.30.2](https://github.com/usehenri/henri/compare/v0.30.1...v0.30.2) (2018-09-26)
+
+
+### Bug Fixes
+
+* **henri:** henri should be scoped and always referred internally as this.henri (avoids leaks in testing) ([b046cc4](https://github.com/usehenri/henri/commit/b046cc4))
+* **henri:** using ecmaVersion 2018 for rest/spread support ([78f69d1](https://github.com/usehenri/henri/commit/78f69d1))
+
+
+
+
+
+<a name="0.30.1"></a>
+## [0.30.1](https://github.com/usehenri/henri/compare/v0.30.0...v0.30.1) (2018-09-26)
+
+
+### Bug Fixes
+
+* **mongoose:** fix henri.user encryption ([640d44a](https://github.com/usehenri/henri/commit/640d44a))
+
+
+
+
+
+<a name="0.30.0"></a>
+# [0.30.0](https://github.com/usehenri/henri/compare/v0.29.3...v0.30.0) (2018-09-26)
+
+
+### Bug Fixes
+
+* **cli:** adding vue js eslint support by default ([f98fd40](https://github.com/usehenri/henri/commit/f98fd40))
+
+
+### Features
+
+* **henri:** henri should be used with Node 10+ ([de18480](https://github.com/usehenri/henri/commit/de18480))
+
+
+
+
+
+<a name="0.29.3"></a>
+## [0.29.3](https://github.com/usehenri/henri/compare/v0.29.2...v0.29.3) (2018-08-29)
+
+
+### Bug Fixes
+
+* **cli:** change the routes to something useful ([9e1fd33](https://github.com/usehenri/henri/commit/9e1fd33))
+* **cli:** provide basic react eslint configuration on install ([7628d6e](https://github.com/usehenri/henri/commit/7628d6e))
+
+
+
+
+
 <a name="0.29.2"></a>
 ## [0.29.2](https://github.com/usehenri/henri/compare/v0.29.1...v0.29.2) (2018-08-23)
 

@@ -8,22 +8,26 @@ const path = require('path');
 class VueEngine {
   /**
    * Creates an instance of VueEngine.
-   * @param {Henri} henri The current instance of henri
+   * @param {Henri} thisHenri The current instance of henri
    * @memberof VueEngine
    */
-  constructor(henri) {
+  constructor(thisHenri) {
     this.instance = null;
-    this.henri = henri;
+    this.henri = thisHenri;
     this.conf = {
-      dev: !henri.isProduction,
+      dev: !thisHenri.isProduction,
       srcDir: './app/views',
     };
-    this.renderer = henri.config.get('renderer').toLowerCase();
+    this.renderer = thisHenri.config.get('renderer').toLowerCase();
     this.Builder = null;
 
     try {
       // eslint-disable-next-line
-      let conf = require(path.resolve(henri.cwd(), 'config', 'nuxt.config.js'));
+      let conf = require(path.resolve(
+        thisHenri.cwd(),
+        'config',
+        'nuxt.config.js'
+      ));
 
       delete conf.rootDir;
       this.conf = Object.assign(this.conf, conf);
@@ -47,7 +51,7 @@ class VueEngine {
     this.henri.utils.checkPackages(['nuxt']);
     // eslint-disable-next-line
     const { Nuxt, Builder } = require(path.resolve(
-      henri.cwd(),
+      this.henri.cwd(),
       'node_modules',
       'nuxt'
     ));
@@ -112,7 +116,7 @@ class VueEngine {
       if (henri.isProduction) {
         return res.status(500).send('Internal server error');
       }
-      henri.pen.error('vue', error);
+      this.henri.pen.error('vue', error);
 
       return res.status(500).send(error);
     }

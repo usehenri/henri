@@ -122,6 +122,9 @@ const copyTemplate = () => {
   fs.moveSync(path.resolve(cwd, 'gitignore'), path.resolve(cwd, '.gitignore'), {
     overwrite: true,
   });
+  fs.moveSync(path.resolve(cwd, 'eslintrc'), path.resolve(cwd, '.eslintrc'), {
+    overwrite: true,
+  });
 };
 
 /**

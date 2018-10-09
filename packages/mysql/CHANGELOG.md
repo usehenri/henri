@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+<a name="0.30.2"></a>
+## [0.30.2](https://github.com/usehenri/henri/compare/v0.30.1...v0.30.2) (2018-09-26)
+
+
+### Bug Fixes
+
+* **henri:** henri should be scoped and always referred internally as this.henri (avoids leaks in testing) ([b046cc4](https://github.com/usehenri/henri/commit/b046cc4))
+
+
+
+
+
+<a name="0.30.0"></a>
+# [0.30.0](https://github.com/usehenri/henri/compare/v0.29.3...v0.30.0) (2018-09-26)
+
+**Note:** Version bump only for package @usehenri/mysql
+
+
+
+
+
+<a name="0.29.3"></a>
+## [0.29.3](https://github.com/usehenri/henri/compare/v0.29.2...v0.29.3) (2018-08-29)
+
+**Note:** Version bump only for package @usehenri/mysql
+
+
+
+
+
 <a name="0.29.0"></a>
 # [0.29.0](https://github.com/usehenri/henri/compare/v0.28.0...v0.29.0) (2018-08-23)
 

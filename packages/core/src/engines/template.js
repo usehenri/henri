@@ -12,12 +12,12 @@ const bounce = require('bounce');
 class TemplateEngine {
   /**
    * Creates an instance of TemplateEngine.
-   * @param {Henri} henri The current instance of henri
+   * @param {Henri} thisHenri The current instance of henri
    * @memberof TemplateEngine
    */
-  constructor(henri) {
+  constructor(thisHenri) {
     this.instance = null;
-    this.henri = henri;
+    this.henri = thisHenri;
 
     this.cache = new Map();
     this.hbs = hbs;
