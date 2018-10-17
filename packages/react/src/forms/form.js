@@ -131,9 +131,12 @@ class Form extends Component {
       .catch(err => {
         debug && console.log('form post error:');
         debug && console.dir(err);
-        typeof onError === 'function' &&
-          onError(err.response.data.msg || onFail || true);
-        this.raiseError('error', err.response.data.msg || onFail || true);
+        const message =
+          (err.response && err.response.data && err.response.data.msg) ||
+          onFail ||
+          true;
+        typeof onError === 'function' && onError(message);
+        this.raiseError('error', message);
       });
   };
 
@@ -208,7 +211,7 @@ Form.propTypes = {
   method: PropTypes.string,
   onSuccess: PropTypes.func,
   onError: PropTypes.func,
-  onFail: PropTypes.func,
+  onFail: PropTypes.string,
 };
 
 Form.childContextTypes = {
