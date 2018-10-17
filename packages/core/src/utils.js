@@ -144,12 +144,20 @@ function clearConsole() {
  *
  * @param {any} location file location
  * @param {any} onSuccess callback
+ * @param {any} inst the henri instance
  * @returns {(Promise<string>|boolean)} result
  */
-async function syntax(location, onSuccess) {
+async function syntax(location, onSuccess, inst = undefined) {
+  if (typeof inst === 'undefined') {
+    if (typeof henri === 'undefined') {
+      throw new Error('henri is not defined...');
+    }
+    inst = henri;
+  }
+
   return new Promise(resolve => {
     if (path.extname(location) === '.html') {
-      henri.status.set('locked', false);
+      inst.status.set('locked', false);
 
       return resolve();
     }
@@ -157,7 +165,7 @@ async function syntax(location, onSuccess) {
       if (err) {
         return resolve(`unable to check the syntax of ${location}`);
       }
-      parseSyntax(resolve, location, data, onSuccess);
+      parseSyntax(resolve, location, data, onSuccess, inst);
     });
   });
 }
@@ -169,9 +177,17 @@ async function syntax(location, onSuccess) {
  * @param {string} file filename
  * @param {string} data file data
  * @param {function} onSuccess callback
+ * @param {any} inst the henri instance
  * @returns {Promise} result
  */
-async function parseSyntax(resolve, file, data, onSuccess) {
+async function parseSyntax(resolve, file, data, onSuccess, inst = undefined) {
+  if (typeof inst === 'undefined') {
+    if (typeof henri === 'undefined') {
+      throw new Error('henri is not defined...');
+    }
+    inst = henri;
+  }
+
   try {
     const fileInfo = await prettier.getFileInfo(file);
 
@@ -183,12 +199,12 @@ async function parseSyntax(resolve, file, data, onSuccess) {
       prettier.format(data.toString(), { parser: fileInfo.inferredParser });
     }
 
-    henri.status.set('locked', false);
+    inst.status.set('locked', false);
     typeof onSuccess === 'function' && onSuccess();
 
     return resolve(true);
   } catch (error) {
-    henri.pen.error(
+    inst.pen.error(
       'server',
       `while parsing ${file}:${error.loc.start.line}:${error.loc.start.column}`
     ); // eslint-disable-line no-console

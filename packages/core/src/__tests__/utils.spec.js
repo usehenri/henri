@@ -1,4 +1,5 @@
 const utils = require('../utils');
+const Henri = require('../henri');
 
 describe('utils', () => {
   test('should have yarnExists', () => {
@@ -31,9 +32,17 @@ describe('utils', () => {
   });
 
   test('should check syntax', async () => {
-    expect(await utils.syntax('./packages/core/src/utils.djs')).toEqual(
-      expect.stringContaining('unable to check the syntax')
-    );
-    expect(await utils.syntax('./packages/core/src/utils.js')).toBeTruthy();
+    const inst = new Henri({ runlevel: 0 });
+
+    await inst.init();
+
+    expect(
+      await utils.syntax('./packages/core/src/utils.djs', null, inst)
+    ).toEqual(expect.stringContaining('unable to check the syntax'));
+    expect(
+      await utils.syntax('./packages/core/src/utils.js', null, inst)
+    ).toBeTruthy();
+
+    await inst.stop();
   });
 });
