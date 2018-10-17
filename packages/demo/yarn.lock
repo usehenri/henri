@@ -7,10 +7,10 @@
   resolved "https://registry.yarnpkg.com/@sailshq/lodash/-/lodash-3.10.3.tgz#61b6fa3a5db3fe802409b0ba152bcc99e7d27a58"
   integrity sha512-XTF5BtsTSiSpTnfqrCGS5Q8FvSHWCywA0oRxFAZo8E1a8k1MMFUvk3VlRk3q/SusEYwy7gvVdyt9vvNlTa2VuA==
 
-"@usehenri/disk@^0.29.0":
-  version "0.29.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/disk/-/disk-0.29.0.tgz#71dc9bb0db863b5a847d89b1bdcc3b1c82c8bc73"
-  integrity sha512-at2kmT+mvK9Re8uP82N4KQAKz/G5uRVfbcC6sgnauxD+iCsa31tmbdzTizkpyQXCmUX5Z8qYvTyi49bs3A2nKQ==
+"@usehenri/disk@^0.30.2":
+  version "0.30.2"
+  resolved "https://registry.yarnpkg.com/@usehenri/disk/-/disk-0.30.2.tgz#b5d78eb9dfd7e27d2a05485f2ea9ba680ab24180"
+  integrity sha512-jNL6Bna/IiQRVIUbfZMjDWQWoWVxUQG6u6pKLQI3phZDJS+qUDGQfXxDiHGYiCg7DazaejwcVtSYk3GIUG5pZA==
   dependencies:
     nedb-session-store "^1.1.2"
     sails-disk "^1.0.1"

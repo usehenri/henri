@@ -7,13 +7,13 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.5.2.tgz#f19f05314d5421fe37e74153254201a7bf00a707"
   integrity sha512-m9zXmifkZsMHZBOyxZWilMwmTlpC8x5Ty360JKTiXvlXZfBWYpsg9ZZvP/Ye+iZUh+Q+MxDLjItVTWIsfwz+8Q==
 
-"@usehenri/sequelize@^0.29.0":
-  version "0.29.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.29.0.tgz#607b039a0f64b8519b1a98328c585b00c9bc95ab"
-  integrity sha512-3V3DsrDyuuovUQ6zpM4/oz0v0B1KD1XITaxfXNDpI6rPl/+KZSdQkTK8hHQDu3v2/D9OZnPMSXN86AZ2CiRhRQ==
+"@usehenri/sequelize@^0.30.2":
+  version "0.30.2"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.30.2.tgz#63a5a35d07ed238e6eb61d80657c25952d1f6c89"
+  integrity sha512-drUbgQKj1rTsolBmyz71RqIhhPWGoyQK24X4vQBdVacYvFbhG8vmPOqJCNd0vZM06aSaKdXDscTFebICTGqlCQ==
   dependencies:
     connect-session-sequelize "^5.2.2"
-    sequelize "^5.0.0-beta.5"
+    sequelize "5.0.0-beta.12"
 
 ansicolors@~0.3.2:
   version "0.3.2"
@@ -216,10 +216,10 @@ seq-queue@0.0.5:
   resolved "https://registry.yarnpkg.com/seq-queue/-/seq-queue-0.0.5.tgz#d56812e1c017a6e4e7c3e3a37a1da6d78dd3c93e"
   integrity sha1-1WgS4cAXpuTnw+Ojeh2m143TyT4=
 
-sequelize@^5.0.0-beta.5:
-  version "5.0.0-beta.9"
-  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.0.0-beta.9.tgz#cd305331587f8b0415881b4dd1e1470ddcf0131f"
-  integrity sha1-zTBTMVh/iwQViBtN0eFHDdzwEx8=
+sequelize@5.0.0-beta.12:
+  version "5.0.0-beta.12"
+  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.0.0-beta.12.tgz#0b262b2459aa4fd32f66c822b5fa0fa53aa33753"
+  integrity sha512-JE5OFVM8tq2JzozSbMbY1nxYOaiG3IGXwYiPQlvK9NXCUpq5ck51YpepuyD+wL/w0E+73yV9gRianFleonitoQ==
   dependencies:
     bluebird "^3.5.0"
     cls-bluebird "^2.1.0"
