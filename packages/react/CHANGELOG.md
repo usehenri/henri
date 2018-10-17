@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.31.0](https://github.com/usehenri/henri/compare/v0.30.3...v0.31.0) (2018-10-17)
+
+
+### Bug Fixes
+
+* **react:** better handling of onError and onSuccess in forms ([fd139da](https://github.com/usehenri/henri/commit/fd139da))
+
+
+
+
+
 <a name="0.30.2"></a>
 ## [0.30.2](https://github.com/usehenri/henri/compare/v0.30.1...v0.30.2) (2018-09-26)
 

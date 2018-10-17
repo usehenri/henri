@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.31.0](https://github.com/usehenri/henri/compare/v0.30.3...v0.31.0) (2018-10-17)
+
+
+### Bug Fixes
+
+* **react:** better handling of onError and onSuccess in forms ([fd139da](https://github.com/usehenri/henri/commit/fd139da))
+* **utils:** pass henri instance to syntax method ([ffb753f](https://github.com/usehenri/henri/commit/ffb753f))
+
+
+### Features
+
+* **routes:** adding paths to /_routes ([05d8668](https://github.com/usehenri/henri/commit/05d8668))
+
+
+
+
+
 <a name="0.30.3"></a>
 ## [0.30.3](https://github.com/usehenri/henri/compare/v0.30.2...v0.30.3) (2018-09-28)
 
