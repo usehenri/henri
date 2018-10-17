@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.31.1](https://github.com/usehenri/henri/compare/v0.31.0...v0.31.1) (2018-10-17)
+
+
+### Bug Fixes
+
+* **react:** better onError message management ([8783845](https://github.com/usehenri/henri/commit/8783845))
+
+
+
+
+
 # [0.31.0](https://github.com/usehenri/henri/compare/v0.30.3...v0.31.0) (2018-10-17)
 
 
