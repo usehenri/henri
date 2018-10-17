@@ -533,9 +533,14 @@ class Route {
    */
   buildOpts(verb, urlPath, method = null) {
     const { opts } = this;
+    const controller = method
+      ? `${opts.controller}#${method}`
+      : opts.controller;
+    const [name, action] = controller.split('#');
 
     return Object.assign({}, opts, {
-      controller: method ? `${opts.controller}#${method}` : opts.controller,
+      controller: controller,
+      path: `${action}_${name}_path`,
       route: urlPath,
       verb: verb,
     });
