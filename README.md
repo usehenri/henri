@@ -654,7 +654,7 @@ const start = h => {
   );
 };
 
-const stop = () => clearInterval(h);
+const stop = () => clearInterval(timer);
 
 module.exports = { start, stop };
 ```
