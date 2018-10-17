@@ -115,6 +115,7 @@ class Form extends Component {
     const {
       debug = false,
       onSuccess = null,
+      onError = null,
       onFail = '',
       method = 'post',
     } = this.props;
@@ -123,13 +124,15 @@ class Form extends Component {
       .then(resp => {
         this.setState({ error: null });
         hydrate && hydrate();
-        onSuccess && onSuccess(data);
+        typeof onSuccess === 'function' && onSuccess(data);
         debug && console.log('form post successful!');
         this.clear();
       })
       .catch(err => {
         debug && console.log('form post error:');
         debug && console.dir(err);
+        typeof onError === 'function' &&
+          onError(err.response.data.msg || onFail || true);
         this.raiseError('error', err.response.data.msg || onFail || true);
       });
   };
@@ -203,6 +206,9 @@ Form.propTypes = {
   debug: PropTypes.bool,
   action: PropTypes.string,
   method: PropTypes.string,
+  onSuccess: PropTypes.func,
+  onError: PropTypes.func,
+  onFail: PropTypes.func,
 };
 
 Form.childContextTypes = {
