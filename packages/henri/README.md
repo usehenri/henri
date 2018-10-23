@@ -10,7 +10,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![Build Status](https://travis-ci.org/usehenri/henri.svg?branch=master)](https://travis-ci.org/usehenri/henri)
 [![Coverage Status](https://coveralls.io/repos/github/usehenri/henri/badge.svg)](https://coveralls.io/github/usehenri/henri)
-[![Join slack](http://slack.usehenri.io/badge.svg)](http://slack.usehenri.io/)
+[![Join slack](https://img.shields.io/badge/slack-get_invite-green.svg?longCache=true&style=flat)](https://join.slack.com/t/usehenri/shared_invite/enQtNDU5Njg4MTA2OTY2LTU2N2I4MTVkNzQ4M2JlZTk5ZTIwODU1YTQxMzVmOTE2ZGVhZjNlZWY1ZTE2MWQxMDViZWY3ODY5ZjQwYzJiM2U)
 
 henri is an easy to learn rails-like, server-side rendered (react & vue) with powerful ORMs
 
@@ -626,8 +626,8 @@ await henri.mail.send({
   to: 'bar@example.com, baz@example.com', // list of receivers
   subject: 'Hello ✔', // Subject line
   text: 'Hello world?', // plain text body
-  html: '<b>Hello world?</b>' // html body
-})
+  html: '<b>Hello world?</b>', // html body
+});
 ```
 
 If you are using the test accounts, you will see a link to your email in the console.
@@ -654,7 +654,7 @@ const start = h => {
   );
 };
 
-const stop = () => clearInterval(h);
+const stop = () => clearInterval(timer);
 
 module.exports = { start, stop };
 ```
