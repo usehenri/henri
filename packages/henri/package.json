@@ -1,6 +1,6 @@
 {
   "name": "henri",
-  "version": "0.31.0",
+  "version": "0.32.0",
   "description": "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
   "main": "index.js",
   "preferGlobal": true,
@@ -25,6 +25,6 @@
   },
   "homepage": "https://github.com/usehenri/henri#readme",
   "dependencies": {
-    "@usehenri/cli": "^0.31.0"
+    "@usehenri/cli": "^0.32.0"
   }
 }
