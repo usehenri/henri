@@ -30,21 +30,6 @@ describe('graphql', () => {
     expect(this.henri.graphql.endpoint).toEqual('/_henri/graph');
   });
 
-  test('should register middlewares', () => {
-    expect(this.henri._middlewares).toHaveLength(2);
-
-    const mockApp = {
-      use: jest.fn(),
-    };
-
-    for (let middleware of this.henri._middlewares) {
-      expect(typeof middleware).toEqual('function');
-      middleware(mockApp);
-    }
-
-    expect(mockApp.use).toHaveBeenCalledTimes(2);
-  });
-
   describe('extract', () => {
     test('should have extract function', () => {
       expect(typeof this.henri.graphql.extract).toEqual('function');

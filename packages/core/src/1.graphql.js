@@ -1,7 +1,7 @@
 const BaseModule = require('./base/module');
 const { mergeTypes, mergeResolvers } = require('merge-graphql-schemas');
 const { makeExecutableSchema } = require('graphql-tools');
-const { graphqlExpress, graphiqlExpress } = require('apollo-server-express');
+const { ApolloServer } = require('apollo-server-express');
 const { runQuery } = require('apollo-server-core');
 
 /**
@@ -53,17 +53,18 @@ class Graphql extends BaseModule {
     }
 
     this.henri.addMiddleware(app => {
-      app.use(this.endpoint, graphqlExpress({ schema: this.schema }));
+      if (this.schema !== null) {
+        const server = new ApolloServer({
+          path: this.endpoint,
+          schema: this.schema,
+        });
+
+        server.applyMiddleware({ app });
+      }
     });
 
     if (!this.henri.isProduction) {
       this.henri.pen.info('graphql', 'started graphiql browser');
-      this.henri.addMiddleware(app => {
-        app.use(
-          '/_henri/graphiql',
-          graphiqlExpress({ endpointURL: this.endpoint })
-        );
-      });
     }
 
     return this.name;
@@ -144,7 +145,7 @@ class Graphql extends BaseModule {
     }
     const { schema } = this;
 
-    return runQuery({ context, query, schema });
+    return runQuery({ context, queryString: query, schema });
   }
 
   /**
