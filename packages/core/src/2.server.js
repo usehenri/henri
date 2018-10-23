@@ -18,6 +18,7 @@ const {
 const openBrowser = require('react-dev-utils/openBrowser');
 const detect = require('detect-port');
 
+/* istanbul ignore next */
 /**
  * Watch the filesystem in dev mode
  *
@@ -42,6 +43,7 @@ async function watch() {
   } = henri;
 
   henri.status.set('locked', true);
+
   chokidar.watch(watching).on('all', async (event, path) => {
     if (henri.status.get('locked')) {
       return;
@@ -71,6 +73,7 @@ async function watch() {
   }, 1 * 1000);
 }
 
+/* istanbul ignore next */
 /**
  * Keyboard shortcuts
  *
@@ -91,7 +94,9 @@ function keyboardShortcuts() {
      * @return {void}
      */
     const open = () => henri.server.url && openBrowser(henri.server.url);
+
     const chr = data.toString().charCodeAt(0);
+
     const actions = {
       '14': () => {
         open();
@@ -114,6 +119,7 @@ function keyboardShortcuts() {
       },
     };
 
+    /* istanbul ignore next */
     if (typeof actions[chr] !== 'undefined') {
       actions[chr]();
     }
@@ -173,6 +179,7 @@ class Server extends BaseModule {
     app.use(timings);
 
     if (this.henri.isProduction) {
+      /* istanbul ignore next */
       app.use(compress());
     }
 
@@ -224,9 +231,12 @@ class Server extends BaseModule {
           resolve(true);
         })
         .on('error', error => {
+          /* istanbul ignore next */
           if (error.code === 'EADDRINUSE') {
             throw new Error(`port ${self.port} already in use`);
           }
+
+          /* istanbul ignore next */
           throw new Error(`unable to start server: ${error.message}`);
         });
     });

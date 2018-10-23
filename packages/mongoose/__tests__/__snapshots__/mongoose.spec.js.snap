@@ -1,0 +1,138 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`mongoose should match class snapshot 1`] = `
+Mongoose {
+  "adapterName": "mongoose",
+  "addModel": [Function],
+  "config": Object {
+    "url": "mongodb://",
+  },
+  "getModels": [Function],
+  "getSessionConnector": [Function],
+  "henri": Object {},
+  "models": Object {},
+  "mongoose": Mongoose {
+    "Schema": [Function],
+    "_pluralize": [Function],
+    "connections": Array [
+      NativeConnection {
+        "$internalEmitter": EventEmitter {
+          "_events": Object {},
+          "_eventsCount": 0,
+          "_maxListeners": 0,
+        },
+        "_closeCalled": false,
+        "_hasOpened": false,
+        "_listening": false,
+        "_readyState": 0,
+        "base": [Circular],
+        "collections": Object {},
+        "config": Object {
+          "autoIndex": true,
+        },
+        "models": Object {},
+        "options": null,
+        "otherDbs": Array [],
+        "relatedDbs": Object {},
+        "replica": false,
+        "states": Object {
+          "0": "disconnected",
+          "1": "connected",
+          "2": "connecting",
+          "3": "disconnecting",
+          "99": "uninitialized",
+          "connected": 1,
+          "connecting": 2,
+          "disconnected": 0,
+          "disconnecting": 3,
+          "uninitialized": 99,
+        },
+      },
+    ],
+    "modelSchemas": Object {},
+    "models": Object {},
+    "options": Object {
+      "pluralization": true,
+    },
+    "plugins": Array [
+      Array [
+        [Function],
+        Object {
+          "deduplicate": true,
+        },
+      ],
+      Array [
+        [Function],
+        Object {
+          "deduplicate": true,
+        },
+      ],
+      Array [
+        [Function],
+        Object {
+          "deduplicate": true,
+        },
+      ],
+      Array [
+        [Function],
+        Object {
+          "deduplicate": true,
+        },
+      ],
+    ],
+  },
+  "name": "conn",
+  "overload": [Function],
+  "start": [Function],
+  "stop": [Function],
+}
+`;
+
+exports[`mongoose should match types snapshot 1`] = `
+Object {
+  "ARRAY": [Function],
+  "Array": [Function],
+  "BIGINT": [Function],
+  "BLOB": [Function],
+  "BOOLEAN": [Function],
+  "Bool": [Function],
+  "Boolean": [Function],
+  "Buffer": [Function],
+  "CHAR": [Function],
+  "DATE": [Function],
+  "DATEONLY": [Function],
+  "DECIMAL": [Function],
+  "DOUBLE": [Function],
+  "Date": [Function],
+  "Decimal128": [Function],
+  "DocumentArray": [Function],
+  "ENUM": [Function],
+  "Embedded": [Function],
+  "FLOAT": [Function],
+  "GEOGRAPHY": [Function],
+  "GEOMETRY": [Function],
+  "HSTORE": [Function],
+  "INTEGER": [Function],
+  "JSON": [Function],
+  "JSONB": [Function],
+  "MEDIUMINT": [Function],
+  "Mixed": [Function],
+  "NOW": [Function],
+  "NUMBER": [Function],
+  "Number": [Function],
+  "Object": [Function],
+  "ObjectId": [Function],
+  "RANGE": undefined,
+  "REAL": [Function],
+  "SMALLINT": [Function],
+  "STRING": [Function],
+  "String": [Function],
+  "TEXT": [Function],
+  "TIME": [Function],
+  "TINYINT": [Function],
+  "UUID": [Function],
+  "UUIDV1": [Function],
+  "UUIDV4": [Function],
+  "VIRTUAL": [Function],
+}
+`;
