@@ -24,8 +24,11 @@
     "console",
     "g",
     "generate",
+    "help",
     "init",
+    "new",
+    "s",
     "server",
-    "new"
+    "test"
   ]
 }
