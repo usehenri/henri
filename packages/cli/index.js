@@ -37,7 +37,7 @@ module.exports = (pkg, args) => {
     case 'init':
     case 'new':
     case 'server':
-    case 'start-henri':
+    case 'test':
       // eslint-disable-next-line
       const cmd = require(`./scripts/${command}`);
 
