@@ -19,9 +19,9 @@ class Modules {
     this.henri = henri;
     this.modules = new Map();
 
-    this.store = [[], [], [], [], [], [], []];
-    this.order = [[], [], [], [], [], [], []];
-    this.reloadable = [[], [], [], [], [], [], []];
+    this.store = [[], [], [], [], [], [], [], []];
+    this.order = [[], [], [], [], [], [], [], []];
+    this.reloadable = [[], [], [], [], [], [], [], []];
     this.stopOrder = [];
     this.initialized = false;
 
@@ -259,7 +259,7 @@ function validate(obj, info) {
     throw new Error(`modules => ${label} name is not a string`);
   }
 
-  if (obj.runlevel < 0 || obj.runlevel > 6) {
+  if (obj.runlevel < 0 || obj.runlevel > 7) {
     throw new Error(`modules => ${obj.name} runlevel is out of range`);
   }
 

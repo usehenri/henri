@@ -18,19 +18,20 @@ class BaseModuleClass {
      * Module runlevel
      * This is in which order the module will be loaded unloaded
      *
-     * 0 = Early stage, after config and log
-     * 1 = Second stage (needs to be defined)
-     * 2 = Third stage (needs to be defined)
-     * 3 = Fourth stage (needs to be defined)
-     * 4 = Fifth stage (needs to be defined)
-     * 5 = Sixth stage (needs to be defined)
-     * 6 = Last stage (needs to be defined)
+     * 0 = Early stage: configuration, log and modules bootstrapping is done here
+     * 1 = Second stage: graphql and mailer are loaded here
+     * 2 = Third stage: controllers are loaded and express is getting ready
+     * 3 = Fourth stage: models are loaded, added to gql and the view is compiling
+     * 4 = Fifth stage: user (login, passwords and routes protections)
+     * 5 = Sixth stage: routes are read and setup, workers are started here
+     * 6 = Last stage: the normal last stage...
+     * 7 = Testing stage
      *
      * Modules are loaded in that order
      *
      * Reloadable modules are teared down in reverse order and loaded in order
      */
-    this.runlevel = 5;
+    this.runlevel = 6;
 
     /** Not reloadable by default */
     this.reloadable = false;

@@ -9,6 +9,7 @@ Henri {
   "isDev": false,
   "isProduction": false,
   "isTest": true,
+  "isTesting": false,
   "modules": Modules {
     "add": [Function],
     "henri": [Circular],
@@ -16,6 +17,7 @@ Henri {
     "initialized": false,
     "modules": Map {},
     "order": Array [
+      Array [],
       Array [],
       Array [],
       Array [],
@@ -33,9 +35,11 @@ Henri {
       Array [],
       Array [],
       Array [],
+      Array [],
     ],
     "stopOrder": Array [],
     "store": Array [
+      Array [],
       Array [],
       Array [],
       Array [],
@@ -60,7 +64,7 @@ Henri {
     "name": "unnamed",
     "notTest": false,
     "reloadable": false,
-    "runlevel": 5,
+    "runlevel": 6,
     "setup": [Function],
     "start": [Function],
   },

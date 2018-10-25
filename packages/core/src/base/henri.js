@@ -14,7 +14,7 @@ class HenriBase {
    */
   constructor({ cwd = '.', runlevel = 6 } = {}) {
     const {
-      env: { NODE_ENV, CONSOLE_ONLY = false },
+      env: { NODE_ENV, CONSOLE_ONLY = false, HENRI_TESTING = false },
       arch,
       platform,
     } = process;
@@ -23,6 +23,7 @@ class HenriBase {
     this.isProduction = NODE_ENV === 'production';
     this.isDev = NODE_ENV !== 'production' && NODE_ENV !== 'test';
     this.isTest = NODE_ENV === 'test';
+    this.isTesting = HENRI_TESTING || false;
     this.consoleOnly = CONSOLE_ONLY || false;
 
     this.settings = {
@@ -35,6 +36,11 @@ class HenriBase {
 
     this.release = this.settings.package;
     this.runlevel = runlevel;
+
+    if (this.isTesting) {
+      this.runlevel = 7;
+    }
+
     this.prefix = this.isTest ? './packages/demo' : cwd;
 
     this.cwd = () => process.cwd();
