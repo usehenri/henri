@@ -1,4 +1,5 @@
 const BaseModule = require('./base/module');
+const jest = require('jest-cli/build/cli/index');
 
 /**
  * Workers management module
@@ -19,6 +20,8 @@ class Tests extends BaseModule {
     this.name = 'tests';
     this.henri = undefined;
 
+    this.initialized = false;
+
     this.init = this.init.bind(this);
     this.stop = this.stop.bind(this);
     this.reload = this.reload.bind(this);
@@ -33,7 +36,23 @@ class Tests extends BaseModule {
    * @memberof Workers
    */
   async init() {
-    this.henri.pen.warn('tests', 'running tests');
+    this.henri.pen.info('tests', 'running tests');
+
+    const options = [
+      '--testPathPattern=/tests/',
+      '--detectOpenHandles',
+      '--passWithNoTests',
+      //    '--coverage',
+      //    '--collectCoverageFrom=["app/**/**/*.js", "!app/views/**/*.js", "!app/routes.js"]',
+    ];
+
+    if (!this.initialized) {
+      this.henri.pen.info('tests', 'silent first run...');
+      options.push('--silent');
+      this.initialized = true;
+    }
+
+    await jest.run(options);
 
     return this.name;
   }

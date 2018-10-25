@@ -31,6 +31,7 @@ async function watch() {
     'app/helpers/**',
     'app/models/**',
     'app/workers/**',
+    'tests/**',
     'app/routes.js',
     'app/websocket/**',
     'app/views/partials/**/*.html',
