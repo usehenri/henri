@@ -667,11 +667,11 @@ _Bundle the best tools in a structured environment to provide a stable and fast-
 
 ### Modules
 
-_We use a 7 levels boot system._
+_We use a 8 levels boot system._
 
 1.  All modules are scanned and put in a sequence with same-level modules
 
-2.  We cycle from level 0 to 6, initializing all the same-level modules in a concurrent way
+2.  We cycle from level 0 to 7, initializing all the same-level modules in a concurrent way
 
 3.  If the module is reloadable, it will unwind and rewind in the same sequence on reloads
 
