@@ -36,6 +36,7 @@ module.exports = (pkg, args) => {
     case 'generate':
     case 'init':
     case 'new':
+    case 's':
     case 'server':
     case 'test':
       // eslint-disable-next-line

@@ -15,6 +15,7 @@ Modules {
     Array [],
     Array [],
     Array [],
+    Array [],
   ],
   "reload": [Function],
   "reloadable": Array [
@@ -25,9 +26,11 @@ Modules {
     Array [],
     Array [],
     Array [],
+    Array [],
   ],
   "stopOrder": Array [],
   "store": Array [
+    Array [],
     Array [],
     Array [],
     Array [],

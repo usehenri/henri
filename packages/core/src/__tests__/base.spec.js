@@ -5,7 +5,7 @@ let base = new BaseModule();
 describe('base module', () => {
   test('should have default value', () => {
     expect(base.name).toBe('unnamed');
-    expect(base.runlevel).toBe(5);
+    expect(base.runlevel).toBe(6);
     expect(base.key).toBeNull();
     expect(base.reloadable).toBeFalsy();
   });

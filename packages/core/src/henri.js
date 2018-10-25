@@ -14,6 +14,7 @@ const View = require('./3.view');
 const User = require('./4.user');
 const Router = require('./5.router');
 const Workers = require('./5.workers');
+const Tests = require('./7.tests');
 
 const path = require('path');
 const bounce = require('bounce');
@@ -45,7 +46,7 @@ class Henri extends HenriBase {
     this.changeDirectory();
 
     /** Warn if Henri is started with a restricted run level */
-    if (this.runlevel < 6) {
+    if (this.runlevel < 7) {
       this.pen.warn('henri', 'running at limited level', this.runlevel);
     }
   }
@@ -69,6 +70,7 @@ class Henri extends HenriBase {
       this.modules.add(new User());
       this.modules.add(new View());
       this.modules.add(new Workers());
+      this.modules.add(new Tests());
 
       try {
         await this.modules.init();

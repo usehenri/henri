@@ -15,8 +15,8 @@ describe('henri', () => {
   });
 
   describe('general', () => {
-    test('should have 7 run levels (0...6)', async () => {
-      expect(this.henri.modules.store).toHaveLength(7);
+    test('should have 8 run levels (0...7)', async () => {
+      expect(this.henri.modules.store).toHaveLength(8);
     });
 
     test('should not allow duplicate', () => {
@@ -155,7 +155,7 @@ describe('henri', () => {
       ).toThrow(/a runlevel is out of range/);
 
       expect(() =>
-        this.henri.modules.add(new WeirdModule({ name: 'b', runlevel: 7 }))
+        this.henri.modules.add(new WeirdModule({ name: 'b', runlevel: 8 }))
       ).toThrow(/b runlevel is out of range/);
     });
 
