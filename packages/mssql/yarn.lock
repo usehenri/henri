@@ -7,10 +7,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.5.2.tgz#f19f05314d5421fe37e74153254201a7bf00a707"
   integrity sha512-m9zXmifkZsMHZBOyxZWilMwmTlpC8x5Ty360JKTiXvlXZfBWYpsg9ZZvP/Ye+iZUh+Q+MxDLjItVTWIsfwz+8Q==
 
-"@usehenri/sequelize@^0.31.0":
-  version "0.31.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.31.0.tgz#5ea3deb3917c4612886a0fa7b889f5a2a2f7a28d"
-  integrity sha512-xRg+A4bteJoS0HXSrG2o3ys57mrcTTUOrW0JQF89z3BxX3FZUyM8QPK38cjrsdwTzZmZP6vB5PhNrN0i22VFwA==
+"@usehenri/sequelize@^0.32.0":
+  version "0.32.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.32.0.tgz#99bf56859d39bbd8dd04858322c3a60e4dbcf182"
+  integrity sha512-ySCIhZlOTmwBbyth5uVK7SLGqKmBTkoRFRTW2Jid4nx2ACC34WTYrQgDiY+9EaEd5fUaKjXfWd8oU9RKHy/+nQ==
   dependencies:
     connect-session-sequelize "^5.2.2"
     sequelize "5.0.0-beta.12"
@@ -20,23 +20,15 @@ any-promise@^1.3.0:
   resolved "https://registry.yarnpkg.com/any-promise/-/any-promise-1.3.0.tgz#abc6afeedcea52e809cdc0376aed3ce39635d17f"
   integrity sha1-q8av7tzqUugJzcA3au0845Y10X8=
 
-babel-runtime@^6.26.0:
-  version "6.26.0"
-  resolved "https://registry.yarnpkg.com/babel-runtime/-/babel-runtime-6.26.0.tgz#965c7058668e82b55d7bfe04ff2337bc8b5647fe"
-  integrity sha1-llxwWGaOgrVde/4E/yM3vItWR/4=
-  dependencies:
-    core-js "^2.4.0"
-    regenerator-runtime "^0.11.0"
+big-number@1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/big-number/-/big-number-1.0.0.tgz#a0277607a0adb06492d3099546ef0d547785df18"
+  integrity sha512-cHUzdT+mMXd1ozht8n5ZwBlNiPO/4zCqqkyp3lF1TMPsRJLXUbQ7cKnfXRkrW475H5SOtSOP0HFeihNbpa53MQ==
 
-big-number@0.3.1:
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/big-number/-/big-number-0.3.1.tgz#ac73020c0a59bb79eb17c2ce2db77f77d974e013"
-  integrity sha1-rHMCDApZu3nrF8LOLbd/d9l04BM=
-
-bl@^1.2.2:
-  version "1.2.2"
-  resolved "https://registry.yarnpkg.com/bl/-/bl-1.2.2.tgz#a160911717103c07410cef63ef51b397c025af9c"
-  integrity sha512-e8tQYnZodmebYDWGH7KMRvtzKXaJHx3BbilrgZCfvyLUYdKpK1t5PSPmpkny/SgiTSCnjfLW7v5rlONXVFkQEA==
+bl@^2.0.1:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/bl/-/bl-2.1.2.tgz#591182cb9f3f2eff3beb1e76dabedfb5c5fa9a26"
+  integrity sha512-DvC0x+PxmSJNx8wXoFV15pC2+GOJ3ohb4F1REq3X32a2Z3nEBpR1Guu740M7ouYAImFj4BXDNilLNZbygtG9lQ==
   dependencies:
     readable-stream "^2.3.5"
     safe-buffer "^5.1.1"
@@ -61,11 +53,6 @@ connect-session-sequelize@^5.2.2:
   dependencies:
     debug "^3.1.0"
     deep-equal "^1.0.1"
-
-core-js@^2.4.0:
-  version "2.5.1"
-  resolved "https://registry.yarnpkg.com/core-js/-/core-js-2.5.1.tgz#ae6874dc66937789b80754ff5428df66819ca50b"
-  integrity sha1-rmh03GaTd4m4B1T/VCjfZoGcpQs=
 
 core-util-is@~1.0.0:
   version "1.0.2"
@@ -118,7 +105,7 @@ inflection@1.12.0:
   resolved "https://registry.yarnpkg.com/inflection/-/inflection-1.12.0.tgz#a200935656d6f5f6bc4dc7502e1aecb703228416"
   integrity sha1-ogCTVlbW9fa8TcdQLhrstwMihBY=
 
-inherits@~2.0.3:
+inherits@^2.0.3, inherits@~2.0.3:
   version "2.0.3"
   resolved "https://registry.yarnpkg.com/inherits/-/inherits-2.0.3.tgz#633c2c83e3da42a502f52466022480f4208261de"
   integrity sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
@@ -170,7 +157,7 @@ punycode@^2.1.0:
   resolved "https://registry.yarnpkg.com/punycode/-/punycode-2.1.0.tgz#5f863edc89b96db09074bad7947bf09056ca4e7d"
   integrity sha1-X4Y+3Im5bbCQdLrXlHvwkFbKTn0=
 
-readable-stream@^2.3.5, readable-stream@^2.3.6:
+readable-stream@^2.3.5:
   version "2.3.6"
   resolved "https://registry.yarnpkg.com/readable-stream/-/readable-stream-2.3.6.tgz#b11c27d88b8ff1fbe070643cf94b0c79ae1b0aaf"
   integrity sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
@@ -183,10 +170,14 @@ readable-stream@^2.3.5, readable-stream@^2.3.6:
     string_decoder "~1.1.1"
     util-deprecate "~1.0.1"
 
-regenerator-runtime@^0.11.0:
-  version "0.11.0"
-  resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.11.0.tgz#7e54fe5b5ccd5d6624ea6255c3473be090b802e1"
-  integrity sha512-/aA0kLeRb5N9K0d4fw7ooEbI+xDe+DKD499EQqygGqeS8N3xto15p09uY2xj7ixP81sNPXvRLnAQIqdVStgb1A==
+readable-stream@^3.0.3:
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/readable-stream/-/readable-stream-3.0.6.tgz#351302e4c68b5abd6a2ed55376a7f9a25be3057a"
+  integrity sha512-9E1oLoOWfhSXHGv6QlwXJim7uNzd9EVlWK+21tCU9Ju/kR0/p2AZYPz4qSchgO8PlLIH4FpZYfzwS+rEksZjIg==
+  dependencies:
+    inherits "^2.0.3"
+    string_decoder "^1.1.1"
+    util-deprecate "^1.0.1"
 
 retry-as-promised@^3.0.0:
   version "3.0.0"
@@ -248,26 +239,25 @@ sprintf-js@^1.1.1:
   resolved "https://registry.yarnpkg.com/sprintf-js/-/sprintf-js-1.1.1.tgz#36be78320afe5801f6cea3ee78b6e5aab940ea0c"
   integrity sha1-Nr54Mgr+WAH2zqPueLblqrlA6gw=
 
-string_decoder@~1.1.1:
+string_decoder@^1.1.1, string_decoder@~1.1.1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/string_decoder/-/string_decoder-1.1.1.tgz#9cf1611ba62685d7030ae9e4ba34149c3af03fc8"
   integrity sha512-n/ShnvDi6FHbbVfviro+WojiFzv+s8MPMHBczVePfUpDJLwoLT0ht1l4YwBCbi8pJAveEEdnkHyPyTP/mzRfwg==
   dependencies:
     safe-buffer "~5.1.0"
 
-tedious@^2.6.4:
-  version "2.6.4"
-  resolved "https://registry.yarnpkg.com/tedious/-/tedious-2.6.4.tgz#b3dee882458fbed8e7c8778156344f049dda3f38"
-  integrity sha512-upFZB4QahZydPIV2VK3H/bz8Fsq5FSjqbxDbhhp1c/66ZJB1qCk5p1cXi2p/VUOgAYbmAzVObTg5kaVvmeyN+Q==
+tedious@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/tedious/-/tedious-3.0.1.tgz#d3c826b6f08e16faa285061c3b0bda99543480f8"
+  integrity sha512-Uugv3CPH1LpYijyBS9qZb0g8k3WYM5EPoZOfYmTj/ubc3/oyXvY2KmR17IUtmLJcGpGDaU3VygYzcihPlGSUug==
   dependencies:
-    babel-runtime "^6.26.0"
-    big-number "0.3.1"
-    bl "^1.2.2"
+    big-number "1.0.0"
+    bl "^2.0.1"
     depd "^1.1.2"
     iconv-lite "^0.4.23"
     native-duplexpair "^1.0.0"
     punycode "^2.1.0"
-    readable-stream "^2.3.6"
+    readable-stream "^3.0.3"
     sprintf-js "^1.1.1"
 
 toposort-class@^1.0.1:
@@ -275,7 +265,7 @@ toposort-class@^1.0.1:
   resolved "https://registry.yarnpkg.com/toposort-class/-/toposort-class-1.0.1.tgz#7ffd1f78c8be28c3ba45cd4e1a3f5ee193bd9988"
   integrity sha1-f/0feMi+KMO6Rc1OGj9e4ZO9mYg=
 
-util-deprecate@~1.0.1:
+util-deprecate@^1.0.1, util-deprecate@~1.0.1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/util-deprecate/-/util-deprecate-1.0.2.tgz#450d4dc9fa70de732762fbd2d4a28981419a0ccf"
   integrity sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
