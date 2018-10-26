@@ -80,8 +80,13 @@ The above command will create a directory structure similar to this:
 ├── config
 │   ├── default.json
 │   ├── production.json
+│   ├── routes.js
 │   └── webpack.js            <- Overload Next.js webpack settings
-└── logs
+├── test
+│   ├── controllers
+│   ├── helpers
+│   ├── models
+│   └── views
 ├── package.json
 ```
 
@@ -516,7 +521,7 @@ module.exports = {
 
 ## Routes
 
-Routes are defined in `app/routes.js`. Also, any pages in `app/views/pages` will
+Routes are defined in `config/routes.js`. Also, any pages in `app/views/pages` will
 be rendered if no routes match before.
 
 Routes are a simple object with a key standing as a route or an action verb
@@ -526,7 +531,7 @@ If you want to access the `res.render` data, you can make the call with
 `application/json` header. Everything else will be rendered.
 
 ```js
-// app/routes.js
+// config/routes.js
 
 module.exports = {
   '/test': 'user#info', // default to 'get /test'

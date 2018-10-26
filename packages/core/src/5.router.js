@@ -1,6 +1,7 @@
 const BaseModule = require('./base/module');
 
 const path = require('path');
+const fs = require('fs');
 const url = require('url');
 const bounce = require('bounce');
 
@@ -54,10 +55,17 @@ class Router extends BaseModule {
 
     try {
       // eslint-disable-next-line global-require
-      this.rawRoutes = require(path.resolve('./app/routes'));
+      this.rawRoutes = require(path.resolve('./config/routes'));
     } catch (error) {
       this.rawRoutes = {};
-      pen.warn('router', 'unable to load routes from filesystem');
+
+      if (fs.existsSync(path.resolve('./app/routes.js'))) {
+        pen.warn('router', 'you should move your routes to `config/routes.js`');
+        // eslint-disable-next-line global-require
+        this.rawRoutes = require(path.resolve('./app/routes'));
+      } else {
+        pen.warn('router', 'unable to load routes from filesystem');
+      }
     }
 
     for (const key in this.rawRoutes) {
