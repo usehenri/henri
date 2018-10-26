@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.33.0](https://github.com/usehenri/henri/compare/v0.32.0...v0.33.0) (2018-10-26)
+
+
+### Features
+
+* **router:** requiring `config/routes.js`, adding deprecation msg. ([44224f5](https://github.com/usehenri/henri/commit/44224f5))
+* **testing:** adding the base for user testing ([47c8e85](https://github.com/usehenri/henri/commit/47c8e85))
+* **testing:** adding the package ([e2ec87b](https://github.com/usehenri/henri/commit/e2ec87b))
+
+
+
+
+
 # [0.32.0](https://github.com/usehenri/henri/compare/v0.31.1...v0.32.0) (2018-10-23)
 
 
