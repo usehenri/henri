@@ -14,7 +14,7 @@ const View = require('./3.view');
 const User = require('./4.user');
 const Router = require('./5.router');
 const Workers = require('./5.workers');
-const Tests = require('./7.tests');
+const Testing = require('./7.tests');
 
 const path = require('path');
 const bounce = require('bounce');
@@ -70,7 +70,7 @@ class Henri extends HenriBase {
       this.modules.add(new User());
       this.modules.add(new View());
       this.modules.add(new Workers());
-      this.modules.add(new Tests());
+      this.modules.add(new Testing());
 
       try {
         await this.modules.init();
