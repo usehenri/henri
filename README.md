@@ -80,8 +80,13 @@ The above command will create a directory structure similar to this:
 ├── config
 │   ├── default.json
 │   ├── production.json
+│   ├── routes.js
 │   └── webpack.js            <- Overload Next.js webpack settings
-└── logs
+├── test
+│   ├── controllers
+│   ├── helpers
+│   ├── models
+│   └── views
 ├── package.json
 ```
 
