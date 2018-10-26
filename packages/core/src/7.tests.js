@@ -1,5 +1,5 @@
 const BaseModule = require('./base/module');
-const jest = require('jest-cli/build/cli/index');
+const runJest = require('jest-cli/build/cli/index');
 
 /**
  * Workers management module
@@ -52,7 +52,7 @@ class Tests extends BaseModule {
       this.initialized = true;
     }
 
-    await jest.run(options);
+    await runJest.run(options);
 
     return this.name;
   }
