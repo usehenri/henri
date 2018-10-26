@@ -39,7 +39,7 @@ class Tests extends BaseModule {
     this.henri.pen.info('tests', 'running tests');
 
     const options = [
-      '--testPathPattern=/tests/',
+      '--testPathPattern=/test/',
       '--detectOpenHandles',
       '--passWithNoTests',
       //    '--coverage',
