@@ -832,10 +832,10 @@
     "@types/bson" "*"
     "@types/node" "*"
 
-"@types/mongoose@^5.2.19":
-  version "5.2.19"
-  resolved "https://registry.yarnpkg.com/@types/mongoose/-/mongoose-5.2.19.tgz#0ed6939c6087b0cd7222cce52cc847bae6969104"
-  integrity sha512-95dP7QkZ8H2QlWksExtH/QxLDjKFW0D/Rfa1S8bZDRVhXYj6U0zj2UdFqMpNIZgeLD7NRHS9lugKza3bWNIgIg==
+"@types/mongoose@^5.2.20":
+  version "5.2.20"
+  resolved "https://registry.yarnpkg.com/@types/mongoose/-/mongoose-5.2.20.tgz#a20eb5b2a9b5ad6c1621308da2ba103cda5d3463"
+  integrity sha512-EOaKGjvZtoz+iGvtbDNCnYg0WNwakB9NY2Cby2zlcGXYng22JbtSJ5fDohBXwVnN6uLxzB0X9AbP5LVbDCkUeQ==
   dependencies:
     "@types/mongodb" "*"
     "@types/node" "*"
@@ -2983,10 +2983,10 @@ eslint-plugin-import@^2.14.0:
     read-pkg-up "^2.0.0"
     resolve "^1.6.0"
 
-eslint-plugin-jest@^21.26.0:
-  version "21.26.0"
-  resolved "https://registry.yarnpkg.com/eslint-plugin-jest/-/eslint-plugin-jest-21.26.0.tgz#3375de090cdd43af1971a4a93f5d332a13c10a6d"
-  integrity sha512-zYePgbZaJsTfiJMb6XcsrrqgDpUB40AmGjjlwMZPEgVstrAsDNW8z7qQggD1lC24yR9h9VxTTb8qu6HRq3n6eg==
+eslint-plugin-jest@^21.26.1:
+  version "21.26.1"
+  resolved "https://registry.yarnpkg.com/eslint-plugin-jest/-/eslint-plugin-jest-21.26.1.tgz#73c5d6838d384fe6a9644077c27011bd99665ff2"
+  integrity sha512-utdtKV04jP8ZXnqbsrArI/7m0Bg819JYnP/f6zP3gwnU7hHGdUzlYPNW73wShVFIDmllgHnkpo49kOPNhbQwrg==
 
 eslint-plugin-jsx-a11y@^6.1.2:
   version "6.1.2"

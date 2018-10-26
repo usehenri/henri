@@ -1,0 +1,13 @@
+{
+  "name": "@usehenri/testing",
+  "version": "0.32.0",
+  "description": "henri testing utils",
+  "main": "index.js",
+  "author": "Felix-Antoine Paradis",
+  "license": "MIT",
+  "dependencies": {
+    "enzyme": "^3.7.0",
+    "jest": "^23.6.0",
+    "puppeteer": "^1.9.0"
+  }
+}
