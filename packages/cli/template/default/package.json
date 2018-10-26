@@ -9,22 +9,23 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@usehenri/disk": "latest",
     "@usehenri/react": "latest",
-    "@zeit/next-sass": "^0.2.1-canary.1",
+    "@usehenri/testing": "latest",
+    "@zeit/next-sass": "^1.0.1",
     "node-sass": "^4.9.3",
-    "react": "^16.4.2",
-    "react-dom": "^16.4.2"
+    "react": "^16.6.0",
+    "react-dom": "^16.6.0"
   },
   "devDependencies": {
-    "babel-eslint": "^7.2.3",
-    "eslint": "^4.1.1",
+    "babel-eslint": "^10.0.1",
+    "eslint": "^5.7.0",
     "eslint-config-react-app": "^2.1.0",
     "eslint-plugin-flowtype": "^2.34.1",
     "eslint-plugin-import": "^2.6.0",
-    "eslint-plugin-jsx-a11y": "^5.1.1",
+    "eslint-plugin-jsx-a11y": "^6.1.2",
     "eslint-plugin-react": "^7.1.0",
     "eslint-plugin-vue": "^5.0.0-beta.3"
   }
