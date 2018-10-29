@@ -3,7 +3,41 @@
   "globals": {
     "henri": true
   },
+
   "rules": {
-    "jsx-a11y/href-no-hash": "off"
+    "semi": "off",
+    "jsx-a11y/href-no-hash": "off",
+    "comma-dangle": "off",
+    "space-before-function-paren": "off",
+    "no-console": "warn",
+    "class-methods-use-this": "warn",
+    "accessor-pairs": "error",
+    "guard-for-in": "error",
+    "no-extra-bind": "error",
+    "prefer-promise-reject-errors": "error",
+    "vars-on-top": "warn",
+    "no-catch-shadow": "warn",
+    "global-require": "error",
+    "no-path-concat": "error",
+    "camelcase": "warn",
+    "capitalized-comments": "error",
+    "id-length": "error",
+    "lines-around-comment": ["error", { "beforeBlockComment": false }],
+    "lines-between-class-members": ["error", "always"],
+    "no-nested-ternary": "error",
+    "valid-jsdoc": "warn",
+    "padding-line-between-statements": [
+      "error",
+      { "blankLine": "always", "prev": ["const", "let", "var"], "next": "*" },
+      {
+        "blankLine": "any",
+        "prev": ["const", "let", "var"],
+        "next": ["const", "let", "var"]
+      },
+      { "blankLine": "always", "prev": "*", "next": "return" }
+    ],
+    "prefer-template": "error",
+    "sort-keys": "error",
+    "sort-vars": "error"
   }
 }

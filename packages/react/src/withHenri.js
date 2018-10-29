@@ -39,7 +39,7 @@ export default ComposedComponent => {
       }
 
       const {
-        query: { data, user, paths, localUrl },
+        query: { data, user = null, paths, localUrl },
       } = props;
 
       let composedInitialProps = {};
@@ -48,14 +48,14 @@ export default ComposedComponent => {
         composedInitialProps = await ComposedComponent.getInitialProps(ctx);
       }
 
-      return { data, user, paths, localUrl, ...composedInitialProps };
+      return { data, localUrl, paths, user, ...composedInitialProps };
     }
 
     async hydrate(data = {}) {
       axios({
+        data,
         method: 'get',
         url: document.location,
-        data,
       })
         .then(resp => {
           this.setState({ data: resp.data && resp.data.data });
@@ -68,9 +68,9 @@ export default ComposedComponent => {
     fetch = async ({ route = '/', method = 'get' }, data = {}) => {
       return new Promise((resolve, reject) => {
         axios({
+          data,
           method,
           url: route,
-          data,
         })
           .then(resp => {
             resolve(resp);
@@ -84,18 +84,18 @@ export default ComposedComponent => {
     pathFor = (path = null, params = null, plain = false) => {
       const { paths } = this.props;
       let response = {
-        route: '',
-        method: 'get',
         // We want to return an object for funcs, and string as a helper
         __proto__: {
           toString() {
             return this.route;
           },
         },
+        method: 'get',
+        route: '',
       };
 
       if (path && paths[path]) {
-        // this will render the default route with method
+        // This will render the default route with method
         if (params === null) {
           return paths[path];
         }
@@ -104,6 +104,7 @@ export default ComposedComponent => {
         if (typeof params === 'string') {
           response.route = paths[path].route.replace(':id', params);
           response.method = paths[path].method;
+
           return response.route;
         }
 
@@ -112,17 +113,21 @@ export default ComposedComponent => {
         if (params.id && params.toString()) {
           response.route = paths[path].route.replace(':id', params.toString());
           response.method = paths[path].method;
+
           return response;
         }
 
         // We might have a bunch of params, iterating...
         if (params.length > 0) {
           let route = path;
+
           Object.keys(params).map(
-            v => (route = route.replace(`:${v}`, params[v]))
+            val => (route = route.replace(`:${val}`, params[val]))
           );
+
           response.route = route;
           response.method = paths[path].method;
+
           return response;
         }
       }
@@ -150,10 +155,10 @@ export default ComposedComponent => {
     getChildContext() {
       return {
         // Contains the data passed down. Key should match names
-        hydrate: this.hydrate,
         fetch: this.fetch,
-        pathFor: this.pathFor,
         getRoute: this.getRoute,
+        hydrate: this.hydrate,
+        pathFor: this.pathFor,
         socket: socket,
       };
     }
@@ -174,11 +179,11 @@ export default ComposedComponent => {
   }
 
   WithHenri.childContextTypes = {
-    hydrate: PropTypes.func,
     fetch: PropTypes.func,
-    socket: PropTypes.func,
-    pathFor: PropTypes.func,
     getRoute: PropTypes.func,
+    hydrate: PropTypes.func,
+    pathFor: PropTypes.func,
+    socket: PropTypes.func,
   };
 
   return withRouter(WithHenri);
