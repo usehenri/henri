@@ -2,13 +2,13 @@ import React from 'react';
 import axios from 'axios';
 import PropTypes from 'prop-types';
 import { withRouter } from 'next/router';
-import ws from 'socket.io-client';
+// Import ws from 'socket.io-client';
 
 function getDisplayName(Component) {
   return Component.displayName || Component.name || 'Unknown';
 }
 
-const socket = typeof window === 'undefined' ? () => {} : ws();
+// Const socket = typeof window === 'undefined' ? () => {} : ws();
 
 export default ComposedComponent => {
   class WithHenri extends React.Component {
@@ -159,7 +159,7 @@ export default ComposedComponent => {
         getRoute: this.getRoute,
         hydrate: this.hydrate,
         pathFor: this.pathFor,
-        socket: socket,
+        //        Socket: socket,
       };
     }
 
@@ -170,7 +170,7 @@ export default ComposedComponent => {
           fetch={this.fetch}
           pathFor={this.pathFor}
           getRoute={this.getRoute}
-          socket={socket}
+          //       Socket={socket}
           {...this.props}
           data={this.state.data}
         />
