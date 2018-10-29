@@ -7,10 +7,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.5.2.tgz#f19f05314d5421fe37e74153254201a7bf00a707"
   integrity sha512-m9zXmifkZsMHZBOyxZWilMwmTlpC8x5Ty360JKTiXvlXZfBWYpsg9ZZvP/Ye+iZUh+Q+MxDLjItVTWIsfwz+8Q==
 
-"@usehenri/sequelize@^0.32.0":
-  version "0.32.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.32.0.tgz#99bf56859d39bbd8dd04858322c3a60e4dbcf182"
-  integrity sha512-ySCIhZlOTmwBbyth5uVK7SLGqKmBTkoRFRTW2Jid4nx2ACC34WTYrQgDiY+9EaEd5fUaKjXfWd8oU9RKHy/+nQ==
+"@usehenri/sequelize@^0.33.0":
+  version "0.33.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.33.0.tgz#94082c8d9301c607d89703a78c7891f196b9e55c"
+  integrity sha512-0oYNePswJQeAhZUwmjG6ah/Arge5nl4qzhAXkvS0G+08/PmFjpf73o1mvMwamNTgdBitXyl2fa3SI3UF8TxS6g==
   dependencies:
     connect-session-sequelize "^5.2.2"
     sequelize "5.0.0-beta.12"
@@ -144,10 +144,10 @@ pg-types@~1.12.1:
     postgres-date "~1.0.0"
     postgres-interval "^1.1.0"
 
-pg@^7.5.0:
-  version "7.5.0"
-  resolved "https://registry.yarnpkg.com/pg/-/pg-7.5.0.tgz#c2853bef2fcb91424ba2f649fd951ce866a84760"
-  integrity sha512-VFyAnp8xsMZp8nwZnMp7lmU5QcWDOZSI3IDNcWv6pblsiOXis5o7lD7/zzVK1Z1JTBiIDDGQAMbFMkiUzCL59A==
+pg@^7.6.0:
+  version "7.6.0"
+  resolved "https://registry.yarnpkg.com/pg/-/pg-7.6.0.tgz#0c9ecaf0ce6f3c7e3c68ce8f621df79e741a89e3"
+  integrity sha512-INUjsobS7O0Slad6fVlSSSVpMd5wozwtdSrWL5/JfEGYCWtPwgka0uQOf2KCo7QbWUmwefcuNQtzijeztDquQg==
   dependencies:
     buffer-writer "1.0.1"
     packet-reader "0.3.1"
