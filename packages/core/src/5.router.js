@@ -326,7 +326,7 @@ class Router extends BaseModule {
         localUrl: this.henri.server.url,
         paths: this._roles['guest'],
         query: req.query,
-        user: req.user || {},
+        user: req.user || null,
       };
 
       delete res.render;
@@ -378,7 +378,7 @@ class Router extends BaseModule {
           localUrl: this.henri.server.url,
           paths: allowedPaths,
           query: req.query,
-          user: req.user || {},
+          user: req.user || null,
         };
 
         if (this.henri.graphql) {
@@ -409,7 +409,7 @@ class Router extends BaseModule {
           localUrl: this.henri.server.url,
           paths: allowedPaths,
           query: req.query,
-          user: req.user || {},
+          user: req.user || null,
         };
 
         if (this.henri.graphql) {
