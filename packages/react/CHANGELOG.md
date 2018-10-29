@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.33.1](https://github.com/usehenri/henri/compare/v0.33.0...v0.33.1) (2018-10-29)
+
+
+### Bug Fixes
+
+* **react:** user should be null ([789af99](https://github.com/usehenri/henri/commit/789af99))
+
+
+
+
+
 # [0.33.0](https://github.com/usehenri/henri/compare/v0.32.0...v0.33.0) (2018-10-26)
 
 
