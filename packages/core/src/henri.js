@@ -46,7 +46,7 @@ class Henri extends HenriBase {
     this.changeDirectory();
 
     /** Warn if Henri is started with a restricted run level */
-    if (this.runlevel < 7) {
+    if (this.runlevel < 6) {
       this.pen.warn('henri', 'running at limited level', this.runlevel);
     }
   }
