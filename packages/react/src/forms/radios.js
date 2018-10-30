@@ -7,7 +7,7 @@ const Radios = (
     className = '',
     baseClassName = 'form-group',
     errorClassName = 'help-block m-b-none',
-    errorMsg,
+    errorMsg = null,
     label = '',
     name,
     group,
@@ -21,8 +21,11 @@ const Radios = (
 ) => {
   !context._henriForm &&
     console.warn('Input component used outside henri form.');
+
   const hasError = !!context.errors[name];
+
   context.addSanitizer(name, sanitation);
+
   return (
     <div className={`${baseClassName} ${hasError && 'has-error'}`}>
       <label>
@@ -35,38 +38,39 @@ const Radios = (
           className={className}
           required={required}
           disabled={disabled}
-          onChange={e => context.handleChange(e, validation, sanitation)}
+          onChange={elem => context.handleChange(elem, validation, sanitation)}
         />{' '}
         {label || children}
-        {hasError && (
-          <span className={errorClassName}>
-            {errorMsg[context.errors[name]]}
-          </span>
-        )}
+        {hasError &&
+          errorMsg && (
+            <span className={errorClassName}>
+              {errorMsg[context.errors[name]]}
+            </span>
+          )}
       </label>
     </div>
   );
 };
 
 Radios.propTypes = {
-  name: PropTypes.string.isRequired,
-  type: PropTypes.string,
-  label: PropTypes.string,
-  required: PropTypes.bool,
-  placeholder: PropTypes.string,
-  validation: PropTypes.object,
   errorMsg: PropTypes.object,
+  label: PropTypes.string,
+  name: PropTypes.string.isRequired,
+  placeholder: PropTypes.string,
+  required: PropTypes.bool,
   sanitation: PropTypes.object,
+  type: PropTypes.string,
+  validation: PropTypes.object,
 };
 
 Radios.contextTypes = {
+  _henriForm: PropTypes.bool,
+  addSanitizer: PropTypes.func,
   data: PropTypes.object,
   errors: PropTypes.object,
-  modified: PropTypes.bool,
   handleChange: PropTypes.func,
   handleSubmit: PropTypes.func,
-  addSanitizer: PropTypes.func,
-  _henriForm: PropTypes.bool,
+  modified: PropTypes.bool,
 };
 
 export default Radios;
