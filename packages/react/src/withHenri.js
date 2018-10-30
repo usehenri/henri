@@ -111,7 +111,10 @@ export default ComposedComponent => {
         // If we use only typeof (string), on node, it is parsed as a
         // ObjectID object, therefor missing the last if. This is for SSR or _ids
         if (params.id && params.toString()) {
-          response.route = paths[path].route.replace(':id', params.toString());
+          response.route = paths[path].route.replace(
+            ':id',
+            params.id.toString()
+          );
           response.method = paths[path].method;
 
           return response;
