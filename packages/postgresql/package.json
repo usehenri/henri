@@ -1,12 +1,12 @@
 {
   "name": "@usehenri/postgresql",
-  "version": "0.33.0",
+  "version": "0.34.0",
   "description": "henri postgresql database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/sequelize": "^0.33.0",
+    "@usehenri/sequelize": "^0.34.0",
     "pg": "^7.6.0",
     "pg-hstore": "^2.3.2"
   }

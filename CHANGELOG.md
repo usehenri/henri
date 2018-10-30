@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.34.0](https://github.com/usehenri/henri/compare/v0.33.1...v0.34.0) (2018-10-30)
+
+
+### Bug Fixes
+
+* **react:** prevent error when radio buttons don't have errors... ([c103aa0](https://github.com/usehenri/henri/commit/c103aa0))
+* **websocket:** disable websocket client-side until a good solution is available ([121c17d](https://github.com/usehenri/henri/commit/121c17d))
+
+
+### Features
+
+* **router:** name middlewares ([74c700c](https://github.com/usehenri/henri/commit/74c700c))
+* **router:** on demand routes status (press U or R in console) ([4fb0791](https://github.com/usehenri/henri/commit/4fb0791))
+
+
+
+
+
 ## [0.33.1](https://github.com/usehenri/henri/compare/v0.33.0...v0.33.1) (2018-10-29)
 
 

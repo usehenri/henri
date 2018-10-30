@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.34.0](https://github.com/usehenri/henri/compare/v0.33.1...v0.34.0) (2018-10-30)
+
+
+### Features
+
+* **router:** name middlewares ([74c700c](https://github.com/usehenri/henri/commit/74c700c))
+* **router:** on demand routes status (press U or R in console) ([4fb0791](https://github.com/usehenri/henri/commit/4fb0791))
+
+
+
+
+
 ## [0.33.1](https://github.com/usehenri/henri/compare/v0.33.0...v0.33.1) (2018-10-29)
 
 
