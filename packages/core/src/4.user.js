@@ -216,14 +216,14 @@ class User extends BaseModule {
       this.henri.server.app.use(passport.session());
 
       /* istanbul ignore next */
-      this.henri.addMiddleware(app => {
+      this.henri.addMiddleware('login', app => {
         app.post('/login', passport.authenticate('local'), (req, res) =>
           res.send('authenticated')
         );
       });
 
       /* istanbul ignore next */
-      this.henri.addMiddleware(app => {
+      this.henri.addMiddleware('logout', app => {
         app.get('/logout', function(req, res) {
           pen.info('user', 'Logging out', req.user);
           req.logout();

@@ -52,14 +52,17 @@ class Graphql extends BaseModule {
       this.endpoint = this.henri.config.get('graphql');
     }
 
-    this.henri.addMiddleware(app => {
+    this.henri.addMiddleware('graphql', app => {
       if (this.schema !== null) {
         const server = new ApolloServer({
+          context: ctx => {
+            return { ctx };
+          },
           path: this.endpoint,
           schema: this.schema,
         });
 
-        server.applyMiddleware({ app });
+        setTimeout(() => server.applyMiddleware({ app }), 700);
       }
     });
 

@@ -142,10 +142,15 @@ class Henri extends HenriBase {
    * @return {boolean} success or not
    * @memberof Henri
    */
-  addMiddleware(func) {
-    this._middlewares.push(func);
+  addMiddleware(name, func) {
+    if (typeof func === 'function') {
+      this._middlewares.push({ func, name });
 
-    return true;
+      return true;
+    }
+    this.pen.error('middleware', `${name} is not a function (${typeof func})`);
+
+    return false;
   }
 
   /**
