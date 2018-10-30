@@ -26,8 +26,9 @@ class Router extends BaseModule {
     this._middlewares = [];
     this._paths = {};
     this._roles = {};
+    this._results = { loaded: [], unknown: [] };
+    this._stats = { failed: 0, good: 0 };
 
-    this.stats = { failed: 0, good: 0 };
     this.handler = null;
     this.activeRoutes = new Map();
     this.rawRoutes = {};
@@ -90,22 +91,37 @@ class Router extends BaseModule {
           });
           const [name, action] = controller.split('#');
 
-          pen.info(
+          this._results.loaded.push([
             'router',
             key,
             controller,
             `success${(roles && ' with roles') || ''}`,
-            `${action}_${name}_path`
-          );
+            `${action}_${name}_path`,
+          ]);
 
-          this.stats.good++;
+          this._stats.good++;
         } else {
           this.register({ opts: this.routes[key], route, verb });
-          pen.error('router', key, controller, 'unknown');
-          this.stats.failed++;
+
+          this._results.unknown.push(['router', key, controller, 'unknown']);
+
+          this._stats.failed++;
         }
       }
     }
+
+    pen.info(
+      'router',
+      `${this._stats.good} route${
+        this._stats.good > 0 ? 's' : ''
+      } loaded successfully`,
+      'press R to see a list'
+    );
+    pen.error(
+      'router',
+      `${this._stats.failed} route${this._stats.failed > 0 ? 's' : ''} failed`,
+      'press U to print a list'
+    );
 
     /* istanbul ignore next */
     if (process.env.NODE_ENV !== 'production') {
@@ -130,7 +146,9 @@ class Router extends BaseModule {
   async reload() {
     this._paths = {};
     this._roles = {};
-    this.stats = { failed: 0, good: 0 };
+    this._results = { loaded: [], unknown: [] };
+    this._stats = { failed: 0, good: 0 };
+
     this.handler = null;
     this.activeRoutes = new Map();
     this.rawRoutes = {};
@@ -215,8 +233,6 @@ class Router extends BaseModule {
 
     if (fn === false) {
       if (!this.henri.isProduction) {
-        this.henri.pen.error('router', verb, route, controller);
-
         return this.handler[verb](route, (req, res) =>
           res.boom.notImplemented('Controller not found', {
             method: verb,
@@ -317,7 +333,18 @@ class Router extends BaseModule {
    */
   middlewares() {
     if (this.henri._middlewares.length > 0) {
-      this.henri._middlewares.map(func => func(this.handler));
+      let middlewaresLoaded = [];
+
+      this.henri._middlewares.map(middle => {
+        middlewaresLoaded.push(middle.name);
+        middle.func(this.handler);
+      });
+
+      this.henri.pen.info(
+        'middleware',
+        `${middlewaresLoaded.join('/')}`,
+        'loaded'
+      );
     }
 
     this.handler.use((req, res, cb) => {

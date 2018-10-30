@@ -99,6 +99,32 @@ function keyboardShortcuts() {
     const chr = data.toString().charCodeAt(0);
 
     const actions = {
+      '114': async () => {
+        const loaded = henri.router._results.loaded;
+        const num = loaded.length;
+
+        if (num > 0) {
+          clearConsole();
+          henri.pen.info('router', `loaded route${num > 1 ? 's' : ''}`);
+          loaded.map(val => henri.pen.info(...val));
+          henri.pen.info('router', 'total loaded', num);
+        } else {
+          henri.pen.info('router', 'no routes to show...');
+        }
+      },
+      '117': async () => {
+        const unknown = henri.router._results.unknown;
+        const num = unknown.length;
+
+        if (num > 0) {
+          clearConsole();
+          henri.pen.info('router', `unknown route${num > 1 ? 's' : ''}`);
+          unknown.map(val => henri.pen.error(...val));
+          henri.pen.info('router', 'total unknown', num);
+        } else {
+          henri.pen.info('router', 'no unknown routes to show...');
+        }
+      },
       '14': () => {
         open();
       },
