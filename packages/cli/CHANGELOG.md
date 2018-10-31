@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.34.2](https://github.com/usehenri/henri/compare/v0.34.1...v0.34.2) (2018-10-31)
+
+
+### Features
+
+* **cli:** adding build command to CLI ([d805bca](https://github.com/usehenri/henri/commit/d805bca))
+
+
+
+
+
 ## [0.34.1](https://github.com/usehenri/henri/compare/v0.34.0...v0.34.1) (2018-10-31)
 
 **Note:** Version bump only for package @usehenri/cli
