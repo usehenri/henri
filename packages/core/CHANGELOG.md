@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.34.1](https://github.com/usehenri/henri/compare/v0.34.0...v0.34.1) (2018-10-31)
+
+
+### Bug Fixes
+
+* **henri:** lower limited runlevel warning ([5725183](https://github.com/usehenri/henri/commit/5725183))
+
+
+
+
+
 # [0.34.0](https://github.com/usehenri/henri/compare/v0.33.1...v0.34.0) (2018-10-30)
 
 

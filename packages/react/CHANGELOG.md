@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.34.1](https://github.com/usehenri/henri/compare/v0.34.0...v0.34.1) (2018-10-31)
+
+
+### Bug Fixes
+
+* **react:** pathFor was requiring an object, and converting this object toString ([d3f7a14](https://github.com/usehenri/henri/commit/d3f7a14))
+
+
+
+
+
 # [0.34.0](https://github.com/usehenri/henri/compare/v0.33.1...v0.34.0) (2018-10-30)
 
 
