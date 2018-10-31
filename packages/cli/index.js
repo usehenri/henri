@@ -30,6 +30,7 @@ module.exports = (pkg, args) => {
 
   switch (command) {
     case 'about':
+    case 'build':
     case 'clean':
     case 'console':
     case 'g':

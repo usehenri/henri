@@ -6,8 +6,10 @@ let builder;
 
 // This code has moved in NextJS 6.1.0
 try {
+  // eslint-disable-next-line global-require
   builder = require(path.resolve(require.resolve('next'), '../build')).default;
-} catch (_) {
+} catch (err) {
+  // eslint-disable-next-line global-require
   builder = require(path.resolve(require.resolve('next'), '../../build'))
     .default;
 }
@@ -18,6 +20,7 @@ class ReactEngine {
   constructor(thisHenri) {
     this.instance = null;
     this.henri = thisHenri;
+    // eslint-disable-next-line global-require
     this.conf = thisHenri.isTest ? {} : require('./conf');
     this.renderer = thisHenri.config.get('renderer').toLowerCase();
 
@@ -27,6 +30,7 @@ class ReactEngine {
     this.fallback = this.fallback.bind(this);
     this.render = this.render.bind(this);
   }
+
   init() {
     const {
       utils: { checkPackages },
@@ -111,15 +115,18 @@ class ReactEngine {
 
   async prepare() {
     const { pen } = this.henri;
+    const BID = path.resolve(this.henri.cwd(), './app/views/.next/BUILD_ID');
 
     if (this.henri.isProduction) {
-      if (
-        !fs.existsSync(
-          path.resolve(this.henri.cwd(), './app/views/.next/BUILD_ID')
-        ) ||
-        process.env.FORCE_BUILD === 'true'
-      ) {
+      if (!fs.existsSync(BID) || process.env.FORCE_BUILD === 'true') {
         await this.build();
+
+        if (process.env.CMD_BUILD === 'true') {
+          const buildId = fs.readFileSync(BID);
+
+          pen.info('react', `build ${buildId} successful`, 'exiting');
+          process.exit(0);
+        }
       } else {
         pen.info('view', 'reusing production build');
       }
@@ -128,9 +135,9 @@ class ReactEngine {
     pen.info('view', 'starting next.js instance...');
 
     this.instance = next({
-      dir: path.resolve(this.henri.cwd(), './app/views'),
-      dev: !this.henri.isProduction,
       conf: this.conf,
+      dev: !this.henri.isProduction,
+      dir: path.resolve(this.henri.cwd(), './app/views'),
     });
 
     return this.instance.prepare();
@@ -138,6 +145,7 @@ class ReactEngine {
 
   fallback(router) {
     const handle = this.instance.getRequestHandler();
+
     router.get('*', (req, res) => {
       return handle(req, res);
     });
