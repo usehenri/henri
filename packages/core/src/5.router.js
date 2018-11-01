@@ -285,8 +285,6 @@ class Router extends BaseModule {
           req.user &&
           (await req.user.hasRole(roles))
         ) {
-          henri.pen.info('router', 'got through');
-
           return next();
         } else {
           const reas = req.user && (await req.user.hasRole(roles));
