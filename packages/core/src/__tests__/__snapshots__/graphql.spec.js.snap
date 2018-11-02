@@ -19,6 +19,12 @@ Object {
 
 exports[`graphql should match snapshot 1`] = `
 Graphql {
+  "ApolloError": [Function],
+  "AuthenticationError": [Function],
+  "ForbiddenError": [Function],
+  "SyntaxError": [Function],
+  "UserInputError": [Function],
+  "ValidationError": [Function],
   "active": false,
   "consoleOnly": false,
   "endpoint": "/_henri/gql",
@@ -38,6 +44,7 @@ Graphql {
   "schema": null,
   "setup": [Function],
   "start": [Function],
+  "toApolloError": [Function],
   "types": null,
   "typesList": Array [],
 }

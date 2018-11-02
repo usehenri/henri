@@ -241,6 +241,7 @@ class Model extends BaseModule {
         );
         debug('init done');
       } catch (error) {
+        this.henri.pen.error('model', 'error', error);
         bounce.rethrow(error, 'system');
       }
       resolve(this.name);

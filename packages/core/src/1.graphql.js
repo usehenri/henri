@@ -1,7 +1,16 @@
 const BaseModule = require('./base/module');
 const { mergeTypes, mergeResolvers } = require('merge-graphql-schemas');
 const { makeExecutableSchema } = require('graphql-tools');
-const { ApolloServer } = require('apollo-server-express');
+const {
+  ApolloServer,
+  ApolloError,
+  toApolloError,
+  SyntaxError,
+  ValidationError,
+  AuthenticationError,
+  ForbiddenError,
+  UserInputError,
+} = require('apollo-server-express');
 const { runQuery } = require('apollo-server-core');
 
 /**
@@ -37,6 +46,14 @@ class Graphql extends BaseModule {
     this.merge = this.merge.bind(this);
     this.run = this.run.bind(this);
     this.reload = this.reload.bind(this);
+
+    this.ApolloError = ApolloError;
+    this.toApolloError = toApolloError;
+    this.SyntaxError = SyntaxError;
+    this.ValidationError = ValidationError;
+    this.AuthenticationError = AuthenticationError;
+    this.ForbiddenError = ForbiddenError;
+    this.UserInputError = UserInputError;
   }
 
   /**
@@ -62,12 +79,12 @@ class Graphql extends BaseModule {
           schema: this.schema,
         });
 
-        setTimeout(() => server.applyMiddleware({ app }), 700);
+        server.applyMiddleware({ app });
       }
     });
 
     if (!this.henri.isProduction) {
-      this.henri.pen.info('graphql', 'started graphiql browser');
+      this.henri.pen.info('graphql', 'graphql playground started');
     }
 
     return this.name;
@@ -120,10 +137,21 @@ class Graphql extends BaseModule {
 
     if (should) {
       this.active = true;
-      this.schema = makeExecutableSchema({
-        resolvers: this.resolvers,
-        typeDefs: this.types,
-      });
+      try {
+        this.schema = makeExecutableSchema({
+          resolvers: this.resolvers,
+          typeDefs: this.types,
+        });
+        this.henri.pen.info('graphql', 'schema', 'valid');
+      } catch (error) {
+        this.henri.pen.error('graphql', error);
+        this.henri.pen.error(
+          'graphql',
+          `THE GRAPHQL SERVICE WON'T BE AVAILABLE`
+        );
+        this.henri.pen.error('graphql', `UNTIL YOU FIX THIS ERROR`);
+        this.active = false;
+      }
     } else {
       this.active = false;
 
