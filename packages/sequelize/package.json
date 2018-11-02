@@ -6,7 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "connect-session-sequelize": "^5.2.2",
+    "connect-session-sequelize": "^6.0.0",
     "sequelize": "5.0.0-beta.12"
   }
 }
