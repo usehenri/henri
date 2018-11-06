@@ -25,10 +25,10 @@ cls-bluebird@^2.1.0:
     is-bluebird "^1.0.2"
     shimmer "^1.1.0"
 
-connect-session-sequelize@^5.2.2:
-  version "5.2.2"
-  resolved "https://registry.yarnpkg.com/connect-session-sequelize/-/connect-session-sequelize-5.2.2.tgz#e249d5ac4fbe45a1f56e4a489fe8ecb31ac37349"
-  integrity sha512-XuRO8bx3pkpunnX+UbKiMqHdR7Bckl4pYDgAm4bdqavvUVL+LBBljkeRe9fWJghAAd3zQhTpvXpL6CoxAfXkgA==
+connect-session-sequelize@^6.0.0:
+  version "6.0.0"
+  resolved "https://registry.yarnpkg.com/connect-session-sequelize/-/connect-session-sequelize-6.0.0.tgz#afd4456c65d92c9b6b955fdff00afff795e8a420"
+  integrity sha512-XC71xJd5rqObdL7700S/qFD+gSRA4o6WVJAyFY0Vjah73id5bBElM0SHQR1ME5Bxrt4JL8alvggseNDVTlKyxA==
   dependencies:
     debug "^3.1.0"
     deep-equal "^1.0.1"

@@ -7,10 +7,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.5.2.tgz#f19f05314d5421fe37e74153254201a7bf00a707"
   integrity sha512-m9zXmifkZsMHZBOyxZWilMwmTlpC8x5Ty360JKTiXvlXZfBWYpsg9ZZvP/Ye+iZUh+Q+MxDLjItVTWIsfwz+8Q==
 
-"@usehenri/sequelize@^0.33.0":
-  version "0.33.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.33.0.tgz#94082c8d9301c607d89703a78c7891f196b9e55c"
-  integrity sha512-0oYNePswJQeAhZUwmjG6ah/Arge5nl4qzhAXkvS0G+08/PmFjpf73o1mvMwamNTgdBitXyl2fa3SI3UF8TxS6g==
+"@usehenri/sequelize@^0.34.0":
+  version "0.34.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.34.0.tgz#7115686ee29fb5ab49ce768b9d78a9c550bfc5cc"
+  integrity sha512-RC2+fTeJSbburO/xqvJbZVJr/ncw2assoDNCAxsCojvP0Bc7NQw4+P/r2XMeQXmZXOUJFc39ASmPP4GrmP/BfA==
   dependencies:
     connect-session-sequelize "^5.2.2"
     sequelize "5.0.0-beta.12"
