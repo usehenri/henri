@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.34.3](https://github.com/usehenri/henri/compare/v0.34.2...v0.34.3) (2018-11-06)
+
+
+### Bug Fixes
+
+* **router:** remove debug message ([f76ad37](https://github.com/usehenri/henri/commit/f76ad37))
+
+
+### Features
+
+* **graphql:** warn on graphql/models schema errors ([4a1509d](https://github.com/usehenri/henri/commit/4a1509d)), closes [#55](https://github.com/usehenri/henri/issues/55) [#44](https://github.com/usehenri/henri/issues/44)
+
+
+
+
+
 ## [0.34.1](https://github.com/usehenri/henri/compare/v0.34.0...v0.34.1) (2018-10-31)
 
 
