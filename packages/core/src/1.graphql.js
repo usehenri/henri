@@ -11,7 +11,6 @@ const {
   ForbiddenError,
   UserInputError,
 } = require('apollo-server-express');
-const { runQuery } = require('apollo-server-core');
 
 /**
  * GraphQL module
@@ -41,6 +40,8 @@ class Graphql extends BaseModule {
     this.endpoint = '/_henri/gql';
     this.active = false;
 
+    this.graphqlServer = null;
+
     this.init = this.init.bind(this);
     this.extract = this.extract.bind(this);
     this.merge = this.merge.bind(this);
@@ -69,19 +70,19 @@ class Graphql extends BaseModule {
       this.endpoint = this.henri.config.get('graphql');
     }
 
-    this.henri.addMiddleware('graphql', app => {
-      if (this.schema !== null) {
-        const server = new ApolloServer({
-          context: ctx => {
-            return { ctx };
-          },
-          path: this.endpoint,
-          schema: this.schema,
-        });
+    if (this.schema !== null) {
+      this.graphqlServer = new ApolloServer({
+        context: ctx => {
+          return { ctx };
+        },
+        path: this.endpoint,
+        schema: this.schema,
+      });
 
-        server.applyMiddleware({ app });
-      }
-    });
+      this.henri.addMiddleware('graphql', app => {
+        this.graphqlServer.applyMiddleware({ app });
+      });
+    }
 
     if (!this.henri.isProduction) {
       this.henri.pen.info('graphql', 'graphql playground started');
@@ -166,17 +167,15 @@ class Graphql extends BaseModule {
    *
    * @async
    * @param {Graphql} [query=`{ No query }`]  the graphql query
-   * @param {?object} [context={}]  optional context
    * @returns {(Promise<GraphQLResponse> | "No graphql schema found.")} value
    * @memberof Graphql
    */
-  async run(query = `{ No query }`, context = {}) {
+  async run(query = `{ No query }`) {
     if (!this.schema) {
       return 'No graphql schema found.';
     }
-    const { schema } = this;
 
-    return runQuery({ context, queryString: query, schema });
+    return this.graphqlServer.executeOperation({ query });
   }
 
   /**

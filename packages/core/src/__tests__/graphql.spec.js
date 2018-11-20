@@ -82,6 +82,8 @@ describe('graphql', () => {
       expect(this.henri.graphql.active).toBeFalsy();
 
       this.henri.graphql.merge();
+      this.henri.graphql.init();
+
       expect(this.henri.graphql.schema).toBeTruthy();
       expect(this.henri.graphql.active).toBeTruthy();
 
@@ -97,6 +99,8 @@ describe('graphql', () => {
       expect(this.henri.graphql.active).toBeFalsy();
 
       this.henri.graphql.merge();
+
+      expect(this.henri.graphql.schema).toBeNull();
 
       expect(this.henri.graphql.active).toBeFalsy();
 

@@ -14,6 +14,13 @@ Object {
       },
     ],
   },
+  "errors": undefined,
+  "extensions": undefined,
+  "http": Object {
+    "headers": Headers {
+      Symbol(map): Object {},
+    },
+  },
 }
 `;
 
@@ -29,6 +36,7 @@ Graphql {
   "consoleOnly": false,
   "endpoint": "/_henri/gql",
   "extract": [Function],
+  "graphqlServer": null,
   "henri": null,
   "info": [Function],
   "init": [Function],
