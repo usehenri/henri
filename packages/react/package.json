@@ -27,11 +27,11 @@
     "withHenri.js"
   ],
   "dependencies": {
-    "@babel/core": "7.1.2",
+    "@babel/core": "7.1.6",
     "@babel/plugin-proposal-class-properties": "7.1.0",
     "@babel/plugin-proposal-object-rest-spread": "7.0.0",
     "@babel/plugin-transform-runtime": "7.1.0",
-    "@babel/preset-env": "7.1.0",
+    "@babel/preset-env": "7.1.6",
     "@babel/preset-react": "7.0.0",
     "axios": "^0.18.0",
     "babel-core": "7.0.0-bridge.0",
@@ -39,7 +39,7 @@
     "babel-plugin-module-resolver": "3.1.1",
     "babel-plugin-wrap-in-js": "1.1.1",
     "cache-loader": "^1.2.5",
-    "caniuse-lite": "^1.0.30000906",
+    "caniuse-lite": "^1.0.30000909",
     "cssnano": "^4.1.7",
     "debug": "^4.1.0",
     "module-alias": "^2.1.0",
@@ -52,6 +52,6 @@
     "sass-loader": "^7.1.0",
     "shallowequal": "^1.1.0",
     "socket.io-client": "^2.1.1",
-    "validator": "^10.8.0"
+    "validator": "^10.9.0"
   }
 }
