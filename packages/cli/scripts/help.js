@@ -3,7 +3,7 @@ const { commands, helpHeader } = require('./utils');
 /**
  * Show help
  *
- * @param {any} args CLI arguements
+ * @param {void} args CLI arguements
  * @returns {void}
  */
 const main = () => {

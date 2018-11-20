@@ -1,3 +1,5 @@
+// @ts-check
+
 const spawn = require('cross-spawn');
 const chalk = require('chalk');
 const updateNotifier = require('update-notifier');
