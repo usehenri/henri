@@ -1,6 +1,9 @@
 {
-  "extends": ["react-app", "plugin:vue/recommended"],
+  "extends": ["react-app"],
   "globals": {
     "henri": true
+  },
+  "rules": {
+    "jsx-a11y/href-no-hash": "off"
   }
 }
