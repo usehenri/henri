@@ -492,10 +492,10 @@ waterline-utils@^1.3.7:
     flaverr "^1.1.1"
     fs-extra "0.30.0"
 
-waterline@^0.13.5:
-  version "0.13.5"
-  resolved "https://registry.yarnpkg.com/waterline/-/waterline-0.13.5.tgz#14fde1ef47bb214c9f44dd30db5c680dccfbbaab"
-  integrity sha512-P0hcoC/jM8E2H6C69nU4ExSsaXiy8J88O5KTB/64JW1HRdkC3w5qWdQ++FJ4PBFLuUumQloZ7X25D0Ub2Eh6AA==
+waterline@^0.13.6:
+  version "0.13.6"
+  resolved "https://registry.yarnpkg.com/waterline/-/waterline-0.13.6.tgz#37f8a365a66a970c7446e4ae6910306d9b77eeae"
+  integrity sha512-FnJqjGzhwX2vnk2GPa4SsME28zqDdf8PZzXjbkiBpb5flE4AOl/rgxB8OuG7wXBRKKQtG0hqvJIsJwdoWFdXJw==
   dependencies:
     "@sailshq/lodash" "^3.10.2"
     anchor "^1.2.0"
