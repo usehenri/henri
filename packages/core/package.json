@@ -9,7 +9,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "apollo-server-express": "^2.2.5",
+    "apollo-server-express": "^2.3.0",
     "bcrypt-nodejs": "^0.0.3",
     "bounce": "^1.2.3",
     "callsite": "^1.0.0",
@@ -34,7 +34,7 @@
     "jest-cli": "^23.6.0",
     "lodash": "^4.17.11",
     "merge-graphql-schemas": "^1.5.8",
-    "moment": "^2.22.2",
+    "moment": "^2.23.0",
     "node-notifier": "^5.3.0",
     "nodemailer": "^4.7.0",
     "passport": "^0.4.0",
@@ -45,9 +45,9 @@
     "socket.io": "^2.2.0",
     "string-width": "^2.1.1",
     "validator": "^10.9.0",
-    "webpack": "^4.26.1"
+    "webpack": "^4.27.1"
   },
   "devDependencies": {
-    "@types/validator": "^9.4.3"
+    "@types/validator": "^9.4.4"
   }
 }
