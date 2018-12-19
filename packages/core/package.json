@@ -43,11 +43,11 @@
     "react-dev-utils": "^6.1.1",
     "server-timings": "^2.0.1",
     "socket.io": "^2.2.0",
-    "string-width": "^2.1.1",
+    "string-width": "^3.0.0",
     "validator": "^10.9.0",
     "webpack": "^4.27.1"
   },
   "devDependencies": {
-    "@types/validator": "^9.4.4"
+    "@types/validator": "^10.9.0"
   }
 }
