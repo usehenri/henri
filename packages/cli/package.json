@@ -7,15 +7,15 @@
   "license": "MIT",
   "dependencies": {
     "@usehenri/core": "^0.34.4-alpha.1",
-    "chalk": "^2.4.1",
+    "chalk": "^2.4.2",
     "cross-spawn": "^6.0.4",
     "fs-extra": "^7.0.1",
     "handlebars": "^4.0.12",
     "inquirer": "^6.2.1",
     "minimist": "^1.2.0",
     "ora": "^3.0.0",
-    "prettier": "^1.15.3",
-    "rimraf": "^2.6.2",
+    "prettier": "^1.16.1",
+    "rimraf": "^2.6.3",
     "update-notifier": "^2.5.0"
   },
   "commands": [

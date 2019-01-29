@@ -7,6 +7,6 @@
   "license": "MIT",
   "dependencies": {
     "@usehenri/sequelize": "^0.34.3",
-    "tedious": "^3.0.1"
+    "tedious": "^4.1.3"
   }
 }

@@ -7,7 +7,7 @@
   "license": "MIT",
   "dependencies": {
     "@usehenri/sequelize": "^0.34.3",
-    "pg": "^7.7.1",
+    "pg": "^7.8.0",
     "pg-hstore": "^2.3.2"
   }
 }
