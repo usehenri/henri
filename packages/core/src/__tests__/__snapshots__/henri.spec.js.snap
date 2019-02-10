@@ -96,6 +96,7 @@ Henri {
   "validator": Object {
     "blacklist": [Function],
     "contains": [Function],
+    "default": [Circular],
     "equals": [Function],
     "escape": [Function],
     "isAfter": [Function],
@@ -321,6 +322,7 @@ Henri {
       "en-GB",
       "en-GH",
       "en-HK",
+      "en-IE",
       "en-IN",
       "en-KE",
       "en-MU",
@@ -422,6 +424,7 @@ Henri {
       "SK",
       "TN",
       "TW",
+      "UA",
       "US",
       "ZA",
       "ZM",
@@ -445,7 +448,7 @@ Henri {
     "toString": [Function],
     "trim": [Function],
     "unescape": [Function],
-    "version": "10.9.0",
+    "version": "10.11.0",
     "whitelist": [Function],
   },
 }
