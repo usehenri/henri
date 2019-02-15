@@ -7,7 +7,7 @@
   "license": "MIT",
   "dependencies": {
     "enzyme": "^3.8.0",
-    "jest": "^23.6.0",
-    "puppeteer": "^1.11.0"
+    "jest": "^24.1.0",
+    "puppeteer": "^1.12.2"
   }
 }

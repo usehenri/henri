@@ -429,10 +429,10 @@ rttc@~9.3.0:
   dependencies:
     lodash "3.8.0"
 
-sails-disk@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/sails-disk/-/sails-disk-1.0.1.tgz#2288975db2007f50caa5e80f65ec61981810dbda"
-  integrity sha512-btd2wNNJenvhJ3NjzH/pT8USGx/lX+ieHY95epOdL7zoWQZpRD8CMivNnpra4DWfuiXPMR83WZ0Q0nSOmnSrqw==
+sails-disk@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/sails-disk/-/sails-disk-1.1.0.tgz#dd226d61f4191afe78c8da4cd4314afaf69d9aae"
+  integrity sha512-V/owLvTiMu0/bcx8NQELML1lLkbAPcnrbO1XHsbGZTLUGbu+EsWQXSwHUxW5twgvmpNJ1rlpEq6GnhSyZyfcvA==
   dependencies:
     "@sailshq/lodash" "^3.10.2"
     async "2.0.1"
