@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/mssql",
-  "version": "0.34.4-alpha.0",
+  "version": "0.34.4-alpha.2",
   "description": "henri mssql database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
