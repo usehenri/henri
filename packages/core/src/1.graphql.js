@@ -144,6 +144,11 @@ class Graphql extends BaseModule {
           typeDefs: this.types,
         });
         this.henri.pen.info('graphql', 'schema', 'valid');
+        if (!this.graphqlServer) {
+          this.init();
+        } else {
+          this.graphqlServer.schema = this.schema;
+        }
       } catch (error) {
         this.henri.pen.error('graphql', error);
         this.henri.pen.error(
