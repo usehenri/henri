@@ -33,7 +33,7 @@ class Tests extends BaseModule {
    *
    * @async
    * @returns {!string} The name of the module
-   * @memberof Workers
+   * @memberof Tests
    */
   async init() {
     this.henri.pen.info('tests', 'running tests');
