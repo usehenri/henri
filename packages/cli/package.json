@@ -13,7 +13,7 @@
     "handlebars": "^4.1.0",
     "inquirer": "^6.2.2",
     "minimist": "^1.2.0",
-    "ora": "^3.1.0",
+    "ora": "^3.2.0",
     "prettier": "^1.16.4",
     "rimraf": "^2.6.3",
     "update-notifier": "^2.5.0"

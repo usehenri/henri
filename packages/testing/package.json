@@ -6,8 +6,8 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "enzyme": "^3.8.0",
-    "jest": "^24.1.0",
-    "puppeteer": "^1.12.2"
+    "enzyme": "^3.9.0",
+    "jest": "^24.3.0",
+    "puppeteer": "^1.13.0"
   }
 }
