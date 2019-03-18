@@ -10,7 +10,7 @@
     "chalk": "^2.4.2",
     "cross-spawn": "^6.0.4",
     "fs-extra": "^7.0.1",
-    "handlebars": "^4.1.0",
+    "handlebars": "^4.1.1",
     "inquirer": "^6.2.2",
     "minimist": "^1.2.0",
     "ora": "^3.2.0",

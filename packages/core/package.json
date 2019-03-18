@@ -27,7 +27,7 @@
     "glob": "^7.1.3",
     "graphql": "git://github.com/graphql/graphql-js.git#npm",
     "graphql-tools": "^4.0.4",
-    "handlebars": "^4.1.0",
+    "handlebars": "^4.1.1",
     "include-all": "^4.0.3",
     "inquirer": "^6.2.2",
     "isomorphic-fetch": "^2.2.1",
@@ -43,7 +43,7 @@
     "react-dev-utils": "^7.0.3",
     "server-timings": "^2.0.1",
     "socket.io": "^2.2.0",
-    "string-width": "^3.0.0",
+    "string-width": "^4.0.0",
     "validator": "^10.11.0",
     "webpack": "^4.29.6"
   },
