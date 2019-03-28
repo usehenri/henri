@@ -7,13 +7,13 @@
   resolved "https://registry.yarnpkg.com/@sailshq/lodash/-/lodash-3.10.3.tgz#61b6fa3a5db3fe802409b0ba152bcc99e7d27a58"
   integrity sha512-XTF5BtsTSiSpTnfqrCGS5Q8FvSHWCywA0oRxFAZo8E1a8k1MMFUvk3VlRk3q/SusEYwy7gvVdyt9vvNlTa2VuA==
 
-"@usehenri/disk@^0.34.4-alpha.0":
-  version "0.34.4-alpha.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/disk/-/disk-0.34.4-alpha.0.tgz#41589383ba8b008b314e033abe08ea961aac914d"
-  integrity sha512-nqsgdrLA2wJ5QpMfX6ekBh9TFLHj/ba187Qh060hgrEObB9K0FwXZCN4+SdHgi/rjkz21Wv76XGxoEeM/P4GnQ==
+"@usehenri/disk@^0.34.4-alpha.2":
+  version "0.34.4-alpha.2"
+  resolved "https://registry.yarnpkg.com/@usehenri/disk/-/disk-0.34.4-alpha.2.tgz#c7b427582a7bd4dc3c71e7b8750d74a91b73350d"
+  integrity sha512-/qKvR5INFH0GLXRcsS6EdzUKJmndbUUM0x6lSWcroNI2gO46Gu9qvb4aVGp4itCreQet+Ywg+/rFvG8iOx3TrQ==
   dependencies:
     nedb-session-store "^1.1.2"
-    sails-disk "^1.0.1"
+    sails-disk "^1.1.0"
     waterline "^0.13.6"
 
 acorn@^5.0.0:
@@ -443,10 +443,10 @@ rttc@~9.3.0:
   dependencies:
     lodash "3.8.0"
 
-sails-disk@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/sails-disk/-/sails-disk-1.0.1.tgz#2288975db2007f50caa5e80f65ec61981810dbda"
-  integrity sha512-btd2wNNJenvhJ3NjzH/pT8USGx/lX+ieHY95epOdL7zoWQZpRD8CMivNnpra4DWfuiXPMR83WZ0Q0nSOmnSrqw==
+sails-disk@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/sails-disk/-/sails-disk-1.1.0.tgz#dd226d61f4191afe78c8da4cd4314afaf69d9aae"
+  integrity sha512-V/owLvTiMu0/bcx8NQELML1lLkbAPcnrbO1XHsbGZTLUGbu+EsWQXSwHUxW5twgvmpNJ1rlpEq6GnhSyZyfcvA==
   dependencies:
     "@sailshq/lodash" "^3.10.2"
     async "2.0.1"
