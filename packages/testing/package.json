@@ -8,6 +8,6 @@
   "dependencies": {
     "enzyme": "^3.9.0",
     "jest": "^24.3.0",
-    "puppeteer": "^1.13.0"
+    "puppeteer": "^1.14.0"
   }
 }

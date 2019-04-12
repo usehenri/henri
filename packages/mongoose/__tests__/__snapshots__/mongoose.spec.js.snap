@@ -33,6 +33,7 @@ Mongoose {
         "models": Object {},
         "options": null,
         "otherDbs": Array [],
+        "plugins": Array [],
         "relatedDbs": Object {},
         "replica": false,
         "states": Object {
