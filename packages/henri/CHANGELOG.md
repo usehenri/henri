@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.34.4](https://github.com/usehenri/henri/compare/v0.34.4-alpha.4...v0.34.4) (2019-04-12)
+
+
+### Bug Fixes
+
+* **cli:** adding a check to be sure that NodeJS version is >= 10 ([8d13fa0](https://github.com/usehenri/henri/commit/8d13fa0))
+
+
+
+
+
 ## [0.34.4-alpha.4](https://github.com/usehenri/henri/compare/v0.34.4-alpha.3...v0.34.4-alpha.4) (2019-03-28)
 
 **Note:** Version bump only for package henri
