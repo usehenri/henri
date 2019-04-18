@@ -1,7 +1,7 @@
 {
   "private": true,
   "onboard": true,
-  "version": "0.34.4",
+  "version": "0.34.5",
   "dependencies": {
     "@usehenri/disk": "^0.34.4"
   }
