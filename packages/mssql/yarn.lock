@@ -12,13 +12,13 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.39.tgz#e7e87ad00364dd7bc485c940926345b8ec1a26ca"
   integrity sha512-rE7fktr02J8ybFf6eysife+WF+L4sAHWzw09DgdCebEu+qDwMvv4zl6Bc+825ttGZP73kCKxa3dhJOoGJ8+5mA==
 
-"@usehenri/sequelize@^0.34.4-alpha.4":
-  version "0.34.4-alpha.4"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.34.4-alpha.4.tgz#57289464a022dff9619b41b4c05f4144a2d8d577"
-  integrity sha512-F+0vTsbaWvg/asippBSn5vyBi/W6rMgUU7tX6hPMZqfQKMrczUWnyT1cHmNueySfvqVBJ3xFrf48li39u4SP/g==
+"@usehenri/sequelize@^0.34.4":
+  version "0.34.4"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.34.4.tgz#9b2e629a6153e5c2e1b05b54a1ba57daf4a0a1fc"
+  integrity sha512-KK5xFXJ94SM9SFjBYS3nWjrdxAlembfjyo6PF71s+Xeq8HuZp7T/NVsR8CnIqGxrzid9Qsl6NITugOHAMlKp8A==
   dependencies:
     connect-session-sequelize "^6.0.0"
-    sequelize "5.2.3"
+    sequelize "5.3.5"
 
 adal-node@^0.1.22:
   version "0.1.28"
@@ -531,10 +531,10 @@ sequelize-pool@^1.0.2:
   dependencies:
     bluebird "^3.5.3"
 
-sequelize@5.2.3:
-  version "5.2.3"
-  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.2.3.tgz#7464529f31e8e4d56acc7eba4eeb3d8e5ec887f4"
-  integrity sha512-KBkeSRtyOay/Lvjkjpm4Xt8n1Gy0h8Vt91wCNsYo3tQ7LeiQPBBqV4E9Yv+xJFXWB3iMVkAmVYoBNhxPGcXb/g==
+sequelize@5.3.5:
+  version "5.3.5"
+  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.3.5.tgz#2fffe8fbb28029d93a6f132e29b6a09ace15721f"
+  integrity sha512-eE9cq0XwDMb8hSRTfgx3r98ZstSLXvx5o3G6bhXG24uF4udXcooAv/23v9Jk170ohcI7KqnWgtmEslxCxsYWdQ==
   dependencies:
     bluebird "^3.5.0"
     cls-bluebird "^2.1.0"
@@ -584,10 +584,10 @@ string_decoder@^1.1.1, string_decoder@~1.1.1:
   dependencies:
     safe-buffer "~5.1.0"
 
-tedious@^6.1.0:
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/tedious/-/tedious-6.1.0.tgz#fb68e3d9d2c06a4abe3950f6585a0e2c09f93166"
-  integrity sha512-ejIgokiYwyKwGzwqkcx5hdQ6faJOhwOZzStLMSC7E+mbetI5/Rl+JD1K7B/SlNH1Hz7WlGcZxMeRR7ioGpqWAw==
+tedious@^6.1.1:
+  version "6.1.1"
+  resolved "https://registry.yarnpkg.com/tedious/-/tedious-6.1.1.tgz#db051f8c3e99afe7788ce1db25112cd86e9d991a"
+  integrity sha512-gmNWUqIVrZXvkfnkAHRGVeHlDPk7xTDuJYHp48GRSQFiLtKbl2ZkGDjR6wXJqgP8aZzhEUYZeqWBdxKK6W/F+A==
   dependencies:
     adal-node "^0.1.22"
     big-number "1.0.0"

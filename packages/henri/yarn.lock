@@ -511,27 +511,27 @@
   resolved "https://registry.yarnpkg.com/@types/yargs/-/yargs-12.0.9.tgz#693e76a52f61a2f1e7fb48c0eef167b95ea4ffd0"
   integrity sha512-sCZy4SxP9rN2w30Hlmg5dtdRwgYQfYRiLo9usw8X9cxlf+H4FqM1xX7+sNH7NNKVdbXMJWqva7iyy+fxh/V7fA==
 
-"@usehenri/cli@^0.34.4-alpha.4":
-  version "0.34.4-alpha.4"
-  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.34.4-alpha.4.tgz#87208498bafc84b13b6ab43044241ed80c92aa1c"
-  integrity sha512-3l1TyR1JM8Q0Gdpk0A6VEa22LNwztG3zzUkTUCrT5aVpi3FWNOhVQRvEFu6f7e+VZGfbdt6h4yirmKT4yANF6w==
+"@usehenri/cli@^0.34.4":
+  version "0.34.4"
+  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.34.4.tgz#1a9de1eddb67eca4c9eac6cdfae4efe1605755a5"
+  integrity sha512-V1XtwuEbgkqiPczY938nCf8oSyheDCvKu89voe+VBzr04kqFXqp9j24z7Fi/uUU9oYv03hkto8IIoqCLZkmYVA==
   dependencies:
-    "@usehenri/core" "^0.34.4-alpha.4"
+    "@usehenri/core" "^0.34.4"
     chalk "^2.4.2"
     cross-spawn "^6.0.4"
     fs-extra "^7.0.1"
     handlebars "^4.1.1"
     inquirer "^6.2.2"
     minimist "^1.2.0"
-    ora "^3.2.0"
+    ora "^3.4.0"
     prettier "^1.16.4"
     rimraf "^2.6.3"
     update-notifier "^2.5.0"
 
-"@usehenri/core@^0.34.4-alpha.4":
-  version "0.34.4-alpha.4"
-  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.34.4-alpha.4.tgz#8bf4c1730baef04c120e217d1404970de59fffb9"
-  integrity sha512-L7R16nRBOfH3iO+iBpBxXXpkU9m7CUyW1czBxGjqVhLWUlv0CSogfKL6Ir14T+weMjX4P98S7/7avRzICg4UUg==
+"@usehenri/core@^0.34.4":
+  version "0.34.4"
+  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.34.4.tgz#b6e200dde55a5f932ebffa5b24434caf491c553e"
+  integrity sha512-C1EB0WFRRIWnGWm8yc7ZGNThaFeNVUrwUX6uqceG071fpc3IIIBAYxdQvcEiywerzChDQmZ5R5rsGBh3Zbymmg==
   dependencies:
     apollo-server-express "^2.3.3"
     bcrypt-nodejs "^0.0.3"
@@ -546,7 +546,7 @@
     detect-port "^1.3.0"
     express "^4.16.4"
     express-boom "^2.0.0"
-    express-session "^1.15.6"
+    express-session "^1.16.1"
     faker "^4.1.0"
     glob "^7.1.3"
     graphql "git://github.com/graphql/graphql-js.git#npm"
@@ -567,9 +567,9 @@
     react-dev-utils "^7.0.3"
     server-timings "^2.0.1"
     socket.io "^2.2.0"
-    string-width "^4.0.0"
+    string-width "^4.1.0"
     validator "^10.11.0"
-    webpack "^4.29.6"
+    webpack "^4.30.0"
 
 "@webassemblyjs/ast@1.8.5":
   version "1.8.5"
@@ -1951,11 +1951,6 @@ cors@^2.8.5:
     object-assign "^4"
     vary "^1"
 
-crc@3.4.4:
-  version "3.4.4"
-  resolved "https://registry.yarnpkg.com/crc/-/crc-3.4.4.tgz#9da1e980e3bd44fc5c93bf5ab3da3378d85e466b"
-  integrity sha1-naHpgOO9RPxck79as9ozeNheRms=
-
 create-ecdh@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/create-ecdh/-/create-ecdh-4.0.0.tgz#888c723596cdf7612f6498233eebd7a35301737d"
@@ -2191,7 +2186,7 @@ delegates@^1.0.0:
   resolved "https://registry.yarnpkg.com/delegates/-/delegates-1.0.0.tgz#84c6e159b81904fdca59a0ef44cd870d31250f9a"
   integrity sha1-hMbhWbgZBP3KWaDvRM2HDTElD5o=
 
-depd@1.1.1, depd@~1.1.1:
+depd@1.1.1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/depd/-/depd-1.1.1.tgz#5783b4e1c459f06fa5ca27f991f3d06e7a310359"
   integrity sha1-V4O04cRZ8G+lyif5kfPQbnoxA1k=
@@ -2200,6 +2195,11 @@ depd@~1.1.2:
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/depd/-/depd-1.1.2.tgz#9bcd52e14c097763e749b274c4346ed2e560b5a9"
   integrity sha1-m81S4UwJd2PnSbJ0xDRu0uVgtak=
+
+depd@~2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/depd/-/depd-2.0.0.tgz#b696163cc757560d09cf22cc8fad1571b79e76df"
+  integrity sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==
 
 deprecated-decorator@^0.1.6:
   version "0.1.6"
@@ -2628,20 +2628,19 @@ express-boom@^2.0.0:
   dependencies:
     boom "3.2.x"
 
-express-session@^1.15.6:
-  version "1.15.6"
-  resolved "https://registry.yarnpkg.com/express-session/-/express-session-1.15.6.tgz#47b4160c88f42ab70fe8a508e31cbff76757ab0a"
-  integrity sha512-r0nrHTCYtAMrFwZ0kBzZEXa1vtPVrw0dKvGSrKP4dahwBQ1BJpF2/y1Pp4sCD/0kvxV4zZeclyvfmw0B4RMJQA==
+express-session@^1.16.1:
+  version "1.16.1"
+  resolved "https://registry.yarnpkg.com/express-session/-/express-session-1.16.1.tgz#251ff9776c59382301de6c8c33411af357ed439c"
+  integrity sha512-pWvUL8Tl5jUy1MLH7DhgUlpoKeVPUTe+y6WQD9YhcN0C5qAhsh4a8feVjiUXo3TFhIy191YGZ4tewW9edbl2xQ==
   dependencies:
     cookie "0.3.1"
     cookie-signature "1.0.6"
-    crc "3.4.4"
     debug "2.6.9"
-    depd "~1.1.1"
-    on-headers "~1.0.1"
+    depd "~2.0.0"
+    on-headers "~1.0.2"
     parseurl "~1.3.2"
+    safe-buffer "5.1.2"
     uid-safe "~2.1.5"
-    utils-merge "1.0.1"
 
 express@^4.16.4:
   version "4.16.4"
@@ -5207,7 +5206,7 @@ on-finished@~2.3.0:
   dependencies:
     ee-first "1.1.1"
 
-on-headers@^1.0.1, on-headers@~1.0.1:
+on-headers@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/on-headers/-/on-headers-1.0.1.tgz#928f5d0f470d49342651ea6794b0857c100693f7"
   integrity sha1-ko9dD0cNSTQmUepnlLCFfBAGk/c=
@@ -5258,7 +5257,7 @@ optionator@^0.8.1:
     type-check "~0.3.2"
     wordwrap "~1.0.0"
 
-ora@^3.2.0:
+ora@^3.4.0:
   version "3.4.0"
   resolved "https://registry.yarnpkg.com/ora/-/ora-3.4.0.tgz#bf0752491059a3ef3ed4c85097531de9fdbcd318"
   integrity sha512-eNwHudNbO1folBP3JsZ19v9azXWtQZjICdr3Q0TDPIaeBQ3mXLrh54wM+er0+hSp+dWKf+Z8KM58CYzEyIYxYg==
@@ -6610,7 +6609,7 @@ string-width@^2.0.0, string-width@^2.1.0, string-width@^2.1.1:
     is-fullwidth-code-point "^2.0.0"
     strip-ansi "^4.0.0"
 
-string-width@^4.0.0:
+string-width@^4.1.0:
   version "4.1.0"
   resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.1.0.tgz#ba846d1daa97c3c596155308063e075ed1c99aff"
   integrity sha512-NrX+1dVVh+6Y9dnQ19pR0pP4FiEIlUvdTGn8pw6CKTNq5sgib2nIhmUNT5TAmhWmvKr3WcxBcP3E8nWezuipuQ==
@@ -7178,7 +7177,7 @@ webpack-sources@^1.3.0:
     source-list-map "^2.0.0"
     source-map "~0.6.1"
 
-webpack@^4.29.6:
+webpack@^4.30.0:
   version "4.30.0"
   resolved "https://registry.yarnpkg.com/webpack/-/webpack-4.30.0.tgz#aca76ef75630a22c49fcc235b39b4c57591d33a9"
   integrity sha512-4hgvO2YbAFUhyTdlR4FNyt2+YaYBYHavyzjCMbZzgglo02rlKi/pcsEzwCuCpsn1ryzIl1cq/u8ArIKu8JBYMg==
