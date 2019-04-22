@@ -4,7 +4,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { version } = require('./utils');
 
-const yarnExists = spawn.sync('yarn', ['help']);
+const yarnExists = spawn.sync('yarn', ['help']).status === 0;
 const cwd = process.cwd();
 
 /**
