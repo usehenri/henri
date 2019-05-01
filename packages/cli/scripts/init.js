@@ -163,9 +163,25 @@ const installPackages = () => {
   if (yarnExists) {
     console.log(' - Installing needed packages using yarn...');
     spawn.sync('yarn');
+    spawn.sync('yarn', [
+      'add',
+      '@usehenri/react',
+      '@usehenri/disk',
+      'react',
+      'react-dom',
+      '--save',
+    ]);
   } else {
     console.log(' - Installing needed packages using npm...');
     spawn.sync('npm', ['install']);
+    spawn.sync('npm', [
+      'install',
+      '@usehenri/react',
+      '@usehenri/disk',
+      'react',
+      'react-dom',
+      '--save',
+    ]);
   }
 };
 
