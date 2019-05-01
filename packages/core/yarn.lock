@@ -1272,17 +1272,17 @@ body-parser@1.18.3, body-parser@^1.18.3:
     raw-body "2.3.3"
     type-is "~1.6.16"
 
-boom@3.2.x:
-  version "3.2.2"
-  resolved "https://registry.yarnpkg.com/boom/-/boom-3.2.2.tgz#0f0cc5d04adc5003b8c7d71f42cca7271fef0e78"
-  integrity sha1-DwzF0ErcUAO4x9cfQsynJx/vDng=
-  dependencies:
-    hoek "4.x.x"
-
 boom@7.x.x:
   version "7.2.2"
   resolved "https://registry.yarnpkg.com/boom/-/boom-7.2.2.tgz#ac92101451aa5cea901aed07d881dd32b4f08345"
   integrity sha512-IFUbOa8PS7xqmhIjpeStwT3d09hGkNYQ6aj2iELSTxcVs2u0aKn1NzhkdUQSzsRg1FVkj3uit3I6mXQCBixw+A==
+  dependencies:
+    hoek "6.x.x"
+
+boom@^7.3.x:
+  version "7.3.0"
+  resolved "https://registry.yarnpkg.com/boom/-/boom-7.3.0.tgz#733a6d956d33b0b1999da3fe6c12996950d017b9"
+  integrity sha512-Swpoyi2t5+GhOEGw8rEsKvTxFLIDiiKoUc2gsoV6Lyr43LHBIzch3k2MvYUs8RTROrIkVJ3Al0TkaOGjnb+B6A==
   dependencies:
     hoek "6.x.x"
 
@@ -1705,7 +1705,7 @@ commondir@^1.0.1:
   resolved "https://registry.yarnpkg.com/commondir/-/commondir-1.0.1.tgz#ddd800da0c66127393cca5950ea968a3aaf1253b"
   integrity sha1-3dgA2gxmEnOTzKWVDqloo6rxJTs=
 
-compare-versions@^3.2.1:
+compare-versions@^3.2.1, compare-versions@^3.4.0:
   version "3.4.0"
   resolved "https://registry.yarnpkg.com/compare-versions/-/compare-versions-3.4.0.tgz#e0747df5c9cb7f054d6d3dc3e1dbc444f9e92b26"
   integrity sha512-tK69D7oNXXqUW3ZNo/z7NXTEz22TCF0pTE+YF9cxvaAM9XnkLo1fV621xCLrRR6aevJlKxExkss0vWqUCUpqdg==
@@ -2446,12 +2446,12 @@ expect@^24.7.1:
     jest-message-util "^24.7.1"
     jest-regex-util "^24.3.0"
 
-express-boom@^2.0.0:
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/express-boom/-/express-boom-2.0.0.tgz#d400b940e961a8aa2ed8e3f77c595fa1e41b64b3"
-  integrity sha1-1AC5QOlhqKou2OP3fFlfoeQbZLM=
+express-boom@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/express-boom/-/express-boom-3.0.0.tgz#d8146f1eea1bf6611f622141c6689ca6defa09f0"
+  integrity sha512-/esN6Am8YE1rzRsi+vBpJkdr8O+GX+oBjRE/hEuBu6Y3uyS9y026XptRZduAMYS8KxyLzXM5Qh+RlnqLOR1pVQ==
   dependencies:
-    boom "3.2.x"
+    boom "^7.3.x"
 
 express-session@^1.16.1:
   version "1.16.1"
@@ -3096,11 +3096,6 @@ hmac-drbg@^1.0.0:
     hash.js "^1.0.3"
     minimalistic-assert "^1.0.0"
     minimalistic-crypto-utils "^1.0.1"
-
-hoek@4.x.x:
-  version "4.2.1"
-  resolved "https://registry.yarnpkg.com/hoek/-/hoek-4.2.1.tgz#9634502aa12c445dd5a7c5734b572bb8738aacbb"
-  integrity sha512-QLg82fGkfnJ/4iy1xZ81/9SIJiq1NGFUMGs6ParyjBZr6jW2Ufj/snDqTHixNlHdPNwN2RLVD0Pi3igeK9+JfA==
 
 hoek@6.x.x:
   version "6.0.3"

@@ -11,13 +11,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/disk": "latest",
-    "@usehenri/react": "latest",
-    "@usehenri/testing": "latest",
     "@zeit/next-sass": "^1.0.1",
     "node-sass": "^4.9.3",
-    "react": "^16.6.3",
-    "react-dom": "^16.6.3"
+    "react": "16",
+    "react-dom": "16"
   },
   "devDependencies": {
     "babel-eslint": "^10.0.1",

@@ -7,7 +7,7 @@
   "license": "MIT",
   "dependencies": {
     "nedb-session-store": "^1.1.2",
-    "sails-disk": "^1.1.0",
+    "sails-disk": "^1.1.2",
     "waterline": "^0.13.6"
   }
 }

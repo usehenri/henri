@@ -511,12 +511,12 @@
   resolved "https://registry.yarnpkg.com/@types/yargs/-/yargs-12.0.9.tgz#693e76a52f61a2f1e7fb48c0eef167b95ea4ffd0"
   integrity sha512-sCZy4SxP9rN2w30Hlmg5dtdRwgYQfYRiLo9usw8X9cxlf+H4FqM1xX7+sNH7NNKVdbXMJWqva7iyy+fxh/V7fA==
 
-"@usehenri/cli@^0.34.5":
-  version "0.34.5"
-  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.34.5.tgz#f0a7082e8f44f83d28b0c3a624bb0da481a04414"
-  integrity sha512-/aNkRqKxvD2B7i5YU8Sx84tgWjJQ7Uv1T62/e1Iguvn0dXwRF6n1JSulqV9Xt85aicE0YB0TR0b7yT7Sxc7M0Q==
+"@usehenri/cli@^0.34.6-alpha.0":
+  version "0.34.6-alpha.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.34.6-alpha.0.tgz#f8e478d4cdf7db75b67d1d82a3d2fee164f3f41d"
+  integrity sha512-A8QLrUACvCScI4P5AheiqR7MfIqZ6zNlP1NAc4CWNbwYN3CXqYGD9l+Dj89WXTsN+7riwuz0x7luvHGHbN60Kw==
   dependencies:
-    "@usehenri/core" "^0.34.5"
+    "@usehenri/core" "^0.34.6-alpha.0"
     chalk "^2.4.2"
     cross-spawn "^6.0.4"
     fs-extra "^7.0.1"
@@ -528,10 +528,10 @@
     rimraf "^2.6.3"
     update-notifier "^2.5.0"
 
-"@usehenri/core@^0.34.5":
-  version "0.34.5"
-  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.34.5.tgz#f970208bbbd28063f62a64e18cdccb30cfc03540"
-  integrity sha512-Wf1ABhbQwUtZ9tEIItGIpDG0qSy4Prr/iILr+nu/yQkgDiYzErWiXA5Z2LVWeWttSpH5zth0yT+LBFb9lKlTiw==
+"@usehenri/core@^0.34.6-alpha.0":
+  version "0.34.6-alpha.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.34.6-alpha.0.tgz#a16dbfb603bddc584646df5b4e57ecf3fee448c5"
+  integrity sha512-ZLkXT74RZtH9uUF855o6Cx2sdl1VWK/clL1e7fzxD8S7NT9LorcVE5O2vzy4KNJ/6EuKCvJkwnUVaODASHeBjQ==
   dependencies:
     apollo-server-express "^2.3.3"
     bcrypt-nodejs "^0.0.3"
@@ -560,7 +560,7 @@
     merge-graphql-schemas "^1.5.8"
     moment "^2.24.0"
     node-notifier "^5.4.0"
-    nodemailer "^6.1.0"
+    nodemailer "^6.1.1"
     passport "^0.4.0"
     passport-jwt "^4.0.0"
     passport-local "^1.0.0"
@@ -5158,7 +5158,7 @@ node-releases@^1.1.3:
   dependencies:
     semver "^5.3.0"
 
-nodemailer@^6.1.0:
+nodemailer@^6.1.1:
   version "6.1.1"
   resolved "https://registry.yarnpkg.com/nodemailer/-/nodemailer-6.1.1.tgz#09e88ef4b3646f01089c5d84d007b872141fb575"
   integrity sha512-/x5MRIh56VyuuhLfcz+DL2SlBARpZpgQIf2A4Ao4hMb69MHSgDIMPwYmFwesGT1lkRDZ0eBSoym5+JoIZ3N+cQ==
