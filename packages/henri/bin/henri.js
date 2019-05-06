@@ -20,6 +20,7 @@ if (!check) {
 
   if (typeof isNVM === 'undefined') {
     console.log('You should upgrade to a version higher than Node.js 10.x');
+
     console.log('');
     console.log('See https://nodejs.org/en/download/');
   } else {

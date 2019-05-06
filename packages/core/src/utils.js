@@ -1,4 +1,5 @@
 const spawn = require('cross-spawn');
+const comparev = require('compare-versions');
 const path = require('path');
 const fs = require('fs');
 const prettier = require('prettier');
@@ -13,7 +14,7 @@ const inquirer = require('inquirer');
  *
  * @return {boolean} it exists?
  */
-const yarnExists = () => spawn.sync('yarn', ['help']);
+const yarnExists = () => spawn.sync('yarn', ['help']).status === 0;
 
 /**
  *  Check if a bunch of packages exists
@@ -28,7 +29,7 @@ async function checkPackages(packages = []) {
   if (missing.length > 0) {
     const msg = generateMessage(missing);
 
-    if (process.env['NODE_ENV'] === 'dev') {
+    if (henri.isDev) {
       await inquirer
         .prompt({
           choices: missing,
@@ -68,12 +69,32 @@ async function checkPackages(packages = []) {
  */
 function checkMissing(packages) {
   debug(`checking for missing packages in: ${packages.join(' ')}`);
-
   let missing = [];
 
   for (let pkg of packages) {
     try {
-      require.resolve(path.resolve(process.cwd(), 'node_modules', pkg));
+      const [pkgName, version = null] = pkg.split('@');
+
+      require.resolve(path.resolve(process.cwd(), 'node_modules', pkgName));
+
+      if (version) {
+        //eslint-disable-next-line global-require
+        const target = require(path.resolve(
+          process.cwd(),
+          'node_modules',
+          pkgName,
+          'package.json'
+        ));
+
+        if (comparev(target.version, version) < 0) {
+          console.log(
+            `package version error for ${pkgName}; wanted > ${version} but got ${
+              target.version
+            }`
+          );
+          throw new Error();
+        }
+      }
     } catch (error) {
       missing.push(pkg);
     }
@@ -92,9 +113,8 @@ function checkMissing(packages) {
  */
 const generateMessage = missing => {
   if (missing.length > 1) {
-    return missing.map(
-      (val, index) =>
-        index === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`
+    return missing.map((val, index) =>
+      index === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`
     );
   }
 
