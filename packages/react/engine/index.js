@@ -39,7 +39,7 @@ class ReactEngine {
     switch (this.renderer) {
       case 'react':
         checkPackages([
-          'react',
+          'react@16.8',
           'react-dom',
           'sass-loader',
           'raw-loader',

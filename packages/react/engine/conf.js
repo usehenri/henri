@@ -2,6 +2,7 @@ const webpack = require('webpack');
 const path = require('path');
 const glob = require('glob');
 const withSass = require('@zeit/next-sass');
+const debug = require('debug')('henri:react');
 
 const { cwd, pen } = henri;
 
@@ -10,7 +11,9 @@ const dir = path.resolve(cwd(), 'app/views');
 let userConfig = null;
 
 try {
+  //eslint-disable-next-line global-require
   const conf = require(path.resolve(cwd(), 'config', 'webpack.js'));
+
   if (typeof conf.webpack === 'function') {
     userConfig = conf.webpack;
   } else {
@@ -19,10 +22,22 @@ try {
       `Can't load your config/webpack.js file. It should export a function.`
     );
   }
-} catch (e) {}
+} catch (err) {
+  debug('will not load nextjs local config');
+  debug('error', err);
+}
 
 module.exports = withSass({
-  webpack: async (config, { dev }) => {
+  sassLoaderOptions: {
+    includePaths: ['styles', 'node_modules']
+      .map(dir => path.join(__dirname, dir))
+      .map(gro => glob.sync(gro))
+      .reduce((arr, key) => arr.concat(key), []),
+  },
+
+  useFileSystemPublicRoutes: false,
+
+  webpack: (config, { dev }) => {
     config.resolveLoader.modules.push(
       path.resolve(require.resolve('next'), '../../../..')
     );
@@ -34,48 +49,49 @@ module.exports = withSass({
             loader: 'sass-loader',
             options: {
               includePaths: ['styles', 'node_modules']
-                .map(d => path.join(__dirname, d))
-                .map(g => glob.sync(g))
-                .reduce((a, c) => a.concat(c), []),
+                .map(dir => path.join(__dirname, dir))
+                .map(glo => glob.sync(glo))
+                .reduce((arr, key) => arr.concat(key), []),
             },
           },
         ],
       },
       {
-        test: /\.js(\?[^?]*)?$/,
-        include: [dir],
         exclude(str) {
           return /node_modules/.test(str);
         },
+        include: [dir],
+        test: /\.js(\?[^?]*)?$/,
         use: [
           {
             loader: 'babel-loader',
             options: {
               cacheDirectory: true,
+              ignore: [],
               plugins: [
                 [
                   require.resolve('babel-plugin-module-resolver'),
                   {
-                    root: ['.'],
                     alias: {
-                      styles: './styles',
-                      components: './components',
                       assets: './assets',
+                      components: './components',
                       helpers: './helpers',
+                      styles: './styles',
                     },
                     cwd: dir,
+                    root: ['.'],
                   },
                 ],
               ],
               presets: [require.resolve('next/babel')],
-              ignore: [],
             },
           },
         ],
       }
     );
     if (userConfig) {
-      config = await userConfig(config, { dev }, webpack);
+      config = userConfig(config, { dev }, webpack);
+
       if (
         !config ||
         !config.module ||
@@ -99,10 +115,7 @@ module.exports = withSass({
         );
         pen.error('react', '');
         pen.error('react', '    module.exports = {');
-        pen.error(
-          'react',
-          '      webpack: async (config, { dev }, webpack) => {'
-        );
+        pen.error('react', '      webpack: (config, { dev }, webpack) => {');
         pen.error('react', '        config.plugins.push(');
         pen.error('react', '          new webpack.ProvidePlugin({');
         pen.error('react', "            $: 'jquery',");
@@ -117,13 +130,7 @@ module.exports = withSass({
         process.exit(-1);
       }
     }
+
     return config;
   },
-  sassLoaderOptions: {
-    includePaths: ['styles', 'node_modules']
-      .map(d => path.join(__dirname, d))
-      .map(g => glob.sync(g))
-      .reduce((a, c) => a.concat(c), []),
-  },
-  useFileSystemPublicRoutes: false,
 });
