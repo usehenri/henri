@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.34.6](https://github.com/usehenri/henri/compare/v0.34.6-alpha.0...v0.34.6) (2019-05-28)
+
+
+### Bug Fixes
+
+* **cli:** use yarn when available ([eee2c35](https://github.com/usehenri/henri/commit/eee2c35))
+
+
+### Features
+
+* **cli:** install react by default ([13314c1](https://github.com/usehenri/henri/commit/13314c1))
+
+
+
+
+
 ## [0.34.6-alpha.0](https://github.com/usehenri/henri/compare/v0.34.5...v0.34.6-alpha.0) (2019-04-22)
 
 **Note:** Version bump only for package @usehenri/cli
