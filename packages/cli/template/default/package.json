@@ -13,8 +13,8 @@
   "dependencies": {
     "@zeit/next-sass": "^1.0.1",
     "node-sass": "^4.9.3",
-    "react": "16",
-    "react-dom": "16"
+    "react": ">=16.0.1",
+    "react-dom": ">=16.0.1"
   },
   "devDependencies": {
     "babel-eslint": "^10.0.1",
