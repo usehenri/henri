@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/sequelize",
-  "version": "0.34.6",
+  "version": "0.34.7",
   "description": "henri sequalize class provider",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
