@@ -16,11 +16,6 @@ Mongoose {
     "_pluralize": [Function],
     "connections": Array [
       NativeConnection {
-        "$internalEmitter": EventEmitter {
-          "_events": Object {},
-          "_eventsCount": 0,
-          "_maxListeners": 0,
-        },
         "_closeCalled": false,
         "_hasOpened": false,
         "_listening": false,
