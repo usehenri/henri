@@ -545,12 +545,12 @@
   resolved "https://registry.yarnpkg.com/@types/yargs/-/yargs-12.0.9.tgz#693e76a52f61a2f1e7fb48c0eef167b95ea4ffd0"
   integrity sha512-sCZy4SxP9rN2w30Hlmg5dtdRwgYQfYRiLo9usw8X9cxlf+H4FqM1xX7+sNH7NNKVdbXMJWqva7iyy+fxh/V7fA==
 
-"@usehenri/cli@^0.34.6":
-  version "0.34.6"
-  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.34.6.tgz#e34fde8876d2fa2727608c87cd10af73e7343c43"
-  integrity sha512-BtQ94/cPAiaa1LR7TN4i7ZQtFU4n8uayARPhbTw8j98icWOmtUX7rOntnwH6TeKqrV7sCsCyDHAHwYIHz9LhTw==
+"@usehenri/cli@^0.34.7":
+  version "0.34.7"
+  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.34.7.tgz#1f94f646d0fb8bcc8850c850203689e51fe9ce28"
+  integrity sha512-5zGpieS6p1hwGwP7wRx82W6bpElCTWrKlFJytcGwFvvqnz4kEmgt7GyyLeLErlEt87R4TM+XeT4rIKmbAp/jhw==
   dependencies:
-    "@usehenri/core" "^0.34.6"
+    "@usehenri/core" "^0.34.7"
     chalk "^2.4.2"
     cross-spawn "^6.0.4"
     fs-extra "^8.0.1"
@@ -558,14 +558,14 @@
     inquirer "^6.3.1"
     minimist "^1.2.0"
     ora "^3.4.0"
-    prettier "^1.17.1"
+    prettier "^1.18.2"
     rimraf "^2.6.3"
     update-notifier "^3.0.0"
 
-"@usehenri/core@^0.34.6":
-  version "0.34.6"
-  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.34.6.tgz#d7297598c2183781135948be6f5d0c384aa2665d"
-  integrity sha512-yyXTVe2RhstJ2FdfiYR1vip6MO2A+GD/4bmmlAGw+Gjv1tROX6oHWnNy7I78NWh6OxY/bvEED/J+G6VHEk7aeA==
+"@usehenri/core@^0.34.7":
+  version "0.34.7"
+  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.34.7.tgz#c25956470b0c7f951293c5123bb7f3cdf2ac7ce9"
+  integrity sha512-5Jep2hN1hnLwrALm9ySb5tuOa7zjWcVWb4HQ79nU0p+Ysf8Gpz6CMVmMSl8FAZIuGmzmbJ2gjUBMmz9Rl2U5nQ==
   dependencies:
     apollo-server-express "^2.3.3"
     bcrypt-nodejs "^0.0.3"
@@ -604,7 +604,7 @@
     socket.io "^2.2.0"
     string-width "^4.1.0"
     validator "^10.11.0"
-    webpack "^4.32.2"
+    webpack "^4.33.0"
 
 "@webassemblyjs/ast@1.8.5":
   version "1.8.5"
@@ -5754,7 +5754,7 @@ prepend-http@^2.0.0:
   resolved "https://registry.yarnpkg.com/prepend-http/-/prepend-http-2.0.0.tgz#e92434bfa5ea8c19f41cdfd401d741a3c819d897"
   integrity sha1-6SQ0v6XqjBn0HN/UAddBo8gZ2Jc=
 
-prettier@^1.17.1:
+prettier@^1.18.2:
   version "1.18.2"
   resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.18.2.tgz#6823e7c5900017b4bd3acf46fe9ac4b4d7bda9ea"
   integrity sha512-OeHeMc0JhFE9idD4ZdtNibzY0+TPHSpSSb9h8FqtP+YnoZZ1sl8Vc9b1sasjfymH3SonAF4QcA2+mzHPhMvIiw==
@@ -7407,10 +7407,10 @@ webpack-sources@^1.3.0:
     source-list-map "^2.0.0"
     source-map "~0.6.1"
 
-webpack@^4.32.2:
-  version "4.33.0"
-  resolved "https://registry.yarnpkg.com/webpack/-/webpack-4.33.0.tgz#c30fc4307db432e5c5e3333aaa7c16a15a3b277e"
-  integrity sha512-ggWMb0B2QUuYso6FPZKUohOgfm+Z0sVFs8WwWuSH1IAvkWs428VDNmOlAxvHGTB9Dm/qOB/qtE5cRx5y01clxw==
+webpack@^4.33.0:
+  version "4.34.0"
+  resolved "https://registry.yarnpkg.com/webpack/-/webpack-4.34.0.tgz#a4c30129482f7b4ece4c0842002dedf2b56fab58"
+  integrity sha512-ry2IQy1wJjOefLe1uJLzn5tG/DdIKzQqNlIAd2L84kcaADqNvQDTBlo8UcCNyDaT5FiaB+16jhAkb63YeG3H8Q==
   dependencies:
     "@webassemblyjs/ast" "1.8.5"
     "@webassemblyjs/helper-module-context" "1.8.5"
