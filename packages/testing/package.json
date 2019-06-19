@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/testing",
-  "version": "0.34.7",
+  "version": "0.35.0",
   "description": "henri testing utils",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
