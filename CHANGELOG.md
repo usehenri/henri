@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.35.1](https://github.com/usehenri/henri/compare/v0.35.0...v0.35.1) (2019-06-28)
+
+
+### Bug Fixes
+
+* **mongoose:** flatten roles array on save ([5f0619d](https://github.com/usehenri/henri/commit/5f0619d))
+
+
+
+
+
 # [0.35.0](https://github.com/usehenri/henri/compare/v0.34.7...v0.35.0) (2019-06-19)
 
 **Note:** Version bump only for package henri
