@@ -101,7 +101,7 @@ class Mongoose {
 
     schema.add({
       roles: {
-        default: baseRole,
+        default: baseRole.flat(),
         type: Array,
       },
     });
@@ -156,13 +156,10 @@ class Mongoose {
 
     return new Promise((resolve, reject) => {
       this.mongoose
-        .connect(
-          this.config.url || this.config.host,
-          {
-            useCreateIndex: true,
-            useNewUrlParser: true,
-          }
-        )
+        .connect(this.config.url || this.config.host, {
+          useCreateIndex: true,
+          useNewUrlParser: true,
+        })
         .then(
           () => {
             debug('started %s', this.name);
