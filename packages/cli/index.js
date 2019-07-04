@@ -4,6 +4,7 @@ const spawn = require('cross-spawn');
 const chalk = require('chalk');
 const updateNotifier = require('update-notifier');
 const yarnExists = spawn.sync('yarn', ['help']);
+const debug = require('debug')('henri:cli');
 
 if (!module.parent) {
   // eslint-disable-next-line no-console
@@ -35,6 +36,8 @@ module.exports = (pkg, args) => {
     case 'build':
     case 'clean':
     case 'console':
+    case 'd':
+    case 'destroy':
     case 'g':
     case 'generate':
     case 'init':
@@ -42,10 +45,19 @@ module.exports = (pkg, args) => {
     case 's':
     case 'server':
     case 'test':
-      // eslint-disable-next-line
-      const cmd = require(`./scripts/${command}`);
+      try {
+        // eslint-disable-next-line
+        const cmd = require(`./scripts/${command}`);
 
-      cmd(argv);
+        cmd(argv);
+      } catch (error) {
+        // eslint-disable-next-line
+        const help = require('./scripts/help');
+
+        debug(error);
+
+        help();
+      }
       break;
     default:
       // eslint-disable-next-line
