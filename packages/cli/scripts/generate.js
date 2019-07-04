@@ -229,7 +229,7 @@ const compileView = ({
  */
 const routes = (key, opts) => {
   let code = `module.exports = `;
-  const location = path.join(cwd, 'app', 'routes.js');
+  const location = path.join(cwd, 'config', 'routes.js');
   // eslint-disable-next-line
   const actual = require(location);
 
@@ -238,6 +238,7 @@ const routes = (key, opts) => {
   fs.outputFileSync(
     location,
     prettier.format(code, {
+      parser: 'babel',
       singleQuote: true,
       trailingComma: 'es5',
     })
@@ -260,6 +261,7 @@ const output = (type, dir, file, code) => {
   fs.outputFileSync(
     path.join(cwd, 'app', dir, `${file}.js`),
     prettier.format(code, {
+      parser: 'babel',
       singleQuote: true,
       trailingComma: 'es5',
     })
