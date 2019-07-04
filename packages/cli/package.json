@@ -1,12 +1,12 @@
 {
   "name": "@usehenri/cli",
-  "version": "0.35.1",
+  "version": "0.35.2",
   "description": "henri cli runner",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/core": "^0.35.1",
+    "@usehenri/core": "^0.35.2",
     "chalk": "^2.4.2",
     "cross-spawn": "^6.0.4",
     "fs-extra": "^8.1.0",

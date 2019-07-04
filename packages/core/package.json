@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/core",
-  "version": "0.35.1",
+  "version": "0.35.2",
   "description": "henri core package",
   "main": "src/index.js",
   "bin": {
