@@ -545,34 +545,34 @@
   resolved "https://registry.yarnpkg.com/@types/yargs/-/yargs-12.0.9.tgz#693e76a52f61a2f1e7fb48c0eef167b95ea4ffd0"
   integrity sha512-sCZy4SxP9rN2w30Hlmg5dtdRwgYQfYRiLo9usw8X9cxlf+H4FqM1xX7+sNH7NNKVdbXMJWqva7iyy+fxh/V7fA==
 
-"@usehenri/cli@^0.35.0":
-  version "0.35.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.35.0.tgz#6e841abd01703d71f1774d2edcef6095346f91d8"
-  integrity sha512-iTaAHXc1nApYbZaH2Rs/1kvJw3hljy2XGPILfa02n62Jri7dUbul92YEEXIh8U1+89KKVPvG5kurKXXGehO7Dw==
+"@usehenri/cli@^0.35.1":
+  version "0.35.1"
+  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.35.1.tgz#3dfcd83cdb9547a34757107f496e21b24f31312a"
+  integrity sha512-/WffluMSu2AWyh5dPsIytIAykx0zHkwGZycweFALQUneHWuerwkWN++CH9PLo7/S9Bkm0GlzDZXw2MzgTYpW5g==
   dependencies:
-    "@usehenri/core" "^0.35.0"
+    "@usehenri/core" "^0.35.1"
     chalk "^2.4.2"
     cross-spawn "^6.0.4"
     fs-extra "^8.0.1"
     handlebars "^4.1.2"
-    inquirer "^6.3.1"
+    inquirer "^6.4.1"
     minimist "^1.2.0"
     ora "^3.4.0"
     prettier "^1.18.2"
     rimraf "^2.6.3"
     update-notifier "^3.0.0"
 
-"@usehenri/core@^0.35.0":
-  version "0.35.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.35.0.tgz#dc0bbe1e45d8454d7109d4093041ed8339d9185f"
-  integrity sha512-4qQ+JZQwOwW4gmBXF97Ki3Zlp1btNDu28mf/91DcTnXu2TwClFIlY2pGzUxuldqfITLHYKaEBUWg+h6pSUCIeg==
+"@usehenri/core@^0.35.1":
+  version "0.35.1"
+  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.35.1.tgz#911f979242fae2e69fb1a1c5731d84d4fdf2d9c8"
+  integrity sha512-szAiJSLi3KfGokTaNQjGIftnprmt8rp3ZX9nL9zTLW6E8go1dl3zOJ4DSxJXGW4+laivTb+aWTzxPi1H7wEWgw==
   dependencies:
     apollo-server-express "^2.3.3"
     bcrypt-nodejs "^0.0.3"
     bounce "^1.2.3"
     callsite "^1.0.0"
     chalk "^2.4.2"
-    compare-versions "^3.4.0"
+    compare-versions "^3.5.0"
     compression "^1.7.4"
     cookie-parser "^1.4.4"
     cors "^2.8.5"
@@ -585,7 +585,7 @@
     faker "^4.1.0"
     glob "^7.1.4"
     graphql "git://github.com/graphql/graphql-js.git#npm"
-    graphql-tools "^4.0.4"
+    graphql-tools "^4.0.5"
     handlebars "^4.1.2"
     include-all "^4.0.3"
     inquirer "^6.3.1"
@@ -1892,10 +1892,10 @@ commondir@^1.0.1:
   resolved "https://registry.yarnpkg.com/commondir/-/commondir-1.0.1.tgz#ddd800da0c66127393cca5950ea968a3aaf1253b"
   integrity sha1-3dgA2gxmEnOTzKWVDqloo6rxJTs=
 
-compare-versions@^3.4.0:
-  version "3.4.0"
-  resolved "https://registry.yarnpkg.com/compare-versions/-/compare-versions-3.4.0.tgz#e0747df5c9cb7f054d6d3dc3e1dbc444f9e92b26"
-  integrity sha512-tK69D7oNXXqUW3ZNo/z7NXTEz22TCF0pTE+YF9cxvaAM9XnkLo1fV621xCLrRR6aevJlKxExkss0vWqUCUpqdg==
+compare-versions@^3.5.0:
+  version "3.5.0"
+  resolved "https://registry.yarnpkg.com/compare-versions/-/compare-versions-3.5.0.tgz#85fc22a1ae9612ff730d77fb092295acd056d311"
+  integrity sha512-hX+4kt2Rcwu+x1U0SsEFCn1quURjEjPEGH/cPBlpME/IidGimAdwfMU+B+xDr7et/KTR7VH2+ZqWGerv4NGs2w==
 
 component-bind@1.0.0:
   version "1.0.0"
@@ -3278,10 +3278,10 @@ graphql-tools@^4.0.0:
     iterall "^1.1.3"
     uuid "^3.1.0"
 
-graphql-tools@^4.0.4:
-  version "4.0.4"
-  resolved "https://registry.yarnpkg.com/graphql-tools/-/graphql-tools-4.0.4.tgz#ca08a63454221fdde825fe45fbd315eb2a6d566b"
-  integrity sha512-chF12etTIGVVGy3fCTJ1ivJX2KB7OSG4c6UOJQuqOHCmBQwTyNgCDuejZKvpYxNZiEx7bwIjrodDgDe9RIkjlw==
+graphql-tools@^4.0.5:
+  version "4.0.5"
+  resolved "https://registry.yarnpkg.com/graphql-tools/-/graphql-tools-4.0.5.tgz#d2b41ee0a330bfef833e5cdae7e1f0b0d86b1754"
+  integrity sha512-kQCh3IZsMqquDx7zfIGWBau42xe46gmqabwYkpPlCLIjcEY1XK+auP7iGRD9/205BPyoQdY8hT96MPpgERdC9Q==
   dependencies:
     apollo-link "^1.2.3"
     apollo-utilities "^1.0.1"
@@ -3668,6 +3668,25 @@ inquirer@^6.3.1:
   version "6.3.1"
   resolved "https://registry.yarnpkg.com/inquirer/-/inquirer-6.3.1.tgz#7a413b5e7950811013a3db491c61d1f3b776e8e7"
   integrity sha512-MmL624rfkFt4TG9y/Jvmt8vdmOo836U7Y0Hxr2aFk3RelZEGX4Igk0KabWrcaaZaTv9uzglOqWh1Vly+FAWAXA==
+  dependencies:
+    ansi-escapes "^3.2.0"
+    chalk "^2.4.2"
+    cli-cursor "^2.1.0"
+    cli-width "^2.0.0"
+    external-editor "^3.0.3"
+    figures "^2.0.0"
+    lodash "^4.17.11"
+    mute-stream "0.0.7"
+    run-async "^2.2.0"
+    rxjs "^6.4.0"
+    string-width "^2.1.0"
+    strip-ansi "^5.1.0"
+    through "^2.3.6"
+
+inquirer@^6.4.1:
+  version "6.4.1"
+  resolved "https://registry.yarnpkg.com/inquirer/-/inquirer-6.4.1.tgz#7bd9e5ab0567cd23b41b0180b68e0cfa82fc3c0b"
+  integrity sha512-/Jw+qPZx4EDYsaT6uz7F4GJRNFMRdKNeUZw3ZnKV8lyuUgz/YWRCSUAJMZSVhSq4Ec0R2oYnyi6b3d4JXcL5Nw==
   dependencies:
     ansi-escapes "^3.2.0"
     chalk "^2.4.2"

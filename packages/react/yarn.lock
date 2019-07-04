@@ -2296,10 +2296,10 @@ cache-base@^1.0.1:
     union-value "^1.0.0"
     unset-value "^1.0.0"
 
-cache-loader@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/cache-loader/-/cache-loader-4.0.0.tgz#f85ffae27780f6ab5c6732b4f12b84cb6bf193d2"
-  integrity sha512-QTLCBoDju/InytQyQNHsn0q0xDlInCtId09CW8BLhFZY72GcqDHGbJdSiulsv1YBwB4zvy2QhioPADoSAl7qjg==
+cache-loader@^4.0.1:
+  version "4.0.1"
+  resolved "https://registry.yarnpkg.com/cache-loader/-/cache-loader-4.0.1.tgz#198049cf04e9e599ad90bc6a9c695d5e866cc875"
+  integrity sha512-r5uLI/Igk1qomgoaCvX3LiiDJfKJ03oeAOV7RTrLdkzwxmwjw/JZUr9LYPRsM6CV99SGnR55Tve534aSZsH0mw==
   dependencies:
     buffer-json "^2.0.0"
     find-cache-dir "^3.0.0"
@@ -2338,10 +2338,10 @@ caniuse-lite@^1.0.30000967:
   resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000967.tgz#a5039577806fccee80a04aaafb2c0890b1ee2f73"
   integrity sha512-rUBIbap+VJfxTzrM4akJ00lkvVb5/n5v3EGXfWzSH5zT8aJmGzjA8HWhJ4U6kCpzxozUSnB+yvAYDRPY6mRpgQ==
 
-caniuse-lite@^1.0.30000977:
-  version "1.0.30000977"
-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000977.tgz#7da2ca14cae2fddb368c05c57ab4a529afd658ff"
-  integrity sha512-RTXL32vdfAc2g9aoDL6vnBzbOO/3sM+T+YX4m7W9iFZnl3qIz7WYoZZpcZpALud8xq4+N56rnruX/NQy9HQu6A==
+caniuse-lite@^1.0.30000979:
+  version "1.0.30000979"
+  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000979.tgz#92f16d00186a6cf20d6c5711bb6e042a3d667029"
+  integrity sha512-gcu45yfq3B7Y+WB05fOMfr0EiSlq+1u+m6rPHyJli/Wy3PVQNGaU7VA4bZE5qw+AU2UVOBR/N5g1bzADUqdvFw==
 
 center-align@^0.1.1:
   version "0.1.3"
