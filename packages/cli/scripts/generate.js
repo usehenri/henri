@@ -41,6 +41,8 @@ const main = args => {
  * @return {void}
  */
 const model = ([file, ...args]) => {
+  const name = capitalize(file);
+
   let code = `module.exports = `;
   const base = {
     options: {
@@ -57,7 +59,7 @@ const model = ([file, ...args]) => {
     });
   }
   code += util.inspect(base, { depth: 6 });
-  output('model', 'models', file, code);
+  output('model', 'models', name, code);
 };
 
 /**
@@ -89,7 +91,7 @@ const controller = ([file, ...args], inner) => {
  * @return {void}
  */
 const scaffold = ([file, ...args]) => {
-  model([capitalize(file), ...args]);
+  model([file, ...args]);
   resources(file);
   routes(`resources ${file.toLowerCase()}`, {
     controller: file.toLowerCase(),
