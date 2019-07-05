@@ -54,7 +54,11 @@ class Mongoose {
       isUser = true;
     }
 
-    const instance = this.mongoose.model(model.globalId, schema);
+    const instance = this.mongoose.model(
+      model.globalId,
+      schema,
+      model.name || null
+    );
 
     if (isUser) {
       this.henri._user = instance;

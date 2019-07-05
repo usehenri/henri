@@ -151,6 +151,7 @@ You can use the command-line to generate models:
 
 module.exports = {
   store: 'dev', // see the demo configuration up there
+  name: 'user_collection', // will use 'user_collection' instead of 'users'
   schema: {
     firstName: { type: 'string' },
     lastName: String,
