@@ -54,8 +54,18 @@ const model = ([file, ...args]) => {
   if (args.length > 0) {
     args.map(val => {
       const parts = val.split(':');
+      let required = false;
+
+      if (parts[1].endsWith('!')) {
+        required = true;
+        parts[1] = parts[1].slice(0, -1);
+      }
 
       base.schema[parts[0]] = { type: parts[1] || 'string' };
+
+      if (required) {
+        base.schema[parts[0]].required = true;
+      }
     });
   }
   code += util.inspect(base, { depth: 6 });
