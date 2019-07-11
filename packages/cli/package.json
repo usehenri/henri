@@ -11,7 +11,7 @@
     "cross-spawn": "^6.0.4",
     "fs-extra": "^8.1.0",
     "handlebars": "^4.1.2",
-    "inquirer": "^6.4.1",
+    "inquirer": "^6.5.0",
     "minimist": "^1.2.0",
     "ora": "^3.4.0",
     "prettier": "^1.18.2",

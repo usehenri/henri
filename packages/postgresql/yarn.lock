@@ -7,13 +7,13 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-11.13.7.tgz#85dbb71c510442d00c0631f99dae957ce44fd104"
   integrity sha512-suFHr6hcA9mp8vFrZTgrmqW2ZU3mbWsryQtQlY/QvwTISCw7nw/j+bCQPPohqmskhmqa5wLNuMHTTsc+xf1MQg==
 
-"@usehenri/sequelize@^0.35.1":
-  version "0.35.1"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.35.1.tgz#a2b7af416a1995f34a3b6e0859dd765c7d452a16"
-  integrity sha512-G7tryBQu283dnN6AEhibzJHJogdDouHafp3sFv8OH6uUKs+e5g6u9ZCHSL9CVDBbjMAYZyXdhqpJe2K0E+SItA==
+"@usehenri/sequelize@^0.35.2":
+  version "0.35.2"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.35.2.tgz#47492183e4a6a3e307965c9fca8d27d65c00da46"
+  integrity sha512-rPfO6tRigOzVMkc+Lm0i9bqH/jMm/LlGvjv8V72Vx6jn9JGr00vnaNsOt9F8Xt1a0F1PiIGCNNw4m9gjn5RoBQ==
   dependencies:
     connect-session-sequelize "^6.0.0"
-    sequelize "5.8.12"
+    sequelize "5.9.2"
 
 any-promise@^1.3.0:
   version "1.3.0"
@@ -199,15 +199,15 @@ semver@^6.1.1:
   resolved "https://registry.yarnpkg.com/semver/-/semver-6.2.0.tgz#4d813d9590aaf8a9192693d6c85b9344de5901db"
   integrity sha512-jdFC1VdUGT/2Scgbimf7FSx9iJLXoqfglSF+gJeuNWVpiE37OIbc1jywR/GJyFdz3mnkz2/id0L0J/cr0izR5A==
 
-sequelize-pool@^2.2.0:
+sequelize-pool@^2.3.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/sequelize-pool/-/sequelize-pool-2.3.0.tgz#64f1fe8744228172c474f530604b6133be64993d"
   integrity sha512-Ibz08vnXvkZ8LJTiUOxRcj1Ckdn7qafNZ2t59jYHMX1VIebTAOYefWdRYFt6z6+hy52WGthAHAoLc9hvk3onqA==
 
-sequelize@5.8.12:
-  version "5.8.12"
-  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.8.12.tgz#91f46f16789307d40c68f8c039c10d1d0f230ad2"
-  integrity sha512-TtgGgQx/+Nub/IdkV7hqEoozUnOYv28waB/l44fMk37Rr+4G3Inrn9opDb/g81zSuRUKsYGOucdWq0qLH+7ujA==
+sequelize@5.9.2:
+  version "5.9.2"
+  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.9.2.tgz#1e8439c3e46c59fae6fb174cf928767490cfa036"
+  integrity sha512-Y0Qswd5ETiLo22lv8/9q/EnpKLn4Sx0wJ0AnvBc2sfLEvso3wxSo7+4uN7mV3d3qGriloQC5t+1WIJqZTEJwOQ==
   dependencies:
     bluebird "^3.5.0"
     cls-bluebird "^2.1.0"
@@ -219,7 +219,7 @@ sequelize@5.8.12:
     moment-timezone "^0.5.21"
     retry-as-promised "^3.1.0"
     semver "^6.1.1"
-    sequelize-pool "^2.2.0"
+    sequelize-pool "^2.3.0"
     toposort-class "^1.0.1"
     uuid "^3.2.1"
     validator "^10.11.0"

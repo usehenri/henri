@@ -133,6 +133,12 @@ They will be autoloaded and available throughout your application (exposed globa
 
 We use [Mongoose](http://mongoosejs.com/) for MongoDB, [Sequelize](http://docs.sequelizejs.com/) for SQL adapters and [Waterline](https://github.com/balderdashy/waterline) for the disk adapter.
 
+You can use the command-line to generate models:
+
+```js
+# henri g model modelname name:string! age:number notes:string birthday:date!
+```
+
 ```js
 // app/models/User.js
 
@@ -145,6 +151,7 @@ We use [Mongoose](http://mongoosejs.com/) for MongoDB, [Sequelize](http://docs.s
 
 module.exports = {
   store: 'dev', // see the demo configuration up there
+  name: 'user_collection', // will use user_collection' instead of 'users'
   schema: {
     firstName: { type: 'string' },
     lastName: String,
