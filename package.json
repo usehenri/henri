@@ -2,10 +2,10 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "precommit": "lint-staged",
     "prepublish": "node scripts/prepublish.js",
     "pretest": "lerna bootstrap",
     "test:watch": "jest --coverage --watch",
+    "test:precommit": "jest --coverage",
     "test:ci": "jest --coverage --forceExit --runInBand --verbose --bail",
     "coveralls": "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
     "publish-canary": "lerna publish --yes --skip-git --exact -c",
@@ -40,7 +40,7 @@
     "babel-eslint": "^10.0.2",
     "babel-plugin-syntax-object-rest-spread": "^6.13.0",
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
-    "coveralls": "^3.0.4",
+    "coveralls": "^3.0.5",
     "cross-env": "^5.2.0",
     "eslint": "^6.0.1",
     "eslint-config-react-app": "^4.0.1",
@@ -101,5 +101,10 @@
   },
   "dependencies": {
     "eslint-plugin-react-hooks": "^1.6.1"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged && jest --coverage"
+    }
   }
 }
