@@ -2,11 +2,14 @@ const Henri = require('../henri');
 
 describe('henri', () => {
   describe('general', () => {
-    beforeAll(() => {
+    beforeEach(() => {
       this.henri = new Henri({ runlevel: 1 });
     });
 
     it('should match snapshot', () => {
+      delete this.henri.validator;
+      this.henri.validator = {};
+
       expect(this.henri).toMatchSnapshot();
     });
 
