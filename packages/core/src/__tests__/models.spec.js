@@ -27,4 +27,4 @@ describe('models', () => {
 
     expect(model).toMatchSnapshot();
   });
-});
+}, 20000);

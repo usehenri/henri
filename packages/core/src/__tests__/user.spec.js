@@ -50,7 +50,7 @@ describe('user', () => {
       await expect(compare(password, hash)).resolves.toBe(true);
       await expect(compare('lydia', hash)).rejects.toBeDefined();
     });
-  });
+  }, 30000);
 
   xdescribe('with user object', () => {
     beforeAll(async () => {
