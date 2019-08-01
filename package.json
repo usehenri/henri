@@ -28,7 +28,7 @@
     "@types/express": "^4.17.0",
     "@types/express-session": "^1.15.13",
     "@types/fs-extra": "^8.0.0",
-    "@types/jest": "^24.0.15",
+    "@types/jest": "^24.0.16",
     "@types/lodash": "^4.14.136",
     "@types/minimist": "^1.2.0",
     "@types/mongoose": "^5.5.11",
@@ -48,13 +48,13 @@
     "eslint-config-standard": "^13.0.1",
     "eslint-plugin-flowtype": "^3.12.2",
     "eslint-plugin-import": "^2.18.2",
-    "eslint-plugin-jest": "^22.14.0",
+    "eslint-plugin-jest": "^22.14.1",
     "eslint-plugin-jsx-a11y": "^6.2.3",
     "eslint-plugin-node": "^9.1.0",
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-react": "^7.14.3",
     "eslint-plugin-standard": "^4.0.0",
-    "husky": "^3.0.1",
+    "husky": "^3.0.2",
     "jest": "^24.8.0",
     "lerna": "^3.16.4",
     "lint-staged": "^9.2.1",
@@ -71,7 +71,6 @@
     ]
   },
   "jest": {
-    "collectCoverage": true,
     "testEnvironment": "node",
     "modulePathIgnorePatterns": [
       "template/.*",
@@ -93,14 +92,12 @@
       "integration_tests/runtime-internal-module-registry/__mocks__"
     ],
     "collectCoverageFrom": [
-      "packages/**/**/*.js"
-    ],
-    "coveragePathIgnorePatterns": [
-      "/bin/",
-      "/cli/",
-      "/view/",
-      "/perf/",
-      "/test/"
+      "packages/**/**/*.js",
+      "!**/bin/**",
+      "!**/cli/**",
+      "!**/view/**",
+      "!**/perf/**",
+      "!**/test/**"
     ]
   },
   "dependencies": {
