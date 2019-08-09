@@ -30,10 +30,11 @@ const Select = (
         value={
           (context.data[name] && context.data[name]._id) ||
           context.data[name] ||
-          (choices[0] && choices[0]._id) ||
+          placeholder ||
           ''
         }
         onChange={e => context.handleChange(e)}
+        required={required}
       >
         {choices.map(item => (
           <option key={item._id} value={item._id}>
