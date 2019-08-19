@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const url = require('url');
 const bounce = require('bounce');
+const debug = require('debug')('henri:router');
 
 /**
  * Router module
@@ -171,6 +172,7 @@ class Router extends BaseModule {
    * @memberof Router
    */
   async startView(reload = false) {
+    // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve, reject) => {
       const { pen } = this.henri;
 
@@ -290,7 +292,7 @@ class Router extends BaseModule {
           const reas = req.user && (await req.user.hasRole(roles));
 
           henri.pen.warn('router', 'denied');
-          console.log(reas, req.user, roles);
+          debug(reas, req.user, roles);
 
           return res.redirect('/login');
         }
