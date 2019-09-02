@@ -42,7 +42,7 @@
     "caniuse-lite": "^1.0.30000989",
     "cssnano": "^4.1.10",
     "debug": "^4.1.1",
-    "module-alias": "^2.2.0",
+    "module-alias": "^2.2.1",
     "next": "^8.1.0",
     "postcss-easy-import": "^3.0.0",
     "postcss-loader": "^3.0.0",

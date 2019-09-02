@@ -40,10 +40,10 @@ debug@^4.1.1:
   dependencies:
     ms "^2.1.1"
 
-kareem@2.3.0:
-  version "2.3.0"
-  resolved "https://registry.yarnpkg.com/kareem/-/kareem-2.3.0.tgz#ef33c42e9024dce511eeaf440cd684f3af1fc769"
-  integrity sha512-6hHxsp9e6zQU8nXsP+02HGWXwTkOEw6IROhF2ZA28cYbUk4eJ6QbtZvdqZOdD9YPKghG3apk5eOCvs+tLl3lRg==
+kareem@2.3.1:
+  version "2.3.1"
+  resolved "https://registry.yarnpkg.com/kareem/-/kareem-2.3.1.tgz#def12d9c941017fabfb00f873af95e9c99e1be87"
+  integrity sha512-l3hLhffs9zqoDe8zjmb/mAN4B8VT3L56EUvKNqLFVs9YlFA+zx7ke1DO8STAdDyYNkeSo1nKmjuvQeI12So8Xw==
 
 lodash@^4.17.11:
   version "4.17.15"
@@ -79,14 +79,14 @@ mongoose-legacy-pluralize@1.0.2:
   resolved "https://registry.yarnpkg.com/mongoose-legacy-pluralize/-/mongoose-legacy-pluralize-1.0.2.tgz#3ba9f91fa507b5186d399fb40854bff18fb563e4"
   integrity sha512-Yo/7qQU4/EyIS8YDFSeenIvXxZN+ld7YdV9LqFVQJzTLye8unujAWPZ4NWKfFA+RNjh+wvTWKY9Z3E5XM6ZZiQ==
 
-mongoose@^5.6.9:
-  version "5.6.9"
-  resolved "https://registry.yarnpkg.com/mongoose/-/mongoose-5.6.9.tgz#86bdf258c5348a5c4a6acaf944d7baa73e3d1707"
-  integrity sha512-NRW5UJSmwyJxK+MRHmq+dQKgZqMZCpW1aPkpBZESqrrgF2J15Flo/4K3RYkSSQY7oKhfbgqZTPo+J1snJ3hJ3w==
+mongoose@^5.6.11:
+  version "5.6.11"
+  resolved "https://registry.yarnpkg.com/mongoose/-/mongoose-5.6.11.tgz#c63f557b702a02be8e20ec21d8f7776bdb9bd2d8"
+  integrity sha512-+Mxfmu2Jcspmdqk1111BLUj5mzSLHWKVovImkjzO9GMymTwkHshsuSFmUN7ou4dWy2WR8DPSJcwU52HhnnNk8Q==
   dependencies:
     async "2.6.2"
     bson "~1.1.1"
-    kareem "2.3.0"
+    kareem "2.3.1"
     mongodb "3.2.7"
     mongodb-core "3.2.7"
     mongoose-legacy-pluralize "1.0.2"

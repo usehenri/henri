@@ -49,6 +49,6 @@
     "webpack": "^4.35.3"
   },
   "devDependencies": {
-    "@types/validator": "^10.11.2"
+    "@types/validator": "^10.11.3"
   }
 }

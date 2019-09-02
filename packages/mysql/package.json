@@ -7,6 +7,6 @@
   "license": "MIT",
   "dependencies": {
     "@usehenri/sequelize": "^0.35.2",
-    "mysql2": "^1.6.5"
+    "mysql2": "^1.7.0"
   }
 }
