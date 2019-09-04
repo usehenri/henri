@@ -8,9 +8,9 @@
   "dependencies": {
     "@usehenri/core": "^0.35.2",
     "chalk": "^2.4.2",
-    "cross-spawn": "^6.0.4",
+    "cross-spawn": "^7.0.0",
     "fs-extra": "^8.1.0",
-    "handlebars": "^4.1.2",
+    "handlebars": "^4.2.0",
     "inquirer": "^7.0.0",
     "minimist": "^1.2.0",
     "ora": "^3.4.0",
