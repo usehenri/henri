@@ -121,15 +121,15 @@ export default ComposedComponent => {
         }
 
         // We might have a bunch of params, iterating...
-        if (params.length > 0) {
-          let route = path;
+        if (Object.keys(params).length > 0) {
+          let { route, method } = paths[path];
 
           Object.keys(params).map(
             val => (route = route.replace(`:${val}`, params[val]))
           );
 
           response.route = route;
-          response.method = paths[path].method;
+          response.method = method;
 
           return response;
         }
