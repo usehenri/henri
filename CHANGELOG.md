@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.36.1](https://github.com/usehenri/henri/compare/v0.36.0...v0.36.1) (2019-09-04)
+
+
+### Bug Fixes
+
+* **core:** migrate from bcrypt-js to bcrypt ([89eccf3](https://github.com/usehenri/henri/commit/89eccf3))
+
+
+
+
+
 # [0.36.0](https://github.com/usehenri/henri/compare/v0.35.2...v0.36.0) (2019-09-04)
 
 
