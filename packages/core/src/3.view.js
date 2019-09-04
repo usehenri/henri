@@ -1,5 +1,5 @@
 const BaseModule = require('./base/module');
-const bounce = require('bounce');
+const bounce = require('@hapi/bounce');
 
 const allowed = {
   inferno: 'react',
@@ -52,7 +52,7 @@ class View extends BaseModule {
       ? config.get('renderer').toLowerCase()
       : 'template';
 
-    if (!allowed.hasOwnProperty(this.renderer)) {
+    if (!Object.prototype.hasOwnProperty.call(allowed, this.renderer)) {
       pen.fatal(
         'view',
         `Unable to load '${

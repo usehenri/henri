@@ -1,7 +1,7 @@
 const BaseModule = require('./base/module');
 const path = require('path');
 const includeAll = require('include-all');
-const bounce = require('bounce');
+const bounce = require('@hapi/bounce');
 
 /**
  * Controllers module

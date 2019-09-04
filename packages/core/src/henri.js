@@ -17,7 +17,7 @@ const Workers = require('./5.workers');
 const Testing = require('./7.tests');
 
 const path = require('path');
-const bounce = require('bounce');
+const bounce = require('@hapi/bounce');
 
 /**
  * Henri
@@ -59,28 +59,26 @@ class Henri extends HenriBase {
    * @memberof Henri
    */
   async init() {
-    return new Promise(async resolve => {
-      this.modules.add(new Config());
-      this.modules.add(new Mailer());
-      this.modules.add(new Graphql());
-      this.modules.add(new Controllers());
-      this.modules.add(new Server());
-      this.modules.add(new Model());
-      this.modules.add(new Router());
-      this.modules.add(new User());
-      this.modules.add(new View());
-      this.modules.add(new Workers());
-      this.modules.add(new Testing());
+    this.modules.add(new Config());
+    this.modules.add(new Mailer());
+    this.modules.add(new Graphql());
+    this.modules.add(new Controllers());
+    this.modules.add(new Server());
+    this.modules.add(new Model());
+    this.modules.add(new Router());
+    this.modules.add(new User());
+    this.modules.add(new View());
+    this.modules.add(new Workers());
+    this.modules.add(new Testing());
 
-      try {
-        await this.modules.init();
-      } catch (error) {
-        bounce.rethrow(error, 'system');
-        throw new Error('henri - unable to execute init()');
-      }
+    try {
+      await this.modules.init();
+    } catch (error) {
+      bounce.rethrow(error, 'system');
+      throw new Error('henri - unable to execute init()');
+    }
 
-      return resolve(true);
-    });
+    return true;
   }
 
   /**

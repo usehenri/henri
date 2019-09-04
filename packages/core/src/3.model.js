@@ -2,7 +2,7 @@ const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
 const includeAll = require('include-all');
-const bounce = require('bounce');
+const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:model');
 
 /**
@@ -207,9 +207,7 @@ class Model extends BaseModule {
     if (typeof valid[store.adapter] === 'undefined') {
       return pen.fatal(
         'models',
-        `Adapter '${
-          store.adapter
-        }' is not valid. Check your configuration file.`
+        `Adapter '${store.adapter}' is not valid. Check your configuration file.`
       );
     }
 
@@ -234,18 +232,15 @@ class Model extends BaseModule {
    * @memberof Model
    */
   async init() {
-    return new Promise(async resolve => {
-      try {
-        await this.start(
-          await this.configure(await Model.load('./app/models'))
-        );
-        debug('init done');
-      } catch (error) {
-        this.henri.pen.error('model', 'error', error);
-        bounce.rethrow(error, 'system');
-      }
-      resolve(this.name);
-    });
+    try {
+      await this.start(await this.configure(await Model.load('./app/models')));
+      debug('init done');
+    } catch (error) {
+      this.henri.pen.error('model', 'error', error);
+      bounce.rethrow(error, 'system');
+    }
+
+    return this.name;
   }
 
   /**
@@ -256,22 +251,20 @@ class Model extends BaseModule {
    * @memberof Model
    */
   async start() {
-    return new Promise(async resolve => {
-      try {
-        for (const store of Object.keys(this.stores)) {
-          debug('starting store %s', store);
-          await this.stores[store].start();
-        }
-      } catch (error) {
-        bounce.rethrow(error, 'system');
+    try {
+      for (const store of Object.keys(this.stores)) {
+        debug('starting store %s', store);
+        await this.stores[store].start();
       }
-      if (this.ids.length > 0) {
-        this.addToEslintRc();
-      }
-      debug('start done');
+    } catch (error) {
+      bounce.rethrow(error, 'system');
+    }
+    if (this.ids.length > 0) {
+      this.addToEslintRc();
+    }
+    debug('start done');
 
-      return resolve();
-    });
+    return true;
   }
 
   /**
@@ -284,29 +277,27 @@ class Model extends BaseModule {
   async stop() {
     const { pen } = this.henri;
 
-    return new Promise(async resolve => {
-      if (this.stores.length < 1) {
-        pen.warn('model', 'no models/stores needed to be stopped.');
+    if (this.stores.length < 1) {
+      pen.warn('model', 'no models/stores needed to be stopped.');
 
-        return resolve(true);
+      return true;
+    }
+    try {
+      for (const store of Object.keys(this.stores)) {
+        await this.stores[store].stop();
+        debug('stopped %s', store);
       }
-      try {
-        for (const store of Object.keys(this.stores)) {
-          await this.stores[store].stop();
-          debug('stopped %s', store);
-        }
-      } catch (error) {
-        bounce.rethrow(error, 'system');
-      }
-      this.ids.forEach(name => delete global[name]);
-      delete this.stores;
+    } catch (error) {
+      bounce.rethrow(error, 'system');
+    }
+    this.ids.forEach(name => delete global[name]);
+    delete this.stores;
 
-      this.ids = [];
-      this.stores = [];
-      debug('stop done');
+    this.ids = [];
+    this.stores = [];
+    debug('stop done');
 
-      return resolve(true);
-    });
+    return true;
   }
 
   /**
@@ -396,9 +387,7 @@ class Model extends BaseModule {
 
     if (model.store && !config.has(`stores.${model.store}`)) {
       throw new Error(
-        `It seems like ${model.store} is not configured. ${
-          model.identity
-        } is using it.`
+        `It seems like ${model.store} is not configured. ${model.identity} is using it.`
       );
     }
   }

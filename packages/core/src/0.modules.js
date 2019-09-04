@@ -1,7 +1,7 @@
 const { stack } = require('./utils');
 const BaseModule = require('./base/module');
 
-const bounce = require('bounce');
+const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:modules');
 
 /**
@@ -85,6 +85,7 @@ class Modules {
   async init() {
     debug('starting init');
 
+    // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve, reject) => {
       const { pen } = this.henri;
 

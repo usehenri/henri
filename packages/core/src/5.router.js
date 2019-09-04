@@ -3,7 +3,7 @@ const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
 const url = require('url');
-const bounce = require('bounce');
+const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:router');
 
 /**

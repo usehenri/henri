@@ -5,7 +5,7 @@ const fs = require('fs');
 const prettier = require('prettier');
 const stack = require('callsite');
 const readline = require('readline');
-const bounce = require('bounce');
+const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:utils');
 const inquirer = require('inquirer');
 
@@ -88,9 +88,7 @@ function checkMissing(packages) {
 
         if (comparev(target.version, version) < 0) {
           console.log(
-            `package version error for ${pkgName}; wanted > ${version} but got ${
-              target.version
-            }`
+            `package version error for ${pkgName}; wanted > ${version} but got ${target.version}`
           );
           throw new Error();
         }

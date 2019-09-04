@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const glob = require('glob');
 const hbs = require('handlebars');
-const bounce = require('bounce');
+const bounce = require('@hapi/bounce');
 
 /**
  * Handlebars engine

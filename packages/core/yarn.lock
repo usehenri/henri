@@ -158,6 +158,26 @@
     exec-sh "^0.3.2"
     minimist "^1.2.0"
 
+"@hapi/boom@7.x.x":
+  version "7.4.3"
+  resolved "https://registry.yarnpkg.com/@hapi/boom/-/boom-7.4.3.tgz#79ffed6ef8c625046a3bd069abed5a9d35fc50c1"
+  integrity sha512-3di+R+BcGS7HKy67Zi6mIga8orf67GdR0ubDEVBG1oqz3y9B70LewsuCMCSvWWLKlI6V1+266zqhYzjMrPGvZw==
+  dependencies:
+    "@hapi/hoek" "8.x.x"
+
+"@hapi/bounce@^1.3.1":
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/@hapi/bounce/-/bounce-1.3.1.tgz#7e0017300fa92b21bc6706590cac08f6085899e1"
+  integrity sha512-/ecFQTRBom2MEbjMHvKKE6FZ/e1gYK72CeUIFzz++dKK1kYJ0KbRJ72mXroWoTT2hIv+8H0ua/eOkO0+hRdHcw==
+  dependencies:
+    "@hapi/boom" "7.x.x"
+    "@hapi/hoek" "8.x.x"
+
+"@hapi/hoek@8.x.x":
+  version "8.2.2"
+  resolved "https://registry.yarnpkg.com/@hapi/hoek/-/hoek-8.2.2.tgz#6eaa2e1ec3b50dfb8dccbe705dc289094652bc2d"
+  integrity sha512-18P3VwngjNEcmvPj1mmiHLPyUPjhPAxIyJKDj4PRIY0F5ac3P0Vd0hkASPyWXHK0rfY3P9N2FoxV8ZuYaRBZ1g==
+
 "@jest/console@^24.7.1":
   version "24.7.1"
   resolved "https://registry.yarnpkg.com/@jest/console/-/console-24.7.1.tgz#32a9e42535a97aedfe037e725bd67e954b459545"
@@ -1352,19 +1372,11 @@ body-parser@1.19.0, body-parser@^1.18.3:
     raw-body "2.4.0"
     type-is "~1.6.17"
 
-boom@7.x.x, boom@^7.3.x:
+boom@^7.3.x:
   version "7.3.0"
   resolved "https://registry.yarnpkg.com/boom/-/boom-7.3.0.tgz#733a6d956d33b0b1999da3fe6c12996950d017b9"
   integrity sha512-Swpoyi2t5+GhOEGw8rEsKvTxFLIDiiKoUc2gsoV6Lyr43LHBIzch3k2MvYUs8RTROrIkVJ3Al0TkaOGjnb+B6A==
   dependencies:
-    hoek "6.x.x"
-
-bounce@^1.2.3:
-  version "1.2.3"
-  resolved "https://registry.yarnpkg.com/bounce/-/bounce-1.2.3.tgz#2b286d36eb21d5f08fe672dd8cd37a109baad121"
-  integrity sha512-3G7B8CyBnip5EahCZJjnvQ1HLyArC6P5e+xcolo13BVI9ogFaDOsNMAE7FIWliHtIkYI8/nTRCvCY9tZa3Mu4g==
-  dependencies:
-    boom "7.x.x"
     hoek "6.x.x"
 
 brace-expansion@^1.1.7:
