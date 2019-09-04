@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.36.0](https://github.com/usehenri/henri/compare/v0.35.2...v0.36.0) (2019-09-04)
+
+
+### Bug Fixes
+
+* **cli:** capitalize model name outside of scaffold ([e87ec2f](https://github.com/usehenri/henri/commit/e87ec2f))
+
+
+### Features
+
+* **cli:** add required option in generate script ([31ce3af](https://github.com/usehenri/henri/commit/31ce3af))
+
+
+
+
+
 ## [0.35.2](https://github.com/usehenri/henri/compare/v0.35.1...v0.35.2) (2019-07-04)
 
 

@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.36.0](https://github.com/usehenri/henri/compare/v0.35.2...v0.36.0) (2019-09-04)
+
+
+### Bug Fixes
+
+* **cli:** capitalize model name outside of scaffold ([e87ec2f](https://github.com/usehenri/henri/commit/e87ec2f))
+* **core:** move husky hook definition and test before push ([b73067a](https://github.com/usehenri/henri/commit/b73067a))
+* **react:** pathFor was not replacing all placeholders ([1158d07](https://github.com/usehenri/henri/commit/1158d07))
+* **react:** show react and nextjs version ([4920977](https://github.com/usehenri/henri/commit/4920977))
+
+
+### Features
+
+* **cli:** add required option in generate script ([31ce3af](https://github.com/usehenri/henri/commit/31ce3af))
+* **mongoose:** specify collection name with name attribute ([a6e6c1a](https://github.com/usehenri/henri/commit/a6e6c1a))
+
+
+
+
+
 ## [0.35.2](https://github.com/usehenri/henri/compare/v0.35.1...v0.35.2) (2019-07-04)
 
 

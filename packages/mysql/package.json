@@ -1,12 +1,12 @@
 {
   "name": "@usehenri/mysql",
-  "version": "0.35.2",
+  "version": "0.36.0",
   "description": "henri mariadb/mysql database connector",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/sequelize": "^0.35.2",
+    "@usehenri/sequelize": "^0.36.0",
     "mysql2": "^1.7.0"
   }
 }
