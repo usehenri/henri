@@ -5,7 +5,7 @@ const passport = require('passport');
 const JwtStrategy = require('passport-jwt').Strategy;
 const ExtractJwt = require('passport-jwt').ExtractJwt;
 const LocalStrategy = require('passport-local').Strategy;
-const bcrypt = require('bcrypt-nodejs');
+const bcrypt = require('bcrypt');
 
 /**
  * User module
@@ -41,30 +41,20 @@ class User extends BaseModule {
    * @memberof User
    */
   async encrypt(password, rounds = 10) {
-    return new Promise((resolve, reject) => {
-      if (typeof password !== 'string') {
-        return reject(new Error('you must provide a string to encrypt'));
-      }
-      if (password.length < 6) {
-        return reject(new Error('minimum password string is 6 characters'));
-      }
-      if (this.henri.isTest) {
-        rounds = 3;
-      }
-      bcrypt.genSalt(rounds, (err, salt) => {
-        if (err) {
-          return reject(err);
-        }
+    if (typeof password !== 'string') {
+      throw new Error('you must provide a string to encrypt');
+    }
+    if (password.length < 6) {
+      throw new Error('minimum password string is 6 characters');
+    }
+    if (this.henri.isTest) {
+      rounds = 3;
+    }
 
-        bcrypt.hash(password, salt, null, (err, hash) => {
-          if (err) {
-            return reject(err);
-          }
+    const salt = await bcrypt.genSalt(rounds);
+    const hash = await bcrypt.hash(password, salt);
 
-          return resolve(hash);
-        });
-      });
-    });
+    return hash;
   }
 
   /**
@@ -80,18 +70,13 @@ class User extends BaseModule {
    */
   async compare(password, hash) {
     if (this.henri) {
-      return new Promise((resolve, reject) => {
-        bcrypt.compare(password, hash, (err, ok) => {
-          if (err) {
-            return reject(err);
-          }
-          if (!ok) {
-            return reject(new Error('Invalid credentials'));
-          }
+      const ok = await bcrypt.compare(password, hash);
 
-          return resolve(true);
-        });
-      });
+      if (!ok) {
+        throw new Error('Invalid credentials');
+      }
+
+      return true;
     }
   }
 
