@@ -132,7 +132,23 @@ class ReactEngine {
       }
     }
 
-    pen.info('view', 'starting next.js instance...');
+    const versions = {
+      //eslint-disable-next-line global-require
+      next: require(path.resolve(
+        require.resolve('next'),
+        '../../../package.json'
+      )).version,
+      //eslint-disable-next-line global-require
+      react: require(path.resolve(require.resolve('react'), '../package.json'))
+        .version,
+    };
+
+    pen.info(
+      'view',
+      'starting next.js instance...',
+      `next.js = ${versions.next}`,
+      `react = ${versions.react}`
+    );
 
     this.instance = next({
       conf: this.conf,
