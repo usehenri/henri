@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.36.2](https://github.com/usehenri/henri/compare/v0.36.1...v0.36.2) (2019-09-04)
+
+
+### Bug Fixes
+
+* **core:** upgrade bounce to @hapi/bounce ([5c12326](https://github.com/usehenri/henri/commit/5c12326))
+
+
+
+
+
 ## [0.36.1](https://github.com/usehenri/henri/compare/v0.36.0...v0.36.1) (2019-09-04)
 
 
