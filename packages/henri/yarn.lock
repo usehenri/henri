@@ -614,12 +614,12 @@
   dependencies:
     "@types/yargs-parser" "*"
 
-"@usehenri/cli@^0.36.2":
-  version "0.36.2"
-  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.36.2.tgz#1b6186594a5b5ba068ae4e187d0bf2cb85024262"
-  integrity sha512-quNsRGsVNTTlMWOmNctP6qFJ1+AOiFzBdrwWbnVbRsaPRzBrcxVqDpliEGNbKO5OL1mursG1Na/k2bRuSDg+lw==
+"@usehenri/cli@^0.36.3":
+  version "0.36.3"
+  resolved "https://registry.yarnpkg.com/@usehenri/cli/-/cli-0.36.3.tgz#c3a0c94e39bca36a1fc9d8bfb7dd927769973a9a"
+  integrity sha512-xc1rU4OJC+dXyXUVHB3rFE+OcomGLDQ0GiXp/XFJpnZrnZHc1byxYH2HlohpspXFXwyuYSnkssZUpARn8kBG+A==
   dependencies:
-    "@usehenri/core" "^0.36.2"
+    "@usehenri/core" "^0.36.3"
     chalk "^2.4.2"
     cross-spawn "^7.0.0"
     fs-extra "^8.1.0"
@@ -631,10 +631,10 @@
     rimraf "^3.0.0"
     update-notifier "^3.0.1"
 
-"@usehenri/core@^0.36.2":
-  version "0.36.2"
-  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.36.2.tgz#b7ecf6ee036e5f31159125ba2bba601030630f90"
-  integrity sha512-trcsMPP7OwiOAMEfVHKGs28FNC+pXjBl0ac07E3K5WCT3DZNRfvJHZcLBtkR5jC3cdrNTbTcAG/MO2+btRJnug==
+"@usehenri/core@^0.36.3":
+  version "0.36.3"
+  resolved "https://registry.yarnpkg.com/@usehenri/core/-/core-0.36.3.tgz#938b5e818487e63e1e901d1594bba09c233a0032"
+  integrity sha512-eKKzVdCerFKsnrhSoN5EYDf/NDBTrcZsvgysbb7auB6CiVRM5Reg+YCaI3tIhE/GxqEQYlIYfoYysB7jf+Yl/A==
   dependencies:
     "@hapi/bounce" "^1.3.1"
     apollo-server-express "^2.3.3"
@@ -653,7 +653,7 @@
     express-session "^1.16.2"
     faker "^4.1.0"
     glob "^7.1.4"
-    graphql "git://github.com/graphql/graphql-js.git#npm"
+    graphql "https://github.com/graphql/graphql-js.git#npm"
     graphql-tools "^4.0.5"
     handlebars "^4.2.0"
     include-all "^4.0.3"
@@ -661,7 +661,7 @@
     isomorphic-fetch "^2.2.1"
     jest-cli "^24.9.0"
     lodash "^4.17.15"
-    merge-graphql-schemas "^1.5.8"
+    merge-graphql-schemas "^1.7.0"
     moment "^2.24.0"
     node-notifier "^5.4.3"
     nodemailer "^6.3.0"
@@ -3235,10 +3235,10 @@ graphql-tag@^2.9.2:
   resolved "https://registry.yarnpkg.com/graphql-tag/-/graphql-tag-2.10.1.tgz#10aa41f1cd8fae5373eaf11f1f67260a3cad5e02"
   integrity sha512-jApXqWBzNXQ8jYa/HLkZJaVw9jgwNqZkywa2zfFn16Iv1Zb7ELNHkJaXHR7Quvd5SIGsy6Ny7SUKATgnu05uEg==
 
-graphql-toolkit@0.4.1:
-  version "0.4.1"
-  resolved "https://registry.yarnpkg.com/graphql-toolkit/-/graphql-toolkit-0.4.1.tgz#f5a9fa225b51168dd0d0558dc59e8fc3d379e9b1"
-  integrity sha512-asTRlNn0381f6/wVp8F0X2vsz8GJnv4TX+KNHg1k8Ybe6Ii5HBreJTxBHJ7GXlNDhj5MGCNi09nt8Oe7Ategrg==
+graphql-toolkit@0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/graphql-toolkit/-/graphql-toolkit-0.5.0.tgz#7371c21809898286b2a9e164b45469586cf64498"
+  integrity sha512-tBgqyWPHI/Pgt+jp+uLZZy2EBCzjd6yWAu73oUlmrhgg7XM6f1ONotVHvIO2MK7j8khR+ex/cUe8FgpS1i845w==
   dependencies:
     "@kamilkisiela/graphql-tools" "4.0.6"
     "@types/glob" "7.1.1"
@@ -3275,9 +3275,9 @@ graphql-upload@^8.0.2:
     http-errors "^1.7.2"
     object-path "^0.11.4"
 
-"graphql@git://github.com/graphql/graphql-js.git#npm":
-  version "14.4.2"
-  resolved "git://github.com/graphql/graphql-js.git#6422f78e53414b0f0f9bfead9ba6b3d0dfc86e94"
+"graphql@git+https://github.com/graphql/graphql-js.git#npm":
+  version "14.5.6"
+  resolved "git+https://github.com/graphql/graphql-js.git#60542af35c427e1338fd5ee139c68b7e1342802b"
   dependencies:
     iterall "^1.2.2"
 
@@ -4776,12 +4776,12 @@ merge-dictionaries@^0.0.3:
   dependencies:
     "@sailshq/lodash" "^3.10.2"
 
-merge-graphql-schemas@^1.5.8:
-  version "1.6.1"
-  resolved "https://registry.yarnpkg.com/merge-graphql-schemas/-/merge-graphql-schemas-1.6.1.tgz#4c4744bd3f2395a876d0e6885e60c90a9a5a4568"
-  integrity sha512-XEgol3ThgEPo65Cj+cx8UhOFE4IuTSF1Mh0iK8AVOEM/hKrhLfNECmtg9U6HoHfa9nINLxeGZIVvq9rjoSx3cQ==
+merge-graphql-schemas@^1.7.0:
+  version "1.7.0"
+  resolved "https://registry.yarnpkg.com/merge-graphql-schemas/-/merge-graphql-schemas-1.7.0.tgz#bedf99b90096d4b324f8e81271e878e6b5cc930d"
+  integrity sha512-uxErpYVjlf91eTBdwHxVEwKtaosmmEHMJaQfe35XHwOEpUfhA9OFbYKRfZX5jUUS53xMnk203HDAl/u0EfjP7A==
   dependencies:
-    graphql-toolkit "0.4.1"
+    graphql-toolkit "0.5.0"
     tslib "1.10.0"
 
 merge-stream@^1.0.1:

@@ -43,7 +43,7 @@
     "cssnano": "^4.1.10",
     "debug": "^4.1.1",
     "module-alias": "^2.2.1",
-    "next": "^9.0.5",
+    "next": "^9.0.6",
     "postcss-easy-import": "^3.0.0",
     "postcss-loader": "^3.0.0",
     "prop-types": "^15.7.2",
