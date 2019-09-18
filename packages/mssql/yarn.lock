@@ -35,6 +35,11 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-12.6.8.tgz#e469b4bf9d1c9832aee4907ba8a051494357c12c"
   integrity sha512-aX+gFgA5GHcDi89KG5keey2zf0WfZk/HAQotEamsK2kbey+8yGKcson0hbK8E+v0NArlCJQCqMP161YhV6ZXLg==
 
+"@types/node@^12.6.9":
+  version "12.7.5"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.7.5.tgz#e19436e7f8e9b4601005d73673b6dc4784ffcc2f"
+  integrity sha512-9fq4jZVhPNW8r+UYKnxF1e2HkDWOWKM5bC2/7c9wPV835I0aOrVbS/Hw/pWPk2uKrNXQqg9Z959Kz+IYDd5p3w==
+
 "@types/node@^8.0.47":
   version "8.10.51"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.51.tgz#80600857c0a47a8e8bafc2dae6daed6db58e3627"
@@ -47,13 +52,13 @@
   dependencies:
     "@types/node" "*"
 
-"@usehenri/sequelize@^0.35.2":
-  version "0.35.2"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.35.2.tgz#47492183e4a6a3e307965c9fca8d27d65c00da46"
-  integrity sha512-rPfO6tRigOzVMkc+Lm0i9bqH/jMm/LlGvjv8V72Vx6jn9JGr00vnaNsOt9F8Xt1a0F1PiIGCNNw4m9gjn5RoBQ==
+"@usehenri/sequelize@^0.36.0":
+  version "0.36.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.36.0.tgz#1d5a1be257b5296196006df2d4ad61851dc4cd62"
+  integrity sha512-41Qi376RgSy1WqszVz2UneJOzDtJT4sK6O2Y0KBnJjTxApNKpK6rGdkn5AXkSqaxT/QsiA/9S8GtXQAwApYd+Q==
   dependencies:
     connect-session-sequelize "^6.0.0"
-    sequelize "5.9.2"
+    sequelize "5.18.1"
 
 adal-node@^0.1.28:
   version "0.1.28"
@@ -574,10 +579,10 @@ sequelize-pool@^2.3.0:
   resolved "https://registry.yarnpkg.com/sequelize-pool/-/sequelize-pool-2.3.0.tgz#64f1fe8744228172c474f530604b6133be64993d"
   integrity sha512-Ibz08vnXvkZ8LJTiUOxRcj1Ckdn7qafNZ2t59jYHMX1VIebTAOYefWdRYFt6z6+hy52WGthAHAoLc9hvk3onqA==
 
-sequelize@5.9.2:
-  version "5.9.2"
-  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.9.2.tgz#1e8439c3e46c59fae6fb174cf928767490cfa036"
-  integrity sha512-Y0Qswd5ETiLo22lv8/9q/EnpKLn4Sx0wJ0AnvBc2sfLEvso3wxSo7+4uN7mV3d3qGriloQC5t+1WIJqZTEJwOQ==
+sequelize@5.18.1:
+  version "5.18.1"
+  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.18.1.tgz#31d5246dcdf01d0ac317454c28fb598359d5b60a"
+  integrity sha512-jngo7pqilyOycMv6ZEwHLVn2wuHi/xkSQZfwK4jhjG8ta1HWYJK3XyQDFdhVEOH1GEq9pnqaf+7Kwqm+eqXD9Q==
   dependencies:
     bluebird "^3.5.0"
     cls-bluebird "^2.1.0"
@@ -627,12 +632,13 @@ string_decoder@^1.1.1:
   dependencies:
     safe-buffer "~5.1.0"
 
-tedious@^6.3.0:
-  version "6.3.0"
-  resolved "https://registry.yarnpkg.com/tedious/-/tedious-6.3.0.tgz#e25c9f933abf82d2d7617d25dd700dc6381f646b"
-  integrity sha512-ITJ0iIEMQPveuOJwBI/UB8rIYL0OMtFAWXugM3QX7iOuGL9NJboVpMcU9tTVD8nMSAyggqwNbDL8+5dSe9fA/w==
+tedious@^6.4.0:
+  version "6.4.0"
+  resolved "https://registry.yarnpkg.com/tedious/-/tedious-6.4.0.tgz#68be73d80d4dd37f763e239371f19c20751afdbf"
+  integrity sha512-DqoRZdQpINGUhv8k3bkmidpXpy0aVNdmaYFXb+IK7roQI7RUZegUfl37ayY4MmBNH0YnSUaVQs+U9P7itV/dTg==
   dependencies:
     "@azure/ms-rest-nodeauth" "^2.0.2"
+    "@types/node" "^12.6.9"
     big-number "1.0.0"
     bl "^3.0.0"
     depd "^2.0.0"
