@@ -163,6 +163,7 @@ class Mongoose {
         .connect(this.config.url || this.config.host, {
           useCreateIndex: true,
           useNewUrlParser: true,
+          useUnifiedTopology: true,
         })
         .then(
           () => {
