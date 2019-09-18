@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.36.4](https://github.com/usehenri/henri/compare/v0.36.3...v0.36.4) (2019-09-18)
+
+
+### Bug Fixes
+
+* **mongoose:** add the new options for server discovery ([a280c44](https://github.com/usehenri/henri/commit/a280c44))
+
+
+
+
+
 ## [0.36.3](https://github.com/usehenri/henri/compare/v0.36.2...v0.36.3) (2019-09-18)
 
 **Note:** Version bump only for package @usehenri/mongoose
