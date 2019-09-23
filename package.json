@@ -12,11 +12,11 @@
     "publish-canary": "lerna publish --yes --skip-git --exact -c",
     "packages:audit": "yarn run packages:clean && lerna exec --concurrency 1 -- yarn install --audit --ignore-engines",
     "packages:clean": "lerna clean --yes",
-    "packages:install": "lerna exec --concurrency 1 -- yarn install --ignore-engines && yarn install --ignore-engines",
+    "packages:install": "lerna exec --concurrency 4 -- yarn install --ignore-engines && yarn install --ignore-engines",
     "packages:upgrade": "yarn upgrade-interactive --latest --ignore-engines && lerna exec --concurrency 1 -- yarn upgrade-interactive --latest --force --ignore-engines",
     "packages:bootstrap": "lerna bootstrap",
     "packages:maintenance": "yarn run packages:clean && yarn run packages:install && yarn run packages:upgrade && yarn run packages:bootstrap && yarn run packages:yalc && exit",
-    "packages:yalc": "yalc push packages/mongoose && yalc push packages/react"
+    "packages:yalc": "lerna exec -- yalc push"
   },
   "devDependencies": {
     "@types/bcrypt-nodejs": "^0.0.30",
@@ -44,7 +44,7 @@
     "coveralls": "^3.0.6",
     "cross-env": "^6.0.0",
     "eslint": "^6.4.0",
-    "eslint-config-react-app": "^5.0.1",
+    "eslint-config-react-app": "^5.0.2",
     "eslint-config-standard": "^14.1.0",
     "eslint-plugin-flowtype": "^4.3.0",
     "eslint-plugin-import": "^2.18.2",
@@ -57,7 +57,7 @@
     "husky": "^3.0.5",
     "jest": "^24.9.0",
     "lerna": "^3.16.4",
-    "lint-staged": "^9.2.5",
+    "lint-staged": "^9.3.0",
     "maildev": "^1.1.0",
     "nyc": "^14.1.1",
     "prettier": "^1.18.2",

@@ -10,10 +10,10 @@
     "chalk": "^2.4.2",
     "cross-spawn": "^7.0.0",
     "fs-extra": "^8.1.0",
-    "handlebars": "^4.2.0",
+    "handlebars": "^4.2.1",
     "inquirer": "^7.0.0",
     "minimist": "^1.2.0",
-    "ora": "^3.4.0",
+    "ora": "^4.0.1",
     "prettier": "^1.18.2",
     "rimraf": "^3.0.0",
     "update-notifier": "^3.0.1"
