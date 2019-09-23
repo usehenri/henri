@@ -42,6 +42,8 @@
     "caniuse-lite": "^1.0.30000989",
     "cssnano": "^4.1.10",
     "debug": "^4.1.1",
+    "lodash.get": "^4.4.2",
+    "lodash.set": "^4.3.2",
     "module-alias": "^2.2.1",
     "next": "^9.0.6",
     "postcss-easy-import": "^3.0.0",

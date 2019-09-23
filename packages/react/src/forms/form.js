@@ -2,15 +2,17 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import Validation from './validation';
 import shallowEqual from 'shallowequal';
+import { Object } from 'core-js';
+const _Set = require('lodash.set');
 
 class Form extends Component {
   constructor(props) {
     super(props);
     this.state = {
       data: this.props.data || {},
-      errors: {},
-      error: null,
       disabled: false,
+      error: null,
+      errors: {},
       modified: false,
     };
     this.name = this.props.name;
@@ -33,17 +35,17 @@ class Form extends Component {
     this.sanitizers[name] = sanitizers;
   };
 
-  handleChange = (e, validation = {}) => {
-    const target = e.target;
+  handleChange = (event, validation = {}) => {
+    const target = event.target;
     const value = target.type === 'checkbox' ? target.checked : target.value;
     const name = target.name;
 
     this.setState(({ errors }) => ({
+      error: null,
       errors: {
         ...errors,
         [name]: null,
       },
-      error: null,
     }));
 
     if (value !== '') {
@@ -59,55 +61,72 @@ class Form extends Component {
       }
     }
 
-    this.setState(({ data }) => ({
-      data: {
-        ...data,
-        [name]: value,
-      },
-      modified: true,
-    }));
+    this.setState(({ data }) => {
+      _Set(data, name, value);
+
+      const newData = Object.assign({}, data);
+
+      return {
+        data: newData,
+        modified: true,
+      };
+    });
   };
 
-  handleSubmit = e => {
-    e.preventDefault();
+  handleSubmit = event => {
+    event.preventDefault();
     if (this.state.disabled) {
       return;
     }
     const { action = null, debug = false, handleSubmit = null } = this.props;
     let data = {};
+
     for (let key in this.state.data) {
-      data[key] = this.state.data[key];
-      for (let rule in this.sanitizers[key]) {
-        data[key] = Validation(
-          rule,
-          this.sanitizers[key][rule],
-          this.state.data[key]
-        );
+      if (Object.prototype.hasOwnProperty.call(this.state.data, key)) {
+        data[key] = this.state.data[key];
+        for (let rule in this.sanitizers[key]) {
+          if (
+            Object.prototype.hasOwnProperty.call(this.sanitizers[key], rule)
+          ) {
+            data[key] = Validation(
+              rule,
+              this.sanitizers[key][rule],
+              this.state.data[key]
+            );
+          }
+        }
       }
     }
 
     if (handleSubmit && action) {
+      // eslint-disable-next-line no-console
       return console.error(
         'You have "action" and "handleSubmit" defined, i am puzzled'
       );
     }
 
     if (debug) {
+      // eslint-disable-next-line no-console
       console.log('========= HENRI FORM DATA SUBMISSION =========');
+      // eslint-disable-next-line no-console
       console.log(data);
+      // eslint-disable-next-line no-console
       console.log('+++++++++ HENRI FORM END SUBMISSION ++++++++++');
     }
 
     if (handleSubmit) {
       handleSubmit && handleSubmit(action, data, this.clear);
+
       return this.lock();
     }
 
     if (action) {
       this.submit(action, data);
+
       return this.lock();
     }
 
+    // eslint-disable-next-line no-console
     console.error('No handleSubmit() or action props supplied, i am off...');
   };
 
@@ -120,21 +139,26 @@ class Form extends Component {
       method = 'post',
     } = this.props;
     const { hydrate = null, fetch } = this.context;
+
     fetch({ method, route: action }, data)
       .then(resp => {
         this.setState({ error: null });
         hydrate && hydrate();
         typeof onSuccess === 'function' && onSuccess(data);
+        // eslint-disable-next-line no-console
         debug && console.log('form post successful!');
         this.clear();
       })
       .catch(err => {
+        // eslint-disable-next-line no-console
         debug && console.log('form post error:');
+        // eslint-disable-next-line no-console
         debug && console.dir(err);
         const message =
           (err.response && err.response.data && err.response.data.msg) ||
           onFail ||
           true;
+
         typeof onError === 'function' && onError(message);
         this.raiseError('error', message);
       });
@@ -152,7 +176,7 @@ class Form extends Component {
   raiseError = (name, msg) => {
     this.setState({ [name]: msg });
     // TODO: not fired... hmm
-    // setTimeout(() => this.setState({ [name]: null }), 2500);
+    // SetTimeout(() => this.setState({ [name]: null }), 2500);
   };
 
   componentDidMount = () => {
@@ -167,28 +191,29 @@ class Form extends Component {
 
   getChildContext() {
     return {
-      // Contains the data passed down. Key should match names
-      data: this.state.data,
-      // Is it disabled?
-      disabled: this.state.disabled,
-      // Per components error
-      errors: this.state.errors,
-      // Global form error
-      error: this.state.error,
-      // Is the form modified?
-      modified: this.state.modified,
-      // Send back the changes so we can update the state
-      handleChange: this.handleChange,
-      // If a component wants to trigger a submit
-      handleSubmit: this.handleSubmit,
+      // Warn if not within form
+      _henriForm: true,
       // Add a sanitizer for validation
       addSanitizer: this.addSanitizer,
       // Reset the form
       clear: this.clear,
-      // Warn if not within form
-      _henriForm: true,
+      // Contains the data passed down. Key should match names
+      data: this.state.data,
+      // Is it disabled?
+      disabled: this.state.disabled,
+      // Global form error
+      error: this.state.error,
+      // Per components error
+      errors: this.state.errors,
+      // Send back the changes so we can update the state
+      handleChange: this.handleChange,
+      // If a component wants to trigger a submit
+      handleSubmit: this.handleSubmit,
+      // Is the form modified?
+      modified: this.state.modified,
     };
   }
+
   render() {
     return (
       <form
@@ -203,33 +228,33 @@ class Form extends Component {
 }
 
 Form.propTypes = {
-  data: PropTypes.object,
-  className: PropTypes.string,
-  name: PropTypes.string,
-  debug: PropTypes.bool,
   action: PropTypes.string,
+  className: PropTypes.string,
+  data: PropTypes.object,
+  debug: PropTypes.bool,
   method: PropTypes.string,
-  onSuccess: PropTypes.func,
+  name: PropTypes.string,
   onError: PropTypes.func,
   onFail: PropTypes.string,
+  onSuccess: PropTypes.func,
 };
 
 Form.childContextTypes = {
-  data: PropTypes.object,
-  disabled: PropTypes.bool,
-  errors: PropTypes.object,
-  error: PropTypes.any,
-  modified: PropTypes.bool,
-  handleChange: PropTypes.func,
-  handleSubmit: PropTypes.func,
+  _henriForm: PropTypes.bool,
   addSanitizer: PropTypes.func,
   clear: PropTypes.func,
-  _henriForm: PropTypes.bool,
+  data: PropTypes.object,
+  disabled: PropTypes.bool,
+  error: PropTypes.any,
+  errors: PropTypes.object,
+  handleChange: PropTypes.func,
+  handleSubmit: PropTypes.func,
+  modified: PropTypes.bool,
 };
 
 Form.contextTypes = {
-  hydrate: PropTypes.func,
   fetch: PropTypes.func,
+  hydrate: PropTypes.func,
 };
 
 export default Form;
