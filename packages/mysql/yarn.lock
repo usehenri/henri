@@ -7,13 +7,13 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-12.6.8.tgz#e469b4bf9d1c9832aee4907ba8a051494357c12c"
   integrity sha512-aX+gFgA5GHcDi89KG5keey2zf0WfZk/HAQotEamsK2kbey+8yGKcson0hbK8E+v0NArlCJQCqMP161YhV6ZXLg==
 
-"@usehenri/sequelize@^0.36.3":
-  version "0.36.3"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.36.3.tgz#f9becc3884c7e25ae765d4858f9733a24e92a625"
-  integrity sha512-7kTJ01Z8fRQ/2pvcNkQPth/Nu2OGSgoz8NaOwwMSFy0tCXPZwp3Jqgv9S9BDkn0f2pcOTX5juUdkm963Cp9X1A==
+"@usehenri/sequelize@^0.37.0":
+  version "0.37.0"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.37.0.tgz#1ad7564990b66878aa518057c4109919c850ae2b"
+  integrity sha512-bFkHvDQPophsbNl5VnoA6lEn7vX7fO2Wy+Ccnp+teR22q+RxAQqxhrHrKGgOAQJ51WAK5+/iN44sn1qxjLwI+A==
   dependencies:
     connect-session-sequelize "^6.0.0"
-    sequelize "5.18.4"
+    sequelize "5.19.0"
 
 any-promise@^1.3.0:
   version "1.3.0"
@@ -194,10 +194,10 @@ sequelize-pool@^2.3.0:
   resolved "https://registry.yarnpkg.com/sequelize-pool/-/sequelize-pool-2.3.0.tgz#64f1fe8744228172c474f530604b6133be64993d"
   integrity sha512-Ibz08vnXvkZ8LJTiUOxRcj1Ckdn7qafNZ2t59jYHMX1VIebTAOYefWdRYFt6z6+hy52WGthAHAoLc9hvk3onqA==
 
-sequelize@5.18.4:
-  version "5.18.4"
-  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.18.4.tgz#1e2c7eabe4c554fa257a0115fad39f271bd56150"
-  integrity sha512-bBmJqpO1H8Z7L0xzITqVo5KHXFI7GmKfGl/5SIPDKsuUMbuZT98s+gyGeaLXpOWGH1ZUO79hvJ8z74vNcxBWHg==
+sequelize@5.19.0:
+  version "5.19.0"
+  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.19.0.tgz#96d610cf3afc499fb1ba27c77a9eb3c6e7060812"
+  integrity sha512-1LsPa++R37USE3LWYKkw//kSAKORXogItoSrPahOTVEuCj+v+/BxGX+49M2d9oYtkxvwUnHgCFMx2Kzku9RhSg==
   dependencies:
     bluebird "^3.5.0"
     cls-bluebird "^2.1.0"
