@@ -9,6 +9,9 @@ const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:utils');
 const inquirer = require('inquirer');
 
+// eslint-disable-next-line id-length
+const _ = require('lodash');
+
 /**
  *  Check if yarn exists
  *
@@ -87,6 +90,7 @@ function checkMissing(packages) {
         ));
 
         if (comparev(target.version, version) < 0) {
+          // eslint-disable-next-line no-console
           console.log(
             `package version error for ${pkgName}; wanted > ${version} but got ${target.version}`
           );
@@ -209,10 +213,6 @@ async function parseSyntax(resolve, file, data, onSuccess, inst = undefined) {
   try {
     const fileInfo = await prettier.getFileInfo(file);
 
-    if (fileInfo.inferredParser === 'json') {
-      JSON.parse(data);
-    }
-
     if (fileInfo) {
       prettier.format(data.toString(), { parser: fileInfo.inferredParser });
     }
@@ -222,12 +222,14 @@ async function parseSyntax(resolve, file, data, onSuccess, inst = undefined) {
 
     return resolve(true);
   } catch (error) {
-    inst.pen.error(
-      'server',
-      `while parsing ${file}:${error.loc.start.line}:${error.loc.start.column}`
-    ); // eslint-disable-line no-console
+    const { line, column } = _.has(error, 'loc.start')
+      ? error.loc.start
+      : { column: 0, line: 0 };
+
+    inst.pen.error('server', `while parsing ${file}:${line}:${column}`);
+    // eslint-disable-line no-console
     console.log(' '); // eslint-disable-line no-console
-    console.log(error.message); // eslint-disable-line no-console
+    console.log(error.codeFrame); // eslint-disable-line no-console
     console.log(' '); // eslint-disable-line no-console
     resolve(error);
   }
