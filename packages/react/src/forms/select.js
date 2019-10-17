@@ -7,6 +7,7 @@ const Select = (
     className = 'form-control m-b',
     baseClassName = 'form-group',
     errorClassName = null,
+    displayProp = 'name',
     errorMsg,
     name,
     placeholder,
@@ -19,9 +20,12 @@ const Select = (
   context
 ) => {
   !context._henriForm &&
+    // eslint-disable-next-line no-console
     console.warn('Select component used outside henri form.');
   const hasError = !!context.errors[name];
+
   context.addSanitizer(name, sanitation);
+
   return (
     <div className={`${baseClassName} ${hasError && 'has-error'}`}>
       <select
@@ -33,12 +37,12 @@ const Select = (
           placeholder ||
           ''
         }
-        onChange={e => context.handleChange(e)}
+        onChange={elem => context.handleChange(elem)}
         required={required}
       >
         {choices.map(item => (
           <option key={item._id} value={item._id}>
-            {item.name}
+            {item[displayProp]}
           </option>
         ))}
       </select>
@@ -47,23 +51,24 @@ const Select = (
 };
 
 Select.propTypes = {
-  name: PropTypes.string.isRequired,
-  type: PropTypes.string,
-  required: PropTypes.bool,
-  placeholder: PropTypes.string,
-  validation: PropTypes.object,
+  displayProp: PropTypes.string,
   errorMsg: PropTypes.object,
+  name: PropTypes.string.isRequired,
+  placeholder: PropTypes.string,
+  required: PropTypes.bool,
   sanitation: PropTypes.object,
+  type: PropTypes.string,
+  validation: PropTypes.object,
 };
 
 Select.contextTypes = {
+  _henriForm: PropTypes.bool,
+  addSanitizer: PropTypes.func,
   data: PropTypes.object,
   errors: PropTypes.object,
-  modified: PropTypes.bool,
   handleChange: PropTypes.func,
   handleSubmit: PropTypes.func,
-  addSanitizer: PropTypes.func,
-  _henriForm: PropTypes.bool,
+  modified: PropTypes.bool,
 };
 
 export default Select;
