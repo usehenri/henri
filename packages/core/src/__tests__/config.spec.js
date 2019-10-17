@@ -58,15 +58,4 @@ describe('config', () => {
       expect(this.henri.config.reload()).toBeTruthy();
     });
   });
-  describe('default', () => {
-    beforeAll(async () => {
-      this.henri = new Henri({ runlevel: 1 });
-      this.henri.env = 'foo';
-      await this.henri.init();
-    });
-    test('should have the graphql key', () => {
-      expect(this.henri.config.has('env')).toBeTruthy();
-      expect(this.henri.config.get('env')).toEqual('default');
-    });
-  });
 });

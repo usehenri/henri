@@ -1,5 +1,6 @@
 const BaseModule = require('./base/module');
 const path = require('path');
+const { syntax } = require('./utils');
 
 // eslint-disable-next-line id-length
 const _ = require('lodash');
@@ -37,36 +38,49 @@ class Config extends BaseModule {
    * @returns {!string} The name of the module
    * @memberof Config
    */
-  init() {
+  async init() {
+    const configPath = path.join(
+      this.henri.cwd(),
+      'config',
+      `${this.henri.env || 'dev'}.json`
+    );
+    const defaultPath = path.join(this.henri.cwd(), 'config', 'default.json');
+
+    let hasErrors = false;
+
     try {
       // eslint-disable-next-line global-require
-      this.config = require(path.join(
-        this.henri.cwd(),
-        'config',
-        `${this.henri.env || 'dev'}.json`
-      ));
+      this.config = require(configPath);
 
       Object.freeze(this.config);
 
       return this.name;
     } catch (error) {
-      // Do nothing
+      if (await syntax(configPath)) {
+        hasErrors = true;
+      }
     }
 
     try {
       // eslint-disable-next-line global-require
-      this.config = require(path.join(
-        this.henri.cwd(),
-        'config',
-        'default.json'
-      ));
+      this.config = require(defaultPath);
 
       Object.freeze(this.config);
 
       return this.name;
     } catch (error) {
-      // Really do nothing
+      if (await syntax(defaultPath)) {
+        hasErrors = true;
+      }
     }
+
+    if (hasErrors) {
+      throw new Error('Unable to load configuration');
+    }
+
+    this.henri.pen.error('config', 'no configuration has been loaded...');
+    this.henri.pen.error('config', 'attempted', configPath);
+    this.henri.pen.error('config', 'attempted', defaultPath);
   }
 
   /**
