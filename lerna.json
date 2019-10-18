@@ -1,15 +1,16 @@
 {
   "lerna": "2.2.0",
   "conventionalCommits": "true",
-  "packages": [
-    "packages/*"
-  ],
+  "packages": ["packages/*"],
   "npmClient": "yarn",
-  "npmClientArgs": [
-    "--ignore-engines"
-  ],
+  "npmClientArgs": ["--ignore-engines"],
   "publishConfig": {
     "access": "public"
+  },
+  "command": {
+    "version": {
+      "exact": true
+    }
   },
   "version": "0.37.0"
 }
