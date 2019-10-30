@@ -23,16 +23,16 @@
     "@types/body-parser": "^1.17.1",
     "@types/chalk": "^2.2.0",
     "@types/compression": "^1.0.1",
-    "@types/config": "^0.0.34",
+    "@types/config": "^0.0.35",
     "@types/cookie-parser": "^1.4.2",
     "@types/express": "^4.17.1",
     "@types/express-session": "^1.15.15",
     "@types/fs-extra": "^8.0.1",
-    "@types/jest": "^24.0.19",
+    "@types/jest": "^24.0.21",
     "@types/lodash": "^4.14.144",
     "@types/minimist": "^1.2.0",
-    "@types/mongoose": "^5.5.22",
-    "@types/node": "^12.11.1",
+    "@types/mongoose": "^5.5.28",
+    "@types/node": "^12.12.3",
     "@types/passport": "^1.0.1",
     "@types/passport-jwt": "^3.0.2",
     "@types/passport-local": "^1.0.33",
@@ -43,12 +43,12 @@
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "coveralls": "^3.0.7",
     "cross-env": "^6.0.3",
-    "eslint": "^6.5.1",
+    "eslint": "^6.6.0",
     "eslint-config-react-app": "^5.0.2",
     "eslint-config-standard": "^14.1.0",
     "eslint-plugin-flowtype": "^4.3.0",
     "eslint-plugin-import": "^2.18.2",
-    "eslint-plugin-jest": "^22.19.0",
+    "eslint-plugin-jest": "^23.0.2",
     "eslint-plugin-jsx-a11y": "^6.2.3",
     "eslint-plugin-node": "^10.0.0",
     "eslint-plugin-promise": "^4.2.1",
@@ -56,7 +56,7 @@
     "eslint-plugin-standard": "^4.0.1",
     "husky": "^3.0.9",
     "jest": "^24.9.0",
-    "lerna": "^3.18.1",
+    "lerna": "^3.18.3",
     "lint-staged": "^9.4.2",
     "maildev": "^1.1.0",
     "nyc": "^14.1.1",
@@ -101,7 +101,7 @@
     ]
   },
   "dependencies": {
-    "eslint-plugin-react-hooks": "^2.1.2"
+    "eslint-plugin-react-hooks": "^2.2.0"
   },
   "husky": {
     "hooks": {
