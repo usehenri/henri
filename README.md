@@ -15,6 +15,7 @@
 henri is an easy to learn rails-like, server-side rendered (react & vue) with powerful ORMs
 
 - [How to use](#how-to-use)
+- [Contributing](#contributing)
 - [Configuration](#configuration)
 - [Models](#models)
   - [Disk](#disk)
@@ -698,7 +699,7 @@ See the [Contributing](#contributing) section for more information
 
 ## Contributing
 
-- Submit issues, pull requests, anything!
+- Step by step wiki [here](https://github.com/usehenri/henri/wiki/Contributing)
 
 ## Thanks to the following and their contributors
 
