@@ -1,5 +1,4 @@
 {
-  "lerna": "2.2.0",
   "conventionalCommits": "true",
   "packages": ["packages/*"],
   "npmClient": "yarn",

@@ -6,7 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "glob": "^7.1.5",
+    "glob": "^7.1.6",
     "socket.io": "^2.3.0"
   }
 }
