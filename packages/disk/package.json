@@ -6,8 +6,9 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "nedb-session-store": "^1.1.2",
-    "sails-disk": "^1.1.2",
-    "waterline": "^0.13.6"
+    "@usehenri/mongoose": "^0.37.0",
+    "debug": "^4.1.1",
+    "md5": "^2.2.1",
+    "mongodb-memory-server": "^6.0.1"
   }
 }

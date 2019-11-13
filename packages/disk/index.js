@@ -1,12 +1,17 @@
-const Waterline = require('waterline');
-const disk = require('sails-disk');
+const HenriMongoose = require('@usehenri/mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const md5 = require('md5');
+const debug = require('debug')('henri:disk');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
 
 /**
  * Disk database adapter
  *
  * @class Disk
  */
-class Disk {
+class Disk extends HenriMongoose {
   /**
    * Creates an instance of Disk.
    *
@@ -16,159 +21,49 @@ class Disk {
    * @memberof Disk
    */
   constructor(name, config, thisHenri) {
+    super(name, { url: 'soon' }, thisHenri);
+
     this.adapterName = 'disk';
-    this.name = name;
     this.config = config;
-    this.models = {};
-    this.user = null;
-    this.waterline = new Waterline();
-    this.instance = null;
-    this.sessionPath = '.tmp/nedb-sessions.db';
+    this.name = name;
+    this.mongod = null;
+    this.mongoUri = '';
     this.henri = thisHenri;
 
-    this.addModel = this.addModel.bind(this);
-    this.overload = this.overload.bind(this);
-    this.getModels = this.getModels.bind(this);
-    this.getSessionConnector = this.getSessionConnector.bind(this);
     this.start = this.start.bind(this);
     this.stop = this.stop.bind(this);
+    debug('constructor => done');
   }
 
   /**
-   * Add a model to the store
-   *
-   * @param {object} model The model object
-   * @param {string} user The user object name
-   * @returns {object} The model instance (initialized)
-   * @memberof Disk
-   */
-  addModel(model, user) {
-    let obj = Object.assign({}, model);
-    let isUser = false;
-
-    if (obj.identity === user) {
-      obj = this.overload(obj, user);
-      this.user = obj.globalId;
-      isUser = true;
-    }
-
-    obj.schema._id = {
-      autoMigrations: { autoIncrement: true },
-      type: 'number',
-    };
-    obj.primaryKey = '_id';
-
-    obj.attributes = model.schema;
-    obj.datastore = this.name;
-
-    delete obj.schema;
-    delete obj.graphql;
-
-    const instance = Waterline.Model.extend(obj);
-
-    this.waterline.registerModel(instance);
-    if (isUser) {
-      this.user = obj.globalId;
-    }
-    this.models[obj.globalId] = instance;
-
-    return this.models[obj.globalId];
-  }
-
-  /**
-   * Overload the user entity
-   *
-   * @param {any} model Current model
-   * @returns {object} the model
-   * @memberof Disk
-   */
-  overload(model) {
-    this.henri.pen.info('disk', `user model`, model.globalId, `overloading...`);
-
-    model.schema.email = { required: true, type: 'string' };
-    model.schema.password = { required: true, type: 'string' };
-
-    model.beforeCreate = async (values, cb) => {
-      values.password = await this.henri.user.encrypt(values.password);
-      cb();
-    };
-    model.beforeUpdate = async (values, cb) => {
-      if (values.hasOwnProperty('password')) {
-        values.password = await this.henri.user.encrypt(values.password);
-      }
-      cb();
-    };
-    model.hasRole = async function(roles = []) {
-      let given = Array.isArray(roles) ? roles : [roles];
-
-      return given.every(element => this.roles.includes(element));
-    };
-
-    return model;
-  }
-
-  /**
-   * Returns the models of this store
-   *
-   * @returns {object} the models
-   * @memberof Disk
-   */
-  getModels() {
-    return this.models || {};
-  }
-
-  /**
-   * Returns the session connector (for connect styles session storage)
-   *
-   * @param {function} session session-store function
-   * @returns {object} a store
-   * @memberof Disk
-   */
-  getSessionConnector(session) {
-    // eslint-disable-next-line global-require
-    const NedbStore = require('nedb-session-store')(session);
-
-    return new NedbStore({
-      filename: this.sessionPath,
-    });
-  }
-
-  /**
-   * Start the store
+   * Starts the store
    *
    * @returns {Promise} Resolves or not
    * @memberof Disk
    */
   async start() {
-    return new Promise(resolve => {
-      var config = {
-        adapters: {
-          disk: disk,
-        },
+    debug('starting %s', this.name);
 
-        datastores: {
-          [this.name]: {
-            adapter: 'disk',
-          },
-        },
-      };
+    const dataPath = path.join(
+      os.tmpdir(),
+      `henri-mongo-${md5(process.cwd())}`
+    );
 
-      this.waterline.initialize(config, (err, orm) => {
-        if (err) {
-          throw err;
-        }
-        this.instance = orm;
-        for (let name in this.models) {
-          if (typeof this.models[name] !== 'undefined') {
-            if (name === this.user) {
-              this.henri._user = orm.collections[name.toLowerCase()];
-            }
-            global[name] = orm.collections[name.toLowerCase()];
-          }
-        }
-        resolve();
-      });
+    if (!fs.existsSync(dataPath)) {
+      fs.mkdirSync(dataPath);
+    }
+
+    this.mongod = new MongoMemoryServer({
+      instance: {
+        dbName: 'henri',
+        dbPath: dataPath,
+        storageEngine: this.henri.isTest ? 'ephemeralForTest' : 'wiredTiger',
+      },
     });
+
+    this.config.url = await this.mongod.getConnectionString();
+
+    return super.start();
   }
 
   /**
@@ -178,20 +73,11 @@ class Disk {
    * @memberof Disk
    */
   async stop() {
-    return new Promise(resolve => {
-      this.waterline.teardown(err => {
-        if (err) {
-          this.henri.pen.error(
-            'disk',
-            'something went wrong while stopping the orm',
-            err
-          );
+    debug('stopping %s', this.name);
 
-          return resolve(err);
-        }
-        setTimeout(() => resolve(), 250);
-      });
-    });
+    await super.stop();
+
+    await this.mongod.stop();
   }
 }
 
