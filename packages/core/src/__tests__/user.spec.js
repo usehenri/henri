@@ -12,25 +12,25 @@ describe('user', () => {
     beforeAll(async () => {
       this.henri = new Henri({ runlevel: 4 });
       await this.henri.init();
-    });
+    }, 60000);
 
     afterAll(async () => {
       await this.henri.stop();
-    });
+    }, 60000);
 
     test('should be defined', () => {
       expect(this.henri.user).toBeDefined();
-    });
+    }, 15000);
 
     test('should extend BaseModule', () => {
       expect(this.henri.user).toBeInstanceOf(BaseModule);
-    }, 10000);
+    }, 15000);
 
     test('should match snapshot', () => {
       const controllers = new User();
 
       expect(controllers).toMatchSnapshot();
-    }, 10000);
+    }, 15000);
 
     test('encryption', async () => {
       const { encrypt } = this.henri.user;
@@ -40,7 +40,7 @@ describe('user', () => {
       await expect(encrypt()).rejects.toBeDefined();
       await expect(encrypt('lydia')).rejects.toBeDefined();
       await expect(encrypt(password)).resolves.toBeDefined();
-    }, 10000);
+    }, 15000);
 
     test('compare', async () => {
       const { encrypt, compare } = this.henri.user;
