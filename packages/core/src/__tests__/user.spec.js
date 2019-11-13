@@ -24,13 +24,13 @@ describe('user', () => {
 
     test('should extend BaseModule', () => {
       expect(this.henri.user).toBeInstanceOf(BaseModule);
-    });
+    }, 10000);
 
     test('should match snapshot', () => {
       const controllers = new User();
 
       expect(controllers).toMatchSnapshot();
-    });
+    }, 10000);
 
     test('encryption', async () => {
       const { encrypt } = this.henri.user;
@@ -40,7 +40,7 @@ describe('user', () => {
       await expect(encrypt()).rejects.toBeDefined();
       await expect(encrypt('lydia')).rejects.toBeDefined();
       await expect(encrypt(password)).resolves.toBeDefined();
-    });
+    }, 10000);
 
     test('compare', async () => {
       const { encrypt, compare } = this.henri.user;
