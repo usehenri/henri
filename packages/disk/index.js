@@ -56,7 +56,7 @@ class Disk extends HenriMongoose {
     this.mongod = new MongoMemoryServer({
       instance: {
         dbName: 'henri',
-        dbPath: dataPath,
+        dbPath: this.henri.isTest ? null : dataPath,
         storageEngine: this.henri.isTest ? 'ephemeralForTest' : 'wiredTiger',
       },
     });
