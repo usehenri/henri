@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.37.1](https://github.com/usehenri/henri/compare/v0.37.0...v0.37.1) (2019-12-24)
+
+
+### Bug Fixes
+
+* **react:** specify display name ([420a3cd](https://github.com/usehenri/henri/commit/420a3cd))
+
+
+
+
+
 # [0.37.0](https://github.com/usehenri/henri/compare/v0.36.5...v0.37.0) (2019-09-23)
 
 

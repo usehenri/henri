@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.37.1](https://github.com/usehenri/henri/compare/v0.37.0...v0.37.1) (2019-12-24)
+
+
+### Features
+
+* **core:** check the configuration syntax on boot ([a022475](https://github.com/usehenri/henri/commit/a022475))
+* **core:** prettier for JSON syntax validation ([b882e95](https://github.com/usehenri/henri/commit/b882e95))
+* **disk:** use local mongdb instead of disk ([#87](https://github.com/usehenri/henri/issues/87)) ([7ee22c0](https://github.com/usehenri/henri/commit/7ee22c0))
+
+
+
+
+
 # [0.37.0](https://github.com/usehenri/henri/compare/v0.36.5...v0.37.0) (2019-09-23)
 
 **Note:** Version bump only for package @usehenri/core
