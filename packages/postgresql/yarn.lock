@@ -124,10 +124,10 @@ pg-int8@1.0.1:
   resolved "https://registry.yarnpkg.com/pg-int8/-/pg-int8-1.0.1.tgz#943bd463bf5b71b4170115f80f8efc9a0c0eb78c"
   integrity sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==
 
-pg-pool@^2.0.4:
-  version "2.0.6"
-  resolved "https://registry.yarnpkg.com/pg-pool/-/pg-pool-2.0.6.tgz#7b561a482feb0a0e599b58b5137fd2db3ad8111c"
-  integrity sha512-hod2zYQxM8Gt482q+qONGTYcg/qVcV32VHVPtktbBJs0us3Dj7xibISw0BAAXVMCzt8A/jhfJvpZaxUlqtqs0g==
+pg-pool@^2.0.7:
+  version "2.0.8"
+  resolved "https://registry.yarnpkg.com/pg-pool/-/pg-pool-2.0.8.tgz#f6d8c1727707cebcb1c50d0b1b770e0a031bf831"
+  integrity sha512-UE4H+4PT53RbwYaGxkeVDcMcp1g8EmYo91qeUugijsHwzV/RDpYVRWzmfiDisEQZhVDzyf/GUctNOrh+ZPJCGA==
 
 pg-types@^2.1.0:
   version "2.2.0"
@@ -140,15 +140,15 @@ pg-types@^2.1.0:
     postgres-date "~1.0.4"
     postgres-interval "^1.1.0"
 
-pg@^7.12.1:
-  version "7.12.1"
-  resolved "https://registry.yarnpkg.com/pg/-/pg-7.12.1.tgz#880636d46d2efbe0968e64e9fe0eeece8ef72a7e"
-  integrity sha512-l1UuyfEvoswYfcUe6k+JaxiN+5vkOgYcVSbSuw3FvdLqDbaoa2RJo1zfJKfPsSYPFVERd4GHvX3s2PjG1asSDA==
+pg@^7.15.1:
+  version "7.15.1"
+  resolved "https://registry.yarnpkg.com/pg/-/pg-7.15.1.tgz#a0bac84ebaeb809f3a369fb695ae89b314b08b22"
+  integrity sha512-o293Pxx5bNRpTv3Dh4+IIhPbTw19Bo4zvppLgR+MAV2I7AF3sMr9gPB4JPvBffWb24pDfC+7Ghe6xh2VxVMBpQ==
   dependencies:
     buffer-writer "2.0.0"
     packet-reader "1.0.0"
     pg-connection-string "0.1.3"
-    pg-pool "^2.0.4"
+    pg-pool "^2.0.7"
     pg-types "^2.1.0"
     pgpass "1.x"
     semver "4.3.2"

@@ -7,6 +7,6 @@
   "license": "MIT",
   "dependencies": {
     "connect-session-sequelize": "^6.0.0",
-    "sequelize": "5.21.2"
+    "sequelize": "5.21.3"
   }
 }

@@ -35,10 +35,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-12.6.8.tgz#e469b4bf9d1c9832aee4907ba8a051494357c12c"
   integrity sha512-aX+gFgA5GHcDi89KG5keey2zf0WfZk/HAQotEamsK2kbey+8yGKcson0hbK8E+v0NArlCJQCqMP161YhV6ZXLg==
 
-"@types/node@^12.7.11":
-  version "12.12.3"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.12.3.tgz#ebfe83507ac506bc3486314a8aa395be66af8d23"
-  integrity sha512-opgSsy+cEF9N8MgaVPnWVtdJ3o4mV2aMHvDq7thkQUFt0EuOHJon4rQpJfhjmNHB+ikl0Cd6WhWIErOyQ+f7tw==
+"@types/node@^12.12.17":
+  version "12.12.22"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.12.22.tgz#b8d9eae3328b96910a373cf06ac8d3c5abe9c200"
+  integrity sha512-r5i93jqbPWGXYXxianGATOxTelkp6ih/U0WVnvaqAvTqM+0U6J3kw6Xk6uq/dWNRkEVw/0SLcO5ORXbVNz4FMQ==
 
 "@types/node@^8.0.47":
   version "8.10.51"
@@ -640,13 +640,13 @@ string_decoder@^1.1.1:
   dependencies:
     safe-buffer "~5.1.0"
 
-tedious@^6.6.2:
-  version "6.6.2"
-  resolved "https://registry.yarnpkg.com/tedious/-/tedious-6.6.2.tgz#37ddd16d19ad7d594acbeb9eb6545b9f385980cc"
-  integrity sha512-0Yziuys2h66dVlqMPJpNFciQ/N2VrgwY8o8TXyj4OZBaxrvqRPeMuTKZZVBFTGOjt/J15fR0fX0HBnCHjm7QWA==
+tedious@^6.6.5:
+  version "6.6.5"
+  resolved "https://registry.yarnpkg.com/tedious/-/tedious-6.6.5.tgz#0a14b11b78fe1fce0dfdf3d268a6c80ecf3a69e9"
+  integrity sha512-kS3xw5KT46QIokXeGJ47d/xc93bPa+bB5rKHpGkCc1iO0JCOlGTm+93RHBgs3DD7FQdIn9HyvzurR2plb7z4NA==
   dependencies:
     "@azure/ms-rest-nodeauth" "2.0.2"
-    "@types/node" "^12.7.11"
+    "@types/node" "^12.12.17"
     "@types/readable-stream" "^2.3.5"
     bl "^3.0.0"
     depd "^2.0.0"

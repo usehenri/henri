@@ -11,19 +11,10 @@
     debug "^4.1.1"
     mongoose "^5.7.1"
 
-agent-base@^4.3.0:
-  version "4.3.0"
-  resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-4.3.0.tgz#8165f01c436009bccad0b1d122f05ed770efc6ee"
-  integrity sha512-salcGninV0nPrwpGNn4VTXBb1SOuXQBiqbrNXoeizJsHrsL6ERFM2Ne3JUSBWRE6aeNJI2ROP/WEEIDUiDe3cg==
-  dependencies:
-    es6-promisify "^5.0.0"
-
-async@2.6.1:
-  version "2.6.1"
-  resolved "https://registry.yarnpkg.com/async/-/async-2.6.1.tgz#b245a23ca71930044ec53fa46aa00a3e87c6a610"
-  integrity sha512-fNEiL2+AZt6AlAw/29Cr0UDe4sRAHCpEHh54WMz+Bb7QfNcFw4h3loofyJpLeQs4Yx7yuqu/2dLgM5hKOs6HlQ==
-  dependencies:
-    lodash "^4.17.10"
+agent-base@5:
+  version "5.1.1"
+  resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-5.1.1.tgz#e8fb3f242959db44d63be665db7a8e739537a32c"
+  integrity sha512-TMeqbNl2fMW0nMjTEPOwe3J/PRFP4vqeoNuQMG0HlMrtm5QxKqdvAkZ1pRBQ/ulIyDD5Yq0nJ7YbdD8ey0TO3g==
 
 balanced-match@^1.0.0:
   version "1.0.0"
@@ -152,14 +143,7 @@ debug@3.1.0:
   dependencies:
     ms "2.0.0"
 
-debug@^3.1.0:
-  version "3.2.6"
-  resolved "https://registry.yarnpkg.com/debug/-/debug-3.2.6.tgz#e83d17de16d8a7efb7717edbe5fb10135eee629b"
-  integrity sha512-mel+jf7nrtEl5Pn1Qx46zARXKDpBbvzezse7p7LqINmdoIk8PYP5SySaxEmYv6TZ0JyEKA1hsCId6DIhgITtWQ==
-  dependencies:
-    ms "^2.1.1"
-
-debug@^4.1.1:
+debug@4, debug@^4.1.1:
   version "4.1.1"
   resolved "https://registry.yarnpkg.com/debug/-/debug-4.1.1.tgz#3b72260255109c6b589cee050f1d516139664791"
   integrity sha512-pYAIzeRo8J6KPEaJ0VWOh5Pzkbw/RetuzehGM7QRRX5he4fPHx2rdKMB256ehJCkX+XRQm16eZLqLNS8RSZXZw==
@@ -231,18 +215,6 @@ end-of-stream@^1.0.0:
   dependencies:
     once "^1.4.0"
 
-es6-promise@^4.0.3:
-  version "4.2.8"
-  resolved "https://registry.yarnpkg.com/es6-promise/-/es6-promise-4.2.8.tgz#4eb21594c972bc40553d276e510539143db53e0a"
-  integrity sha512-HJDGx5daxeIvxdBxvG2cb9g4tEvwIk3i8+nhX0yGrYmZUzbkdg8QbDevheDB8gd0//uPj4c1EQua8Q+MViT0/w==
-
-es6-promisify@^5.0.0:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/es6-promisify/-/es6-promisify-5.0.0.tgz#5109d62f3e56ea967c4b63505aef08291c8a5203"
-  integrity sha1-UQnWLz5W6pZ8S2NQWu8IKRyKUgM=
-  dependencies:
-    es6-promise "^4.0.3"
-
 fd-slicer@~1.1.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/fd-slicer/-/fd-slicer-1.1.0.tgz#25c7c89cb1f9077f8891bbe61d8f390eae256f1e"
@@ -265,10 +237,10 @@ file-type@^6.1.0:
   resolved "https://registry.yarnpkg.com/file-type/-/file-type-6.2.0.tgz#e50cd75d356ffed4e306dc4f5bcf52a79903a919"
   integrity sha512-YPcTBDV+2Tm0VqjybVd32MHdlEGAtuxS3VAYsumFokDSMG+ROT5wawGlnHDoz7bfMcMDt9hxuXvXwoKUx2fkOg==
 
-find-cache-dir@^3.0.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/find-cache-dir/-/find-cache-dir-3.1.0.tgz#9935894999debef4cf9f677fdf646d002c4cdecb"
-  integrity sha512-zw+EFiNBNPgI2NTrKkDd1xd7q0cs6wr/iWnr/oUkI0yF9K9GqQ+riIt4aiyFaaqpaWbxPrJXHI+QvmNUQbX+0Q==
+find-cache-dir@3.2.0:
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/find-cache-dir/-/find-cache-dir-3.2.0.tgz#e7fe44c1abc1299f516146e563108fd1006c1874"
+  integrity sha512-1JKclkYYsf1q9WIJKLZa9S9muC+08RIjzAlLrK4QcYLJMS6mk9yombQ9qf+zJ7H9LS800k0s44L4sDq9VYzqyg==
   dependencies:
     commondir "^1.0.1"
     make-dir "^3.0.0"
@@ -297,7 +269,7 @@ fs.realpath@^1.0.0:
   resolved "https://registry.yarnpkg.com/fs.realpath/-/fs.realpath-1.0.0.tgz#1504ad2523158caa40db4a2787cb01411994ea4f"
   integrity sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
 
-get-port@^5.0.0:
+get-port@5.0.0:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/get-port/-/get-port-5.0.0.tgz#aa22b6b86fd926dd7884de3e23332c9f70c031a6"
   integrity sha512-imzMU0FjsZqNa6BqOjbbW6w5BivHIuQKopjpPqcnx0AVHJQKCxK1O+Ab3OrVXhrekqfVMjwA9ZYu062R+KcIsQ==
@@ -311,13 +283,6 @@ get-stream@^2.2.0:
   dependencies:
     object-assign "^4.0.1"
     pinkie-promise "^2.0.0"
-
-getos@^3.1.1:
-  version "3.1.1"
-  resolved "https://registry.yarnpkg.com/getos/-/getos-3.1.1.tgz#967a813cceafee0156b0483f7cffa5b3eff029c5"
-  integrity sha512-oUP1rnEhAr97rkitiszGP9EgDVYnmchgFzfqRzSkgtfv7ai6tEi7Ko8GgjNXts7VLWEqrTWyhsOKLe5C5b/Zkg==
-  dependencies:
-    async "2.6.1"
 
 glob@^7.1.3:
   version "7.1.6"
@@ -341,13 +306,13 @@ graceful-fs@^4.1.10:
   resolved "https://registry.yarnpkg.com/graceful-readlink/-/graceful-readlink-1.0.1.tgz#4cafad76bc62f02fa039b2f94e9a3dd3a391a725"
   integrity sha1-TK+tdrxi8C+gObL5Tpo906ORpyU=
 
-https-proxy-agent@^3.0.0:
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-3.0.1.tgz#b8c286433e87602311b01c8ea34413d856a4af81"
-  integrity sha512-+ML2Rbh6DAuee7d07tYGEKOEi2voWPUGan+ExdPbPW6Z3svq+JCqr0v8WmKPOkz1vOVykPCBSuobe7G8GJUtVg==
+https-proxy-agent@4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-4.0.0.tgz#702b71fb5520a132a66de1f67541d9e62154d82b"
+  integrity sha512-zoDhWrkR3of1l9QAL8/scJZyLu8j/gBkcwcaQOZh7Gyh/+uJQzGVETdgT30akuwkpL8HTRfssqI3BZuV18teDg==
   dependencies:
-    agent-base "^4.3.0"
-    debug "^3.1.0"
+    agent-base "5"
+    debug "4"
 
 ieee754@^1.1.4:
   version "1.1.13"
@@ -411,11 +376,6 @@ lockfile@^1.0.4:
   dependencies:
     signal-exit "^3.0.2"
 
-lodash@^4.17.10:
-  version "4.17.15"
-  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.15.tgz#b447f6670a0455bbfeedd11392eff330ea097548"
-  integrity sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==
-
 make-dir@^1.0.0:
   version "1.3.0"
   resolved "https://registry.yarnpkg.com/make-dir/-/make-dir-1.3.0.tgz#79c1033b80515bd6d24ec9933e860ca75ee27f0c"
@@ -468,21 +428,20 @@ mkdirp@^0.5.1:
   dependencies:
     minimist "0.0.8"
 
-mongodb-memory-server-core@6.0.1:
-  version "6.0.1"
-  resolved "https://registry.yarnpkg.com/mongodb-memory-server-core/-/mongodb-memory-server-core-6.0.1.tgz#24c7062868e358245e44b7a815c8a69e9078bfbd"
-  integrity sha512-0StRByXbDLGqjgai2wLfto4oqbQ6++7bbNY2iBc6kKRyXJAMhAtkOhUoaQdcBAL7LvM6SK4rDh7izfKtv21ruw==
+mongodb-memory-server-core@6.1.1:
+  version "6.1.1"
+  resolved "https://registry.yarnpkg.com/mongodb-memory-server-core/-/mongodb-memory-server-core-6.1.1.tgz#2893b3a4f5295b603ac050cdebd3354470c20171"
+  integrity sha512-B6hYCuwv557aT7psyzNz+b6/Vn7UHsn+eJdFvLd9PfovxRPlvE2/vvGsKEldeBm7FIWFAvcmu9bVae9HgfrBUg==
   dependencies:
     camelcase "^5.3.1"
     cross-spawn "^7.0.1"
     debug "^4.1.1"
     decompress "^4.2.0"
     dedent "^0.7.0"
-    find-cache-dir "^3.0.0"
+    find-cache-dir "3.2.0"
     find-package-json "^1.2.0"
-    get-port "^5.0.0"
-    getos "^3.1.1"
-    https-proxy-agent "^3.0.0"
+    get-port "5.0.0"
+    https-proxy-agent "4.0.0"
     lockfile "^1.0.4"
     md5-file "^4.0.0"
     mkdirp "^0.5.1"
@@ -491,12 +450,12 @@ mongodb-memory-server-core@6.0.1:
   optionalDependencies:
     mongodb "^3.2.7"
 
-mongodb-memory-server@^6.0.1:
-  version "6.0.1"
-  resolved "https://registry.yarnpkg.com/mongodb-memory-server/-/mongodb-memory-server-6.0.1.tgz#3bc692353feb2aa754b722f407b70e9bc9bbe3f6"
-  integrity sha512-eD8w0nV2jcp/+WH4rg+uYtA7m7Qfi4TGI5bjOf5fW6mpRNlm9WkU3l9ZDwW/nw9P4IMNp0f7kM616J5xr/a0fw==
+mongodb-memory-server@^6.1.1:
+  version "6.1.1"
+  resolved "https://registry.yarnpkg.com/mongodb-memory-server/-/mongodb-memory-server-6.1.1.tgz#e600e4addc7cd70d7d741335f99e5bf4e91f6f01"
+  integrity sha512-3h72MT5TmYRZ+8FSuXGqk6qfTt4qZLsY8E2ZCa0Zrddy2wjTlwVUgCniC+PpYrdclWAWpOIvVCSPUr6tO+CHkQ==
   dependencies:
-    mongodb-memory-server-core "6.0.1"
+    mongodb-memory-server-core "6.1.1"
 
 mongodb@3.3.3:
   version "3.3.3"

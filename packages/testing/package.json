@@ -6,7 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "enzyme": "^3.10.0",
+    "enzyme": "^3.11.0",
     "jest": "^24.9.0"
   }
 }

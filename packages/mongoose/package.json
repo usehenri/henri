@@ -6,8 +6,8 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "connect-mongo": "^3.1.2",
+    "connect-mongo": "^3.2.0",
     "debug": "^4.1.1",
-    "mongoose": "^5.7.10"
+    "mongoose": "^5.8.3"
   }
 }
