@@ -7,7 +7,7 @@
   resolved "https://registry.yarnpkg.com/@sailshq/lodash/-/lodash-3.10.4.tgz#2299648a81a67f4c6ee222c6cf8e261bd9c3fa50"
   integrity sha512-YXJqp9gdHcZKAmBY/WnwFpPtNQp2huD/ME2YMurH2YHJvxrVzYsmpKw/pb7yINArRpp8E++fwbQd3ajYXGA45Q==
 
-"@usehenri/disk@^0.37.0":
+"@usehenri/disk@0.37.0":
   version "0.37.0"
   resolved "https://registry.yarnpkg.com/@usehenri/disk/-/disk-0.37.0.tgz#7cb2a69eb10645a8530b523ebf599838699e68bd"
   integrity sha512-XcJcQmiy2J3oI0OcRG8reNx1L8w2FNCwnu8bDkhqGSflyyDy55GqPGdtrIfKLPIPIlHFMvlxkuA9iaonAfnnIA==

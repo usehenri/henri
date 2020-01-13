@@ -60,13 +60,13 @@
   dependencies:
     "@types/node" "*"
 
-"@usehenri/sequelize@^0.37.0":
-  version "0.37.0"
-  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.37.0.tgz#1ad7564990b66878aa518057c4109919c850ae2b"
-  integrity sha512-bFkHvDQPophsbNl5VnoA6lEn7vX7fO2Wy+Ccnp+teR22q+RxAQqxhrHrKGgOAQJ51WAK5+/iN44sn1qxjLwI+A==
+"@usehenri/sequelize@0.37.1":
+  version "0.37.1"
+  resolved "https://registry.yarnpkg.com/@usehenri/sequelize/-/sequelize-0.37.1.tgz#bc82c6e1981422b7c918056c371f87f3770adcf2"
+  integrity sha512-oUOao+jQdgjcz+9MdKIu5eULyl/3vYLbycQF9GwhvjvS3Pm/8vT1zEK7yIVXXApC3l8i1GuSOjN3yQ/lZURZkg==
   dependencies:
     connect-session-sequelize "^6.0.0"
-    sequelize "5.19.0"
+    sequelize "5.21.3"
 
 adal-node@^0.1.28:
   version "0.1.28"
@@ -522,7 +522,7 @@ jws@3.x.x:
     jwa "^1.4.1"
     safe-buffer "^5.0.1"
 
-lodash@^4.17.11:
+lodash@^4.17.15:
   version "4.17.15"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.15.tgz#b447f6670a0455bbfeedd11392eff330ea097548"
   integrity sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==
@@ -664,7 +664,7 @@ regexp.prototype.flags@^1.2.0:
     tunnel-agent "^0.6.0"
     uuid "^3.3.2"
 
-retry-as-promised@^3.1.0:
+retry-as-promised@^3.2.0:
   version "3.2.0"
   resolved "https://registry.yarnpkg.com/retry-as-promised/-/retry-as-promised-3.2.0.tgz#769f63d536bec4783549db0777cb56dadd9d8543"
   integrity sha512-CybGs60B7oYU/qSQ6kuaFmRd9sTZ6oXSc0toqePvV74Ac6/IFZSI1ReFQmtCN+uvW1Mtqdwpvt/LGOiCBAY2Mg==
@@ -686,7 +686,7 @@ sax@>=0.6.0:
   resolved "https://registry.yarnpkg.com/sax/-/sax-1.2.4.tgz#2816234e2378bddc4e5354fab5caa895df7100d9"
   integrity sha512-NqVDv9TpANUjFm0N8uM5GxL36UgKi9/atZw+x7YFnQ8ckwFGKrl4xX4yWtrey3UJm5nP1kUbnYgLopqWNSRhWw==
 
-semver@^6.1.1:
+semver@^6.3.0:
   version "6.3.0"
   resolved "https://registry.yarnpkg.com/semver/-/semver-6.3.0.tgz#ee0a64c8af5e8ceea67687b133761e1becbd1d3d"
   integrity sha512-b39TBaTSfV6yBrapU89p5fKekE2m/NwnDocOVruQFS1/veMgdzuPcnOM34M6CwxW8jH/lxEa5rBoDeUwu5HHTw==
@@ -696,26 +696,26 @@ sequelize-pool@^2.3.0:
   resolved "https://registry.yarnpkg.com/sequelize-pool/-/sequelize-pool-2.3.0.tgz#64f1fe8744228172c474f530604b6133be64993d"
   integrity sha512-Ibz08vnXvkZ8LJTiUOxRcj1Ckdn7qafNZ2t59jYHMX1VIebTAOYefWdRYFt6z6+hy52WGthAHAoLc9hvk3onqA==
 
-sequelize@5.19.0:
-  version "5.19.0"
-  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.19.0.tgz#96d610cf3afc499fb1ba27c77a9eb3c6e7060812"
-  integrity sha512-1LsPa++R37USE3LWYKkw//kSAKORXogItoSrPahOTVEuCj+v+/BxGX+49M2d9oYtkxvwUnHgCFMx2Kzku9RhSg==
+sequelize@5.21.3:
+  version "5.21.3"
+  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-5.21.3.tgz#f8a6fa0245f8995d70849e4da00c2c7c9aa9f569"
+  integrity sha512-ptdeAxwTY0zbj7AK8m+SH3z52uHVrt/qmOTSIGo/kyfnSp3h5HeKlywkJf5GEk09kuRrPHfWARVSXH1W3IGU7g==
   dependencies:
     bluebird "^3.5.0"
     cls-bluebird "^2.1.0"
     debug "^4.1.1"
     dottie "^2.0.0"
     inflection "1.12.0"
-    lodash "^4.17.11"
+    lodash "^4.17.15"
     moment "^2.24.0"
     moment-timezone "^0.5.21"
-    retry-as-promised "^3.1.0"
-    semver "^6.1.1"
+    retry-as-promised "^3.2.0"
+    semver "^6.3.0"
     sequelize-pool "^2.3.0"
     toposort-class "^1.0.1"
-    uuid "^3.2.1"
+    uuid "^3.3.3"
     validator "^10.11.0"
-    wkx "^0.4.6"
+    wkx "^0.4.8"
 
 shimmer@^1.1.0:
   version "1.2.1"
@@ -842,7 +842,7 @@ util-deprecate@^1.0.1:
   resolved "https://registry.yarnpkg.com/util-deprecate/-/util-deprecate-1.0.2.tgz#450d4dc9fa70de732762fbd2d4a28981419a0ccf"
   integrity sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
 
-uuid@^3.1.0, uuid@^3.2.1, uuid@^3.3.2:
+uuid@^3.1.0, uuid@^3.2.1, uuid@^3.3.2, uuid@^3.3.3:
   version "3.3.3"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.3.3.tgz#4568f0216e78760ee1dbf3a4d2cf53e224112866"
   integrity sha512-pW0No1RGHgzlpHJO1nsVrHKpOEIxkGg1xB+v0ZmdNH5OAeAwzAVrCnI2/6Mtx+Uys6iaylxa+D3g4j63IKKjSQ==
@@ -861,7 +861,7 @@ verror@1.10.0:
     core-util-is "1.0.2"
     extsprintf "^1.2.0"
 
-wkx@^0.4.6:
+wkx@^0.4.8:
   version "0.4.8"
   resolved "https://registry.yarnpkg.com/wkx/-/wkx-0.4.8.tgz#a092cf088d112683fdc7182fd31493b2c5820003"
   integrity sha512-ikPXMM9IR/gy/LwiOSqWlSL3X/J5uk9EO2hHNRXS41eTLXaUFEVw9fn/593jW/tE5tedNg8YjT5HkCa4FqQZyQ==

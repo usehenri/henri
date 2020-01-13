@@ -25,6 +25,6 @@
   },
   "homepage": "https://github.com/usehenri/henri#readme",
   "dependencies": {
-    "@usehenri/cli": "0.37.1"
+    "@usehenri/cli": "0.37.0"
   }
 }
