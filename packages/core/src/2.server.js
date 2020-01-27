@@ -9,6 +9,7 @@ const cors = require('cors');
 const path = require('path');
 const chokidar = require('chokidar');
 const boom = require('express-boom');
+const debug = require('debug')('henri:server');
 // REMOVED: const Websocket = require('@usehenri/websocket');
 
 const {
@@ -17,6 +18,7 @@ const {
 } = require('react-dev-utils/WebpackDevServerUtils');
 const openBrowser = require('react-dev-utils/openBrowser');
 const detect = require('detect-port');
+const internalIp = require('internal-ip');
 
 /* istanbul ignore next */
 /**
@@ -47,15 +49,19 @@ async function watch() {
 
   chokidar.watch(watching).on('all', async (event, path) => {
     if (henri.status.get('locked')) {
+      debug('received file modification trigger. henri is locked. returning');
       return;
     }
     henri.status.set('locked', true);
     clearConsole();
+    debug('console cleared');
     pen.line();
     pen.warn('server', 'changes detected in', path);
     pen.line(2);
+    debug('checking the syntax of the chaneged file');
     await henri.utils.syntax(path);
     setTimeout(() => henri.status.set('locked', false), 3000);
+    debug('unlocking and reloading');
     !henri.status.get('locked') && henri.reload();
   });
 
@@ -102,6 +108,7 @@ function keyboardShortcuts() {
       '114': async () => {
         const loaded = henri.router._results.loaded;
         const num = loaded.length;
+        debug('showing routes information');
 
         if (num > 0) {
           clearConsole();
@@ -238,17 +245,20 @@ class Server extends BaseModule {
     return new Promise(async resolve => {
       let { app, henri, httpServer, port } = this;
       let self = this; // Oh no!
+      const usableIp = internalIp.v4.sync() || '0.0.0.0';
+      debug('using %s as the internal ip');
 
       app.use((req, res, next) => henri.router.handler(req, res, next));
 
       port = henri.isTest ? await detect(port) : port;
-      port = henri.isDev ? await choosePort('0.0.0.0', port) : port;
+      port = henri.isDev ? await choosePort(usableIp, port) : port;
 
       httpServer
         .listen(port, function() {
-          const urls = prepareUrls('http', '0.0.0.0', port);
+          const urls = prepareUrls('http', usableIp, port);
 
           henri.pen.info('server', 'ready for battle');
+          henri.pen.info('server', 'local url', urls.localUrlForTerminal);
           henri.isDev && watch();
 
           self.url = urls.localUrlForBrowser;
