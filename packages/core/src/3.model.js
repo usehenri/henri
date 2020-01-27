@@ -257,7 +257,14 @@ class Model extends BaseModule {
         await this.stores[store].start();
       }
     } catch (error) {
-      bounce.rethrow(error, 'system');
+      this.henri.pen.fatal(
+        'model',
+        'failed to connect to mongo server',
+        null,
+        error
+      );
+      throw error;
+      // Bounce.rethrow(error, 'system');
     }
     if (this.ids.length > 0) {
       this.addToEslintRc();
