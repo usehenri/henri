@@ -1,6 +1,7 @@
 const webpack = require('webpack');
 const path = require('path');
 const glob = require('glob');
+const fs = require('fs');
 const withSass = require('@zeit/next-sass');
 const debug = require('debug')('henri:react');
 
@@ -11,16 +12,23 @@ const dir = path.resolve(cwd(), 'app/views');
 let userConfig = null;
 
 try {
-  //eslint-disable-next-line global-require
-  const conf = require(path.resolve(cwd(), 'config', 'webpack.js'));
+  const configFilePath = path.resolve(cwd(), 'config', 'webpack.js');
 
-  if (typeof conf.webpack === 'function') {
-    userConfig = conf.webpack;
+  if (fs.existsSync(configFilePath)) {
+    //eslint-disable-next-line global-require
+    const conf = require(configFilePath);
+
+    if (typeof conf.webpack === 'function') {
+      userConfig = conf.webpack;
+      debug('loaded webpack configuration file to extend next.js config');
+    } else {
+      pen.error(
+        'react',
+        `Can't load your config/webpack.js file. It should export a function.`
+      );
+    }
   } else {
-    pen.error(
-      'react',
-      `Can't load your config/webpack.js file. It should export a function.`
-    );
+    debug('no custom webpack.js found in the config folder');
   }
 } catch (err) {
   debug('will not load nextjs local config');
@@ -30,8 +38,8 @@ try {
 module.exports = withSass({
   sassLoaderOptions: {
     includePaths: ['styles', 'node_modules']
-      .map(dir => path.join(__dirname, dir))
-      .map(gro => glob.sync(gro))
+      .map((dir) => path.join(__dirname, dir))
+      .map((gro) => glob.sync(gro))
       .reduce((arr, key) => arr.concat(key), []),
   },
 
@@ -49,8 +57,8 @@ module.exports = withSass({
             loader: 'sass-loader',
             options: {
               includePaths: ['styles', 'node_modules']
-                .map(dir => path.join(__dirname, dir))
-                .map(glo => glob.sync(glo))
+                .map((dir) => path.join(__dirname, dir))
+                .map((glo) => glob.sync(glo))
                 .reduce((arr, key) => arr.concat(key), []),
             },
           },

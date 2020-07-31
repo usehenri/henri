@@ -5,20 +5,14 @@
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
-  "private": false,
   "scripts": {
-    "build": "taskr",
-    "local": "taskr local",
-    "prepublish": "taskr release"
+    "build": "rollup -c",
+    "local": "rollup -c -w",
+    "prepublish": "rollup -c"
   },
   "devDependencies": {
-    "@taskr/babel": "1.1.0-next.1",
-    "@taskr/clear": "1.1.0",
-    "@taskr/esnext": "1.1.0",
-    "@taskr/shell": "^1.1.0",
-    "@taskr/uglify": "1.1.0",
-    "@taskr/watch": "1.1.0",
-    "taskr": "1.1.0"
+    "@rollup/plugin-babel": "^5.1.0",
+    "rollup": "^2.23.0"
   },
   "files": [
     "dist",
@@ -27,33 +21,34 @@
     "withHenri.js"
   ],
   "dependencies": {
-    "@babel/core": "7.5.5",
-    "@babel/plugin-proposal-class-properties": "7.5.5",
-    "@babel/plugin-proposal-object-rest-spread": "7.5.5",
-    "@babel/plugin-transform-runtime": "7.5.5",
-    "@babel/preset-env": "7.5.5",
-    "@babel/preset-react": "7.0.0",
-    "axios": "^0.19.1",
+    "@babel/core": "7.11.0",
+    "@babel/plugin-proposal-class-properties": "7.10.4",
+    "@babel/plugin-proposal-object-rest-spread": "7.11.0",
+    "@babel/plugin-transform-runtime": "7.11.0",
+    "@babel/preset-env": "7.11.0",
+    "@babel/preset-react": "7.10.4",
+    "axios": "^0.19.2",
     "babel-core": "7.0.0-bridge.0",
-    "babel-loader": "8.0.6",
-    "babel-plugin-module-resolver": "3.2.0",
+    "babel-loader": "8.1.0",
+    "babel-plugin-module-resolver": "4.0.0",
     "babel-plugin-wrap-in-js": "1.1.1",
     "cache-loader": "^4.0.1",
-    "caniuse-lite": "^1.0.30001020",
+    "caniuse-lite": "^1.0.30001023",
     "cssnano": "^4.1.10",
     "debug": "^4.1.1",
     "lodash.get": "^4.4.2",
     "lodash.set": "^4.3.2",
     "module-alias": "^2.2.2",
-    "next": "^9.2.0",
+    "next": "^9.2.1",
     "postcss-easy-import": "^3.0.0",
     "postcss-loader": "^3.0.0",
     "prop-types": "^15.7.2",
-    "raw-loader": "^3.0.0",
+    "raw-loader": "^4.0.1",
     "react-quill": "^1.3.3",
-    "sass-loader": "^7.1.0",
+    "recursive-readdir": "^2.2.2",
+    "sass-loader": "^9.0.2",
     "shallowequal": "^1.1.0",
     "socket.io-client": "^2.3.0",
-    "validator": "^12.1.0"
+    "validator": "^13.1.1"
   }
 }
