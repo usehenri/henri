@@ -3,6 +3,6 @@
   "onboard": true,
   "version": "0.37.2",
   "dependencies": {
-    "@usehenri/disk": "0.37.2"
+    "@usehenri/disk": "^0.37.2"
   }
 }

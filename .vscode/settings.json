@@ -1,0 +1,4 @@
+{
+    "jest.pathToJest": "node_modules/.bin/jest",
+    "git.ignoreLimitWarning": true
+}

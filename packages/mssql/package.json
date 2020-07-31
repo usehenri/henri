@@ -6,7 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/sequelize": "0.37.1",
-    "tedious": "^8.0.1"
+    "@usehenri/sequelize": "^0.37.1",
+    "tedious": "^9.0.1"
   }
 }

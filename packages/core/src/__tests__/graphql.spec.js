@@ -14,6 +14,7 @@ describe('graphql', () => {
 
   test('should be defined', () => {
     expect(this.henri.graphql).toBeDefined();
+    expect(1).toBeLessThan(3);
   });
 
   test('should extend BaseModule', () => {
@@ -62,7 +63,7 @@ describe('graphql', () => {
         graphql: { types: `type Artwork { title: String, year: Int }` },
       });
       this.henri.graphql.extract({
-        graphql: { resolvers: { Query: { artwork: key => data[key] } } },
+        graphql: { resolvers: { Query: { artwork: (key) => data[key] } } },
       });
 
       expect(this.henri.graphql.typesList).toEqual(

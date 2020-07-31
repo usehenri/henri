@@ -25,6 +25,7 @@ Mongoose {
         "config": Object {
           "autoIndex": true,
         },
+        "id": 1,
         "models": Object {},
         "options": null,
         "otherDbs": Array [],

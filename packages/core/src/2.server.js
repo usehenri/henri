@@ -50,6 +50,7 @@ async function watch() {
   chokidar.watch(watching).on('all', async (event, path) => {
     if (henri.status.get('locked')) {
       debug('received file modification trigger. henri is locked. returning');
+
       return;
     }
     henri.status.set('locked', true);
@@ -94,7 +95,7 @@ function keyboardShortcuts() {
   } = henri;
 
   process.stdin.resume();
-  process.stdin.on('data', async data => {
+  process.stdin.on('data', async (data) => {
     /**
      * Opens the browser at dev url
      *
@@ -108,12 +109,13 @@ function keyboardShortcuts() {
       '114': async () => {
         const loaded = henri.router._results.loaded;
         const num = loaded.length;
+
         debug('showing routes information');
 
         if (num > 0) {
           clearConsole();
           henri.pen.info('router', `loaded route${num > 1 ? 's' : ''}`);
-          loaded.map(val => henri.pen.info(...val));
+          loaded.map((val) => henri.pen.info(...val));
           henri.pen.info('router', 'total loaded', num);
         } else {
           henri.pen.info('router', 'no routes to show...');
@@ -126,7 +128,7 @@ function keyboardShortcuts() {
         if (num > 0) {
           clearConsole();
           henri.pen.info('router', `unknown route${num > 1 ? 's' : ''}`);
-          unknown.map(val => henri.pen.error(...val));
+          unknown.map((val) => henri.pen.error(...val));
           henri.pen.info('router', 'total unknown', num);
         } else {
           henri.pen.info('router', 'no unknown routes to show...');
@@ -242,11 +244,13 @@ class Server extends BaseModule {
    * @memberof Server
    */
   async start(delay, cb = null) {
-    return new Promise(async resolve => {
+    // eslint-disable-next-line no-async-promise-executor
+    return new Promise(async (resolve) => {
       let { app, henri, httpServer, port } = this;
       let self = this; // Oh no!
       const usableIp = internalIp.v4.sync() || '0.0.0.0';
-      debug('using %s as the internal ip');
+
+      debug('using %s as the internal ip', usableIp);
 
       app.use((req, res, next) => henri.router.handler(req, res, next));
 
@@ -254,11 +258,13 @@ class Server extends BaseModule {
       port = henri.isDev ? await choosePort(usableIp, port) : port;
 
       httpServer
-        .listen(port, function() {
+        .listen(port, function () {
           const urls = prepareUrls('http', usableIp, port);
 
           henri.pen.info('server', 'ready for battle');
           henri.pen.info('server', 'local url', urls.localUrlForTerminal);
+
+          henri.isDev && debug('watching the filesystem as we are in dev');
           henri.isDev && watch();
 
           self.url = urls.localUrlForBrowser;
@@ -267,7 +273,7 @@ class Server extends BaseModule {
           typeof cb === 'function' && cb();
           resolve(true);
         })
-        .on('error', error => {
+        .on('error', (error) => {
           /* istanbul ignore next */
           if (error.code === 'EADDRINUSE') {
             throw new Error(`port ${self.port} already in use`);

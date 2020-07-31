@@ -11,9 +11,7 @@
     "type": "git",
     "url": "git+https://github.com/usehenri/henri.git"
   },
-  "bin": {
-    "henri": "bin/henri.js"
-  },
+  "bin": "bin/henri.js",
   "engines": {
     "node": ">=10.0.0"
   },
@@ -25,6 +23,6 @@
   },
   "homepage": "https://github.com/usehenri/henri#readme",
   "dependencies": {
-    "@usehenri/cli": "0.37.2"
+    "@usehenri/cli": "^0.37.2"
   }
 }

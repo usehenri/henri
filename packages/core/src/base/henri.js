@@ -47,11 +47,26 @@ class HenriBase {
 
     /* istanbul ignore next */
     if (!this.isTest) {
-      process.on('unhandledRejection', (reason, prom) =>
-        this.pen.fatal('promise', reason, null, prom)
-      );
+      process.on('unhandledRejection', (reason, prom) => {
+        if (promiseMsgs(reason.message)) {
+          this.pen.info('debug', promiseMsgs(reason.message));
+        }
+
+        this.pen.fatal('promise', reason, null, prom);
+      });
     }
   }
 }
+
+const promiseMsgs = (msg) => {
+  if (
+    msg ===
+    'Transaction numbers are only allowed on storage engines that support document-level locking'
+  ) {
+    return 'You should add \'"retryWrites": false\' to your store adapter option (mongodb)';
+  }
+
+  return null;
+};
 
 module.exports = HenriBase;

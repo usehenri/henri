@@ -26,6 +26,8 @@ class Mongoose {
     this.mongoose = new mongoose.Mongoose();
     this.henri = thisHenri;
 
+    debug('using version %s of mongoose', this.mongoose.version);
+
     this.addModel = this.addModel.bind(this);
     this.overload = this.overload.bind(this);
     this.getModels = this.getModels.bind(this);
@@ -65,6 +67,8 @@ class Mongoose {
     }
 
     this.models[model.globalId] = instance;
+
+    debug('model', model.globalId, 'added');
 
     return this.models[model.globalId];
   }
@@ -109,15 +113,15 @@ class Mongoose {
         type: Array,
       },
     });
-    schema.pre('save', async function(next) {
+    schema.pre('save', async function (next) {
       if (!this.isModified('password')) return next();
       this.password = await henri.user.encrypt(this.password);
       next();
     });
-    schema.methods.hasRole = async function(roles = []) {
+    schema.methods.hasRole = async function (roles = []) {
       let given = Array.isArray(roles) ? roles : [roles];
 
-      return given.every(element => this.roles.includes(element));
+      return given.every((element) => this.roles.includes(element));
     };
   }
 
@@ -158,21 +162,29 @@ class Mongoose {
     debug('starting %s', this.name);
     this.mongoose.Promise = global.Promise;
 
-    return new Promise((resolve, reject) => {
-      this.mongoose
-        .connect(this.config.url || this.config.host, {
-          useCreateIndex: true,
-          useNewUrlParser: true,
-          useUnifiedTopology: true,
-        })
-        .then(
-          () => {
-            debug('started %s', this.name);
-            resolve();
-          },
-          err => reject(err)
-        );
-    });
+    const defaultOpts = {
+      connectTimeoutMS: 10 * 1000,
+      useCreateIndex: true,
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    };
+
+    let opts = Object.assign({}, defaultOpts, this.config.opts || {});
+
+    this.config.opts && debug('using custom configuration for %s', this.name);
+    this.config.opts && debug('new configuration is %O', opts);
+
+    try {
+      await this.mongoose.connect(this.config.url || this.config.host, opts);
+      debug('started %s', this.name);
+    } catch (error) {
+      debug('failed to start connection to %s', this.name);
+      debug('related error is: %O', error);
+
+      this.henri.pen.error('mongoose', 'failed to connect to server');
+
+      throw error;
+    }
   }
 
   /**
@@ -192,7 +204,7 @@ class Mongoose {
           debug('stopped %s', this.name);
           setTimeout(() => resolve(), 500);
         },
-        err => reject(err)
+        (err) => reject(err)
       );
     });
   }
