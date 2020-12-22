@@ -37,7 +37,7 @@
     "lodash": "^4.17.15",
     "merge-graphql-schemas": "^1.7.6",
     "moment": "^2.24.0",
-    "node-notifier": "^7.0.2",
+    "node-notifier": "^8.0.1",
     "nodemailer": "^6.4.2",
     "passport": "^0.4.1",
     "passport-jwt": "^4.0.0",
