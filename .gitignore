@@ -39,6 +39,6 @@ data/
 dist
 lib
 .tmp/*
-.changelog
 yalc.lock
 .yarn
+.idea
