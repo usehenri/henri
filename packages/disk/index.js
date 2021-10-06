@@ -53,7 +53,7 @@ class Disk extends HenriMongoose {
       fs.mkdirSync(dataPath);
     }
 
-    this.mongod = new MongoMemoryServer({
+    this.mongod = await MongoMemoryServer.create({
       instance: {
         dbName: 'henri',
         dbPath: this.henri.isTest ? null : dataPath,
@@ -61,7 +61,7 @@ class Disk extends HenriMongoose {
       },
     });
 
-    this.config.url = await this.mongod.getConnectionString();
+    this.config.url = this.mongod.getUri();
 
     return super.start();
   }

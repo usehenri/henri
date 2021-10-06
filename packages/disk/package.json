@@ -8,7 +8,7 @@
   "dependencies": {
     "@usehenri/mongoose": "^0.37.2",
     "debug": "^4.1.1",
-    "md5": "^2.2.1",
-    "mongodb-memory-server": "^6.6.3"
+    "md5": "^2.3.0",
+    "mongodb-memory-server": "^7.4.3"
   }
 }
