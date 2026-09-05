@@ -30,7 +30,8 @@ The file is validated on boot: a syntax error is reported with its line and colu
 | Key        | Default       | Description                                                                                                     |
 | ---------- | ------------- | --------------------------------------------------------------------------------------------------------------- |
 | `port`     | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                 |
-| `renderer` | `template`    | View engine: `react`, `template` (Handlebars) or `vue`. See [Views](/guides/views/).                            |
+| `renderer` | `template`    | View engine: `react`, `inertia`, `template` (Handlebars) or `vue`. See [Views](/guides/views/).                 |
+| `inertia`  |               | Options of the `inertia` renderer (`ssr`, `id`, `entry`, `ssrEntry`, `template`). See [Views](/guides/views/).  |
 | `stores`   |               | Named database stores. Models pick one with their `store` key, or use `default`. See [Models](/guides/models/). |
 | `secret`   |               | Session and JWT secret. Required as soon as you have a user model.                                              |
 | `user`     | `User`        | Name of the model that represents users (login, roles, password hashing).                                       |

@@ -335,7 +335,7 @@ module.exports = {
 
 ## Views
 
-You can use [React](#react), [Vue](#vue) and [Handlebars](#handlebars) as renderer. They are all server-side rendered and the first two options use webpack to push updates to the browser.
+You can use [React](#react), [Vue](#vue) and [Handlebars](#handlebars) as renderer. They are all server-side rendered and the first two options use webpack to push updates to the browser. An `inertia` renderer (Inertia.js on Vite, React 19 pages, server-side rendered) ships in `@usehenri/inertia`; scaffold an application using it with `henri new my-app --renderer inertia` and see the [views guide](https://usehenri.io/guides/views/) for details.
 
 ### React
 
