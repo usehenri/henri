@@ -56,14 +56,14 @@ class Router extends BaseModule {
     this.middlewares();
 
     try {
-      // eslint-disable-next-line global-require
+       
       this.rawRoutes = require(path.resolve('./config/routes'));
     } catch (error) {
       this.rawRoutes = {};
 
       if (fs.existsSync(path.resolve('./app/routes.js'))) {
         pen.warn('router', 'you should move your routes to `config/routes.js`');
-        // eslint-disable-next-line global-require
+         
         this.rawRoutes = require(path.resolve('./app/routes'));
       } else {
         pen.warn('router', 'unable to load routes from filesystem');
@@ -264,7 +264,7 @@ class Router extends BaseModule {
       roles = [roles];
     }
 
-    roles.map(role => {
+    roles.map((role) => {
       if (typeof this._roles[role] === 'undefined') {
         this._roles[role] = {};
       }
@@ -278,7 +278,7 @@ class Router extends BaseModule {
 
     this.handler[verb](
       route,
-      async function(req, res, next) {
+      async function (req, res, next) {
         if (req.params._id && req.params._id.includes('favicon.')) {
           return res.status(404).send();
         }
@@ -316,7 +316,7 @@ class Router extends BaseModule {
     if (user && user.roles) {
       let roles = Array.isArray(user.roles) ? user.roles : [user.roles];
 
-      roles.forEach(role => {
+      roles.forEach((role) => {
         typeof this._roles[role] === 'object' &&
           Object.assign(paths, this._roles[role]);
       });
@@ -335,7 +335,7 @@ class Router extends BaseModule {
     if (this.henri._middlewares.length > 0) {
       let middlewaresLoaded = [];
 
-      this.henri._middlewares.map(middle => {
+      this.henri._middlewares.map((middle) => {
         middlewaresLoaded.push(middle.name);
         middle.func(this.handler);
       });
@@ -375,7 +375,7 @@ class Router extends BaseModule {
               `res.render() second argument missing 'data' or 'graphql' key`
             );
 
-          if (Object.values(extras).every(val => typeof val === 'string')) {
+          if (Object.values(extras).every((val) => typeof val === 'string')) {
             graphql = extras;
             this.henri.isDev &&
               this.henri.pen.warn(
@@ -385,14 +385,15 @@ class Router extends BaseModule {
               );
           }
 
-          if (Object.values(extras).every(val => typeof val === 'object')) {
+          if (Object.values(extras).every((val) => typeof val === 'object')) {
             data = extras;
             this.henri.isDev &&
               this.henri.pen.warn(
                 'view',
                 route,
-                `assuming orm object${Object.keys(extras).length > 1 &&
-                  's'} as second argument`
+                `assuming orm object${
+                  Object.keys(extras).length > 1 && 's'
+                } as second argument`
               );
           }
         }

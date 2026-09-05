@@ -68,9 +68,7 @@ export default (ComposedComponent) => {
         props.query = Object.assign({}, props.query, props.req._henri);
       }
 
-      const {
-        query: { data, user = null, paths, localUrl } = {},
-      } = props;
+      const { query: { data, user = null, paths, localUrl } = {} } = props;
 
       let composedInitialProps = {};
 

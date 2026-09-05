@@ -13,7 +13,7 @@ class FormHtmlEditor extends Component {
     super(props);
     this.ReactQuill = null;
     if (typeof window !== 'undefined') {
-      // eslint-disable-next-line global-require
+       
       const mod = require('react-quill-new');
 
       this.ReactQuill = mod.default || mod;
@@ -47,7 +47,9 @@ class FormHtmlEditor extends Component {
       );
     }
 
-    return <textarea name={name} defaultValue={this.context.data[name] || ''} />;
+    return (
+      <textarea name={name} defaultValue={this.context.data[name] || ''} />
+    );
   }
 }
 

@@ -24,7 +24,6 @@ const check = (file) => fs.existsSync(path.join(cwd, file));
  */
 const detectPackageManager = (dir = process.cwd()) => {
   try {
-     
     const pkg = require(path.resolve(dir, 'package.json'));
     const declared =
       typeof pkg.packageManager === 'string' &&
@@ -59,7 +58,6 @@ const resolvePackageJson = (name, dir = process.cwd()) => {
   const paths = [path.resolve(dir)];
 
   try {
-     
     return require(require.resolve(`${name}/package.json`, { paths }));
   } catch {
     // Package hides package.json behind "exports": walk up from its entry
@@ -72,7 +70,6 @@ const resolvePackageJson = (name, dir = process.cwd()) => {
       const candidate = path.join(current, 'package.json');
 
       if (fs.existsSync(candidate)) {
-         
         const pkg = require(candidate);
 
         if (pkg.name === name) {
@@ -96,7 +93,6 @@ const resolvePackageJson = (name, dir = process.cwd()) => {
  */
 const validInstall = (args) => {
   try {
-     
     const pkg = require(path.resolve(process.cwd(), 'package.json'));
 
     if (pkg && !pkg.henri) {
@@ -163,7 +159,6 @@ const helpHeader = () =>
  * @returns {Promise<string>} Formatted code
  */
 const format = async (code) => {
-   
   const prettier = require('prettier');
 
   return prettier.format(code, {

@@ -23,7 +23,9 @@ describe('paths', () => {
 
   describe('pathFor', () => {
     test('returns the raw entry without params', () => {
-      expect(pathFor(paths, 'index_tasks_path')).toEqual(paths.index_tasks_path);
+      expect(pathFor(paths, 'index_tasks_path')).toEqual(
+        paths.index_tasks_path
+      );
     });
 
     test('fills :id from a string', () => {

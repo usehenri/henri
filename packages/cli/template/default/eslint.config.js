@@ -32,7 +32,12 @@ module.exports = [
   js.configs.recommended,
   {
     // Server side: controllers, models, workers, config, this file
-    files: ['app/**/*.js', 'config/**/*.js', 'test/**/*.js', 'eslint.config.js'],
+    files: [
+      'app/**/*.js',
+      'config/**/*.js',
+      'test/**/*.js',
+      'eslint.config.js',
+    ],
     ignores: ['app/views/**'],
     languageOptions: {
       ecmaVersion: 'latest',

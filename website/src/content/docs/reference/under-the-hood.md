@@ -13,16 +13,16 @@ Bundle the best tools in a structured environment to provide a stable and fast-p
 
 henri is a set of modules booted in eight run levels. Modules on the same level start concurrently; the next level starts when they are all done.
 
-| Level | Modules                              |
-| ----- | ------------------------------------ |
+| Level | Modules                                |
+| ----- | -------------------------------------- |
 | 0     | configuration, logger, module registry |
-| 1     | GraphQL, mail                        |
-| 2     | controllers, HTTP server (Express)   |
-| 3     | models, views                        |
-| 4     | users (sessions, passport, roles)    |
-| 5     | routes, workers                      |
-| 6     | last stage (your own modules)        |
-| 7     | tests                                |
+| 1     | GraphQL, mail                          |
+| 2     | controllers, HTTP server (Express)     |
+| 3     | models, views                          |
+| 4     | users (sessions, passport, roles)      |
+| 5     | routes, workers                        |
+| 6     | last stage (your own modules)          |
+| 7     | tests                                  |
 
 Reloadable modules are torn down in reverse order and started again in order when a file changes, so a saved model reloads models, views, routes and workers but leaves the HTTP server alone.
 
@@ -42,7 +42,9 @@ class Metrics extends BaseModule {
   }
 
   async init() {
-    this.henri.server.app.get('/_metrics', (req, res) => res.json({ ok: true }));
+    this.henri.server.app.get('/_metrics', (req, res) =>
+      res.json({ ok: true })
+    );
     return this.name;
   }
 

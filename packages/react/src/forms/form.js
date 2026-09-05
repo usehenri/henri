@@ -39,7 +39,10 @@ class Form extends Component {
       this.setState({ data: this.props.data });
     }
 
-    if (!shallowEqual(prevState.data, this.state.data) && !this.state.modified) {
+    if (
+      !shallowEqual(prevState.data, this.state.data) &&
+      !this.state.modified
+    ) {
       this.setState({ modified: true });
     }
   }

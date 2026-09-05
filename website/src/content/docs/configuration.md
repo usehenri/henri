@@ -27,16 +27,16 @@ The file is validated on boot: a syntax error is reported with its line and colu
 
 ## Keys
 
-| Key        | Default         | Description                                                                 |
-| ---------- | --------------- | --------------------------------------------------------------------------- |
-| `port`     | `3000`          | Port to listen on. In development a busy port is replaced by the next free one. |
-| `renderer` | `template`      | View engine: `react`, `template` (Handlebars) or `vue`. See [Views](/guides/views/). |
-| `stores`   |                 | Named database stores. Models pick one with their `store` key, or use `default`. See [Models](/guides/models/). |
-| `secret`   |                 | Session and JWT secret. Required as soon as you have a user model.          |
-| `user`     | `User`          | Name of the model that represents users (login, roles, password hashing).   |
-| `baseRole` |                 | Role given to every new user.                                                |
-| `graphql`  | `/_henri/gql`   | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).               |
-| `mail`     |                 | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/). |
+| Key        | Default       | Description                                                                                                     |
+| ---------- | ------------- | --------------------------------------------------------------------------------------------------------------- |
+| `port`     | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                 |
+| `renderer` | `template`    | View engine: `react`, `template` (Handlebars) or `vue`. See [Views](/guides/views/).                            |
+| `stores`   |               | Named database stores. Models pick one with their `store` key, or use `default`. See [Models](/guides/models/). |
+| `secret`   |               | Session and JWT secret. Required as soon as you have a user model.                                              |
+| `user`     | `User`        | Name of the model that represents users (login, roles, password hashing).                                       |
+| `baseRole` |               | Role given to every new user.                                                                                   |
+| `graphql`  | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                  |
+| `mail`     |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).              |
 
 ## Reading the configuration in your code
 

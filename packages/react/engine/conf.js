@@ -1,5 +1,5 @@
 /**
- * next.js configuration used by the henri react engine.
+ * Next.js configuration used by the henri react engine.
  *
  * It is loaded twice: by the engine (passed to `next()` as `conf`) and, for
  * production builds, by `next build` through the `app/views/next.config.js`
@@ -36,7 +36,7 @@ function report(...args) {
 }
 
 /**
- * webpack configuration hook (only used when config/webpack.js exists, which
+ * Webpack configuration hook (only used when config/webpack.js exists, which
  * switches the bundler from Turbopack to webpack)
  *
  * @param {object} config webpack configuration built by next.js
@@ -49,9 +49,13 @@ function webpack(config, options) {
   if (!config || !config.module || !config.module.rules || !config.resolve) {
     report('Seems like you removed stuff from your webpack configuration...');
     report('');
-    report('Are you sure that you are returning the config passed as argument?');
+    report(
+      'Are you sure that you are returning the config passed as argument?'
+    );
     report('');
-    report('Check the syntax of config/webpack.js. See below for a jQuery example:');
+    report(
+      'Check the syntax of config/webpack.js. See below for a jQuery example:'
+    );
     report('');
     report('    module.exports = {');
     report('      webpack: (config, { dev }, webpack) => {');

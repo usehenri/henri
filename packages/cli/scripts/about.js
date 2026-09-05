@@ -57,7 +57,6 @@ const getData = async () => {
     ]);
 
   return {
-     
     cli: require('../package.json').version,
     controllers,
     core: installed('@usehenri/core'),

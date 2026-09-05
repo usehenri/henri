@@ -36,7 +36,10 @@ export default defineConfig({
       head: [
         {
           tag: 'meta',
-          attrs: { property: 'og:image', content: 'https://usehenri.io/henri.png' },
+          attrs: {
+            property: 'og:image',
+            content: 'https://usehenri.io/henri.png',
+          },
         },
       ],
       sidebar: [

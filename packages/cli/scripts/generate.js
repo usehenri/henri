@@ -127,7 +127,6 @@ const buildCrud = async ([file, ...args]) => {
  * @return {Promise<void>} Resolves when written
  */
 const resources = async (file) => {
-   
   const generator = require('./generate/controllers');
   const doc = capitalize(file);
   const lower = file.toLowerCase();
@@ -151,7 +150,6 @@ const resources = async (file) => {
  * @return {Promise<void>} Resolves when written
  */
 const crud = async (file) => {
-   
   const generator = require('./generate/controllers');
   const doc = capitalize(file);
   const lower = file.toLowerCase();
@@ -235,7 +233,7 @@ const compileView = async ({
 const routes = async (key, opts) => {
   let code = `module.exports = `;
   const location = path.join(cwd, 'config', 'routes.js');
-   
+
   const actual = require(location);
 
   actual[key] = opts;

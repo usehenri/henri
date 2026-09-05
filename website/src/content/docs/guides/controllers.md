@@ -19,7 +19,10 @@ module.exports = {
     }
 
     if (await User.countDocuments({ email: 'felix@usehenri.io' })) {
-      await User.updateOne({ email: 'felix@usehenri.io' }, { password: 'blue' });
+      await User.updateOne(
+        { email: 'felix@usehenri.io' },
+        { password: 'blue' }
+      );
       return res.send('user exists.');
     }
 

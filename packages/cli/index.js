@@ -4,7 +4,6 @@ const chalk = require('chalk');
 const debug = require('debug')('henri:cli');
 
 if (require.main === module) {
-   
   const { detectPackageManager } = require('./scripts/utils');
   const pm = detectPackageManager();
   const install = pm === 'npm' ? 'npm install -g' : `${pm} add -g`;
@@ -24,7 +23,6 @@ if (require.main === module) {
 }
 
 module.exports = (pkg, args) => {
-   
   const argv = require('minimist')(args.slice(2));
 
   setGlobalEnv(argv);
@@ -46,7 +44,6 @@ module.exports = (pkg, args) => {
     case 'server':
     case 'test':
       try {
-         
         const cmd = require(`./scripts/${command}`);
 
         Promise.resolve(cmd(argv)).catch((error) => {
@@ -56,7 +53,6 @@ module.exports = (pkg, args) => {
           process.exit(1);
         });
       } catch (error) {
-         
         const help = require('./scripts/help');
 
         debug(error);
@@ -65,7 +61,6 @@ module.exports = (pkg, args) => {
       }
       break;
     default: {
-       
       const help = require('./scripts/help');
 
       help();
@@ -90,7 +85,6 @@ function setGlobalEnv(argv) {
   }
 
   if (typeof argv['inspect'] !== 'undefined') {
-     
     const inspector = require('inspector');
 
     inspector.open(

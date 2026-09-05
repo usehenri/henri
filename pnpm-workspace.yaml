@@ -28,3 +28,5 @@ minimumReleaseAgeExclude:
   - '@changesets/git@4.0.1'
   - '@changesets/read@1.0.1'
   - eslint@10.10.0
+  - mongoose@9.9.5
+  - nodemailer@10.0.0

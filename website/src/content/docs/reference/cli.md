@@ -9,19 +9,19 @@ sidebar:
 henri <command> [options]
 ```
 
-| Command                        | Description                                                            |
-| ------------------------------ | ---------------------------------------------------------------------- |
-| `new <folder>`                 | Create a new project. `-f` / `--force` writes into an existing folder. |
-| `init`                         | Add the henri structure to the current directory.                      |
-| `server`, `s`                  | Start the development server (or production with `--production`).      |
-| `console`                      | Boot the application and open a Node.js REPL with models and `henri` loaded. |
-| `generate <what>`, `g`         | Generate code, see below.                                              |
-| `destroy <what>`, `d`          | Remove what a generator created.                                       |
-| `build`                        | Build the production views without starting the server.                |
-| `test`                         | Run the project's Jest tests.                                          |
-| `clean`                        | Remove build artifacts (`.next`, caches).                               |
-| `about`                        | Print versions of Node, henri and the installed adapters.               |
-| `help`                         | Print the help.                                                        |
+| Command                | Description                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `new <folder>`         | Create a new project. `-f` / `--force` writes into an existing folder.       |
+| `init`                 | Add the henri structure to the current directory.                            |
+| `server`, `s`          | Start the development server (or production with `--production`).            |
+| `console`              | Boot the application and open a Node.js REPL with models and `henri` loaded. |
+| `generate <what>`, `g` | Generate code, see below.                                                    |
+| `destroy <what>`, `d`  | Remove what a generator created.                                             |
+| `build`                | Build the production views without starting the server.                      |
+| `test`                 | Run the project's Jest tests.                                                |
+| `clean`                | Remove build artifacts (`.next`, caches).                                    |
+| `about`                | Print versions of Node, henri and the installed adapters.                    |
+| `help`                 | Print the help.                                                              |
 
 ## Generators
 
@@ -41,11 +41,11 @@ Attribute types follow the adapter: `string`, `number`, `integer`, `boolean`, `d
 
 ## Flags
 
-| Flag             | Effect                                          |
-| ---------------- | ----------------------------------------------- |
-| `--production`   | same as `NODE_ENV=production`                   |
+| Flag             | Effect                                                    |
+| ---------------- | --------------------------------------------------------- |
+| `--production`   | same as `NODE_ENV=production`                             |
 | `--debug[=ns]`   | same as `DEBUG=*` or `DEBUG=<ns>`, e.g. `--debug=henri:*` |
-| `--inspect`      | start the Node.js inspector on port 9229         |
-| `--wait`         | with `--inspect`, wait for a debugger to attach  |
-| `--force-build`  | force a production rebuild of the views          |
-| `--skip-workers` | do not start `app/workers`                       |
+| `--inspect`      | start the Node.js inspector on port 9229                  |
+| `--wait`         | with `--inspect`, wait for a debugger to attach           |
+| `--force-build`  | force a production rebuild of the views                   |
+| `--skip-workers` | do not start `app/workers`                                |

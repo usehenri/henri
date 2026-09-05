@@ -85,7 +85,7 @@ class Websocket {
         if (utils && typeof utils.syntax === 'function') {
           await utils.syntax(file, undefined, this.henri);
         }
-         
+
         const mod = require(file);
 
         if (typeof mod === 'function') {

@@ -283,9 +283,7 @@ module.exports = {
     resolvers: {
       Query: {
         tasks: async () => {
-          return Task.find()
-            .populate('type location')
-            .exec();
+          return Task.find().populate('type location').exec();
         },
         task: async (_, id) => await Task.findOne(id).populate('type'),
       },
@@ -361,7 +359,7 @@ Example:
 import React from 'react';
 import Link from 'next/link';
 
-export default data => (
+export default (data) => (
   <div>
     <div>{data}</div>
     <Link href="/home">
@@ -659,7 +657,7 @@ Example:
 ```js
 let timer;
 
-const start = h => {
+const start = (h) => {
   h.pen.info('worker started');
   timer = setInterval(
     () => h.pen.warn(`the argument is the henri object`),

@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { commands, check, cwd, helpHeader } = require('./utils');
 
-const main = args => {
+const main = (args) => {
   // Do we have the force flag on?
   const force = args.force === true || args.f === true;
 
@@ -38,7 +38,7 @@ const main = args => {
 };
 
 // Output help. Does nothing right now
-const help = args => {
+const help = (args) => {
   console.log(
     `
     ${helpHeader()}

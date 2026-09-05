@@ -22,12 +22,10 @@ class VueEngine {
     this.Builder = null;
 
     try {
-      // eslint-disable-next-line
-      let conf = require(path.resolve(
-        thisHenri.cwd(),
-        'config',
-        'nuxt.config.js'
-      ));
+       
+      let conf = require(
+        path.resolve(thisHenri.cwd(), 'config', 'nuxt.config.js')
+      );
 
       delete conf.rootDir;
       this.conf = Object.assign(this.conf, conf);
@@ -49,11 +47,10 @@ class VueEngine {
    */
   init() {
     this.henri.utils.checkPackages(['nuxt']);
-    // eslint-disable-next-line
-    const { Nuxt, Builder } = require(this.henri.utils.resolveFrom(
-      'nuxt',
-      this.henri.cwd()
-    ));
+     
+    const { Nuxt, Builder } = require(
+      this.henri.utils.resolveFrom('nuxt', this.henri.cwd())
+    );
 
     this.instance = new Nuxt(this.conf);
     this.Builder = Builder;

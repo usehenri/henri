@@ -89,7 +89,7 @@ class TemplateEngine {
    */
   async prepare() {
     if (this.instance) {
-      return new Promise(resolve => resolve());
+      return new Promise((resolve) => resolve());
     }
   }
 

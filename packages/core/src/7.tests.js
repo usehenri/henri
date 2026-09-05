@@ -65,7 +65,7 @@ class Tests extends BaseModule {
    * @memberof Tests
    */
   async stop() {
-    return new Promise(resolve => resolve(this.name));
+    return new Promise((resolve) => resolve(this.name));
   }
 
   /**

@@ -150,7 +150,6 @@ const copyTemplate = () => {
 const generateConfig = () => {
   console.log(' - Generating a new default.json config file...');
 
-   
   const buf = require('crypto').randomBytes(64);
   const configuration = {
     baseRole: 'guest',

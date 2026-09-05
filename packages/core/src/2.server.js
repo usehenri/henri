@@ -181,7 +181,7 @@ function keyboardShortcuts() {
     const chr = data.toString().charCodeAt(0);
 
     const actions = {
-      '114': async () => {
+      114: async () => {
         const loaded = henri.router._results.loaded;
         const num = loaded.length;
 
@@ -196,7 +196,7 @@ function keyboardShortcuts() {
           henri.pen.info('router', 'no routes to show...');
         }
       },
-      '117': async () => {
+      117: async () => {
         const unknown = henri.router._results.unknown;
         const num = unknown.length;
 
@@ -209,20 +209,20 @@ function keyboardShortcuts() {
           henri.pen.info('router', 'no unknown routes to show...');
         }
       },
-      '14': () => {
+      14: () => {
         open();
       },
-      '15': () => {
+      15: () => {
         open();
       },
-      '18': async () => {
+      18: async () => {
         clearConsole();
         pen.line();
         pen.warn('server', 'user-requested server reload...');
         pen.line();
         henri.reload();
       },
-      '3': async () => {
+      3: async () => {
         await henri.stop();
         pen.warn('server', 'exiting application...');
         pen.line();
@@ -279,7 +279,7 @@ class Server extends BaseModule {
   async init() {
     const app = (this.app = express());
 
-    // eslint-disable-next-line global-require
+     
     this.httpServer = require('http').createServer(this.app);
 
     this.port = this.henri.config.has('port')

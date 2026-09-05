@@ -1,4 +1,4 @@
-const start = hri => {
+const start = (hri) => {
   hri && hri.pen.warn('loaded');
 };
 

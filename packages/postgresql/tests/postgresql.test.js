@@ -18,7 +18,10 @@ describe('postgresql database adapter', () => {
     const henri = fakeHenri();
     const store = new Postgresql(
       'default',
-      { adapter: 'postgresql', url: 'postgres://user:pass@db.local:5433/henri' },
+      {
+        adapter: 'postgresql',
+        url: 'postgres://user:pass@db.local:5433/henri',
+      },
       henri
     );
 
@@ -30,7 +33,10 @@ describe('postgresql database adapter', () => {
   test('builds a postgres connector from the url', () => {
     const store = new Postgresql(
       'default',
-      { adapter: 'postgresql', url: 'postgres://user:pass@db.local:5433/henri' },
+      {
+        adapter: 'postgresql',
+        url: 'postgres://user:pass@db.local:5433/henri',
+      },
       fakeHenri()
     );
 

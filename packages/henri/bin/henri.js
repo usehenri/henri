@@ -32,7 +32,6 @@ if (Number.isNaN(major) || major < MINIMUM_MAJOR) {
 }
 
 try {
-   
   require('@usehenri/cli')(pkg, process.argv);
 } catch (error) {
   console.log(' ');

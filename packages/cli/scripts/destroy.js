@@ -111,7 +111,7 @@ const deleteRoute = async (keyName = null) => {
   try {
     let code = `module.exports = `;
     const location = path.join(cwd, 'config', 'routes.js');
-     
+
     const actual = require(location);
 
     let key = (Array.isArray(keyName) && keyName.join(' ')) || keyName;

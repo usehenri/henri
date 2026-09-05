@@ -35,7 +35,9 @@ const Input = ({
         placeholder={placeholder}
         required={required}
         disabled={disabled}
-        onChange={(event) => context.handleChange(event, validation, sanitation)}
+        onChange={(event) =>
+          context.handleChange(event, validation, sanitation)
+        }
       />
       {hasError && (
         <span className={errorClassName}>{errorMsg[context.errors[name]]}</span>

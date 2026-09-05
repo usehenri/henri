@@ -38,7 +38,7 @@ class Controllers extends BaseModule {
    * @todo Change this to an inhouse loader with prettier validation
    */
   static load(location) {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       includeAll.optional(
         {
           dirname: path.resolve(location),

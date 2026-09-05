@@ -38,7 +38,9 @@ const Radios = ({
           className={className}
           required={required}
           disabled={disabled}
-          onChange={(elem) => context.handleChange(elem, validation, sanitation)}
+          onChange={(elem) =>
+            context.handleChange(elem, validation, sanitation)
+          }
         />{' '}
         {label || children}
         {hasError && errorMsg && (
