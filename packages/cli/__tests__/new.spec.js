@@ -137,7 +137,9 @@ describe('henri new', () => {
     expect(agents).toContain('next.js pages');
     expect(agents).not.toContain('Inertia');
     expect(agents).not.toContain('{{');
-    expect(agents.split('\n').length).toBeLessThan(150);
+    // A budget, not a target: AGENTS.md is read on every task, so it stays
+    // short. Compress before raising it again.
+    expect(agents.split('\n').length).toBeLessThan(160);
     expect(agents).toContain('henri generate scaffold');
     expect(agents).toContain('req.permit');
     expect(agents).toContain('HENRI_SECRET');

@@ -96,6 +96,7 @@ describe('inertia engine', () => {
         'csrf',
         'data',
         'errors',
+        'flash',
         'graphql',
         'localUrl',
         'paths',
@@ -366,7 +367,7 @@ describe('inertia engine', () => {
         OPTS
       );
 
-      expect(Object.keys(other.body.props)).toHaveLength(8);
+      expect(Object.keys(other.body.props)).toHaveLength(9);
     });
   });
 

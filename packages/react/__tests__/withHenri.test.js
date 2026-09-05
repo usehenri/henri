@@ -95,6 +95,8 @@ describe('withHenri', () => {
         data: { tasks: [1] },
         error: null,
         errors: null,
+        // Nothing was flashed: the default empty bag
+        flash: {},
         graphql: { endpoint: '/g', query: false },
         localUrl: 'http://localhost:3000',
         paths,

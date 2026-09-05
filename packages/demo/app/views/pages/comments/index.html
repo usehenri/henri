@@ -1,0 +1,18 @@
+<html>
+
+<head>
+  <title>Comments</title>
+</head>
+
+<body>
+  <h1>Comments of note {{noteId}}</h1>
+  <ul>
+    {{#each comments}}
+    <li>{{body}}</li>
+    {{else}}
+    <li>No comment yet</li>
+    {{/each}}
+  </ul>
+</body>
+
+</html>

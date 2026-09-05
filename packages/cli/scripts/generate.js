@@ -171,7 +171,10 @@ const controller = async (name, actions = [], opts = {}) => {
     res.boom.notImplemented('${lower}#${action} is not implemented yet');
   },`
   );
-  const code = `module.exports = {${methods.join('\n')}\n};`;
+  const code = `// Actions are \`(req, res)\`; one that returns without answering renders
+// app/views/pages/${lower}/<action> with what it returned. Add a \`before\`
+// block ({ all: [...], 'show,edit': [...] }) to run hooks ahead of them.
+module.exports = {${methods.join('\n')}\n};`;
 
   const written = await output(
     'controller',

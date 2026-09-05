@@ -1,6 +1,7 @@
 const BaseModule = require('./base/module');
 const path = require('path');
 const { loadModules } = require('./utils');
+const { RESERVED, chain, hooksFor } = require('./base/hooks');
 
 /**
  * Controllers module
@@ -19,11 +20,14 @@ class Controllers extends BaseModule {
     this.henri = null;
 
     this._controllers = new Map();
+    /** The controller modules, for the `before` hooks they export */
+    this._modules = new Map();
 
     this.configure = this.configure.bind(this);
     this.init = this.init.bind(this);
     this.reload = this.reload.bind(this);
     this.get = this.get.bind(this);
+    this.hooks = this.hooks.bind(this);
     this.set = this.set.bind(this);
   }
 
@@ -45,6 +49,9 @@ class Controllers extends BaseModule {
    *
    * Configure the models and adapters
    *
+   * Every exported function becomes an action (`tasks#index`), except the
+   * reserved keys (`before`), which describe the controller instead.
+   *
    * @param {object} controllers Controllers loaded from disk
    * @returns {boolean} success
    * @memberof Controllers
@@ -54,8 +61,10 @@ class Controllers extends BaseModule {
       if (typeof controllers[id] !== 'undefined') {
         const controller = controllers[id];
 
+        this._modules.set(id, controller);
+
         for (const key in controller) {
-          if (typeof controller[key] !== 'undefined') {
+          if (typeof controller[key] !== 'undefined' && !RESERVED.has(key)) {
             const method = controller[key];
 
             if (typeof method === 'function') {
@@ -95,9 +104,32 @@ class Controllers extends BaseModule {
    */
   async reload() {
     this._controllers.clear();
+    this._modules.clear();
     await this.init();
 
     return this.name;
+  }
+
+  /**
+   * The `before` hooks of an action, as express middlewares
+   *
+   * A controller exports them as `before`: an object keyed by action
+   * (`all`, `show`, `'create,update'`) or an array of functions and
+   * `{ run, only, except }` selectors. See base/hooks.js.
+   *
+   * @param {string} key The controller name (ex: tasks#show)
+   * @returns {Array<function>} The middlewares, in declaration order
+   * @memberof Controllers
+   */
+  hooks(key) {
+    const [name, action] = String(key).split('#');
+    const controller = this._modules.get(name);
+
+    if (!controller || !action) {
+      return [];
+    }
+
+    return chain(hooksFor(controller.before, action, controller));
   }
 
   /**

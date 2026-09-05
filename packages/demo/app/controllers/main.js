@@ -9,6 +9,10 @@ module.exports = {
       sequence: ++counter,
     }),
 
+  // The `root` route of config/routes.js
+  home: async (req, res) =>
+    res.render('/', { data: { artwork: await Artwork.find() } }),
+
   limited: async (req, res) => res.json({ _links: {}, ok: true }),
 
   list: async (req, res) => {

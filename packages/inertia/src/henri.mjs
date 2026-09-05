@@ -10,6 +10,7 @@ export const EMPTY = Object.freeze({
   csrf: null,
   data: {},
   errors: {},
+  flash: {},
   graphql: null,
   localUrl: '',
   paths: {},
@@ -21,14 +22,15 @@ export const EMPTY = Object.freeze({
  * Build the henri context value from the Inertia page props
  *
  * @param {object} [props={}] the page props (`usePage().props`)
- * @returns {object} data, user, paths, errors, csrf, localUrl, query, graphql
- * and the pathFor(), getRoute(), fetch() and hydrate() helpers
+ * @returns {object} data, user, paths, errors, flash, csrf, localUrl, query,
+ * graphql and the pathFor(), getRoute(), fetch() and hydrate() helpers
  */
 export function henriProps(props = {}) {
   const {
     csrf = null,
     data = {},
     errors = {},
+    flash = {},
     graphql = null,
     localUrl = '',
     paths = {},
@@ -41,6 +43,7 @@ export function henriProps(props = {}) {
     data,
     errors,
     fetch: (target, payload) => request(target, { csrf, data: payload }),
+    flash,
     getRoute: (route = null, id = null) => findRoute(paths, route, id),
     graphql,
     // Fetch the controller data again (an Inertia partial reload)
