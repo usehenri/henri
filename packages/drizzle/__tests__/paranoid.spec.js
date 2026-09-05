@@ -108,7 +108,9 @@ describe('timestamps, soft deletes and paginate (sqlite in memory)', () => {
       await gone.restore();
 
       expect(gone.deletedAt).toBeNull();
-      expect(await Task.pluck('name')).toEqual([kept.name, gone.name]);
+      expect((await Task.pluck('name')).sort()).toEqual(
+        [kept.name, gone.name].sort()
+      );
     });
 
     test('mass destroy and restore work on a condition', async () => {
@@ -117,7 +119,8 @@ describe('timestamps, soft deletes and paginate (sqlite in memory)', () => {
       expect(await Task.destroy({ name: ['one', 'two'] })).toBe(2);
       expect(await Task.pluck('name')).toEqual(['three']);
       expect(await Task.restore({ name: 'one' })).toBe(1);
-      expect(await Task.pluck('name')).toEqual(['one', 'three']);
+      // No ORDER BY: postgres is free to hand the rows back in any order
+      expect((await Task.pluck('name')).sort()).toEqual(['one', 'three']);
     });
 
     test('force deletes for real, soft deleted rows included', async () => {
