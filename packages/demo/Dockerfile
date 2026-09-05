@@ -1,6 +1,8 @@
-FROM mhart/alpine-node
+FROM node:24-alpine
 
-RUN yarn global add henri@latest
+RUN npm install -g pnpm@11.25.0
+
+RUN pnpm add -g henri@latest
 
 RUN mkdir /runnable
 
@@ -8,9 +10,7 @@ WORKDIR /runnable
 
 COPY . /runnable
 
-RUN yarn install --frozen-lockfile --no-cache --production --ignore-engines
-
-RUN yarn cache clean 
+RUN pnpm install --frozen-lockfile --prod
 
 EXPOSE 3000
 

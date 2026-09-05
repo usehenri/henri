@@ -1,0 +1,13 @@
+node_modules
+pnpm-lock.yaml
+coverage
+dist
+.next
+.henri
+.husky/_
+packages/react/dist
+packages/cli/template/**/package.json
+website/dist
+website/.astro
+CHANGELOG.md
+packages/*/CHANGELOG.md

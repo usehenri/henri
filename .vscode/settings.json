@@ -1,4 +1,5 @@
 {
-    "jest.pathToJest": "node_modules/.bin/jest",
-    "git.ignoreLimitWarning": true
+  "jest.jestCommandLine": "pnpm test --",
+  "eslint.useFlatConfig": true,
+  "git.ignoreLimitWarning": true
 }

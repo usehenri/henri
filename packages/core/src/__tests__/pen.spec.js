@@ -139,8 +139,6 @@ describe('pen', () => {
       expect(this.pen.time()).not.toEqual('');
     });
 
-    /* eslint-disable no-console *
-
     /* eslint-disable no-console */
     test('should print have line-feed (default)', () => {
       console.log = jest.fn();

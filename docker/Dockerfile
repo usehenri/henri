@@ -1,18 +1,19 @@
-FROM mhart/alpine-node
+FROM node:24-alpine
 
-RUN apk --no-cache add --virtual builds-deps build-base python git
+RUN apk --no-cache add --virtual build-deps build-base python3 git \
+  && npm install -g pnpm@11.25.0
 
-RUN yarn global add henri@latest
+RUN pnpm add -g henri@latest
 
 RUN mkdir /runnable
 
 WORKDIR /runnable
 
-RUN henri new henri-test
+RUN henri new henri-test --skip-install
 
 WORKDIR /runnable/henri-test
 
-RUN yarn install --no-cache --production
+RUN pnpm install --prod
 
 EXPOSE 3000
 
