@@ -3,6 +3,13 @@ const fs = require('fs');
 const debug = require('debug')('henri:react');
 
 /**
+ * The files henri reads to extend the next.js configuration, relative to the
+ * application directory. They are only read at boot (and by `next build`):
+ * editing them needs a restart.
+ */
+const HOOK_FILES = ['config/next.js', 'config/webpack.js'];
+
+/**
  * Report an error through henri's pen when it exists, or the console
  *
  * @param {...string} args message parts
@@ -34,7 +41,6 @@ function loadHook(file, key, types) {
   }
 
   try {
-    // eslint-disable-next-line global-require
     const conf = require(file);
     const hook = conf && conf[key];
 
@@ -79,4 +85,25 @@ function loadUserHooks(cwd = process.cwd()) {
   };
 }
 
-module.exports = { loadUserHooks };
+/**
+ * Modification times of the hook files, used to tell the user that a change
+ * to them needs a restart (they are `require`d once).
+ *
+ * @param {string} [cwd=process.cwd()] the application directory
+ * @returns {object} `{ 'config/next.js': mtimeMs|null, ... }`
+ */
+function hookStamps(cwd = process.cwd()) {
+  const stamps = {};
+
+  for (const file of HOOK_FILES) {
+    try {
+      stamps[file] = fs.statSync(path.resolve(cwd, file)).mtimeMs;
+    } catch (error) {
+      stamps[file] = null;
+    }
+  }
+
+  return stamps;
+}
+
+module.exports = { HOOK_FILES, hookStamps, loadUserHooks, report };
