@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const debug = require('debug')('henri:mongoose');
+const { paginate, paranoid } = require('./plugins');
 const { normalizeSchema } = require('./schema');
 const { buildUrl, fatal, normalizeEmail, redact } = require('./utils');
 
@@ -125,12 +126,23 @@ class Mongoose {
    */
   addModel(model, user) {
     const isUser = model.identity === user;
+    const { paranoid: soft = false, ...options } = model.options || {};
+    // Rails has timestamps on every table: `timestamps: false` opts out
     const schema = new this.mongoose.Schema(
       normalizeSchema(model.schema || {}),
-      model.options || {}
+      {
+        timestamps: true,
+        ...options,
+      }
     );
 
     debug('adding model %s', model.globalId);
+
+    paginate(schema);
+
+    if (soft) {
+      paranoid(schema);
+    }
 
     if (isUser) {
       this.overload(schema, model);

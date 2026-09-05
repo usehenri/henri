@@ -1,5 +1,5 @@
 const { eq } = require('drizzle-orm');
-const { Relation, compileWhere } = require('./relation');
+const { Relation } = require('./relation');
 const { normalizeField } = require('./schema');
 const { ValidationError, failure, validate } = require('./validation');
 const {
@@ -25,7 +25,7 @@ const HOOKS = [
 ];
 
 // Fields never taken from mass-assigned attributes
-const PROTECTED = ['createdAt', 'updatedAt'];
+const PROTECTED = ['createdAt', 'deletedAt', 'updatedAt'];
 
 // Keys that make a first argument an options object instead of a condition
 const OPTION_KEYS = new Set([
@@ -35,6 +35,7 @@ const OPTION_KEYS = new Set([
   'order',
   'select',
   'where',
+  'withDeleted',
   'withHidden',
 ]);
 
@@ -183,8 +184,28 @@ class Model {
   }
 
   /**
+   * Every row, the soft deleted ones included (`options.paranoid`)
+   *
+   * @returns {Relation} A relation
+   * @memberof Model
+   */
+  static withDeleted() {
+    return this.query().withDeleted();
+  }
+
+  /**
+   * The soft deleted rows only (`options.paranoid`)
+   *
+   * @returns {Relation} A relation
+   * @memberof Model
+   */
+  static onlyDeleted() {
+    return this.query().onlyDeleted();
+  }
+
+  /**
    * A relation from a condition and options (`order`, `limit`, `offset`,
-   * `include`, `select`, `withHidden`)
+   * `include`, `select`, `withHidden`, `withDeleted`)
    *
    * @param {*} where The condition
    * @param {object} [options={}] The options
@@ -212,6 +233,9 @@ class Model {
     }
     if (split.options.withHidden) {
       relation = relation.withHidden();
+    }
+    if (split.options.withDeleted) {
+      relation = relation.withDeleted();
     }
 
     return relation;
@@ -336,6 +360,24 @@ class Model {
   }
 
   /**
+   * One page of rows and the counters `res.collection()` wants
+   *
+   * @param {object} [options={}] `page` and `perPage` (as `req.pagination()`
+   *   returns them, its `limit`, `offset` and `skip` are ignored), plus the
+   *   usual query options (`where`, `order`, `include`, `select`,
+   *   `withDeleted`, ...)
+   * @returns {Promise<object>} `{ records, page, perPage, total, pages }`
+   * @memberof Model
+   */
+  static paginate(options = {}) {
+    // `limit`, `offset` and `skip` are dropped so `Model.paginate(
+    // req.pagination())` can be handed the whole object
+    const { limit, offset, page, perPage, skip, ...query } = options;
+
+    return this.relation(query.where, query).paginate({ page, perPage });
+  }
+
+  /**
    * Is there a row matching the condition?
    *
    * @param {*} [where] The condition
@@ -415,7 +457,7 @@ class Model {
   static update(where, attrs, options = {}) {
     const split = splitArguments(this, where);
 
-    return this.updateWhere(compileWhere(this, split.where), attrs, options);
+    return this.query().where(split.where).update(attrs, options);
   }
 
   /**
@@ -432,27 +474,43 @@ class Model {
   }
 
   /**
-   * Deletes every row matching a condition (no instance hooks)
+   * Deletes every row matching a condition (no instance hooks). On a
+   * paranoid model this stamps `deletedAt`; `{ force: true }` deletes.
    *
    * @param {*} [where] The condition (every row without one)
+   * @param {object} [options={}] `force: true` for a real delete
    * @returns {Promise<number>} The number of rows deleted
    * @memberof Model
    */
-  static destroy(where) {
+  static destroy(where, options = {}) {
     const split = splitArguments(this, where);
 
-    return this.destroyWhere(compileWhere(this, split.where));
+    return this.query().where(split.where).destroy(options);
   }
 
   /**
    * Alias of destroy() (Mongoose)
    *
    * @param {*} [where] The condition
+   * @param {object} [options] Options
    * @returns {Promise<number>} The number of rows deleted
    * @memberof Model
    */
-  static deleteMany(where) {
-    return this.destroy(where);
+  static deleteMany(where, options) {
+    return this.destroy(where, options);
+  }
+
+  /**
+   * Clears the `deletedAt` stamp of every matching row (paranoid models)
+   *
+   * @param {*} [where] The condition
+   * @returns {Promise<number>} The number of rows restored
+   * @memberof Model
+   */
+  static restore(where) {
+    const split = splitArguments(this, where);
+
+    return this.onlyDeleted().where(split.where).restore();
   }
 
   /**
@@ -992,15 +1050,44 @@ class Model {
   }
 
   /**
-   * Mass delete on a compiled condition
+   * Mass delete on a compiled condition. On a paranoid model this stamps
+   * `deletedAt` instead, unless `force` is set.
    *
    * @param {?object} where The SQL condition
+   * @param {object} [options={}] `force: true` for a real delete
    * @returns {Promise<number>} The number of rows deleted
    * @memberof Model
    */
-  static async destroyWhere(where) {
+  static async destroyWhere(where, options = {}) {
+    if (this.paranoid && !options.force) {
+      return this.setWhere(where, { deletedAt: new Date() });
+    }
+
     const result = await this.run(() => {
       let query = this.db().delete(this.table);
+
+      if (where) {
+        query = query.where(where);
+      }
+
+      return query;
+    });
+
+    return this.adapter.dialect.affected(result);
+  }
+
+  /**
+   * Writes values on every matching row, without validation or hooks (the
+   * `deletedAt` stamp of the soft deletes)
+   *
+   * @param {?object} where The SQL condition
+   * @param {object} values The values
+   * @returns {Promise<number>} The number of rows written
+   * @memberof Model
+   */
+  static async setWhere(where, values) {
+    const result = await this.run(() => {
+      let query = this.db().update(this.table).set(values);
 
       if (where) {
         query = query.where(where);
@@ -1196,18 +1283,48 @@ class Model {
   }
 
   /**
-   * Deletes the row
+   * Deletes the row. On a paranoid model this stamps `deletedAt` and the
+   * instance stays usable; `{ force: true }` deletes the row.
+   *
+   * @param {object} [options={}] `force: true` for a real delete
+   * @returns {Promise<Model>} The instance
+   * @memberof Model
+   */
+  async destroy(options = {}) {
+    const { Model: Klass } = this;
+    const where = eq(Klass.column('id'), this.id);
+
+    await Klass.runHooks('beforeDestroy', this, options);
+
+    if (Klass.paranoid && !options.force) {
+      const deletedAt = new Date();
+
+      await Klass.setWhere(where, { deletedAt });
+      this.deletedAt = deletedAt;
+      this[STATE].original.deletedAt = deletedAt;
+    } else {
+      await Klass.destroyWhere(where, { force: true });
+      this[STATE].persisted = false;
+    }
+
+    await Klass.runHooks('afterDestroy', this, options);
+
+    return this;
+  }
+
+  /**
+   * Clears the `deletedAt` stamp of the row (paranoid models)
    *
    * @returns {Promise<Model>} The instance
    * @memberof Model
    */
-  async destroy() {
+  async restore() {
     const { Model: Klass } = this;
 
-    await Klass.runHooks('beforeDestroy', this);
-    await Klass.destroyWhere(eq(Klass.column('id'), this.id));
-    this[STATE].persisted = false;
-    await Klass.runHooks('afterDestroy', this);
+    await Klass.setWhere(eq(Klass.column('id'), this.id), { deletedAt: null });
+    this.deletedAt = null;
+    this[STATE].original.deletedAt = null;
+    this[STATE].persisted = true;
 
     return this;
   }
@@ -1310,7 +1427,10 @@ const createModel = (adapter, definition, fields) => {
     ])
   );
   const internalHooks = Object.fromEntries(HOOKS.map((name) => [name, []]));
-  const timestamps = Boolean((definition.options || {}).timestamps);
+  const options = definition.options || {};
+  // Rails has timestamps on every table: `timestamps: false` opts out
+  const timestamps = options.timestamps !== false;
+  const paranoid = options.paranoid === true;
 
   if (timestamps) {
     fields.createdAt = fields.createdAt || {
@@ -1323,6 +1443,10 @@ const createModel = (adapter, definition, fields) => {
       required: true,
       type: 'date',
     };
+  }
+
+  if (paranoid) {
+    fields.deletedAt = fields.deletedAt || { index: true, type: 'date' };
   }
 
   class Klass extends Model {}
@@ -1349,6 +1473,7 @@ const createModel = (adapter, definition, fields) => {
     internalHooks,
     key: modelName,
     modelName,
+    paranoid,
     tableName: tableNameOf(definition),
     timestamps,
   });
