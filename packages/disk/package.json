@@ -6,7 +6,7 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/mongoose": "^0.37.2",
+    "@usehenri/mongoose": "workspace:^",
     "debug": "^4.4.3",
     "md5": "^2.3.0",
     "mongodb-memory-server": "^11.2.0"

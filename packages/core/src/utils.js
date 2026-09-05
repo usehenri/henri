@@ -32,7 +32,6 @@ function resolveFrom(request, dir = process.cwd()) {
  */
 function resolvePackageJson(pkgName, dir = process.cwd()) {
   try {
-     
     return require(resolveFrom(`${pkgName}/package.json`, dir));
   } catch (error) {
     // Package uses "exports" without exposing package.json: walk up from main
@@ -42,7 +41,6 @@ function resolvePackageJson(pkgName, dir = process.cwd()) {
       const candidate = path.join(current, 'package.json');
 
       if (fs.existsSync(candidate)) {
-         
         const pkg = require(candidate);
 
         if (pkg.name === pkgName) {
@@ -247,7 +245,6 @@ function checkSyntax(file, source) {
   }
 
   if (ext === '.js' || ext === '.cjs') {
-     
     new vm.Script(source, { filename: file });
 
     return true;

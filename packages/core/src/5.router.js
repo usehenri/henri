@@ -56,14 +56,13 @@ class Router extends BaseModule {
     this.middlewares();
 
     try {
-       
       this.rawRoutes = require(path.resolve('./config/routes'));
     } catch (error) {
       this.rawRoutes = {};
 
       if (fs.existsSync(path.resolve('./app/routes.js'))) {
         pen.warn('router', 'you should move your routes to `config/routes.js`');
-         
+
         this.rawRoutes = require(path.resolve('./app/routes'));
       } else {
         pen.warn('router', 'unable to load routes from filesystem');

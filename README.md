@@ -673,6 +673,12 @@ The repository is a pnpm workspace (Node.js 22+). Tool versions are pinned in
   pnpm changeset           # record a version bump for the packages you changed
 ```
 
+Releases are automated with [changesets](https://github.com/changesets/changesets):
+add a changeset with your pull request, and once it lands on `master` the
+release workflow opens a "Version Packages" pull request. Merging that one
+publishes the bumped packages to npm and creates the GitHub releases. All
+public packages share one version number.
+
 The first test run downloads a MongoDB binary for the disk adapter
 (`mongodb-memory-server`) into `~/.cache/mongodb-binaries`.
 

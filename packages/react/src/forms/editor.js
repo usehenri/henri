@@ -13,7 +13,6 @@ class FormHtmlEditor extends Component {
     super(props);
     this.ReactQuill = null;
     if (typeof window !== 'undefined') {
-       
       const mod = require('react-quill-new');
 
       this.ReactQuill = mod.default || mod;

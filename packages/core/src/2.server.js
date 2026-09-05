@@ -279,7 +279,6 @@ class Server extends BaseModule {
   async init() {
     const app = (this.app = express());
 
-     
     this.httpServer = require('http').createServer(this.app);
 
     this.port = this.henri.config.has('port')
