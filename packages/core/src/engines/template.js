@@ -1,11 +1,33 @@
 const path = require('path');
 const fs = require('fs');
-const { glob, globSync } = require('glob');
-const hbs = require('handlebars');
-const bounce = require('@hapi/bounce');
+const { glob } = require('glob');
+const handlebars = require('handlebars');
+const { negotiate } = require('../base/http');
+
+/** Page and partial extensions, in order of preference */
+const EXTENSIONS = ['hbs', 'html', 'htm'];
+
+/**
+ * Is the path an existing file?
+ *
+ * @param {string} file the path
+ * @returns {boolean} exists and is a file
+ */
+const isFile = (file) => {
+  try {
+    return fs.statSync(file).isFile();
+  } catch (error) {
+    return false;
+  }
+};
 
 /**
  * Handlebars engine
+ *
+ * Pages live in app/views/pages and are resolved exactly: `/artwork` is
+ * `pages/artwork.{hbs,html,htm}`, then `pages/artwork/index.*`. Compiled
+ * templates are cached by file (invalidated when the file changes and on
+ * reload). Partials in app/views/partials are registered by relative name.
  *
  * @class TemplateEngine
  */
@@ -16,65 +38,50 @@ class TemplateEngine {
    * @memberof TemplateEngine
    */
   constructor(thisHenri) {
-    this.instance = null;
     this.henri = thisHenri;
 
+    /** An isolated handlebars environment (helpers and partials) */
+    this.hbs = handlebars.create();
     this.cache = new Map();
-    this.hbs = hbs;
     this.partials = [];
+    this.ready = null;
+
+    /** Kept for res.hbs, which renders through the instance */
+    this.instance = {
+      render: (req, res, route, opts) => this.renderPage(req, res, route, opts),
+    };
 
     this.init = this.init.bind(this);
     this.fallback = this.fallback.bind(this);
     this.render = this.render.bind(this);
-    this.getFile = this.getFile.bind(this);
+    this.renderPage = this.renderPage.bind(this);
+    this.resolvePage = this.resolvePage.bind(this);
     this.prepare = this.prepare.bind(this);
-
-    this.init();
+    this.reload = this.reload.bind(this);
   }
 
   /**
-   * The init method
+   * The views directory
    *
-   * @returns {boolean} success
+   * @readonly
+   * @returns {string} app/views, absolute
+   * @memberof TemplateEngine
+   */
+  get root() {
+    return path.join(this.henri.cwd(), 'app/views');
+  }
+
+  /**
+   * The init method: registers the partials
+   *
+   * @async
+   * @returns {Promise<boolean>} success
+   * @throws when the partials directory cannot be read
    * @memberof TemplateEngine
    */
   async init() {
-    const { pen } = this.henri;
-
-    try {
-      await this.registerPartials();
-    } catch (error) {
-      bounce.rethrow(error, 'system');
-    }
-
-    this.instance = {
-      render: async (req, res, route, opts) => {
-        route = route === '/' ? '/index' : route;
-        const view = this.getFile(`./pages${route}`);
-
-        if (!view) {
-          return res.status(404).send('Not Found');
-        }
-
-        try {
-          const result = view(opts.data || {});
-
-          res.send(result);
-        } catch (error) {
-          pen.error(
-            'template',
-            `An error occured while rendering ${route}`,
-            error
-          );
-          error.stack = error.stack.split('\n');
-          error.stack.splice(1, 3);
-          error.stack = error.stack.join('\n');
-          pen.error('template', error.stack);
-
-          return res.status(500).send('Internal Server Error');
-        }
-      },
-    };
+    this.ready = this.registerPartials();
+    await this.ready;
 
     return true;
   }
@@ -82,19 +89,17 @@ class TemplateEngine {
   /**
    * Called after init to prepare the server
    *
-   * @static
    * @async
-   * @returns {Promise} Self resolving promise (for compatibility)
+   * @returns {Promise<boolean>} always true (for compatibility)
    * @memberof TemplateEngine
    */
   async prepare() {
-    if (this.instance) {
-      return new Promise((resolve) => resolve());
-    }
+    return true;
   }
 
   /**
    * Add catchall route to render directly from the folder
+   * Requests without a matching page are passed on (to the 404 handler).
    *
    * @param {Express.Router} router A router to register the catchall
    * @returns {void}
@@ -102,12 +107,14 @@ class TemplateEngine {
    */
   fallback(router) {
     router.use(
-      this.henri.server.express.static(
-        path.join(this.henri.cwd(), 'app/views/public')
-      )
+      this.henri.server.express.static(path.join(this.root, 'public'))
     );
-    router.get('/{*splat}', (req, res) => {
-      return this.render(req, res, req.path, {});
+    router.get('/{*splat}', (req, res, next) => {
+      if (!this.resolvePage(req.path)) {
+        return next();
+      }
+
+      return this.renderPage(req, res, req.path, {});
     });
   }
 
@@ -118,23 +125,183 @@ class TemplateEngine {
    * @param {Express.Response} res Response
    * @param {String} route A string matching the location from ./app/views/pages
    * @param {Object} opts Data or any other options going to the view
-   * @returns {void}
+   * @returns {Promise<void>} resolves once the response is sent
    * @memberof TemplateEngine
    */
   render(req, res, route, opts) {
-    this.instance.render(req, res, route, opts);
+    return this.renderPage(req, res, route, opts);
+  }
+
+  /**
+   * Render a page: 404 when no page matches, 500 (with the stack logged)
+   * when the template fails at runtime
+   *
+   * The template context is `opts.data`; the other view options (user,
+   * paths, query, localUrl, errors) are exposed as handlebars data
+   * variables: `{{@user.email}}`, `{{@paths.index_artwork_path.route}}`.
+   *
+   * @async
+   * @param {Express.Request} req Request
+   * @param {Express.Response} res Response
+   * @param {String} route A string matching the location from ./app/views/pages
+   * @param {Object} [opts={}] Data or any other options going to the view
+   * @returns {Promise<void>} resolves once the response is sent
+   * @memberof TemplateEngine
+   */
+  async renderPage(req, res, route, opts = {}) {
+    const { pen } = this.henri;
+
+    if (!this.ready) {
+      this.ready = this.registerPartials();
+    }
+
+    try {
+      await this.ready;
+    } catch (error) {
+      return this.fail(res, route, error);
+    }
+
+    const file = this.resolvePage(route);
+
+    if (!file) {
+      pen.warn('template', `no page found for ${route}`);
+
+      return negotiate(
+        res,
+        404,
+        this.henri.isProduction
+          ? 'Not Found'
+          : `No page found for ${route} in app/views/pages`
+      );
+    }
+
+    try {
+      const view = this.compile(file);
+      const { data = {}, ...rest } = opts || {};
+      const html = view(data || {}, { data: rest });
+
+      return res.send(html);
+    } catch (error) {
+      return this.fail(res, route, error);
+    }
+  }
+
+  /**
+   * Answer a 500 for a template error, logging the stack
+   *
+   * @param {Express.Response} res Response
+   * @param {string} route the route being rendered
+   * @param {Error} error the error
+   * @returns {void}
+   * @memberof TemplateEngine
+   */
+  fail(res, route, error) {
+    const { pen } = this.henri;
+    const dev = !this.henri.isProduction;
+
+    pen.error('template', `An error occured while rendering ${route}`);
+    pen.error('template', error.stack || error.message);
+
+    return negotiate(
+      res,
+      500,
+      dev ? error.message : 'Internal Server Error',
+      dev ? { stack: error.stack } : {},
+      dev ? error.stack || error.message : ''
+    );
+  }
+
+  /**
+   * Resolve a route to a page file, exactly
+   * `/artwork` matches `pages/artwork.{hbs,html,htm}` then
+   * `pages/artwork/index.{hbs,html,htm}`; `/` is `/index`.
+   *
+   * @param {string} route the route (ex: /artwork, /artwork/index)
+   * @returns {?string} the absolute file path, or null
+   * @memberof TemplateEngine
+   */
+  resolvePage(route) {
+    let clean = String(route || '/').split('?')[0];
+
+    try {
+      clean = decodeURIComponent(clean);
+    } catch (error) {
+      return null;
+    }
+
+    if (clean.includes('\0')) {
+      return null;
+    }
+
+    clean = path.posix.normalize(`/${clean}`);
+
+    if (clean.endsWith('/')) {
+      clean = `${clean}index`;
+    }
+
+    const pages = path.join(this.root, 'pages');
+    const candidates = [
+      ...EXTENSIONS.map((ext) => `${clean}.${ext}`),
+      ...EXTENSIONS.map((ext) => `${clean}/index.${ext}`),
+    ];
+
+    for (const candidate of candidates) {
+      const file = path.join(pages, candidate);
+
+      // Never leave the pages directory
+      if (!file.startsWith(`${pages}${path.sep}`)) {
+        return null;
+      }
+
+      if (isFile(file)) {
+        return file;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Compile a template file (cached until the file changes)
+   *
+   * @param {string} file absolute path of the template
+   * @returns {function} the compiled template
+   * @throws when the template does not compile
+   * @memberof TemplateEngine
+   */
+  compile(file) {
+    const { mtimeMs } = fs.statSync(file);
+    const cached = this.cache.get(file);
+
+    if (cached && cached.mtimeMs === mtimeMs) {
+      return cached.compiled;
+    }
+
+    // Parse eagerly: handlebars compiles lazily and would only report a
+    // syntax error at render time
+    const ast = this.hbs.parse(fs.readFileSync(file, 'utf8'), {
+      srcName: file,
+    });
+    const compiled = this.hbs.compile(ast);
+
+    this.cache.set(file, { compiled, mtimeMs });
+
+    return compiled;
   }
 
   /**
    * Registers the partials in ./app/views/partials
+   * A partial that does not compile is reported and skipped.
    *
-   * @returns {Promise<Array>} A promise
+   * @returns {Promise<Array>} the partial files
    * @memberof TemplateEngine
    */
   async registerPartials() {
+    const dir = path.join(this.root, 'partials');
     const files = (
-      await glob('**/*.{hbs,html,htm}', {
-        cwd: path.join(this.henri.cwd(), './app/views/partials'),
+      await glob(`**/*.{${EXTENSIONS.join(',')}}`, {
+        cwd: dir,
+        nodir: true,
         posix: true,
       })
     ).sort();
@@ -143,12 +310,13 @@ class TemplateEngine {
     this.partials = [];
 
     for (const view of files) {
-      const fileName = view.replace(path.extname(view), '');
-      const data = this.getFile(`./partials/${fileName}`);
+      const name = view.replace(path.extname(view), '');
 
-      if (data) {
-        this.hbs.registerPartial(fileName, data);
-        this.partials.push(fileName);
+      try {
+        this.hbs.registerPartial(name, this.compile(path.join(dir, view)));
+        this.partials.push(name);
+      } catch (error) {
+        this.henri.pen.error('template', `partial ${view}`, error.message);
       }
     }
 
@@ -156,63 +324,18 @@ class TemplateEngine {
   }
 
   /**
-   * Loads a file from the filesystem
-   *
-   * @param {string} route Path relative to the view folder
-   * @returns {?string} The data or null
-   * @memberof TemplateEngine
-   */
-  getFile(route) {
-    const fullRoute = route.slice(-1) === '/' ? `${route}index` : route;
-
-    if (this.henri.isProduction && this.cache.has(route)) {
-      return this.cache.get(route);
-    }
-
-    try {
-      const files = globSync('**/*.{hbs,html,htm}', {
-        cwd: path.join(this.henri.cwd(), './app/views'),
-        posix: true,
-      }).sort();
-      const match = files.filter((file) => file.includes(route.slice(2)));
-
-      if (match.length < 1) {
-        throw new Error('not found');
-      }
-
-      const pathToFile = path.join(this.henri.cwd(), 'app/views/', match[0]);
-
-      const data = fs.readFileSync(pathToFile);
-
-      let compiled;
-
-      try {
-        compiled = this.hbs.compile(data.toString('utf8'));
-      } catch (error) {
-        return this.henri.pen.error('template', error);
-      }
-
-      if (this.henri.isProduction) {
-        this.cache.set(route, compiled);
-      }
-
-      return compiled;
-    } catch (error) {
-      this.henri.pen.error('template', `404 - ${route} ${fullRoute}`);
-
-      return null;
-    }
-  }
-
-  /**
-   * Triggered on reload
+   * Triggered on reload: drops the cache and registers the partials again
    *
    * @async
-   * @returns {Promise} The partials promise
+   * @returns {Promise<boolean>} success
    * @memberof TemplateEngine
    */
   async reload() {
-    await this.registerPartials();
+    this.cache.clear();
+    this.ready = this.registerPartials();
+    await this.ready;
+
+    return true;
   }
 }
 

@@ -1,13 +1,12 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`controllers should match snapshot 1`] = `
+exports[`controllers > should match snapshot 1`] = `
 Controllers {
   "_controllers": Map {},
   "configure": [Function],
   "consoleOnly": false,
   "get": [Function],
   "henri": null,
-  "info": [Function],
   "init": [Function],
   "key": null,
   "name": "controllers",
@@ -15,7 +14,5 @@ Controllers {
   "reloadable": true,
   "runlevel": 2,
   "set": [Function],
-  "setup": [Function],
-  "start": [Function],
 }
 `;

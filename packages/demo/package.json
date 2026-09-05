@@ -1,13 +1,21 @@
 {
   "name": "@usehenri/demo",
   "private": true,
+  "description": "test fixture for @usehenri/core",
   "onboard": true,
-  "version": "0.37.2",
+  "version": "0.0.0",
   "dependencies": {
     "@usehenri/core": "workspace:^",
     "@usehenri/disk": "workspace:^"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@usehenri/testing": "workspace:^",
+    "vitest": "^5.0.0"
+  },
+  "scripts": {
+    "test": "node ../henri/bin/henri.js test"
   }
 }

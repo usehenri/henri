@@ -36,7 +36,6 @@ const main = ({ consoleOnly = false }, cb) => {
         cb();
       }
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.dir(error, { colors: true });
       process.exit(1);
     }

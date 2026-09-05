@@ -2,6 +2,12 @@
   "name": "@usehenri/cli",
   "version": "1.0.2",
   "description": "henri cli runner",
+  "keywords": [
+    "henri",
+    "cli",
+    "scaffold",
+    "generator"
+  ],
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
   "homepage": "https://usehenri.io",
@@ -14,6 +20,18 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "files": [
+    "index.js",
+    "scripts",
+    "template",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=22"
   },
@@ -40,8 +58,12 @@
     "help",
     "init",
     "new",
+    "routes",
     "s",
     "server",
     "test"
-  ]
+  ],
+  "devDependencies": {
+    "@babel/parser": "^7.28.0"
+  }
 }

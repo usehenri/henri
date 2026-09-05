@@ -1,52 +1,31 @@
-/* eslint-disable sort-keys */
-const Sequelize = require('sequelize');
+const { DataTypes } = require('sequelize');
 
+/**
+ * Schema type names of the henri model format and their Sequelize data type
+ *
+ * A model file describes its fields with these names (`{ type: 'string' }`)
+ * so the same definition works on every adapter; `normalizeSchema()` turns
+ * them into Sequelize attributes. The Mongoose adapter maps the same names in
+ * `@usehenri/mongoose/types`.
+ *
+ * - string:  short text (VARCHAR(255))
+ * - text:    long text
+ * - number:  double precision float (Mongoose `Number`)
+ * - integer: integer
+ * - float:   single precision float
+ * - boolean: boolean
+ * - date:    date and time
+ * - json:    any JSON value (Mongoose `Mixed`); TEXT on dialects without JSON
+ * - uuid:    UUID string
+ */
 module.exports = {
-  // Mongoose specific
-  String: Sequelize.STRING,
-  Number: Sequelize.INTEGER,
-  Boolean: Sequelize.BOOLEAN,
-  DocumentArray: Sequelize.ARRAY,
-  Embedded: Sequelize.STRING,
-  Array: Sequelize.ARRAY,
-  Buffer: Sequelize.BLOB,
-  Date: Sequelize.DATE,
-  ObjectId: Sequelize.STRING,
-  Mixed: Sequelize.JSON,
-  Decimal128: Sequelize.BIGINT,
-  Object: Sequelize.JSON,
-  Bool: Sequelize.BOOLEAN,
-
-  // Sequelize specific
-  STRING: Sequelize.STRING,
-  CHAR: Sequelize.CHAR,
-  TEXT: Sequelize.TEXT,
-  TINYINT: Sequelize.TINYINT,
-  SMALLINT: Sequelize.SMALLINT,
-  MEDIUMINT: Sequelize.MEDIUMINT,
-  INTEGER: Sequelize.INTEGER,
-  BIGINT: Sequelize.BIGINT,
-  NUMBER: Sequelize.NUMBER,
-  FLOAT: Sequelize.FLOAT,
-  DOUBLE: Sequelize.DOUBLE,
-  DECIMAL: Sequelize.DECIMAL,
-  REAL: Sequelize.REAL,
-  BOOLEAN: Sequelize.BOOLEAN,
-  BLOB: Sequelize.BLOB,
-  ENUM: Sequelize.ENUM,
-  DATE: Sequelize.DATE,
-  DATEONLY: Sequelize.DATEONLY,
-  TIME: Sequelize.TIME,
-  NOW: Sequelize.NOW,
-  UUID: Sequelize.UUID,
-  UUIDV1: Sequelize.UUIDV1,
-  UUIDV4: Sequelize.UUIDV4,
-  HSTORE: Sequelize.HSTORE,
-  JSON: Sequelize.JSON,
-  JSONB: Sequelize.JSONB,
-  ARRAY: Sequelize.ARRAY,
-  RANGE: Sequelize.RANGE,
-  GEOMETRY: Sequelize.GEOMETRY,
-  GEOGRAPHY: Sequelize.GEOGRAPHY,
-  VIRTUAL: Sequelize.VIRTUAL,
+  boolean: DataTypes.BOOLEAN,
+  date: DataTypes.DATE,
+  float: DataTypes.FLOAT,
+  integer: DataTypes.INTEGER,
+  json: DataTypes.JSON,
+  number: DataTypes.DOUBLE,
+  string: DataTypes.STRING,
+  text: DataTypes.TEXT,
+  uuid: DataTypes.UUID,
 };

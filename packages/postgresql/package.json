@@ -13,14 +13,29 @@
   "bugs": {
     "url": "https://github.com/usehenri/henri/issues"
   },
+  "keywords": [
+    "henri",
+    "store",
+    "adapter",
+    "postgresql",
+    "postgres",
+    "sequelize"
+  ],
   "main": "index.js",
-  "dependencies": {
-    "@usehenri/sequelize": "workspace:^",
-    "pg": "^8.23.0",
-    "pg-hstore": "^2.3.4",
-    "sequelize": "^6.37.8"
+  "files": [
+    "index.js",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@usehenri/sequelize": "workspace:^",
+    "pg": "^8.23.0",
+    "pg-hstore": "^2.3.4"
   }
 }

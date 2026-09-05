@@ -1,0 +1,55 @@
+{
+  "name": "@usehenri/inertia",
+  "version": "1.0.2",
+  "description": "Inertia.js (Vite + React) view engine for henri",
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/inertia"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./engine": "./engine/index.js",
+    "./vite": "./vite.mjs",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "engine",
+    "src",
+    "vite.mjs"
+  ],
+  "dependencies": {
+    "debug": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@inertiajs/react": "^3.0.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sass": "^1.3.0",
+    "vite": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "sass": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@inertiajs/react": "^3.7.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "sass": "^1.104.0",
+    "vite": "^8.2.2"
+  }
+}

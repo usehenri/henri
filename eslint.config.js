@@ -1,5 +1,5 @@
 const js = require('@eslint/js');
-const jest = require('eslint-plugin-jest');
+const vitest = require('@vitest/eslint-plugin');
 const globals = require('globals');
 
 // Rules ported from the previous .eslintrc. Formatting rules are left to
@@ -13,7 +13,9 @@ const projectRules = {
     'always',
     { ignoreConsecutiveComments: true },
   ],
-  'class-methods-use-this': 'warn',
+  // Framework modules implement an interface; many methods legitimately ignore `this`
+  'class-methods-use-this': 'off',
+  eqeqeq: 'error',
   'guard-for-in': 'error',
   'id-length': ['warn', { exceptions: ['_', 'i', 'j'] }],
   'no-console': 'warn',
@@ -25,6 +27,7 @@ const projectRules = {
     { args: 'none', caughtErrors: 'none', ignoreRestSiblings: true },
   ],
   'no-useless-assignment': 'warn',
+  'no-var': 'error',
   'prefer-promise-reject-errors': 'error',
   'prefer-template': 'warn',
   'preserve-caught-error': 'warn',
@@ -111,23 +114,49 @@ module.exports = [
       '**/*.spec.js',
       '**/*.test.js',
     ],
-    ...jest.configs['flat/recommended'],
+    ...vitest.configs.recommended,
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',
       globals: {
         ...globals.node,
-        ...globals.jest,
+        ...vitest.environments.env.globals,
         henri: 'writable',
       },
     },
     rules: {
-      ...jest.configs['flat/recommended'].rules,
-      'jest/no-disabled-tests': 'warn',
-      'jest/no-focused-tests': 'error',
-      'jest/no-test-prefixes': 'warn',
-      'jest/no-identical-title': 'error',
-      'jest/valid-expect': 'error',
+      ...vitest.configs.recommended.rules,
+      // Same severity as eslint-plugin-jest's recommended preset
+      'vitest/expect-expect': 'warn',
+      // Pending tests are part of the workflow (see CLAUDE.md); route helpers are snake_case by design
+      'vitest/no-disabled-tests': 'off',
+      camelcase: 'off',
+      'id-length': 'off',
+      'vitest/no-focused-tests': 'error',
+      'vitest/no-identical-title': 'error',
+      'vitest/no-test-prefixes': 'warn',
+      'vitest/valid-expect': 'error',
+    },
+  },
+  {
+    // Key order is deliberate in configuration files and type maps
+    files: ['**/*.config.{js,mjs}', 'eslint.config.js', '**/types.js'],
+    rules: {
+      'sort-keys': 'off',
+    },
+  },
+  {
+    // CLI output, maintenance scripts and tests print on purpose
+    files: [
+      'packages/cli/scripts/**/*.js',
+      'scripts/**/*.js',
+      '**/__tests__/**/*.js',
+      '**/tests/**/*.js',
+      '**/*.spec.js',
+      '**/*.test.js',
+    ],
+    rules: {
+      'no-console': 'off',
     },
   },
 ];

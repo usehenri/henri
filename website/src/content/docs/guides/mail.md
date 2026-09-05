@@ -22,7 +22,9 @@ henri wraps [nodemailer](https://nodemailer.com). Configure a transport and `hen
 
 The `mail` object is nodemailer's transport configuration. The transport is verified on boot, so a wrong host or credentials fail early.
 
-Set `"mail": "test"` to use an [Ethereal](https://ethereal.email/) fake account: nothing is delivered, and the console prints a link to every message. Tests use this automatically.
+Set `"mail": "test"` to use an [Ethereal](https://ethereal.email/) fake account: nothing is delivered, and the console prints a link to every message (the account is cached in `.mailerTestCreds`).
+
+Under `NODE_ENV=test` henri ignores the configuration and uses nodemailer's JSON transport: `henri.mail.send()` works, nothing leaves the machine, and the returned `info.message` is the message as JSON. Set `henri.forceMail = true` before boot to use the configured transport in tests.
 
 ## Sending
 

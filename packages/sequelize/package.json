@@ -13,16 +13,38 @@
   "bugs": {
     "url": "https://github.com/usehenri/henri/issues"
   },
+  "keywords": [
+    "henri",
+    "store",
+    "adapter",
+    "sql",
+    "sequelize"
+  ],
   "main": "index.js",
-  "dependencies": {
-    "connect-session-sequelize": "^8.0.6",
-    "sequelize": "^6.37.8"
+  "files": [
+    "index.js",
+    "schema.js",
+    "types.js",
+    "utils.js",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "engines": {
     "node": ">=22"
   },
+  "dependencies": {
+    "connect-session-sequelize": "^8.0.6",
+    "debug": "^4.4.3",
+    "sequelize": "^6.37.8"
+  },
+  "peerDependencies": {
+    "express-session": "^1.17.1"
+  },
   "devDependencies": {
-    "express-session": "^1.18.2",
+    "express-session": "^1.19.0",
     "sqlite3": "^6.0.1"
   }
 }

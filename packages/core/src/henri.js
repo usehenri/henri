@@ -16,8 +16,8 @@ const Router = require('./5.router');
 const Workers = require('./5.workers');
 const Testing = require('./7.tests');
 
+const fs = require('fs');
 const path = require('path');
-const bounce = require('@hapi/bounce');
 
 /**
  * Henri
@@ -27,12 +27,13 @@ class Henri extends HenriBase {
   /**
    * Creates an instance of Henri.
    * @param {object} props options sent to super
+   * @throws when the working directory is not a henri application
    * @memberof Henri
    */
   constructor(props) {
     super(props);
 
-    this.pen = new Pen();
+    this.pen = new Pen(true, this);
     this.modules = new Modules(this);
 
     this.validator = validator;
@@ -44,6 +45,7 @@ class Henri extends HenriBase {
     !this.isTest && (global['henri'] = this);
 
     this.changeDirectory();
+    this.checkApplication();
 
     /** Warn if Henri is started with a restricted run level */
     if (this.runlevel < 6) {
@@ -56,6 +58,7 @@ class Henri extends HenriBase {
    *
    * @async
    * @returns {Promise<boolean>} success or not
+   * @throws an Error whose `cause` is the failing module's error
    * @memberof Henri
    */
   async init() {
@@ -74,8 +77,11 @@ class Henri extends HenriBase {
     try {
       await this.modules.init();
     } catch (error) {
-      bounce.rethrow(error, 'system');
-      throw new Error('henri - unable to execute init()');
+      const reason = error && error.message ? error.message : String(error);
+
+      throw new Error(`henri - unable to execute init(): ${reason}`, {
+        cause: error,
+      });
     }
 
     return true;
@@ -89,11 +95,17 @@ class Henri extends HenriBase {
    * @memberof Henri
    */
   changeDirectory() {
-    if (
-      this.prefix !== '.' &&
-      // eslint-disable-next-line global-require
-      require(path.join(process.cwd(), './package.json')).onboard !== true
-    ) {
+    let onboard;
+
+    try {
+      onboard = Boolean(
+        require(path.join(process.cwd(), './package.json')).onboard
+      );
+    } catch (error) {
+      onboard = false;
+    }
+
+    if (this.prefix !== '.' && onboard !== true) {
       const target = path.resolve(process.cwd(), this.prefix);
 
       try {
@@ -112,13 +124,35 @@ class Henri extends HenriBase {
   }
 
   /**
-   * Reloads the modules
+   * Make sure the working directory looks like an application
    *
-   * @async
-   * @returns {Promise} Module name
+   * @returns {boolean} true when a package.json exists
+   * @throws when there is no package.json in the working directory
    * @memberof Henri
    */
-  async reload() {
+  checkApplication() {
+    const cwd = this.cwd();
+
+    if (!fs.existsSync(path.join(cwd, 'package.json'))) {
+      throw this.pen.fatal(
+        'henri',
+        `${cwd} is not a henri application: no package.json found`,
+        'Run henri from the root of your application, or create one with: henri new <name>'
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * Reloads the modules
+   * Reloads are serialized: while one is in flight, callers get the single
+   * queued run (see Modules.reload).
+   *
+   * @returns {Promise<boolean>} reload status
+   * @memberof Henri
+   */
+  reload() {
     return this.modules.reload();
   }
 
@@ -126,7 +160,7 @@ class Henri extends HenriBase {
    * Stops the modules
    *
    * @async
-   * @returns {Promise} Modules stop promise
+   * @returns {Promise<Array<Error>>} the errors of the modules that failed to stop (empty when clean)
    * @memberof Henri
    */
   async stop() {

@@ -20,6 +20,21 @@ const response = (route = '', method = 'get') =>
   });
 
 /**
+ * Replace a `:param` in a route, whole names only (`:id` leaves
+ * `:identifier` alone)
+ *
+ * @param {string} route the route
+ * @param {string} name the parameter name
+ * @param {*} value the value (ObjectIDs on node, hence String())
+ * @returns {string} the route
+ */
+export function fill(route, name, value) {
+  const escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  return route.replace(new RegExp(`:${escaped}\\b`, 'g'), String(value));
+}
+
+/**
  * Get the route (and method) for a path helper, filling its parameters
  *
  * @param {object} paths the paths injected by henri
@@ -38,7 +53,7 @@ export function pathFor(paths = {}, path = null, params = null) {
 
     // If a string is provided, defaults to id (client side for mongo ids)
     if (typeof params === 'string') {
-      return entry.route.replace(':id', params);
+      return fill(entry.route, 'id', params);
     }
 
     // We might have a bunch of params (ids can be ObjectID objects on node,
@@ -47,7 +62,7 @@ export function pathFor(paths = {}, path = null, params = null) {
       let { route } = entry;
 
       Object.keys(params).forEach((val) => {
-        route = route.replace(`:${val}`, String(params[val]));
+        route = fill(route, val, params[val]);
       });
 
       return response(route, entry.method);
@@ -75,9 +90,7 @@ export function getRoute(paths = {}, route = null, id = null) {
     typeof paths[route] !== 'undefined' &&
     typeof paths[route].route !== 'undefined'
   ) {
-    return id
-      ? paths[route].route.replace(':id', id.toString())
-      : paths[route].route;
+    return id ? fill(paths[route].route, 'id', id) : paths[route].route;
   }
 
   return 'route-not-found';

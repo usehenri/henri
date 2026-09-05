@@ -1,20 +1,17 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`config in test should match snapshot 1`] = `
+exports[`config > in test > should match snapshot 1`] = `
 Config {
   "config": null,
   "consoleOnly": false,
   "get": [Function],
   "has": [Function],
   "henri": null,
-  "info": [Function],
   "init": [Function],
   "key": null,
   "name": "config",
   "reload": [Function],
   "reloadable": true,
   "runlevel": 0,
-  "setup": [Function],
-  "start": [Function],
 }
 `;

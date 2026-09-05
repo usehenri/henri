@@ -40,11 +40,13 @@ module.exports = {
 };
 ```
 
-In development, routes pointing to a missing controller answer `501 Not Implemented` so you notice; in production they are skipped. `GET /_routes` and `GET /_controllers` list what is loaded, and pressing `R` or `U` in the terminal prints the same.
+In development, routes pointing to a missing controller answer `501 Not Implemented` so you notice; in production they are skipped. `GET /_routes` and `GET /_controllers` list what is loaded (development only, and only from the machine running the server), and pressing `R` or `U` in the terminal prints the same.
+
+Requests nothing claims get a `404`, and errors thrown (or rejected) by a controller are logged and answered with a `500`. Both are content-negotiated: JSON clients receive `{ statusCode, error, message }`, browsers a page (with the stack in development, only the status in production).
 
 ## Roles
 
-Give a route an array of roles and only authenticated users whose `roles` contain every one of them can reach it. Everybody else is redirected to `/login`.
+Give a route an array of roles and only authenticated users whose `roles` contain every one of them can reach it. Denied requests get a `401` (not logged in) or a `403` (missing role) JSON answer; browsers asking for HTML are redirected to `config.user.loginPath` (default `/login`). A route with `roles` in an app without a user model logs a warning at boot and answers `401`.
 
 ## CRUD
 

@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`henri general should match snapshot 1`] = `
+exports[`henri > general > should match snapshot 1`] = `
 Henri {
   "_middlewares": [],
   "consoleOnly": false,
@@ -11,6 +11,8 @@ Henri {
   "isTest": true,
   "isTesting": false,
   "modules": Modules {
+    "_reloadQueued": null,
+    "_reloading": null,
     "add": [Function],
     "henri": [Circular],
     "init": [Function],
@@ -54,9 +56,8 @@ Henri {
     "_timeSkipped": 0,
     "buffer": [],
     "consoleOnly": false,
-    "henri": null,
+    "henri": [Circular],
     "inTesting": true,
-    "info": [Function],
     "init": [Function],
     "initialized": false,
     "key": null,
@@ -65,8 +66,6 @@ Henri {
     "notTest": false,
     "reloadable": false,
     "runlevel": 6,
-    "setup": [Function],
-    "start": [Function],
   },
   "prefix": "./packages/demo",
   "release": "0.42.0",
@@ -78,23 +77,20 @@ Henri {
   },
   "status": Map {},
   "utils": {
-    "bounce": {
-      "background": [Function],
-      "ignore": [Function],
-      "isBoom": [Function],
-      "isError": [Function],
-      "isSystem": [Function],
-      "rethrow": [Function],
-    },
+    "checkMissing": [Function],
     "checkPackages": [Function],
     "checkSyntax": [Function],
     "clearConsole": [Function],
+    "compareVersions": [Function],
+    "detectPackageManager": [Function],
     "getColor": [Function],
+    "installCommand": [Function],
+    "isLoopback": [Function],
+    "loadModules": [Function],
     "resolveFrom": [Function],
     "resolvePackageJson": [Function],
     "stack": [Function],
     "syntax": [Function],
-    "yarnExists": [Function],
   },
   "validator": {},
 }

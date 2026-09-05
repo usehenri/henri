@@ -13,13 +13,28 @@
   "bugs": {
     "url": "https://github.com/usehenri/henri/issues"
   },
+  "keywords": [
+    "henri",
+    "store",
+    "adapter",
+    "mssql",
+    "sql-server",
+    "sequelize"
+  ],
   "main": "index.js",
-  "dependencies": {
-    "@usehenri/sequelize": "workspace:^",
-    "sequelize": "^6.37.8",
-    "tedious": "^20.0.0"
+  "files": [
+    "index.js",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@usehenri/sequelize": "workspace:^",
+    "tedious": "^20.0.0"
   }
 }

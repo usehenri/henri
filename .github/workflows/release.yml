@@ -3,12 +3,16 @@ name: release
 # Changesets flow:
 # - a push to master with pending changesets opens/updates the "Version Packages" PR
 # - merging that PR publishes the bumped packages to npm (trusted publishing,
-#   environment "npm") and creates GitHub releases
+#   environment "npm"), pushes the <package>@<version> git tags and creates one
+#   v<version> GitHub release
 on:
   push:
     branches: [master]
 
 concurrency: release-${{ github.ref }}
+
+env:
+  HUSKY: 0
 
 jobs:
   select-mode:
@@ -41,6 +45,16 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      # A pull request opened with GITHUB_TOKEN never triggers CI. With a
+      # GitHub App (variable RELEASE_APP_ID + secret RELEASE_APP_PRIVATE_KEY,
+      # setup in CONTRIBUTING.md) the version PR is opened by the App and gets
+      # its checks; without them the step is skipped and GITHUB_TOKEN is used.
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        if: vars.RELEASE_APP_ID != ''
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - uses: jdx/mise-action@v4
         with:
           cache: true
@@ -49,6 +63,7 @@ jobs:
           MONGOMS_DISABLE_POSTINSTALL: '1'
       - uses: changesets/action/version@v2
         with:
+          github-token: ${{ steps.app-token.outputs.token || github.token }}
           script: pnpm changeset:version
           commit-message: 'chore(release): version packages'
           pr-title: 'chore(release): version packages'
@@ -70,13 +85,44 @@ jobs:
       - uses: jdx/mise-action@v4
         with:
           cache: true
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Cache MongoDB binaries (mongodb-memory-server)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            mongodb-binaries-${{ runner.os }}-
+
       - run: pnpm install --frozen-lockfile
+
+      # The same gates as CI, on the exact commit that gets published
+      - run: pnpm lint --max-warnings 0
+      - run: pnpm test
         env:
-          MONGOMS_DISABLE_POSTINSTALL: '1'
+          NODE_ENV: test
+
       - uses: changesets/action/publish@v2
+        id: publish
         with:
           script: pnpm changeset:publish
-          create-github-releases: true
+          # One v<version> release for the whole fixed group (next step)
+          # instead of one release per package
+          create-github-releases: false
           push-git-tags: true
         env:
           NPM_CONFIG_PROVENANCE: 'true'
+
+      - name: Create the v<version> GitHub release
+        if: steps.publish.outputs.published == 'true'
+        run: node scripts/github-release.js
+        env:
+          GH_TOKEN: ${{ github.token }}

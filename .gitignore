@@ -48,3 +48,7 @@ yalc.lock
 
 # agent worktrees
 .claude/worktrees/
+
+# Written into every public package by scripts/prepublish.js at publish time
+packages/*/LICENSE
+packages/*/README.md

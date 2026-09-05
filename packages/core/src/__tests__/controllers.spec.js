@@ -2,22 +2,24 @@ const BaseModule = require('../base/module');
 const Henri = require('../henri');
 const Controllers = require('../2.controllers');
 
+let henri;
+
 describe('controllers', () => {
   beforeAll(async () => {
-    this.henri = new Henri({ runlevel: 2 });
-    await this.henri.init();
+    henri = new Henri({ runlevel: 2 });
+    await henri.init();
   });
 
   afterAll(async () => {
-    await this.henri.stop();
+    await henri.stop();
   });
 
   test('should be defined', () => {
-    expect(this.henri.controllers).toBeDefined();
+    expect(henri.controllers).toBeDefined();
   });
 
   test('should extend BaseModule', () => {
-    expect(this.henri.controllers).toBeInstanceOf(BaseModule);
+    expect(henri.controllers).toBeInstanceOf(BaseModule);
   });
 
   test('should match snapshot', () => {
@@ -27,7 +29,7 @@ describe('controllers', () => {
   });
 
   test('should load controllers and expose them', async () => {
-    const mock = jest.fn();
+    const mock = vi.fn();
     const controllers = {
       other: {
         badStuff: 'really bad stuff',
@@ -39,23 +41,23 @@ describe('controllers', () => {
       },
     };
 
-    await this.henri.controllers.configure(controllers);
+    await henri.controllers.configure(controllers);
 
-    expect(this.henri.controllers.get('someFolder/index#index')).toBeTruthy();
-    expect(this.henri.controllers.get('someFolder/index#create')).toBeTruthy();
-    expect(this.henri.controllers.get('other#update')).toBeTruthy();
-    expect(this.henri.controllers.get('other#badStuff')).toBeUndefined();
+    expect(henri.controllers.get('someFolder/index#index')).toBeTruthy();
+    expect(henri.controllers.get('someFolder/index#create')).toBeTruthy();
+    expect(henri.controllers.get('other#update')).toBeTruthy();
+    expect(henri.controllers.get('other#badStuff')).toBeUndefined();
   });
 
   test('should reload', () => {
-    expect(this.henri.controllers.reload()).toBeTruthy();
+    expect(henri.controllers.reload()).toBeTruthy();
   });
 
   test('should have get/set', () => {
-    expect(this.henri.controllers.set('some#stuff', () => 'abc')).toBeTruthy();
-    expect(this.henri.controllers.get('some#stuff')).toBeTruthy();
+    expect(henri.controllers.set('some#stuff', () => 'abc')).toBeTruthy();
+    expect(henri.controllers.get('some#stuff')).toBeTruthy();
 
-    expect(this.henri.controllers.set('some/stuff', 'abc')).toBeFalsy();
-    expect(this.henri.controllers.get('some/stuff')).toBeFalsy();
+    expect(henri.controllers.set('some/stuff', 'abc')).toBeFalsy();
+    expect(henri.controllers.get('some/stuff')).toBeFalsy();
   });
 });

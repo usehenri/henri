@@ -1,7 +1,7 @@
 {
   "name": "@usehenri/testing",
   "version": "1.0.2",
-  "description": "henri testing helpers: jest and a supertest agent bound to the henri express app",
+  "description": "henri testing helpers: boots the app for vitest and binds a supertest agent to it",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
   "homepage": "https://usehenri.io",
@@ -14,11 +14,30 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./setup-file": "./setup-file.mjs",
+    "./global-setup": "./global-setup.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "setup-file.mjs",
+    "global-setup.mjs",
+    "README.md"
+  ],
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
-    "jest": "^30.5.1",
     "supertest": "^7.2.2"
+  },
+  "peerDependencies": {
+    "@usehenri/core": "workspace:^",
+    "vitest": ">=3.2.0"
+  },
+  "devDependencies": {
+    "@usehenri/core": "workspace:^",
+    "vitest": "^5.0.0"
   }
 }

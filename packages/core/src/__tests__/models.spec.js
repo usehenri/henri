@@ -2,24 +2,26 @@ const BaseModule = require('../base/module');
 const Henri = require('../henri');
 const Model = require('../3.model');
 
+let henri;
+
 describe('models', () => {
   beforeAll(async () => {
-    this.henri = new Henri({
+    henri = new Henri({
       runlevel: 3,
     });
-    await this.henri.init();
+    await henri.init();
   });
 
   afterAll(async () => {
-    await this.henri.stop();
+    await henri.stop();
   });
 
   test('should be defined', () => {
-    expect(this.henri.model).toBeDefined();
+    expect(henri.model).toBeDefined();
   });
 
   test('should extend BaseModule', () => {
-    expect(this.henri.model).toBeInstanceOf(BaseModule);
+    expect(henri.model).toBeInstanceOf(BaseModule);
   });
 
   test('should match snapshot', () => {

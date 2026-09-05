@@ -1,7 +1,6 @@
 const BaseModule = require('./base/module');
 const path = require('path');
-const includeAll = require('include-all');
-const bounce = require('@hapi/bounce');
+const { loadModules } = require('./utils');
 
 /**
  * Controllers module
@@ -30,30 +29,16 @@ class Controllers extends BaseModule {
 
   /**
    * Loads the files from disk
+   * Sub-directories prefix the controller name (`admin/users#index`).
    *
    * @static
    * @param {string} location defaults: ./app/controllers
    * @returns {Promise<object>} list of objects
+   * @throws when a controller fails to load
    * @memberof Controllers
-   * @todo Change this to an inhouse loader with prettier validation
    */
-  static load(location) {
-    return new Promise((resolve) => {
-      includeAll.optional(
-        {
-          dirname: path.resolve(location),
-          excludeDirs: /^\.(git|svn)$/,
-          filter: /(.+)\.js$/,
-          flatten: true,
-          force: true,
-          keepDirectoryPath: true,
-        },
-        // With optional, it should silently fail...
-        (none, modules) => {
-          return resolve(modules);
-        }
-      );
-    });
+  static async load(location) {
+    return loadModules(path.resolve(location), { keepDirectoryPath: true });
   }
 
   /**
@@ -89,15 +74,14 @@ class Controllers extends BaseModule {
    * Called after being loaded by Modules
    *
    * @async
+   * @throws when a controller fails to load
    * @returns {!string} The name of the module
    * @memberof Controllers
    */
   async init() {
-    try {
-      await this.configure(await Controllers.load('./app/controllers'));
-    } catch (error) {
-      bounce.rethrow(error, 'system');
-    }
+    await this.configure(
+      await Controllers.load(path.join(this.henri.cwd(), 'app/controllers'))
+    );
 
     return this.name;
   }

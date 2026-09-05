@@ -1,9 +1,8 @@
 const BaseModule = require('./base/module');
 const chalk = require('chalk');
 const stringWidth = require('string-width');
-const stack = require('callsite');
 const util = require('util');
-const { getColor } = require('./utils');
+const { getColor, stack } = require('./utils');
 
 /**
  * Write stuff in the console...
@@ -14,10 +13,12 @@ class Pen extends BaseModule {
   /**
    * Creates an instance of Pen.
    * @param {boolean} [inTesting=true] Are we testing?
+   * @param {Henri} [henri=null] The henri instance (for the banner and notify)
    * @memberof Pen
    */
-  constructor(inTesting = true) {
+  constructor(inTesting = true, henri = null) {
     super();
+    this.henri = henri;
     this.notTest = process.env.NODE_ENV !== 'test';
     this.longest = 12;
     this.buffer = [];
@@ -102,12 +103,14 @@ class Pen extends BaseModule {
 
   /**
    * Fatal error handling
+   * Logs the error (with its stack) and returns an Error the caller should
+   * throw: `throw pen.fatal('view', 'unknown renderer')`.
    *
    * @param {!string} [name='fatal'] name of the module
    * @param {(!string|!Error)} [summary='unknown error']  snall summary
    * @param {?string} [full=null]  long description (multi-line)
    * @param {?object} [obj=null]  object to be displayed nicely
-   * @returns {void}
+   * @returns {Error} the error to throw
    * @memberof Pen
    */
   fatal(name = 'fatal', summary = 'unknown error', full = null, obj = null) {
@@ -115,7 +118,7 @@ class Pen extends BaseModule {
     this.error(name, summary);
     this.line(1);
     if (summary instanceof Error) {
-      summary.stack.split('\n').forEach((line, index) => {
+      (summary.stack || '').split('\n').forEach((line, index) => {
         if (index > 0 && line.indexOf('(module.js:') < 0) {
           this.error(name, line);
         }
@@ -162,9 +165,17 @@ class Pen extends BaseModule {
       this.error(name, 'See error stack before the object, up there!');
     }
     this.line(2);
-    // REMOVED: this.inTesting && process.exit();
 
-    return true;
+    if (summary instanceof Error) {
+      return summary;
+    }
+
+    const message = full ? `${summary}\n${full}` : String(summary);
+    const error = new Error(message);
+
+    error.module = name;
+
+    return error;
   }
 
   /**
@@ -239,13 +250,15 @@ class Pen extends BaseModule {
       return;
     }
     if (!this.initialized) {
+      const inst = this.henri || global.henri;
+
       this.initialized = true;
       this.line(1);
-      if (typeof global['henri'] !== 'undefined') {
+      if (inst) {
         this.info(
           'henri',
-          henri.release,
-          henri.isProduction ? chalk.green('production') : chalk.red('dev')
+          inst.release,
+          inst.isProduction ? chalk.green('production') : chalk.red('dev')
         );
       }
       this.line(1);
@@ -285,10 +298,12 @@ class Pen extends BaseModule {
    */
 
   notify(title = null, message = null) {
+    const inst = this.henri || global.henri;
+
     if (!title && !message) {
       return false;
     }
-    if (henri && henri.isDev) {
+    if (inst && inst.isDev) {
       this.warn('notify', title, message);
 
       return { message, title };

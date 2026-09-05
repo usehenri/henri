@@ -3,7 +3,7 @@ module.exports = {
     timestamps: true,
   },
   schema: {
-    age: { type: 'number' },
+    age: { type: 'integer' },
     gender: { type: 'string' },
     name: { type: 'string' },
   },

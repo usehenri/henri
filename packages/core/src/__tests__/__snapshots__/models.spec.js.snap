@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`models should match snapshot 1`] = `
+exports[`models > should match snapshot 1`] = `
 Model {
   "addToEslintRc": [Function],
   "checkStoreOrDie": [Function],
@@ -9,7 +9,6 @@ Model {
   "getStore": [Function],
   "henri": null,
   "ids": [],
-  "info": [Function],
   "init": [Function],
   "key": null,
   "loadStore": [Function],
@@ -19,7 +18,6 @@ Model {
   "reloadable": true,
   "reset": [Function],
   "runlevel": 3,
-  "setup": [Function],
   "start": [Function],
   "stop": [Function],
   "stores": {},

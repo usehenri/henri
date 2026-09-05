@@ -1,7 +1,9 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`henri should match snapshot 1`] = `
+exports[`henri > should match snapshot 1`] = `
 Modules {
+  "_reloadQueued": null,
+  "_reloading": null,
   "add": [Function],
   "henri": {},
   "init": [Function],

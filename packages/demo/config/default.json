@@ -6,5 +6,10 @@
   },
   "secret": "nfiwuef9we8f9",
   "graphql": "/_henri/graph",
+  "baseRole": "member",
+  "user": {
+    "model": "user",
+    "public": ["name"]
+  },
   "env": "default"
 }

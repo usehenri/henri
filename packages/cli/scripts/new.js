@@ -1,58 +1,42 @@
 const fs = require('fs-extra');
 const path = require('path');
-const { commands, check, cwd, helpHeader } = require('./utils');
 
-const main = (args) => {
-  // Do we have the force flag on?
-  const force = args.force === true || args.f === true;
+const { usage } = require('./help');
 
-  // Is is a request for help?
-  if (args.h === true || args.help === true || !args._[0]) {
-    return help(args);
+/**
+ * Create a new application in a folder
+ *
+ * @param {object} args CLI arguments (_[0] is the folder)
+ * @returns {Promise<void>} Resolves when the application is ready
+ */
+const main = async (args) => {
+  const force = args.force === true;
+  const [folder] = args._;
+
+  if (!folder) {
+    console.log(usage('new'));
+    process.exit(1);
   }
 
-  // We won't create a new structure in an existing
-  // directory if the force flag is off
-  if (check(args._[0]) && !force) {
+  const newPath = path.resolve(process.cwd(), folder);
+
+  // We won't create a new structure in a non-empty directory unless forced
+  if (fs.existsSync(newPath) && fs.readdirSync(newPath).length > 0 && !force) {
     console.log(
       `
-      The folder specified already exists. Use -f or --force if you really want
-      to create a structure there.
+      The folder "${folder}" already exists and is not empty. Use -f or
+      --force if you really want to create an application there.
     `
     );
-    process.exit(-1);
+    process.exit(1);
   }
 
-  // Get the new full path
-  const newPath = path.resolve(cwd, args._[0]);
-
-  // Create the directory
   fs.mkdirpSync(newPath);
-
-  // Change active directory to the new path
   process.chdir(newPath);
 
-  // Initiate the application scaffolding
   const init = require('./init');
-  init(args, args._[0]);
-};
 
-// Output help. Does nothing right now
-const help = (args) => {
-  console.log(
-    `
-    ${helpHeader()}
-    Usage
-      $ henri new <folder> [-f | --force]
-
-    Available commands
-      ${Array.from(commands).join(', ')}
-
-    For more information run a command with the --help flag
-      $ henri ${commands[0]} --help
-  `
-  );
-  process.exit(0);
+  await init(args, path.basename(newPath));
 };
 
 module.exports = main;

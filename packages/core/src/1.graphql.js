@@ -4,7 +4,6 @@ const { makeExecutableSchema } = require('@graphql-tools/schema');
 const { ApolloServer } = require('@apollo/server');
 const { expressMiddleware } = require('@as-integrations/express5');
 const { GraphQLError } = require('graphql');
-const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:graphql');
 
 /**
@@ -237,20 +236,24 @@ class Graphql extends BaseModule {
    * @async
    * @param {Graphql} [query=`{ No query }`]  the graphql query
    * @param {object} [variables] query variables
+   * @param {object} [contextValue={}] the resolvers' context (ex: { req, res })
    * @returns {(Promise<{data: object, errors: Array}> | "No graphql schema found.")} value
    * @memberof Graphql
    */
-  async run(query = `{ No query }`, variables = undefined) {
+  async run(query = `{ No query }`, variables = undefined, contextValue = {}) {
     if (!this.schema || !this.graphqlServer) {
       return 'No graphql schema found.';
     }
 
     await this.ready;
 
-    const response = await this.graphqlServer.executeOperation({
-      query,
-      variables,
-    });
+    const response = await this.graphqlServer.executeOperation(
+      {
+        query,
+        variables,
+      },
+      { contextValue: contextValue || {} }
+    );
 
     if (response.body.kind === 'single') {
       const { data, errors } = response.body.singleResult;
@@ -291,7 +294,12 @@ class Graphql extends BaseModule {
       try {
         await previous.stop();
       } catch (error) {
-        bounce.rethrow(error, 'system');
+        // The previous server is gone either way; the new one is what matters
+        this.henri.pen.warn(
+          'graphql',
+          'unable to stop the previous apollo server',
+          error.message
+        );
         debug('error while stopping previous apollo server %O', error);
       }
     }
@@ -308,14 +316,13 @@ class Graphql extends BaseModule {
    */
   async stop() {
     if (this.graphqlServer) {
-      try {
-        await this.graphqlServer.stop();
-      } catch (error) {
-        bounce.rethrow(error, 'system');
-      }
+      const server = this.graphqlServer;
+
       this.graphqlServer = null;
       this._handler = null;
       this.ready = null;
+
+      await server.stop();
 
       return this.name;
     }

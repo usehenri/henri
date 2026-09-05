@@ -14,10 +14,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "cross-env NODE_OPTIONS=\"--experimental-vm-modules --disable-warning=ExperimentalWarning\" jest",
-    "test:watch": "pnpm test --watch --colors --runInBand --detectOpenHandles",
-    "test:cover": "pnpm test --coverage",
-    "test:ci": "pnpm test --coverage --forceExit --runInBand --verbose --bail",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cover": "vitest run --coverage",
+    "test:ci": "vitest run --coverage",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "pnpm sync-readme && pnpm build && changeset publish"
@@ -25,16 +25,18 @@
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.0",
     "@changesets/cli": "^3.0.2",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
     "@eslint/js": "^10.0.1",
-    "cross-env": "^10.1.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "@vitest/eslint-plugin": "^1.6.27",
     "eslint": "^10.10.0",
-    "eslint-plugin-jest": "^29.16.6",
     "globals": "^17.12.0",
     "husky": "^9.1.7",
-    "jest": "^30.5.1",
     "lint-staged": "^17.4.1",
     "prettier": "^3.9.6",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "vitest": "^5.0.0"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs}": [
@@ -43,32 +45,6 @@
     ],
     "*.{json,md,yml,yaml}": [
       "prettier --write"
-    ]
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "modulePathIgnorePatterns": [
-      "template/.*",
-      "pages/.*",
-      "node_modules/*",
-      "packages/.*/build",
-      "packages/.*/build-es5",
-      "packages/cli/scripts/test.js",
-      "packages/demo",
-      "<rootDir>/.claude/",
-      "<rootDir>/website/"
-    ],
-    "collectCoverageFrom": [
-      "packages/**/**/*.js",
-      "!**/bin/**",
-      "!**/cli/**",
-      "!**/view/**",
-      "!**/perf/**",
-      "!**/test/**",
-      "!**/dist/**"
-    ],
-    "roots": [
-      "<rootDir>/packages"
     ]
   }
 }

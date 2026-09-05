@@ -13,14 +13,28 @@
   "bugs": {
     "url": "https://github.com/usehenri/henri/issues"
   },
+  "keywords": [
+    "henri",
+    "store",
+    "adapter",
+    "mongodb",
+    "mongodb-memory-server"
+  ],
   "main": "index.js",
-  "dependencies": {
-    "@usehenri/mongoose": "workspace:^",
-    "debug": "^4.4.3",
-    "md5": "^2.3.0",
-    "mongodb-memory-server": "^11.2.0"
+  "files": [
+    "index.js",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@usehenri/mongoose": "workspace:^",
+    "debug": "^4.4.3",
+    "mongodb-memory-server": "^11.2.0"
   }
 }

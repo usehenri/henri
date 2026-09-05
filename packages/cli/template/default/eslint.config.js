@@ -1,19 +1,34 @@
+// ESLint 9 is pinned in package.json because eslint-plugin-react does not
+// support ESLint 10 yet; bump both together when it does.
 const fs = require('fs');
 const path = require('path');
 const js = require('@eslint/js');
 const react = require('eslint-plugin-react');
 const globals = require('globals');
 
-// henri writes the global model ids (User, Task, ...) to .henri/globals.json
-// on boot so the linter knows about them.
-let modelGlobals = {};
+// Models are globals (User, Task, ...). Their names come from the files in
+// app/models, plus whatever henri recorded in .henri/globals.json on boot.
+const modelGlobals = {};
 
 try {
-  modelGlobals = JSON.parse(
-    fs.readFileSync(path.join(__dirname, '.henri', 'globals.json'), 'utf8')
+  for (const file of fs.readdirSync(path.join(__dirname, 'app', 'models'))) {
+    if (file.endsWith('.js')) {
+      modelGlobals[path.basename(file, '.js')] = true;
+    }
+  }
+} catch {
+  // No app/models directory yet
+}
+
+try {
+  Object.assign(
+    modelGlobals,
+    JSON.parse(
+      fs.readFileSync(path.join(__dirname, '.henri', 'globals.json'), 'utf8')
+    )
   );
 } catch {
-  // No models loaded yet, nothing to declare
+  // Nothing recorded yet
 }
 
 const henriGlobals = Object.fromEntries(
@@ -26,6 +41,7 @@ module.exports = [
       '**/node_modules/**',
       '**/.next/**',
       '**/.henri/**',
+      '**/.backup/**',
       'coverage/**',
     ],
   },
@@ -37,6 +53,7 @@ module.exports = [
       'config/**/*.js',
       'test/**/*.js',
       'eslint.config.js',
+      'vitest.config.js',
     ],
     ignores: ['app/views/**'],
     languageOptions: {
@@ -46,6 +63,15 @@ module.exports = [
         ...globals.node,
         ...henriGlobals,
         henri: 'readonly',
+      },
+    },
+  },
+  {
+    // Tests run by `henri test` (vitest globals: describe, test, expect, vi)
+    files: ['test/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...(globals.vitest || globals.jest),
       },
     },
   },
