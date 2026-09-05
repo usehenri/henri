@@ -1,15 +1,16 @@
+// Models are autoloaded from app/models and exposed globally (here: `Tasks`).
+// The schema is handed to the store adapter (mongoose for disk/mongodb).
 module.exports = {
-  identity: 'tasks',
-  datastore: 'default', // see the demo configuration up there
+  options: {
+    timestamps: true,
+  },
   schema: {
     name: { type: 'string', required: true },
-    sex: { type: 'string', required: false },
     category: {
       type: 'string',
-      validations: {
-        isIn: ['urgent', 'high', 'medium', 'low'],
-      },
-      defaultsTo: 'low',
+      enum: ['urgent', 'high', 'medium', 'low'],
+      default: 'low',
     },
   },
+  store: 'default', // see config/default.json
 };

@@ -1,34 +1,30 @@
 #!/usr/bin/env node
 
+/* eslint-disable no-console */
 const pkg = require('../package.json');
 
-const MINIMUM_VERSION = 10.0;
+const MINIMUM_MAJOR = 22;
 
-const version = process.version;
-const check = parseFloat(version.substr(1, version.length)) > MINIMUM_VERSION;
+const major = parseInt(process.versions.node.split('.')[0], 10);
 
-if (!check) {
-  const isNVM = process.env['NVM_DIR'];
+if (Number.isNaN(major) || major < MINIMUM_MAJOR) {
+  const isNVM = typeof process.env['NVM_DIR'] !== 'undefined';
 
   console.log('');
   console.log(
     'You are using Node.js',
-    version,
-    isNVM !== 'undefined' ? 'with NVM' : ''
+    process.version,
+    isNVM ? 'with NVM' : ''
   );
   console.log('');
+  console.log(`henri requires Node.js ${MINIMUM_MAJOR} or newer.`);
+  console.log('');
 
-  if (typeof isNVM === 'undefined') {
-    console.log('You should upgrade to a version higher than Node.js 10.x');
-
-    console.log('');
-    console.log('See https://nodejs.org/en/download/');
+  if (isNVM) {
+    console.log('Switch to a supported version with "nvm install --lts"');
+    console.log('See https://github.com/nvm-sh/nvm');
   } else {
-    console.log(
-      'You should switch to a higher version of node using "nvm install --lts"'
-    );
-    console.log('');
-    console.log('See https://github.com/creationix/nvm');
+    console.log('See https://nodejs.org/en/download/');
   }
   console.log('');
 
@@ -36,16 +32,12 @@ if (!check) {
 }
 
 try {
-  // eslint-disable-next-line global-require
+   
   require('@usehenri/cli')(pkg, process.argv);
 } catch (error) {
-  // eslint-disable-next-line no-console
   console.log(' ');
-  // eslint-disable-next-line no-console
   console.log('  Seems like henri is unable to load. Please, reinstall..');
-  // eslint-disable-next-line no-console
   console.log(' ');
-  // eslint-disable-next-line no-console
   console.log(error);
   process.exit(1);
 }

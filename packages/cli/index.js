@@ -1,20 +1,22 @@
 // @ts-check
 
-const spawn = require('cross-spawn');
 const chalk = require('chalk');
-const updateNotifier = require('update-notifier');
-const yarnExists = spawn.sync('yarn', ['help']);
 const debug = require('debug')('henri:cli');
 
-if (!module.parent) {
+if (require.main === module) {
+   
+  const { detectPackageManager } = require('./scripts/utils');
+  const pm = detectPackageManager();
+  const install = pm === 'npm' ? 'npm install -g' : `${pm} add -g`;
+
   // eslint-disable-next-line no-console
   console.log(
     `
-    This module should not be run directly. 
-    
+    This module should not be run directly.
+
     Please, use ${chalk.cyan('henri')} or install it via:
 
-    # ${yarnExists ? 'yarn add global' : 'npm install -g'} henri
+    # ${install} henri
 
     `
   );
@@ -22,12 +24,10 @@ if (!module.parent) {
 }
 
 module.exports = (pkg, args) => {
-  // eslint-disable-next-line global-require
+   
   const argv = require('minimist')(args.slice(2));
 
   setGlobalEnv(argv);
-
-  startDesktopNotifier(pkg);
 
   const command = argv._.shift();
 
@@ -46,12 +46,17 @@ module.exports = (pkg, args) => {
     case 'server':
     case 'test':
       try {
-        // eslint-disable-next-line
+         
         const cmd = require(`./scripts/${command}`);
 
-        cmd(argv);
+        Promise.resolve(cmd(argv)).catch((error) => {
+          debug(error);
+          // eslint-disable-next-line no-console
+          console.error(`henri ${command} failed: ${error.message}`);
+          process.exit(1);
+        });
       } catch (error) {
-        // eslint-disable-next-line
+         
         const help = require('./scripts/help');
 
         debug(error);
@@ -59,29 +64,14 @@ module.exports = (pkg, args) => {
         help();
       }
       break;
-    default:
-      // eslint-disable-next-line
+    default: {
+       
       const help = require('./scripts/help');
 
       help();
+    }
   }
 };
-
-/**
- * Starts the desktop notification
- * Possibly broken!
- *
- * @param {*} pkg Package
- * @return {void}
- */
-function startDesktopNotifier(pkg) {
-  if (process.env.NODE_ENV !== 'production') {
-    updateNotifier({ pkg, updateCheckInterval: 1000 }).notify({
-      defer: false,
-      isGlobal: true,
-    });
-  }
-}
 
 /**
  * Set various global variables from arguments
@@ -100,7 +90,7 @@ function setGlobalEnv(argv) {
   }
 
   if (typeof argv['inspect'] !== 'undefined') {
-    // eslint-disable-next-line global-require
+     
     const inspector = require('inspector');
 
     inspector.open(
