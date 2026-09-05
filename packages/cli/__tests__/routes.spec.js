@@ -113,9 +113,9 @@ describe('henri routes', () => {
     expect(JSON.parse(stdout)).toHaveLength(9);
   });
 
-  test('refuses to run outside of a project', () => {
+  test('refuses to run outside of a project with exit code 3', () => {
     const { status } = henri(['routes'], { cwd: dir });
 
-    expect(status).toBe(1);
+    expect(status).toBe(3);
   });
 });

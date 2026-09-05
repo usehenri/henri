@@ -47,7 +47,7 @@ describe('henri destroy without git', () => {
   test('rejects an unknown target', () => {
     const { status, stderr } = henri(['d', 'nope', 'x'], { cwd: app });
 
-    expect(status).toBe(1);
+    expect(status).toBe(2);
     expect(stderr).toContain('Unknown target "nope"');
   });
 

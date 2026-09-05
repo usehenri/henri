@@ -5,6 +5,7 @@ const chalk = require('chalk');
 const debug = require('debug')('henri:cli');
 
 const { commands, version } = require('./package.json');
+const { toCliError } = require('./scripts/errors');
 
 if (require.main === module) {
   const { detectPackageManager } = require('./scripts/utils');
@@ -26,9 +27,11 @@ if (require.main === module) {
 
 /**
  * Flags that never take a value (so `henri new --force app` keeps `app`
- * as the folder name)
+ * as the folder name). Not `git`: minimist handles `--no-git` on its own
+ * and a declared boolean would default to false.
  */
 const BOOLEAN_FLAGS = [
+  'all',
   'force',
   'force-build',
   'help',
@@ -38,6 +41,7 @@ const BOOLEAN_FLAGS = [
   'skip-workers',
   'version',
   'wait',
+  'yes',
 ];
 
 /**
@@ -50,10 +54,11 @@ const BOOLEAN_FLAGS = [
 module.exports = (pkg, args) => {
   const argv = require('minimist')(args.slice(2), {
     // eslint-disable-next-line id-length
-    alias: { f: 'force', h: 'help', v: 'version' },
+    alias: { f: 'force', h: 'help', v: 'version', y: 'yes' },
     boolean: BOOLEAN_FLAGS,
   });
   const help = require('./scripts/help');
+  const json = argv.json === true;
 
   setGlobalEnv(argv);
 
@@ -66,25 +71,35 @@ module.exports = (pkg, args) => {
       return;
     }
 
-    help();
+    help(undefined, { json });
 
     return;
   }
 
   if (command === 'help') {
-    help(argv._[0]);
+    help(argv._[0], { json });
 
     return;
   }
 
   if (!commands.includes(command)) {
-    console.error(`\n  Unknown command "${command}"`);
-    help();
-    process.exit(1);
+    const { CliError } = require('./scripts/errors');
+
+    if (!json) {
+      help();
+    }
+
+    fail(
+      command,
+      new CliError('USAGE', `Unknown command "${command}"`, {
+        hint: `Available commands: ${commands.join(', ')}`,
+      }),
+      json
+    );
   }
 
   if (argv.help) {
-    help(command);
+    help(command, { json });
 
     return;
   }
@@ -94,34 +109,56 @@ module.exports = (pkg, args) => {
   try {
     cmd = require(`./scripts/${command}`);
   } catch (error) {
-    fail(command, error);
+    fail(command, error, json);
   }
 
   Promise.resolve()
     .then(() => cmd(argv))
-    .catch((error) => fail(command, error));
+    .catch((error) => fail(command, error, json));
 };
 
 /**
- * Print a command failure and exit
+ * Print a command failure and exit with its code
+ *
+ * Text: `henri <command> failed: <message>` and the hint on stderr.
+ * JSON (--json): `{ "error": { command, message, hint, code, exitCode } }`
+ * on stderr.
  *
  * @param {string} command The command name
  * @param {Error} error What went wrong
- * @returns {never} Exits with 1
+ * @param {boolean} [json=false] Print the error as JSON
+ * @returns {never} Exits with the error's exit code (1 by default)
  */
-function fail(command, error) {
-  const message = (error && error.message) || String(error);
+function fail(command, error, json = false) {
+  const failure = toCliError(error);
 
   debug(error);
-  console.error(`\n  henri ${command} failed: ${message}\n`);
 
-  if (process.env.DEBUG) {
-    console.error(error && error.stack);
+  if (json) {
+    console.error(
+      JSON.stringify({
+        error: {
+          code: failure.code,
+          command,
+          exitCode: failure.exitCode,
+          hint: failure.hint,
+          message: failure.message,
+        },
+      })
+    );
   } else {
-    console.error('  Run the command with --debug=henri:* for the details.\n');
+    console.error(`\n  henri ${command} failed: ${failure.message}\n`);
+
+    if (failure.hint) {
+      console.error(`  ${failure.hint}\n`);
+    }
   }
 
-  process.exit(1);
+  if (process.env.DEBUG) {
+    console.error((failure.cause || failure).stack);
+  }
+
+  process.exit(failure.exitCode);
 }
 
 /**

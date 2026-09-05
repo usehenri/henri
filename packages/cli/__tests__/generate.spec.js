@@ -183,7 +183,7 @@ describe('henri generate', () => {
   test('requires a name', () => {
     const { status, stderr } = henri(['g', 'model'], { cwd: app });
 
-    expect(status).toBe(1);
+    expect(status).toBe(2);
     expect(stderr).toContain('Missing name');
   });
 
@@ -232,7 +232,7 @@ describe('henri generate', () => {
         cwd: app,
       });
 
-      expect(status).toBe(1);
+      expect(status).toBe(2);
       expect(stderr).toContain('Unknown type "bogus" for attribute "x"');
       expect(stderr).toContain('Valid types: string, text, number');
       expect(exists(app, 'app/models/Bad.js')).toBe(false);

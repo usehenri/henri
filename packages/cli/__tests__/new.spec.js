@@ -123,6 +123,32 @@ describe('henri new', () => {
     expect(read(app, 'app/controllers/main.js')).toContain('Task.find()');
   });
 
+  test('writes the files coding agents read', () => {
+    const agents = read(app, 'AGENTS.md');
+
+    expect(result.stdout).toContain('AGENTS.md');
+    expect(agents.startsWith('# app: conventions for coding agents')).toBe(
+      true
+    );
+    expect(agents).toContain('renderer `react`');
+    expect(agents).toContain('next.js pages');
+    expect(agents).not.toContain('Inertia');
+    expect(agents).not.toContain('{{');
+    expect(agents.split('\n').length).toBeLessThan(150);
+    expect(agents).toContain('henri generate scaffold');
+    expect(agents).toContain('req.permit');
+    expect(agents).toContain('HENRI_SECRET');
+    expect(agents).toContain('## Do not');
+
+    expect(read(app, 'CLAUDE.md')).toContain('AGENTS.md');
+    expect(JSON.parse(read(app, '.mcp.json'))).toEqual({
+      mcpServers: { henri: { args: ['mcp'], command: 'henri' } },
+    });
+    expect(
+      JSON.parse(read(app, 'package.json')).devDependencies
+    ).toHaveProperty('@usehenri/mcp');
+  });
+
   test('depends on the @usehenri packages at the cli version', () => {
     const pkg = JSON.parse(read(app, 'package.json'));
     const internal = Object.entries({
@@ -175,20 +201,59 @@ describe('henri new options', () => {
     fs.mkdirSync(path.join(dir, 'taken'));
     fs.writeFileSync(path.join(dir, 'taken', 'notes.txt'), 'hi');
 
-    const { status, stdout } = henri(['new', 'taken', '--skip-install'], {
+    const { status, stderr } = henri(['new', 'taken', '--skip-install'], {
       cwd: dir,
     });
 
     expect(status).toBe(1);
-    expect(stdout).toContain('not empty');
+    expect(stderr).toContain('not empty');
+    expect(stderr).toContain('--force');
     expect(fs.existsSync(path.join(dir, 'taken', 'package.json'))).toBe(false);
   });
 
   test('prints the usage without a folder', () => {
-    const { status, stdout } = henri(['new'], { cwd: dir });
+    const { status, stdout, stderr } = henri(['new'], { cwd: dir });
 
-    expect(status).toBe(1);
+    expect(status).toBe(2);
     expect(stdout).toContain('$ henri new <folder>');
+    expect(stderr).toContain('Missing folder');
+  });
+
+  test('keeps the sample of the inertia template and describes inertia in AGENTS.md', () => {
+    const { status, stdout } = henri(
+      ['new', 'inertia', '--skip-install', '--no-git', '--renderer', 'inertia'],
+      { cwd: dir }
+    );
+    const app = path.join(dir, 'inertia');
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('Keeping the sample resource of the inertia');
+    expect(exists(app, 'app/models/Task.js')).toBe(false);
+    expect(exists(app, 'app/views/pages/tasks/index.js')).toBe(false);
+    expect(exists(app, 'app/views/pages/tasks/index.jsx')).toBe(true);
+    expect(routesOf(app)['resources tasks']).toBeUndefined();
+    expect(JSON.parse(read(app, 'config/default.json')).renderer).toBe(
+      'inertia'
+    );
+
+    const agents = read(app, 'AGENTS.md');
+
+    expect(agents).toContain('renderer `inertia`');
+    expect(agents).toContain('@usehenri/inertia');
+    expect(agents).not.toContain('next.js pages');
+    expect(agents).not.toContain('{{');
+    expect(exists(app, '.mcp.json')).toBe(true);
+  });
+
+  test('rejects an unknown renderer', () => {
+    const { status, stderr } = henri(
+      ['new', 'vue', '--skip-install', '--no-git', '--renderer', 'vue'],
+      { cwd: dir }
+    );
+
+    expect(status).toBe(2);
+    expect(stderr).toContain("Unknown renderer 'vue'");
+    expect(stderr).toContain('inertia, react');
   });
 });
 
@@ -225,12 +290,12 @@ describe('henri init', () => {
 
     fs.mkdirSync(path.join(app, 'app'), { recursive: true });
 
-    const { status, stdout } = henri(['init', '--skip-install', '--no-git'], {
+    const { status, stderr } = henri(['init', '--skip-install', '--no-git'], {
       cwd: app,
     });
 
     expect(status).toBe(1);
-    expect(stdout).toContain("already have an 'app' folder");
+    expect(stderr).toContain("already have an 'app' folder");
   });
 });
 

@@ -3,7 +3,9 @@ const path = require('path');
 const util = require('util');
 const debug = require('debug')('henri:cli:destroy');
 
+const { CliError } = require('./errors');
 const { usage } = require('./help');
+const Report = require('./report');
 const { controllerOf } = require('./routing');
 const {
   format,
@@ -18,9 +20,11 @@ const {
  *
  * @param {*} args command line arguments
  * @return {Promise<void>} Resolves when done
+ * @throws {CliError} USAGE for an unknown target or a missing name
  */
 const main = async (args) => {
   const [cmd, ...targets] = args._;
+  const report = new Report({ command: 'destroy', json: args.json === true });
 
   if (!cmd) {
     console.log(usage('destroy'));
@@ -31,42 +35,52 @@ const main = async (args) => {
   const destroyer = destroyers[cmd];
 
   if (!destroyer) {
-    throw new Error(
-      `Unknown target "${cmd}". Available: ${Object.keys(destroyers).join(', ')}`
-    );
+    throw new CliError('USAGE', `Unknown target "${cmd}"`, {
+      hint: `Available: ${Object.keys(destroyers).join(', ')}`,
+    });
   }
 
   if (targets.length === 0) {
-    throw new Error(`Missing name: henri destroy ${cmd} <name>`);
+    throw new CliError('USAGE', `Missing name: henri destroy ${cmd} <name>`, {
+      hint: 'henri destroy --help',
+    });
   }
 
   validInstall({ fatal: true });
 
-  const ctx = context(process.cwd());
+  const ctx = context(process.cwd(), report);
+
+  report.target = cmd;
+  report.name = targets.join(' ');
 
   if (ctx.git) {
-    console.log('> found a git repository; skipping backups');
+    report.log('> found a git repository; skipping backups');
   } else {
-    console.log('> no git repository, deleted files are moved to .backup/');
+    report.log('> no git repository, deleted files are moved to .backup/');
   }
 
   await destroyer(targets, ctx);
 
   if (fs.existsSync(ctx.backupDir)) {
-    console.log('> backups are located in', ctx.backupDir);
+    report.backup = path.relative(ctx.cwd, ctx.backupDir);
+    report.log('> backups are located in', ctx.backupDir);
   }
+
+  report.print();
 };
 
 /**
  * Where and how to delete for this run
  *
  * @param {string} cwd Project directory
- * @returns {{cwd: string, git: boolean, backupDir: string}} The context
+ * @param {Report} [report] Where the changes are recorded
+ * @returns {{cwd: string, git: boolean, backupDir: string, report: Report}} The context
  */
-const context = (cwd) => ({
+const context = (cwd, report = new Report({ command: 'destroy' })) => ({
   backupDir: path.join(cwd, '.backup', Date.now().toString()),
   cwd,
   git: insideGit(cwd),
+  report,
 });
 
 /**
@@ -200,6 +214,7 @@ const crud = async ([name], ctx) => {
  * @return {Promise<void>} Resolves when written
  */
 const editRoutes = async (matches, ctx, label) => {
+  const { report } = ctx;
   const location = path.join(ctx.cwd, 'config', 'routes.js');
   const actual = readRoutes(ctx.cwd);
   const removed = Object.keys(actual).filter((key) =>
@@ -207,7 +222,7 @@ const editRoutes = async (matches, ctx, label) => {
   );
 
   if (removed.length === 0) {
-    console.log(`> no route ${label} in config/routes.js`);
+    report.log(`> no route ${label} in config/routes.js`);
 
     return;
   }
@@ -215,7 +230,8 @@ const editRoutes = async (matches, ctx, label) => {
   backup(location, ctx);
 
   for (const key of removed) {
-    console.log(`> removed route "${key}" =>`, actual[key]);
+    report.add('routes.removed', key);
+    report.log(`> removed route "${key}" =>`, actual[key]);
     delete actual[key];
   }
 
@@ -253,17 +269,20 @@ const backup = (file, ctx) => {
  * @returns {boolean} True when something was removed
  */
 const deleteOrBackup = (type, relative, ctx) => {
+  const { report } = ctx;
   const location = path.join(ctx.cwd, relative);
 
   if (!fs.existsSync(location)) {
-    console.log(`> unable to locate ${type} @ ${relative}`);
+    report.add('missing', relative);
+    report.log(`> unable to locate ${type} @ ${relative}`);
 
     return false;
   }
 
   if (ctx.git) {
     fs.rmSync(location, { force: true, recursive: true });
-    console.log(`> removed ${type} @ ${relative}`);
+    report.add('removed', relative);
+    report.log(`> removed ${type} @ ${relative}`);
 
     return true;
   }
@@ -272,7 +291,8 @@ const deleteOrBackup = (type, relative, ctx) => {
 
   fs.ensureDirSync(path.dirname(target));
   fs.moveSync(location, target, { overwrite: true });
-  console.log(`> backed up ${type} @ ${relative}`);
+  report.add('removed', relative);
+  report.log(`> backed up ${type} @ ${relative}`);
 
   return true;
 };
