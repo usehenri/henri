@@ -1,28 +1,30 @@
 const Henri = require('../henri');
 
+let henri;
+
 describe('henri', () => {
   describe('general', () => {
     beforeEach(() => {
-      this.henri = new Henri({ runlevel: 1 });
+      henri = new Henri({ runlevel: 1 });
     });
 
     it('should match snapshot', () => {
-      delete this.henri.validator;
-      this.henri.validator = {};
+      delete henri.validator;
+      henri.validator = {};
 
-      expect(this.henri).toMatchSnapshot();
+      expect(henri).toMatchSnapshot();
     });
 
     it('should have a reload method', () => {
-      expect(this.henri.reload).toBeDefined();
+      expect(henri.reload).toBeDefined();
 
-      expect(this.henri.reload()).toBeTruthy();
+      expect(henri.reload()).toBeTruthy();
     });
 
     it('should have a stop method', () => {
-      expect(this.henri.stop).toBeDefined();
+      expect(henri.stop).toBeDefined();
 
-      expect(this.henri.stop()).toBeTruthy();
+      expect(henri.stop()).toBeTruthy();
     });
 
     it('should register a global', () => {
@@ -30,14 +32,14 @@ describe('henri', () => {
 
       const local = new Henri();
 
-      expect(henri).toBeDefined();
+      expect(global.henri).toBeDefined();
       expect(local).toBeDefined();
 
       process.env.NODE_ENV = 'test';
     });
 
     it('should have a validator', () => {
-      expect(this.henri.validator.isEmail('code@usehenri.io')).toBeTruthy();
+      expect(henri.validator.isEmail('code@usehenri.io')).toBeTruthy();
     });
   });
 
@@ -74,7 +76,6 @@ describe('henri', () => {
 
   describe('main module', () => {
     test('should not be null', () => {
-      // eslint-disable-next-line global-require
       const start = require('../index');
 
       expect(typeof start).toEqual('function');

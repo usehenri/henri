@@ -14,7 +14,7 @@ describe('paths', () => {
   let warn;
 
   beforeEach(() => {
-    warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {

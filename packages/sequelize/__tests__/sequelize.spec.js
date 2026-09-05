@@ -18,10 +18,10 @@ const fakeHenri = (settings = {}) => ({
     has: (key) => typeof settings[key] !== 'undefined',
   },
   pen: {
-    error: jest.fn(),
-    fatal: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
   },
   user: {
     encrypt: async (password) => `hashed:${password}`,

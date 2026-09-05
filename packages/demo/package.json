@@ -3,9 +3,16 @@
   "private": true,
   "onboard": true,
   "version": "0.37.2",
+  "scripts": {
+    "test": "node ../henri/bin/henri.js test"
+  },
   "dependencies": {
     "@usehenri/core": "workspace:^",
     "@usehenri/disk": "workspace:^"
+  },
+  "devDependencies": {
+    "@usehenri/testing": "workspace:^",
+    "vitest": "^5.0.0"
   },
   "engines": {
     "node": ">=22"

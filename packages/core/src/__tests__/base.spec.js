@@ -21,14 +21,14 @@ describe('base module', () => {
 
   test('should return console', () => {
     // eslint-disable-next-line no-console
-    console.log = jest.fn();
+    console.log = vi.fn();
     BaseModule._out();
     // eslint-disable-next-line no-console
     expect(console.log).toHaveBeenCalledTimes(1);
   });
 
   test('should have default messages', () => {
-    BaseModule._out = jest.fn();
+    BaseModule._out = vi.fn();
 
     base.init();
     base.info();

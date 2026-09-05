@@ -667,7 +667,7 @@ The repository is a pnpm workspace (Node.js 22+). Tool versions are pinned in
 ```bash
   mise install             # node + pnpm versions from mise.toml
   pnpm install             # installs every package under packages/
-  pnpm test                # jest, whole monorepo
+  pnpm test                # vitest, whole monorepo
   pnpm lint                # eslint (flat config) + prettier via lint-staged on commit
   pnpm build               # builds @usehenri/react
   pnpm changeset           # record a version bump for the packages you changed

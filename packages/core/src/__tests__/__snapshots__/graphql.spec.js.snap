@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`graphql merge should compile schema 1`] = `
+exports[`graphql > merge > should compile schema 1`] = `
 {
   "data": {
     "artworks": [
@@ -18,7 +18,7 @@ exports[`graphql merge should compile schema 1`] = `
 }
 `;
 
-exports[`graphql should match snapshot 1`] = `
+exports[`graphql > should match snapshot 1`] = `
 Graphql {
   "ApolloError": [Function],
   "AuthenticationError": [Function],

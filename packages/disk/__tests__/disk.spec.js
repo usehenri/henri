@@ -1,10 +1,10 @@
 const Disk = require('../index.js');
 
 const pen = {
-  error: jest.fn(),
-  fatal: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
+  error: vi.fn(),
+  fatal: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
 };
 
 const henri = {

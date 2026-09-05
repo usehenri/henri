@@ -1,5 +1,5 @@
 const js = require('@eslint/js');
-const jest = require('eslint-plugin-jest');
+const vitest = require('@vitest/eslint-plugin');
 const globals = require('globals');
 
 // Rules ported from the previous .eslintrc. Formatting rules are left to
@@ -111,23 +111,25 @@ module.exports = [
       '**/*.spec.js',
       '**/*.test.js',
     ],
-    ...jest.configs['flat/recommended'],
+    ...vitest.configs.recommended,
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',
       globals: {
         ...globals.node,
-        ...globals.jest,
+        ...vitest.environments.env.globals,
         henri: 'writable',
       },
     },
     rules: {
-      ...jest.configs['flat/recommended'].rules,
-      'jest/no-disabled-tests': 'warn',
-      'jest/no-focused-tests': 'error',
-      'jest/no-test-prefixes': 'warn',
-      'jest/no-identical-title': 'error',
-      'jest/valid-expect': 'error',
+      ...vitest.configs.recommended.rules,
+      // Same severity as eslint-plugin-jest's recommended preset
+      'vitest/expect-expect': 'warn',
+      'vitest/no-disabled-tests': 'warn',
+      'vitest/no-focused-tests': 'error',
+      'vitest/no-identical-title': 'error',
+      'vitest/no-test-prefixes': 'warn',
+      'vitest/valid-expect': 'error',
     },
   },
 ];

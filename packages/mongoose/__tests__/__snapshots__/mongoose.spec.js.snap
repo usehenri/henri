@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`mongoose should match class snapshot 1`] = `
+exports[`mongoose > should match class snapshot 1`] = `
 Mongoose {
   "adapterName": "mongoose",
   "addModel": [Function],
@@ -97,7 +97,7 @@ Mongoose {
 }
 `;
 
-exports[`mongoose should match types snapshot 1`] = `
+exports[`mongoose > should match types snapshot 1`] = `
 {
   "ARRAY": [Function],
   "Array": [Function],

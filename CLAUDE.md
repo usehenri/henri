@@ -13,8 +13,8 @@ minimum supported at runtime.
 ```bash
 mise install                          # node + pnpm from mise.toml
 pnpm install                          # whole workspace; builds @usehenri/react dist
-pnpm test                             # jest 30, all packages (NODE_ENV=test)
-pnpm test packages/core               # one package; flags go after `pnpm test`, not after `--`
+pnpm test                             # vitest 5, all packages (NODE_ENV=test)
+pnpm test packages/core               # one package (path filter); `pnpm test:cover` for coverage
 pnpm lint                             # eslint 10 flat config
 pnpm format                           # prettier 3
 pnpm build                            # rollup build of @usehenri/react
@@ -74,7 +74,9 @@ installing where that download is unwanted.
   `no-nested-ternary`, JSDoc on functions. Prettier: single quotes, es5 commas.
   `.hbs`, the demo views and `packages/cli/scripts/generate` are excluded from
   Prettier on purpose (its Handlebars parser mangles JSX inside templates).
-- Tests live in `__tests__/` or `tests/`; snapshot tests exist for most core
+- Tests live in `__tests__/*.spec.js` (vitest, `globals: true`: no imports for
+  `describe`/`test`/`expect`/`vi`, and `require('vitest')` does not work in
+  CommonJS); snapshot tests exist for most core
   modules, regenerate them only when the diff is explained by your change.
 - Commits follow Conventional Commits (`feat(core): ...`, `fix(react): ...`).
   Husky runs lint-staged (prettier + eslint --fix) on commit.
