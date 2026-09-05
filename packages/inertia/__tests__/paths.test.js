@@ -13,16 +13,20 @@ describe('paths', () => {
   let getRoute;
   let pathFor;
   let normalizeAction;
+  let withCsrf;
   let resolvePage;
   let warnings;
   let warn;
 
   beforeAll(async () => {
     ({ getRoute, pathFor } = await import('../src/paths.mjs'));
-    ({ normalizeAction } = await import('../src/form.mjs').catch(() => ({
-      // The form helpers need react and @inertiajs/react: skip when absent
-      normalizeAction: null,
-    })));
+    ({ normalizeAction, withCsrf } = await import('../src/form.mjs').catch(
+      () => ({
+        // The form helpers need react and @inertiajs/react: skip when absent
+        normalizeAction: null,
+        withCsrf: null,
+      })
+    ));
     ({ resolvePage } = await import('../src/resolve.mjs'));
   });
 
@@ -114,6 +118,37 @@ describe('paths', () => {
         url: '/x',
       });
       expect(normalizeAction(undefined)).toEqual({ method: 'post', url: '' });
+    });
+  });
+
+  describe('withCsrf (Form)', () => {
+    test('prepends the hidden _csrf field to nodes and render props', () => {
+      if (!withCsrf) {
+        return;
+      }
+
+      expect(withCsrf('fields', null)).toBe('fields');
+
+      const nodes = withCsrf('fields', 'token');
+
+      expect(nodes.props.children[0].props).toEqual({
+        name: '_csrf',
+        type: 'hidden',
+        value: 'token',
+      });
+      expect(nodes.props.children[1]).toBe('fields');
+
+      const render = withCsrf(
+        ({ processing }) => `busy:${processing}`,
+        'token'
+      );
+
+      expect(typeof render).toBe('function');
+
+      const rendered = render({ processing: true });
+
+      expect(rendered.props.children[0].props.value).toBe('token');
+      expect(rendered.props.children[1]).toBe('busy:true');
     });
   });
 

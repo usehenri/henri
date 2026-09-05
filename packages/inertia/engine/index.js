@@ -779,6 +779,15 @@ class InertiaEngine {
 
     vary(res, 'X-Inertia');
 
+    if (page.props.csrf && typeof res.cookie === 'function') {
+      // Inertia's client sends it back as X-XSRF-TOKEN on every visit
+      res.cookie('XSRF-TOKEN', page.props.csrf, {
+        path: '/',
+        sameSite: 'lax',
+        secure: req.secure === true,
+      });
+    }
+
     if (isInertia(req)) {
       if (
         req.method === 'GET' &&
