@@ -10,7 +10,7 @@ const types = require('../types');
  */
 const fakeHenri = () => ({
   config: { get: () => undefined, has: () => false },
-  pen: { error: jest.fn(), fatal: jest.fn(), info: jest.fn(), warn: jest.fn() },
+  pen: { error: vi.fn(), fatal: vi.fn(), info: vi.fn(), warn: vi.fn() },
 });
 
 describe('postgresql database adapter', () => {

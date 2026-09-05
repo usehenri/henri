@@ -2,26 +2,28 @@ const BaseModule = require('../base/module');
 const Henri = require('../henri');
 const User = require('../4.user');
 
+let henri;
+
 const email = 'testing@usehenri.io';
 const password = 'delectorskaya';
 
 describe('user', () => {
   describe('basic', () => {
     beforeAll(async () => {
-      this.henri = new Henri({ runlevel: 4 });
-      await this.henri.init();
+      henri = new Henri({ runlevel: 4 });
+      await henri.init();
     }, 60000);
 
     afterAll(async () => {
-      await this.henri.stop();
+      await henri.stop();
     }, 60000);
 
     test('should be defined', () => {
-      expect(this.henri.user).toBeDefined();
+      expect(henri.user).toBeDefined();
     }, 15000);
 
     test('should extend BaseModule', () => {
-      expect(this.henri.user).toBeInstanceOf(BaseModule);
+      expect(henri.user).toBeInstanceOf(BaseModule);
     }, 15000);
 
     test('should match snapshot', () => {
@@ -31,7 +33,7 @@ describe('user', () => {
     }, 15000);
 
     test('encryption', async () => {
-      const { encrypt } = this.henri.user;
+      const { encrypt } = henri.user;
       let hash = await encrypt(password);
 
       expect(hash).not.toBe(password);
@@ -41,7 +43,7 @@ describe('user', () => {
     }, 15000);
 
     test('compare', async () => {
-      const { encrypt, compare } = this.henri.user;
+      const { encrypt, compare } = henri.user;
       let hash = await encrypt(password);
 
       expect(hash).not.toBe(password);
@@ -52,19 +54,19 @@ describe('user', () => {
 
   describe.skip('with user object', () => {
     beforeAll(async () => {
-      this.henri = new Henri();
-      await this.henri.init();
+      henri = new Henri();
+      await henri.init();
     });
 
     afterAll(async () => {
-      await this.henri._user.destroy({});
-      await this.henri.stop();
+      await henri._user.destroy({});
+      await henri.stop();
     });
 
     test('should have login', async () => {
-      expect(this.henri.passport).toBeDefined();
+      expect(henri.passport).toBeDefined();
 
-      let res = await fetch(`${this.henri.server.url}login`, {
+      let res = await fetch(`${henri.server.url}login`, {
         method: 'POST',
       }).then((res) => res);
 
@@ -72,9 +74,9 @@ describe('user', () => {
     });
 
     test.skip('should login', async () => {
-      await this.henri._user.destroy({ email });
+      await henri._user.destroy({ email });
 
-      let res = await fetch(`${this.henri.server.url}register`, {
+      let res = await fetch(`${henri.server.url}register`, {
         body: JSON.stringify({ email, password }),
         headers: {
           Accept: 'application/json',

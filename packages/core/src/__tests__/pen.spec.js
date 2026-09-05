@@ -2,119 +2,122 @@ const BaseModule = require('../base/module');
 const Henri = require('../henri');
 const Pen = require('../0.pen');
 
+let pen;
+let henri;
+
 describe('pen', () => {
   describe('standalone', () => {
-    beforeEach(() => (this.pen = new Pen(false)));
+    beforeEach(() => (pen = new Pen(false)));
 
     test('should have private properties', () => {
-      expect(this.pen).toHaveProperty('notTest');
-      expect(this.pen).toHaveProperty('longest');
-      expect(this.pen).toHaveProperty('buffer');
-      expect(this.pen).toHaveProperty('_time');
-      expect(this.pen).toHaveProperty('_timeSkipped');
-      expect(this.pen).toHaveProperty('inTesting');
-      expect(this.pen).toHaveProperty('initialized');
+      expect(pen).toHaveProperty('notTest');
+      expect(pen).toHaveProperty('longest');
+      expect(pen).toHaveProperty('buffer');
+      expect(pen).toHaveProperty('_time');
+      expect(pen).toHaveProperty('_timeSkipped');
+      expect(pen).toHaveProperty('inTesting');
+      expect(pen).toHaveProperty('initialized');
     });
 
     test('should have level related methods', () => {
-      expect(this.pen).toHaveProperty('error');
-      expect(this.pen).toHaveProperty('warn');
-      expect(this.pen).toHaveProperty('info');
-      expect(this.pen).toHaveProperty('verbose');
-      expect(this.pen).toHaveProperty('debug');
-      expect(this.pen).toHaveProperty('silly');
-      expect(this.pen).toHaveProperty('fatal');
+      expect(pen).toHaveProperty('error');
+      expect(pen).toHaveProperty('warn');
+      expect(pen).toHaveProperty('info');
+      expect(pen).toHaveProperty('verbose');
+      expect(pen).toHaveProperty('debug');
+      expect(pen).toHaveProperty('silly');
+      expect(pen).toHaveProperty('fatal');
     });
 
     test('should helper methods', () => {
-      expect(this.pen).toHaveProperty('time');
-      expect(this.pen).toHaveProperty('line');
-      expect(this.pen).toHaveProperty('output');
-      expect(this.pen).toHaveProperty('shout');
-      expect(this.pen).toHaveProperty('notify');
+      expect(pen).toHaveProperty('time');
+      expect(pen).toHaveProperty('line');
+      expect(pen).toHaveProperty('output');
+      expect(pen).toHaveProperty('shout');
+      expect(pen).toHaveProperty('notify');
     });
 
     test('should initialise', () => {
-      expect(this.pen.initialized).toBeFalsy();
-      this.pen.info('test', 'first message');
-      expect(this.pen.initialized).toBeTruthy();
+      expect(pen.initialized).toBeFalsy();
+      pen.info('test', 'first message');
+      expect(pen.initialized).toBeTruthy();
     });
 
     test('should resize padding', () => {
-      const size = this.pen.longest;
+      const size = pen.longest;
 
-      this.pen.info('some_long_module_spec', 'msg');
-      expect(this.pen.longest).toBeGreaterThan(size);
+      pen.info('some_long_module_spec', 'msg');
+      expect(pen.longest).toBeGreaterThan(size);
     });
 
     test('should shout on info', () => {
-      this.pen.shout = jest.fn();
-      this.pen.info('test', 'msg');
-      expect(this.pen.shout).toHaveBeenCalledTimes(1);
+      pen.shout = vi.fn();
+      pen.info('test', 'msg');
+      expect(pen.shout).toHaveBeenCalledTimes(1);
     });
 
     test('should shout on error', () => {
-      this.pen.shout = jest.fn();
-      this.pen.error('test', 'msg');
-      expect(this.pen.shout).toHaveBeenCalledTimes(1);
+      pen.shout = vi.fn();
+      pen.error('test', 'msg');
+      expect(pen.shout).toHaveBeenCalledTimes(1);
     });
 
     test('should shout on warn', () => {
-      this.pen.shout = jest.fn();
-      this.pen.warn('test', 'msg');
-      expect(this.pen.shout).toHaveBeenCalledTimes(1);
+      pen.shout = vi.fn();
+      pen.warn('test', 'msg');
+      expect(pen.shout).toHaveBeenCalledTimes(1);
     });
 
     test('should shout on verbose', () => {
-      this.pen.shout = jest.fn();
-      this.pen.verbose('test', 'msg');
-      expect(this.pen.shout).toHaveBeenCalledTimes(1);
+      pen.shout = vi.fn();
+      pen.verbose('test', 'msg');
+      expect(pen.shout).toHaveBeenCalledTimes(1);
     });
 
     test('should shout on debug', () => {
-      this.pen.shout = jest.fn();
-      this.pen.debug('test', 'msg');
-      expect(this.pen.shout).toHaveBeenCalledTimes(1);
+      pen.shout = vi.fn();
+      pen.debug('test', 'msg');
+      expect(pen.shout).toHaveBeenCalledTimes(1);
     });
 
     test('should shout on silly', () => {
-      this.pen.shout = jest.fn();
-      this.pen.silly('test', 'msg');
-      expect(this.pen.shout).toHaveBeenCalledTimes(1);
+      pen.shout = vi.fn();
+      pen.silly('test', 'msg');
+      expect(pen.shout).toHaveBeenCalledTimes(1);
     });
 
     test('should shout on fatal', () => {
-      this.pen.shout = jest.fn();
-      this.pen.fatal('test', 'msg');
-      expect(this.pen.shout).toHaveBeenCalled();
+      pen.shout = vi.fn();
+      pen.fatal('test', 'msg');
+      expect(pen.shout).toHaveBeenCalled();
     });
     describe('fatal', () => {
       test('should parse error on fatal', () => {
-        this.pen.error = jest.fn();
-        this.pen.line = jest.fn();
-        this.pen.fatal('test', new Error(), `some big error...`);
-        expect(this.pen.error).toHaveBeenCalled();
-        expect(this.pen.line).toHaveBeenCalledTimes(4);
+        pen.error = vi.fn();
+        pen.line = vi.fn();
+        pen.fatal('test', new Error(), `some big error...`);
+        expect(pen.error).toHaveBeenCalled();
+        expect(pen.line).toHaveBeenCalledTimes(4);
       });
 
       test('should show object', () => {
-        console.log = jest.fn();
-        this.pen.error = jest.fn();
-        this.pen.line = jest.fn();
-        this.pen.fatal('test', 'error', `some big error...`, { inspect: 'me' });
-        expect(this.pen.error).toHaveBeenCalled();
-        expect(this.pen.line).toHaveBeenCalledTimes(6);
+        console.log = vi.fn();
+        pen.error = vi.fn();
+        pen.line = vi.fn();
+        pen.fatal('test', 'error', `some big error...`, { inspect: 'me' });
+        expect(pen.error).toHaveBeenCalled();
+        expect(pen.line).toHaveBeenCalledTimes(6);
         expect(console.log).toHaveBeenCalledTimes(1);
       });
 
       test('should have default value in fatal', () => {
-        this.pen.error = jest.fn();
-        this.pen.fatal();
-        expect(this.pen.error).toHaveBeenCalledWith('fatal', 'unknown error');
+        pen.error = vi.fn();
+        pen.fatal();
+        expect(pen.error).toHaveBeenCalledWith('fatal', 'unknown error');
       });
 
       test('should handle long message in full desc', () => {
-        this.pen.error = jest.fn();
+        pen.error = vi.fn();
         const long = `
         this
         is
@@ -123,54 +126,54 @@ describe('pen', () => {
         dessc
         `;
 
-        this.pen.fatal('test', 'short desc', long);
-        expect(this.pen.error).toHaveBeenCalled();
+        pen.fatal('test', 'short desc', long);
+        expect(pen.error).toHaveBeenCalled();
       });
     });
 
     test('should keep time', async () => {
-      const time = this.pen._time;
-      const skipped = this.pen._timeSkipped;
+      const time = pen._time;
+      const skipped = pen._timeSkipped;
 
-      expect(this.pen.time()).toEqual('');
-      expect(this.pen._timeSkipped).toBeGreaterThanOrEqual(skipped);
-      expect(parseInt(this.pen._time)).toBeGreaterThanOrEqual(parseInt(time));
-      this.pen._timeSkipped = 10;
-      expect(this.pen.time()).not.toEqual('');
+      expect(pen.time()).toEqual('');
+      expect(pen._timeSkipped).toBeGreaterThanOrEqual(skipped);
+      expect(parseInt(pen._time)).toBeGreaterThanOrEqual(parseInt(time));
+      pen._timeSkipped = 10;
+      expect(pen.time()).not.toEqual('');
     });
 
     /* eslint-disable no-console */
     test('should print have line-feed (default)', () => {
-      console.log = jest.fn();
-      this.pen.notTest = true;
-      this.pen.line();
+      console.log = vi.fn();
+      pen.notTest = true;
+      pen.line();
       expect(console.log).toHaveBeenCalledTimes(1);
     });
 
     /* eslint-disable no-console */
     test('should print have line-feed (x times)', () => {
-      console.log = jest.fn(() => true);
-      this.pen.notTest = true;
-      this.pen.line(3);
+      console.log = vi.fn(() => true);
+      pen.notTest = true;
+      pen.line(3);
       expect(console.log).toHaveBeenCalledTimes(3);
     });
   });
   describe('bootstrapped', () => {
     beforeEach(async () => {
-      this.henri = new Henri({ runlevel: 0 });
-      await this.henri.init();
+      henri = new Henri({ runlevel: 0 });
+      await henri.init();
     });
 
     afterEach(async () => {
-      await this.henri.stop();
+      await henri.stop();
     });
 
     test('should be defined', () => {
-      expect(this.henri.pen).toBeDefined();
+      expect(henri.pen).toBeDefined();
     });
 
     test('should extend BaseModule', () => {
-      expect(this.henri.pen).toBeInstanceOf(BaseModule);
+      expect(henri.pen).toBeInstanceOf(BaseModule);
     });
   });
 });

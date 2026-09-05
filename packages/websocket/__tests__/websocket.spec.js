@@ -5,8 +5,8 @@ const http = require('http');
 const Websocket = require('../index');
 
 const fakeHenri = () => ({
-  config: { get: jest.fn(), has: jest.fn(() => false) },
-  pen: { error: jest.fn(), info: jest.fn(), warn: jest.fn() },
+  config: { get: vi.fn(), has: vi.fn(() => false) },
+  pen: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 });
 
 describe('websocket', () => {
