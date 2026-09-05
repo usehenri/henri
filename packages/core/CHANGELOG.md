@@ -1,5 +1,65 @@
 # Change Log
 
+## 1.1.0
+
+### Minor Changes
+
+- [#308](https://github.com/usehenri/henri/pull/308) [`f99341c`](https://github.com/usehenri/henri/commit/f99341cdf05b9306bfca0c8385aee1661fc77f4f) Thanks [@reel](https://github.com/reel)! - The JSON API follows HATEOAS (HAL), honours `Idempotency-Key`, is rate limited and picks up the Rails request conventions.
+  
+  - `res.resource(record, { type, links, status })` and `res.collection(records, { type, page, perPage, total, links })` answer HAL: the public fields plus `_links` (`self`, `collection`, `edit`, `update`, `destroy`; `first`/`prev`/`next`/`last`, `create`, `new` on collections) built from the router's path helpers and filtered by the roles of the current user. Collections embed their items under `_embedded.<type>`, carry `count`, `page`, `perPage`, `total` and the `Link` / `X-Total-Count` headers. `application/hal+json` is served when asked for, `application/json` otherwise; a 201 sets `Location`. `res.negotiate({ html, json })` picks the page or the JSON answer. The JSON branch of `res.render()` keeps its shape and gains `_links`. Routes expanded from `resources`/`crud` that answer JSON without `_links` are reported once per route, and refused (500) when `config.api.strict` is true.
+  - `Idempotency-Key` on POST, PUT, PATCH and DELETE routes (Stripe semantics): the first answer is stored for `config.api.idempotency.ttl` (24h) and replayed with `Idempotency-Replayed: true`; a key still in flight answers 409, a key reused with another request 422. Keys are scoped per user, session or ip. `idempotent: false` opts a route out; `henri.api.idempotencyStore` (`{ get, set, delete }`) or `config.api.idempotency.store` plug a shared store.
+  - Rate limiting (express-rate-limit, `RateLimit`/`RateLimit-Policy` draft-7 headers, `Retry-After`, 429 through `res.boom.tooManyRequests`): `config.rateLimit` (`{ windowMs: 60000, max: 600 }`, per user or ip, not enforced in development), `POST /login` and the register-style paths at 10 per minute (`config.rateLimit.auth`), and `rateLimit: { windowMs, max }` per route. `config.rateLimit.store` plugs a shared store.
+  - `X-Request-Id` is accepted or generated, exposed as `req.id`, echoed on every answer and written in every `pen` line of the request. Helmet secure headers (`config.helmet`) with a CSP that lets Next dev, Turbopack and Vite HMR work in development. `config.filterParameters` (`password`, `token`, `secret`, `authorization`) are masked in everything `pen` prints. Weak ETags and `If-None-Match` → 304 on JSON. `req.pagination()` reads `page` and `per_page` (bounded by `config.api.maxPerPage`). `Accept: application/vnd.henri.v1+json` sets `req.apiVersion`, and the `version` route option refuses other versions with a 406. `GET /_henri/health` pings the stores (200 or 503). `Cache-Control: no-store` on authenticated JSON. `config.bodyLimit` (1mb) and `config.requestTimeout` (30s, 503).
+  - `henri generate scaffold|crud` write controllers using `res.resource`/`res.collection`, `req.pagination()` and `req.permit()`, with a 201 + `Location` on create and a 204 on destroy; `henri generate test <name>` checks the HAL links when the name has a `resources`/`crud` route.
+
+- [#297](https://github.com/usehenri/henri/pull/297) [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e) Thanks [@reel](https://github.com/reel)! - Login, sessions and request parameters are hardened and work on every adapter.
+  
+  - User lookups go through the adapter contract (`findUserByEmail`, `findUserById`, `userId`, `toPlain`, with Mongoose/Sequelize fallbacks in core), so login on SQL stores checks the right user and sessions hold the right id. `henri.user.findByEmail()`, `findById()` and `publicUser()` are exposed to apps.
+  - Only the public representation of a user (`{ id, email, roles }` plus `config.user.public`) reaches views, `req._henri.user` and JSON answers. `config.user` accepts an object: `{ model, public, loginPath, afterLogin, sessionMaxAge }`.
+  - `req.permit(...fields)` and `henri.params(req).permit()` return the permitted fields only; use them instead of `req.body` when creating or updating records.
+  - The session cookie is `httpOnly`, `SameSite=Lax`, `Secure` in production, lives 30 days by default (`config.user.sessionMaxAge`) and is only written once something is stored in it. `trust proxy` is enabled (`config.trustProxy`).
+  - `POST /login` answers `{ user }` to JSON clients and redirects browsers (`config.user.afterLogin`); failures are `401`/`400` or a redirect to `<loginPath>?error=invalid`. `POST /logout` destroys the session; `GET /logout` is deprecated and answers `405`.
+  - Double-submit CSRF protection: the `henri.csrf` cookie must be sent back as `X-CSRF-Token` (or `X-XSRF-TOKEN`, the axios/Inertia convention) or `_csrf` on unsafe requests carrying a session (`config.csrf: false` disables it, bearer tokens are exempt). The token is available as `req._henri.csrf` and `withHenri` adds the header to `fetch()` and `hydrate()`.
+  - Routes with `roles` deny with `401`/`403` JSON or a redirect to `config.user.loginPath`, and warn at boot when no user model exists instead of crashing per request.
+  - The session store survives model reloads: express-session talks to a proxy that follows the current adapter.
+
+- [#297](https://github.com/usehenri/henri/pull/297) [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e) Thanks [@reel](https://github.com/reel)! - Lifecycle, HTTP and error-handling hardening of the core.
+  
+  - Errors are no longer swallowed: a misconfigured store, adapter, view or controller fails the boot with the original error (`henri.init()` rejects with an `Error` whose `cause` is the module error). `pen.fatal()` returns an `Error` to throw.
+  - `henri.reload()` is serialized (a call during a reload queues exactly one more run) and only evicts the application's own files from the require cache. `henri.stop()` stops every module even when one fails and resolves with the array of errors. `SIGINT`/`SIGTERM` stop the server gracefully with a 5 s hard-exit timeout; a second signal exits at once.
+  - HTTP: the server binds to `127.0.0.1` outside production (`config.host` or `HENRI_HOST` override it), CORS is opt-in (`config.cors`), `x-powered-by` is gone, `/_routes` and `/_controllers` are served only in development and only from loopback. Unmatched routes get a content-negotiated 404 and controller errors a logged, negotiated 500 (message and stack in development only).
+  - Mailer: an SMTP/transport object always creates and verifies the transport; `"test"` uses an Ethereal account; `NODE_ENV=test` uses nodemailer's JSON transport unless `henri.forceMail` is set.
+  - Handlebars engine: exact page resolution (`pages/<route>.{hbs,html,htm}` then `pages/<route>/index.*`), compiled-template cache invalidated on change and reload, 404 without a page, 500 with the stack logged on template errors, view options exposed as `@user`, `@paths`, `@query` data variables.
+  - `graphql.run(query, variables, contextValue)` forwards a context to the resolvers.
+  - Configuration: `.env` in the application directory is loaded on boot and `HENRI_SECRET` provides the `secret`.
+  - `utils.checkPackages()` never installs anything: it prints the install command for the detected package manager (pnpm, yarn or npm) and throws.
+  - The Vue renderer only loads with `experimental.vue: true`. `BaseModule` lost its unused `setup()`, `start()` and `info()` stubs.
+  - Removed dependencies: `include-all`, `callsite`, `internal-ip`, `server-timings`, `lodash`, `@inquirer/prompts`, `cross-spawn`, `compare-versions`, `jest`.
+
+- [#297](https://github.com/usehenri/henri/pull/297) [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e) Thanks [@reel](https://github.com/reel)! - New `@usehenri/inertia` view engine: the Inertia.js protocol on Vite with React 19 pages and server-side rendering, selected with `"renderer": "inertia"`. Pages read the controller data with `useHenri()`, navigate with `<Link>` and submit with `<Form>` through Inertia's router. `henri new <app> --renderer inertia` scaffolds an application using it; `henri build` produces the client and server bundles.
+
+- [#297](https://github.com/usehenri/henri/pull/297) [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e) Thanks [@reel](https://github.com/reel)! - Tests run on Vitest. `henri test` spawns the app's Vitest with `NODE_ENV=test`
+  and exits with its code (extra arguments are passed through). `@usehenri/testing`
+  boots the app in-process and exports `setup`, `teardown`, `request`, `agent` and
+  `henri`, plus `@usehenri/testing/setup-file` for Vitest's `setupFiles` (henri and
+  the model globals are available in every test file). The core `tests` module no
+  longer loads jest at boot; jest is not a dependency anymore.
+
+### Patch Changes
+
+- [#305](https://github.com/usehenri/henri/pull/305) [`a2cf383`](https://github.com/usehenri/henri/commit/a2cf383d6f3b4405b73816bc38175ad6f308dff4) Thanks [@reel](https://github.com/reel)! - New `@usehenri/drizzle` store adapter on Drizzle ORM: sqlite (better-sqlite3), postgres (pg) and mysql (mysql2) behind one Rails-like model API. An app selects it with `"stores": { "default": { "adapter": "drizzle", "dialect": "sqlite", "url": "file:.henri/app.db" } }` and installs the driver it needs.
+  
+  - Models compile the henri model format (`string|text|number|integer|float|boolean|date|json|uuid`, `required`, `default`, `enum`, `unique`, `index`, plus `select: false`, `min`, `max`, `minLength`, `maxLength`, `match`, `validate`, `lowercase`, `trim`, `references`) into Drizzle tables per dialect: plural snake_case tables, snake_case columns, `id` primary keys, `createdAt`/`updatedAt` with `options.timestamps`, pg enum types and mysql enums.
+  - Model API: `create`, `find`, `findOne`, `findById`, `all`, `count`, `exists`, `pluck`, `update`, `destroy`, `findByIdAndUpdate`, `findByIdAndDelete`, `findOneAndUpdate`, `findOneAndDelete` and their Mongoose and Sequelize aliases; lazy chains `where().order().limit().offset().include().withHidden().first()/last()/count()`; instances with `save`, `update`, `destroy`, `reload`, `changed`, `toJSON`; `ValidationError` with `errors[field].message` (the shape the generated controllers read), unique violations included; `beforeValidate`, `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDestroy`, `afterDestroy` hooks; `belongsTo`, `hasMany`, `hasOne` in `associate(models)` with eager loading through `include()`; `adapter.transaction(fn)` with implicit joining.
+  - User model: `email` unique, lowercased, trimmed and validated; `password` hashed on create and on every update that sets it, never selected by default; `roles` JSON, dropped from mass assignment unless `{ unsafe: true }`, `user.hasRole()`, `user.setRoles()`, `User.setRoles(id, roles)`.
+  - Sessions: an express-session store on a `henri_sessions` table (get/set/destroy/touch/all/clear/length, expiry with the cookie, periodic sweep).
+  - Migrations in `db/migrations` (drizzle-kit layout): `henri db:generate`, `henri db:migrate`, `henri db:push`, `henri db:status` (`henri db <command>` works too). Development boots push the schema unless the store sets `"sync": false`; production boots apply the migrations with `"migrate": true` and warn about pending ones otherwise.
+  - Core accepts `"adapter": "drizzle"`.
+
+- [#297](https://github.com/usehenri/henri/pull/297) [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e) Thanks [@reel](https://github.com/reel)! - The published packages declare their `files`: the tarballs no longer ship the
+  test suites and every package carries the LICENSE, a README and its changelog.
+  `@usehenri/websocket` is no longer published (it was never wired into core).
+
 ## 1.0.2
 
 ### Patch Changes

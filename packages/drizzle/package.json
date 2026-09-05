@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/drizzle",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "henri SQL adapter on Drizzle ORM: sqlite, postgres and mysql with Rails-like models and migrations",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",

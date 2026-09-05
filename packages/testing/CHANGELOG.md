@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.1.0
+
+### Minor Changes
+
+- [#297](https://github.com/usehenri/henri/pull/297) [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e) Thanks [@reel](https://github.com/reel)! - Tests run on Vitest. `henri test` spawns the app's Vitest with `NODE_ENV=test`
+  and exits with its code (extra arguments are passed through). `@usehenri/testing`
+  boots the app in-process and exports `setup`, `teardown`, `request`, `agent` and
+  `henri`, plus `@usehenri/testing/setup-file` for Vitest's `setupFiles` (henri and
+  the model globals are available in every test file). The core `tests` module no
+  longer loads jest at boot; jest is not a dependency anymore.
+
+### Patch Changes
+
+- Updated dependencies [[`f99341c`](https://github.com/usehenri/henri/commit/f99341cdf05b9306bfca0c8385aee1661fc77f4f), [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e), [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e), [`a2cf383`](https://github.com/usehenri/henri/commit/a2cf383d6f3b4405b73816bc38175ad6f308dff4), [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e), [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e), [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e)]:
+  - @usehenri/core@1.1.0
+
 ## 1.0.2
 
 No changes in this release.
