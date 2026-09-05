@@ -5,6 +5,11 @@
  * lower = 'post' (data key of one document), plural = 'posts' (controller,
  * routes and pages) and keys = the attributes a request may set.
  * The output goes through prettier, so the indentation here does not matter.
+ *
+ * JSON clients get HAL: `res.collection()` for the index, `res.resource()`
+ * for one document (201 + Location on create, 204 on destroy). Browsers get
+ * the pages and redirects (scaffold only). `res.negotiate({ html, json })`
+ * picks one from the Accept header.
  */
 
 const header = ({ doc, keys }) => `
@@ -54,17 +59,41 @@ module.exports = {`;
 
 const footer = () => `};`;
 
-const index = ({ doc, plural }) => `
+/**
+ * The paginated query of an index action
+ *
+ * @param {object} opts { doc, plural }
+ * @returns {string} The source code
+ */
+const page = ({ doc, plural }) => `
+    // Page and size from ?page=2&per_page=50, bounded by config.api.maxPerPage
+    const { page, perPage, skip, limit } = req.pagination();
+    const [${plural}, total] = await Promise.all([
+      ${doc}.find().skip(skip).limit(limit),
+      ${doc}.countDocuments(),
+    ]);
+`;
+
+const index = (opts) => `
   index: async (req, res) => {
-    // app/views/pages/${plural}/index.js is the /${plural} page for next.js
-    res.render('/${plural}', {
-      data: { ${plural}: await ${doc}.find() },
+    ${page(opts)}
+    // app/views/pages/${opts.plural}/index.js is the /${opts.plural} page for next.js
+    const html = () =>
+      res.render('/${opts.plural}', {
+        data: { ${[opts.plural, 'page', 'perPage', 'total'].sort().join(', ')} },
+      });
+
+    // Browsers get the page, API clients a HAL collection
+    return res.negotiate({
+      html,
+      json: () => res.collection(${opts.plural}, { page, perPage, total }),
     });
   },`;
 
-const indexJson = ({ doc, plural }) => `
+const indexJson = (opts) => `
   index: async (req, res) => {
-    res.json({ ${plural}: await ${doc}.find() });
+    ${page(opts)}
+    return res.collection(${opts.plural}, { page, perPage, total });
   },`;
 
 const newC = ({ plural }) => `
@@ -72,8 +101,7 @@ const newC = ({ plural }) => `
     res.render('/${plural}/new');
   },`;
 
-const create = ({ doc, lower, plural }) => `
-  create: async (req, res) => {
+const createBody = ({ doc, lower }) => `
     let ${lower};
 
     try {
@@ -81,47 +109,49 @@ const create = ({ doc, lower, plural }) => `
     } catch (error) {
       return invalid(res, error);
     }
+`;
 
-    return res.format({
-      html: () => res.redirect(\`/${plural}/\${${lower}.id}\`),
-      json: () => res.status(201).json({ ${lower} }),
-      default: () => res.status(201).json({ ${lower} }),
+const create = (opts) => `
+  create: async (req, res) => {
+    ${createBody(opts)}
+    // 201 with a Location header pointing at the new ${opts.lower}
+    return res.negotiate({
+      html: () => res.redirect(\`/${opts.plural}/\${${opts.lower}.id}\`),
+      json: () => res.resource(${opts.lower}, { status: 201 }),
     });
   },`;
 
-const createJson = ({ doc, lower }) => `
+const createJson = (opts) => `
   create: async (req, res) => {
-    let ${lower};
-
-    try {
-      ${lower} = await ${doc}.create(req.permit(...FIELDS));
-    } catch (error) {
-      return invalid(res, error);
-    }
-
-    return res.status(201).json({ ${lower} });
+    ${createBody(opts)}
+    // 201 with a Location header pointing at the new ${opts.lower}
+    return res.resource(${opts.lower}, { status: 201 });
   },`;
 
-const show = ({ doc, lower, plural }) => `
+const findBody = ({ doc, lower }) => `
+    const ${lower} = await byId(${doc}.findById(req.params.id));
+
+    if (!${lower}) {
+      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
+    }
+`;
+
+const show = (opts) => `
   show: async (req, res) => {
-    const ${lower} = await byId(${doc}.findById(req.params.id));
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
-    }
-
-    return res.render('/${plural}/show', { data: { ${lower} } });
+    ${findBody(opts)}
+    return res.negotiate({
+      html: () => res.render('/${opts.plural}/show', { data: { ${opts.lower} } }),
+      json: () => res.resource(${opts.lower}),
+    });
   },`;
 
-const edit = ({ doc, lower, plural }) => `
+const edit = (opts) => `
   edit: async (req, res) => {
-    const ${lower} = await byId(${doc}.findById(req.params.id));
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
-    }
-
-    return res.render('/${plural}/edit', { data: { ${lower} } });
+    ${findBody(opts)}
+    return res.negotiate({
+      html: () => res.render('/${opts.plural}/edit', { data: { ${opts.lower} } }),
+      json: () => res.resource(${opts.lower}),
+    });
   },`;
 
 const updateBody = ({ doc, lower }) => `
@@ -146,17 +176,16 @@ const updateBody = ({ doc, lower }) => `
 const update = (opts) => `
   update: async (req, res) => {
     ${updateBody(opts)}
-    return res.format({
+    return res.negotiate({
       html: () => res.redirect(\`/${opts.plural}/\${${opts.lower}.id}\`),
-      json: () => res.json({ ${opts.lower} }),
-      default: () => res.json({ ${opts.lower} }),
+      json: () => res.resource(${opts.lower}),
     });
   },`;
 
 const updateJson = (opts) => `
   update: async (req, res) => {
     ${updateBody(opts)}
-    return res.json({ ${opts.lower} });
+    return res.resource(${opts.lower});
   },`;
 
 const destroyBody = ({ doc, lower }) => `
@@ -170,17 +199,16 @@ const destroyBody = ({ doc, lower }) => `
 const destroy = (opts) => `
   destroy: async (req, res) => {
     ${destroyBody(opts)}
-    return res.format({
+    return res.negotiate({
       html: () => res.redirect('/${opts.plural}'),
-      json: () => res.json({ ${opts.lower} }),
-      default: () => res.json({ ${opts.lower} }),
+      json: () => res.status(204).end(),
     });
   },`;
 
 const destroyJson = (opts) => `
   destroy: async (req, res) => {
     ${destroyBody(opts)}
-    return res.json({ ${opts.lower} });
+    return res.status(204).end();
   },`;
 
 /**

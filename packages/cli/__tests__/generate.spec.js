@@ -43,6 +43,22 @@ const fakeRes = () => {
   res.render = (route, opts) => res.calls.push(['render', route, opts]);
   res.redirect = (url) => res.calls.push(['redirect', url]);
   res.format = (handlers) => handlers.json();
+  res.negotiate = (handlers) => handlers.json();
+  res.end = () => {
+    res.calls.push(['end', res.statusCode]);
+
+    return res;
+  };
+  res.resource = (record, opts = {}) => {
+    res.calls.push(['resource', opts.status || 200, record]);
+
+    return res;
+  };
+  res.collection = (records, opts = {}) => {
+    res.calls.push(['collection', records, opts]);
+
+    return res;
+  };
   res.boom = {
     badData: (message, data) => {
       res.calls.push(['badData', 422, message, data]);
@@ -68,6 +84,7 @@ const fakeRes = () => {
  */
 const fakeReq = (body = {}, params = {}) => ({
   body,
+  pagination: () => ({ limit: 25, offset: 0, page: 1, perPage: 25, skip: 0 }),
   params,
   permit: (...fields) =>
     Object.fromEntries(
@@ -76,6 +93,24 @@ const fakeReq = (body = {}, params = {}) => ({
         .map((field) => [field, body[field]])
     ),
 });
+
+/**
+ * A thenable mongoose-like query (find().skip().limit())
+ *
+ * @param {Array} rows The rows the query resolves to
+ * @returns {object} The query
+ */
+const fakeQuery = (rows) => {
+  const query = {
+    lean: () => query,
+    limit: () => query,
+    skip: () => query,
+    sort: () => query,
+    then: (resolve, reject) => Promise.resolve(rows).then(resolve, reject),
+  };
+
+  return query;
+};
 
 /**
  * A fake model with the mongoose methods the controllers use
@@ -103,15 +138,16 @@ const fakeModel = () => {
   return {
     calls,
     model: {
+      countDocuments: async () => 1,
       create: async (data) => {
         calls.create = data;
-        if (!data.title) {
+        if (!data.title && !data.name) {
           throw validation();
         }
 
         return { id: '2', ...data };
       },
-      find: async () => [{ id: '1', title: 'one' }],
+      find: () => fakeQuery([{ id: '1', title: 'one' }]),
       findById: async (id) => {
         if (id === 'bad') {
           throw cast();
@@ -364,21 +400,43 @@ describe('henri generate', () => {
         ]);
       });
 
-      test('index renders the list under the plural key', async () => {
+      test('index answers a paginated HAL collection to JSON clients', async () => {
         const res = fakeRes();
 
         await controller.index(fakeReq(), res);
 
         expect(res.calls).toEqual([
           [
-            'render',
-            '/posts',
-            { data: { posts: [{ id: '1', title: 'one' }] } },
+            'collection',
+            [{ id: '1', title: 'one' }],
+            { page: 1, perPage: 25, total: 1 },
           ],
         ]);
       });
 
-      test('create permits the attributes and answers 201', async () => {
+      test('index renders the page for browsers', async () => {
+        const res = fakeRes();
+
+        res.negotiate = (handlers) => handlers.html();
+        await controller.index(fakeReq(), res);
+
+        expect(res.calls).toEqual([
+          [
+            'render',
+            '/posts',
+            {
+              data: {
+                page: 1,
+                perPage: 25,
+                posts: [{ id: '1', title: 'one' }],
+                total: 1,
+              },
+            },
+          ],
+        ]);
+      });
+
+      test('create permits the attributes and answers 201 with the resource', async () => {
         const res = fakeRes();
 
         await controller.create(
@@ -388,7 +446,7 @@ describe('henri generate', () => {
 
         expect(fake.calls.create).toEqual({ body: 'b', title: 't' });
         expect(res.calls).toEqual([
-          ['json', 201, { post: { body: 'b', id: '2', title: 't' } }],
+          ['resource', 201, { body: 'b', id: '2', title: 't' }],
         ]);
       });
 
@@ -407,16 +465,23 @@ describe('henri generate', () => {
         ]);
       });
 
-      test('show renders the document or answers 404', async () => {
+      test('show answers the resource, renders it for browsers, or 404', async () => {
         const found = fakeRes();
+        const page = fakeRes();
         const missing = fakeRes();
         const malformed = fakeRes();
 
+        page.negotiate = (handlers) => handlers.html();
+
         await controller.show(fakeReq({}, { id: '1' }), found);
+        await controller.show(fakeReq({}, { id: '1' }), page);
         await controller.show(fakeReq({}, { id: '9' }), missing);
         await controller.show(fakeReq({}, { id: 'bad' }), malformed);
 
         expect(found.calls).toEqual([
+          ['resource', 200, { id: '1', title: 'one' }],
+        ]);
+        expect(page.calls).toEqual([
           [
             'render',
             '/posts/show',
@@ -429,7 +494,7 @@ describe('henri generate', () => {
         ]);
       });
 
-      test('update runs the validators and answers the document', async () => {
+      test('update runs the validators and answers the resource', async () => {
         const res = fakeRes();
 
         await controller.update(
@@ -443,22 +508,33 @@ describe('henri generate', () => {
           options: { new: true, runValidators: true },
         });
         expect(res.calls).toEqual([
-          ['json', 200, { post: { id: '1', title: 'new' } }],
+          ['resource', 200, { id: '1', title: 'new' }],
         ]);
       });
 
-      test('destroy answers the removed document or 404', async () => {
+      test('destroy answers 204 or 404', async () => {
         const found = fakeRes();
         const missing = fakeRes();
 
         await controller.destroy(fakeReq({}, { id: '1' }), found);
         await controller.destroy(fakeReq({}, { id: '9' }), missing);
 
-        expect(found.calls).toEqual([
-          ['json', 200, { post: { id: '1', title: 'one' } }],
-        ]);
+        expect(found.calls).toEqual([['end', 204]]);
         expect(missing.calls).toEqual([['notFound', 404, 'Post 9 not found']]);
       });
+    });
+
+    test('the test generator checks the HAL links of a scaffolded resource', () => {
+      const { status } = henri(['g', 'test', 'posts'], { cwd: app });
+
+      expect(status).toBe(0);
+      expect(() => parseFile(app, 'test/posts.test.js')).not.toThrow();
+
+      const code = read(app, 'test/posts.test.js');
+
+      expect(code).toContain("_links.self.href).toBe('/posts')");
+      expect(code).toContain('_embedded.posts');
+      expect(code).toContain("get('/posts/unknown')");
     });
   });
 
@@ -486,6 +562,40 @@ describe('henri generate', () => {
       expect(read(app, 'app/controllers/categories.js')).not.toContain(
         'res.render'
       );
+    });
+
+    test('the json controller answers HAL with pagination', async () => {
+      const fake = fakeModel();
+      const controller = require(
+        path.join(app, 'app/controllers/categories.js')
+      );
+
+      global.Category = fake.model;
+
+      try {
+        const index = fakeRes();
+        const create = fakeRes();
+        const destroy = fakeRes();
+
+        await controller.index(fakeReq(), index);
+        await controller.create(fakeReq({ name: 'n', title: 't' }), create);
+        await controller.destroy(fakeReq({}, { id: '1' }), destroy);
+
+        expect(index.calls).toEqual([
+          [
+            'collection',
+            [{ id: '1', title: 'one' }],
+            { page: 1, perPage: 25, total: 1 },
+          ],
+        ]);
+        // Only the model's attributes (name) are permitted
+        expect(create.calls).toEqual([
+          ['resource', 201, { id: '2', name: 'n' }],
+        ]);
+        expect(destroy.calls).toEqual([['end', 204]]);
+      } finally {
+        delete global.Category;
+      }
     });
   });
 
