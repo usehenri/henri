@@ -32,6 +32,7 @@ const ADAPTERS = [
 /** Packages the adapters and the renderers need in the app's package.json */
 const NEEDS = {
   disk: ['@usehenri/disk'],
+  drizzle: ['@usehenri/drizzle'],
   inertia: [
     '@usehenri/inertia',
     '@inertiajs/react',

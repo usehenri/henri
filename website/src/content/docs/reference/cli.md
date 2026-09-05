@@ -155,6 +155,14 @@ henri test [files ...] [vitest options]
 
 Runs the Vitest installed in the project (`vitest run`, or `vitest` in watch mode with `--watch`/`-w`) with `NODE_ENV=test` and exits with its code. Everything after `test` is passed to Vitest, except henri's own flags. Without `vitest` in the project it prints the install command (`pnpm add -D vitest @usehenri/testing`) and exits with `1`. See [Testing](/guides/testing/).
 
+## `db`
+
+```bash
+henri db:status | db:generate [--name=<label>] | db:migrate | db:push [--force]   [--store=<name>] [--json]
+```
+
+Migrations of a [Drizzle](/guides/models/#drizzle) store, in the Rails `db:` style (`henri db migrate` works too). Boots the models only, without views or workers, so it runs anywhere the database is reachable: `status` lists the applied and pending migrations of `db/migrations`, `generate` writes a migration from the schema changes, `migrate` applies the pending ones, and `push` makes the database match the models without a migration. `push` refuses statements that lose data and exits with `1` unless `--force` is passed. Stores on another adapter exit with `1`.
+
 ## `clean`
 
 Lists the existing ones among `.tmp`, `.henri`, `logs`, `node_modules`, `app/views/.cache` and `app/views/.next`, asks which to delete, and recreates each selected directory empty.

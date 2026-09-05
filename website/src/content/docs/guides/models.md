@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-Models live in `app/models`. Every `.js` file there (subdirectories included) is loaded on boot, registered with its store adapter and exposed as a global named after the file: `app/models/Task.js` is `Task` everywhere in the application, like in Rails. Two files with the same name, whatever the case, stop the boot. The global is the ORM model itself, so you query it with the [Mongoose](https://mongoosejs.com/) API on MongoDB and the [Sequelize](https://sequelize.org/) API on SQL databases.
+Models live in `app/models`. Every `.js` file there (subdirectories included) is loaded on boot, registered with its store adapter and exposed as a global named after the file: `app/models/Task.js` is `Task` everywhere in the application, like in Rails. Two files with the same name, whatever the case, stop the boot. The global is the ORM model itself, so you query it with the [Mongoose](https://mongoosejs.com/) API on MongoDB, the [Sequelize](https://sequelize.org/) API on SQL databases, or the adapter's own Rails-like API on the [Drizzle](#drizzle) adapter.
 
 The model ids are also written to `.henri/globals.json` on boot; the scaffolded `eslint.config.js` reads that file so the linter knows the globals.
 
@@ -228,6 +228,56 @@ pnpm add @usehenri/mssql
   }
 }
 ```
+
+### Drizzle
+
+An SQL adapter on [Drizzle ORM](https://orm.drizzle.team/) with migrations, for sqlite, PostgreSQL and MySQL. It is the adapter henri intends to make the SQL default; the Sequelize-based ones stay supported. Install it with the driver of your dialect:
+
+```bash
+pnpm add @usehenri/drizzle better-sqlite3   # or pg, or mysql2
+```
+
+```json
+{
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "sqlite",
+      "url": "file:.henri/app.db"
+    }
+  }
+}
+```
+
+`dialect` is `sqlite`, `postgres` or `mysql`; `url` is a file path for sqlite and a connection string otherwise. The model format above compiles to Drizzle tables: plural snake_case tables, snake_case columns, an `id` primary key, `createdAt`/`updatedAt` with `options.timestamps`. On top of the shared keys, fields accept `select: false`, `min`, `max`, `minLength`, `maxLength`, `match`, `validate`, `lowercase`, `trim` and `references`.
+
+The global is not a Mongoose or Sequelize model but the adapter's own, with one API that also answers to the Mongoose and Sequelize names:
+
+```js
+const task = await Task.create({ title: 'Ship it' });
+const open = await Task.where({ done: false })
+  .order('createdAt desc')
+  .limit(20);
+const withOwner = await Task.where({ id }).include('owner').first();
+await task.update({ done: true });
+await Task.destroy({ done: true });
+await henri.model.stores.default.transaction(async () => {
+  /* every query in here joins the transaction */
+});
+```
+
+Validation failures throw a `ValidationError` whose `errors[field].message` is what the generated controllers read, unique violations included. Models can export `beforeValidate`, `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDestroy` and `afterDestroy` hooks, and `associate(models)` declares `belongsTo`, `hasMany` and `hasOne` associations that `include()` loads eagerly. The user model gets the same email, password and roles behaviour as the other adapters, and sessions are stored in a `henri_sessions` table.
+
+Migrations live in `db/migrations` in the drizzle-kit layout, and `henri db` drives them like `rails db`:
+
+```bash
+henri db:status                          # applied and pending migrations
+henri db:generate --name=add-priority    # writes db/migrations/0001_add_priority.sql from the models
+henri db:migrate                         # applies the pending migrations
+henri db:push                            # makes the database match the models, no migration (development)
+```
+
+In development the boot pushes the schema unless the store sets `"sync": false`; in production the boot applies the pending migrations when the store sets `"migrate": true` and warns about them otherwise. `henri db:push` refuses statements that lose data unless `--force` is passed; every command accepts `--store=<name>` and `--json`.
 
 ### SQL adapters
 
