@@ -2,7 +2,7 @@
 title: Mail
 description: Send email with nodemailer through henri.mail.
 sidebar:
-  order: 7
+  order: 8
 ---
 
 henri wraps [nodemailer](https://nodemailer.com). Configure a transport and `henri.mail.send()` is ready.

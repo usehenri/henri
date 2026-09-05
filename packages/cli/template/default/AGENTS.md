@@ -62,13 +62,13 @@ stores (`henri db:generate|migrate|push|status` migrations). Scaffold: Mongoose.
 
 - `req.permit('title', 'body')` picks the allowed fields from query, body and
   params (later wins). Never pass `req.body` to a model.
-- `res.render('/posts/show', { data: { post } })` renders
-  `app/views/pages/posts/show` (`/posts` renders `pages/posts/index`) and
-  answers `{ data, user, paths, ... }` as JSON to `Accept: application/json`.
+- `res.negotiate({ html: () => res.render('/posts/show', { data: { post } }),
+json: () => res.resource(post) })`: the page for browsers, HAL for API
+  clients. `res.collection(posts, { page, perPage, total })` with
+  `req.pagination()` for an index, `{ status: 201 }` sets Location, 204 on
+  destroy. Mutations honour `Idempotency-Key`; rate limits apply outside dev.
 - `res.boom.notFound(message, data)`, `badData` (422), `badRequest`,
-  `unauthorized`, `forbidden`, `conflict`, `notImplemented` answer
-  `{ statusCode, error, message, data }`.
-- `res.format({ html, json, default })`, `res.redirect`, `res.json`: Express 5.
+  `unauthorized`, `forbidden`, `conflict`, `tooManyRequests` answer JSON.
 - `req.user` is the logged-in user or undefined. Log with
   `henri.pen.info|warn|error('scope', ...)`, not `console.log`.
 - `app/controllers/tasks.js` (scaffolded) is the reference implementation.

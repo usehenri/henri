@@ -1,4 +1,5 @@
 const escapeHtml = require('escape-html');
+const { redactUrl } = require('./redact');
 const { isLoopback } = require('../utils');
 const { STATUSES } = require('./boom');
 
@@ -101,7 +102,7 @@ function errorHandler(henri) {
   return (error, req, res, next) => {
     const err = error instanceof Error ? error : new Error(String(error));
     const status = normalizeStatus(err.status || err.statusCode);
-    const where = `${req.method} ${req.originalUrl || req.url}`;
+    const where = `${req.method} ${redactUrl(req.originalUrl || req.url)}`;
 
     if (status >= 500) {
       henri.pen.error('server', where, err.stack || err.message);

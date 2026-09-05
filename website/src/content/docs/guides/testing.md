@@ -2,7 +2,7 @@
 title: Testing
 description: henri test, Vitest and @usehenri/testing.
 sidebar:
-  order: 9
+  order: 10
 ---
 
 Tests run on [Vitest](https://vitest.dev). `henri test` spawns the Vitest installed in the application with `NODE_ENV=test` and exits with its code; `@usehenri/testing` boots the application inside the test worker and binds [supertest](https://github.com/ladjs/supertest) to it. `henri new` sets all of this up; in an existing application:

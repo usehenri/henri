@@ -2,7 +2,7 @@
 title: Workers
 description: Background jobs under app/workers with start and stop hooks.
 sidebar:
-  order: 8
+  order: 9
 ---
 
 Files under `app/workers` (subdirectories included) are loaded when the application boots, in alphabetical order, and reloaded when they change. A worker exports `start(henri)` and `stop(henri)`; `start` is awaited before the next worker starts, `stop` is called on reload and on shutdown. A `name` is used in the logs instead of the file name.

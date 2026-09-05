@@ -106,6 +106,21 @@ res.boom.notFound('No such task', { id: req.params.id });
 
 The React `Form` reads `data.errors` of a `422` and shows each message under its field, and the `RequestError` thrown by `fetch()` exposes `message`, `statusCode` and `data`.
 
+## `res.resource(record, options)` and `res.collection(records, options)`
+
+The JSON answers of an API: the public fields of a record (or a page of records under `_embedded`) with HAL `_links` built from the route helpers and filtered by the user's roles, `application/hal+json` when asked for, a `Location` header on `201`. `req.pagination()` reads `?page=` and `?per_page=` for the collection. See [JSON API](/guides/api/).
+
+## `res.negotiate({ html, json })`
+
+Runs `html` for browsers and `json` for API clients (`application/json`, `application/hal+json`, `application/vnd.henri.v1+json`), which is how a scaffolded controller serves both a page and a HAL answer from one action:
+
+```js
+return res.negotiate({
+  html: () => res.render('/tasks/show', { data: { task } }),
+  json: () => res.resource(task),
+});
+```
+
 ## `res.format(handlers)`
 
 Express's content negotiation. henri's own answers put `json` before `html` so that a client accepting `*/*` (curl, `fetch()` with no `Accept`) gets JSON and only a browser gets HTML; do the same in your controllers when the order matters, and always give a `default`.
