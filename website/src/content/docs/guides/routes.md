@@ -44,7 +44,7 @@ In development, routes pointing to a missing controller answer `501 Not Implemen
 
 ## Roles
 
-Give a route an array of roles and only authenticated users whose `roles` contain every one of them can reach it. Everybody else is redirected to `/login`.
+Give a route an array of roles and only authenticated users whose `roles` contain every one of them can reach it. Denied requests get a `401` (not logged in) or a `403` (missing role) JSON answer; browsers asking for HTML are redirected to `config.user.loginPath` (default `/login`). A route with `roles` in an app without a user model logs a warning at boot and answers `401`.
 
 ## CRUD
 

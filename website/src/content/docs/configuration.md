@@ -27,16 +27,43 @@ The file is validated on boot: a syntax error is reported with its line and colu
 
 ## Keys
 
-| Key        | Default       | Description                                                                                                     |
-| ---------- | ------------- | --------------------------------------------------------------------------------------------------------------- |
-| `port`     | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                 |
-| `renderer` | `template`    | View engine: `react`, `template` (Handlebars) or `vue`. See [Views](/guides/views/).                            |
-| `stores`   |               | Named database stores. Models pick one with their `store` key, or use `default`. See [Models](/guides/models/). |
-| `secret`   |               | Session and JWT secret. Required as soon as you have a user model.                                              |
-| `user`     | `User`        | Name of the model that represents users (login, roles, password hashing).                                       |
-| `baseRole` |               | Role given to every new user.                                                                                   |
-| `graphql`  | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                  |
-| `mail`     |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).              |
+| Key          | Default       | Description                                                                                                        |
+| ------------ | ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `port`       | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                    |
+| `renderer`   | `template`    | View engine: `react`, `template` (Handlebars) or `vue`. See [Views](/guides/views/).                               |
+| `stores`     |               | Named database stores. Models pick one with their `store` key, or use `default`. See [Models](/guides/models/).    |
+| `secret`     |               | Session and JWT secret. Required as soon as you have a user model.                                                 |
+| `user`       | `User`        | Name of the model that represents users (login, roles, password hashing), or an object. See [Users](#users).       |
+| `baseRole`   |               | Role given to every new user.                                                                                      |
+| `trustProxy` | `true`        | Express `trust proxy` setting: `X-Forwarded-*` headers from a reverse proxy are honoured. Set `false` without one. |
+| `csrf`       | `true`        | Set to `false` to disable the CSRF protection described in [Users](#users).                                        |
+| `graphql`    | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                     |
+| `mail`       |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                 |
+
+## Users
+
+Naming a user model adds `email`, `password` (hashed with bcrypt) and `roles` to it and mounts:
+
+- `POST /login`, taking `email` and `password` as JSON or as a form. API clients get `{ user }` back, browsers are redirected to `afterLogin`. On failure: `401` (JSON) or a redirect to `<loginPath>?error=invalid`.
+- `POST /logout`, which destroys the session and answers `{ ok: true }` or redirects to `/`. `GET /logout` is deprecated and does nothing.
+- A session cookie, `henri.sid` (httpOnly, `SameSite=Lax`, `Secure` in production, 30 days), stored in the database of the user model.
+- A CSRF token in the `henri.csrf` cookie. `POST`, `PUT`, `PATCH` and `DELETE` requests that carry a session must send it back in the `X-CSRF-Token` header or a `_csrf` field, otherwise they get a `403`. The React `fetch()` and `hydrate()` helpers do it for you; requests authenticated with a JWT bearer token are exempt.
+
+`user` also accepts an object:
+
+```json
+{
+  "user": {
+    "model": "User",
+    "public": ["name", "avatar"],
+    "loginPath": "/login",
+    "afterLogin": "/",
+    "sessionMaxAge": 2592000000
+  }
+}
+```
+
+`public` lists the fields, besides `id`, `email` and `roles`, that views and JSON answers may see: `henri.user.publicUser(user)` builds that object and nothing else on the user document leaves the server. `loginPath` is where browsers are sent when a route denies them (default `/login`), `afterLogin` where they land after a form login and `sessionMaxAge` the session lifetime in milliseconds.
 
 ## Reading the configuration in your code
 
