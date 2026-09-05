@@ -159,43 +159,45 @@ const insideGit = (dir = process.cwd()) => {
 };
 
 /**
- * Will validate if it's an henri install (more or less)
+ * Does a directory hold a henri application? (a package.json with the
+ * `henri` field and an app/views/pages folder)
  *
- * @param {*} args Fatal or no
- * @returns {boolean|void} If fatal is specified, exit the process
+ * @param {string} [dir=process.cwd()] Directory to check
+ * @returns {boolean} True when it looks like an application
  */
-const validInstall = (args) => {
+const isProject = (dir = process.cwd()) => {
   try {
-    const pkg = require(path.resolve(process.cwd(), 'package.json'));
+    const pkg = fs.readJsonSync(path.resolve(dir, 'package.json'));
 
-    if (pkg && !pkg.henri) {
-      return notHenri(args);
-    }
-    if (!fs.existsSync(path.resolve(process.cwd(), 'app/views/pages'))) {
-      return notHenri(args);
-    }
-
-    return true;
+    return Boolean(
+      pkg && pkg.henri && fs.existsSync(path.resolve(dir, 'app/views/pages'))
+    );
   } catch {
-    return notHenri(args);
+    return false;
   }
 };
 
 /**
- * Abort or return false
+ * Will validate if it's an henri install (more or less)
  *
- * @param {*} args Aguments
- * @returns {boolean|void} Good or not?
+ * @param {*} args Fatal or no
+ * @returns {boolean} Is the current directory an application?
+ * @throws {CliError} NOT_A_PROJECT (exit code 3) when fatal and it is not
  */
-const notHenri = ({ fatal = false } = {}) => {
-  if (fatal) {
-    abort(
-      `
-    Seems like you are not in an henri project.
+const validInstall = ({ fatal = false } = {}) => {
+  if (isProject(process.cwd())) {
+    return true;
+  }
 
-    Aborting...
-    `,
-      true
+  if (fatal) {
+    const { CliError } = require('./errors');
+
+    throw new CliError(
+      'NOT_A_PROJECT',
+      `${process.cwd()} is not an henri project`,
+      {
+        hint: 'Run the command from the root of your application (the folder with package.json and app/), or create one with: henri new <name>',
+      }
     );
   }
 
@@ -307,6 +309,7 @@ module.exports = {
   format,
   helpHeader,
   insideGit,
+  isProject,
   names,
   pluralize,
   readConfig,

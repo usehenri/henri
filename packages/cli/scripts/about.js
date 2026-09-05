@@ -4,37 +4,67 @@ const fs = require('fs');
 
 const { cwd, resolvePackageJson, validInstall } = require('./utils');
 
+const PACKAGES = [
+  '@usehenri/core',
+  '@usehenri/disk',
+  '@usehenri/mongoose',
+  '@usehenri/mysql',
+  '@usehenri/postgresql',
+  '@usehenri/mssql',
+  '@usehenri/react',
+  '@usehenri/inertia',
+  '@usehenri/testing',
+  '@usehenri/mcp',
+  'next',
+  'react',
+  'react-dom',
+  'vite',
+  'vitest',
+  'eslint',
+];
+
+const FOLDERS = {
+  controllers: 'app/controllers',
+  helpers: 'app/helpers',
+  models: 'app/models',
+  views: 'app/views/pages',
+  workers: 'app/workers',
+};
+
 /**
- * Initial function
+ * Print the versions and the content of the application
+ *
+ * @param {object} [args] CLI arguments (--json prints the data as JSON)
  * @return {Promise<void>} Resolves when printed
  */
-const main = async () => {
+const main = async (args = {}) => {
   const data = await getData();
 
+  if (args.json) {
+    console.log(JSON.stringify(data, null, 2));
+
+    return;
+  }
+
+  const show = (value) => (value === null ? 'Not installed' : value);
+  const list = (value) => (value === null ? 'unreachable' : value.join(', '));
+
   line('About your henri setup:', true);
-  line(`henri version:         ${data.cli}`);
+  line(`henri version:         ${data.henri}`);
   line(`Node version:          ${data.node}`);
-  line(`pnpm version:          ${data.pnpm}`);
-  line(`yarn version:          ${data.yarn}`);
-  line(`npm version:           ${data.npm}`);
+  line(`pnpm version:          ${show(data.packageManagers.pnpm)}`);
+  line(`yarn version:          ${show(data.packageManagers.yarn)}`);
+  line(`npm version:           ${show(data.packageManagers.npm)}`);
   line(`henri project:         ${data.project ? 'yes' : 'no'}`, true);
-  line(`@usehenri/core:        ${data.core}`);
-  line(`@usehenri/disk:        ${data.disk}`);
-  line(`@usehenri/mongoose:    ${data.mongoose}`);
-  line(`@usehenri/mysql:       ${data.mysql}`);
-  line(`@usehenri/postgresql:  ${data.postgresql}`);
-  line(`@usehenri/mssql:       ${data.mssql}`);
-  line(`@usehenri/react:       ${data.react}`);
+
+  for (const name of PACKAGES) {
+    line(`${`${name}:`.padEnd(23)}${show(data.packages[name])}`);
+  }
+
   line('');
-  line(`next:                  ${data.next}`);
-  line(`nuxt:                  ${data.nuxt}`);
-  line(`react:                 ${data.reactLib}`);
-  line(`react-dom:             ${data.reactDom}`);
-  line('');
-  line(`models:                ${data.models}`);
-  line(`views:                 ${data.views}`);
-  line(`controllers:           ${data.controllers}`);
-  line(`helpers:               ${data.helpers}`);
+  for (const name of Object.keys(FOLDERS)) {
+    line(`${`${name}:`.padEnd(23)}${list(data.app[name])}`);
+  }
 };
 
 /**
@@ -43,40 +73,27 @@ const main = async () => {
  * @returns {Promise<object>} The collected information
  */
 const getData = async () => {
-  const [node, pnpm, yarn, npm, models, views, controllers, helpers] =
-    await Promise.all([
-      run('node -v'),
-      run('pnpm -v'),
-      run('yarn -v'),
-      run('npm -v'),
-      ls('app/models'),
-      ls('app/views/pages'),
-      ls('app/controllers'),
-      ls('app/helpers'),
-    ]);
+  const [pnpm, yarn, npm] = await Promise.all([
+    run('pnpm -v'),
+    run('yarn -v'),
+    run('npm -v'),
+  ]);
+  const app = {};
+
+  for (const [name, folder] of Object.entries(FOLDERS)) {
+    app[name] = ls(folder);
+  }
 
   return {
-    cli: require('../package.json').version,
-    controllers,
-    core: installed('@usehenri/core'),
-    disk: installed('@usehenri/disk'),
-    helpers,
-    models,
-    mongoose: installed('@usehenri/mongoose'),
-    mssql: installed('@usehenri/mssql'),
-    mysql: installed('@usehenri/mysql'),
-    next: installed('next'),
-    node,
-    npm,
-    nuxt: installed('nuxt'),
-    pnpm,
-    postgresql: installed('@usehenri/postgresql'),
+    app,
+    cwd,
+    henri: require('../package.json').version,
+    node: process.version,
+    packageManagers: { npm, pnpm, yarn },
+    packages: Object.fromEntries(
+      PACKAGES.map((name) => [name, installed(name)])
+    ),
     project: validInstall({ fatal: false }),
-    react: installed('@usehenri/react'),
-    reactDom: installed('react-dom'),
-    reactLib: installed('react'),
-    views,
-    yarn,
   };
 };
 
@@ -97,7 +114,7 @@ const line = (text, pad) => {
  * Runs the command and returns its output
  *
  * @param {*} cmd Command to run
- * @returns {Promise<string>} Output or "Not installed"
+ * @returns {Promise<string|null>} Output or null when not installed
  */
 const run = (cmd) => {
   return new Promise((resolve) => {
@@ -107,41 +124,39 @@ const run = (cmd) => {
     const output = spawn(program, args);
 
     output.stdout.on('data', (out) => (data += out));
-    output.on('close', () =>
-      resolve((data && data.toString().trim()) || 'Not installed')
-    );
-    output.on('error', () => resolve('Not installed'));
+    output.on('close', () => resolve((data && data.toString().trim()) || null));
+    output.on('error', () => resolve(null));
   });
 };
 
 /**
- * Lists the folder content
+ * Lists the folder content (file names without the extension)
  *
  * @param {*} folder Folder
- * @returns {Promise<string>} Comma separated entries
+ * @returns {Array<string>|null} The entries, null when unreachable
  */
 const ls = (folder) => {
-  return new Promise((resolve) => {
-    fs.readdir(path.resolve(cwd, folder), (err, files) => {
-      if (err) {
-        return resolve('unreachable');
-      }
-      files = files.filter((val) => val[0] !== '.');
-      resolve(files.map((val) => val.replace('.js', '')).join(', '));
-    });
-  });
+  try {
+    return fs
+      .readdirSync(path.resolve(cwd, folder))
+      .filter((val) => val[0] !== '.')
+      .map((val) => val.replace(/\.jsx?$/, ''));
+  } catch {
+    return null;
+  }
 };
 
 /**
  * Version of a package installed in the current project
  *
  * @param {string} name Package name
- * @returns {string} Package version or "Not installed"
+ * @returns {string|null} Package version or null when not installed
  */
 const installed = (name) => {
   const pkg = resolvePackageJson(name, cwd);
 
-  return (pkg && pkg.version) || 'Not installed';
+  return (pkg && pkg.version) || null;
 };
 
 module.exports = main;
+module.exports.getData = getData;

@@ -3,8 +3,16 @@ const path = require('path');
 const util = require('util');
 const handlebars = require('handlebars');
 
+const { CliError } = require('./errors');
 const { usage } = require('./help');
-const { format, names, readRoutes, validInstall } = require('./utils');
+const Report = require('./report');
+const {
+  format,
+  names,
+  readConfig,
+  readRoutes,
+  validInstall,
+} = require('./utils');
 
 /**
  * The attribute types of the henri model format. Adapters map them to
@@ -25,14 +33,21 @@ const TYPES = [
 const VIEWS = ['index', '_form', 'new', 'edit', 'show'];
 
 /**
+ * Generators that take no name
+ */
+const NAMELESS = ['agents'];
+
+/**
  * Initial function
  *
  * @param {*} args command line arguments
  * @return {Promise<void>} Resolves when done
+ * @throws {CliError} USAGE for an unknown generator or a missing name
  */
 const main = async (args) => {
   const [cmd, target, ...rest] = args._;
-  const opts = { force: args.force === true };
+  const report = new Report({ command: 'generate', json: args.json === true });
+  const opts = { force: args.force === true, report };
 
   if (!cmd) {
     console.log(usage('generate'));
@@ -43,18 +58,25 @@ const main = async (args) => {
   const generator = generators[cmd];
 
   if (!generator) {
-    throw new Error(
-      `Unknown generator "${cmd}". Available: ${Object.keys(generators).join(', ')}`
-    );
+    throw new CliError('USAGE', `Unknown generator "${cmd}"`, {
+      hint: `Available: ${Object.keys(generators).join(', ')}`,
+    });
   }
 
-  if (!target) {
-    throw new Error(`Missing name: henri generate ${cmd} <name>`);
+  if (!target && !NAMELESS.includes(cmd)) {
+    throw new CliError('USAGE', `Missing name: henri generate ${cmd} <name>`, {
+      hint: 'henri generate --help',
+    });
   }
 
   validInstall({ fatal: true });
 
+  report.target = cmd;
+  report.name = target || null;
+
   await generator(target, rest, opts);
+
+  report.print();
 };
 
 /**
@@ -62,7 +84,7 @@ const main = async (args) => {
  *
  * @param {string[]} [attributes=[]] Attributes as typed on the command line
  * @returns {object} The schema ({ name: { type, required } })
- * @throws on an unknown type
+ * @throws {CliError} USAGE on an unknown type
  */
 const parseAttributes = (attributes = []) => {
   const schema = {};
@@ -84,12 +106,18 @@ const parseAttributes = (attributes = []) => {
     const type = rawType.toLowerCase() || 'string';
 
     if (!name) {
-      throw new Error(`Invalid attribute "${attribute}": expected name:type`);
+      throw new CliError(
+        'USAGE',
+        `Invalid attribute "${attribute}": expected name:type`,
+        { hint: 'ex: title:string! body:text' }
+      );
     }
 
     if (!TYPES.includes(type)) {
-      throw new Error(
-        `Unknown type "${type}" for attribute "${name}". Valid types: ${TYPES.join(', ')}`
+      throw new CliError(
+        'USAGE',
+        `Unknown type "${type}" for attribute "${name}". Valid types: ${TYPES.join(', ')}`,
+        { hint: 'ex: title:string! body:text' }
       );
     }
 
@@ -104,7 +132,7 @@ const parseAttributes = (attributes = []) => {
  *
  * @param {string} name Model name (singular, ex: Post)
  * @param {string[]} attributes Attributes (name:type!)
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @return {Promise<boolean>} True when written
  */
 const model = async (name, attributes = [], opts = {}) => {
@@ -114,8 +142,8 @@ const model = async (name, attributes = [], opts = {}) => {
   const code = `
 // Models are autoloaded from app/models and exposed globally (here: \`${doc}\`).
 // Types: ${TYPES.join(', ')}.
-// Keys: type, required, default, enum, unique (anything else is handed to
-// the adapter as is).
+// Keys: type, required, default, enum, unique, index (anything else is
+// handed to the adapter as is).
 module.exports = {
   options: { timestamps: true },
   schema: ${util.inspect(schema, { depth: 6 })},
@@ -131,7 +159,7 @@ module.exports = {
  *
  * @param {string} name Controller name (ex: locations)
  * @param {string[]} actions Actions (ex: index show)
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @return {Promise<boolean>} True when written
  */
 const controller = async (name, actions = [], opts = {}) => {
@@ -159,7 +187,8 @@ const controller = async (name, actions = [], opts = {}) => {
           `get /${lower}/${action}`,
           `${lower}#${action}`,
         ])
-      )
+      ),
+      opts
     );
   }
 
@@ -171,7 +200,7 @@ const controller = async (name, actions = [], opts = {}) => {
  *
  * @param {string} name Worker name
  * @param {string[]} rest Unused
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @return {Promise<boolean>} True when written
  */
 const worker = async (name, rest = [], opts = {}) => {
@@ -207,7 +236,7 @@ module.exports = {
  *
  * @param {string} name Test name (ex: tasks, the path it requests)
  * @param {string[]} rest Unused
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @return {Promise<boolean>} True when written
  */
 const test = async (name, rest = [], opts = {}) => {
@@ -234,11 +263,52 @@ describe('${lower}', () => {
 };
 
 /**
+ * Writes AGENTS.md, CLAUDE.md and .mcp.json (the files coding agents read)
+ * in an existing application
+ *
+ * @param {string} [name] Unused (the application name comes from package.json)
+ * @param {string[]} [rest] Unused
+ * @param {object} [opts] { force, report }
+ * @return {Promise<boolean>} True when at least one file was written
+ */
+const agents = async (name, rest = [], opts = {}) => {
+  const { writeAgentFiles } = require('./agents');
+  const report = opts.report || new Report();
+  const cwd = process.cwd();
+  let appName = path.basename(cwd);
+
+  try {
+    appName = fs.readJsonSync(path.join(cwd, 'package.json')).name || appName;
+  } catch {
+    // The folder name will do
+  }
+
+  const renderer = String(readConfig(cwd).renderer || 'react').toLowerCase();
+  const { created, skipped } = writeAgentFiles(cwd, {
+    force: opts.force === true,
+    name: appName,
+    renderer,
+  });
+
+  for (const file of created) {
+    report.add('created', file);
+    report.log(`> created ${file}`);
+  }
+
+  for (const file of skipped) {
+    report.add('skipped', file);
+    report.log(`> skipped ${file}: exists (use --force to overwrite)`);
+  }
+
+  return created.length > 0;
+};
+
+/**
  * Scaffold builder: model, resources controller, routes and views
  *
  * @param {string} name Model name (singular, ex: Post)
  * @param {string[]} attributes Attributes (name:type!)
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @return {Promise<void>} Resolves when done
  */
 const scaffold = async (name, attributes = [], opts = {}) => {
@@ -251,7 +321,7 @@ const scaffold = async (name, attributes = [], opts = {}) => {
  *
  * @param {string} name Model name (singular, ex: Post)
  * @param {string[]} attributes Attributes (name:type!)
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @return {Promise<void>} Resolves when done
  */
 const resources = async (name, attributes = [], opts = {}) => {
@@ -265,7 +335,7 @@ const resources = async (name, attributes = [], opts = {}) => {
     generator.resources(resource),
     opts
   );
-  await addRoutes({ [`resources ${resource.plural}`]: resource.plural });
+  await addRoutes({ [`resources ${resource.plural}`]: resource.plural }, opts);
   await views(resource, opts);
 };
 
@@ -274,7 +344,7 @@ const resources = async (name, attributes = [], opts = {}) => {
  *
  * @param {string} name Model name (singular, ex: Post)
  * @param {string[]} attributes Attributes (name:type!)
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @return {Promise<void>} Resolves when done
  */
 const crud = async (name, attributes = [], opts = {}) => {
@@ -289,14 +359,14 @@ const crud = async (name, attributes = [], opts = {}) => {
     generator.crud(resource),
     opts
   );
-  await addRoutes({ [`crud ${resource.plural}`]: resource.plural });
+  await addRoutes({ [`crud ${resource.plural}`]: resource.plural }, opts);
 };
 
 /**
  * Handle views processing
  *
  * @param {object} resource { doc, lower, plural, keys }
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @returns {Promise<void>} Resolves when written
  */
 const views = async (resource, opts = {}) => {
@@ -318,7 +388,7 @@ const extractKeys = (args = []) =>
  * Compile one view template into app/views/pages/<plural>/<view>.js
  *
  * @param {object} resource { doc, lower, plural, keys, view, renderer }
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @return {Promise<boolean>} True when written
  */
 const compileView = async (
@@ -344,9 +414,11 @@ const compileView = async (
  * Add routes to config/routes.js (existing keys are overwritten)
  *
  * @param {object} entries { 'verb /path': 'controller#action', ... }
+ * @param {object} [opts] { report }
  * @return {Promise<void>} Resolves when written
  */
-const addRoutes = async (entries) => {
+const addRoutes = async (entries, opts = {}) => {
+  const report = opts.report || new Report();
   const location = path.join(process.cwd(), 'config', 'routes.js');
   const actual = Object.assign(readRoutes(process.cwd()), entries);
 
@@ -356,7 +428,8 @@ const addRoutes = async (entries) => {
   );
 
   for (const key of Object.keys(entries)) {
-    console.log(`> added route "${key}" @ config/routes.js`);
+    report.add('routes.added', key);
+    report.log(`> added route "${key}" @ config/routes.js`);
   }
 };
 
@@ -367,15 +440,18 @@ const addRoutes = async (entries) => {
  * @param {string} dir Target directory, relative to the project
  * @param {string} file Target file name
  * @param {string} code The code that should be written in the file
- * @param {object} [opts] { force }
+ * @param {object} [opts] { force, report }
  * @return {Promise<boolean>} True when the file was written
  */
-const output = async (type, dir, file, code, { force = false } = {}) => {
+const output = async (type, dir, file, code, opts = {}) => {
+  const { force = false } = opts;
+  const report = opts.report || new Report();
   const relative = path.join(dir, file);
   const location = path.join(process.cwd(), relative);
 
   if (fs.existsSync(location) && !force) {
-    console.log(
+    report.add('skipped', relative);
+    report.log(
       `> skipped ${type} "${file}": ${relative} exists (use --force to overwrite)`
     );
 
@@ -383,12 +459,21 @@ const output = async (type, dir, file, code, { force = false } = {}) => {
   }
 
   fs.outputFileSync(location, await format(code));
-  console.log(`> created ${type} "${file}" @ ${relative}`);
+  report.add('created', relative);
+  report.log(`> created ${type} "${file}" @ ${relative}`);
 
   return true;
 };
 
-const generators = { controller, crud, model, scaffold, test, worker };
+const generators = {
+  agents,
+  controller,
+  crud,
+  model,
+  scaffold,
+  test,
+  worker,
+};
 
 module.exports = main;
 module.exports.TYPES = TYPES;

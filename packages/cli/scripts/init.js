@@ -2,7 +2,15 @@ const spawn = require('cross-spawn');
 const fs = require('fs-extra');
 const path = require('path');
 
+const { writeAgentFiles } = require('./agents');
+const { CliError } = require('./errors');
 const { detectPackageManager, format, insideGit, version } = require('./utils');
+
+/**
+ * Template files written by writeAgentFiles (with the placeholders filled)
+ * instead of the plain copy
+ */
+const AGENT_FILES = ['AGENTS.md', 'CLAUDE.md', 'mcp.json'];
 
 /**
  * Checks if a file exists
@@ -28,12 +36,9 @@ const selectRenderer = (args) => {
   const wanted = String(args.renderer || args.r || 'react').toLowerCase();
 
   if (!RENDERERS[wanted]) {
-    console.log(
-      `
-      Unknown renderer '${wanted}'. Valid values: ${Object.keys(RENDERERS).join(', ')}
-    `
-    );
-    process.exit(1);
+    throw new CliError('USAGE', `Unknown renderer '${wanted}'`, {
+      hint: `Valid values: ${Object.keys(RENDERERS).join(', ')}`,
+    });
   }
 
   renderer = wanted;
@@ -69,13 +74,11 @@ const main = async (args, name) => {
   console.log('');
 
   if (check('app') && !force) {
-    console.log(
-      `
-      It looks like you already have an 'app' folder. Use --force or -f to
-      copy the new structure...
-    `
+    throw new CliError(
+      'EXISTS',
+      "It looks like you already have an 'app' folder",
+      { hint: 'Use --force or -f to copy the new structure anyway' }
     );
-    process.exit(1);
   }
 
   const pm = detectPackageManager(cwd);
@@ -91,6 +94,7 @@ const main = async (args, name) => {
   }
 
   createReadme(projectName, pm);
+  createAgentFiles(projectName, force);
   initGit(skipGit);
 
   if (!skipInstall) {
@@ -103,9 +107,37 @@ const main = async (args, name) => {
     You can start coding right away with:
 
     # cd ${name || '.'}${skipInstall ? ` && ${pm} install` : ''} && henri server
+
+    Coding agents: AGENTS.md holds the conventions of the app (CLAUDE.md
+    points to it) and .mcp.json starts the henri MCP server (henri mcp).
+    Check the app anytime with: henri doctor
   `);
 
   !skipInstall && console.log(`    (dependencies were installed with ${pm})\n`);
+};
+
+/**
+ * Writes AGENTS.md (the conventions for coding agents, with the name and
+ * the renderer filled in), CLAUDE.md and .mcp.json
+ *
+ * @param {string} name Project name
+ * @param {boolean} force Overwrite existing files
+ * @returns {void}
+ */
+const createAgentFiles = (name, force) => {
+  console.log(
+    ' - Writing AGENTS.md, CLAUDE.md and .mcp.json for coding agents...'
+  );
+
+  const { skipped } = writeAgentFiles(process.cwd(), {
+    force,
+    name,
+    renderer,
+  });
+
+  for (const file of skipped) {
+    console.log(`   (${file} exists, kept)`);
+  }
 };
 
 /**
@@ -289,7 +321,7 @@ const copyTemplate = (pm) => {
     filter: (src) => {
       const base = path.basename(src);
 
-      if (base === '.gitignore') {
+      if (base === '.gitignore' || AGENT_FILES.includes(base)) {
         return false;
       }
 

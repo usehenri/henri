@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 
 const { commands, version } = require('../package.json');
 const { cleanup, henri, tmpdir } = require('./helpers');
@@ -78,10 +79,10 @@ describe('the cli', () => {
   });
 
   describe('errors', () => {
-    test('rejects an unknown command', () => {
+    test('rejects an unknown command with the usage exit code', () => {
       const { status, stdout, stderr } = henri(['nope'], { cwd: dir });
 
-      expect(status).toBe(1);
+      expect(status).toBe(2);
       expect(stderr).toContain('Unknown command "nope"');
       expect(stdout).toContain('Usage');
     });
@@ -91,21 +92,45 @@ describe('the cli', () => {
         cwd: dir,
       });
 
-      expect(status).toBe(1);
+      expect(status).toBe(2);
       expect(stderr).toContain(
         'henri generate failed: Unknown generator "nope"'
       );
-      expect(stderr).toContain('--debug=henri:*');
+      expect(stderr).toContain('Available: agents, controller');
       expect(stdout).not.toContain('Usage');
     });
 
-    test('refuses to generate outside of a project', () => {
-      const { status, stdout } = henri(['generate', 'model', 'Thing'], {
+    test('prints the debug hint for unexpected failures', () => {
+      const app = path.join(dir, 'broken');
+
+      fs.mkdirSync(path.join(app, 'app', 'views', 'pages'), {
+        recursive: true,
+      });
+      fs.mkdirSync(path.join(app, 'config'));
+      fs.writeFileSync(
+        path.join(app, 'package.json'),
+        JSON.stringify({ henri: true, name: 'broken' })
+      );
+      fs.writeFileSync(
+        path.join(app, 'config', 'routes.js'),
+        'module.exports = {'
+      );
+
+      const { status, stderr } = henri(['routes'], { cwd: app });
+
+      expect(status).toBe(1);
+      expect(stderr).toContain('henri routes failed:');
+      expect(stderr).toContain('--debug=henri:*');
+    });
+
+    test('refuses to generate outside of a project with exit code 3', () => {
+      const { status, stderr } = henri(['generate', 'model', 'Thing'], {
         cwd: dir,
       });
 
-      expect(status).toBe(1);
-      expect(stdout).toContain('not in an henri project');
+      expect(status).toBe(3);
+      expect(stderr).toContain('is not an henri project');
+      expect(stderr).toContain('henri new <name>');
     });
   });
 });

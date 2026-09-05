@@ -14,6 +14,7 @@
       "@usehenri/core",
       "@usehenri/disk",
       "@usehenri/inertia",
+      "@usehenri/mcp",
       "@usehenri/mongoose",
       "@usehenri/mssql",
       "@usehenri/mysql",

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "henri": {
+      "command": "henri",
+      "args": ["mcp"]
+    }
+  }
+}
