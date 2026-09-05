@@ -1,0 +1,46 @@
+{
+  "name": "@usehenri/mcp",
+  "version": "1.0.2",
+  "description": "MCP server exposing a henri application to coding agents: routes, models, controllers, config, generators, tests, lint and doctor",
+  "keywords": [
+    "henri",
+    "mcp",
+    "model-context-protocol",
+    "agent"
+  ],
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "main": "index.js",
+  "bin": {
+    "henri-mcp": "bin/henri-mcp.js"
+  },
+  "files": [
+    "bin",
+    "index.js",
+    "src",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@usehenri/cli": "workspace:^",
+    "zod": "^4.5.4"
+  }
+}
