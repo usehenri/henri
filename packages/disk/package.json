@@ -14,10 +14,12 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "files": [
+    "index.js"
+  ],
   "dependencies": {
     "@usehenri/mongoose": "workspace:^",
     "debug": "^4.4.3",
-    "md5": "^2.3.0",
     "mongodb-memory-server": "^11.2.0"
   },
   "engines": {

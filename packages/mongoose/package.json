@@ -14,6 +14,12 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "files": [
+    "index.js",
+    "schema.js",
+    "types.js",
+    "utils.js"
+  ],
   "dependencies": {
     "connect-mongo": "^6.0.0",
     "debug": "^4.4.3",
@@ -27,6 +33,7 @@
     "express-session": "^1.17.1"
   },
   "devDependencies": {
-    "express-session": "^1.19.0"
+    "express-session": "^1.19.0",
+    "mongodb-memory-server": "^11.2.0"
   }
 }
