@@ -17,13 +17,18 @@ class Postgresql extends Sql {
   constructor(name, config, thisHenri) {
     super(name, config, thisHenri);
 
-    if (!config.url) {
-      thisHenri.pen.fatal('postgresql', `Missing url or host in store ${name}`);
-    }
+    const { url, adapter, ...opts } = config;
 
     this.adapterName = 'postgresql';
 
-    this.connector = new this.Sequelize(config.url, {
+    if (!url) {
+      thisHenri.pen.fatal('postgresql', `Missing url or host in store ${name}`);
+
+      return;
+    }
+
+    this.connector = new this.Sequelize(url, {
+      ...opts,
       dialectModulePath: require.resolve('pg'),
     });
   }
