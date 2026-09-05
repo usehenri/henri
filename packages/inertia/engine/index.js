@@ -70,12 +70,29 @@ const list = (value) =>
  * @returns {string} the component name
  */
 function componentName(route = '/') {
-  const name = String(route)
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/\/+$/, '');
+  const name = trimSlashes(String(route).replace(/\\/g, '/'));
 
   return name === '' ? 'index' : name;
+}
+
+/**
+ * Removes the leading and trailing slashes of a path
+ *
+ * @param {string} value the path
+ * @returns {string} the path without its outer slashes
+ */
+function trimSlashes(value) {
+  let start = 0;
+  let end = value.length;
+
+  while (start < end && value[start] === '/') {
+    start += 1;
+  }
+  while (end > start && value[end - 1] === '/') {
+    end -= 1;
+  }
+
+  return value.slice(start, end);
 }
 
 /**

@@ -238,7 +238,10 @@ function transform(source) {
   );
 
   if (usesVi && usesEsm && esmImport && !/\bvi\b/.test(esmImport[1])) {
-    output = output.replace(esmImport[0], esmImport[0].replace('{', '{ vi,'));
+    const brace = esmImport[0].indexOf('{');
+    const patched = `${esmImport[0].slice(0, brace + 1)} vi,${esmImport[0].slice(brace + 1)}`;
+
+    output = output.replace(esmImport[0], patched);
     changes.push('added vi to the existing vitest import');
   } else if (usesVi && usesEsm && !esmImport) {
     const statement = "import { vi } from 'vitest';\n";
