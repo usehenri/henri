@@ -146,6 +146,15 @@ module.exports = [
     },
   },
   {
+    // The seed fixture is a henri application: its models are globals
+    files: ['packages/cli/__tests__/fixtures/seed-app/**/*.js'],
+    languageOptions: {
+      globals: {
+        Task: 'readonly',
+      },
+    },
+  },
+  {
     // CLI output, maintenance scripts and tests print on purpose
     files: [
       'packages/cli/scripts/**/*.js',

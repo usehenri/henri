@@ -5,23 +5,33 @@ const { CliError } = require('../scripts/errors');
 const { seed, sow } = require('../scripts/db');
 const { cleanup, exists, henri, scaffold, tmpdir } = require('./helpers');
 
-// The demo application of the workspace: a real henri app on the disk
-// (mongoose) adapter, with @usehenri/* linked, so `henri db:seed` can be
-// run against it for real
+// A minimal application on a drizzle sqlite store: seeding it is a full
+// boot, without a database server to start
+const fixture = path.join(__dirname, 'fixtures', 'seed-app');
+
+// The demo application of the workspace, on the disk (mongoose) adapter:
+// db:seed must work on every adapter, not only on the drizzle one
 const demo = path.resolve(__dirname, '../../demo');
 
 /**
- * Runs the henri binary inside the demo application
+ * Core resolves `@usehenri/drizzle` from the application directory: link
+ * the workspace package into the fixture's node_modules (ignored by git)
  *
- * @param {string[]} args Arguments
- * @returns {object} The spawn result
+ * @returns {void}
  */
-const inDemo = (args) =>
-  henri(args, {
-    cwd: demo,
-    env: { ...process.env, NODE_ENV: 'test' },
-    timeout: 120000,
-  });
+const linkAdapter = () => {
+  const target = path.join(fixture, 'node_modules', '@usehenri', 'drizzle');
+
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+
+  if (!fs.existsSync(target)) {
+    fs.symlinkSync(
+      path.resolve(__dirname, '../../drizzle'),
+      target,
+      'junction'
+    );
+  }
+};
 
 describe('henri db', () => {
   describe('usage', () => {
@@ -165,77 +175,86 @@ describe('henri db', () => {
     });
   });
 
-  describe('seeding a real application (disk adapter)', () => {
+  describe('seeding a real application', () => {
     let dir;
-    let file;
     let report;
 
     beforeAll(() => {
+      linkAdapter();
       dir = tmpdir('henri-seed-run-');
-      file = path.join(dir, 'seeds.js');
       report = path.join(dir, 'report.json');
-
-      fs.writeFileSync(
-        file,
-        `const fs = require('fs');
-
-// The idempotent idiom of the documentation
-const plant = async () => {
-  const existing = await Artwork.findOne({ title: 'Seeded' });
-
-  if (!existing) {
-    await Artwork.create({ title: 'Seeded', year: 2026 });
-  }
-};
-
-module.exports = async (henri) => {
-  await plant();
-  await plant();
-
-  fs.writeFileSync(
-    ${JSON.stringify(report)},
-    JSON.stringify({
-      count: await Artwork.countDocuments({ title: 'Seeded' }),
-      henri: typeof henri.stop === 'function',
-      models: typeof Artwork,
-    })
-  );
-};
-`
-      );
     });
 
     afterAll(() => {
       cleanup(dir);
     });
 
-    test('runs the seeds with the models loaded', () => {
-      const first = inDemo(['db:seed', `--file=${file}`, '--json']);
+    test('runs db/seeds.js with the models loaded (drizzle, sqlite)', () => {
+      const { status, stdout } = henri(['db:seed', '--json'], {
+        cwd: fixture,
+        env: { ...process.env, HENRI_SEED_REPORT: report },
+        timeout: 120000,
+      });
 
-      expect(first.status).toBe(0);
-      expect(JSON.parse(first.stdout)).toMatchObject({
+      expect(status).toBe(0);
+      expect(JSON.parse(stdout)).toMatchObject({
         command: 'seed',
-        file,
+        file: path.join('db', 'seeds.js'),
         ok: true,
       });
+      // The seed file runs its find-or-create twice: one row, no duplicate,
+      // and createdAt is there without the model asking for it
       expect(JSON.parse(fs.readFileSync(report, 'utf8'))).toEqual({
         count: 1,
         henri: true,
-        models: 'function',
+        timestamps: true,
       });
-
-      // The seed file runs its find-or-create twice: one row, no duplicate
-      const second = inDemo(['db:seed', `--file=${file}`, '--json']);
-
-      expect(second.status).toBe(0);
-      expect(JSON.parse(fs.readFileSync(report, 'utf8')).count).toBe(1);
     });
 
     test('prints a human readable line without --json', () => {
-      const { status, stdout } = inDemo(['db:seed', `--file=${file}`]);
+      const { status, stdout } = henri(['db:seed'], {
+        cwd: fixture,
+        timeout: 120000,
+      });
 
       expect(status).toBe(0);
-      expect(stdout).toContain('Seeded from');
+      expect(stdout).toContain(`Seeded from ${path.join('db', 'seeds.js')}`);
+    });
+
+    test('seeds the mongoose adapter too', () => {
+      const file = path.join(dir, 'demo-seeds.js');
+
+      fs.writeFileSync(
+        file,
+        `const fs = require('fs');
+
+module.exports = async () => {
+  const existing = await Artwork.findOne({ title: 'Seeded' });
+
+  if (!existing) {
+    await Artwork.create({ title: 'Seeded', year: 2026 });
+  }
+
+  fs.writeFileSync(
+    ${JSON.stringify(report)},
+    JSON.stringify({ count: await Artwork.countDocuments() })
+  );
+};
+`
+      );
+
+      const { status, stdout } = henri(
+        ['db:seed', `--file=${file}`, '--json'],
+        {
+          cwd: demo,
+          env: { ...process.env, NODE_ENV: 'test' },
+          timeout: 120000,
+        }
+      );
+
+      expect(status).toBe(0);
+      expect(JSON.parse(stdout)).toMatchObject({ command: 'seed', ok: true });
+      expect(JSON.parse(fs.readFileSync(report, 'utf8')).count).toBe(1);
     });
   }, 180000);
 });

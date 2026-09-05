@@ -1,0 +1,10 @@
+{
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "sqlite",
+      "url": ":memory:"
+    }
+  },
+  "secret": "seeds-are-idempotent"
+}
