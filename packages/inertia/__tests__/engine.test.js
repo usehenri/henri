@@ -128,6 +128,65 @@ describe('inertia engine', () => {
       expect(page.props.data).toEqual({});
     });
 
+    test('reads the csrf token from henri (string) or the view options', () => {
+      const { engine, henri } = ready();
+
+      dirs.push(henri.dir);
+
+      // Core's csrf middleware: req.csrfToken is a string
+      expect(
+        engine.page(fakeReq('/', { csrfToken: 'from-middleware' }), '/').props
+          .csrf
+      ).toBe('from-middleware');
+      // Core's router: req._henri.csrf
+      expect(
+        engine.page(
+          fakeReq('/', {
+            _henri: { csrf: 'from-router' },
+            csrfToken: 'from-middleware',
+          }),
+          '/'
+        ).props.csrf
+      ).toBe('from-router');
+      // The view options win
+      expect(
+        engine.page(fakeReq('/', { _henri: { csrf: 'from-router' } }), '/', {
+          csrf: 'from-opts',
+        }).props.csrf
+      ).toBe('from-opts');
+      expect(engine.page(fakeReq('/'), '/').props.csrf).toBeNull();
+    });
+
+    test('hands the csrf token to the Inertia client as a cookie', async () => {
+      const { engine, henri } = ready();
+
+      dirs.push(henri.dir);
+
+      const withToken = fakeRes();
+
+      await engine.render(
+        fakeReq('/', {
+          csrfToken: () => 'token',
+          headers: { 'x-inertia': 'true', 'x-inertia-version': 'v1' },
+        }),
+        withToken,
+        '/',
+        OPTS
+      );
+
+      expect(withToken.cookies['XSRF-TOKEN']).toEqual({
+        options: { path: '/', sameSite: 'lax', secure: false },
+        value: 'token',
+      });
+      expect(withToken.body.props.csrf).toBe('token');
+
+      const without = fakeRes();
+
+      await engine.render(fakeReq('/'), without, '/', OPTS);
+
+      expect(without.cookies).toEqual({});
+    });
+
     test('prefers the errors set with res.inertia.errors()', () => {
       const { engine, henri } = ready();
 

@@ -93,6 +93,12 @@ function fakeRes() {
   return {
     body: null,
     calls: [],
+    cookie(name, value, options) {
+      this.cookies[name] = { options, value };
+
+      return this;
+    },
+    cookies: {},
     end() {
       this.calls.push(['end']);
 
