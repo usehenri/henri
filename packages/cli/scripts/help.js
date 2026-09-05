@@ -90,13 +90,18 @@ const COMMANDS = [
   },
   {
     description: [
-      'Boots the models only (no views, no workers) and drives the migrations',
-      'of a store. Available with the drizzle adapter; the migrations live in',
-      'db/migrations (drizzle-kit layout). In development the server pushes',
-      'the schema at boot unless the store sets "sync": false; in production',
-      'it applies the migrations when the store sets "migrate": true.',
+      'Boots the models only (no views, no workers) and drives the database.',
+      'seed runs db/seeds.js on any adapter; the migration commands need the',
+      'drizzle adapter and its db/migrations folder (drizzle-kit layout). In',
+      'development the server pushes the schema at boot unless the store sets',
+      '"sync": false; in production it applies the migrations when the store',
+      'sets "migrate": true.',
     ],
     examples: [
+      {
+        command: 'henri db:seed',
+        description: 'Runs db/seeds.js with the models loaded',
+      },
       {
         command: 'henri db:generate --name=add-priority',
         description: 'Writes db/migrations/0001_add_priority.sql',
@@ -117,14 +122,23 @@ const COMMANDS = [
         flag: '--name=<label>',
       },
       {
+        description: 'seed: the file to run (default: db/seeds.js)',
+        flag: '--file=<path>',
+      },
+      {
         description: 'push: apply statements that lose data',
         flag: '--force',
       },
       { description: 'print the result as JSON', flag: '--json' },
     ],
     name: 'db',
-    summary: 'migrations of a drizzle store',
+    summary: 'seeds and migrations of a store',
     targets: [
+      {
+        description:
+          'run db/seeds.js with the models loaded (--file=<path> for another file)',
+        name: 'seed',
+      },
       {
         description: 'the applied and pending migrations of db/migrations',
         name: 'status',
@@ -142,7 +156,7 @@ const COMMANDS = [
       },
     ],
     usage: [
-      'henri db <command> [--store=<name>] [--name=<label>] [--force] [--json]',
+      'henri db <command> [--store=<name>] [--name=<label>] [--file=<path>] [--force] [--json]',
       'henri db:<command>',
     ],
   },

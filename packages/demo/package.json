@@ -3,6 +3,7 @@
   "private": true,
   "description": "test fixture for @usehenri/core",
   "onboard": true,
+  "henri": "1.1.0",
   "version": "0.0.0",
   "dependencies": {
     "@usehenri/core": "workspace:^",

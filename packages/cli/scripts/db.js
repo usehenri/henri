@@ -1,8 +1,14 @@
+const path = require('path');
+const fs = require('fs');
+
 const { CliError } = require('./errors');
 const { usage } = require('./help');
 const { validInstall } = require('./utils');
 
-const COMMANDS = ['generate', 'migrate', 'push', 'status'];
+const COMMANDS = ['generate', 'migrate', 'push', 'seed', 'status'];
+
+// Rails' db/seeds.rb
+const SEEDS = path.join('db', 'seeds.js');
 
 /**
  * Prefer the @usehenri/core the project depends on and fall back to the
@@ -21,23 +27,43 @@ const resolveHenri = () => {
 };
 
 /**
- * Boots henri with the models only (runlevel 3, no views, no workers, no
- * schema sync) and returns the store
+ * Boots henri with the models only (runlevel 3, no views, no workers)
  *
- * @param {string} name The store name
- * @returns {Promise<{ henri: object, store: object }>} The instance and the store
- * @throws {CliError} USAGE when the store is unknown, FAILED when it has no migrations
+ * The migration commands skip the schema sync of the boot (they are the
+ * ones driving it); `henri db:seed` keeps it, so the tables a seed writes
+ * to exist, exactly like a `henri server` boot would.
+ *
+ * @param {object} [options={}] Options
+ * @param {boolean} [options.sync=false] Let the adapter sync the schema
+ * @returns {Promise<object>} The henri instance
  */
-const boot = async (name) => {
+const boot = async ({ sync = false } = {}) => {
   process.env.SKIP_WORKERS = 'true';
   process.env.CONSOLE_ONLY = 'true';
-  process.env.HENRI_SKIP_SYNC = 'true';
+
+  if (sync) {
+    delete process.env.HENRI_SKIP_SYNC;
+  } else {
+    process.env.HENRI_SKIP_SYNC = 'true';
+  }
 
   const Henri = require(resolveHenri());
   const henri = new Henri({ runlevel: 3 });
 
   await henri.init();
 
+  return henri;
+};
+
+/**
+ * The store of a migration command
+ *
+ * @param {object} henri A booted instance
+ * @param {string} name The store name
+ * @returns {Promise<object>} The store adapter
+ * @throws {CliError} USAGE when the store is unknown, FAILED when it has no migrations
+ */
+const migrations = async (henri, name) => {
   const store = henri.model.stores[name];
 
   if (!store) {
@@ -58,7 +84,73 @@ const boot = async (name) => {
     );
   }
 
-  return { henri, store };
+  return store;
+};
+
+/**
+ * Requires db/seeds.js and awaits what it exports (a function receives the
+ * henri instance; a promise is awaited as is)
+ *
+ * @param {object} henri A booted instance
+ * @param {string} file The absolute path of the seed file
+ * @returns {Promise<void>} Resolves when the seeds ran
+ * @throws {CliError} FAILED when the seed file throws
+ */
+const sow = async (henri, file) => {
+  let seeds;
+
+  try {
+    seeds = require(file);
+  } catch (error) {
+    throw new CliError('FAILED', `${path.basename(file)}: ${error.message}`, {
+      cause: error,
+      hint: 'The seed file is required with the models loaded: check its syntax and its requires',
+    });
+  }
+
+  try {
+    await (typeof seeds === 'function' ? seeds(henri) : seeds);
+  } catch (error) {
+    throw new CliError('FAILED', `Seeding failed: ${error.message}`, {
+      cause: error,
+      hint: 'Seeds run again on every machine: make them idempotent (find, then create)',
+    });
+  }
+};
+
+/**
+ * Runs `henri db:seed`: boots the models and awaits the seed file
+ *
+ * @param {object} args CLI arguments (`file` overrides db/seeds.js)
+ * @returns {Promise<object>} The result of the command
+ * @throws {CliError} USAGE when the seed file is missing
+ */
+const seed = async (args) => {
+  const relative = typeof args.file === 'string' ? args.file : SEEDS;
+  const file = path.resolve(process.cwd(), relative);
+
+  // Checked before the boot: no point starting a database to find this out
+  if (!fs.existsSync(file)) {
+    throw new CliError('USAGE', `No seed file at ${relative}`, {
+      hint: `Create ${SEEDS} (henri new writes one) or pass --file=<path>`,
+    });
+  }
+
+  const started = Date.now();
+  const henri = await boot({ sync: true });
+
+  try {
+    await sow(henri, file);
+  } finally {
+    await henri.stop();
+  }
+
+  return {
+    command: 'seed',
+    duration: Date.now() - started,
+    file: relative,
+    ok: true,
+  };
 };
 
 /**
@@ -142,6 +234,10 @@ const list = (label, tags) => {
 const print = (result) => {
   console.log('');
 
+  if (result.command === 'seed') {
+    console.log(`  Seeded from ${result.file} (${result.duration}ms)`);
+  }
+
   if (result.command === 'status') {
     console.log(
       `  Store ${result.store} (${result.dialect}), ${result.folder}`
@@ -195,7 +291,8 @@ const print = (result) => {
 };
 
 /**
- * Runs `henri db <status|generate|migrate|push>` (`henri db:<command>` too)
+ * Runs `henri db <status|generate|migrate|push|seed>` (`henri db:<command>`
+ * too)
  *
  * With --json the result is printed as one JSON object on stdout.
  *
@@ -231,9 +328,14 @@ const main = async (args) => {
   let result;
 
   try {
-    const { henri, store } = await boot(name);
+    if (command === 'seed') {
+      result = await seed(args);
+    } else {
+      const henri = await boot();
+      const store = await migrations(henri, name);
 
-    result = await run(command, store, args).finally(() => henri.stop());
+      result = await run(command, store, args).finally(() => henri.stop());
+    }
   } finally {
     console.log = log;
   }
@@ -244,7 +346,7 @@ const main = async (args) => {
     print(result);
   }
 
-  if (!result.ok) {
+  if (result.command === 'push' && !result.ok) {
     throw new CliError('FAILED', 'Push refused: statements would lose data', {
       hint: 'Run again with --force to apply them, or write a migration with henri db:generate',
     });
@@ -257,3 +359,5 @@ const main = async (args) => {
 module.exports = main;
 module.exports.COMMANDS = COMMANDS;
 module.exports.run = run;
+module.exports.seed = seed;
+module.exports.sow = sow;
