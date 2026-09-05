@@ -256,7 +256,32 @@ describe('secure headers', () => {
     expect(dev['upgrade-insecure-requests']).toBeUndefined();
     expect(prod['script-src']).toEqual(["'self'"]);
     expect(prod['connect-src']).toBeUndefined();
-    expect(prod['upgrade-insecure-requests']).toEqual([]);
+    expect(prod['upgrade-insecure-requests']).toBeUndefined();
+    expect(
+      cspDirectives({ secure: true })['upgrade-insecure-requests']
+    ).toEqual([]);
+  });
+
+  test('upgrade-insecure-requests follows the protocol of the request', async () => {
+    const henri = fakeHenri({ trustProxy: true }, { isProduction: true });
+    const app = express();
+
+    app.set('trust proxy', true);
+    app.use(secureHeaders(henri));
+    app.get('/', (req, res) => res.send('ok'));
+
+    const plain = await supertest(app).get('/');
+    const encrypted = await supertest(app)
+      .get('/')
+      .set('X-Forwarded-Proto', 'https');
+
+    // Over http the directive would rewrite the redirect of a POST to https
+    expect(plain.headers['content-security-policy']).not.toContain(
+      'upgrade-insecure-requests'
+    );
+    expect(encrypted.headers['content-security-policy']).toContain(
+      'upgrade-insecure-requests'
+    );
   });
 
   test('hsts is off in development, on otherwise', async () => {

@@ -46,13 +46,22 @@ function merge(base, extra) {
  *
  * Helmet's defaults, plus `blob:` images. In development, inline and eval'd
  * scripts (Next dev, Turbopack, Vite HMR, React refresh), websockets and
- * blob workers are allowed and `upgrade-insecure-requests` is dropped.
+ * blob workers are allowed.
+ *
+ * `upgrade-insecure-requests` is only sent to a request that already arrived
+ * over https. On a plain http answer it would rewrite every later request of
+ * that page to https, including the redirect a controller answers after a
+ * POST, and the browser then fails with a network error against a server that
+ * speaks http: the record is written but the page never follows. Apps served
+ * over http (a production build checked locally, an internal deployment) stay
+ * usable, and apps served over https keep the directive.
  *
  * @param {object} [options={}] options
  * @param {boolean} [options.isDev=false] development mode
+ * @param {boolean} [options.secure=false] the request arrived over https
  * @returns {object} directives, helmet style
  */
-function cspDirectives({ isDev = false } = {}) {
+function cspDirectives({ isDev = false, secure = false } = {}) {
   const directives = helmet.contentSecurityPolicy.getDefaultDirectives();
 
   directives['img-src'] = ["'self'", 'data:', 'blob:'];
@@ -61,6 +70,9 @@ function cspDirectives({ isDev = false } = {}) {
     directives['script-src'] = ["'self'", "'unsafe-inline'", "'unsafe-eval'"];
     directives['connect-src'] = ["'self'", 'ws:', 'wss:'];
     directives['worker-src'] = ["'self'", 'blob:'];
+  }
+
+  if (!secure) {
     delete directives['upgrade-insecure-requests'];
   }
 
@@ -73,7 +85,9 @@ function cspDirectives({ isDev = false } = {}) {
  * `config.helmet` is merged into the options (`false` disables helmet
  * entirely, `{ contentSecurityPolicy: false }` only the CSP, ...). HSTS is
  * off in development and Cross-Origin-Resource-Policy opens up when CORS is
- * enabled.
+ * enabled. Two middlewares are built so that `upgrade-insecure-requests`
+ * follows the protocol the request came in on (`req.secure`, which honours
+ * `config.trustProxy` and `X-Forwarded-Proto`).
  *
  * @param {Henri} henri the henri instance
  * @returns {?function} the middleware, or null when disabled
@@ -87,22 +101,38 @@ function secureHeaders(henri) {
   }
 
   const cors = Boolean(config.has('cors') && config.get('cors'));
-  const defaults = {
-    contentSecurityPolicy: {
-      directives: cspDirectives({ isDev: henri.isDev }),
-      useDefaults: false,
-    },
+
+  /**
+   * The helmet middleware for one protocol
+   *
+   * @param {boolean} secure the request arrived over https
+   * @returns {function} the helmet middleware
+   */
+  const build = (secure) => {
+    const defaults = {
+      contentSecurityPolicy: {
+        directives: cspDirectives({ isDev: henri.isDev, secure }),
+        useDefaults: false,
+      },
+    };
+
+    if (cors) {
+      defaults.crossOriginResourcePolicy = { policy: 'cross-origin' };
+    }
+
+    if (henri.isDev) {
+      defaults.strictTransportSecurity = false;
+    }
+
+    return helmet(merge(defaults, isPlainObject(custom) ? custom : {}));
   };
 
-  if (cors) {
-    defaults.crossOriginResourcePolicy = { policy: 'cross-origin' };
-  }
+  const plain = build(false);
+  const encrypted = build(true);
 
-  if (henri.isDev) {
-    defaults.strictTransportSecurity = false;
-  }
-
-  return helmet(merge(defaults, isPlainObject(custom) ? custom : {}));
+  return function henriSecureHeaders(req, res, next) {
+    return (req.secure ? encrypted : plain)(req, res, next);
+  };
 }
 
 /**
