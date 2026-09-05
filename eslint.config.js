@@ -37,6 +37,8 @@ module.exports = [
   {
     ignores: [
       '**/node_modules/**',
+      '.claude/**',
+      '.tmp/**',
       '**/dist/**',
       '**/.next/**',
       '**/coverage/**',

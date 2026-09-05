@@ -55,7 +55,7 @@ class ReactEngine {
     this.henri = thisHenri;
     this.dir = path.resolve(thisHenri.cwd(), './app/views');
     this.renderer = thisHenri.config.get('renderer').toLowerCase();
-    // eslint-disable-next-line global-require
+     
     this.conf = thisHenri.isTest ? {} : require('./conf');
     this.bundler = loadUserHooks(thisHenri.cwd()).webpack
       ? 'webpack'
@@ -89,7 +89,7 @@ class ReactEngine {
       );
     }
 
-    await checkPackages(['react', 'react-dom']);
+    await checkPackages(['next', 'react', 'react-dom']);
 
     try {
       this.resolve('sass');
@@ -213,10 +213,11 @@ class ReactEngine {
     }
 
     const versions = {
-      // eslint-disable-next-line global-require
-      next: require(path.resolve(require.resolve('next'), '../../../package.json'))
-        .version,
-      // eslint-disable-next-line global-require
+       
+      next: require(
+        path.resolve(require.resolve('next'), '../../../package.json')
+      ).version,
+       
       react: require(this.resolve('react/package.json')).version,
     };
 

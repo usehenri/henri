@@ -9,9 +9,6 @@ const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:utils');
 const { checkbox } = require('@inquirer/prompts');
 
-// eslint-disable-next-line id-length
-const _ = require('lodash');
-
 /**
  * Resolve a module the way `require()` would from a given directory.
  * Walks up the parent directories, so hoisted workspace packages are found.
@@ -35,7 +32,7 @@ function resolveFrom(request, dir = process.cwd()) {
  */
 function resolvePackageJson(pkgName, dir = process.cwd()) {
   try {
-    // eslint-disable-next-line global-require
+     
     return require(resolveFrom(`${pkgName}/package.json`, dir));
   } catch (error) {
     // Package uses "exports" without exposing package.json: walk up from main
@@ -45,7 +42,7 @@ function resolvePackageJson(pkgName, dir = process.cwd()) {
       const candidate = path.join(current, 'package.json');
 
       if (fs.existsSync(candidate)) {
-        // eslint-disable-next-line global-require
+         
         const pkg = require(candidate);
 
         if (pkg.name === pkgName) {
@@ -151,7 +148,7 @@ function checkMissing(packages) {
  * @param {string} missing items
  * @returns {string} human readable string (i hope...)
  */
-const generateMessage = missing => {
+const generateMessage = (missing) => {
   if (missing.length > 1) {
     return missing.map((val, index) =>
       index === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`
@@ -215,7 +212,7 @@ async function syntax(location, onSuccess, inst = undefined) {
     inst = henri;
   }
 
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     if (path.extname(location) === '.html') {
       inst.status.set('locked', false);
 
@@ -250,7 +247,7 @@ function checkSyntax(file, source) {
   }
 
   if (ext === '.js' || ext === '.cjs') {
-    // eslint-disable-next-line no-new
+     
     new vm.Script(source, { filename: file });
 
     return true;

@@ -18,7 +18,7 @@ Pick a renderer in your configuration. All of them are server-side rendered; the
 Install the peer dependencies in your project (`henri new` already does):
 
 ```bash
-pnpm add @usehenri/react react react-dom sass
+pnpm add @usehenri/react next react react-dom sass
 ```
 
 Two small files live next to your pages. `henri new` ships them and the engine creates them on first boot if they are missing:
@@ -51,15 +51,15 @@ export default withHenri(Log);
 
 `withHenri` gives your page these props:
 
-| Prop        | Description                                                                 |
-| ----------- | --------------------------------------------------------------------------- |
-| `data`      | What the controller passed to `res.render()` (or the GraphQL result)        |
-| `user`      | The logged-in user, or `null`                                               |
-| `paths`     | The routes this user may call, keyed like `index_tasks_path`                |
-| `pathFor`   | `pathFor('show_tasks_path', id)` builds a URL from a route name             |
-| `getRoute`  | Same, returns the plain string                                              |
-| `fetch`     | `fetch({ route, method }, body)` calls a controller and resolves its JSON  |
-| `hydrate`   | Refetches the current page's data and updates `data`                        |
+| Prop       | Description                                                               |
+| ---------- | ------------------------------------------------------------------------- |
+| `data`     | What the controller passed to `res.render()` (or the GraphQL result)      |
+| `user`     | The logged-in user, or `null`                                             |
+| `paths`    | The routes this user may call, keyed like `index_tasks_path`              |
+| `pathFor`  | `pathFor('show_tasks_path', id)` builds a URL from a route name           |
+| `getRoute` | Same, returns the plain string                                            |
+| `fetch`    | `fetch({ route, method }, body)` calls a controller and resolves its JSON |
+| `hydrate`  | Refetches the current page's data and updates `data`                      |
 
 Nested components get the same helpers from the `useHenri()` hook (or the `HenriContext` it reads):
 
@@ -69,7 +69,9 @@ import { useHenri } from '@usehenri/react';
 
 export default function Nav() {
   const { user, pathFor } = useHenri();
-  return <a href={pathFor('index_tasks_path')}>{user ? user.email : 'Tasks'}</a>;
+  return (
+    <a href={pathFor('index_tasks_path')}>{user ? user.email : 'Tasks'}</a>
+  );
 }
 ```
 

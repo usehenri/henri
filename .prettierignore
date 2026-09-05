@@ -11,3 +11,9 @@ website/dist
 website/.astro
 CHANGELOG.md
 packages/*/CHANGELOG.md
+.claude/
+*.hbs
+packages/demo/app/views/
+packages/cli/template/default/app/views/styles/
+packages/cli/scripts/generate/
+.tmp/

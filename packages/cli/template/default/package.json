@@ -20,6 +20,7 @@
     "@usehenri/core": "^0.37.2",
     "@usehenri/disk": "^0.37.2",
     "@usehenri/react": "^0.37.2",
+    "next": "^16.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sass": "^1.80.0"

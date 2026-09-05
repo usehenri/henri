@@ -27,13 +27,13 @@
     "debug": "^4.4.3",
     "lodash.get": "^4.4.2",
     "lodash.set": "^4.3.2",
-    "next": "^16.3.4",
     "prop-types": "^15.8.1",
     "react-quill-new": "^3.8.3",
     "shallowequal": "^1.1.0",
     "validator": "^13.15.35"
   },
   "peerDependencies": {
+    "next": "^16.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sass": "^1.3.0"
@@ -48,6 +48,7 @@
     "@babel/preset-env": "^7.28.0",
     "@babel/preset-react": "^7.27.0",
     "@rollup/plugin-babel": "^7.1.0",
+    "next": "^16.3.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recursive-readdir": "^2.2.3",

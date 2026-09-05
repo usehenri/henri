@@ -9,7 +9,7 @@ const utils = require('../utils');
  */
 async function check() {
   try {
-    await utils.checkPackages(['react', 'react-dom']);
+    await utils.checkPackages(['next', 'react', 'react-dom']);
   } catch (error) {
     henri.pen.fatal('view', error);
     process.exit(1);
