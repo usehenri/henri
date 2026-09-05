@@ -1,5 +1,6 @@
 const Sequelize = require('sequelize');
 const debug = require('debug')('henri:sequelize');
+const { paginate } = require('./plugins');
 const { normalizeSchema } = require('./schema');
 const { fatal, normalizeEmail, redact } = require('./utils');
 
@@ -184,7 +185,8 @@ class Sql {
     const { attributes, indexes } = normalizeSchema(model.schema || {}, {
       dialect: connector.getDialect(),
     });
-    const options = { ...(model.options || {}) };
+    // Rails has timestamps on every table: `timestamps: false` opts out
+    const options = { timestamps: true, ...(model.options || {}) };
 
     if (model.name && !options.tableName) {
       options.tableName = model.name;
@@ -200,7 +202,9 @@ class Sql {
       this.overload(attributes, options, model);
     }
 
-    const instance = connector.define(model.globalId, attributes, options);
+    const instance = paginate(
+      connector.define(model.globalId, attributes, options)
+    );
 
     if (isUser) {
       this.decorateUser(instance);

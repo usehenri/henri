@@ -264,6 +264,19 @@ const compileWith = (Model, includes) => {
 };
 
 /**
+ * A positive integer, or a fallback
+ *
+ * @param {*} value Anything (a query string value, usually)
+ * @param {number} fallback Used when the value is not a positive integer
+ * @returns {number} The integer
+ */
+const toInt = (value, fallback) => {
+  const number = parseInt(value, 10);
+
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+};
+
+/**
  * A lazy, chainable query on a model (Rails' relation): nothing runs until
  * it is awaited or a terminal method (`toArray`, `first`, `count`, ...) is
  * called
@@ -282,6 +295,7 @@ class Relation {
     this.Model = Model;
     this.state = {
       conditions: [],
+      deleted: 'without',
       hidden: false,
       includes: [],
       limit: null,
@@ -386,6 +400,26 @@ class Relation {
   }
 
   /**
+   * Soft deleted rows too (`options: { paranoid: true }`)
+   *
+   * @returns {Relation} A new relation
+   * @memberof Relation
+   */
+  withDeleted() {
+    return this.clone({ deleted: 'with' });
+  }
+
+  /**
+   * Soft deleted rows only (`options: { paranoid: true }`)
+   *
+   * @returns {Relation} A new relation
+   * @memberof Relation
+   */
+  onlyDeleted() {
+    return this.clone({ deleted: 'only' });
+  }
+
+  /**
    * The compiled where expression
    *
    * @returns {?object} The SQL expression or undefined
@@ -395,12 +429,35 @@ class Relation {
     const parts = this.state.conditions
       .map((condition) => compileWhere(this.Model, condition))
       .filter((part) => typeof part !== 'undefined');
+    const scope = this.deletedSQL();
+
+    if (scope) {
+      parts.push(scope);
+    }
 
     if (parts.length === 0) {
       return undefined;
     }
 
     return parts.length === 1 ? parts[0] : and(...parts);
+  }
+
+  /**
+   * The condition hiding (or keeping) the soft deleted rows
+   *
+   * @returns {?object} The SQL expression, or undefined
+   * @memberof Relation
+   */
+  deletedSQL() {
+    const { deleted } = this.state;
+
+    if (!this.Model.paranoid || deleted === 'with') {
+      return undefined;
+    }
+
+    const column = this.Model.column('deletedAt');
+
+    return deleted === 'only' ? isNotNull(column) : isNull(column);
   }
 
   /**
@@ -573,13 +630,68 @@ class Relation {
   }
 
   /**
-   * Deletes every matching row (no instance hooks)
+   * Deletes every matching row (no instance hooks). On a paranoid model
+   * this stamps `deletedAt`; `{ force: true }` deletes the rows, soft
+   * deleted ones included.
    *
+   * @param {object} [options={}] `force: true` for a real delete
    * @returns {Promise<number>} The number of rows deleted
    * @memberof Relation
    */
-  async destroy() {
-    return this.Model.destroyWhere(this.whereSQL());
+  async destroy(options = {}) {
+    const relation =
+      options.force && this.state.deleted === 'without'
+        ? this.withDeleted()
+        : this;
+
+    return this.Model.destroyWhere(relation.whereSQL(), options);
+  }
+
+  /**
+   * Clears the `deletedAt` stamp of every matching row (paranoid models)
+   *
+   * @returns {Promise<number>} The number of rows restored
+   * @throws {Error} On a model without `options: { paranoid: true }`
+   * @memberof Relation
+   */
+  async restore() {
+    if (!this.Model.paranoid) {
+      throw new Error(
+        `${this.Model.modelName}.restore() needs options: { paranoid: true }`
+      );
+    }
+
+    const relation =
+      this.state.deleted === 'without' ? this.withDeleted() : this;
+
+    return this.Model.setWhere(relation.whereSQL(), { deletedAt: null });
+  }
+
+  /**
+   * One page of rows and the counters `res.collection()` wants
+   *
+   * @param {object} [options={}] `page` and `perPage`, as `req.pagination()`
+   *   returns them
+   * @returns {Promise<object>} `{ records, page, perPage, total, pages }`
+   * @memberof Relation
+   */
+  async paginate({ page: wanted, perPage: size } = {}) {
+    const page = toInt(wanted, 1);
+    const perPage = toInt(size, 25);
+    const [records, total] = await Promise.all([
+      this.limit(perPage)
+        .offset((page - 1) * perPage)
+        .toArray(),
+      this.count(),
+    ]);
+
+    return {
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage)),
+      perPage,
+      records,
+      total,
+    };
   }
 
   /**

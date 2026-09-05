@@ -86,6 +86,8 @@ Routes expanded from `resources` and `crud` are expected to answer HAL: a JSON a
 
 `req.pagination()` reads `?page=` and `?per_page=` and returns `{ page, perPage, skip, limit, offset }`, defaulting to `config.api.perPage` (25) and capped at `config.api.maxPerPage` (100). Pass `page`, `perPage` and `total` to `res.collection()` and the paging links are computed for you.
 
+[`Model.paginate()`](/guides/models/#pagination) is the other half: `await Task.paginate(req.pagination())` answers `{ records, page, perPage, total, pages }` on every adapter, so an index action is one query instead of a find and a count.
+
 ## Idempotency
 
 Clients retrying a `POST`, `PUT`, `PATCH` or `DELETE` send an `Idempotency-Key` header (any ASCII string up to 255 characters), with the same semantics as Stripe:

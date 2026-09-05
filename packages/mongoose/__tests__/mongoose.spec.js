@@ -636,4 +636,147 @@ describe('mongoose adapter', () => {
       await adapter.stop();
     });
   });
+  describe('timestamps, soft deletes and paginate', () => {
+    let adapter;
+    let Task;
+    let Note;
+    let Bare;
+
+    beforeAll(async () => {
+      ({ adapter } = build('plugins'));
+      Task = adapter.addModel(
+        { ...taskModel, options: { paranoid: true } },
+        'user'
+      );
+      Note = adapter.addModel(
+        { globalId: 'Note', identity: 'note', schema: { body: 'text' } },
+        'user'
+      );
+      Bare = adapter.addModel(
+        {
+          globalId: 'Bare',
+          identity: 'bare',
+          options: { timestamps: false },
+          schema: { body: 'text' },
+        },
+        'user'
+      );
+      await adapter.start();
+    });
+
+    afterAll(async () => {
+      await adapter.stop();
+    });
+
+    afterEach(async () => {
+      await Task.deleteMany({}, { force: true });
+      await Note.deleteMany({});
+    });
+
+    test('a model without options gets createdAt and updatedAt', async () => {
+      const note = await Note.create({ body: 'written' });
+
+      expect(note.createdAt).toBeInstanceOf(Date);
+      expect(note.updatedAt).toBeInstanceOf(Date);
+    });
+
+    test('options.timestamps false opts out', async () => {
+      const bare = await Bare.create({ body: 'plain' });
+
+      expect(bare.createdAt).toBeUndefined();
+      expect(bare.toObject().updatedAt).toBeUndefined();
+    });
+
+    test('deleting stamps deletedAt and hides the document', async () => {
+      const task = await Task.create({ name: 'archived' });
+      const result = await Task.deleteOne({ _id: task._id });
+
+      expect(result).toMatchObject({ deletedCount: 1 });
+      expect(await Task.countDocuments()).toBe(0);
+      expect(await Task.findById(task._id)).toBeNull();
+      expect(await Task.find()).toEqual([]);
+      expect(await Task.withDeleted().countDocuments()).toBe(1);
+    });
+
+    test('findByIdAndDelete answers the document and stamps it', async () => {
+      const task = await Task.create({ name: 'gone' });
+      const deleted = await Task.findByIdAndDelete(task._id);
+
+      expect(deleted.name).toBe('gone');
+      expect(await Task.countDocuments()).toBe(0);
+      expect(await Task.findByIdAndDelete(task._id)).toBeNull();
+
+      const stamped = await Task.withDeleted().findOne({ _id: task._id });
+
+      expect(stamped.deletedAt).toBeInstanceOf(Date);
+    });
+
+    test('doc.deleteOne, onlyDeleted and restore round-trip', async () => {
+      const kept = await Task.create({ name: 'kept' });
+      const gone = await Task.create({ name: 'gone' });
+
+      await gone.deleteOne();
+
+      expect(await Task.countDocuments()).toBe(1);
+      expect((await Task.onlyDeleted()).map((task) => task.name)).toEqual([
+        'gone',
+      ]);
+
+      await gone.restore();
+
+      expect((await Task.find().sort('name')).map((task) => task.name)).toEqual(
+        [gone.name, kept.name]
+      );
+
+      await Task.deleteMany({ name: 'kept' });
+
+      expect(await Task.restore({ name: 'kept' })).toMatchObject({
+        modifiedCount: 1,
+      });
+      expect(await Task.countDocuments()).toBe(2);
+    });
+
+    test('force deletes for real', async () => {
+      const task = await Task.create({ name: 'temporary' });
+
+      await task.deleteOne();
+      await Task.deleteMany({ name: 'temporary' }, { force: true });
+
+      expect(await Task.withDeleted().countDocuments()).toBe(0);
+    });
+
+    test('updates ignore the soft deleted documents', async () => {
+      const stale = await Task.create({ name: 'stale' });
+
+      await Task.create({ name: 'fresh' });
+      await stale.deleteOne();
+
+      const result = await Task.updateMany({}, { category: 'high' });
+
+      expect(result.modifiedCount).toBe(1);
+      expect(
+        (await Task.withDeleted().findOne({ _id: stale._id })).category
+      ).toBe('low');
+    });
+
+    test('paginate returns the records and the counters', async () => {
+      await Task.create(['a', 'b', 'c', 'd', 'e'].map((name) => ({ name })));
+
+      const page = await Task.paginate({ page: 2, perPage: 2, sort: 'name' });
+
+      expect(page.records.map((task) => task.name)).toEqual(['c', 'd']);
+      expect(page).toMatchObject({ page: 2, pages: 3, perPage: 2, total: 5 });
+
+      const filtered = await Note.paginate({ perPage: 10 });
+
+      expect(filtered).toMatchObject({ page: 1, perPage: 10, total: 0 });
+
+      await Task.deleteMany({ name: ['a', 'b'] });
+
+      expect((await Task.paginate({ perPage: 10 })).total).toBe(3);
+      expect(
+        (await Task.paginate({ perPage: 10, withDeleted: true })).total
+      ).toBe(5);
+    });
+  });
 });

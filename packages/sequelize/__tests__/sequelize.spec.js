@@ -588,4 +588,109 @@ describe('sequelize adapter', () => {
       await expect(adapter.start()).rejects.toThrow();
     });
   });
+  describe('timestamps, soft deletes and paginate', () => {
+    let adapter;
+    let Task;
+    let Note;
+    let Bare;
+
+    beforeAll(async () => {
+      ({ adapter } = build());
+      Task = adapter.addModel(
+        { ...taskModel, options: { paranoid: true } },
+        'user'
+      );
+      Note = adapter.addModel(
+        { globalId: 'Note', identity: 'note', schema: { body: 'text' } },
+        'user'
+      );
+      Bare = adapter.addModel(
+        {
+          globalId: 'Bare',
+          identity: 'bare',
+          options: { timestamps: false },
+          schema: { body: 'text' },
+        },
+        'user'
+      );
+      await adapter.start();
+    });
+
+    afterAll(async () => {
+      await adapter.stop();
+    });
+
+    afterEach(async () => {
+      await Task.destroy({ force: true, where: {} });
+      await Note.destroy({ where: {} });
+    });
+
+    test('a model without options gets createdAt and updatedAt', async () => {
+      const note = await Note.create({ body: 'written' });
+
+      expect(note.createdAt).toBeInstanceOf(Date);
+      expect(note.updatedAt).toBeInstanceOf(Date);
+    });
+
+    test('options.timestamps false opts out', async () => {
+      const bare = await Bare.create({ body: 'plain' });
+
+      expect(bare.get('createdAt')).toBeUndefined();
+      expect(Object.keys(Bare.rawAttributes)).not.toContain('updatedAt');
+    });
+
+    test('destroy stamps deletedAt and hides the row', async () => {
+      const task = await Task.create({ name: 'archived' });
+
+      await task.destroy();
+
+      expect(task.deletedAt).toBeInstanceOf(Date);
+      expect(await Task.count()).toBe(0);
+      expect(await Task.findByPk(task.id)).toBeNull();
+      expect(await Task.count({ paranoid: false })).toBe(1);
+    });
+
+    test('restore brings the row back and force deletes for real', async () => {
+      const task = await Task.create({ name: 'gone' });
+
+      await task.destroy();
+      await task.restore();
+
+      expect(await Task.count()).toBe(1);
+
+      await task.destroy({ force: true });
+
+      expect(await Task.count({ paranoid: false })).toBe(0);
+    });
+
+    test('paginate returns the records and the counters', async () => {
+      await Task.bulkCreate(
+        ['a', 'b', 'c', 'd', 'e'].map((name) => ({ name }))
+      );
+
+      const page = await Task.paginate({
+        order: [['name', 'ASC']],
+        page: 2,
+        perPage: 2,
+      });
+
+      expect(page.records.map((task) => task.name)).toEqual(['c', 'd']);
+      expect(page).toMatchObject({ page: 2, pages: 3, perPage: 2, total: 5 });
+
+      const all = await Task.paginate();
+
+      expect(all).toMatchObject({ page: 1, pages: 1, perPage: 25, total: 5 });
+
+      const bad = await Task.paginate({ page: 'x', perPage: -3 });
+
+      expect(bad).toMatchObject({ page: 1, perPage: 25 });
+
+      await Task.destroy({ where: { name: ['a', 'b'] } });
+
+      expect((await Task.paginate({ perPage: 10 })).total).toBe(3);
+      expect(
+        (await Task.paginate({ paranoid: false, perPage: 10 })).total
+      ).toBe(5);
+    });
+  });
 });

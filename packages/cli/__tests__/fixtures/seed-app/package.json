@@ -1,0 +1,6 @@
+{
+  "name": "seed-fixture",
+  "private": true,
+  "henri": true,
+  "description": "Runs henri db:seed on a drizzle sqlite store, without a server"
+}
