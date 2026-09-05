@@ -1,0 +1,6 @@
+{
+  "name": "drizzle-auth-fixture",
+  "private": true,
+  "henri": true,
+  "description": "Boots @usehenri/core on the drizzle store for the login flow test"
+}

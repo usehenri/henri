@@ -1,0 +1,15 @@
+{
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "sqlite",
+      "url": ":memory:"
+    }
+  },
+  "secret": "nfiwuef9we8f9",
+  "baseRole": "member",
+  "user": {
+    "model": "user",
+    "public": ["name"]
+  }
+}

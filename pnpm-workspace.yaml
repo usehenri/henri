@@ -12,6 +12,7 @@ allowBuilds:
   '@apollo/protobufjs': false
   '@parcel/watcher': true
   bcrypt: true
+  better-sqlite3: true
   core-js: false
   core-js-pure: false
   es5-ext: false
