@@ -1,65 +1,69 @@
-import React, { Component } from 'react';
-import PropTypes from 'prop-types';
-import { FormContext } from './context';
+import React, { useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import get from 'lodash/get';
+import { useForm } from './context';
+import { messageFor } from './input';
+import { warnOutsideForm } from './warn';
 
 /**
- * Rich text editor (quill). Rendered client-side only, as quill needs a DOM.
- * Import 'react-quill-new/dist/quill.snow.css' in your page for the styles.
+ * Quill needs a DOM: the editor is loaded in the browser only and the server
+ * (and the first client render) show a plain textarea in its place, so the
+ * markup hydrates without a mismatch.
  */
-class FormHtmlEditor extends Component {
-  static contextType = FormContext;
+const ReactQuill = dynamic(() => import('react-quill-new'), {
+  loading: () => (
+    <textarea className="henri-editor-loading" readOnly value="" />
+  ),
+  ssr: false,
+});
 
-  constructor(props) {
-    super(props);
-    this.ReactQuill = null;
-    if (typeof window !== 'undefined') {
-      const mod = require('react-quill-new');
+/**
+ * Rich text editor (quill), controlled by the form data.
+ * Import 'react-quill-new/dist/quill.snow.css' in your page for the styles.
+ *
+ * @param {object} props props
+ * @returns {React.Element} the editor
+ */
+const Editor = ({
+  baseClassName = 'form-group',
+  errorClassName = 'help-block m-b-none',
+  errorMsg = {},
+  name,
+  placeholder,
+  sanitation = {},
+  theme = 'snow',
+  validation = {},
+  ...props
+}) => {
+  const context = useForm();
+  const hasError = Boolean(context.errors[name]);
 
-      this.ReactQuill = mod.default || mod;
-    }
-  }
+  warnOutsideForm(context, 'Editor');
 
-  render() {
-    const { validation = {}, sanitation = {}, name, ...props } = this.props;
-    const ReactQuill = this.ReactQuill;
+  useEffect(
+    () => context.addSanitizer(name, sanitation),
+    [name, context.addSanitizer, JSON.stringify(sanitation)]
+  );
 
-    !this.context._henriForm &&
-      // eslint-disable-next-line no-console
-      console.warn('Editor component used outside henri form.');
-
-    this.context.addSanitizer(name, sanitation);
-
-    if (typeof window !== 'undefined' && ReactQuill) {
-      return (
-        <ReactQuill
-          onChange={(value) =>
-            this.context.handleChange(
-              { target: { name, value } },
-              validation,
-              sanitation
-            )
-          }
-          defaultValue={this.context.data[name] || ''}
-          theme="snow"
-          {...props}
-        />
-      );
-    }
-
-    return (
-      <textarea name={name} defaultValue={this.context.data[name] || ''} />
-    );
-  }
-}
-
-FormHtmlEditor.propTypes = {
-  errorMsg: PropTypes.object,
-  name: PropTypes.string.isRequired,
-  placeholder: PropTypes.string,
-  required: PropTypes.bool,
-  sanitation: PropTypes.object,
-  type: PropTypes.string,
-  validation: PropTypes.object,
+  return (
+    <div className={`${baseClassName} ${hasError ? 'has-error' : ''}`}>
+      <ReactQuill
+        theme={theme}
+        placeholder={placeholder}
+        readOnly={context.disabled}
+        value={get(context.data, name) ?? ''}
+        onChange={(value) =>
+          context.handleChange({ target: { name, value } }, validation)
+        }
+        {...props}
+      />
+      {hasError && (
+        <span className={errorClassName}>
+          {messageFor(errorMsg, context.errors[name])}
+        </span>
+      )}
+    </div>
+  );
 };
 
-export default FormHtmlEditor;
+export default Editor;

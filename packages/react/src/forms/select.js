@@ -1,62 +1,86 @@
-import React from 'react';
-import PropTypes from 'prop-types';
+import React, { useEffect } from 'react';
+import get from 'lodash/get';
 import { useForm } from './context';
+import { messageFor } from './input';
+import { warnOutsideForm } from './warn';
+
+/**
+ * The value of a choice: its `_id`/`id` for objects, itself otherwise
+ *
+ * @param {*} item a choice
+ * @returns {string} its value
+ */
+const valueOf = (item) => {
+  if (item && typeof item === 'object') {
+    return String(item._id ?? item.id ?? item.value ?? '');
+  }
+
+  return String(item ?? '');
+};
 
 const Select = ({
   className = 'form-control m-b',
   baseClassName = 'form-group',
+  errorClassName = 'help-block m-b-none',
+  errorMsg = {},
+  disabled = false,
   displayProp = 'name',
   name,
-  placeholder,
+  placeholder = null,
   required = false,
   sanitation = {},
+  validation = {},
   choices = [],
+  ...props
 }) => {
   const context = useForm();
+  const hasError = Boolean(context.errors[name]);
 
-  !context._henriForm &&
-    // eslint-disable-next-line no-console
-    console.warn('Select component used outside henri form.');
-  const hasError = !!context.errors[name];
+  warnOutsideForm(context, 'Select');
 
-  context.addSanitizer(name, sanitation);
+  useEffect(
+    () => context.addSanitizer(name, sanitation),
+    [name, context.addSanitizer, JSON.stringify(sanitation)]
+  );
+
+  const current = get(context.data, name);
+  const value = valueOf(current);
 
   return (
     <div className={`${baseClassName} ${hasError ? 'has-error' : ''}`}>
       <select
         className={className}
         name={name}
-        value={
-          (context.data[name] && context.data[name]._id) ||
-          context.data[name] ||
-          placeholder ||
-          ''
-        }
-        onChange={(elem) => context.handleChange(elem)}
+        value={value}
+        onChange={(event) => context.handleChange(event, validation)}
         required={required}
+        disabled={disabled || context.disabled}
+        {...props}
       >
-        {choices.map((item) => (
-          <option key={item._id} value={item._id}>
-            {item[displayProp]}
+        {placeholder !== null && (
+          <option value="" disabled={required}>
+            {placeholder}
           </option>
-        ))}
+        )}
+        {choices.map((item) => {
+          const key = valueOf(item);
+          const label =
+            item && typeof item === 'object' ? item[displayProp] : item;
+
+          return (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          );
+        })}
       </select>
+      {hasError && (
+        <span className={errorClassName}>
+          {messageFor(errorMsg, context.errors[name])}
+        </span>
+      )}
     </div>
   );
-};
-
-Select.propTypes = {
-  baseClassName: PropTypes.string,
-  choices: PropTypes.array,
-  className: PropTypes.string,
-  displayProp: PropTypes.string,
-  errorMsg: PropTypes.object,
-  name: PropTypes.string.isRequired,
-  placeholder: PropTypes.string,
-  required: PropTypes.bool,
-  sanitation: PropTypes.object,
-  type: PropTypes.string,
-  validation: PropTypes.object,
 };
 
 export default Select;

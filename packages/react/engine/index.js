@@ -1,9 +1,27 @@
+/**
+ * React (next.js, pages router) view engine for henri.
+ *
+ * Exports:
+ *
+ * - `ReactEngine` (default): `new ReactEngine(henri)` with the view engine
+ *   contract core expects: `init()`, `prepare()`, `fallback(router)`,
+ *   `render(req, res, route, opts)`, `reload()` and `close()`. Core's view
+ *   module should call `engine.close()` from its `stop()` so the next.js
+ *   workers and watchers go away with henri.
+ * - `build({ cwd, config, pen })`: runs `next build` on `<cwd>/app/views`
+ *   without a running henri (no stores, no server). Resolves with
+ *   `{ buildId, bundler, dir, distDir }`, rejects when the build fails, and
+ *   resolves with `null` when `config.renderer` is set to something else than
+ *   `react`. `henri build` calls it:
+ *   `require('@usehenri/react/engine').build({ cwd: process.cwd(), config })`.
+ * - `createNextConfig(cwd)`: the next.js configuration henri uses.
+ */
 const path = require('path');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
-const next = require('next');
 const debug = require('debug')('henri:react');
-const { loadUserHooks } = require('./hooks');
+const { hookStamps, loadUserHooks } = require('./hooks');
+const { createNextConfig } = require('./nextConfig');
 
 /**
  * Files next.js reads from app/views. They are created when the application
@@ -25,7 +43,7 @@ module.exports = require('@usehenri/react/engine/conf');
     name: 'next.config.js',
   },
   {
-    // Import aliases: 'components/x', 'styles/x', 'helpers/x', 'assets/x'
+    // Import aliases: 'components/x', 'styles/x', 'assets/x'
     alternatives: ['jsconfig.json', 'tsconfig.json'],
     content: `${JSON.stringify(
       { compilerOptions: { baseUrl: '.' } },
@@ -37,6 +55,196 @@ module.exports = require('@usehenri/react/engine/conf');
 ];
 
 /**
+ * A minimal `pen` for standalone use (`build()` outside henri)
+ */
+/* eslint-disable no-console */
+const consolePen = {
+  error: (name, ...args) => console.error(`[${name}]`, ...args),
+  info: (name, ...args) => console.log(`[${name}]`, ...args),
+  warn: (name, ...args) => console.warn(`[${name}]`, ...args),
+};
+/* eslint-enable no-console */
+
+/**
+ * Read a key from an application configuration, which is either a plain
+ * object (config/<env>.json) or henri's config module (`get`/`has`)
+ *
+ * @param {?object} config the configuration
+ * @param {string} key the key
+ * @returns {*} the value or undefined
+ */
+function configValue(config, key) {
+  if (!config) {
+    return undefined;
+  }
+
+  if (typeof config.has === 'function' && typeof config.get === 'function') {
+    return config.has(key) ? config.get(key) : undefined;
+  }
+
+  return config[key];
+}
+
+/**
+ * Which bundler next.js should use for an application: webpack as soon as
+ * config/webpack.js exports a hook, Turbopack otherwise
+ *
+ * @param {string} cwd the application directory
+ * @returns {string} 'webpack' or 'turbopack'
+ */
+function selectBundler(cwd) {
+  return loadUserHooks(cwd).webpack ? 'webpack' : 'turbopack';
+}
+
+/**
+ * Where next.js writes its build (`distDir`, relative to app/views)
+ *
+ * @param {string} dir the app/views directory
+ * @param {object} conf the next.js configuration
+ * @returns {string} absolute path of the build directory
+ */
+function distDirOf(dir, conf) {
+  return path.resolve(dir, (conf && conf.distDir) || '.next');
+}
+
+/**
+ * Create the files next.js needs in app/views (next.config.js and
+ * jsconfig.json) when the application does not ship them.
+ *
+ * @param {string} dir the app/views directory
+ * @param {object} pen henri's pen (or a console shim)
+ * @returns {string[]} the files that were created
+ */
+function ensureNextConfig(dir, pen) {
+  const created = [];
+
+  for (const file of VIEW_FILES) {
+    const exists = file.alternatives.some((name) =>
+      fs.existsSync(path.join(dir, name))
+    );
+
+    if (!exists) {
+      try {
+        fs.writeFileSync(path.join(dir, file.name), file.content);
+        pen.info('view', `created app/views/${file.name}`);
+        created.push(file.name);
+      } catch (error) {
+        pen.warn(
+          'view',
+          `unable to create app/views/${file.name}`,
+          error.message
+        );
+      }
+    }
+  }
+
+  return created;
+}
+
+/**
+ * The next.js pathname of a view: `res.render('/posts/index')` and
+ * `res.render('posts')` both render `pages/posts/index.js`, which next.js
+ * knows as `/posts` (`/index` alone is `/`)
+ *
+ * @param {string} route the route given to res.render
+ * @returns {string} the pathname next.js routes
+ */
+function pagePath(route = '/') {
+  const withSlash = String(route).startsWith('/') ? String(route) : `/${route}`;
+
+  return withSlash.replace(/\/index$/, '') || '/';
+}
+
+/**
+ * Resolve a module from a directory
+ *
+ * @param {string} request module name
+ * @param {string} dir directory to resolve from
+ * @returns {string} resolved path
+ */
+function resolveFrom(request, dir) {
+  return require.resolve(request, { paths: [dir] });
+}
+
+/**
+ * Production build: runs `next build` on `<cwd>/app/views`. Works without a
+ * running henri, so `henri build` (a Docker build stage, CI) needs neither a
+ * database nor the stores.
+ *
+ * @param {object} [options] options
+ * @param {string} [options.cwd=process.cwd()] the application directory
+ * @param {object} [options.config] the application configuration
+ * (config/<env>.json or henri's config module); only `renderer` is read
+ * @param {object} [options.pen] henri's pen, defaults to the console
+ * @param {string} [options.bundler] 'webpack' or 'turbopack', defaults to
+ * what config/webpack.js dictates
+ * @param {string} [options.distDir] the build directory, defaults to the
+ * `distDir` of the next.js configuration
+ * @param {function} [options.spawn=spawnSync] process spawner (tests)
+ * @throws when the build fails
+ * @returns {Promise<?{ buildId: string, bundler: string, dir: string, distDir: string }>}
+ * the build, or null when the application does not use the react renderer
+ */
+async function build({
+  cwd = process.cwd(),
+  config = null,
+  pen = consolePen,
+  bundler = selectBundler(cwd),
+  distDir = null,
+  spawn = spawnSync,
+} = {}) {
+  const renderer = configValue(config, 'renderer');
+
+  if (typeof renderer === 'string' && renderer.toLowerCase() !== 'react') {
+    pen.warn('view', `renderer '${renderer}' has no build step, skipping`);
+
+    return null;
+  }
+
+  const dir = path.resolve(cwd, 'app/views');
+  const target = distDir || distDirOf(dir, createNextConfig(cwd));
+
+  if (!fs.existsSync(path.join(dir, 'pages'))) {
+    throw new Error(
+      `app/views/pages is missing in ${cwd}: nothing to build (run 'henri new' or 'henri init')`
+    );
+  }
+
+  pen.info('view', `building next.js pages for production (${bundler})`);
+
+  ensureNextConfig(dir, pen);
+
+  const result = spawn(
+    process.execPath,
+    [resolveFrom('next/dist/bin/next', cwd), 'build', dir, `--${bundler}`],
+    {
+      cwd,
+      env: Object.assign({}, process.env, { NODE_ENV: 'production' }),
+      stdio: 'inherit',
+    }
+  );
+
+  if (result.error) {
+    pen.error('view', 'unable to run next build', result.error.message);
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    pen.error('view', 'unable to generate a production build');
+    throw new Error(`next build exited with status ${result.status}`);
+  }
+
+  const buildIdFile = path.join(target, 'BUILD_ID');
+  const buildId = fs.existsSync(buildIdFile)
+    ? fs.readFileSync(buildIdFile, 'utf8').trim()
+    : null;
+
+  pen.info('view', `build ${buildId || ''} successful`.trim());
+
+  return { buildId, bundler, dir, distDir: target };
+}
+
+/**
  * React (next.js) view engine
  *
  * @class ReactEngine
@@ -46,33 +254,40 @@ class ReactEngine {
    * Creates an instance of ReactEngine.
    *
    * @param {Henri} thisHenri The current henri instance
+   * @param {object} [deps] overrides for tests: `next` (the `next` factory)
+   * and `spawn` (a `spawnSync` replacement used by `build()`)
    * @memberof ReactEngine
    */
-  constructor(thisHenri) {
+  constructor(thisHenri, deps = {}) {
     this.instance = null;
     this.handle = null;
-    this.upgrade = null;
     this.henri = thisHenri;
-    this.dir = path.resolve(thisHenri.cwd(), './app/views');
-    this.renderer = thisHenri.config.get('renderer').toLowerCase();
+    this.cwd = thisHenri.cwd();
+    this.dir = path.resolve(this.cwd, './app/views');
+    this.renderer = (configValue(thisHenri.config, 'renderer') || 'react')
+      .toString()
+      .toLowerCase();
 
-    this.conf = thisHenri.isTest ? {} : require('./conf');
-    this.bundler = loadUserHooks(thisHenri.cwd()).webpack
-      ? 'webpack'
-      : 'turbopack';
+    this.conf = createNextConfig(this.cwd);
+    this.distDir = distDirOf(this.dir, this.conf);
+    this.bundler = selectBundler(this.cwd);
+    this.stamps = hookStamps(this.cwd);
+    this.deps = deps;
 
     this.init = this.init.bind(this);
     this.build = this.build.bind(this);
     this.prepare = this.prepare.bind(this);
     this.fallback = this.fallback.bind(this);
     this.render = this.render.bind(this);
+    this.reload = this.reload.bind(this);
     this.close = this.close.bind(this);
   }
 
   /**
-   * Checks the application dependencies
+   * Checks the application dependencies and layout
    *
    * @async
+   * @throws when app/views/pages is missing
    * @returns {Promise<boolean>} success
    * @memberof ReactEngine
    */
@@ -97,6 +312,22 @@ class ReactEngine {
       pen.warn('view', "'sass' is not installed: .scss files will not compile");
     }
 
+    if (!fs.existsSync(path.join(this.dir, 'pages'))) {
+      const message =
+        "app/views/pages is missing: the react renderer needs its pages there (run 'henri new' or 'henri init')";
+
+      pen.fatal('view', message);
+      throw new Error(message);
+    }
+
+    if (fs.existsSync(path.join(this.dir, 'app'))) {
+      pen.warn(
+        'view',
+        'app/views/app found: the react renderer supports the pages router only,',
+        'pages under app/views/app bypass withHenri and the controllers'
+      );
+    }
+
     if (!this.henri.isTest) {
       this.ensureNextConfig();
     }
@@ -112,7 +343,7 @@ class ReactEngine {
    * @memberof ReactEngine
    */
   resolve(request) {
-    return require.resolve(request, { paths: [this.henri.cwd()] });
+    return resolveFrom(request, this.cwd);
   }
 
   /**
@@ -123,29 +354,7 @@ class ReactEngine {
    * @memberof ReactEngine
    */
   ensureNextConfig() {
-    const created = [];
-
-    for (const file of VIEW_FILES) {
-      const exists = file.alternatives.some((name) =>
-        fs.existsSync(path.join(this.dir, name))
-      );
-
-      if (!exists) {
-        try {
-          fs.writeFileSync(path.join(this.dir, file.name), file.content);
-          this.henri.pen.info('view', `created app/views/${file.name}`);
-          created.push(file.name);
-        } catch (error) {
-          this.henri.pen.warn(
-            'view',
-            `unable to create app/views/${file.name}`,
-            error.message
-          );
-        }
-      }
-    }
-
-    return created;
+    return ensureNextConfig(this.dir, this.henri.pen);
   }
 
   /**
@@ -153,34 +362,75 @@ class ReactEngine {
    *
    * @async
    * @throws when the build fails
-   * @returns {Promise<void>} nothing
+   * @returns {Promise<object>} the build (see `build()`)
    * @memberof ReactEngine
    */
   async build() {
-    const { pen } = this.henri;
+    return build({
+      bundler: this.bundler,
+      cwd: this.cwd,
+      distDir: this.distDir,
+      pen: this.henri.pen,
+      spawn: this.deps.spawn || spawnSync,
+    });
+  }
 
-    pen.info('view', `building next.js pages for production (${this.bundler})`);
+  /**
+   * The versions of next.js and react the application runs on. Warns when
+   * the engine's own next.js differs from the application's.
+   *
+   * @returns {{ next: ?string, react: ?string }} versions
+   * @memberof ReactEngine
+   */
+  versions() {
+    const { pen, utils } = this.henri;
+    const resolvePackageJson =
+      (utils && utils.resolvePackageJson) ||
+      ((name, dir) => require(resolveFrom(`${name}/package.json`, dir)));
+    const version = (name, dir) => {
+      try {
+        return resolvePackageJson(name, dir).version;
+      } catch (error) {
+        debug('unable to resolve %s from %s: %s', name, dir, error.message);
 
-    this.ensureNextConfig();
-
-    const result = spawnSync(
-      process.execPath,
-      [
-        require.resolve('next/dist/bin/next'),
-        'build',
-        this.dir,
-        `--${this.bundler}`,
-      ],
-      {
-        cwd: this.henri.cwd(),
-        env: Object.assign({}, process.env, { NODE_ENV: 'production' }),
-        stdio: 'inherit',
+        return null;
       }
-    );
+    };
 
-    if (result.status !== 0) {
-      pen.error('view', 'unable to generate a production build');
-      throw new Error(`next build exited with status ${result.status}`);
+    const versions = {
+      next: version('next', this.cwd),
+      react: version('react', this.cwd),
+    };
+    const own = version('next', __dirname);
+
+    if (own && versions.next && own !== versions.next) {
+      pen.warn(
+        'view',
+        `next.js ${versions.next} (application) differs from ${own} (@usehenri/react)`
+      );
+    }
+
+    return versions;
+  }
+
+  /**
+   * The `next` factory: the application's copy, so the server and the pages
+   * share one next.js (and one react), the engine's own as a fallback.
+   *
+   * @returns {function} `next(options)`
+   * @memberof ReactEngine
+   */
+  nextFactory() {
+    if (this.deps.next) {
+      return this.deps.next;
+    }
+
+    try {
+      return require(this.resolve('next'));
+    } catch (error) {
+      debug('next.js not found in %s, using the engine copy', this.cwd);
+
+      return require('next');
     }
   }
 
@@ -193,32 +443,17 @@ class ReactEngine {
    */
   async prepare() {
     const { pen } = this.henri;
-    const buildId = path.join(this.dir, '.next', 'BUILD_ID');
+    const buildId = path.join(this.distDir, 'BUILD_ID');
 
     if (this.henri.isProduction) {
       if (!fs.existsSync(buildId) || process.env.FORCE_BUILD === 'true') {
         await this.build();
-
-        if (process.env.CMD_BUILD === 'true') {
-          pen.info(
-            'react',
-            `build ${fs.readFileSync(buildId, 'utf8')} successful`,
-            'exiting'
-          );
-          process.exit(0);
-        }
       } else {
         pen.info('view', 'reusing production build');
       }
     }
 
-    const versions = {
-      next: require(
-        path.resolve(require.resolve('next'), '../../../package.json')
-      ).version,
-
-      react: require(this.resolve('react/package.json')).version,
-    };
+    const versions = this.versions();
 
     pen.info(
       'view',
@@ -233,46 +468,18 @@ class ReactEngine {
       customServer: true,
       dev: !this.henri.isProduction,
       dir: this.dir,
+      // Next.js attaches its hot reloading websocket (Fast Refresh) to this
+      // server itself, on the first request it handles
+      httpServer: this.henri.server && this.henri.server.httpServer,
     };
 
     options[this.bundler] = true;
 
-    this.instance = next(options);
+    this.instance = this.nextFactory()(options);
 
     await this.instance.prepare();
 
     this.handle = this.instance.getRequestHandler();
-    this.upgrade =
-      typeof this.instance.getUpgradeHandler === 'function'
-        ? this.instance.getUpgradeHandler()
-        : null;
-
-    this.attachUpgrade();
-
-    return true;
-  }
-
-  /**
-   * Forward next.js websocket upgrades (dev hot reloading) to next.js
-   *
-   * @returns {boolean} attached?
-   * @memberof ReactEngine
-   */
-  attachUpgrade() {
-    const server = this.henri.server && this.henri.server.httpServer;
-
-    if (!server || !this.upgrade || this.upgradeAttached) {
-      return false;
-    }
-
-    server.on('upgrade', (req, socket, head) => {
-      if ((req.url || '').startsWith('/_next/')) {
-        debug('forwarding upgrade for %s to next.js', req.url);
-        this.upgrade(req, socket, head);
-      }
-    });
-
-    this.upgradeAttached = true;
 
     return true;
   }
@@ -317,10 +524,33 @@ class ReactEngine {
 
     req._henri = Object.assign({}, req._henri, opts);
 
-    return handle(req, res, {
-      pathname: route === '/index' ? '/' : route,
-      search,
-    });
+    return handle(req, res, { pathname: pagePath(route), search });
+  }
+
+  /**
+   * Called by core when the application reloads. next.js watches the pages
+   * itself; the henri hooks (config/next.js, config/webpack.js) are read
+   * once, so a change to them is announced instead of applied.
+   *
+   * @async
+   * @returns {Promise<boolean>} success
+   * @memberof ReactEngine
+   */
+  async reload() {
+    const stamps = hookStamps(this.cwd);
+    const changed = Object.keys(stamps).filter(
+      (file) => stamps[file] !== this.stamps[file]
+    );
+
+    if (changed.length > 0) {
+      this.henri.pen.warn(
+        'view',
+        `${changed.join(' and ')} changed: restart henri to apply the next.js configuration`
+      );
+      this.stamps = stamps;
+    }
+
+    return true;
   }
 
   /**
@@ -331,8 +561,13 @@ class ReactEngine {
    * @memberof ReactEngine
    */
   async close() {
-    if (this.instance && typeof this.instance.close === 'function') {
-      await this.instance.close();
+    const { instance } = this;
+
+    this.instance = null;
+    this.handle = null;
+
+    if (instance && typeof instance.close === 'function') {
+      await instance.close();
     }
 
     return true;
@@ -340,3 +575,9 @@ class ReactEngine {
 }
 
 module.exports = ReactEngine;
+module.exports.ReactEngine = ReactEngine;
+module.exports.build = build;
+module.exports.createNextConfig = createNextConfig;
+module.exports.ensureNextConfig = ensureNextConfig;
+module.exports.pagePath = pagePath;
+module.exports.selectBundler = selectBundler;

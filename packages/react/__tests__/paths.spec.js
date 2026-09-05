@@ -1,24 +1,40 @@
 /**
- * Runs against the compiled output: build the package first (`yarn build`).
+ * Runs against the compiled output: build the package first (`pnpm build`).
  */
-const { getRoute, pathFor } = require('../dist/lib/paths');
+const { fill, getRoute, pathFor } = require('../dist/lib/paths');
 
+/* eslint-disable camelcase */
 const paths = {
   edit_tasks_path: { method: 'get', route: '/tasks/:id/edit' },
   index_tasks_path: { method: 'get', route: '/tasks' },
+  show_docs_path: { method: 'get', route: '/docs/:identifier/:id' },
   show_users_path: { method: 'get', route: '/orgs/:org/users/:id' },
   update_tasks_path: { method: 'patch', route: '/tasks/:id' },
 };
+/* eslint-enable camelcase */
 
 describe('paths', () => {
   let warn;
+  let warnings;
 
   beforeEach(() => {
-    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warnings = [];
+    warn = console.warn;
+    console.warn = (...args) => warnings.push(args.join(' '));
   });
 
   afterEach(() => {
-    warn.mockRestore();
+    console.warn = warn;
+  });
+
+  describe('fill', () => {
+    test('replaces whole parameter names only', () => {
+      expect(fill('/docs/:identifier/:id', 'id', 5)).toBe(
+        '/docs/:identifier/5'
+      );
+      expect(fill('/a/:id/b/:id', 'id', 'x')).toBe('/a/x/b/x');
+      expect(fill('/a/:id.json', 'id', 1)).toBe('/a/1.json');
+    });
   });
 
   describe('pathFor', () => {
@@ -47,14 +63,29 @@ describe('paths', () => {
       expect(result.route).toBe('/orgs/acme/users/3');
     });
 
+    test('does not confuse :id with :identifier', () => {
+      expect(pathFor(paths, 'show_docs_path', '9')).toBe('/docs/:identifier/9');
+      expect(
+        pathFor(paths, 'show_docs_path', { id: 9, identifier: 'readme' }).route
+      ).toBe('/docs/readme/9');
+    });
+
+    test('stringifies ObjectId-like params', () => {
+      const oid = { toString: () => '64b0c2f4e1a2b3c4d5e6f708' };
+
+      expect(pathFor(paths, 'update_tasks_path', { id: oid }).route).toBe(
+        '/tasks/64b0c2f4e1a2b3c4d5e6f708'
+      );
+    });
+
     test('warns and returns undefined for unknown paths', () => {
       expect(pathFor(paths, 'nope_path', '1')).toBeUndefined();
-      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warnings.length).toBe(1);
     });
 
     test('warns when params cannot be matched', () => {
       expect(pathFor(paths, 'edit_tasks_path', {})).toBeUndefined();
-      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warnings.length).toBe(1);
     });
   });
 
@@ -65,6 +96,7 @@ describe('paths', () => {
 
     test('replaces :id', () => {
       expect(getRoute(paths, 'edit_tasks_path', 9)).toBe('/tasks/9/edit');
+      expect(getRoute(paths, 'show_docs_path', 9)).toBe('/docs/:identifier/9');
     });
 
     test('returns route-not-found for unknown routes', () => {

@@ -1,7 +1,23 @@
-import React from 'react';
-import PropTypes from 'prop-types';
+import React, { useEffect } from 'react';
+import get from 'lodash/get';
 import { useForm } from './context';
-const _Get = require('lodash/get');
+import { warnOutsideForm } from './warn';
+
+/**
+ * The message for a field error: the `errorMsg` entry for the failed rule,
+ * or the server's message itself
+ *
+ * @param {object} errorMsg `{ [rule]: message }`
+ * @param {*} failure the failed rule name or a message
+ * @returns {string} the message
+ */
+export function messageFor(errorMsg, failure) {
+  if (errorMsg && typeof failure === 'string' && errorMsg[failure]) {
+    return errorMsg[failure];
+  }
+
+  return typeof failure === 'string' ? failure : '';
+}
 
 const Input = ({
   disabled = false,
@@ -12,52 +28,45 @@ const Input = ({
   name,
   placeholder,
   required = false,
-  type,
+  type = 'text',
   validation = {},
   sanitation = {},
+  ...props
 }) => {
   const context = useForm();
+  const hasError = Boolean(context.errors[name]);
 
-  !context._henriForm &&
-    // eslint-disable-next-line no-console
-    console.warn('Input component used outside henri form.');
-  const hasError = !!context.errors[name];
+  warnOutsideForm(context, 'Input');
 
-  context.addSanitizer(name, sanitation);
+  useEffect(
+    () => context.addSanitizer(name, sanitation),
+    [name, context.addSanitizer, JSON.stringify(sanitation)]
+  );
+
+  const value = get(context.data, name);
+  const checked = type === 'checkbox' ? Boolean(value) : undefined;
 
   return (
     <div className={`${baseClassName} ${hasError ? 'has-error' : ''}`}>
       <input
         type={type}
         name={name}
-        value={_Get(context.data, name, '')}
+        value={type === 'checkbox' ? undefined : (value ?? '')}
+        checked={checked}
         className={className}
         placeholder={placeholder}
         required={required}
-        disabled={disabled}
-        onChange={(event) =>
-          context.handleChange(event, validation, sanitation)
-        }
+        disabled={disabled || context.disabled}
+        onChange={(event) => context.handleChange(event, validation)}
+        {...props}
       />
       {hasError && (
-        <span className={errorClassName}>{errorMsg[context.errors[name]]}</span>
+        <span className={errorClassName}>
+          {messageFor(errorMsg, context.errors[name])}
+        </span>
       )}
     </div>
   );
-};
-
-Input.propTypes = {
-  baseClassName: PropTypes.string,
-  className: PropTypes.string,
-  disabled: PropTypes.bool,
-  errorClassName: PropTypes.string,
-  errorMsg: PropTypes.object,
-  name: PropTypes.string.isRequired,
-  placeholder: PropTypes.string,
-  required: PropTypes.bool,
-  sanitation: PropTypes.object,
-  type: PropTypes.string,
-  validation: PropTypes.object,
 };
 
 export default Input;

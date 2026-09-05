@@ -1,16 +1,39 @@
-import React from 'react';
-import withHenri from '@usehenri/react/withHenri';
-import CreateForm from './_form'
+import Link from 'next/link';
+import withHenri from '@usehenri/react';
+import {{doc}}Form from './_form';
 
-const Edit = ({ data: { {{lower}} = [] }}) => (
-  <div>
-    <h2>Edit {{doc}}</h2>
-    <hr />
-    <CreateForm 
-    route={getPath({{lower}}._id)}
-    button="Update" data={ {{lower}} } method='patch'/>
-</div>);
+// Rendered by the `edit` action with `data: { {{lower}}: {...} }` (nothing when
+// the record does not exist). The form patches the `update` action and the
+// page moves to the record once the controller answered.
+const Edit = ({ data: { {{lower}} = null }, getRoute, pathFor, router }) => {
+  const item = Array.isArray({{lower}}) ? {{lower}}[0] : {{lower}};
 
-const getPath = (id) => "/_scaffold/{{lower}}/" + id
+  if (!item) {
+    return (
+      <div>
+        <h2>{{doc}} not found</h2>
+        <Link href={getRoute('index_{{plural}}_path')}>Back</Link>
+      </div>
+    );
+  }
+
+  const id = String(item._id ?? item.id);
+
+  return (
+    <div>
+      <h2>Edit {{doc}}</h2>
+      <hr />
+      <{{doc}}Form
+        action={pathFor('update_{{plural}}_path', { id })}
+        data={item}
+        button="Update"
+        onSuccess={() => router.push(getRoute('show_{{plural}}_path', id))}
+      />
+      <Link href={getRoute('show_{{plural}}_path', id)}>Show</Link>
+      {' | '}
+      <Link href={getRoute('index_{{plural}}_path')}>Back</Link>
+    </div>
+  );
+};
 
 export default withHenri(Edit);

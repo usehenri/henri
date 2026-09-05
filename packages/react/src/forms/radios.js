@@ -1,13 +1,22 @@
-import React from 'react';
-import PropTypes from 'prop-types';
+import React, { useEffect } from 'react';
+import get from 'lodash/get';
 import { useForm } from './context';
+import { messageFor } from './input';
+import { warnOutsideForm } from './warn';
 
+/**
+ * One radio button of a group: `group` is the data key, `name` the value
+ * this button sets
+ *
+ * @param {object} props props
+ * @returns {React.Element} the radio
+ */
 const Radios = ({
   disabled = false,
   className = '',
   baseClassName = 'form-group',
   errorClassName = 'help-block m-b-none',
-  errorMsg = null,
+  errorMsg = {},
   label = '',
   name,
   group,
@@ -15,16 +24,17 @@ const Radios = ({
   required = false,
   validation = {},
   sanitation = {},
+  ...props
 }) => {
   const context = useForm();
+  const hasError = Boolean(context.errors[group]);
 
-  !context._henriForm &&
-    // eslint-disable-next-line no-console
-    console.warn('Radio component used outside henri form.');
+  warnOutsideForm(context, 'Radio');
 
-  const hasError = !!context.errors[name];
-
-  context.addSanitizer(name, sanitation);
+  useEffect(
+    () => context.addSanitizer(group, sanitation),
+    [group, context.addSanitizer, JSON.stringify(sanitation)]
+  );
 
   return (
     <div className={`${baseClassName} ${hasError ? 'has-error' : ''}`}>
@@ -32,40 +42,24 @@ const Radios = ({
         <input
           type="radio"
           name={group}
-          checked={context.data[group] === name}
+          checked={get(context.data, group) === name}
           value={name}
           id={name}
           className={className}
           required={required}
-          disabled={disabled}
-          onChange={(elem) =>
-            context.handleChange(elem, validation, sanitation)
-          }
+          disabled={disabled || context.disabled}
+          onChange={(event) => context.handleChange(event, validation)}
+          {...props}
         />{' '}
         {label || children}
-        {hasError && errorMsg && (
+        {hasError && (
           <span className={errorClassName}>
-            {errorMsg[context.errors[name]]}
+            {messageFor(errorMsg, context.errors[group])}
           </span>
         )}
       </label>
     </div>
   );
-};
-
-Radios.propTypes = {
-  baseClassName: PropTypes.string,
-  children: PropTypes.node,
-  className: PropTypes.string,
-  disabled: PropTypes.bool,
-  errorClassName: PropTypes.string,
-  errorMsg: PropTypes.object,
-  group: PropTypes.string.isRequired,
-  label: PropTypes.string,
-  name: PropTypes.string.isRequired,
-  required: PropTypes.bool,
-  sanitation: PropTypes.object,
-  validation: PropTypes.object,
 };
 
 export default Radios;

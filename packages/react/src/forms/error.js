@@ -1,25 +1,34 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import { useForm } from './context';
+import { warnOutsideForm } from './warn';
 
-const FormError = ({ children }) => {
-  const { error = null, _henriForm = false } = useForm();
+/**
+ * The form-level error (what the server answered, or `onFail`)
+ *
+ * @param {object} props props
+ * @param {React.ReactNode} [props.children] shown instead of the message
+ * @param {string} [props.className] wrapper class
+ * @returns {React.Element} the error
+ */
+const FormError = ({ children, className = 'form-error' }) => {
+  const context = useForm();
+  const { error = null } = context;
 
-  // eslint-disable-next-line no-console
-  !_henriForm && console.warn('Error component used outside henri form.');
+  warnOutsideForm(context, 'FormError');
 
-  if (error && children) {
-    return <div>{children}</div>;
+  if (!error) {
+    return null;
   }
-  if (error) {
-    return <div>{error === true ? 'An error occurred' : error}</div>;
+
+  if (children) {
+    return <div className={className}>{children}</div>;
   }
 
-  return <div />;
-};
-
-FormError.propTypes = {
-  children: PropTypes.node,
+  return (
+    <div className={className}>
+      {error === true ? 'An error occurred' : String(error)}
+    </div>
+  );
 };
 
 export default FormError;

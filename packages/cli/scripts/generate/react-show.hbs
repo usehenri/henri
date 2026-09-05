@@ -1,13 +1,38 @@
-import React from 'react';
-import withHenri from '@usehenri/react/withHenri';
+import Link from 'next/link';
+import withHenri from '@usehenri/react';
 
-const Show = ({ data: { {{lower}} = [] }}) => (
-  <div>
-    <h2>Show { {{lower}}[0]._id.toString()}</h2>
-    <hr />
-    {{#each keys}}
-      <div>{{this}}: { {{lower}}[0].{{this}} }</div>
-    {{/each}}
-  </div>);
+// Rendered by the `show` action with `data: { {{lower}}: {...} }` (nothing when
+// the record does not exist).
+const Show = ({ data: { {{lower}} = null }, getRoute }) => {
+  const item = Array.isArray({{lower}}) ? {{lower}}[0] : {{lower}};
 
-  export default withHenri(Show);
+  if (!item) {
+    return (
+      <div>
+        <h2>{{doc}} not found</h2>
+        <Link href={getRoute('index_{{plural}}_path')}>Back</Link>
+      </div>
+    );
+  }
+
+  const id = String(item._id ?? item.id);
+
+  return (
+    <div>
+      <h2>{{doc}} {id}</h2>
+      <hr />
+      {{#each keys}}
+      <div>
+        <strong>{{this}}:</strong> {String(item.{{this}} ?? '')}
+      </div>
+      {{/each}}
+      <p>
+        <Link href={getRoute('edit_{{plural}}_path', id)}>Edit</Link>
+        {' | '}
+        <Link href={getRoute('index_{{plural}}_path')}>Back</Link>
+      </p>
+    </div>
+  );
+};
+
+export default withHenri(Show);

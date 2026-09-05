@@ -1,8 +1,8 @@
 import Button from './button';
 import Editor from './editor';
 import FormError from './error';
-import Form from './form';
-import Input from './input';
+import Form, { sanitize } from './form';
+import Input, { messageFor } from './input';
 import Radio from './radios';
 import Select from './select';
 import Validation from './validation';
@@ -18,5 +18,7 @@ export {
   Radio,
   Select,
   Validation,
+  messageFor,
+  sanitize,
   useForm,
 };
