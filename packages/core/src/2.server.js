@@ -439,10 +439,15 @@ class Server extends BaseModule {
 
     let { port } = this;
 
-    port = henri.isTest ? await detect(port) : port;
+    // Tests get whatever port the kernel has free: asking for one and
+    // binding it are a single operation, where detecting a free port and
+    // then binding it races with anything else binding meanwhile
+    port = henri.isTest ? 0 : port;
     port = henri.isDev ? await choosePort(port, pen) : port;
 
     await this.listen(port, this.host);
+
+    port = this.httpServer.address().port;
 
     const ip = lanIp();
     const urls = prepareUrls('http', this.host, ip, port);

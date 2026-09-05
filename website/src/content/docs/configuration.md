@@ -30,7 +30,7 @@ The file is parsed on boot: a syntax error is reported with its line, and the bo
 
 | Key                | Default       | Description                                                                                                                                    |
 | ------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `port`             | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                                                |
+| `port`             | `3000`        | Port to listen on. In development a busy port is replaced by the next free one; under `NODE_ENV=test` the kernel assigns one.                  |
 | `host`             | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file. |
 | `cors`             | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                              |
 | `renderer`         | `template`    | View engine: `react`, `inertia` or `template` (Handlebars). `henri new` writes `react`. See [Views](/guides/views/).                           |
