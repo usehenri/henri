@@ -65,8 +65,8 @@ function negotiate(res, status, message, extra = {}, details = '') {
   return res.format({
     html: () => res.type('html').send(page(status, title, details)),
     json: () => res.json(body),
-    // eslint-disable-next-line sort-keys
     // Escaped as well: static analyzers treat every send() as an html sink
+    // eslint-disable-next-line sort-keys
     default: () =>
       res.type('txt').send(escape(`${status} ${title}\n${message}\n`)),
   });
