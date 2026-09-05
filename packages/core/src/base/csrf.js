@@ -6,9 +6,10 @@ const crypto = require('crypto');
  * A random token is stored in a cookie readable by the browser (`henri.csrf`,
  * not httpOnly) and exposed to the views as `req._henri.csrf`. Unsafe requests
  * (POST, PUT, PATCH, DELETE) carrying a session cookie must send it back in
- * the `X-CSRF-Token` header or the `_csrf` body field; a third-party site can
- * trigger the request but cannot read the cookie. Requests authenticated with
- * a bearer token (JWT) have no ambient credentials and are exempt.
+ * the `X-CSRF-Token` (or `X-XSRF-TOKEN`) header or the `_csrf` body field; a
+ * third-party site can trigger the request but cannot read the cookie.
+ * Requests authenticated with a bearer token (JWT) have no ambient
+ * credentials and are exempt.
  */
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const TOKEN_BYTES = 24;
@@ -42,6 +43,10 @@ function safeEqual(given, expected) {
   return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
 }
 
+// `X-XSRF-TOKEN` is the axios/Inertia/Laravel convention (the client echoes
+// an `XSRF-TOKEN` cookie holding the same token)
+const HEADERS = ['x-csrf-token', 'x-xsrf-token'];
+
 /**
  * Reads the token sent with the request
  *
@@ -49,13 +54,15 @@ function safeEqual(given, expected) {
  * @returns {?string} the token or null
  */
 function sentToken(req) {
-  const header =
-    typeof req.get === 'function'
-      ? req.get('x-csrf-token')
-      : req.headers && req.headers['x-csrf-token'];
+  for (const name of HEADERS) {
+    const header =
+      typeof req.get === 'function'
+        ? req.get(name)
+        : req.headers && req.headers[name];
 
-  if (typeof header === 'string' && header.length > 0) {
-    return header;
+    if (typeof header === 'string' && header.length > 0) {
+      return header;
+    }
   }
 
   if (req.body && typeof req.body._csrf === 'string') {

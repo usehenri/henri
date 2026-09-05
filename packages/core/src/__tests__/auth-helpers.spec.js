@@ -349,9 +349,10 @@ describe('csrf', () => {
     }
   });
 
-  test('accepts the header, the body field or a bearer token', () => {
+  test('accepts the header (or its xsrf alias), the body field or a bearer token', () => {
     const variants = [
       { headers: { 'x-csrf-token': token } },
+      { headers: { 'x-xsrf-token': token } },
       { body: { _csrf: token } },
       { headers: { authorization: 'Bearer abc.def.ghi' } },
     ];
