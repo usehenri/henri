@@ -233,3 +233,67 @@ describe('henri init', () => {
     expect(stdout).toContain("already have an 'app' folder");
   });
 });
+
+describe('henri new --renderer inertia', () => {
+  let dir;
+  let app;
+
+  beforeAll(() => {
+    ({ app, dir } = scaffold(['--no-git', '--renderer', 'inertia']));
+  });
+
+  afterAll(() => {
+    cleanup(dir);
+  });
+
+  test('keeps the sample of the inertia template only', () => {
+    expect(JSON.parse(read(app, 'config/default.json')).renderer).toBe(
+      'inertia'
+    );
+
+    for (const file of [
+      'app/models/Tasks.js',
+      'app/controllers/tasks.js',
+      'app/views/pages/tasks/index.jsx',
+      'app/views/vite.config.mjs',
+    ]) {
+      expect(exists(app, file)).toBe(true);
+    }
+
+    // Nothing from the react scaffold generator
+    for (const file of [
+      'app/models/Task.js',
+      'app/views/pages/tasks/index.js',
+      'app/views/pages/tasks/_form.js',
+      'test/tasks.test.js',
+      'vitest.config.js',
+    ]) {
+      expect(exists(app, file)).toBe(false);
+    }
+
+    expect(routesOf(app)).toEqual({
+      'delete /tasks/:id': 'tasks#destroy',
+      'get /': 'main#home',
+      'get /tasks': 'tasks#index',
+      'post /tasks': 'tasks#create',
+    });
+  });
+
+  test('writes a README that matches the template', () => {
+    const readme = read(app, 'README.md');
+
+    expect(readme).toContain('app/views/pages/tasks/index.jsx');
+    expect(readme).toContain('Inertia (React) pages');
+    expect(readme).not.toContain('destroy scaffold Task');
+  });
+
+  test('rejects an unknown renderer with a positive exit code', () => {
+    const { status, stdout } = henri(
+      ['new', 'bad', '--skip-install', '--no-git', '--renderer', 'nope'],
+      { cwd: dir }
+    );
+
+    expect(status).toBe(1);
+    expect(stdout).toContain("Unknown renderer 'nope'");
+  });
+});

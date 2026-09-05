@@ -4,6 +4,15 @@ const { spawnSync } = require('child_process');
 const { readConfig, resolveFrom, validInstall } = require('./utils');
 
 /**
+ * The view engines that need a production build, by renderer. Each module
+ * exports `build({ cwd, config })`, which builds without booting henri.
+ */
+const ENGINES = {
+  inertia: '@usehenri/inertia/engine',
+  react: '@usehenri/react/engine',
+};
+
+/**
  * Build the production views without booting henri (no database needed)
  *
  * @returns {Promise<void>} Resolves when the build is done
@@ -18,8 +27,9 @@ const main = async () => {
   const cwd = process.cwd();
   const config = readConfig(cwd, 'production');
   const renderer = String(config.renderer || 'template').toLowerCase();
+  const name = ENGINES[renderer];
 
-  if (renderer !== 'react') {
+  if (!name) {
     console.log(`> the "${renderer}" renderer needs no build`);
 
     return;
@@ -28,10 +38,10 @@ const main = async () => {
   let engine;
 
   try {
-    engine = require(resolveFrom('@usehenri/react/engine', cwd));
+    engine = require(resolveFrom(name, cwd));
   } catch (error) {
     throw new Error(
-      `@usehenri/react is not installed in this project (${error.message})`,
+      `${name.replace(/\/engine$/, '')} is not installed in this project (${error.message})`,
       { cause: error }
     );
   }
@@ -42,8 +52,14 @@ const main = async () => {
     return;
   }
 
-  // Older @usehenri/react: run `next build` on app/views ourselves
-  await legacyBuild(cwd);
+  if (renderer === 'react') {
+    // Older @usehenri/react: run `next build` on app/views ourselves
+    await legacyBuild(cwd);
+
+    return;
+  }
+
+  throw new Error(`${name} does not export a build() function`);
 };
 
 /**
@@ -78,3 +94,4 @@ const legacyBuild = async (cwd) => {
 };
 
 module.exports = main;
+module.exports.ENGINES = ENGINES;
