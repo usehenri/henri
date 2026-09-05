@@ -155,9 +155,11 @@ changesets it opens or updates a "Version Packages" pull request; merging that
 PR runs the publish job, which publishes to npm with provenance and creates
 GitHub releases. Publishing uses npm trusted publishing (OIDC): every public
 package trusts this repository's `release.yml` running in the `npm` GitHub
-environment. There is no npm token to rotate; a new package needs its trusted
-publisher registered on npmjs.com before its first release, and must be added
-to the `fixed` group of `.changeset/config.json`. `scripts/prepublish.js` copies
+environment. There is no npm token to rotate. npm cannot create a package
+through OIDC, so a new package is bootstrapped once by a maintainer
+(`npm login`, then `node scripts/npm-bootstrap.mjs @usehenri/<name>` publishes
+an empty 0.0.0), gets its trusted publisher registered on npmjs.com, and must
+be added to the `fixed` group of `.changeset/config.json`. `scripts/prepublish.js` copies
 the LICENSE and a README into every public package at publish time
 (`packages/henri` gets the root README).
 
