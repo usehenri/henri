@@ -40,7 +40,9 @@ module.exports = {
 };
 ```
 
-In development, routes pointing to a missing controller answer `501 Not Implemented` so you notice; in production they are skipped. `GET /_routes` and `GET /_controllers` list what is loaded, and pressing `R` or `U` in the terminal prints the same.
+In development, routes pointing to a missing controller answer `501 Not Implemented` so you notice; in production they are skipped. `GET /_routes` and `GET /_controllers` list what is loaded (development only, and only from the machine running the server), and pressing `R` or `U` in the terminal prints the same.
+
+Requests nothing claims get a `404`, and errors thrown (or rejected) by a controller are logged and answered with a `500`. Both are content-negotiated: JSON clients receive `{ statusCode, error, message }`, browsers a page (with the stack in development, only the status in production).
 
 ## Roles
 

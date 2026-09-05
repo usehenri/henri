@@ -15,7 +15,10 @@ async function start() {
 
 if (require.main === module) {
   func.pen.warn('boot', 'running from npm');
-  start();
+  start().catch((error) => {
+    func.pen.fatal('boot', error.cause || error);
+    process.exit(1);
+  });
 } else {
   func.pen.warn('boot', 'running from cli');
 }

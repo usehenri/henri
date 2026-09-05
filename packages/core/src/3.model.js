@@ -1,8 +1,7 @@
 const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
-const includeAll = require('include-all');
-const bounce = require('@hapi/bounce');
+const { loadModules } = require('./utils');
 const debug = require('debug')('henri:model');
 const { userConfig } = require('./base/auth');
 
@@ -47,32 +46,16 @@ class Model extends BaseModule {
    * @static
    * @async
    * @param {string} location defaults: ./app/models
-   * @returns {Promise<(Object|Error)>} list of objects
+   * @returns {Promise<Object>} the models, keyed by identity
+   * @throws when a model fails to load
    * @memberof Model
-   * @todo Change this to an inhouse loader with prettier validation
    */
   static async load(location) {
-    return new Promise((resolve, reject) => {
-      includeAll.optional(
-        {
-          dirname: path.resolve(location),
-          excludeDirs: /^\.(git|svn)$/,
-          filter: /(.+)\.js$/,
-          flatten: true,
-          force: true,
-        },
-        (err, modules) => {
-          if (err) {
-            debug('load rejected');
+    const models = loadModules(path.resolve(location));
 
-            return reject(err);
-          }
-          debug('loaded from fs');
+    debug('loaded from fs');
 
-          return resolve(modules);
-        }
-      );
-    });
+    return models;
   }
 
   /**
@@ -113,9 +96,13 @@ class Model extends BaseModule {
           this.henri.graphql.extract(model);
         }
       } catch (error) {
-        bounce.rethrow(error, 'system');
+        this.henri.pen.error(
+          'model',
+          `unable to configure ${id}`,
+          error.message
+        );
 
-        return {};
+        throw error;
       }
     }
 
@@ -167,9 +154,9 @@ class Model extends BaseModule {
 
       return Pkg;
     } catch (error) {
-      bounce.rethrow(error, 'system');
+      debug('adapter %s failed to load: %s', conn, error.message);
 
-      return pen.fatal(
+      throw pen.fatal(
         'models',
         `
       Unable to load database adapter '${store.adapter}'. Seems like you 
@@ -205,7 +192,7 @@ class Model extends BaseModule {
     };
 
     if (typeof valid[store.adapter] === 'undefined') {
-      return pen.fatal(
+      throw pen.fatal(
         'models',
         `Adapter '${store.adapter}' is not valid. Check your configuration file.`
       );
@@ -216,8 +203,8 @@ class Model extends BaseModule {
     try {
       this.stores[name] = new Pkg(name, store, this.henri);
     } catch (error) {
-      bounce.rethrow(error, 'system');
       pen.error('model', 'store', store.adapter, 'unable to load');
+      throw error;
     }
 
     return this.stores[name];
@@ -237,7 +224,7 @@ class Model extends BaseModule {
       debug('init done');
     } catch (error) {
       this.henri.pen.error('model', 'error', error);
-      bounce.rethrow(error, 'system');
+      throw error;
     }
 
     return this.name;
@@ -257,14 +244,8 @@ class Model extends BaseModule {
         await this.stores[store].start();
       }
     } catch (error) {
-      this.henri.pen.fatal(
-        'model',
-        'failed to connect to mongo server',
-        null,
-        error
-      );
+      this.henri.pen.fatal('model', 'failed to start a store', null, error);
       throw error;
-      // Bounce.rethrow(error, 'system');
     }
     if (this.ids.length > 0) {
       this.addToEslintRc();
@@ -295,7 +276,8 @@ class Model extends BaseModule {
         debug('stopped %s', store);
       }
     } catch (error) {
-      bounce.rethrow(error, 'system');
+      this.henri.pen.error('model', 'stop', error);
+      throw error;
     }
     this.ids.forEach((name) => delete global[name]);
     delete this.stores;
@@ -321,8 +303,8 @@ class Model extends BaseModule {
       await this.init();
       debug('reloading done!');
     } catch (error) {
-      bounce.rethrow(error, 'system');
-      henri.pen.error('model', error);
+      this.henri.pen.error('model', error);
+      throw error;
     }
 
     return this.name;

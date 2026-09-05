@@ -11,7 +11,6 @@ User {
   "findByEmail": [Function],
   "findById": [Function],
   "henri": null,
-  "info": [Function],
   "init": [Function],
   "key": null,
   "login": [Function],
@@ -23,8 +22,6 @@ User {
   "runlevel": 4,
   "sessionStore": null,
   "settings": null,
-  "setup": [Function],
-  "start": [Function],
   "stop": [Function],
 }
 `;

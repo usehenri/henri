@@ -2,17 +2,25 @@ const BaseModule = require('./base/module');
 
 const express = require('express');
 const cookieParser = require('cookie-parser');
-const timings = require('server-timings');
 const compress = require('compression');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { execFile } = require('child_process');
 const chokidar = require('chokidar');
 const boom = require('./base/boom');
+const { errorHandler, notFound } = require('./base/http');
 const debug = require('debug')('henri:server');
 const { detect } = require('detect-port');
-const internalIp = require('internal-ip');
+
+/** How long a graceful stop may take before the process is killed (ms) */
+const STOP_TIMEOUT = 5000;
+
+/** Debounce for filesystem events (save-all, editor temp files) (ms) */
+const WATCH_DEBOUNCE = 100;
+
+const SIGNALS = ['SIGINT', 'SIGTERM'];
 
 /**
  * Open an url in the default browser (best effort, never throws)
@@ -45,19 +53,42 @@ function openBrowser(url) {
  * Build the urls displayed in the terminal and used to open the browser
  *
  * @param {string} protocol http or https
+ * @param {string} host the host the server is bound to
  * @param {string} lanIp the LAN ip of this machine
  * @param {number} port the port
  * @returns {{localUrlForTerminal: string, lanUrlForTerminal: string, localUrlForBrowser: string}} urls
  */
-function prepareUrls(protocol, lanIp, port) {
+function prepareUrls(protocol, host, lanIp, port) {
   const localUrl = `${protocol}://localhost:${port}/`;
-  const lanUrl = lanIp ? `${protocol}://${lanIp}:${port}/` : null;
+  const everywhere = host === '0.0.0.0' || host === '::';
+  const lanUrl = everywhere && lanIp ? `${protocol}://${lanIp}:${port}/` : null;
 
   return {
     lanUrlForTerminal: lanUrl,
     localUrlForBrowser: localUrl,
     localUrlForTerminal: localUrl,
   };
+}
+
+/**
+ * First non-internal IPv4 address of this machine (replaces internal-ip)
+ *
+ * @returns {?string} the ip or null
+ */
+function lanIp() {
+  const interfaces = os.networkInterfaces();
+
+  for (const name of Object.keys(interfaces)) {
+    for (const entry of interfaces[name] || []) {
+      const family = entry.family === 4 || entry.family === 'IPv4';
+
+      if (family && !entry.internal) {
+        return entry.address;
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -80,11 +111,14 @@ async function choosePort(port, pen) {
 /* istanbul ignore next */
 /**
  * Watch the filesystem in dev mode
+ * Events are debounced and handed to server.changed(), which checks the
+ * syntax and reloads (reloads are serialized by the module system).
  *
- * @async
- * @return {void}
+ * @param {Henri} henri the henri instance
+ * @return {chokidar.FSWatcher} the watcher
  */
-async function watch() {
+function watch(henri) {
+  const { pen, server } = henri;
   const watching = [
     'app/controllers',
     'app/helpers',
@@ -99,12 +133,6 @@ async function watch() {
   ]
     .map((entry) => path.resolve(henri.cwd(), entry))
     .filter((entry) => fs.existsSync(entry));
-  const {
-    pen,
-    utils: { clearConsole },
-  } = henri;
-
-  henri.status.set('locked', true);
 
   const watcher = chokidar.watch(watching, {
     ignoreInitial: true,
@@ -114,28 +142,25 @@ async function watch() {
       !/\.(html|htm|hbs)$/.test(file),
   });
 
-  watcher.on('all', async (event, file) => {
-    if (henri.status.get('locked')) {
-      debug('received file modification trigger. henri is locked. returning');
+  const pending = new Set();
+  let timer = null;
 
-      return;
-    }
-    henri.status.set('locked', true);
-    clearConsole();
-    debug('console cleared');
-    pen.line();
-    pen.warn('server', 'changes detected in', path.relative(henri.cwd(), file));
-    pen.line(2);
-    debug('checking the syntax of the changed file');
-    await henri.utils.syntax(file);
-    setTimeout(() => henri.status.set('locked', false), 3000);
-    debug('unlocking and reloading');
-    !henri.status.get('locked') && henri.reload();
+  watcher.on('all', (event, file) => {
+    pending.add(file);
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const files = Array.from(pending);
+
+      pending.clear();
+      server
+        .changed(files)
+        .catch((error) => pen.error('server', 'reload failed', error));
+    }, WATCH_DEBOUNCE);
   });
 
-  henri.server.watcher = watcher;
+  server.watcher = watcher;
 
-  keyboardShortcuts();
+  keyboardShortcuts(henri);
 
   setTimeout(() => {
     const cmdCtrl = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
@@ -146,20 +171,25 @@ async function watch() {
       `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${cmdCtrl}+N`
     );
     pen.info('server', `To quit, use ${cmdCtrl}+C`);
-    henri.status.set('locked', false);
   }, 1 * 1000);
+
+  return watcher;
 }
 
 /* istanbul ignore next */
 /**
  * Keyboard shortcuts (only when running in an interactive terminal)
+ * stdin is switched to raw mode, so Ctrl+C arrives as a byte (3) and is
+ * routed to the same shutdown as SIGINT.
  *
+ * @param {Henri} henri the henri instance
  * @returns {void}
  * @todo Move this to its own module with a menu and dynamic shortcuts
  */
-function keyboardShortcuts() {
+function keyboardShortcuts(henri) {
   const {
     pen,
+    server,
     utils: { clearConsole },
   } = henri;
 
@@ -169,73 +199,74 @@ function keyboardShortcuts() {
     return;
   }
 
-  process.stdin.resume();
-  process.stdin.on('data', async (data) => {
-    /**
-     * Opens the browser at dev url
-     *
-     * @return {void}
-     */
-    const open = () => henri.server.url && openBrowser(henri.server.url);
+  /**
+   * Opens the browser at dev url
+   *
+   * @return {void}
+   */
+  const open = () => server.url && openBrowser(server.url);
 
-    const chr = data.toString().charCodeAt(0);
+  const actions = {
+    114: async () => {
+      const loaded = henri.router._results.loaded;
+      const num = loaded.length;
 
-    const actions = {
-      114: async () => {
-        const loaded = henri.router._results.loaded;
-        const num = loaded.length;
+      debug('showing routes information');
 
-        debug('showing routes information');
-
-        if (num > 0) {
-          clearConsole();
-          henri.pen.info('router', `loaded route${num > 1 ? 's' : ''}`);
-          loaded.map((val) => henri.pen.info(...val));
-          henri.pen.info('router', 'total loaded', num);
-        } else {
-          henri.pen.info('router', 'no routes to show...');
-        }
-      },
-      117: async () => {
-        const unknown = henri.router._results.unknown;
-        const num = unknown.length;
-
-        if (num > 0) {
-          clearConsole();
-          henri.pen.info('router', `unknown route${num > 1 ? 's' : ''}`);
-          unknown.map((val) => henri.pen.error(...val));
-          henri.pen.info('router', 'total unknown', num);
-        } else {
-          henri.pen.info('router', 'no unknown routes to show...');
-        }
-      },
-      14: () => {
-        open();
-      },
-      15: () => {
-        open();
-      },
-      18: async () => {
+      if (num > 0) {
         clearConsole();
-        pen.line();
-        pen.warn('server', 'user-requested server reload...');
-        pen.line();
-        henri.reload();
-      },
-      3: async () => {
-        await henri.stop();
-        pen.warn('server', 'exiting application...');
-        pen.line();
-        process.exit(0);
-      },
-    };
+        pen.info('router', `loaded route${num > 1 ? 's' : ''}`);
+        loaded.map((val) => pen.info(...val));
+        pen.info('router', 'total loaded', num);
+      } else {
+        pen.info('router', 'no routes to show...');
+      }
+    },
+    117: async () => {
+      const unknown = henri.router._results.unknown;
+      const num = unknown.length;
+
+      if (num > 0) {
+        clearConsole();
+        pen.info('router', `unknown route${num > 1 ? 's' : ''}`);
+        unknown.map((val) => pen.error(...val));
+        pen.info('router', 'total unknown', num);
+      } else {
+        pen.info('router', 'no unknown routes to show...');
+      }
+    },
+    14: () => {
+      open();
+    },
+    15: () => {
+      open();
+    },
+    18: async () => {
+      clearConsole();
+      pen.line();
+      pen.warn('server', 'user-requested server reload...');
+      pen.line();
+      await henri.reload();
+    },
+    3: () => server.shutdown('SIGINT'),
+  };
+
+  const listener = (data) => {
+    const chr = data.toString().charCodeAt(0);
 
     /* istanbul ignore next */
     if (typeof actions[chr] !== 'undefined') {
-      actions[chr]();
+      Promise.resolve()
+        .then(actions[chr])
+        .catch((error) => pen.error('server', 'shortcut failed', error));
     }
-  });
+  };
+
+  process.stdin.resume();
+  process.stdin.on('data', listener);
   process.stdin.setRawMode(true);
+
+  server._stdinListener = listener;
 }
 
 /**
@@ -257,15 +288,25 @@ class Server extends BaseModule {
     this.reloadable = false;
 
     this.port = 3000;
+    this.host = null;
     this.url = '';
     this.app = null;
     this.express = null;
     this.httpServer = null;
     this.watcher = null;
 
+    this._signalHandlers = [];
+    this._stdinListener = null;
+    this._stopping = false;
+
+    /** Exit the process (replaceable in tests) */
+    this.exit = (code) => process.exit(code);
+
     this.init = this.init.bind(this);
     this.start = this.start.bind(this);
     this.stop = this.stop.bind(this);
+    this.changed = this.changed.bind(this);
+    this.shutdown = this.shutdown.bind(this);
   }
 
   /**
@@ -277,22 +318,31 @@ class Server extends BaseModule {
    * @memberof Server
    */
   async init() {
+    const { config } = this.henri;
     const app = (this.app = express());
+
+    app.disable('x-powered-by');
 
     this.httpServer = require('http').createServer(this.app);
 
-    this.port = this.henri.config.has('port')
-      ? this.henri.config.get('port')
-      : 3000;
-
-    app.use(timings);
+    this.port = config.has('port') ? config.get('port') : 3000;
+    this.host =
+      process.env.HENRI_HOST ||
+      config.get('host', true) ||
+      (this.henri.isProduction ? '0.0.0.0' : '127.0.0.1');
 
     if (this.henri.isProduction) {
       /* istanbul ignore next */
       app.use(compress());
     }
 
-    app.use(cors());
+    // CORS is opt-in: `"cors": true` for the defaults, or the cors() options
+    if (config.has('cors') && config.get('cors')) {
+      const options = config.get('cors');
+
+      app.use(cors(typeof options === 'object' ? options : undefined));
+    }
+
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
     app.use(cookieParser());
@@ -309,64 +359,228 @@ class Server extends BaseModule {
 
   /**
    * Start the server (called later from router)
+   * Mounts the router, then the 404 and error handlers, and listens.
    *
-   * @param {number} delay ms delay
+   * @async
    * @param {function} [cb=null] call back after running
-   * @returns {void} hangs perpetually in space, answering request...
+   * @returns {Promise<boolean>} true once listening
+   * @throws when the port is busy or the server cannot listen
    * @memberof Server
    */
-  async start(delay, cb = null) {
-    // eslint-disable-next-line no-async-promise-executor
-    return new Promise(async (resolve, reject) => {
-      let { app, henri, httpServer, port } = this;
-      let self = this; // Oh no!
-      const lanIp = internalIp.v4.sync() || null;
+  async start(cb = null) {
+    const { app, henri, httpServer } = this;
+    const { pen } = henri;
 
-      debug('using %s as the internal ip', lanIp);
+    if (httpServer.listening) {
+      debug('server already started');
 
-      app.use((req, res, next) => henri.router.handler(req, res, next));
+      return true;
+    }
 
-      port = henri.isTest ? await detect(port) : port;
-      port = henri.isDev ? await choosePort(port, henri.pen) : port;
+    app.use((req, res, next) => henri.router.handler(req, res, next));
+    app.use(notFound(henri));
+    app.use(errorHandler(henri));
 
-      httpServer
-        .listen(port, function () {
-          const urls = prepareUrls('http', lanIp, port);
+    let { port } = this;
 
-          henri.pen.info('server', 'ready for battle');
-          henri.pen.info('server', 'local url', urls.localUrlForTerminal);
-          urls.lanUrlForTerminal &&
-            henri.pen.info('server', 'network url', urls.lanUrlForTerminal);
+    port = henri.isTest ? await detect(port) : port;
+    port = henri.isDev ? await choosePort(port, pen) : port;
 
-          henri.isDev && debug('watching the filesystem as we are in dev');
-          henri.isDev && watch();
+    await this.listen(port, this.host);
 
-          self.url = urls.localUrlForBrowser;
-          self.port = port;
+    const ip = lanIp();
+    const urls = prepareUrls('http', this.host, ip, port);
 
-          typeof cb === 'function' && cb();
-          resolve(true);
-        })
-        .on('error', (error) => {
-          /* istanbul ignore next */
-          if (error.code === 'EADDRINUSE') {
-            return reject(new Error(`port ${port} already in use`));
-          }
+    debug('bound to %s:%d (lan ip: %s)', this.host, port, ip);
 
-          /* istanbul ignore next */
-          return reject(new Error(`unable to start server: ${error.message}`));
-        });
+    this.url = urls.localUrlForBrowser;
+    this.port = port;
+
+    pen.info('server', 'ready for battle');
+    pen.info('server', 'local url', urls.localUrlForTerminal);
+    urls.lanUrlForTerminal &&
+      pen.info('server', 'network url', urls.lanUrlForTerminal);
+
+    if (henri.isDev) {
+      debug('watching the filesystem as we are in dev');
+      watch(henri);
+    }
+
+    if (!henri.isTest) {
+      this.installSignalHandlers();
+    }
+
+    typeof cb === 'function' && cb();
+
+    return true;
+  }
+
+  /**
+   * Listen on a port and host, as a promise
+   *
+   * @param {number} port the port
+   * @param {string} host the host to bind to
+   * @returns {Promise<void>} resolves once listening
+   * @throws when the server cannot listen
+   * @memberof Server
+   */
+  listen(port, host) {
+    const { httpServer } = this;
+
+    return new Promise((resolve, reject) => {
+      const onError = (error) => {
+        /* istanbul ignore next */
+        if (error.code === 'EADDRINUSE') {
+          return reject(new Error(`port ${port} already in use`));
+        }
+
+        /* istanbul ignore next */
+        return reject(
+          new Error(`unable to start server: ${error.message}`, {
+            cause: error,
+          })
+        );
+      };
+
+      httpServer.once('error', onError);
+      httpServer.listen(port, host, () => {
+        httpServer.off('error', onError);
+        httpServer.on('error', (error) =>
+          this.henri.pen.error('server', 'http server error', error)
+        );
+        resolve();
+      });
     });
   }
 
   /**
-   * Stops the module: closes the http server and the file watcher
+   * Files changed on disk (development): check their syntax then reload
+   *
+   * @async
+   * @param {Array<string>} files the changed files
+   * @returns {Promise<boolean>} whether a reload happened
+   * @memberof Server
+   */
+  async changed(files) {
+    const { pen, utils } = this.henri;
+
+    utils.clearConsole();
+    pen.line();
+    for (const file of files) {
+      pen.warn(
+        'server',
+        'changes detected in',
+        path.relative(this.henri.cwd(), file)
+      );
+    }
+    pen.line(2);
+
+    for (const file of files) {
+      if (!fs.existsSync(file)) {
+        continue;
+      }
+
+      const result = await utils.syntax(file, null, this.henri);
+
+      if (result instanceof Error) {
+        pen.warn('server', 'fix the error above to reload');
+
+        return false;
+      }
+    }
+
+    await this.henri.reload();
+
+    return true;
+  }
+
+  /**
+   * Handle SIGINT/SIGTERM: stop henri, exit when done (or after 5s)
+   * A second signal exits immediately.
+   *
+   * @param {string} signal the signal name
+   * @returns {void}
+   * @memberof Server
+   */
+  shutdown(signal) {
+    const { pen } = this.henri;
+
+    if (this._stopping) {
+      pen.warn('server', `${signal} received again, exiting now`);
+
+      return this.exit(1);
+    }
+
+    this._stopping = true;
+    pen.line();
+    pen.warn('server', `${signal} received, stopping...`);
+
+    const timer = setTimeout(() => {
+      pen.error('server', `unable to stop within ${STOP_TIMEOUT}ms, exiting`);
+      this.exit(1);
+    }, STOP_TIMEOUT);
+
+    timer.unref();
+
+    return this.henri.stop().then(
+      (errors) => {
+        clearTimeout(timer);
+        pen.warn('server', 'exiting application...');
+        pen.line();
+
+        return this.exit(errors && errors.length > 0 ? 1 : 0);
+      },
+      (error) => {
+        clearTimeout(timer);
+        pen.fatal('server', error);
+
+        return this.exit(1);
+      }
+    );
+  }
+
+  /**
+   * Install the SIGINT/SIGTERM handlers (removed by stop())
+   *
+   * @returns {void}
+   * @memberof Server
+   */
+  installSignalHandlers() {
+    if (this._signalHandlers.length > 0) {
+      return;
+    }
+
+    for (const signal of SIGNALS) {
+      const handler = () => this.shutdown(signal);
+
+      process.on(signal, handler);
+      this._signalHandlers.push([signal, handler]);
+    }
+  }
+
+  /**
+   * Stops the module: closes the http server and the file watcher, restores
+   * the terminal and removes the signal handlers
    *
    * @async
    * @returns {(string|boolean)} Module name or false
    * @memberof Server
    */
   async stop() {
+    for (const [signal, handler] of this._signalHandlers) {
+      process.off(signal, handler);
+    }
+    this._signalHandlers = [];
+
+    /* istanbul ignore next */
+    if (this._stdinListener) {
+      process.stdin.off('data', this._stdinListener);
+      this._stdinListener = null;
+      typeof process.stdin.setRawMode === 'function' &&
+        process.stdin.setRawMode(false);
+      process.stdin.pause();
+    }
+
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
@@ -387,3 +601,5 @@ class Server extends BaseModule {
 }
 
 module.exports = Server;
+module.exports.lanIp = lanIp;
+module.exports.STOP_TIMEOUT = STOP_TIMEOUT;

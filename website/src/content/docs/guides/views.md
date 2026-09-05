@@ -133,18 +133,20 @@ The `template` renderer serves the `.html` and `.hbs` files under `app/views/pag
 </html>
 ```
 
-The object passed as `data` to `res.render()` is the template context.
+The object passed as `data` to `res.render()` is the template context. The other view options are available as data variables: `{{@user.email}}`, `{{@paths.index_artwork_path.route}}`, `{{@query.page}}`.
+
+A route resolves to exactly one file: `/artwork` is `pages/artwork.{hbs,html,htm}`, then `pages/artwork/index.{hbs,html,htm}`, and `/` is `pages/index.*`. A route without a page is a `404`; a template that fails while rendering is a `500` with the stack in the console. Templates are compiled once and recompiled when the file changes.
 
 ## Vue
 
 The `vue` renderer drives [Nuxt](https://nuxt.com/) the same way the React renderer drives Next.js: pages under `app/views`, data injected by controllers.
 
 ```json
-{ "renderer": "vue" }
+{ "renderer": "vue", "experimental": { "vue": true } }
 ```
 
 :::caution
-The Vue renderer was written for Nuxt 2 and has not been exercised since the 2026 revival. Treat it as experimental.
+The Vue renderer was written for Nuxt 2 and has not been exercised since the 2026 revival. It only loads with `experimental.vue` set to `true`, and warns on boot.
 :::
 
 ## Fetching data again

@@ -7,14 +7,11 @@ Config {
   "get": [Function],
   "has": [Function],
   "henri": null,
-  "info": [Function],
   "init": [Function],
   "key": null,
   "name": "config",
   "reload": [Function],
   "reloadable": true,
   "runlevel": 0,
-  "setup": [Function],
-  "start": [Function],
 }
 `;

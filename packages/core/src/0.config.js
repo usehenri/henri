@@ -1,9 +1,105 @@
 const BaseModule = require('./base/module');
+const fs = require('fs');
 const path = require('path');
 const { syntax } = require('./utils');
 
-// eslint-disable-next-line id-length
-const _ = require('lodash');
+/**
+ * Load the KEY=value lines of <cwd>/.env into process.env
+ * Variables already set in the environment win (like dotenv). No dependency.
+ *
+ * @param {string} cwd application directory
+ * @returns {number} the number of variables loaded
+ */
+function loadDotEnv(cwd) {
+  const file = path.join(cwd, '.env');
+  let loaded = 0;
+
+  if (!fs.existsSync(file)) {
+    return loaded;
+  }
+
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const match =
+      /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+
+    if (!match || line.trim().startsWith('#')) {
+      continue;
+    }
+
+    const [, key, raw] = match;
+    const value = raw.replace(/^(['"])(.*)\1$/, '$2');
+
+    if (typeof process.env[key] === 'undefined') {
+      process.env[key] = value;
+      loaded++;
+    }
+  }
+
+  return loaded;
+}
+
+/**
+ * Environment overrides: HENRI_SECRET provides (or replaces) `secret`
+ *
+ * @param {object} config parsed configuration
+ * @returns {object} the configuration with the overrides applied
+ */
+function withEnv(config) {
+  if (process.env.HENRI_SECRET) {
+    return Object.assign({}, config, { secret: process.env.HENRI_SECRET });
+  }
+
+  return config;
+}
+
+/**
+ * Split a configuration key into path segments
+ * Supports dots and brackets: 'stores.default.adapter', 'list[0].name'
+ *
+ * @param {string} key the configuration key
+ * @returns {Array<string>} the path segments
+ */
+const segments = (key) =>
+  String(key)
+    .split(/[.[\]]/)
+    .filter((part) => part.length > 0);
+
+/**
+ * Does the object have a value at the given path?
+ *
+ * @param {object} object the object to walk
+ * @param {string} key the path (ex: 'stores.default')
+ * @returns {boolean} exists or not
+ */
+function hasPath(object, key) {
+  let current = object;
+
+  for (const part of segments(key)) {
+    if (
+      current === null ||
+      typeof current !== 'object' ||
+      !Object.prototype.hasOwnProperty.call(current, part)
+    ) {
+      return false;
+    }
+    current = current[part];
+  }
+
+  return true;
+}
+
+/**
+ * Get the value at the given path
+ *
+ * @param {object} object the object to walk
+ * @param {string} key the path (ex: 'stores.default')
+ * @returns {any} the value, or undefined
+ */
+function getPath(object, key) {
+  return hasPath(object, key)
+    ? segments(key).reduce((current, part) => current[part], object)
+    : undefined;
+}
 
 /**
  * Configuration module
@@ -39,6 +135,8 @@ class Config extends BaseModule {
    * @memberof Config
    */
   async init() {
+    loadDotEnv(this.henri.cwd());
+
     const configPath = path.join(
       this.henri.cwd(),
       'config',
@@ -49,27 +147,25 @@ class Config extends BaseModule {
     let hasErrors = false;
 
     try {
-      // eslint-disable-next-line global-require
-      this.config = require(configPath);
+      this.config = withEnv(require(configPath));
 
       Object.freeze(this.config);
 
       return this.name;
     } catch (error) {
-      if (await syntax(configPath)) {
+      if (await syntax(configPath, null, this.henri)) {
         hasErrors = true;
       }
     }
 
     try {
-      // eslint-disable-next-line global-require
-      this.config = require(defaultPath);
+      this.config = withEnv(require(defaultPath));
 
       Object.freeze(this.config);
 
       return this.name;
     } catch (error) {
-      if (await syntax(defaultPath)) {
+      if (await syntax(defaultPath, null, this.henri)) {
         hasErrors = true;
       }
     }
@@ -100,7 +196,7 @@ class Config extends BaseModule {
       throw new Error(`Config key ${key} does not exist`);
     }
 
-    return _.get(this.config, key);
+    return getPath(this.config, key);
   }
 
   /**
@@ -111,7 +207,7 @@ class Config extends BaseModule {
    * @memberof Config
    */
   has(key) {
-    return _.has(this.config, key);
+    return hasPath(this.config, key);
   }
 
   /**
@@ -141,3 +237,5 @@ class Config extends BaseModule {
 }
 
 module.exports = Config;
+module.exports.loadDotEnv = loadDotEnv;
+module.exports.withEnv = withEnv;

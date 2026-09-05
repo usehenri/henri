@@ -1,7 +1,7 @@
+const path = require('path');
 const { stack } = require('./utils');
 const BaseModule = require('./base/module');
 
-const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:modules');
 
 /**
@@ -24,6 +24,11 @@ class Modules {
     this.reloadable = [[], [], [], [], [], [], [], []];
     this.stopOrder = [];
     this.initialized = false;
+
+    /** The reload in flight, if any */
+    this._reloading = null;
+    /** The single reload queued behind the one in flight, if any */
+    this._reloadQueued = null;
 
     this.init = this.init.bind(this);
     this.reload = this.reload.bind(this);
@@ -78,127 +83,141 @@ class Modules {
    * this method calls all then modules init() methods, in their runlevel order
    *
    * @async
-   * @throws
-   * @returns {boolean} results
+   * @throws the error of the first module that fails to initialize
+   * @returns {Promise<boolean>} results
    * @memberof Modules
    */
   async init() {
     debug('starting init');
 
-    // eslint-disable-next-line no-async-promise-executor
-    return new Promise(async (resolve, reject) => {
-      const { pen } = this.henri;
+    const { pen } = this.henri;
 
-      this.store.splice(parseInt(this.henri.runlevel) + 1);
+    this.store.splice(parseInt(this.henri.runlevel) + 1);
 
-      // REMOVED: this.order = this.store.reduce((a, b) => a.concat(b));
-      this.stopOrder = this.store.reduceRight((prev, next) =>
-        prev.concat(next)
-      );
+    this.stopOrder = this.store.reduceRight((prev, next) => prev.concat(next));
 
-      if (this.stopOrder.length < 1) {
-        pen.fatal('modules', 'init', 'no modules loaded before init');
+    if (this.stopOrder.length < 1) {
+      throw pen.fatal('modules', 'init', 'no modules loaded before init');
+    }
+
+    let count = 0;
+    const size = this.stopOrder.length;
+
+    for (const level of this.store) {
+      if (level.length < 1) {
+        continue;
       }
 
-      let count = 0;
-      let size = this.stopOrder.length;
+      let runlevel = 0;
 
-      for (let level of this.store) {
-        if (level.length > 0) {
-          let runlevel = 0;
-
-          for (let obj of level) {
-            runlevel = obj.runlevel;
-            this.order[obj.runlevel].push(obj.init);
-            this.henri[obj.name] = obj;
-            if (obj.reloadable && typeof obj.reload === 'function') {
-              this.reloadable[obj.runlevel].push(obj.reload);
-            }
-          }
-          let result;
-
-          try {
-            result = await Promise.all(
-              this.order[runlevel].map(
-                async (func) => typeof func === 'function' && (await func())
-              )
-            );
-          } catch (error) {
-            pen.error('modules', `runlevel ${runlevel}`, error.message);
-            bounce.rethrow(error, 'system');
-            debug(`error in runlevel ${runlevel}`, error);
-            reject(error);
-          }
-
-          if (
-            typeof result !== 'undefined' &&
-            typeof result[Symbol.iterator] === 'function'
-          ) {
-            for (let name of result) {
-              count++;
-              pen.info(`modules`, name, `loaded`, `${count}/${size}`);
-            }
-          } else {
-            pen.error('modules', 'init', 'unable to init correctly');
-
-            return false;
-          }
+      for (const obj of level) {
+        runlevel = obj.runlevel;
+        this.order[obj.runlevel].push(obj.init);
+        this.henri[obj.name] = obj;
+        if (obj.reloadable && typeof obj.reload === 'function') {
+          this.reloadable[obj.runlevel].push(obj.reload);
         }
       }
 
-      pen.info('modules', 'loading', '...done!');
+      let result;
 
-      this.initialized = true;
+      try {
+        result = await Promise.all(
+          this.order[runlevel].map(
+            async (func) => typeof func === 'function' && (await func())
+          )
+        );
+      } catch (error) {
+        pen.error('modules', `runlevel ${runlevel}`, error && error.message);
+        debug(`error in runlevel ${runlevel}`, error);
+        throw error;
+      }
 
-      return resolve(true);
-    });
+      for (const name of result) {
+        count++;
+        pen.info(`modules`, name, `loaded`, `${count}/${size}`);
+      }
+    }
+
+    pen.info('modules', 'loading', '...done!');
+
+    this.initialized = true;
+
+    return true;
   }
 
   /**
    * Reloads all the modules
+   * Reloads are serialized: a call while one is in flight queues exactly one
+   * more run (every caller in the meantime gets that same run).
    *
    * @async
-   * @throws
-   * @returns {boolean} reload status
+   * @throws the error of the first module that fails to reload
+   * @returns {Promise<boolean>} reload status
    * @memberof Modules
    */
-  async reload() {
+  reload() {
     const { pen } = this.henri;
 
     if (!this.initialized) {
       pen.warn('modules', 'cannot reload when not initialized');
 
-      return false;
+      return Promise.resolve(false);
     }
 
-    for (let id of Object.keys(require.cache)) {
-      // istanbul ignore next
-      delete require.cache[id];
+    if (this._reloading) {
+      if (!this._reloadQueued) {
+        debug('reload already in flight, queueing one more');
+
+        const runNext = () => {
+          this._reloadQueued = null;
+
+          return this.reload();
+        };
+
+        this._reloadQueued = this._reloading.then(runNext, runNext);
+      }
+
+      return this._reloadQueued;
     }
+
+    this._reloading = this._reload().finally(() => {
+      this._reloading = null;
+    });
+
+    return this._reloading;
+  }
+
+  /**
+   * The reload itself: evict the application files from the require cache
+   * and call every reloadable module in runlevel order
+   *
+   * @private
+   * @async
+   * @throws
+   * @returns {Promise<boolean>} reload status
+   * @memberof Modules
+   */
+  async _reload() {
+    const { pen } = this.henri;
+
+    this.evictCache();
 
     let count = 0;
     const max = this.reloadable.reduce((prev, next) => prev.concat(next));
 
-    for (let level of this.reloadable) {
-      if (level.length > 0) {
-        let result;
+    for (const level of this.reloadable) {
+      if (level.length < 1) {
+        continue;
+      }
 
-        try {
-          result = await Promise.all(
-            level.map(
-              async (func) => typeof func === 'function' && (await func())
-            )
-          );
-        } catch (error) {
-          bounce.rethrow(error, 'system');
+      const result = await Promise.all(
+        level.map(async (func) => typeof func === 'function' && (await func()))
+      );
 
-          return false;
-        }
-
-        for (let name of result) {
-          count++;
-          pen.info(`modules`, name, `reloaded`, `${count}/${max.length}`);
-        }
+      for (const name of result) {
+        count++;
+        pen.info(`modules`, name, `reloaded`, `${count}/${max.length}`);
       }
     }
 
@@ -206,31 +225,61 @@ class Modules {
   }
 
   /**
+   * Remove the application files from the require cache
+   * Only files under henri.cwd() and outside node_modules are evicted, so
+   * dependencies (mongoose, sequelize, apollo...) keep a single instance.
+   *
+   * @param {object} [cache=require.cache] the cache to evict from
+   * @returns {number} the number of evicted entries
+   * @memberof Modules
+   */
+  evictCache(cache = require.cache) {
+    const root = `${path.resolve(this.henri.cwd())}${path.sep}`;
+    const skip = `${path.sep}node_modules${path.sep}`;
+    let evicted = 0;
+
+    for (const id of Object.keys(cache)) {
+      if (id.startsWith(root) && !id.includes(skip)) {
+        delete cache[id];
+        evicted++;
+      }
+    }
+
+    debug('evicted %d entries from the require cache', evicted);
+
+    return evicted;
+  }
+
+  /**
    * Stops the modules
+   * Every module is stopped, even when one of them fails; the failures are
+   * returned so the caller can decide what to do.
    *
    * @async
-   * @returns {boolean} result
+   * @returns {Promise<Array<Error>>} the errors, empty when everything stopped
    * @memberof Modules
    */
   async stop() {
     const { pen } = this.henri;
+    const errors = [];
 
-    for (let mod of this.stopOrder) {
-      this.henri[mod.name] = mod;
-      if (typeof mod.stop === 'function') {
-        try {
-          if (await mod.stop()) {
-            pen.info(`modules`, mod.name, `stopped`);
-          }
-        } catch (error) {
-          bounce.rethrow(error, 'system');
+    for (const mod of this.stopOrder) {
+      if (typeof mod.stop !== 'function') {
+        continue;
+      }
 
-          return false;
+      try {
+        if (await mod.stop()) {
+          pen.info(`modules`, mod.name, `stopped`);
         }
+      } catch (error) {
+        pen.error('modules', mod.name, 'failed to stop', error);
+        error.module = mod.name;
+        errors.push(error);
       }
     }
 
-    return true;
+    return errors;
   }
 }
 
@@ -282,6 +331,7 @@ function validate(obj, info) {
 /**
  * Crash the application on duplicate modules (overlapping)
  *
+ * @throws always
  * @param {BaseModule} existing the existing module
  * @param {BaseModule} func the new module that collides
  * @param {stack} info the new module stack
@@ -304,7 +354,7 @@ function crashOnDuplicateModule(existing, func, info, pen) {
     `${info.getFileName()}:${info.getLineNumber()}`
   );
 
-  pen.fatal(
+  throw pen.fatal(
     'modules',
     'you have a module trying to load over another...',
     'check your modules? see: https://usehenri.io/e/dup_mods'

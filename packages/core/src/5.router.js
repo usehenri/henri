@@ -2,9 +2,8 @@ const BaseModule = require('./base/module');
 
 const path = require('path');
 const fs = require('fs');
-const url = require('url');
-const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:router');
+const { loopbackOnly } = require('./base/http');
 const { respond, userConfig } = require('./base/auth');
 
 /**
@@ -143,10 +142,12 @@ class Router extends BaseModule {
       'press U to print a list'
     );
 
-    /* istanbul ignore next */
-    if (process.env.NODE_ENV !== 'production') {
-      this.handler.get('/_routes', (req, res) => res.json(this.routes));
-      this.handler.get('/_controllers', (req, res) =>
+    // Development-only introspection, and only from this machine
+    if (this.henri.isDev) {
+      const local = loopbackOnly();
+
+      this.handler.get('/_routes', local, (req, res) => res.json(this.routes));
+      this.handler.get('/_controllers', local, (req, res) =>
         res.json(this.henri.controllers.all())
       );
     }
@@ -174,11 +175,7 @@ class Router extends BaseModule {
     this.rawRoutes = {};
     this.routes = {};
 
-    try {
-      await this.init(true);
-    } catch (error) {
-      bounce.rethrow(error, 'system');
-    }
+    await this.init(true);
 
     return this.name;
   }
@@ -191,37 +188,30 @@ class Router extends BaseModule {
    * @memberof Router
    */
   async startView(reload = false) {
-    // eslint-disable-next-line no-async-promise-executor
-    return new Promise(async (resolve, reject) => {
-      const { pen } = this.henri;
+    const { pen, view, server } = this.henri;
 
-      /* istanbul ignore next */
-      if (this.henri.view && !reload) {
-        try {
-          await this.henri.view.engine.prepare();
-          this.henri.view.engine.fallback(this.handler);
-          await this.henri.server.start();
-        } catch (error) {
-          bounce.rethrow(error, 'system');
-          pen.fatal('router', error);
+    if (!view) {
+      pen.warn('router', 'unable to register view fallback route');
 
-          return reject(error);
-        }
-      } else {
-        if (this.henri.view) {
-          this.henri.view && this.henri.view.engine.fallback(this.handler);
-          try {
-            !reload && (await this.henri.server.start());
-          } catch (error) {
-            bounce.rethrow(error, 'system');
-          }
-        } else {
-          pen.warn('router', 'unable to register view fallback route');
-        }
-      }
+      return true;
+    }
 
-      return resolve(true);
-    });
+    if (reload) {
+      view.engine.fallback(this.handler);
+
+      return true;
+    }
+
+    try {
+      await view.engine.prepare();
+      view.engine.fallback(this.handler);
+      await server.start();
+    } catch (error) {
+      pen.fatal('router', error);
+      throw error;
+    }
+
+    return true;
   }
 
   /**
@@ -242,7 +232,7 @@ class Router extends BaseModule {
 
     // Ideally, populate with information from path-to-regexp for better
     // ...parameters matching client-side...
-    if (fn && !/data/.test(route)) {
+    if (fn) {
       [controllerName, controllerAction] = controller.split('#');
 
       this._paths[`${controllerAction}_${controllerName}_path`] = {
@@ -628,7 +618,7 @@ class Route {
     if (this.opts.omit && this.opts.omit.includes(method)) {
       return;
     }
-    const rebuilt = url.resolve(urlPath, '');
+    const rebuilt = path.posix.normalize(urlPath);
 
     this.result[`${verb} ${rebuilt}`] = this.buildOpts(verb, rebuilt, method);
   }

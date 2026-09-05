@@ -2,12 +2,11 @@ const Henri = require('../henri');
 const Modules = require('../0.modules');
 const BaseModule = require('../base/module');
 
-let henri;
-
 describe('henri', () => {
+  let henri;
+
   beforeEach(() => {
     henri = new Henri({ runlevel: 1 });
-    henri.pen.fatal = vi.fn();
   });
 
   test('should match snapshot', () => {
@@ -26,65 +25,86 @@ describe('henri', () => {
 
       expect(henri.modules.store[0]).toHaveLength(1);
 
-      henri.modules.add(new Runlevel0());
-
-      expect(henri.pen.fatal).toHaveBeenCalledWith(
-        'modules',
-        'you have a module trying to load over another...',
-        'check your modules? see: https://usehenri.io/e/dup_mods'
+      expect(() => henri.modules.add(new Runlevel0())).toThrow(
+        /module trying to load over another/
       );
 
       expect(henri.modules.store[0]).toHaveLength(1);
     });
 
     test('should init properly', async () => {
-      const init = vi.fn();
-      const reload = vi.fn();
-      const stop = vi.fn();
+      let init = 0;
+      let reload = 0;
+      let stop = 0;
 
       henri.modules.add(
         new WeirdModule({
-          init,
+          init: async () => {
+            init++;
+
+            return 'd';
+          },
           name: 'd',
-          reload,
+          reload: async () => {
+            reload++;
+
+            return 'd';
+          },
           reloadable: true,
           runlevel: 1,
-          stop,
+          stop: async () => {
+            stop++;
+
+            return 'd';
+          },
         })
       );
 
       expect(await henri.modules.init()).toEqual(true);
-      expect(init).toHaveBeenCalledTimes(1);
+      expect(init).toBe(1);
+      expect(henri.d).toBeDefined();
 
-      expect(henri.modules.reload()).toBeTruthy();
-      expect(reload).toHaveBeenCalledTimes(1);
+      await expect(henri.modules.reload()).resolves.toBe(true);
+      expect(reload).toBe(1);
 
-      expect(henri.modules.stop()).toBeTruthy();
-      expect(stop).toHaveBeenCalledTimes(1);
+      await expect(henri.modules.stop()).resolves.toEqual([]);
+      expect(stop).toBe(1);
     });
 
-    test('should not hit init() if not a function', () => {
-      console.log = vi.fn();
-      henri.pen.fatal = vi.fn();
-      henri.modules.add(
-        new WeirdModule({
-          init: () => 'abc',
-          name: 'd',
-          runlevel: 1,
-        })
-      );
-      henri.modules.add(new Runlevel1());
-      henri.modules.store[1][0].init = 'abc';
-      henri.modules.init();
-      henri.modules.reload();
-      expect(console.log).toHaveBeenCalledTimes(1);
+    test('should not hit init() if not a function', async () => {
+      // eslint-disable-next-line no-console
+      const log = console.log;
+      let logged = 0;
+
+      // eslint-disable-next-line no-console
+      console.log = () => logged++;
+      try {
+        henri.modules.add(
+          new WeirdModule({
+            init: () => 'abc',
+            name: 'd',
+            runlevel: 1,
+          })
+        );
+        henri.modules.add(new Runlevel1());
+        henri.modules.store[1][0].init = 'abc';
+        await henri.modules.init();
+      } finally {
+        // eslint-disable-next-line no-console
+        console.log = log;
+      }
+
+      // Only the BaseModule default init of Runlevel1 printed
+      expect(logged).toBe(1);
     });
 
-    test('should be falsy if init/reload throws...', async () => {
+    test('should reject with the original error if init throws', async () => {
+      const boom = new Error('plain error');
+
       henri.modules.add(
         new WeirdModule({
           init: () => {
-            throw new Error();
+            throw boom;
           },
           name: 'd',
           reload: () => {
@@ -93,12 +113,27 @@ describe('henri', () => {
           runlevel: 1,
         })
       );
-      await expect(henri.modules.init()).rejects.toThrow();
+      await expect(henri.modules.init()).rejects.toBe(boom);
       await expect(henri.modules.reload()).resolves.toBeFalsy();
     });
 
-    test('should not hit reload() if not a function', () => {
-      henri.pen.fatal = vi.fn();
+    test('should reject if a reload throws', async () => {
+      henri.modules.add(
+        new WeirdModule({
+          init: () => 'd',
+          name: 'd',
+          reload: () => {
+            throw new Error('reload exploded');
+          },
+          reloadable: true,
+          runlevel: 1,
+        })
+      );
+      await henri.modules.init();
+      await expect(henri.modules.reload()).rejects.toThrow('reload exploded');
+    });
+
+    test('should not hit reload() if not a function', async () => {
       henri.modules.add(
         new WeirdModule({
           init: () => 'abc',
@@ -108,18 +143,14 @@ describe('henri', () => {
           runlevel: 1,
         })
       );
-      henri.modules.init();
+      await henri.modules.init();
       henri.modules.store[1][0].reloadable = true;
-      henri.modules.reload();
+      await expect(henri.modules.reload()).resolves.toBe(true);
     });
 
-    test('should throw if no module', () => {
-      henri.pen.fatal = vi.fn();
-      henri.modules.init();
-      expect(henri.pen.fatal).toHaveBeenCalledWith(
-        'modules',
-        'init',
-        'no modules loaded before init'
+    test('should throw if no module', async () => {
+      await expect(henri.modules.init()).rejects.toThrow(
+        /no modules loaded before init/
       );
     });
   });
@@ -170,7 +201,7 @@ describe('henri', () => {
     });
 
     test('should only allow modules with reload pairs', () => {
-      const init = vi.fn();
+      const init = () => 'd';
 
       expect(() =>
         henri.modules.add(

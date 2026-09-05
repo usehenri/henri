@@ -1,9 +1,12 @@
 const BaseModule = require('./base/module');
-const bounce = require('@hapi/bounce');
 
 const allowed = {
   react: 'react',
   template: 'template',
+};
+
+/** Renderers that only load when `config.experimental.<name>` is true */
+const experimental = {
   vue: 'vue',
 };
 
@@ -50,19 +53,29 @@ class View extends BaseModule {
       ? config.get('renderer').toLowerCase()
       : 'template';
 
-    if (!Object.prototype.hasOwnProperty.call(allowed, this.renderer)) {
-      pen.fatal(
+    const engines = Object.assign({}, allowed);
+
+    for (const name of Object.keys(experimental)) {
+      if (config.get(`experimental.${name}`, true) === true) {
+        engines[name] = experimental[name];
+      }
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(engines, this.renderer)) {
+      throw pen.fatal(
         'view',
         `Unable to load '${
           this.renderer
         }' renderer. See your configuration file...
-      
+
       Valid entries are: ${Object.keys(allowed).join(' ')}
+      Experimental (enable with "experimental": { "<name>": true }): ${Object.keys(
+        experimental
+      ).join(' ')}
       `
       );
     }
 
-    // eslint-disable-next-line global-require
     const Template = require(`./engines/template.js`);
 
     this.hbs = new Template(this.henri);
@@ -70,17 +83,12 @@ class View extends BaseModule {
     if (this.renderer === 'template') {
       this.engine = this.hbs;
     } else {
-      // eslint-disable-next-line global-require
-      const Engine = require(`./engines/${allowed[this.renderer]}`);
+      const Engine = require(`./engines/${engines[this.renderer]}`);
 
       this.engine = new Engine(this.henri);
     }
 
-    try {
-      this.engine.init && (await this.engine.init());
-    } catch (error) {
-      bounce.rethrow(error, 'system');
-    }
+    this.engine.init && (await this.engine.init());
 
     return this.name;
   }
@@ -95,11 +103,7 @@ class View extends BaseModule {
    */
   async reload() {
     if (typeof this.engine.reload === 'function') {
-      try {
-        await this.engine.reload();
-      } catch (error) {
-        bounce.rethrow(error, 'system');
-      }
+      await this.engine.reload();
     }
 
     return this.name;
