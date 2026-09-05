@@ -26,7 +26,7 @@ describe('paths', () => {
     ({ resolvePage } = await import('../src/resolve.mjs'));
   });
 
-  /* eslint-disable no-console */
+   
   beforeEach(() => {
     warnings = [];
     warn = console.warn;
@@ -36,7 +36,7 @@ describe('paths', () => {
   afterEach(() => {
     console.warn = warn;
   });
-  /* eslint-enable no-console */
+   
 
   describe('pathFor', () => {
     test('returns the raw entry without params', () => {

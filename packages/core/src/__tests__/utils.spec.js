@@ -244,10 +244,10 @@ describe('utils', () => {
     const broken = path.join(dir, 'broken.js');
 
     fs.writeFileSync(broken, 'module.exports = {');
-    // eslint-disable-next-line no-console
+     
     const log = console.log;
 
-    // eslint-disable-next-line no-console
+     
     console.log = () => {};
     try {
       // The error comes from Node's vm realm: check the name, not the class
@@ -255,7 +255,7 @@ describe('utils', () => {
         name: 'SyntaxError',
       });
     } finally {
-      // eslint-disable-next-line no-console
+       
       console.log = log;
       fs.rmSync(dir, { force: true, recursive: true });
     }

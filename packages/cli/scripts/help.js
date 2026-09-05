@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+ 
 const { commands, helpHeader } = require('./utils');
 
 const FLAGS = `

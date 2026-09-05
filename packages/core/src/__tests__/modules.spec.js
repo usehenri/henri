@@ -72,11 +72,11 @@ describe('henri', () => {
     });
 
     test('should not hit init() if not a function', async () => {
-      // eslint-disable-next-line no-console
+       
       const log = console.log;
       let logged = 0;
 
-      // eslint-disable-next-line no-console
+       
       console.log = () => logged++;
       try {
         henri.modules.add(
@@ -90,7 +90,7 @@ describe('henri', () => {
         henri.modules.store[1][0].init = 'abc';
         await henri.modules.init();
       } finally {
-        // eslint-disable-next-line no-console
+         
         console.log = log;
       }
 

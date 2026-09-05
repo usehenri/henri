@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+ 
 /**
  * Runs the real engine against the fixture application in a child process
  * (vite and the built server bundle are ESM, which the test runner does not

@@ -95,10 +95,12 @@ class Henri extends HenriBase {
    * @memberof Henri
    */
   changeDirectory() {
-    let onboard = false;
+    let onboard;
 
     try {
-      onboard = require(path.join(process.cwd(), './package.json')).onboard;
+      onboard = Boolean(
+        require(path.join(process.cwd(), './package.json')).onboard
+      );
     } catch (error) {
       onboard = false;
     }

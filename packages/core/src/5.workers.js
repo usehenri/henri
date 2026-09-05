@@ -51,7 +51,7 @@ class Workers extends BaseModule {
     this.files = await this.getFiles();
 
     for (const file of this.files) {
-      // eslint-disable-next-line global-require
+       
       this.workers[file] = require(path.join(workerPath, file));
 
       if (typeof this.workers[file].start === 'function') {

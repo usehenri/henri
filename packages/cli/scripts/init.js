@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+ 
 const spawn = require('cross-spawn');
 const fs = require('fs-extra');
 const path = require('path');

@@ -15,13 +15,13 @@ export function normalizeAction(action, method) {
 
     return {
       method: String(method || action.method || 'post').toLowerCase(),
-      url: url == null ? '' : String(url),
+      url: String(url ?? ''),
     };
   }
 
   return {
     method: String(method || 'post').toLowerCase(),
-    url: action == null ? '' : String(action),
+    url: String(action ?? ''),
   };
 }
 

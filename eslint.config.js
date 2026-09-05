@@ -13,7 +13,8 @@ const projectRules = {
     'always',
     { ignoreConsecutiveComments: true },
   ],
-  'class-methods-use-this': 'warn',
+  // Framework modules implement an interface; many methods legitimately ignore `this`
+  'class-methods-use-this': 'off',
   eqeqeq: 'error',
   'guard-for-in': 'error',
   'id-length': ['warn', { exceptions: ['_', 'i', 'j'] }],
@@ -127,7 +128,10 @@ module.exports = [
       ...vitest.configs.recommended.rules,
       // Same severity as eslint-plugin-jest's recommended preset
       'vitest/expect-expect': 'warn',
-      'vitest/no-disabled-tests': 'warn',
+      // Pending tests are part of the workflow (see CLAUDE.md); route helpers are snake_case by design
+      'vitest/no-disabled-tests': 'off',
+      camelcase: 'off',
+      'id-length': 'off',
       'vitest/no-focused-tests': 'error',
       'vitest/no-identical-title': 'error',
       'vitest/no-test-prefixes': 'warn',

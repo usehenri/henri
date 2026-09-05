@@ -23,16 +23,16 @@ describe('base module', () => {
   });
 
   test('should return console', () => {
-    // eslint-disable-next-line no-console
+     
     const log = console.log;
     let calls = 0;
 
-    // eslint-disable-next-line no-console
+     
     console.log = () => calls++;
     try {
       BaseModule._out();
     } finally {
-      // eslint-disable-next-line no-console
+       
       console.log = log;
     }
 
