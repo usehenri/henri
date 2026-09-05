@@ -50,7 +50,7 @@ module.exports = {
       return invalid(res, error);
     }
 
-    return res.status(201).json({ artwork });
+    return res.resource(artwork, { status: 201 });
   },
   destroy: async (req, res) => {
     const artwork = await byId(Artwork.findByIdAndDelete(req.params.id));
@@ -59,7 +59,7 @@ module.exports = {
       return res.boom.notFound(`Artwork ${req.params.id} not found`);
     }
 
-    return res.json({ artwork });
+    return res.status(204).end();
   },
   index: async (req, res) => {
     res.render('/artwork/index', {
@@ -84,6 +84,6 @@ module.exports = {
       return res.boom.notFound(`Artwork ${req.params.id} not found`);
     }
 
-    return res.json({ artwork });
+    return res.resource(artwork);
   },
 };
