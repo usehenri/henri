@@ -4,6 +4,7 @@ const fs = require('fs');
 const { loadModules } = require('./utils');
 const debug = require('debug')('henri:model');
 const { userConfig } = require('./base/auth');
+const { modelErrors } = require('./base/model-errors');
 
 /**
  * Model module
@@ -409,6 +410,22 @@ class Model extends BaseModule {
     }
 
     return connector;
+  }
+
+  /**
+   * The validation messages of an error, in one shape for every adapter
+   *
+   * Mongoose, Sequelize and Drizzle reject an invalid write differently;
+   * this answers `{ field: message }` for all of them (a duplicate key
+   * included) and `null` when the error is not a validation failure, so a
+   * controller can answer a 422 and rethrow the rest.
+   *
+   * @param {*} error What the model threw
+   * @returns {?object} The messages by field, or null
+   * @memberof Model
+   */
+  errors(error) {
+    return modelErrors(error);
   }
 
   /**
