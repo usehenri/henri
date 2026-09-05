@@ -168,6 +168,12 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
 - Apps that use the React renderer must depend on `next`, `react` and `react-dom`
   themselves (Turbopack resolves `next` from the app directory); Inertia apps on
   `@inertiajs/react`, `react`, `react-dom`, `vite` and `@vitejs/plugin-react`.
+- Both scaffold templates ship Tailwind CSS v4: `app/views/styles/index.css` is
+  the only stylesheet, compiled by `@tailwindcss/postcss` through
+  `app/views/postcss.config.mjs` (react) or by the `@tailwindcss/vite` plugin
+  merged into `app/views/vite.config.mjs` (inertia). The scaffold view
+  templates (`packages/cli/scripts/generate/react-*.hbs`) write Tailwind
+  classes with a `dark:` counterpart; there is no `tailwind.config.js`.
 - ESLint rules worth knowing: `sort-keys`, `prefer-template`, `id-length`,
   `no-nested-ternary`, JSDoc on functions. Prettier: single quotes, es5 commas.
   `.hbs`, the demo views and `packages/cli/scripts/generate` are excluded from

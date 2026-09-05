@@ -13,6 +13,81 @@ Pick a renderer in your configuration. All of them render on the server; the Rea
 
 Whatever the renderer, a controller renders with `res.render(route, { data })` and the page receives `data`, `user`, `paths`, `query`, `csrf`, `localUrl`, `errors` and `graphql` (see [Controllers](/guides/controllers/#resrenderroute-options)). Static files go in `app/views/public`, served at the root.
 
+## Styles
+
+`henri new` scaffolds a styled application: [Tailwind CSS](https://tailwindcss.com) v4 is wired for the renderer you picked and the sample pages are written with it. `app/views/styles/index.css` is the whole stylesheet.
+
+```css
+/* app/views/styles/index.css */
+@import 'tailwindcss' source(none);
+
+@source '../pages/**/*.{js,jsx}';
+@source '../components/**/*.{js,jsx}';
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-50;
+  }
+}
+```
+
+Tailwind v4 has no `tailwind.config.js`: the theme is CSS. Add `@theme { --color-brand: oklch(0.6 0.2 250); }` to that file and `bg-brand`, `text-brand` and `border-brand` exist. `source(none)` turns automatic file detection off, so Tailwind reads exactly the `@source` globs above and never walks `.next/` or `dist/`; add a line before writing classes somewhere else (`@source '../index.html';`, `@source '../../helpers/**/*.js';`).
+
+Dark mode follows the operating system, with no toggle and no class to set: `dark:` is Tailwind's default `prefers-color-scheme: dark` variant, and `color-scheme: light dark` hands the same preference to the native form controls, the scrollbars and the focus rings. Add `@custom-variant dark (&:where(.dark, .dark *));` if you would rather drive it from a class.
+
+How it is compiled depends on the renderer:
+
+| Renderer  | Plugin                 | Wiring                                                                             |
+| --------- | ---------------------- | ---------------------------------------------------------------------------------- |
+| `react`   | `@tailwindcss/postcss` | `app/views/postcss.config.mjs`; the stylesheet is imported by `pages/_app.js`      |
+| `inertia` | `@tailwindcss/vite`    | a plugin merged into `app/views/vite.config.mjs`; imported by `app/views/main.jsx` |
+
+Both work the same in development and in production: `henri server` compiles the stylesheet on the fly, `henri build` writes it next to the bundle and the html links it, server-side rendered markup included.
+
+### Adding Tailwind to an existing application
+
+With the React renderer:
+
+```bash
+pnpm add tailwindcss @tailwindcss/postcss
+```
+
+```js
+// app/views/postcss.config.mjs
+export default { plugins: { '@tailwindcss/postcss': {} } };
+```
+
+Then `import '../styles/index.css';` from `app/views/pages/_app.js`.
+
+With the Inertia renderer:
+
+```bash
+pnpm add tailwindcss @tailwindcss/vite
+```
+
+```js
+// app/views/vite.config.mjs
+import tailwindcss from '@tailwindcss/vite';
+import { henriViteConfig } from '@usehenri/inertia/vite';
+import { mergeConfig } from 'vite';
+
+export default mergeConfig(henriViteConfig({ views: import.meta.dirname }), {
+  plugins: [tailwindcss()],
+});
+```
+
+Then `import './styles/index.css';` from `app/views/main.jsx`.
+
+### Opting out
+
+Nothing in henri depends on Tailwind; the classes are plain strings in the pages. Write your own CSS in `app/views/styles/index.css` (keep the import, it is the only stylesheet the pages load), then remove `tailwindcss` and, depending on the renderer, `@tailwindcss/postcss` with `app/views/postcss.config.mjs`, or `@tailwindcss/vite` with the plugin it adds to `app/views/vite.config.mjs`.
+
+The scaffolded pages, and everything `henri generate scaffold` writes afterwards, keep carrying Tailwind class names. Without Tailwind they are inert: rewrite the markup, or define the handful of classes you keep in your own stylesheet. `sass` stays installed, so renaming the file to `index.scss` (and the import with it) gets you Sass instead, and `*.module.scss` files next to a page keep working.
+
 ## React
 
 [Next.js](https://nextjs.org/) (16, pages router, Turbopack) renders the pages in `app/views/pages` and injects the data sent by your controllers. If none of your routes match a `GET` request but a page does, the page is rendered directly. The App Router is not supported: a page under `app/views/app` would bypass `withHenri` and the controllers, and the engine warns when that directory exists.
@@ -20,7 +95,7 @@ Whatever the renderer, a controller renders with `res.render(route, { data })` a
 Install the peer dependencies in your project (`henri new` already does):
 
 ```bash
-pnpm add @usehenri/react next react react-dom sass
+pnpm add @usehenri/react next react react-dom tailwindcss @tailwindcss/postcss sass
 ```
 
 Two small files live next to your pages. `henri new` ships them and the engine creates them on first boot when they (or their `.mjs`/`.ts` alternatives) are missing:
@@ -103,7 +178,7 @@ export default function Nav() {
 }
 ```
 
-Any folder under `app/views` is importable by name (`import Nav from 'components/nav'`, `import styles from 'styles/tasks.module.scss'`), thanks to `jsconfig.json`. Global stylesheets are imported from `app/views/pages/_app.js` (a Next.js rule); `sass` resolves imports from `app/views/styles`, `app/views` and `node_modules`.
+Any folder under `app/views` is importable by name (`import Nav from 'components/nav'`, `import styles from 'styles/tasks.module.scss'`), thanks to `jsconfig.json`. Global stylesheets are imported from `app/views/pages/_app.js` (a Next.js rule), which is where the [Tailwind stylesheet](#styles) is imported; `sass` resolves imports from `app/views/styles`, `app/views` and `node_modules`.
 
 ### Forms
 
@@ -192,17 +267,17 @@ The `inertia` renderer speaks the [Inertia.js](https://inertiajs.com/) protocol:
 ```bash
 henri new my-app --renderer inertia
 # or, in an existing application
-pnpm add @usehenri/inertia @inertiajs/react react react-dom vite @vitejs/plugin-react sass
+pnpm add @usehenri/inertia @inertiajs/react react react-dom vite @vitejs/plugin-react tailwindcss @tailwindcss/vite sass
 ```
 
 The engine reads four files from `app/views`. `henri new --renderer inertia` ships them and the engine creates the missing ones on first boot:
 
-| File              | Role                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------- |
-| `index.html`      | The html shell. `<!--head-->` and `<!--body-->` receive the rendered page.                        |
-| `main.jsx`        | The browser entry: `createInertiaApp` resolving `pages/**/*.jsx` with `resolvePage()`.            |
-| `ssr.jsx`         | The server entry: `render(page)` resolves to `{ head, body }`.                                    |
-| `vite.config.mjs` | Re-exports the shared configuration (`@usehenri/inertia/vite`): React plugin, aliases and builds. |
+| File              | Role                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `index.html`      | The html shell. `<!--head-->` and `<!--body-->` receive the rendered page.                                          |
+| `main.jsx`        | The browser entry: `createInertiaApp` resolving `pages/**/*.jsx` with `resolvePage()`.                              |
+| `ssr.jsx`         | The server entry: `render(page)` resolves to `{ head, body }`.                                                      |
+| `vite.config.mjs` | The shared configuration (`@usehenri/inertia/vite`: React plugin, aliases, builds) merged with the Tailwind plugin. |
 
 `res.render('/tasks/index', { data })` renders `app/views/pages/tasks/index.jsx` (`res.render('/tasks')` finds it too). The page reads what the controller sent through `useHenri()`:
 
@@ -239,7 +314,7 @@ export default function Tasks() {
 
 Forms submit through Inertia's router: a controller answers with a redirect (`res.redirect('/tasks')`; the engine turns it into a `303` after `PUT`, `PATCH` and `DELETE`) and the client lands on the next page. To show validation errors, render the page again after `res.inertia.errors({ name: 'required' })`: they arrive in `errors`. `res.inertia.location(url)` redirects to an external url.
 
-`Form` wraps Inertia's form component: `action` accepts a `pathFor()` result, the method defaults to `POST`, and a hidden `_csrf` field carrying the page's token is added to its children (`csrf={false}` skips it, `csrf="..."` overrides it), so submissions pass henri's [CSRF check](/guides/users/#csrf) in an application with a user model; `fetch()` sends the `X-CSRF-Token` header, and the engine sets an `XSRF-TOKEN` cookie that Inertia's client echoes as `X-XSRF-TOKEN` (an alias henri accepts), so visits made directly with `router.post()` or `useForm().post()` pass as well. `Link`, `Head`, `router`, `usePage` and `useForm` are re-exported from `@inertiajs/react`. `assets`, `components`, `helpers` and `styles` resolve to the matching folders under `app/views`; global stylesheets are imported from `main.jsx`.
+`Form` wraps Inertia's form component: `action` accepts a `pathFor()` result, the method defaults to `POST`, and a hidden `_csrf` field carrying the page's token is added to its children (`csrf={false}` skips it, `csrf="..."` overrides it), so submissions pass henri's [CSRF check](/guides/users/#csrf) in an application with a user model; `fetch()` sends the `X-CSRF-Token` header, and the engine sets an `XSRF-TOKEN` cookie that Inertia's client echoes as `X-XSRF-TOKEN` (an alias henri accepts), so visits made directly with `router.post()` or `useForm().post()` pass as well. `Link`, `Head`, `router`, `usePage` and `useForm` are re-exported from `@inertiajs/react`. `assets`, `components`, `helpers` and `styles` resolve to the matching folders under `app/views`; global stylesheets are imported from `main.jsx`, which is where the [Tailwind stylesheet](#styles) is imported.
 
 Options go under the `inertia` key of your configuration: `ssr: false` renders everything in the browser (the page object is still embedded in the html), `id` changes the root element id (`app`), `entry`, `ssrEntry` and `template` rename the three files above. Hot module replacement in development rides on henri's http server, no second port; in development a page that fails to render on the server answers a `500` with the stack, in production it falls back to client rendering.
 
