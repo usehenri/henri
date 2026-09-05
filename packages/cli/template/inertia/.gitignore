@@ -1,0 +1,29 @@
+# dependencies
+/node_modules
+
+# testing
+/coverage
+
+# production
+/build
+/app/views/dist
+
+# henri runtime (model globals for the linter)
+/.henri
+
+# configuration
+/config/*.json
+
+# logs
+/logs/*.log
+
+# dbs and stuff
+/.tmp
+
+# misc
+.DS_Store
+.env
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
