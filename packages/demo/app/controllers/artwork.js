@@ -1,40 +1,41 @@
 module.exports = {
+  create: async (req, res) => {
+    try {
+      const artwork = await Artwork.create(req.permit('title', 'year'));
+
+      return res.status(201).send({ artwork, msg: 'success' });
+    } catch (error) {
+      return res.status(400).send({ error: error.message, msg: 'failed' });
+    }
+  },
+  destroy: async (req, res) => {
+    try {
+      await Artwork.deleteOne({ _id: req.params.id });
+
+      return res.send({ msg: 'success' });
+    } catch (error) {
+      return res.status(400).send({ error: error.message, msg: 'failed' });
+    }
+  },
   index: async (req, res) => {
     res.render('/artwork/index', {
       data: { artwork: await Artwork.find({}) },
     });
   },
-  create: async (req, res) => {
-    const data = req.body;
-    const doc = new Artwork(data);
-    const errors = await doc.validate();
-
-    if (errors) {
-      return res.status(400).send({ msg: 'failed', error: errors.message });
-    }
-    await doc.save();
-    return res.send({ msg: 'success' });
-  },
   update: async (req, res) => {
-    if (!req.params.id) {
-      return res.status(400).send({ msg: 'invalid id' });
-    }
-    Artwork.update({ _id: req.params.id }, { $set: req.body }, (err) => {
-      if (err) {
-        return res.status(400).send({ msg: 'failed', error: err.message });
+    try {
+      const result = await Artwork.updateOne(
+        { _id: req.params.id },
+        { $set: req.permit('title', 'year') }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.boom.notFound('artwork not found');
       }
+
       return res.send({ msg: 'success' });
-    });
-  },
-  destroy: async (req, res) => {
-    if (!req.params.id) {
-      return res.status(400).send({ msg: 'invalid id' });
+    } catch (error) {
+      return res.status(400).send({ error: error.message, msg: 'failed' });
     }
-    Artwork.remove({ _id: req.params.id }, (err) => {
-      if (err) {
-        return res.status(400).send({ msg: 'failed', error: err.message });
-      }
-      return res.send({ msg: 'success' });
-    });
   },
 };

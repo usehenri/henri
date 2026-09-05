@@ -9,6 +9,7 @@ import { getRoute as findRoute, pathFor as findPath } from './paths';
  * controller (through res.render) and henri's router.
  */
 export const HenriContext = React.createContext({
+  csrf: null,
   data: {},
   fetch: null,
   getRoute: () => 'route-not-found',
@@ -47,6 +48,7 @@ export default (ComposedComponent) => {
     static displayName = `withHenri(${getDisplayName(ComposedComponent)})`;
 
     static propTypes = {
+      csrf: PropTypes.string,
       data: PropTypes.any,
       localUrl: PropTypes.string,
       paths: PropTypes.object,
@@ -68,7 +70,9 @@ export default (ComposedComponent) => {
         props.query = Object.assign({}, props.query, props.req._henri);
       }
 
-      const { query: { data, user = null, paths, localUrl } = {} } = props;
+      const {
+        query: { csrf = null, data, user = null, paths, localUrl } = {},
+      } = props;
 
       let composedInitialProps = {};
 
@@ -76,7 +80,7 @@ export default (ComposedComponent) => {
         composedInitialProps = await ComposedComponent.getInitialProps(ctx);
       }
 
-      return { data, localUrl, paths, user, ...composedInitialProps };
+      return { csrf, data, localUrl, paths, user, ...composedInitialProps };
     }
 
     constructor(props) {
@@ -87,8 +91,14 @@ export default (ComposedComponent) => {
       };
     }
 
+    // Double-submit CSRF token (henri sets it as `req._henri.csrf`); henri
+    // requires it on POST/PUT/PATCH/DELETE requests carrying a session cookie
+    headers = () =>
+      this.props.csrf ? { 'X-CSRF-Token': this.props.csrf } : {};
+
     hydrate = async () => {
       return axios({
+        headers: this.headers(),
         method: 'get',
         url: document.location.href,
       })
@@ -104,6 +114,7 @@ export default (ComposedComponent) => {
     fetch = async ({ route = '/', method = 'get' }, data = {}) => {
       return axios({
         data,
+        headers: this.headers(),
         method,
         url: route,
       });
@@ -117,6 +128,7 @@ export default (ComposedComponent) => {
 
     render() {
       const value = {
+        csrf: this.props.csrf,
         data: this.state.data,
         fetch: this.fetch,
         getRoute: this.getRoute,

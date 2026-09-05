@@ -51,15 +51,16 @@ export default withHenri(Log);
 
 `withHenri` gives your page these props:
 
-| Prop       | Description                                                               |
-| ---------- | ------------------------------------------------------------------------- |
-| `data`     | What the controller passed to `res.render()` (or the GraphQL result)      |
-| `user`     | The logged-in user, or `null`                                             |
-| `paths`    | The routes this user may call, keyed like `index_tasks_path`              |
-| `pathFor`  | `pathFor('show_tasks_path', id)` builds a URL from a route name           |
-| `getRoute` | Same, returns the plain string                                            |
-| `fetch`    | `fetch({ route, method }, body)` calls a controller and resolves its JSON |
-| `hydrate`  | Refetches the current page's data and updates `data`                      |
+| Prop       | Description                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| `data`     | What the controller passed to `res.render()` (or the GraphQL result)                             |
+| `user`     | The logged-in user (`id`, `email`, `roles`, `config.user.public` fields), or `null`              |
+| `paths`    | The routes this user may call, keyed like `index_tasks_path`                                     |
+| `csrf`     | The CSRF token. `fetch()` and `hydrate()` send it; add it as `X-CSRF-Token` to your own requests |
+| `pathFor`  | `pathFor('show_tasks_path', id)` builds a URL from a route name                                  |
+| `getRoute` | Same, returns the plain string                                                                   |
+| `fetch`    | `fetch({ route, method }, body)` calls a controller and resolves its JSON                        |
+| `hydrate`  | Refetches the current page's data and updates `data`                                             |
 
 Nested components get the same helpers from the `useHenri()` hook (or the `HenriContext` it reads):
 

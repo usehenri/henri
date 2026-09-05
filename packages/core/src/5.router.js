@@ -5,6 +5,26 @@ const fs = require('fs');
 const url = require('url');
 const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:router');
+const { respond, userConfig } = require('./base/auth');
+
+/**
+ * Tells if a user owns every given role
+ *
+ * @param {object} user the user (model instance)
+ * @param {Array<string>} roles the roles
+ * @returns {Promise<boolean>} allowed or not
+ */
+async function hasRoles(user, roles) {
+  if (typeof user.hasRole === 'function') {
+    return Boolean(await user.hasRole(roles));
+  }
+
+  const owned = Array.isArray(user.roles)
+    ? user.roles
+    : [user.roles].filter(Boolean);
+
+  return roles.every((role) => owned.includes(role));
+}
 
 /**
  * Router module
@@ -263,6 +283,14 @@ class Router extends BaseModule {
       roles = [roles];
     }
 
+    if (!this.henri._user) {
+      this.henri.pen.warn(
+        'router',
+        name,
+        'requires roles but no user model is loaded; requests will be denied'
+      );
+    }
+
     roles.map((role) => {
       if (typeof this._roles[role] === 'undefined') {
         this._roles[role] = {};
@@ -275,29 +303,55 @@ class Router extends BaseModule {
       };
     });
 
-    this.handler[verb](
-      route,
-      async function (req, res, next) {
-        if (req.params._id && req.params._id.includes('favicon.')) {
-          return res.status(404).send();
-        }
-        if (
-          req.isAuthenticated() &&
-          req.user &&
-          (await req.user.hasRole(roles))
-        ) {
+    this.handler[verb](route, this.roleGuard(roles, name), action);
+  }
+
+  /**
+   * Middleware denying a route to users missing the given roles
+   *
+   * Anonymous requests get a 401, authenticated users missing a role a 403
+   * (JSON); browsers asking for HTML are redirected to
+   * `config.user.loginPath` (default `/login`).
+   *
+   * @param {Array<string>} roles required roles
+   * @param {string} name route name (for the logs)
+   * @returns {function} express middleware
+   * @memberof Router
+   */
+  roleGuard(roles, name) {
+    return async (req, res, next) => {
+      try {
+        const user =
+          (typeof req.isAuthenticated === 'function' &&
+            req.isAuthenticated() &&
+            req.user) ||
+          null;
+
+        if (user && (await hasRoles(user, roles))) {
           return next();
-        } else {
-          const reas = req.user && (await req.user.hasRole(roles));
-
-          henri.pen.warn('router', 'denied');
-          debug(reas, req.user, roles);
-
-          return res.redirect('/login');
         }
-      },
-      action
-    );
+
+        this.henri.pen.warn(
+          'router',
+          'denied',
+          name,
+          user ? 'missing role' : 'not authenticated'
+        );
+        debug('denied %s: user %o needs %o', name, user && user.roles, roles);
+
+        const { loginPath } = userConfig(this.henri.config);
+
+        return respond(res, {
+          html: () => res.redirect(loginPath),
+          json: () =>
+            user
+              ? res.boom.forbidden('Missing role', { roles })
+              : res.boom.unauthorized('Authentication required'),
+        });
+      } catch (error) {
+        return next(error);
+      }
+    };
   }
 
   /**
@@ -325,6 +379,67 @@ class Router extends BaseModule {
   }
 
   /**
+   * The representation of the current user that can leave the server
+   *
+   * @param {object} user `req.user` (model instance) or null
+   * @returns {?object} `henri.user.publicUser(user)` or null
+   * @memberof Router
+   */
+  publicUser(user) {
+    const { user: users } = this.henri;
+
+    if (!user || !users || typeof users.publicUser !== 'function') {
+      return null;
+    }
+
+    return users.publicUser(user);
+  }
+
+  /**
+   * Builds the options given to the view engines (and returned as JSON)
+   *
+   * @param {Express.Request} req the request
+   * @param {Express.Response} res the response
+   * @param {object} [extras={}] `data` and/or a `graphql` query
+   * @returns {Promise<object>} the view options
+   * @memberof Router
+   */
+  async viewOptions(req, res, { data = {}, graphql = null } = {}) {
+    let payload = data;
+    let errors = null;
+
+    if (graphql) {
+      const result = await this.henri.graphql.run(graphql, undefined, {
+        req,
+        res,
+      });
+
+      payload = (result && result.data) || result || data;
+      errors = result && result.errors;
+    }
+
+    const opts = {
+      csrf: req.csrfToken || null,
+      data: payload,
+      errors,
+      localUrl: this.henri.server.url,
+      paths: this.pathForRoles(req.user),
+      query: req.query,
+      user: this.publicUser(req.user),
+    };
+
+    if (this.henri.graphql) {
+      opts.graphql = {
+        endpoint:
+          (this.henri.graphql.active && this.henri.graphql.endpoint) || false,
+        query: graphql || false,
+      };
+    }
+
+    return opts;
+  }
+
+  /**
    * Add middlewares to express
    *
    * @returns {boolean} success?
@@ -349,18 +464,15 @@ class Router extends BaseModule {
     this.handler.use((req, res, cb) => {
       res.locals._req = req;
       req._henri = {
+        csrf: req.csrfToken || null,
         localUrl: this.henri.server.url,
         paths: this._roles['guest'],
         query: req.query,
-        user: req.user || null,
+        user: this.publicUser(req.user),
       };
-
-      delete res.render;
 
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
-
-        const allowedPaths = this.pathForRoles(req.user);
 
         if (
           Object.keys(extras).length > 0 &&
@@ -397,23 +509,7 @@ class Router extends BaseModule {
           }
         }
 
-        data = (graphql && (await this.henri.graphql.run(graphql))) || data;
-
-        let opts = {
-          data: (graphql && data.data) || data,
-          errors: graphql && data.errors,
-          localUrl: this.henri.server.url,
-          paths: allowedPaths,
-          query: req.query,
-          user: req.user || null,
-        };
-
-        if (this.henri.graphql) {
-          opts.graphql = {
-            endpoint: (henri.graphql.active && henri.graphql.endpoint) || false,
-            query: graphql || false,
-          };
-        }
+        const opts = await this.viewOptions(req, res, { data, graphql });
 
         return res.format({
           default: () => this.henri.view.engine.render(req, res, route, opts),
@@ -422,29 +518,9 @@ class Router extends BaseModule {
         });
       };
 
-      delete res.hbs;
       res.hbs = async (route, extras = {}) => {
-        let { data = {}, graphql = null } = extras;
-
-        data = (graphql && (await this.henri.graphql.run(graphql))) || data;
-
-        const allowedPaths = this.pathForRoles(req.user);
-
-        let opts = {
-          data: (graphql && data.data) || data,
-          errors: graphql && data.errors,
-          localUrl: this.henri.server.url,
-          paths: allowedPaths,
-          query: req.query,
-          user: req.user || null,
-        };
-
-        if (this.henri.graphql) {
-          opts.graphql = {
-            endpoint: (henri.graphql.active && henri.graphql.endpoint) || false,
-            query: graphql || false,
-          };
-        }
+        const { data = {}, graphql = null } = extras;
+        const opts = await this.viewOptions(req, res, { data, graphql });
 
         return res.format({
           default: () =>
