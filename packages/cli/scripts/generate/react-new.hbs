@@ -5,16 +5,23 @@ import {{doc}}Form from './_form';
 // Rendered by the `new` action (no data). The form posts to the `create`
 // action and the page moves to the listing once the controller answered.
 const New = ({ getRoute, pathFor, router }) => (
-  <div>
-    <h2>New {{doc}}</h2>
-    <hr />
-    <{{doc}}Form
-      action={pathFor('create_{{plural}}_path')}
-      button="Create"
-      onSuccess={() => router.push(getRoute('index_{{plural}}_path'))}
-    />
-    <Link href={getRoute('index_{{plural}}_path')}>Back</Link>
-  </div>
+  <main className="mx-auto w-full max-w-lg px-6 py-12">
+    <Link
+      className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+      href={getRoute('index_{{plural}}_path')}
+    >
+      &larr; Back
+    </Link>
+    <h1 className="mt-3 text-2xl font-semibold tracking-tight">New {{doc}}</h1>
+
+    <div className="mt-8 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+      <{{doc}}Form
+        action={pathFor('create_{{plural}}_path')}
+        button="Create"
+        onSuccess={() => router.push(getRoute('index_{{plural}}_path'))}
+      />
+    </div>
+  </main>
 );
 
 export default withHenri(New);

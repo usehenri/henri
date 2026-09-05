@@ -6,18 +6,19 @@ guessing; `henri doctor` checks most of them, the `henri` MCP server answers the
 
 ## Layout and naming
 
-| Path                       | What goes there                                                                                                                                                                  |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/models/Task.js`       | One model per file, singular PascalCase; loaded on boot and exposed as the global `Task`                                                                                         |
-| `app/controllers/tasks.js` | Plain objects of `async (req, res)` actions; lowercase, plural for resources (`tasks#index`)                                                                                     |
-| `config/routes.js`         | The routes: `'get /': 'main#home'`, `'resources tasks': 'tasks'`                                                                                                                 |
-| `app/views/pages/tasks/`   | {{#if react}}next.js pages (`.js`): `index`, `new`, `show`, `edit`, `_form`; `pages/tasks/index.js` is `/tasks`{{/if}}{{#if inertia}}Inertia pages (`.jsx`, Vite + React){{/if}} |
-| `app/views/components/`    | Shared components (`import Nav from 'components/nav'`); `styles/`, `assets/`, `public/` next to it                                                                               |
-| `app/workers/cleanup.js`   | `{ name, start(henri), stop(henri) }`, started with the server (`--skip-workers` to skip)                                                                                        |
-| `config/default.json`      | Committed configuration: `stores`, `renderer`, `user`, `baseRole`, `port`, `graphql`, `mail`                                                                                     |
-| `config/<NODE_ENV>.json`   | `dev.json`, `production.json` or `test.json` replaces `default.json` as a whole (keys are not merged)                                                                            |
-| `.env`                     | `HENRI_SECRET` and machine secrets, loaded on boot; never committed                                                                                                              |
-| `test/tasks.test.js`       | Vitest tests run by `henri test`                                                                                                                                                 |
+| Path                         | What goes there                                                                                                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/models/Task.js`         | One model per file, singular PascalCase; loaded on boot and exposed as the global `Task`                                                                                         |
+| `app/controllers/tasks.js`   | Plain objects of `async (req, res)` actions; lowercase, plural for resources (`tasks#index`)                                                                                     |
+| `config/routes.js`           | The routes: `'get /': 'main#home'`, `'resources tasks': 'tasks'`                                                                                                                 |
+| `app/views/pages/tasks/`     | {{#if react}}next.js pages (`.js`): `index`, `new`, `show`, `edit`, `_form`; `pages/tasks/index.js` is `/tasks`{{/if}}{{#if inertia}}Inertia pages (`.jsx`, Vite + React){{/if}} |
+| `app/views/components/`      | Shared components (`import Nav from 'components/nav'`); `assets/` and `public/` next to it                                                                                       |
+| `app/views/styles/index.css` | The Tailwind CSS v4 entry point, and the only stylesheet of the application                                                                                                      |
+| `app/workers/cleanup.js`     | `{ name, start(henri), stop(henri) }`, started with the server (`--skip-workers` to skip)                                                                                        |
+| `config/default.json`        | Committed configuration: `stores`, `renderer`, `user`, `baseRole`, `port`, `graphql`, `mail`                                                                                     |
+| `config/<NODE_ENV>.json`     | `dev.json`, `production.json` or `test.json` replaces `default.json` as a whole (keys are not merged)                                                                            |
+| `.env`                       | `HENRI_SECRET` and machine secrets, loaded on boot; never committed                                                                                                              |
+| `test/tasks.test.js`         | Vitest tests run by `henri test`                                                                                                                                                 |
 
 ## Generate, do not hand-write
 
@@ -115,6 +116,19 @@ and `useForm` come from the same package. `res.inertia.errors({ field: 'msg' })`
 before rendering again hands validation errors to the page; `res.inertia.location(url)` redirects outside the app.
 {{/if}}
 
+## Styling: Tailwind CSS v4
+
+`app/views/styles/index.css` is the whole stylesheet of the application.
+{{#if react}}`app/views/pages/_app.js` imports it once, `app/views/postcss.config.mjs` compiles it.{{/if}}{{#if inertia}}`app/views/main.jsx` imports it once, the `@tailwindcss/vite` plugin of `app/views/vite.config.mjs` compiles it.{{/if}}
+
+Write utility classes in the pages: no CSS modules, no second stylesheet and
+no `tailwind.config.js` (v4 has none, the theme is `@theme { --color-brand: ... }`
+in that file). Dark mode is the `dark:` variant and follows the operating
+system, so a colour class wants its `dark:` counterpart. Tailwind reads only
+the `@source` globs of `index.css` (`pages/`, `components/`): add one before
+writing classes anywhere else. A class list long enough to hide the markup
+goes in a `const` at the top of the page, like the scaffolded pages do.
+
 ## Users and secrets
 
 Set `"user": "user"` in `config/default.json` and add `app/models/User.js`:
@@ -161,5 +175,6 @@ app (run from the root), 4 needs a terminal (pass the flag: `henri clean
 - Do not `require` a model or `henri`: they are globals.
 - Do not put `secret` or passwords in `config/*.json`; do not commit `.env`, `.henri/` or `.backup/`.
 - Do not set `roles` from request data; do not mass-assign `req.body`.
+- Do not add `tailwind.config.js`, a CSS module or a second stylesheet: the theme lives in `app/views/styles/index.css`.
 - {{#if react}}Do not edit `app/views/next.config.js`{{/if}}{{#if inertia}}Keep the `resolvePage` resolver and `import.meta.glob('./pages/**/*.jsx')` in `app/views/main.jsx` and `ssr.jsx` (global styles and Inertia options go in `main.jsx`){{/if}}; do not rename generated files by hand (regenerate with `--force`, or `destroy` first).
 - Do not leave `henri server` running in a non-interactive session; verify with `henri test` and `henri doctor`.
