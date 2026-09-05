@@ -5,6 +5,19 @@ const fs = require('fs');
 const debug = require('debug')('henri:router');
 const { loopbackOnly } = require('./base/http');
 const { respond, userConfig } = require('./base/auth');
+const {
+  collection,
+  collectionLinks,
+  halGuard,
+  resource,
+  resourceLinks,
+} = require('./base/hateoas');
+const { jsonTypes, noStore, versionGuard } = require('./base/headers');
+const { idempotency } = require('./base/idempotency');
+const { limiter, shutdown } = require('./base/rate-limit');
+
+/** Verbs of the routes that change something (idempotency applies) */
+const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
 
 /**
  * Tells if a user owns every given role
@@ -48,6 +61,7 @@ class Router extends BaseModule {
     this._roles = {};
     this._results = { loaded: [], unknown: [] };
     this._stats = { failed: 0, good: 0 };
+    this._limiters = [];
 
     this.handler = null;
     this.activeRoutes = new Map();
@@ -169,6 +183,7 @@ class Router extends BaseModule {
     this._roles = {};
     this._results = { loaded: [], unknown: [] };
     this._stats = { failed: 0, good: 0 };
+    this._limiters.splice(0).forEach(shutdown);
 
     this.handler = null;
     this.activeRoutes = new Map();
@@ -255,6 +270,16 @@ class Router extends BaseModule {
       }
     }
 
+    const { after, before } = this.pipeline({
+      action: controllerAction,
+      controller: controllerName,
+      name,
+      opts,
+      roles,
+      route,
+      verb,
+    });
+
     if (!roles) {
       if (typeof this._roles['guest'] === 'undefined') {
         this._roles['guest'] = {};
@@ -266,7 +291,7 @@ class Router extends BaseModule {
         route,
       };
 
-      return this.handler[verb](route, action);
+      return this.handler[verb](route, ...before, ...after, action);
     }
 
     if (!Array.isArray(roles)) {
@@ -293,7 +318,86 @@ class Router extends BaseModule {
       };
     });
 
-    this.handler[verb](route, this.roleGuard(roles, name), action);
+    this.handler[verb](
+      route,
+      ...before,
+      this.roleGuard(roles, name),
+      ...after,
+      action
+    );
+  }
+
+  /**
+   * The middlewares around a controller action, from the route options
+   * (`version`, `rateLimit`, `idempotent`) and the route kind: `before`
+   * runs ahead of the role guard, `after` behind it (so that denied requests
+   * consume no idempotency key).
+   *
+   * - `version: 'v1'`: clients asking another version through the Accept
+   *   header get a 406, `req.apiVersion` defaults to the route's
+   * - `rateLimit: { windowMs, max }`: a limit of its own for the route
+   * - `idempotent: false`: opts a mutating route out of `Idempotency-Key`
+   *   (on by default for every POST, PUT, PATCH and DELETE route)
+   * - routes expanded from `resources`/`crud` are HAL-guarded
+   *
+   * @param {object} route the route (`{ action, controller, name, opts, roles, route, verb }`)
+   * @returns {{before: Array<function>, after: Array<function>}} middlewares
+   * @memberof Router
+   */
+  pipeline({ action, controller, name, opts = {}, roles, route, verb }) {
+    const { api } = this.henri;
+    const settings = (api && api.settings) || {};
+    const info = Object.freeze({
+      action,
+      controller,
+      name,
+      resource: Boolean(opts.resource),
+      roles: roles ? [].concat(roles) : null,
+      route,
+      verb,
+      version: opts.version || null,
+    });
+    const before = [
+      (req, res, next) => {
+        res.locals.route = info;
+        next();
+      },
+    ];
+    const after = [];
+
+    if (opts.version) {
+      before.push(versionGuard(opts.version));
+    }
+
+    if (
+      opts.rateLimit &&
+      typeof opts.rateLimit === 'object' &&
+      settings.rateLimit
+    ) {
+      const guard = limiter(
+        this.henri,
+        Object.assign({ name }, opts.rateLimit, {
+          store: api.rateLimitStore(name),
+        })
+      );
+
+      this._limiters.push(guard);
+      before.push(guard);
+    }
+
+    if (
+      MUTATING.has(verb) &&
+      settings.idempotency &&
+      opts.idempotent !== false
+    ) {
+      after.push(idempotency(this.henri, { ttl: settings.idempotency.ttl }));
+    }
+
+    if (opts.resource) {
+      after.push(halGuard(this.henri, name));
+    }
+
+    return { after, before };
   }
 
   /**
@@ -430,6 +534,72 @@ class Router extends BaseModule {
   }
 
   /**
+   * Content negotiation for the pages: `html` for browsers (and `* / *`),
+   * `json` for API clients asking for `application/json`,
+   * `application/hal+json` or the versioned `application/vnd.henri.v1+json`
+   *
+   * @param {Express.Request} req the request
+   * @param {Express.Response} res the response
+   * @param {{html: function, json: function}} handlers the handlers (one may be missing)
+   * @returns {*} whatever the handler returns
+   * @memberof Router
+   */
+  negotiate(req, res, { html, json } = {}) {
+    const handlers = {};
+
+    if (typeof html === 'function') {
+      handlers.html = html;
+    }
+
+    if (typeof json === 'function') {
+      for (const type of jsonTypes(req)) {
+        handlers[type] = json;
+      }
+    }
+
+    handlers.default = typeof html === 'function' ? html : json;
+
+    return res.format(handlers);
+  }
+
+  /**
+   * The JSON answer of `res.render()`: the view options plus `_links`
+   * derived from the route (`self`, and the resource links of the
+   * current record or collection, filtered by the roles of the user)
+   *
+   * @param {Express.Request} req the request
+   * @param {Express.Response} res the response
+   * @param {object} opts the view options (see viewOptions)
+   * @returns {Express.Response} the response
+   * @memberof Router
+   */
+  renderJson(req, res, opts) {
+    const info = res.locals.route || {};
+    const params = req.params || {};
+    const id =
+      typeof params.id === 'undefined' || params.id === null ? null : params.id;
+    const links = { self: { href: req.originalUrl || req.url } };
+
+    if (info.controller) {
+      Object.assign(
+        links,
+        resourceLinks({ id, params, paths: opts.paths, type: info.controller })
+      );
+
+      if (id === null) {
+        Object.assign(
+          links,
+          collectionLinks({ params, paths: opts.paths, type: info.controller })
+        );
+      }
+    }
+
+    noStore(req, res);
+
+    return res.json(Object.assign({}, opts, { _links: links }));
+  }
+
+  /**
    * Add middlewares to express
    *
    * @returns {boolean} success?
@@ -501,12 +671,18 @@ class Router extends BaseModule {
 
         const opts = await this.viewOptions(req, res, { data, graphql });
 
-        return res.format({
-          default: () => this.henri.view.engine.render(req, res, route, opts),
+        return this.negotiate(req, res, {
           html: () => this.henri.view.engine.render(req, res, route, opts),
-          json: () => res.json(opts),
+          json: () => this.renderJson(req, res, opts),
         });
       };
+
+      // HAL answers for the JSON api (see base/hateoas.js)
+      res.resource = (record, options) =>
+        resource(this.henri, req, res, record, options);
+      res.collection = (records, options) =>
+        collection(this.henri, req, res, records, options);
+      res.negotiate = (handlers) => this.negotiate(req, res, handlers);
 
       res.hbs = async (route, extras = {}) => {
         const { data = {}, graphql = null } = extras;
@@ -642,6 +818,8 @@ class Route {
     return Object.assign({}, opts, {
       controller: controller,
       path: `${action}_${name}_path`,
+      // Expanded from `resources`/`crud`: HAL is enforced on these
+      resource: Boolean(method),
       route: urlPath,
       verb: verb,
     });

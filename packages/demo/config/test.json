@@ -11,5 +11,8 @@
     "model": "user",
     "public": ["name"]
   },
+  "rateLimit": {
+    "auth": { "max": 200 }
+  },
   "env": "test"
 }

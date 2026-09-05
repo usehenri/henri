@@ -232,7 +232,29 @@ module.exports = {
 };
 
 /**
- * Generates a test file using @usehenri/testing
+ * The `resources`/`crud` route of a name in config/routes.js, if any
+ *
+ * @param {string} lower The resource name (ex: tasks)
+ * @returns {?{scope: string}} The route options or null
+ */
+const resourceRoute = (lower) => {
+  const routes = readRoutes(process.cwd());
+
+  for (const kind of ['resources', 'crud']) {
+    const entry = routes[`${kind} ${lower}`] || routes[`${kind} /${lower}`];
+
+    if (entry) {
+      return typeof entry === 'string' ? { scope: '' } : entry;
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Generates a test file using @usehenri/testing. When config/routes.js has
+ * a `resources`/`crud` entry for the name, the test checks the HAL answers
+ * (`_links.self`, `_embedded`).
  *
  * @param {string} name Test name (ex: tasks, the path it requests)
  * @param {string[]} rest Unused
@@ -241,23 +263,13 @@ module.exports = {
  */
 const test = async (name, rest = [], opts = {}) => {
   const lower = name.toLowerCase();
-  const code = `
-// Runs with \`henri test\`: setup() boots henri under NODE_ENV=test and
-// request() is a supertest agent bound to the running server.
-const { request, setup } = require('@usehenri/testing');
-
-describe('${lower}', () => {
-  beforeAll(() => setup());
-
-  test('GET /${lower} answers', async () => {
-    const response = await request()
-      .get('/${lower}')
-      .set('Accept', 'application/json');
-
-    expect(response.status).toBe(200);
-  });
-});
-`;
+  const templates = require('./generate/tests');
+  const route = resourceRoute(lower);
+  const scope =
+    route && route.scope ? `/${route.scope}`.replace(/\/+/g, '/') : '';
+  const code = route
+    ? templates.resource({ lower, path: `${scope}/${lower}` })
+    : templates.plain({ lower });
 
   return output('test', 'test', `${lower}.test.js`, code, opts);
 };

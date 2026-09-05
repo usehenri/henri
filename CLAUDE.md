@@ -37,21 +37,23 @@ an app and is what core's tests boot.
 
 ## Layout
 
-| Path                                    | Package               | Role                                                                                                                      |
-| --------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `packages/henri`                        | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                               |
-| `packages/cli`                          | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `generate`, `destroy`, `build`, `test`, `clean`, `about`; the app templates |
-| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, mail, GraphQL                                               |
-| `packages/mongoose`                     | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                              |
-| `packages/disk`                         | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                      |
-| `packages/sequelize`                    | `@usehenri/sequelize` | Shared SQL adapter (Sequelize 6)                                                                                          |
-| `packages/mysql`, `postgresql`, `mssql` | `@usehenri/*`         | Dialect packages on top of `@usehenri/sequelize`                                                                          |
-| `packages/react`                        | `@usehenri/react`     | Next.js 16 view engine, `withHenri`, `useHenri`, form components                                                          |
-| `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19 (new in 1.1, experimental)                                                      |
-| `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                         |
-| `packages/websocket`                    | private               | Not published, never wired into core                                                                                      |
-| `packages/demo`                         | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                            |
-| `website`                               | private               | usehenri.io, deployed by Vercel from `website/`                                                                           |
+| Path                                    | Package               | Role                                                                                                                                             |
+| --------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/henri`                        | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                      |
+| `packages/cli`                          | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `generate`, `destroy`, `build`, `test`, `db`, `doctor`, `mcp`, `clean`, `about`; the app templates |
+| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, mail, GraphQL                                                                      |
+| `packages/mongoose`                     | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                     |
+| `packages/disk`                         | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                             |
+| `packages/sequelize`                    | `@usehenri/sequelize` | Shared SQL adapter (Sequelize 6)                                                                                                                 |
+| `packages/mysql`, `postgresql`, `mssql` | `@usehenri/*`         | Dialect packages on top of `@usehenri/sequelize`                                                                                                 |
+| `packages/drizzle`                      | `@usehenri/drizzle`   | SQL adapter on Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`), new in 1.1                                      |
+| `packages/react`                        | `@usehenri/react`     | Next.js 16 view engine, `withHenri`, `useHenri`, form components                                                                                 |
+| `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19 (new in 1.1, experimental)                                                                             |
+| `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                |
+| `packages/mcp`                          | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                             |
+| `packages/websocket`                    | private               | Not published, never wired into core                                                                                                             |
+| `packages/demo`                         | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                   |
+| `website`                               | private               | usehenri.io, deployed by Vercel from `website/`                                                                                                  |
 
 ## How core works
 
@@ -73,7 +75,18 @@ an app and is what core's tests boot.
   `secret`, `HENRI_HOST` the bind address). Keys: `port`, `host`, `cors`,
   `renderer`, `inertia`, `experimental`, `stores`, `secret`, `user` (string or
   `{ model, public, loginPath, afterLogin, sessionMaxAge }`), `baseRole`,
-  `trustProxy`, `csrf`, `graphql`, `mail`.
+  `trustProxy`, `csrf`, `graphql`, `mail`, `api`, `rateLimit`, `helmet`,
+  `filterParameters`, `bodyLimit`, `requestTimeout`.
+- The JSON API layer lives in `base/{api,hateoas,idempotency,rate-limit,
+request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
+  `res.collection()` answer HAL with `_links` from the route helpers filtered
+  by roles, `res.negotiate({ html, json })` picks the page or the JSON,
+  `Idempotency-Key` is honoured on every mutating route (`idempotent: false`
+  opts out), express-rate-limit guards everything outside development plus
+  the auth paths, `X-Request-Id` is threaded through `pen`, helmet sets the
+  headers, `filterParameters` are masked in the logs, `GET /_henri/health`
+  pings the stores. `resources`/`crud` routes answering JSON without `_links`
+  are reported (refused with `config.api.strict`).
 - Store adapters implement one contract (JSDoc `HenriAdapter` at the top of
   `packages/sequelize/index.js` and `packages/mongoose/index.js`):
   `new Adapter(name, config, henri)`, `addModel(model, userModelName)`,
@@ -155,8 +168,11 @@ the LICENSE and a README into every public package at publish time
 - The Inertia engine is new in 1.1 and has had little use; its options may
   change.
 - The SQL adapters are tested against sqlite; live MySQL, PostgreSQL and MSSQL
-  connections are not covered. There are no migrations (`sequelize.sync()`).
+  connections are not covered, for the Drizzle adapter too. The Sequelize
+  adapters have no migrations (`sequelize.sync()`); Drizzle has them.
 - `henri generate scaffold|crud` write Mongoose-only controllers and React-only
   pages.
+- The idempotency and rate-limit stores are in memory unless the app plugs a
+  shared store (`config.api.idempotency.store`, `config.rateLimit.store`).
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.

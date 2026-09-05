@@ -28,22 +28,28 @@ The file is parsed on boot: a syntax error is reported with its line, and the bo
 
 ## Keys
 
-| Key            | Default       | Description                                                                                                                                    |
-| -------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `port`         | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                                                |
-| `host`         | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file. |
-| `cors`         | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                              |
-| `renderer`     | `template`    | View engine: `react`, `inertia` or `template` (Handlebars). `henri new` writes `react`. See [Views](/guides/views/).                           |
-| `inertia`      |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                            |
-| `experimental` |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                           |
-| `stores`       |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                    |
-| `secret`       |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                         |
-| `user`         | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                     |
-| `baseRole`     |               | Role, or list of roles, given to every new user.                                                                                               |
-| `trustProxy`   | `true`        | Express `trust proxy` setting: `X-Forwarded-*` headers from a reverse proxy are honoured. Set `false` without one.                             |
-| `csrf`         | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf).                                                                                   |
-| `graphql`      | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                                                 |
-| `mail`         |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                             |
+| Key                | Default       | Description                                                                                                                                    |
+| ------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `port`             | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                                                |
+| `host`             | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file. |
+| `cors`             | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                              |
+| `renderer`         | `template`    | View engine: `react`, `inertia` or `template` (Handlebars). `henri new` writes `react`. See [Views](/guides/views/).                           |
+| `inertia`          |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                            |
+| `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                           |
+| `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                    |
+| `secret`           |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                         |
+| `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                     |
+| `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                               |
+| `trustProxy`       | `true`        | Express `trust proxy` setting: `X-Forwarded-*` headers from a reverse proxy are honoured. Set `false` without one.                             |
+| `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf).                                                                                   |
+| `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                                                 |
+| `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                             |
+| `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                    |
+| `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them.                                                         |
+| `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                               |
+| `filterParameters` | see below     | Parameter names masked in the logs.                                                                                                            |
+| `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                           |
+| `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                  |
 
 ## Stores
 
@@ -62,6 +68,23 @@ Each entry of `stores` names an adapter and how to reach its database. The adapt
 | `sync`, `migrate`                                  | drizzle       | `sync: false` stops the development boot from pushing the schema; `migrate: true` applies `db/migrations` on a production boot. |
 
 See [Models](/guides/models/#adapters) for each adapter.
+
+## JSON API
+
+The keys of the [JSON API](/guides/api/), all optional:
+
+| Key                                   | Default                                            | Description                                                                                                                                           |
+| ------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.perPage`, `api.maxPerPage`       | `25`, `100`                                        | Page size read by `req.pagination()` and its upper bound.                                                                                             |
+| `api.strict`                          | `false`                                            | Refuse (500) a JSON answer without `_links` on a `resources`/`crud` route instead of logging it.                                                      |
+| `api.idempotency`                     | `{ "ttl": 86400000, "store": null }`               | How long answers are kept for `Idempotency-Key` replays and the module exporting a shared `{ get, set, delete }` store; `false` disables the feature. |
+| `rateLimit.windowMs`, `rateLimit.max` | `60000`, `600`                                     | The global limit per user or ip, not enforced in development.                                                                                         |
+| `rateLimit.auth`                      | `{ "windowMs": 60000, "max": 10 }`                 | The limit on `POST` to the login and register-style paths (`paths` overrides the list); `false` disables it.                                          |
+| `rateLimit.store`                     |                                                    | Module exporting an express-rate-limit `Store` (or a `(henri, { name }) => store` factory) shared between processes.                                  |
+| `helmet`                              |                                                    | Options merged over henri's defaults (a development CSP that allows hot reloading, no HSTS outside production); `false` disables helmet.              |
+| `filterParameters`                    | `["password", "token", "secret", "authorization"]` | Substrings of the parameter names masked in everything `henri.pen` prints.                                                                            |
+| `bodyLimit`                           | `"1mb"`                                            | Passed to the JSON and urlencoded body parsers.                                                                                                       |
+| `requestTimeout`                      | `30000`                                            | Milliseconds before a `503`; `false` disables the timeout.                                                                                            |
 
 ## Environment and `.env`
 

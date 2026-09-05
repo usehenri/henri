@@ -3,6 +3,8 @@ const chalk = require('chalk');
 const stringWidth = require('string-width');
 const util = require('util');
 const { getColor, stack } = require('./utils');
+const { currentRequestId } = require('./base/request-id');
+const { filterParameters, redact } = require('./base/redact');
 
 /**
  * Write stuff in the console...
@@ -155,7 +157,7 @@ class Pen extends BaseModule {
       this.line(1);
       // eslint-disable-next-line no-console
       console.log(
-        util.inspect(obj, {
+        util.inspect(this.redact(obj), {
           colors: true,
           depth: 2,
           maxArrayLength: 8,
@@ -215,7 +217,43 @@ class Pen extends BaseModule {
   }
 
   /**
+   * A copy of a value with the filtered parameters masked
+   * (`config.filterParameters`, `password`, `token`, `secret` and
+   * `authorization` by default)
+   *
+   * @param {*} value anything
+   * @returns {*} the redacted copy
+   * @memberof Pen
+   */
+  redact(value) {
+    const inst = this.henri || global.henri;
+
+    return redact(value, filterParameters(inst && inst.config));
+  }
+
+  /**
+   * One argument of a log line: objects are inspected (redacted first),
+   * everything else is printed as is
+   *
+   * @param {*} value the argument
+   * @returns {*} something `join()` can print
+   * @memberof Pen
+   */
+  format(value) {
+    if (value === null || typeof value !== 'object' || value instanceof Error) {
+      return value;
+    }
+
+    return util.inspect(this.redact(value), {
+      breakLength: Infinity,
+      colors: false,
+      depth: 3,
+    });
+  }
+
+  /**
    * Internal formatting method
+   * Lines written while a request is handled carry its id (`req.id`).
    *
    * @private
    * @param {string} name Module name
@@ -230,7 +268,14 @@ class Pen extends BaseModule {
       '✏'
     )} `;
     const sep = ` ${chalk['grey'].bold('=>')} `;
-    const fullMsg = `${title} ${args.join(sep)} ${chalk['grey'](this.time())}`;
+    const id = currentRequestId();
+    const tag = id
+      ? chalk.grey(`[${id.length > 12 ? id.slice(0, 8) : id}] `)
+      : '';
+    const parts = args.map((arg) => this.format(arg));
+    const fullMsg = `${title} ${tag}${parts.join(sep)} ${chalk['grey'](
+      this.time()
+    )}`;
 
     return { dateString, fullMsg };
   }

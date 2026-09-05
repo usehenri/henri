@@ -93,6 +93,25 @@ Add `scope` to prefix the generated routes: `scope: 'api'` turns `/happy` into `
 
 Add an `omit` array to skip some of the generated actions: `omit: ['destroy', 'edit']`.
 
+## API options
+
+Three more options tune the [JSON API](/guides/api/) per route: `version: 'v1'` refuses clients asking for another `application/vnd.henri.vN+json` version with a `406`, `rateLimit: { windowMs, max }` limits the route on its own (always enforced, even in development), and `idempotent: false` opts a mutating route out of the `Idempotency-Key` handling.
+
+```js
+module.exports = {
+  'resources artworks': {
+    controller: 'artworks',
+    scope: 'api/v1',
+    version: 'v1',
+  },
+  'post /reports': {
+    controller: 'reports',
+    action: 'create',
+    rateLimit: { windowMs: 60000, max: 5 },
+  },
+};
+```
+
 ## Named paths
 
 Every loaded route gets a name, `<action>_<controller>_path` (`show_todo_path`, `index_categories_path`), mapping to `{ method, route, roles }`. Pages rendered with `res.render()` (and the JSON answer of the same URL) receive them in `paths`, filtered by the roles of the current user; a page served by the view engine's fallback, without a controller, only gets the routes that need no role. The React and Inertia helpers `pathFor()` and `getRoute()` build URLs from these names, so a renamed route does not break your links.

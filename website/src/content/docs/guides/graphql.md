@@ -2,7 +2,7 @@
 title: GraphQL
 description: Add types and resolvers to your models and query them from controllers.
 sidebar:
-  order: 6
+  order: 7
 ---
 
 Add a `graphql` key to a model and its types and resolvers are loaded, merged with every other model's and served by Apollo Server at `/_henri/gql` (change the path with the `graphql` configuration key). Introspection is on outside production.

@@ -11,6 +11,14 @@ const { execFile } = require('child_process');
 const chokidar = require('chokidar');
 const boom = require('./base/boom');
 const { errorHandler, notFound } = require('./base/http');
+const { createApi } = require('./base/api');
+const { userConfig } = require('./base/auth');
+const health = require('./base/health');
+const { apiVersion, secureHeaders } = require('./base/headers');
+const { paginationMiddleware } = require('./base/pagination');
+const { authLimiter, limiter } = require('./base/rate-limit');
+const { requestId } = require('./base/request-id');
+const requestTimeout = require('./base/timeout');
 const debug = require('debug')('henri:server');
 const { detect } = require('detect-port');
 
@@ -89,6 +97,23 @@ function lanIp() {
   }
 
   return null;
+}
+
+/**
+ * The normalized user settings, or nothing when `config.user` is invalid
+ * (the user module reports that itself)
+ *
+ * @param {object} config the config module
+ * @returns {object} the settings (see base/auth.js userConfig)
+ */
+function safeUserConfig(config) {
+  try {
+    return userConfig(config);
+  } catch (error) {
+    debug('config.user is invalid: %s', error.message);
+
+    return {};
+  }
 }
 
 /**
@@ -322,6 +347,8 @@ class Server extends BaseModule {
     const app = (this.app = express());
 
     app.disable('x-powered-by');
+    // Weak ETags on every body: JSON clients revalidate with If-None-Match
+    app.set('etag', 'weak');
 
     this.httpServer = require('http').createServer(this.app);
 
@@ -330,6 +357,29 @@ class Server extends BaseModule {
       process.env.HENRI_HOST ||
       config.get('host', true) ||
       (this.henri.isProduction ? '0.0.0.0' : '127.0.0.1');
+
+    // `henri.api`: settings of the JSON api and the stores it uses
+    const api = (this.henri.api = createApi(
+      this.henri,
+      safeUserConfig(config)
+    ));
+    const { settings } = api;
+
+    // Middleware order: request id, timeout, secure headers, compression,
+    // cors, body parsers, cookies, boom, api version, pagination, health,
+    // static files. The user module adds permit, session, passport and csrf
+    // (runlevel 4), start() adds the rate limits, the router, 404 and errors.
+    app.use(requestId());
+
+    if (settings.requestTimeout) {
+      app.use(requestTimeout(this.henri, settings.requestTimeout));
+    }
+
+    const helmet = secureHeaders(this.henri);
+
+    if (helmet) {
+      app.use(helmet);
+    }
 
     if (this.henri.isProduction) {
       /* istanbul ignore next */
@@ -343,11 +393,15 @@ class Server extends BaseModule {
       app.use(cors(typeof options === 'object' ? options : undefined));
     }
 
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
+    app.use(express.json({ limit: settings.bodyLimit }));
+    app.use(express.urlencoded({ extended: true, limit: settings.bodyLimit }));
     app.use(cookieParser());
 
     app.use(boom());
+    app.use(apiVersion());
+    app.use(paginationMiddleware(() => this.henri.api.settings.pagination));
+
+    app.get(health.PATH, health(this.henri));
 
     app.use(express.static(path.resolve(this.henri.cwd(), 'app/views/public')));
 
@@ -376,6 +430,8 @@ class Server extends BaseModule {
 
       return true;
     }
+
+    this.rateLimits();
 
     app.use((req, res, next) => henri.router.handler(req, res, next));
     app.use(notFound(henri));
@@ -411,6 +467,67 @@ class Server extends BaseModule {
     }
 
     typeof cb === 'function' && cb();
+
+    return true;
+  }
+
+  /**
+   * Mounts the rate limits (`config.rateLimit`): the authentication
+   * endpoints first (10 per minute per ip), then the global limit, counted
+   * per user or ip. The global limit is not enforced in development, where
+   * the view engines serve hundreds of assets per page; per-route limits
+   * (`rateLimit` in the routes) always are.
+   *
+   * @returns {boolean} whether a limit was mounted
+   * @memberof Server
+   */
+  rateLimits() {
+    const { app, henri } = this;
+    const { api, pen } = henri;
+    const settings = api.settings.rateLimit;
+
+    if (!settings) {
+      pen.warn('api', 'rate limiting is disabled by configuration');
+
+      return false;
+    }
+
+    if (settings.auth) {
+      const guard = authLimiter(
+        henri,
+        Object.assign({}, settings.auth, { store: api.rateLimitStore('auth') })
+      );
+
+      api.limiters.push(guard);
+      app.use(guard);
+    }
+
+    const global = limiter(henri, {
+      max: settings.max,
+      name: 'global',
+      skip: () => henri.isDev,
+      store: api.rateLimitStore('global'),
+      windowMs: settings.windowMs,
+    });
+
+    api.limiters.push(global);
+    app.use(global);
+
+    pen.info(
+      'api',
+      'rate limit',
+      `${settings.max} requests per ${settings.windowMs / 1000}s per user or ip${
+        henri.isDev ? ' (not enforced in development)' : ''
+      }`
+    );
+
+    if (henri.isProduction && app.get('trust proxy') === true) {
+      pen.warn(
+        'api',
+        'config.trustProxy is true: ip based limits can be bypassed by forging X-Forwarded-For',
+        'set it to the number of proxies in front of henri'
+      );
+    }
 
     return true;
   }
@@ -584,6 +701,10 @@ class Server extends BaseModule {
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
+    }
+
+    if (this.henri.api && typeof this.henri.api.stop === 'function') {
+      this.henri.api.stop();
     }
 
     if (this.httpServer && this.httpServer.listening) {

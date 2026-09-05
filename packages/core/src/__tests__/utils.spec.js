@@ -128,6 +128,7 @@ describe('utils', () => {
 
       expect(Object.keys(controllers).sort()).toEqual([
         'artwork',
+        'artworks',
         'main',
         'user',
       ]);

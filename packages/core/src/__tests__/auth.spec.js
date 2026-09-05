@@ -254,7 +254,9 @@ describe('auth (demo app, disk store)', () => {
         .send({ title: 'Notes', year: 1843 });
 
       expect(res.status).toBe(201);
-      expect(res.body.artwork.title).toBe('Notes');
+      expect(res.body.title).toBe('Notes');
+      expect(res.body._links.self.href).toBe(`/artwork/${res.body.id}`);
+      expect(res.headers.location).toBe(`/artwork/${res.body.id}`);
     });
 
     test('accepts the token in the _csrf body field', async () => {
