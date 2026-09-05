@@ -202,9 +202,6 @@ importers:
       debug:
         specifier: ^4.4.3
         version: 4.4.3(supports-color@8.1.1)
-      md5:
-        specifier: ^2.3.0
-        version: 2.3.0
       mongodb-memory-server:
         specifier: ^11.2.0
         version: 11.2.0(supports-color@8.1.1)
@@ -233,15 +230,15 @@ importers:
       express-session:
         specifier: ^1.19.0
         version: 1.19.0(supports-color@8.1.1)
+      mongodb-memory-server:
+        specifier: ^11.2.0
+        version: 11.2.0(supports-color@8.1.1)
 
   packages/mssql:
     dependencies:
       '@usehenri/sequelize':
         specifier: workspace:^
         version: link:../sequelize
-      sequelize:
-        specifier: ^6.37.8
-        version: 6.37.8(mysql2@3.24.3(@types/node@26.4.1))(pg-hstore@2.3.4)(pg@8.23.0)(sqlite3@6.0.1)(supports-color@8.1.1)(tedious@20.0.0(supports-color@8.1.1))
       tedious:
         specifier: ^20.0.0
         version: 20.0.0(supports-color@8.1.1)
@@ -254,9 +251,6 @@ importers:
       mysql2:
         specifier: ^3.24.3
         version: 3.24.3(@types/node@26.4.1)
-      sequelize:
-        specifier: ^6.37.8
-        version: 6.37.8(mysql2@3.24.3(@types/node@26.4.1))(pg-hstore@2.3.4)(pg@8.23.0)(sqlite3@6.0.1)(supports-color@8.1.1)(tedious@20.0.0(supports-color@8.1.1))
 
   packages/postgresql:
     dependencies:
@@ -269,9 +263,6 @@ importers:
       pg-hstore:
         specifier: ^2.3.4
         version: 2.3.4
-      sequelize:
-        specifier: ^6.37.8
-        version: 6.37.8(mysql2@3.24.3(@types/node@26.4.1))(pg-hstore@2.3.4)(pg@8.23.0)(sqlite3@6.0.1)(supports-color@8.1.1)(tedious@20.0.0(supports-color@8.1.1))
 
   packages/react:
     dependencies:
@@ -333,12 +324,15 @@ importers:
       connect-session-sequelize:
         specifier: ^8.0.6
         version: 8.0.6(sequelize@6.37.8(mysql2@3.24.3(@types/node@26.4.1))(pg-hstore@2.3.4)(pg@8.23.0)(sqlite3@6.0.1)(supports-color@8.1.1)(tedious@20.0.0(supports-color@8.1.1)))(supports-color@8.1.1)
+      debug:
+        specifier: ^4.4.3
+        version: 4.4.3(supports-color@8.1.1)
       sequelize:
         specifier: ^6.37.8
         version: 6.37.8(mysql2@3.24.3(@types/node@26.4.1))(pg-hstore@2.3.4)(pg@8.23.0)(sqlite3@6.0.1)(supports-color@8.1.1)(tedious@20.0.0(supports-color@8.1.1))
     devDependencies:
       express-session:
-        specifier: ^1.18.2
+        specifier: ^1.19.0
         version: 1.19.0(supports-color@8.1.1)
       sqlite3:
         specifier: ^6.0.1
@@ -3564,9 +3558,6 @@ packages:
   chardet@2.2.0:
     resolution: {integrity: sha512-rddelWYNPRrXq6PtNEN2S3f6t9ILzvqaN5pVgi4kqt9jHQaXIial9PznB5iSPVlQSLNaaH22ItWz3EJtQ10+OA==}
 
-  charenc@0.0.2:
-    resolution: {integrity: sha512-yrLQ/yVUFXkzg7EDQsPieE/53+0RlaWTs+wBrvW36cyilJ2SaDWfl4Yj7MtLTXleV9uEKefbAGUPv2/iWSooRA==}
-
   chokidar@4.0.3:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
     engines: {node: '>= 14.16.0'}
@@ -3732,9 +3723,6 @@ packages:
 
   crossws@0.3.5:
     resolution: {integrity: sha512-ojKiDvcmByhwa8YYqbQI/hg7MEU0NC03+pSdEq4ZUnZR9xXpwk7E43SMNGkn+JxJGPFtNvQ48+vV2p+P1ml5PA==}
-
-  crypt@0.0.2:
-    resolution: {integrity: sha512-mCxBlsHFYh9C+HVpiEacem8FEBnMXgU9gy4zmNC+SXAZNB/1idgp/aulFJ4FgCi7GPEVbfyng092GqL2k2rmow==}
 
   css-select@6.0.0:
     resolution: {integrity: sha512-rZZVSLle8v0+EY8QAkDWrKhpgt6SA5OtHsgBnsj6ZaLb5dmDVOWUDtQitd9ydxxvEjhewNudS6eTVU7uOyzvXw==}
@@ -4504,9 +4492,6 @@ packages:
   is-arrayish@0.2.1:
     resolution: {integrity: sha512-zz06S8t0ozoDXMG+ube26zeCTNXcKIPJZJi8hBrF4idCLms4CG9QtK7qBl1boi5ODzFpjswb5JPmHCbMpjaYzg==}
 
-  is-buffer@1.1.6:
-    resolution: {integrity: sha512-NcdALwpXkTm5Zvvbk7owOUSvVvBKDgKP5/ewfXEznmQFfs4ZRmanOeKBTjRVjka3QFoN6XJ+9F3USqfHqTaU5w==}
-
   is-callable@1.2.7:
     resolution: {integrity: sha512-1BC0BVFhS/p0qtw6enp8e+8OD0UrK0oFLztSjNzhcKA3WDuJxxAPXzPuPtKkjEY9UUoEWlX/8fgKeu2S8i9JTA==}
     engines: {node: '>= 0.4'}
@@ -4999,9 +4984,6 @@ packages:
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
-
-  md5@2.3.0:
-    resolution: {integrity: sha512-T1GITYmFaKuO91vxyoQMFETst+O71VUPEU3ze5GNzDm0OWdP8v1ziTaAEPUr/3kLsY3Sftgz242A1SetQiDL7g==}
 
   mdast-util-directive@3.1.0:
     resolution: {integrity: sha512-I3fNFt+DHmpWCYAT7quoM6lHf9wuqtI+oCOfvILnoicNIqjh5E3dEJWiXuYME2gNe8vl1iMQwyUHa7bgFmak6Q==}
@@ -9965,8 +9947,6 @@ snapshots:
 
   chardet@2.2.0: {}
 
-  charenc@0.0.2: {}
-
   chokidar@4.0.3:
     dependencies:
       readdirp: 4.1.2
@@ -10109,8 +10089,6 @@ snapshots:
   crossws@0.3.5:
     dependencies:
       uncrypto: 0.1.3
-
-  crypt@0.0.2: {}
 
   css-select@6.0.0:
     dependencies:
@@ -10980,8 +10958,6 @@ snapshots:
 
   is-arrayish@0.2.1: {}
 
-  is-buffer@1.1.6: {}
-
   is-callable@1.2.7: {}
 
   is-core-module@2.16.2:
@@ -11612,12 +11588,6 @@ snapshots:
       semver: 7.8.5
 
   math-intrinsics@1.1.0: {}
-
-  md5@2.3.0:
-    dependencies:
-      charenc: 0.0.2
-      crypt: 0.0.2
-      is-buffer: 1.1.6
 
   mdast-util-directive@3.1.0(supports-color@8.1.1):
     dependencies:

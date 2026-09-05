@@ -1,36 +1,25 @@
 const Sql = require('@usehenri/sequelize');
 
 /**
- * MSSQL database adapter
+ * MSSQL database adapter (tedious driver)
  *
  * @class MsSQL
  * @extends {Sql}
  */
 class MsSQL extends Sql {
   /**
-   * Creates an instance of MSSQL.
+   * Creates an instance of MsSQL.
+   *
    * @param {string} name Store name
-   * @param {any} config Store configuration
+   * @param {object} config Store configuration
    * @param {Henri} thisHenri Current henri instance
    * @memberof MsSQL
    */
   constructor(name, config, thisHenri) {
-    super(name, config, thisHenri);
-
-    const { url, adapter, ...opts } = config;
-
-    this.adapterName = 'mssql';
-
-    if (!url) {
-      thisHenri.pen.fatal('mssql', `Missing url or host in store ${name}`);
-
-      return;
-    }
-
-    this.connector = new this.Sequelize(url, {
+    super(name, config, thisHenri, {
+      adapterName: 'mssql',
       dialect: 'mssql',
-      ...opts,
-      dialectModulePath: require.resolve('tedious'),
+      driver: require.resolve('tedious'),
     });
   }
 }

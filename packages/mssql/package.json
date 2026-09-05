@@ -14,9 +14,11 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "files": [
+    "index.js"
+  ],
   "dependencies": {
     "@usehenri/sequelize": "workspace:^",
-    "sequelize": "^6.37.8",
     "tedious": "^20.0.0"
   },
   "engines": {

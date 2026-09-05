@@ -14,10 +14,12 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "files": [
+    "index.js"
+  ],
   "dependencies": {
     "@usehenri/sequelize": "workspace:^",
-    "mysql2": "^3.24.3",
-    "sequelize": "^6.37.8"
+    "mysql2": "^3.24.3"
   },
   "engines": {
     "node": ">=22"

@@ -1,52 +1,32 @@
-const types = require('mongoose').SchemaTypes;
+const { Schema } = require('mongoose');
 
+/**
+ * Schema type names of the henri model format and their Mongoose type
+ *
+ * A model file describes its fields with these names (`{ type: 'string' }`)
+ * so the same definition works on every adapter; `normalizeSchema()` turns
+ * them into Mongoose types. The SQL adapters map the same names in
+ * `@usehenri/sequelize/types`. Anything else Mongoose accepts (constructors,
+ * `'ObjectId'`, nested documents, arrays) is passed through untouched.
+ *
+ * - string:  String
+ * - text:    String
+ * - number:  Number
+ * - integer: Number
+ * - float:   Number
+ * - boolean: Boolean
+ * - date:    Date
+ * - json:    Mixed
+ * - uuid:    String (portable with the SQL adapters)
+ */
 module.exports = {
-  // Mongoose specific
-  String: types.String,
-  Number: types.Number,
-  Boolean: types.Boolean,
-  DocumentArray: types.DocumentArray,
-  Embedded: types.Subdocument,
-  Subdocument: types.Subdocument,
-  Array: types.Array,
-  Buffer: types.Buffer,
-  Date: types.Date,
-  ObjectId: types.ObjectId,
-  Mixed: types.Mixed,
-  Decimal128: types.Decimal128,
-  Object: types.Mixed,
-  Bool: types.Boolean,
-
-  // Sequelize specific
-  STRING: types.String,
-  CHAR: types.String,
-  TEXT: types.String,
-  TINYINT: types.Number,
-  SMALLINT: types.Number,
-  MEDIUMINT: types.Number,
-  INTEGER: types.Number,
-  BIGINT: types.Number,
-  NUMBER: types.Number,
-  FLOAT: types.Number,
-  DOUBLE: types.Number,
-  DECIMAL: types.Number,
-  REAL: types.Number,
-  BOOLEAN: types.Boolean,
-  BLOB: types.String,
-  ENUM: types.Array,
-  DATE: types.Date,
-  DATEONLY: types.Date,
-  TIME: types.Date,
-  NOW: types.Date,
-  UUID: types.UUID,
-  UUIDV1: types.ObjectId,
-  UUIDV4: types.ObjectId,
-  HSTORE: types.Mixed,
-  JSON: types.Mixed,
-  JSONB: types.Mixed,
-  ARRAY: types.Array,
-  RANGE: types.Mixed,
-  GEOMETRY: types.Mixed,
-  GEOGRAPHY: types.Mixed,
-  VIRTUAL: types.Mixed,
+  boolean: Boolean,
+  date: Date,
+  float: Number,
+  integer: Number,
+  json: Schema.Types.Mixed,
+  number: Number,
+  string: String,
+  text: String,
+  uuid: String,
 };
