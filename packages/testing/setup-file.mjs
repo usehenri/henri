@@ -12,7 +12,13 @@
 import { createRequire } from 'node:module';
 import { afterAll } from 'vitest';
 
-const { setup, teardown } = createRequire(import.meta.url)('./index.js');
+const require = createRequire(import.meta.url);
+
+// Bind every host-less listen() to 127.0.0.1 before anything starts a server:
+// without it a request can be answered by whatever else holds that port
+require('./loopback.js');
+
+const { setup, teardown } = require('./index.js');
 
 await setup();
 

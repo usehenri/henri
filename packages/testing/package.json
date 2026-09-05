@@ -16,15 +16,17 @@
   "main": "index.js",
   "exports": {
     ".": "./index.js",
-    "./setup-file": "./setup-file.mjs",
     "./global-setup": "./global-setup.mjs",
-    "./package.json": "./package.json"
+    "./loopback": "./loopback.js",
+    "./package.json": "./package.json",
+    "./setup-file": "./setup-file.mjs"
   },
   "files": [
-    "index.js",
-    "setup-file.mjs",
     "global-setup.mjs",
-    "README.md"
+    "index.js",
+    "loopback.js",
+    "README.md",
+    "setup-file.mjs"
   ],
   "engines": {
     "node": ">=22"
