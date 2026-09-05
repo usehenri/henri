@@ -812,13 +812,24 @@ class Drizzle {
         result.warnings.forEach((warning) =>
           pen.warn(this.adapterName, warning)
         );
-      } else if (result.statements.length > 0) {
+
+        return;
+      }
+
+      if (result.statements.length > 0) {
         pen.info(
           this.adapterName,
           `schema pushed: ${result.statements.length} statement(s) in ${this.timings.push}ms`
         );
       } else {
         debug('schema up to date (%dms)', this.timings.push);
+      }
+
+      // A mysql push cannot alter a table (see Migrations#plan)
+      if (result.drifted.length > 0) {
+        result.warnings.forEach((warning) =>
+          pen.warn(this.adapterName, warning)
+        );
       }
 
       return;
