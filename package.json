@@ -52,12 +52,8 @@
       "node_modules/*",
       "packages/.*/build",
       "packages/.*/build-es5",
-      "packages/.*/dist",
       "packages/cli/scripts/test.js",
       "packages/demo",
-      "packages/disk",
-      "packages/react",
-      "packages/websocket",
       "<rootDir>/.claude/",
       "<rootDir>/website/"
     ],

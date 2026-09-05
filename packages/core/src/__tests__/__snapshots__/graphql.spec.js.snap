@@ -15,12 +15,6 @@ exports[`graphql merge should compile schema 1`] = `
     ],
   },
   "errors": undefined,
-  "extensions": undefined,
-  "http": {
-    "headers": Headers {
-      Symbol(map): {},
-    },
-  },
 }
 `;
 
@@ -29,11 +23,15 @@ Graphql {
   "ApolloError": [Function],
   "AuthenticationError": [Function],
   "ForbiddenError": [Function],
+  "GraphQLError": [Function],
   "SyntaxError": [Function],
   "UserInputError": [Function],
   "ValidationError": [Function],
+  "_handler": null,
+  "_middlewareRegistered": false,
   "active": false,
   "consoleOnly": false,
+  "createServer": [Function],
   "endpoint": "/_henri/gql",
   "extract": [Function],
   "graphqlServer": null,
@@ -43,6 +41,7 @@ Graphql {
   "key": null,
   "merge": [Function],
   "name": "graphql",
+  "ready": null,
   "reload": [Function],
   "reloadable": true,
   "resolvers": null,

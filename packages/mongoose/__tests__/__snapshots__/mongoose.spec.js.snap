@@ -13,11 +13,18 @@ Mongoose {
   "models": {},
   "mongoose": Mongoose {
     "Schema": [Function],
+    "__driver": {
+      "BulkWriteResult": [Function],
+      "ClientEncryption": [Function],
+      "Collection": [Function],
+      "Connection": [Function],
+    },
     "_pluralize": [Function],
     "connections": [
       NativeConnection {
         "_closeCalled": false,
         "_hasOpened": false,
+        "_lastHeartbeatAt": null,
         "_listening": false,
         "_queue": [],
         "_readyState": 0,
@@ -43,6 +50,7 @@ Mongoose {
           "disconnecting": 3,
           "uninitialized": 99,
         },
+        Symbol(mongoose:defaultConnection): true,
       },
     ],
     "events": EventEmitter {
@@ -52,26 +60,15 @@ Mongoose {
       Symbol(shapeMode): false,
       Symbol(kCapture): false,
     },
-    "modelSchemas": {},
     "models": {},
+    "nextConnectionId": 1,
     "options": {
+      "autoCreate": true,
       "autoIndex": true,
+      "autoSearchIndex": false,
       "pluralization": true,
-      "useCreateIndex": false,
     },
     "plugins": [
-      [
-        [Function],
-        {
-          "deduplicate": true,
-        },
-      ],
-      [
-        [Function],
-        {
-          "deduplicate": true,
-        },
-      ],
       [
         [Function],
         {
@@ -94,6 +91,7 @@ Mongoose {
   },
   "name": "conn",
   "overload": [Function],
+  "sessionStore": null,
   "start": [Function],
   "stop": [Function],
 }
@@ -133,11 +131,12 @@ exports[`mongoose should match types snapshot 1`] = `
   "Number": [Function],
   "Object": [Function],
   "ObjectId": [Function],
-  "RANGE": undefined,
+  "RANGE": [Function],
   "REAL": [Function],
   "SMALLINT": [Function],
   "STRING": [Function],
   "String": [Function],
+  "Subdocument": [Function],
   "TEXT": [Function],
   "TIME": [Function],
   "TINYINT": [Function],

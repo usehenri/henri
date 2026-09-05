@@ -5,7 +5,7 @@ const passport = require('passport');
 const JwtStrategy = require('passport-jwt').Strategy;
 const ExtractJwt = require('passport-jwt').ExtractJwt;
 const LocalStrategy = require('passport-local').Strategy;
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 /**
  * User module
@@ -47,8 +47,8 @@ class User extends BaseModule {
     if (password.length < 6) {
       throw new Error('minimum password string is 6 characters');
     }
-    if (this.henri.isTest) {
-      rounds = 3;
+    if (this.henri && this.henri.isTest) {
+      rounds = 4;
     }
 
     const salt = await bcrypt.genSalt(rounds);
@@ -64,20 +64,17 @@ class User extends BaseModule {
    * @static
    * @param {string} password A password
    * @param {string} hash A hash
-   * @param {object} user The user
    * @returns {(Promise<boolean>|Error)} Good (true) or ERROR!
    * @memberof User
    */
   async compare(password, hash) {
-    if (this.henri) {
-      const ok = await bcrypt.compare(password, hash);
+    const ok = await bcrypt.compare(password, hash);
 
-      if (!ok) {
-        throw new Error('Invalid credentials');
-      }
-
-      return true;
+    if (!ok) {
+      throw new Error('Invalid credentials');
     }
+
+    return true;
   }
 
   /**
@@ -108,22 +105,27 @@ class User extends BaseModule {
       };
 
       /**
-       * Check if
+       * Check the local credentials
+       *
        * @param {string} email An email
-       * @param {string} passwordHash A password hash
+       * @param {string} password The clear text password
        * @param {function} done A callback
        * @returns {void}
        */
-      const checkLocal = async (email, passwordHash, done) => {
+      const checkLocal = async (email, password, done) => {
         try {
           const user = await this.henri._user.findOne({
             email: email,
           });
 
-          await this.compare(passwordHash, user.password);
+          if (!user) {
+            throw new Error('Invalid credentials');
+          }
+
+          await this.compare(password, user.password);
           done(null, user);
         } catch (error) {
-          done(null, false, 'Invalid credentials.');
+          done(null, false, { message: 'Invalid credentials.' });
         }
       };
 
@@ -135,15 +137,19 @@ class User extends BaseModule {
        * @returns {function} callback
        */
       const checkJWT = async (payload, done) => {
-        const user = await this.henri._user.findOne({
-          id: payload._id,
-        });
+        try {
+          const user = await this.henri._user.findOne({
+            _id: payload._id,
+          });
 
-        if (user) {
-          return done(null, user);
+          if (user) {
+            return done(null, user);
+          }
+
+          return done(null, false);
+        } catch (error) {
+          return done(error, false);
         }
-
-        return done(null, false);
       };
 
       const localLogin = new LocalStrategy(
@@ -180,9 +186,9 @@ class User extends BaseModule {
       });
 
       /* istanbul ignore next */
-      passport.deserializeUser(async function(id, done) {
+      passport.deserializeUser(async (id, done) => {
         try {
-          const user = await henri._user.find(
+          const user = await this.henri._user.find(
             {
               _id: id,
             },
@@ -201,20 +207,23 @@ class User extends BaseModule {
       this.henri.server.app.use(passport.session());
 
       /* istanbul ignore next */
-      this.henri.addMiddleware('login', app => {
+      this.henri.addMiddleware('login', (app) => {
         app.post('/login', passport.authenticate('local'), (req, res) =>
           res.send('authenticated')
         );
       });
 
       /* istanbul ignore next */
-      this.henri.addMiddleware('logout', app => {
-        app.get('/logout', function(req, res) {
-          pen.info('user', 'Logging out', req.user);
-          req.logout();
-          delete req.user;
+      this.henri.addMiddleware('logout', (app) => {
+        app.get('/logout', (req, res, next) => {
+          pen.info('user', 'Logging out', req.user && req.user._id);
+          req.logout((error) => {
+            if (error) {
+              return next(error);
+            }
 
-          return res.redirect('/');
+            return res.redirect('/');
+          });
         });
       });
 

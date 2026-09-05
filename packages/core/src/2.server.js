@@ -1,24 +1,81 @@
 const BaseModule = require('./base/module');
 
 const express = require('express');
-const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const timings = require('server-timings');
 const compress = require('compression');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const { execFile } = require('child_process');
 const chokidar = require('chokidar');
 const boom = require('express-boom');
 const debug = require('debug')('henri:server');
-// REMOVED: const Websocket = require('@usehenri/websocket');
-
-const {
-  choosePort,
-  prepareUrls,
-} = require('react-dev-utils/WebpackDevServerUtils');
-const openBrowser = require('react-dev-utils/openBrowser');
-const detect = require('detect-port');
+const { detect } = require('detect-port');
 const internalIp = require('internal-ip');
+
+/**
+ * Open an url in the default browser (best effort, never throws)
+ *
+ * @param {string} url the url to open
+ * @returns {boolean} whether a command was spawned
+ */
+function openBrowser(url) {
+  const commands = {
+    darwin: ['open', [url]],
+    linux: ['xdg-open', [url]],
+    win32: ['cmd', ['/c', 'start', '""', url]],
+  };
+  const [cmd, args] = commands[process.platform] || commands.linux;
+
+  try {
+    const child = execFile(cmd, args, () => {});
+
+    child.on('error', (error) => debug('unable to open browser: %s', error));
+
+    return true;
+  } catch (error) {
+    debug('unable to open browser: %s', error);
+
+    return false;
+  }
+}
+
+/**
+ * Build the urls displayed in the terminal and used to open the browser
+ *
+ * @param {string} protocol http or https
+ * @param {string} lanIp the LAN ip of this machine
+ * @param {number} port the port
+ * @returns {{localUrlForTerminal: string, lanUrlForTerminal: string, localUrlForBrowser: string}} urls
+ */
+function prepareUrls(protocol, lanIp, port) {
+  const localUrl = `${protocol}://localhost:${port}/`;
+  const lanUrl = lanIp ? `${protocol}://${lanIp}:${port}/` : null;
+
+  return {
+    lanUrlForTerminal: lanUrl,
+    localUrlForBrowser: localUrl,
+    localUrlForTerminal: localUrl,
+  };
+}
+
+/**
+ * Find a usable port, starting with the one requested
+ *
+ * @param {number} port the port we would like to use
+ * @param {Pen} pen henri's pen, to warn if we had to change port
+ * @returns {Promise<number>} a free port
+ */
+async function choosePort(port, pen) {
+  const free = await detect(port);
+
+  if (free !== port) {
+    pen.warn('server', `port ${port} is busy, using ${free} instead`);
+  }
+
+  return free;
+}
 
 /* istanbul ignore next */
 /**
@@ -28,18 +85,20 @@ const internalIp = require('internal-ip');
  * @return {void}
  */
 async function watch() {
-  let watching = [
-    'app/controllers/**',
-    'app/helpers/**',
-    'app/models/**',
-    'app/workers/**',
-    'tests/**',
+  const watching = [
+    'app/controllers',
+    'app/helpers',
+    'app/models',
+    'app/workers',
+    'app/websocket',
+    'app/views/partials',
     'app/routes.js',
-    'app/websocket/**',
-    'app/views/partials/**/*.html',
-    'config/',
-    './**.json',
-  ];
+    'config',
+    'tests',
+    'package.json',
+  ]
+    .map((entry) => path.resolve(henri.cwd(), entry))
+    .filter((entry) => fs.existsSync(entry));
   const {
     pen,
     utils: { clearConsole },
@@ -47,7 +106,15 @@ async function watch() {
 
   henri.status.set('locked', true);
 
-  chokidar.watch(watching).on('all', async (event, path) => {
+  const watcher = chokidar.watch(watching, {
+    ignoreInitial: true,
+    ignored: (file, stats) =>
+      Boolean(stats && stats.isFile()) &&
+      file.includes(`${path.sep}partials${path.sep}`) &&
+      !/\.(html|htm|hbs)$/.test(file),
+  });
+
+  watcher.on('all', async (event, file) => {
     if (henri.status.get('locked')) {
       debug('received file modification trigger. henri is locked. returning');
 
@@ -57,14 +124,16 @@ async function watch() {
     clearConsole();
     debug('console cleared');
     pen.line();
-    pen.warn('server', 'changes detected in', path);
+    pen.warn('server', 'changes detected in', path.relative(henri.cwd(), file));
     pen.line(2);
-    debug('checking the syntax of the chaneged file');
-    await henri.utils.syntax(path);
+    debug('checking the syntax of the changed file');
+    await henri.utils.syntax(file);
     setTimeout(() => henri.status.set('locked', false), 3000);
     debug('unlocking and reloading');
     !henri.status.get('locked') && henri.reload();
   });
+
+  henri.server.watcher = watcher;
 
   keyboardShortcuts();
 
@@ -83,7 +152,7 @@ async function watch() {
 
 /* istanbul ignore next */
 /**
- * Keyboard shortcuts
+ * Keyboard shortcuts (only when running in an interactive terminal)
  *
  * @returns {void}
  * @todo Move this to its own module with a menu and dynamic shortcuts
@@ -93,6 +162,12 @@ function keyboardShortcuts() {
     pen,
     utils: { clearConsole },
   } = henri;
+
+  if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
+    debug('stdin is not a tty, keyboard shortcuts disabled');
+
+    return;
+  }
 
   process.stdin.resume();
   process.stdin.on('data', async (data) => {
@@ -186,9 +261,11 @@ class Server extends BaseModule {
     this.app = null;
     this.express = null;
     this.httpServer = null;
+    this.watcher = null;
 
     this.init = this.init.bind(this);
     this.start = this.start.bind(this);
+    this.stop = this.stop.bind(this);
   }
 
   /**
@@ -203,10 +280,7 @@ class Server extends BaseModule {
     const app = (this.app = express());
 
     // eslint-disable-next-line global-require
-    this.httpServer = require('http').Server(this.app);
-
-    // WEBSOCKET: const ws = new Websocket(this.httpServer);
-    // WEBSOCKET: ws.init();
+    this.httpServer = require('http').createServer(this.app);
 
     this.port = this.henri.config.has('port')
       ? this.henri.config.get('port')
@@ -219,10 +293,9 @@ class Server extends BaseModule {
       app.use(compress());
     }
 
-    app.options('*', cors());
     app.use(cors());
-    app.use(bodyParser.json());
-    app.use(bodyParser.urlencoded({ extended: true }));
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
     app.use(cookieParser());
 
     app.use(boom());
@@ -245,24 +318,26 @@ class Server extends BaseModule {
    */
   async start(delay, cb = null) {
     // eslint-disable-next-line no-async-promise-executor
-    return new Promise(async (resolve) => {
+    return new Promise(async (resolve, reject) => {
       let { app, henri, httpServer, port } = this;
       let self = this; // Oh no!
-      const usableIp = internalIp.v4.sync() || '0.0.0.0';
+      const lanIp = internalIp.v4.sync() || null;
 
-      debug('using %s as the internal ip', usableIp);
+      debug('using %s as the internal ip', lanIp);
 
       app.use((req, res, next) => henri.router.handler(req, res, next));
 
       port = henri.isTest ? await detect(port) : port;
-      port = henri.isDev ? await choosePort(usableIp, port) : port;
+      port = henri.isDev ? await choosePort(port, henri.pen) : port;
 
       httpServer
         .listen(port, function () {
-          const urls = prepareUrls('http', usableIp, port);
+          const urls = prepareUrls('http', lanIp, port);
 
           henri.pen.info('server', 'ready for battle');
           henri.pen.info('server', 'local url', urls.localUrlForTerminal);
+          urls.lanUrlForTerminal &&
+            henri.pen.info('server', 'network url', urls.lanUrlForTerminal);
 
           henri.isDev && debug('watching the filesystem as we are in dev');
           henri.isDev && watch();
@@ -276,25 +351,38 @@ class Server extends BaseModule {
         .on('error', (error) => {
           /* istanbul ignore next */
           if (error.code === 'EADDRINUSE') {
-            throw new Error(`port ${self.port} already in use`);
+            return reject(new Error(`port ${port} already in use`));
           }
 
           /* istanbul ignore next */
-          throw new Error(`unable to start server: ${error.message}`);
+          return reject(new Error(`unable to start server: ${error.message}`));
         });
     });
   }
 
   /**
-   * Stops the module
+   * Stops the module: closes the http server and the file watcher
    *
    * @async
    * @returns {(string|boolean)} Module name or false
    * @memberof Server
-   * @todo wish we could stop that http/express instance in a clean manner...
    */
-  // eslint-disable-next-line
   async stop() {
+    if (this.watcher) {
+      await this.watcher.close();
+      this.watcher = null;
+    }
+
+    if (this.httpServer && this.httpServer.listening) {
+      await new Promise((resolve) => {
+        this.httpServer.closeAllConnections &&
+          this.httpServer.closeAllConnections();
+        this.httpServer.close(() => resolve());
+      });
+
+      return this.name;
+    }
+
     return false;
   }
 }

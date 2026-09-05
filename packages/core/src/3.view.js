@@ -2,8 +2,6 @@ const BaseModule = require('./base/module');
 const bounce = require('@hapi/bounce');
 
 const allowed = {
-  inferno: 'react',
-  preact: 'react',
   react: 'react',
   template: 'template',
   vue: 'vue',

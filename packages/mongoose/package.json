@@ -6,8 +6,18 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "connect-mongo": "^3.2.0",
-    "debug": "^4.1.1",
-    "mongoose": "^5.8.11"
+    "connect-mongo": "^6.0.0",
+    "debug": "^4.4.3",
+    "mongodb": "~7.5.0",
+    "mongoose": "^9.9.5"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "express-session": "^1.17.1"
+  },
+  "devDependencies": {
+    "express-session": "^1.19.0"
   }
 }

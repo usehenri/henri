@@ -13,7 +13,7 @@ async function start() {
   return func;
 }
 
-if (!module.parent) {
+if (require.main === module) {
   func.pen.warn('boot', 'running from npm');
   start();
 } else {
