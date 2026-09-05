@@ -8,82 +8,97 @@ sidebar:
 ## Requirements
 
 - Node.js 22 or newer
-- A package manager: pnpm, npm or yarn all work
+- A package manager: pnpm, npm or yarn. `henri new` uses the one it finds (the `packageManager` field of an existing `package.json`, then pnpm, yarn, npm).
 
 :::note
-henri was revived in 2026 on a modern toolchain (Node 22+, Express 5, Next.js 16, React 19, Mongoose 9, Sequelize 6). Releases published to npm before that revival still target Node 10 to 14; make sure you install a current version.
+henri was revived in 2026 on a modern toolchain (Node 22+, Express 5, Next.js 16, React 19, Mongoose 9, Sequelize 6). Releases published before 1.0 still target Node 10 to 14. If you have an application written for henri 0.37, read [Upgrading](/upgrading/).
 :::
 
 ## Install
 
 ```bash
 pnpm add -g henri
-# or
-npm install -g henri
+# or: npm install -g henri
 ```
 
-## Create a new project
+`henri --version` prints the installed version.
+
+## Create a project
 
 ```bash
-henri new <folder name>
-```
-
-The command creates a directory structure similar to this:
-
-```text
-├── app
-│   ├── controllers
-│   ├── helpers
-│   ├── models
-│   ├── workers
-│   └── views
-│       ├── assets
-│       ├── components
-│       ├── pages
-│       ├── public
-│       └── styles
-├── config
-│   ├── default.json
-│   ├── production.json
-│   ├── routes.js
-│   └── webpack.js            <- extend the Next.js webpack settings
-├── test
-│   ├── controllers
-│   ├── helpers
-│   ├── models
-│   └── views
-└── package.json
-```
-
-If you have a Ruby on Rails background, this should look familiar.
-
-## Start coding
-
-```bash
-cd <folder name>
+henri new my-app
+cd my-app
 henri server
 ```
 
-henri boots its modules in order (configuration, mail, GraphQL, controllers, server, models, views, users, routes, workers, tests), prints the URL it is listening on and watches your files. Saving a controller, a model, a route file, a worker or a configuration file reloads the affected modules without restarting the process.
+`henri new` copies the application skeleton, writes the configuration, scaffolds a sample `Task` resource, writes a README, runs `git init` (unless the folder is already inside a repository) and installs the dependencies. `--skip-install` and `--no-git` skip those two steps; `--renderer inertia` picks the [Inertia](/guides/views/#inertia) view engine instead of React. The result:
 
-While the server runs, the terminal accepts a few shortcuts:
-
-| Key          | Action                                      |
-| ------------ | ------------------------------------------- |
-| `R`          | list the loaded routes                      |
-| `U`          | list the routes whose controller is missing |
-| `Cmd/Ctrl+R` | reload the whole application                |
-| `Cmd/Ctrl+O` | open the app in your browser                |
-| `Cmd/Ctrl+C` | quit                                        |
-
-## Useful flags
-
-```bash
-henri server --production    # same as NODE_ENV=production
-henri server --debug=henri:* # same as DEBUG=henri:*
-henri server --inspect       # start the Node.js inspector
-henri server --skip-workers  # do not start app/workers
-henri server --force-build   # force a production rebuild of the views
+```text
+├── .env                      <- HENRI_SECRET, ignored by git
+├── .gitignore
+├── app
+│   ├── controllers
+│   │   ├── main.js           <- main#home, the landing page
+│   │   └── tasks.js          <- the resources actions of Task
+│   ├── helpers
+│   ├── models
+│   │   └── Task.js           <- the `Task` global
+│   ├── views
+│   │   ├── assets
+│   │   ├── components
+│   │   ├── jsconfig.json     <- lets pages `import x from 'components/x'`
+│   │   ├── next.config.js    <- requires @usehenri/react/engine/conf
+│   │   ├── pages
+│   │   │   ├── _app.js       <- global styles
+│   │   │   ├── index.js
+│   │   │   └── tasks         <- index, new, edit, show and _form
+│   │   ├── public
+│   │   └── styles
+│   └── workers
+├── config
+│   ├── default.json          <- stores, renderer, user model (committed)
+│   └── routes.js             <- 'get /': 'main#home', 'resources tasks': 'tasks'
+├── eslint.config.js
+├── package.json
+├── pnpm-workspace.yaml       <- written for pnpm only
+├── README.md
+├── test
+│   └── tasks.test.js         <- run with `henri test`
+└── vitest.config.js
 ```
 
-See the [CLI reference](/reference/cli/) for every command.
+If you have a Ruby on Rails background, this should look familiar. The sample resource is a regular scaffold (`henri generate scaffold Task name:string! category:string done:boolean` writes the same files); `henri destroy scaffold Task` removes it.
+
+`config/default.json` is committed and holds no secret: the session secret is generated into `.env` as `HENRI_SECRET`, which henri reads on boot. The default store is the [disk adapter](/guides/models/#disk), a local MongoDB persisted under `.henri/data` (ignored by git too), so there is nothing to install to run the application.
+
+## Start coding
+
+`henri server` boots the modules in order (configuration, mail and GraphQL, controllers and the Express app, models and the view engine, users, routes and workers), prints the URL it listens on (`http://localhost:3000/`; development binds to `127.0.0.1`) and watches your files. Saving a controller, a model, `config/routes.js`, a worker or a configuration file reloads the affected modules without restarting the process; Next.js hot reloads the pages itself. Changes to `config/next.js` or `config/webpack.js` need a restart, and the terminal says so.
+
+Open the page, add a task at `/tasks/new`, then read `app/controllers/tasks.js` and `app/views/pages/tasks/index.js` to see the data flow: the controller calls `res.render('/tasks', { data })` and the page receives `data` through `withHenri`.
+
+While the server runs in an interactive terminal:
+
+| Key      | Action                                            |
+| -------- | ------------------------------------------------- |
+| `r`      | list the loaded routes                            |
+| `u`      | list the routes whose controller is missing       |
+| `Ctrl+R` | reload the whole application                      |
+| `Ctrl+O` | open the app in your browser                      |
+| `Ctrl+C` | stop the server (a second `Ctrl+C` exits at once) |
+
+## Everyday commands
+
+```bash
+henri server --production    # build the views once, then serve them
+henri server --debug=henri:* # verbose logs (same as DEBUG=henri:*)
+henri server --inspect       # start the Node.js inspector
+henri server --skip-workers  # do not start app/workers
+henri server --host=0.0.0.0  # listen on every interface
+henri routes                 # the routes table of config/routes.js
+henri console                # a REPL with henri and the models loaded
+henri test                   # run test/**/*.test.js with Vitest
+henri generate scaffold Post title:string! body:text
+```
+
+See the [CLI reference](/reference/cli/) for every command and flag.

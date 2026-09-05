@@ -13,8 +13,9 @@
 henri is a Rails-like, server-side rendered JavaScript framework for Node.js:
 models backed by real ORMs (MongoDB through Mongoose, MySQL, PostgreSQL and
 MSSQL through Sequelize, or a zero-config local store), thin controllers,
-declarative routes with roles and CRUD, React views rendered by Next.js,
-GraphQL, mail, workers and hot reload, all driven by one CLI.
+declarative routes with roles and CRUD, React views rendered by Next.js or by
+Vite with Inertia.js, GraphQL, mail, workers, tests on Vitest and hot reload,
+all driven by one CLI.
 
 ## Install
 
@@ -30,8 +31,10 @@ henri server
 ## Documentation
 
 Guides, the CLI reference, models, controllers, routes, views and adapters are
-documented at **[usehenri.io](https://usehenri.io)**. Release notes are on the
-[GitHub releases](https://github.com/usehenri/henri/releases) page.
+documented at **[usehenri.io](https://usehenri.io)**. henri was revived in 2026
+on a current toolchain: if you have an application written for 0.37, read
+[usehenri.io/upgrading](https://usehenri.io/upgrading/). Release notes are on
+the [GitHub releases](https://github.com/usehenri/henri/releases) page.
 
 ## Contributing
 

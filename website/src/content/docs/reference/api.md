@@ -1,0 +1,100 @@
+---
+title: API
+description: What an application touches, the henri global, the request and response helpers, the model file, the adapter and view engine contracts.
+sidebar:
+  order: 2
+---
+
+## The `henri` global
+
+`henri` is the running instance (`global.henri`; under `NODE_ENV=test` it is `@usehenri/testing` that sets it). Every module is exposed under its name.
+
+| Property            | Description                                                                                                                                                                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `henri.config`      | `get(key, safe = false)` throws on a missing key unless `safe`; `has(key)`. Keys use dots: `stores.default.adapter`. See [Configuration](/configuration/).                                                                                                        |
+| `henri.pen`         | The logger: `info(name, ...args)`, `warn`, `error`, `debug`, `verbose`, `silly` print one line; `fatal(name, summary, full, obj)` prints the error and returns an `Error` to throw; `line(n)` prints blank lines; `notify(title, message)` prints in development. |
+| `henri.user`        | `encrypt(password, rounds = 10)` (rejects strings shorter than 6), `compare(password, hash)` (rejects on mismatch), `findByEmail(email)`, `findById(id)`, `publicUser(user)`, `settings` (the normalized `config.user`). See [Users](/guides/users/).             |
+| `henri.passport`    | The passport instance holding the `local` and `jwt` strategies (with a user model).                                                                                                                                                                               |
+| `henri.params(req)` | `.permit(...fields)` and `.all()`, the helper behind `req.permit()`.                                                                                                                                                                                              |
+| `henri.mail`        | `send(message)`, `transporter`, `nodemailer`. See [Mail](/guides/mail/).                                                                                                                                                                                          |
+| `henri.graphql`     | `run(query, variables, contextValue)`, `endpoint`, `active`, the error classes. See [GraphQL](/guides/graphql/).                                                                                                                                                  |
+| `henri.router`      | `routes` (the expanded table keyed by `verb path`), `pathForRoles(user)`, `handler` (the Express router the routes are mounted on).                                                                                                                               |
+| `henri.controllers` | `get('name#action')`, `all()`.                                                                                                                                                                                                                                    |
+| `henri.server`      | `app` (the Express application), `httpServer`, `express`, `url`, `host`, `port`.                                                                                                                                                                                  |
+| `henri.model`       | `stores` (the adapter instances by store name), `ids` (the model globals), `getStore(name)`.                                                                                                                                                                      |
+| `henri.view`        | `engine` (the view engine), `renderer`, `hbs` (the Handlebars engine, always available).                                                                                                                                                                          |
+| `henri.workers`     | `workers` (the loaded workers by file) and `files`.                                                                                                                                                                                                               |
+| `henri.validator`   | [validator.js](https://github.com/validatorjs/validator.js).                                                                                                                                                                                                      |
+| `henri.utils`       | `resolveFrom(name, dir)`, `resolvePackageJson(name, dir)`, `checkPackages(names)` (throws with the install command), `detectPackageManager(dir)`, `installCommand(names)`, `loadModules(dir)`, `syntax(file)`, `isLoopback(address)`.                             |
+| `henri.gql`         | A tagged template returning the query string, so editors format GraphQL.                                                                                                                                                                                          |
+
+On the instance itself: `henri.env`, `isProduction`, `isDev`, `isTest`, `release` (the core version), `cwd()`, `init()`, `reload()`, `stop()` (resolves with the errors of the modules that failed to stop), `addMiddleware(name, fn)` (`fn(router)` runs before the routes are mounted; register it before the router starts), `modules.add(module)` (before `init()`), and `forceMail` (use the configured mail transport under `NODE_ENV=test`).
+
+## Request and response
+
+| Member                                                 | Description                                                                                                                                                                                                                           |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `req.permit(...fields)`                                | The listed fields from the query string, body and path parameters (later sources win); missing fields are omitted. See [Controllers](/guides/controllers/#reqpermitfields).                                                           |
+| `req.user`, `req.isAuthenticated()`                    | Passport, with a user model: the user instance (without its password) and whether someone is logged in. `req.logIn(user, cb)` and `req.logout(cb)` take callbacks.                                                                    |
+| `req.session`                                          | The express-session object, with a user model.                                                                                                                                                                                        |
+| `req.csrfToken`                                        | The CSRF token of the request (a string), with a user model.                                                                                                                                                                          |
+| `req._henri`                                           | What the view engine reads: `{ csrf, localUrl, paths, query, user }` for every request, plus `data`, `errors`, `graphql` and the role-filtered `paths` after `res.render()` on the React renderer. Pages read it through `withHenri`. |
+| `req.inertia`                                          | `{ request, errors }` with the Inertia renderer: whether the Inertia client made the request, and the errors set for the next render.                                                                                                 |
+| `res.render(route, options)`                           | Render a page with `{ data }` or `{ graphql }`, or answer the view options as JSON when the client asks for it. See [Controllers](/guides/controllers/#resrenderroute-options).                                                       |
+| `res.hbs(route, options)`                              | Same, through the Handlebars engine whatever the renderer.                                                                                                                                                                            |
+| `res.boom.<name>(message, data)`                       | A JSON error `{ statusCode, error, message, data }`. See [Controllers](/guides/controllers/#resboom).                                                                                                                                 |
+| `res.inertia.errors(obj)`, `res.inertia.location(url)` | With the Inertia renderer: validation errors for the next render, and an external redirect.                                                                                                                                           |
+| `res.format(handlers)`                                 | Express content negotiation; put `json` before `html`.                                                                                                                                                                                |
+
+## The model file
+
+```js
+module.exports = {
+  store: 'default',
+  name: 'tasks',
+  options: {},
+  schema: {},
+  graphql: { types: '', resolvers: {} },
+  associate(models) {},
+};
+```
+
+Core adds `identity` (the lowercased file name) and `globalId` (the file name) before handing the file to the adapter, and exposes the ORM model as `global[globalId]`. See [Models](/guides/models/).
+
+## Store adapters
+
+Core loads `@usehenri/<adapter>` from the application for each store (`adapter` is one of `disk`, `mongoose`, `mysql`, `mariadb`, `postgresql`, `mssql`), builds `new Adapter(name, config, henri)`, calls `addModel()` for every model file of that store, then `start()`. Adapters implement:
+
+| Member                           | Description                                                                                                                                                                                                                                                                                                |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `adapterName`, `name`            | The adapter kind (`mysql`, `disk`, ...) and the store name.                                                                                                                                                                                                                                                |
+| `addModel(model, userModelName)` | Registers a model file and returns the ORM model. The model whose `identity` equals `userModelName` is the user model: it gets `email` (unique, lowercased, trimmed, validated), `password` (hashed, not selected by default) and `roles` (only writable through `setRoles()` or with `{ unsafe: true }`). |
+| `getModels()`                    | The ORM models by global id.                                                                                                                                                                                                                                                                               |
+| `start()`, `stop()`              | Connects (and syncs the schema on SQL), calling the `associate(models)` export of each model once every model exists; disconnects, and `start()` may be called again.                                                                                                                                      |
+| `getSessionConnector(session)`   | Async; resolves with a ready express-session `Store`.                                                                                                                                                                                                                                                      |
+| `findUserByEmail(email)`         | The user with its password hash, or `null`.                                                                                                                                                                                                                                                                |
+| `findUserById(id)`               | The user without its password, or `null` (also for a malformed id).                                                                                                                                                                                                                                        |
+| `userId(user)`, `toPlain(user)`  | The id as a string; the user as a plain object without its password.                                                                                                                                                                                                                                       |
+| `ping()`, `transaction(fn)`      | Resolves `true` when the database answers; runs `fn` in a transaction.                                                                                                                                                                                                                                     |
+| `query(sql, params, options)`    | SQL adapters only: a raw query with `?` or `:name` replacements.                                                                                                                                                                                                                                           |
+
+`@usehenri/sequelize` exports the SQL base class (with `Sequelize`, `DataTypes` and `normalizeSchema` as statics); `@usehenri/mysql`, `postgresql` and `mssql` extend it with a dialect and a driver. `@usehenri/mongoose` exports the Mongoose class and `@usehenri/disk` extends it with a managed local server. Core falls back to Mongoose or Sequelize calls when an adapter lacks one of the four user methods.
+
+## View engines
+
+Core loads the engine named by `renderer`: Handlebars is built in, `react` resolves `@usehenri/react/engine` and `inertia` `@usehenri/inertia/engine` from the application. An engine is `new Engine(henri)` with:
+
+| Method                          | Description                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `init()`                        | Level 3: check the dependencies and the layout, create the missing files.                                          |
+| `prepare()`                     | Level 5, before the server listens: build in production, start the dev server.                                     |
+| `fallback(router)`              | Register the catch-all that serves pages no route claimed (`GET` and `HEAD` only) and the static assets.           |
+| `render(req, res, route, opts)` | Used by `res.render()`. `opts` holds `data`, `user`, `paths`, `query`, `csrf`, `localUrl`, `errors` and `graphql`. |
+| `reload()`                      | Optional, called on every application reload.                                                                      |
+| `close()`                       | Optional, called by `henri.stop()`.                                                                                |
+
+## Client packages
+
+- `@usehenri/react`: `withHenri` (default), `useHenri`, `HenriContext`, `request`, `RequestError`. `@usehenri/react/forms`: `Form`, `Input`, `Select`, `Radio`, `Editor`, `Button`, `FormError`, `useForm`, `FormContext`, `Validation`, `messageFor`, `sanitize`. `@usehenri/react/engine`: `ReactEngine`, `build({ cwd, config })`, `createNextConfig(cwd)`. See [Views](/guides/views/#react).
+- `@usehenri/inertia`: `useHenri`, `Form`, `useForm`, `Link`, `Head`, `router`, `usePage`, `pathFor`, `getRoute`, `request`, `resolvePage`. `@usehenri/inertia/vite`: `henriViteConfig({ views, entry, react })`. `@usehenri/inertia/engine`: the engine, with a static `build({ cwd, config })`. See [Views](/guides/views/#inertia).
+- `@usehenri/testing`: `setup`, `teardown`, `request`, `agent`, `henri`, `supertest`; `@usehenri/testing/setup-file` and `@usehenri/testing/global-setup` for Vitest. See [Testing](/guides/testing/).

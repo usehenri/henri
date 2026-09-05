@@ -31,9 +31,9 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
     know Ruby on Rails, you already know where everything goes.
   </Card>
   <Card title="Server-side rendered React" icon="rocket">
-    Pages live in `app/views/pages` and are rendered by Next.js. Controllers
-    hand them data with `res.render()`; the same endpoint answers JSON when
-    asked for it.
+    Pages live in `app/views/pages` and are rendered by Next.js, or by Vite with
+    Inertia.js. Controllers hand them data with `res.render()`; the same
+    endpoint answers JSON when asked for it.
   </Card>
   <Card title="Real ORMs" icon="document">
     Mongoose for MongoDB, Sequelize for MySQL, MariaDB, PostgreSQL and MSSQL. A
@@ -45,11 +45,11 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
   </Card>
   <Card title="Hot reload everything" icon="setting">
     Controllers, models, routes, workers and configuration reload on save. Press
-    `R` in the terminal to list the loaded routes.
+    `r` in the terminal to list the loaded routes.
   </Card>
-  <Card title="Generators" icon="pencil">
-    `henri new`, `henri generate model`, `henri generate scaffold`. Users get
-    password hashing, sessions and roles for free.
+  <Card title="Generators and tests" icon="pencil">
+    `henri new`, `henri generate scaffold`, `henri test` on Vitest. Users get
+    password hashing, sessions, CSRF and roles for free.
   </Card>
 </CardGrid>
 
@@ -72,7 +72,7 @@ module.exports = {
     res.render('/tasks', { data: { tasks: await Task.find() } });
   },
   create: async (req, res) => {
-    await Task.create(req.body);
+    await Task.create(req.permit('name'));
     res.redirect('/');
   },
 };

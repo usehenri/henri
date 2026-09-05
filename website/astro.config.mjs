@@ -45,7 +45,7 @@ export default defineConfig({
       sidebar: [
         {
           label: 'Start here',
-          items: ['getting-started', 'configuration'],
+          items: ['getting-started', 'configuration', 'upgrading'],
         },
         {
           label: 'Guides',
@@ -53,7 +53,7 @@ export default defineConfig({
         },
         {
           label: 'Reference',
-          items: [{ autogenerate: { directory: 'reference' } }],
+          items: ['reference/cli', 'reference/api', 'reference/under-the-hood'],
         },
       ],
     }),
