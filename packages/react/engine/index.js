@@ -55,7 +55,7 @@ class ReactEngine {
     this.henri = thisHenri;
     this.dir = path.resolve(thisHenri.cwd(), './app/views');
     this.renderer = thisHenri.config.get('renderer').toLowerCase();
-     
+
     this.conf = thisHenri.isTest ? {} : require('./conf');
     this.bundler = loadUserHooks(thisHenri.cwd()).webpack
       ? 'webpack'
@@ -213,11 +213,10 @@ class ReactEngine {
     }
 
     const versions = {
-       
       next: require(
         path.resolve(require.resolve('next'), '../../../package.json')
       ).version,
-       
+
       react: require(this.resolve('react/package.json')).version,
     };
 

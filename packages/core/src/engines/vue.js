@@ -22,7 +22,6 @@ class VueEngine {
     this.Builder = null;
 
     try {
-       
       let conf = require(
         path.resolve(thisHenri.cwd(), 'config', 'nuxt.config.js')
       );
@@ -47,7 +46,7 @@ class VueEngine {
    */
   init() {
     this.henri.utils.checkPackages(['nuxt']);
-     
+
     const { Nuxt, Builder } = require(
       this.henri.utils.resolveFrom('nuxt', this.henri.cwd())
     );
