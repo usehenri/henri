@@ -19,9 +19,15 @@
     "test:cover": "vitest run --coverage",
     "test:ci": "vitest run --coverage",
     "test:sql": "vitest run --project sequelize --project mysql --project postgresql --project mssql --project drizzle",
+    "test:sql:mysql": "HENRI_TEST_SQL_DIALECT=mysql HENRI_TEST_MYSQL_URL=mysql://root:henri@127.0.0.1:${HENRI_MYSQL_PORT:-3306}/henri_test vitest run --project sequelize --project mysql --project postgresql --project mssql --project drizzle",
+    "test:sql:postgres": "HENRI_TEST_SQL_DIALECT=postgres HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:${HENRI_POSTGRES_PORT:-5432}/henri_test vitest run --project sequelize --project mysql --project postgresql --project mssql --project drizzle",
+    "test:sql:live": "pnpm test:sql:postgres && pnpm test:sql:mysql",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "changeset:publish": "pnpm sync-readme && pnpm build && changeset publish"
+    "changeset:publish": "pnpm sync-readme && pnpm build && changeset publish",
+    "db:up": "docker compose up --detach --wait",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down --volumes"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.0",

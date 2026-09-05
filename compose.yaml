@@ -1,0 +1,72 @@
+# Databases for local development, mirroring the service containers the
+# `Live PostgreSQL` and `Live MySQL` jobs of .github/workflows/ci.yml use, so
+# that a local run and CI exercise the same servers and versions.
+#
+#   pnpm db:up             start them and wait until they answer
+#   pnpm test:sql:live     the SQL suites against postgres, then against mysql
+#   pnpm test:sql:postgres one of the two on its own
+#   pnpm db:down           stop them, keeping the data
+#   pnpm db:reset          stop them and delete the data
+#
+# Nothing else in the repository needs Docker: `pnpm test` runs on sqlite and
+# an in-process MongoDB, offline. The host ports can be moved when something
+# else already listens on them:
+#
+#   HENRI_POSTGRES_PORT=55432 HENRI_MYSQL_PORT=53306 pnpm db:up
+
+name: henri
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: henri
+      POSTGRES_PASSWORD: henri
+      POSTGRES_DB: henri_test
+    ports:
+      - '${HENRI_POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U henri -d henri_test']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: henri
+      MYSQL_DATABASE: henri_test
+    ports:
+      - '${HENRI_MYSQL_PORT:-3306}:3306'
+    volumes:
+      - mysql:/var/lib/mysql
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -phenri']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # The adapter henri apps use for MongoDB. The test suite does not need it
+  # (@usehenri/disk starts an in-process server), but an app configured with
+  # `"adapter": "mongoose"` can point at this one.
+  # Pinned to 7: mongo:8 refuses to start on Linux kernels 6.19 and newer,
+  # which is what recent Docker Desktop VMs run (MongoDB SERVER-121912).
+  mongo:
+    image: mongo:7
+    ports:
+      - '${HENRI_MONGO_PORT:-27017}:27017'
+    volumes:
+      - mongo:/data/db
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'mongosh --quiet --eval "db.adminCommand({ ping: 1 })"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres:
+  mysql:
+  mongo:
