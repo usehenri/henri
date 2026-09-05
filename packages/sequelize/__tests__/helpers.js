@@ -1,7 +1,4 @@
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const Drizzle = require('../index');
+const Sql = require('../index');
 const target = require('./targets');
 
 // Every store the suites open lives on the target (sqlite in memory, or
@@ -22,11 +19,7 @@ const fakeHenri = (settings = {}) => {
   const pen = {};
 
   ['error', 'fatal', 'info', 'warn'].forEach((level) => {
-    pen[level] = (...args) => {
-      calls.push([level, ...args]);
-
-      return level === 'fatal' ? new Error(args[1]) : undefined;
-    };
+    pen[level] = (...args) => calls.push([level, ...args]);
   });
 
   return {
@@ -36,8 +29,6 @@ const fakeHenri = (settings = {}) => {
       get: (key) => settings[key],
       has: (key) => typeof settings[key] !== 'undefined',
     },
-    cwd: () => process.cwd(),
-    isProduction: false,
     pen,
     user: {
       encrypt: async (password) => `hashed:${password}`,
@@ -52,15 +43,14 @@ const fakeHenri = (settings = {}) => {
  * @param {object} [settings={}] configuration values
  * @param {object} [config={}] extra store configuration
  * @param {string} [key] A stable key: two stores built with the same key
- *   share one database (one sqlite file), the way an application restarts
- *   on the same data
- * @returns {{ adapter: Drizzle, henri: object }} adapter and its fake henri
+ *   share one database (one sqlite file)
+ * @returns {{ adapter: Sql, henri: object }} adapter and its fake henri
  */
 const build = (settings = {}, config = {}, key) => {
   const henri = fakeHenri(settings);
   // A suite pointing the store somewhere itself (a sqlite file) keeps it
-  const store = config.url ? {} : target.store(key);
-  const adapter = new Drizzle('default', { ...store, ...config }, henri);
+  const store = config.storage ? {} : target.store(key);
+  const adapter = new Sql('default', { ...store, ...config }, henri);
 
   return { adapter: target.prepare(adapter), henri };
 };
@@ -93,43 +83,29 @@ const userModel = {
  * Promisified express-session store calls
  *
  * @param {object} store A session store
- * @returns {object} set, get, destroy, touch, all, length and clear
+ * @returns {object} set, get and destroy returning promises
  */
-const sessions = (store) => {
-  const call = (method, ...args) =>
+const sessions = (store) => ({
+  destroy: (sid) =>
     new Promise((resolve, reject) =>
-      store[method](...args, (error, result) =>
-        error ? reject(error) : resolve(result)
-      )
-    );
-
-  return {
-    all: () => call('all'),
-    clear: () => call('clear'),
-    destroy: (sid) => call('destroy', sid),
-    get: (sid) => call('get', sid),
-    length: () => call('length'),
-    set: (sid, data) => call('set', sid, data),
-    touch: (sid, data) => call('touch', sid, data),
-  };
-};
-
-/**
- * A temporary directory, removed by the caller
- *
- * @param {string} [prefix='henri-drizzle-'] Directory prefix
- * @returns {string} The directory
- */
-const tmpdir = (prefix = 'henri-drizzle-') =>
-  fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+      store.destroy(sid, (error) => (error ? reject(error) : resolve()))
+    ),
+  get: (sid) =>
+    new Promise((resolve, reject) =>
+      store.get(sid, (error, data) => (error ? reject(error) : resolve(data)))
+    ),
+  set: (sid, data) =>
+    new Promise((resolve, reject) =>
+      store.set(sid, data, (error) => (error ? reject(error) : resolve()))
+    ),
+});
 
 module.exports = {
-  Drizzle,
+  Sql,
   build,
   fakeHenri,
   sessions,
   target,
   taskModel,
-  tmpdir,
   userModel,
 };

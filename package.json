@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "test:cover": "vitest run --coverage",
     "test:ci": "vitest run --coverage",
+    "test:sql": "vitest run --project sequelize --project mysql --project postgresql --project mssql --project drizzle",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "pnpm sync-readme && pnpm build && changeset publish"

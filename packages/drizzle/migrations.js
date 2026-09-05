@@ -340,7 +340,7 @@ class Migrations {
    *
    * @param {object} [options={}] `force` applies destructive statements,
    *   `interactive` lets drizzle-kit prompt on renames
-   * @returns {Promise<{ applied: boolean, statements: Array<string>, warnings: Array<string>, hasDataLoss: boolean }>} What happened
+   * @returns {Promise<{ applied: boolean, statements: Array<string>, warnings: Array<string>, hasDataLoss: boolean, drifted: Array<string> }>} What happened
    * @memberof Migrations
    */
   async push({ force = false, interactive = false } = {}) {
@@ -348,6 +348,7 @@ class Migrations {
     const plan = await this.plan({ interactive });
     const result = {
       applied: false,
+      drifted: plan.drifted || [],
       hasDataLoss: plan.hasDataLoss,
       statements: plan.statements,
       warnings: plan.warnings,
@@ -406,12 +407,99 @@ class Migrations {
         ? [imports, db, adapter.databaseName()]
         : [imports, db];
     const plan = await quiet(() => kit[adapter.dialect.kit.push](...args));
-
-    return {
+    const result = {
       hasDataLoss: Boolean(plan.hasDataLoss),
       statements: plan.statementsToExecute || [],
       warnings: plan.warnings || [],
     };
+
+    return adapter.dialect.name === 'mysql'
+      ? this.completeMySQLPlan(result, { added, existing, imports })
+      : result;
+  }
+
+  /**
+   * Completes a mysql push plan
+   *
+   * drizzle-kit answers the data loss of a mysql push but not the DDL it
+   * would run: `statementsToExecute` only ever holds the tables it suggests
+   * truncating, where postgres and sqlite hold the whole migration. Those
+   * truncates are dropped (a boot never empties a table), the tables that
+   * do not exist yet are created from the schema, and a table whose columns
+   * no longer match is reported instead of being altered silently.
+   *
+   * @param {object} plan The plan of drizzle-kit
+   * @param {object} context `added` tables, `existing` tables, `imports`
+   * @returns {Promise<object>} The completed plan
+   * @memberof Migrations
+   */
+  async completeMySQLPlan(plan, { added, existing, imports }) {
+    const { adapter } = this;
+    const keys = Object.keys(adapter.tables);
+    const missing = keys.filter((key) =>
+      added.includes(adapter.tableNameOfKey(key))
+    );
+    const statements = [];
+
+    if (missing.length > 0) {
+      statements.push(
+        ...(await this.ddl(
+          Object.fromEntries(missing.map((key) => [key, imports[key]]))
+        ))
+      );
+    }
+
+    const drifted = await this.driftedTables(
+      keys.filter((key) => existing.includes(adapter.tableNameOfKey(key)))
+    );
+    const warnings = [...plan.warnings];
+
+    if (drifted.length > 0) {
+      warnings.push(
+        `${drifted.join(', ')}: the columns of the database and of the schema differ; drizzle-kit does not alter mysql tables on a push, run "henri db:generate" then "henri db:migrate"`
+      );
+    }
+
+    return { ...plan, drifted, statements, warnings };
+  }
+
+  /**
+   * The tables whose columns differ from the compiled schema (mysql)
+   *
+   * @param {Array<string>} keys The schema keys of the tables to compare
+   * @returns {Promise<Array<string>>} The table names that drifted
+   * @memberof Migrations
+   */
+  async driftedTables(keys) {
+    const { adapter } = this;
+
+    if (keys.length === 0) {
+      return [];
+    }
+
+    const rows = await adapter.query(
+      'SELECT table_name AS table_name, column_name AS column_name FROM information_schema.columns WHERE table_schema = DATABASE()'
+    );
+    const columns = {};
+
+    for (const row of rows) {
+      const table = row.table_name || row.TABLE_NAME;
+
+      columns[table] = columns[table] || new Set();
+      columns[table].add(row.column_name || row.COLUMN_NAME);
+    }
+
+    return keys
+      .map((key) => adapter.tableNameOfKey(key))
+      .filter((table, index) => {
+        const wanted = Object.values(adapter.tables[keys[index]].columns);
+        const present = columns[table] || new Set();
+
+        return (
+          wanted.length !== present.size ||
+          wanted.some((column) => !present.has(column))
+        );
+      });
   }
 
   /**

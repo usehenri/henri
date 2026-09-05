@@ -1,5 +1,19 @@
 const session = require('express-session');
-const { build, sessions, taskModel, userModel } = require('./helpers');
+const { build, sessions, target, taskModel, userModel } = require('./helpers');
+
+// `?` on sqlite and mysql, `$1` on postgres
+const EXPIRES = `SELECT expires_at FROM henri_sessions WHERE sid = ${target.dialect.placeholder(1)}`;
+
+/**
+ * The expiry stored for a session, as a timestamp (an integer of
+ * milliseconds on sqlite, a date on postgres and mysql)
+ *
+ * @param {object} adapter The store
+ * @param {string} sid A session id
+ * @returns {Promise<number>} The expiry
+ */
+const expiresAt = async (adapter, sid) =>
+  new Date((await adapter.query(EXPIRES, [sid]))[0].expires_at).getTime();
 
 describe('session store', () => {
   let adapter;
@@ -78,21 +92,11 @@ describe('session store', () => {
   test('touch extends the expiry', async () => {
     await api.set('touched', { cookie: { maxAge: 1000 } });
 
-    const before = (
-      await adapter.query(
-        'SELECT expires_at FROM henri_sessions WHERE sid = ?',
-        ['touched']
-      )
-    )[0].expires_at;
+    const before = await expiresAt(adapter, 'touched');
 
     await api.touch('touched', { cookie: { maxAge: 100000 } });
 
-    const after = (
-      await adapter.query(
-        'SELECT expires_at FROM henri_sessions WHERE sid = ?',
-        ['touched']
-      )
-    )[0].expires_at;
+    const after = await expiresAt(adapter, 'touched');
 
     expect(after).toBeGreaterThan(before);
   });

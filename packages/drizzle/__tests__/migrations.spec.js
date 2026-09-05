@@ -3,29 +3,55 @@ const path = require('path');
 const {
   Drizzle,
   fakeHenri,
+  target,
   taskModel,
   tmpdir,
   userModel,
 } = require('./helpers');
 
+// What drizzle-kit writes for the same schema change on each dialect
+const EXPECTED = {
+  mysql: {
+    added: 'ALTER TABLE `tasks` ADD `priority` int DEFAULT 1;',
+    create: 'CREATE TABLE `tasks`',
+    dropped: /DROP COLUMN `extra`/,
+  },
+  postgres: {
+    added: 'ALTER TABLE "tasks" ADD COLUMN "priority" integer DEFAULT 1;',
+    create: 'CREATE TABLE "tasks"',
+    dropped: /DROP COLUMN "extra"/,
+  },
+  sqlite: {
+    added: 'ALTER TABLE `tasks` ADD `priority` integer DEFAULT 1;',
+    create: 'CREATE TABLE `tasks`',
+    // A sqlite column is dropped by rebuilding the table
+    dropped: /DROP COLUMN `extra`|__new_tasks/,
+  },
+};
+
+const expected = EXPECTED[target.name];
+
 /**
- * An adapter on a sqlite file with its migrations folder in the same dir
+ * An adapter on the target database, with its migrations folder in a
+ * directory: two adapters built for the same `file` share one database (one
+ * sqlite file), the way an application restarts on its data
  *
  * @param {string} dir The directory
  * @param {object} [config={}] Extra store configuration
- * @param {string} [file='app.db'] The database file
+ * @param {string} [file='app.db'] The database of the store
  * @returns {object} The adapter
  */
 const adapterIn = (dir, config = {}, file = 'app.db') =>
-  new Drizzle(
-    'default',
-    {
-      dialect: 'sqlite',
-      migrationsFolder: path.join(dir, 'db/migrations'),
-      url: `file:${path.join(dir, file)}`,
-      ...config,
-    },
-    fakeHenri({ baseRole: 'member' })
+  target.prepare(
+    new Drizzle(
+      'default',
+      {
+        migrationsFolder: path.join(dir, 'db/migrations'),
+        ...target.store(path.join(dir, file)),
+        ...config,
+      },
+      fakeHenri({ baseRole: 'member' })
+    )
   );
 
 describe('migrations', () => {
@@ -75,10 +101,10 @@ describe('migrations', () => {
       )
     );
 
-    expect(sql).toContain('CREATE TABLE `tasks`');
+    expect(sql).toContain(expected.create);
     expect(sql).toContain('--> statement-breakpoint');
     expect(journal).toMatchObject({
-      dialect: 'sqlite',
+      dialect: target.dialect.kit.dialect,
       entries: [
         {
           breakpoints: true,
@@ -89,11 +115,12 @@ describe('migrations', () => {
       ],
       version: '7',
     });
-    expect(Object.keys(snapshot.tables).sort()).toEqual([
-      'henri_sessions',
-      'tasks',
-      'users',
-    ]);
+    // Postgres snapshots are keyed by schema and table
+    expect(
+      Object.keys(snapshot.tables)
+        .map((key) => key.replace(/^public\./, ''))
+        .sort()
+    ).toEqual(['henri_sessions', 'tasks', 'users']);
     expect(snapshot.prevId).toBe('00000000-0000-0000-0000-000000000000');
 
     // The database was pushed to this schema: nothing pending
@@ -141,9 +168,7 @@ describe('migrations', () => {
 
     expect(added.tag).toBe('0001_add_priority');
     expect(added.recorded).toEqual([]);
-    expect(fs.readFileSync(added.file, 'utf8')).toBe(
-      'ALTER TABLE `tasks` ADD `priority` integer DEFAULT 1;'
-    );
+    expect(fs.readFileSync(added.file, 'utf8')).toBe(expected.added);
     expect(await second.migrations.status()).toMatchObject({
       applied: [],
       pending: ['0000_init', '0001_add_priority'],
@@ -153,9 +178,9 @@ describe('migrations', () => {
       applied: ['0000_init', '0001_add_priority'],
       pending: [],
     });
-    expect(await second.listTables()).toEqual(
-      expect.arrayContaining(['__drizzle_migrations', 'tasks'])
-    );
+    expect(await second.listTables()).toContain('tasks');
+    // The migrations table lives in the `drizzle` schema on postgres
+    expect(await second.migrations.applied()).toHaveLength(2);
     expect((await Task.create({ name: 'migrated' })).priority).toBe(1);
     expect(await second.migrations.migrate()).toEqual({
       applied: [],
@@ -171,8 +196,15 @@ describe('migrations', () => {
     await second.stop();
   });
 
-  test('push refuses to lose data unless forced, and to guess renames without a terminal', async () => {
-    const wide = adapterIn(dir);
+  /**
+   * A database with a task table holding an `extra` column and one row, and
+   * a second store on it whose model dropped that column
+   *
+   * @param {string} directory The directory of the database
+   * @returns {Promise<object>} The second store and its Task model
+   */
+  const narrowed = async (directory) => {
+    const wide = adapterIn(directory);
     const Wide = wide.addModel(
       { ...taskModel, schema: { ...taskModel.schema, extra: 'string' } },
       'user'
@@ -183,31 +215,79 @@ describe('migrations', () => {
     await Wide.create({ extra: 'kept?', name: 'row' });
     await wide.stop();
 
-    const narrow = adapterIn(dir);
+    const narrow = adapterIn(directory);
     const Task = narrow.addModel(taskModel, 'user');
 
     await narrow.start();
-    expect(
-      narrow.henri.calls.some(
-        (call) => call[0] === 'warn' && /lose data/.test(call[2])
-      )
-    ).toBe(true);
 
-    const plan = await narrow.migrations.plan();
+    return { Task, narrow };
+  };
 
-    expect(plan.hasDataLoss).toBe(true);
-    expect(plan.statements.join('\n')).toMatch(
-      /DROP COLUMN `extra`|__new_tasks/
-    );
-    expect((await narrow.migrations.push()).applied).toBe(false);
-    expect((await narrow.migrations.push({ force: true })).applied).toBe(true);
-    expect((await narrow.migrations.plan()).statements).toEqual([]);
-    expect(await Task.count()).toBe(1);
-    expect((await Task.first()).extra).toBeUndefined();
+  test.runIf(target.name !== 'mysql')(
+    'push refuses to lose data unless it is forced',
+    async () => {
+      const { Task, narrow } = await narrowed(dir);
+
+      expect(
+        narrow.henri.calls.some(
+          (call) => call[0] === 'warn' && /lose data/.test(call[2])
+        )
+      ).toBe(true);
+
+      const plan = await narrow.migrations.plan();
+
+      expect(plan.hasDataLoss).toBe(true);
+      expect(plan.statements.join('\n')).toMatch(expected.dropped);
+      expect((await narrow.migrations.push()).applied).toBe(false);
+      expect((await narrow.migrations.push({ force: true })).applied).toBe(
+        true
+      );
+      expect((await narrow.migrations.plan()).statements).toEqual([]);
+      expect(await Task.count()).toBe(1);
+      expect((await Task.first()).extra).toBeUndefined();
+      await narrow.stop();
+    }
+  );
+
+  test.runIf(target.name === 'mysql')(
+    'push leaves a mysql table alone and reports the drift',
+    async () => {
+      const { Task, narrow } = await narrowed(dir);
+
+      // Drizzle-kit does not alter a mysql table on a push: the column is
+      // kept, the drift is reported, and the rows are never truncated
+      expect(
+        narrow.henri.calls.some(
+          (call) => call[0] === 'warn' && /does not alter mysql/.test(call[2])
+        )
+      ).toBe(true);
+
+      const plan = await narrow.migrations.plan();
+
+      expect(plan.hasDataLoss).toBe(true);
+      expect(plan.statements).toEqual([]);
+      expect(plan.drifted).toEqual(['tasks']);
+      expect((await narrow.migrations.push()).applied).toBe(true);
+      expect(await Task.count()).toBe(1);
+      expect(
+        (
+          await narrow.query(
+            "SELECT column_name AS name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'tasks' AND column_name = 'extra'"
+          )
+        ).length
+      ).toBe(1);
+      await narrow.stop();
+    }
+  );
+
+  test('push refuses to guess a rename without a terminal', async () => {
+    const first = adapterIn(dir);
+
+    first.addModel(taskModel, 'user');
+    await first.start();
+    await first.stop();
 
     // A new table with a removed one: drizzle-kit would ask
-    await narrow.stop();
-
     const renamed = adapterIn(dir);
 
     renamed.addModel(

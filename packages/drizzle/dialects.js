@@ -94,6 +94,24 @@ const credentials = (config) => {
 };
 
 /**
+ * The driver error behind a wrapper: drizzle-orm reports the failures of
+ * the asynchronous drivers as a `DrizzleQueryError` carrying the driver
+ * error as its `cause`
+ *
+ * @param {Error} error The error thrown by drizzle
+ * @returns {Error} The first error of the chain with a `code`
+ */
+const driverError = (error) => {
+  let current = error;
+
+  while (current && !current.code && current.cause) {
+    current = current.cause;
+  }
+
+  return current || error;
+};
+
+/**
  * Unique constraint violations are turned into validation errors by the
  * model layer; each dialect extracts the column names from its driver error
  *
@@ -102,7 +120,9 @@ const credentials = (config) => {
  * @returns {object} The error, flagged
  */
 const uniqueViolation = (error, details) =>
-  Object.assign(error, { henri: { columns: details.columns, kind: 'unique' } });
+  Object.assign(error, {
+    henri: { columns: details.columns, key: details.key, kind: 'unique' },
+  });
 
 const sqlite = {
   /**
@@ -258,9 +278,11 @@ const sqlite = {
    * @returns {Error} The error
    */
   translate: (error) => {
-    if (error && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    const driver = driverError(error);
+
+    if (driver && driver.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       const prefix = 'UNIQUE constraint failed: ';
-      const message = String(error.message || '');
+      const message = String(driver.message || '');
       const start = message.indexOf(prefix);
       const columns =
         start >= 0
@@ -396,8 +418,10 @@ const postgres = {
   synchronous: false,
 
   translate: (error) => {
-    if (error && error.code === '23505') {
-      const detail = String(error.detail || '');
+    const driver = driverError(error);
+
+    if (driver && driver.code === '23505') {
+      const detail = String(driver.detail || '');
       const start = detail.indexOf('Key (');
       const end = start >= 0 ? detail.indexOf(')=', start) : -1;
       const columns =
@@ -530,8 +554,10 @@ const mysql = {
   synchronous: false,
 
   translate: (error) => {
-    if (error && error.code === 'ER_DUP_ENTRY') {
-      const message = String(error.message || '');
+    const driver = driverError(error);
+
+    if (driver && driver.code === 'ER_DUP_ENTRY') {
+      const message = String(driver.message || '');
       const marker = "for key '";
       const start = message.indexOf(marker);
       const end = start >= 0 ? message.indexOf("'", start + marker.length) : -1;
@@ -620,4 +646,4 @@ const fromUrl = (url) => {
   return get(scheme);
 };
 
-module.exports = { DIALECTS, fromUrl, get, sqliteFile };
+module.exports = { DIALECTS, driverError, fromUrl, get, sqliteFile };

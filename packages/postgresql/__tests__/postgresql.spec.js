@@ -1,4 +1,7 @@
 const Sql = require('@usehenri/sequelize');
+// The target of the shared suite: sqlite unless HENRI_TEST_POSTGRES_URL
+// points at a server, in which case this suite runs on it too
+const target = require('@usehenri/sequelize/__tests__/targets');
 const Postgresql = require('../index');
 
 /**
@@ -189,3 +192,118 @@ describe('postgresql database adapter', () => {
     ]);
   });
 });
+
+describe.runIf(target.live && target.name === 'postgres')(
+  'postgresql server',
+  () => {
+    let store;
+    let Task;
+    let User;
+
+    beforeAll(async () => {
+      store = target.prepare(
+        new Postgresql(
+          'default',
+          target.store(),
+          fakeHenri({ baseRole: 'member' })
+        )
+      );
+      Task = store.addModel(taskModel, 'user');
+      User = store.addModel(
+        { globalId: 'User', identity: 'user', schema: { name: 'string' } },
+        'user'
+      );
+      await store.start();
+    });
+
+    afterAll(async () => {
+      await store.stop();
+      await target.cleanup();
+    });
+
+    test('connects and syncs the henri model format', async () => {
+      expect(store.adapterName).toBe('postgresql');
+      await expect(store.ping()).resolves.toBe(true);
+
+      const columns = await store.query(
+        `SELECT column_name AS name, data_type AS type, udt_name AS udt,
+                is_nullable AS nullable
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = :table`,
+        { table: 'Tasks' },
+        { type: Sql.Sequelize.QueryTypes.SELECT }
+      );
+      const byName = Object.fromEntries(
+        columns.map((column) => [column.name, column])
+      );
+
+      expect(byName.id.type).toBe('integer');
+      expect(byName.name).toMatchObject({
+        nullable: 'NO',
+        type: 'character varying',
+      });
+      expect(byName.done.type).toBe('boolean');
+      expect(byName.createdAt.type).toBe('timestamp with time zone');
+      // The enum is a type of its own, unlike the mysql column type
+      expect(byName.category).toMatchObject({
+        type: 'USER-DEFINED',
+        udt: 'enum_Tasks_category',
+      });
+
+      const labels = await store.query(
+        `SELECT unnest(enum_range(NULL::"enum_Tasks_category"))::text AS label`,
+        [],
+        { type: Sql.Sequelize.QueryTypes.SELECT }
+      );
+
+      expect(labels.map((row) => row.label)).toEqual([
+        'urgent',
+        'high',
+        'medium',
+        'low',
+      ]);
+      await expect(
+        Task.create({ category: 'nope', name: 'x' })
+      ).rejects.toThrow(/invalid input value for enum/);
+    });
+
+    test('stores the user model and refuses a duplicate email', async () => {
+      const user = await User.create({
+        email: ' Grace@UseHenri.io ',
+        name: 'Grace',
+        password: 'compiler-1952',
+      });
+
+      expect(user.email).toBe('grace@usehenri.io');
+      expect(user.password).toBe('hashed:compiler-1952');
+      expect(user.roles).toEqual(['member']);
+
+      await expect(
+        User.create({ email: 'GRACE@usehenri.io', password: 'other' })
+      ).rejects.toThrow(/SequelizeUniqueConstraintError|Validation error/);
+
+      const [[row]] = await store.query(
+        'SELECT roles FROM "Users" WHERE email = ?',
+        ['grace@usehenri.io']
+      );
+
+      // A json column comes back parsed on postgres
+      expect(row.roles).toEqual(['member']);
+      expect((await store.findUserByEmail('grace@usehenri.io')).password).toBe(
+        'hashed:compiler-1952'
+      );
+    });
+
+    test('rolls a transaction back', async () => {
+      await expect(
+        store.transaction(async (transaction) => {
+          await Task.create({ name: 'rolled back' }, { transaction });
+          expect(await Task.count({ transaction })).toBe(1);
+
+          throw new Error('boom');
+        })
+      ).rejects.toThrow('boom');
+      expect(await Task.count()).toBe(0);
+    });
+  }
+);
