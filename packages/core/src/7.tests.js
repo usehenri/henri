@@ -1,30 +1,31 @@
 const BaseModule = require('./base/module');
-const { run: runJest } = require('jest');
 
 /**
- * Workers management module
+ * Tests module (runlevel 7)
+ *
+ * The in-process test runner is gone: `henri test` runs Vitest in the app
+ * and `@usehenri/testing` boots henri from there. This module is only kept so
+ * that starting henri with HENRI_TESTING points at the new command; it can be
+ * removed from the module list in henri.js.
  *
  * @class Tests
  * @extends {BaseModule}
  */
 class Tests extends BaseModule {
   /**
-   * Creates an instance of Workers.
+   * Creates an instance of Tests.
    * @memberof Tests
    */
   constructor() {
     super();
 
-    this.reloadable = true;
+    this.reloadable = false;
     this.runlevel = 7;
     this.name = 'tests';
     this.henri = undefined;
 
-    this.initialized = false;
-
     this.init = this.init.bind(this);
     this.stop = this.stop.bind(this);
-    this.reload = this.reload.bind(this);
   }
 
   /**
@@ -36,23 +37,11 @@ class Tests extends BaseModule {
    * @memberof Tests
    */
   async init() {
-    this.henri.pen.info('tests', 'running tests');
-
-    const options = [
-      '--testPathPatterns=/test/',
-      '--detectOpenHandles',
-      '--passWithNoTests',
-      //    '--coverage',
-      //    '--collectCoverageFrom=["app/**/**/*.js", "!app/views/**/*.js", "!app/routes.js"]',
-    ];
-
-    if (!this.initialized) {
-      this.henri.pen.info('tests', 'silent first run...');
-      options.push('--silent');
-      this.initialized = true;
-    }
-
-    await runJest.run(options);
+    this.henri.pen.warn(
+      'tests',
+      'tests are no longer run in-process',
+      'run `henri test` instead (vitest + @usehenri/testing)'
+    );
 
     return this.name;
   }
@@ -61,24 +50,10 @@ class Tests extends BaseModule {
    * Stops the module
    *
    * @async
-   * @returns {(string|Promise|boolean)} Module name or false
-   * @memberof Tests
-   */
-  async stop() {
-    return new Promise((resolve) => resolve(this.name));
-  }
-
-  /**
-   * Reloads the module
-   *
-   * @async
    * @returns {string} Module name
    * @memberof Tests
    */
-  async reload() {
-    await this.stop();
-    await this.init();
-
+  async stop() {
     return this.name;
   }
 }
