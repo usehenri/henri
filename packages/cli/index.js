@@ -62,7 +62,13 @@ module.exports = (pkg, args) => {
 
   setGlobalEnv(argv);
 
-  const command = argv._.shift();
+  let command = argv._.shift();
+
+  // Rails style: `henri db:migrate` is `henri db migrate`
+  if (command && command.startsWith('db:')) {
+    argv._.unshift(command.slice(3));
+    command = 'db';
+  }
 
   if (!command) {
     if (argv.version) {

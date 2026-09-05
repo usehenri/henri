@@ -89,6 +89,64 @@ const COMMANDS = [
     usage: ['henri console [--production]'],
   },
   {
+    description: [
+      'Boots the models only (no views, no workers) and drives the migrations',
+      'of a store. Available with the drizzle adapter; the migrations live in',
+      'db/migrations (drizzle-kit layout). In development the server pushes',
+      'the schema at boot unless the store sets "sync": false; in production',
+      'it applies the migrations when the store sets "migrate": true.',
+    ],
+    examples: [
+      {
+        command: 'henri db:generate --name=add-priority',
+        description: 'Writes db/migrations/0001_add_priority.sql',
+      },
+      {
+        command: 'henri db:migrate --production',
+        description:
+          'Applies the pending migrations to the production database',
+      },
+    ],
+    flags: [
+      {
+        description: 'the store to migrate (default: default)',
+        flag: '--store=<name>',
+      },
+      {
+        description: 'label of the generated migration',
+        flag: '--name=<label>',
+      },
+      {
+        description: 'push: apply statements that lose data',
+        flag: '--force',
+      },
+      { description: 'print the result as JSON', flag: '--json' },
+    ],
+    name: 'db',
+    summary: 'migrations of a drizzle store',
+    targets: [
+      {
+        description: 'the applied and pending migrations of db/migrations',
+        name: 'status',
+      },
+      {
+        description:
+          'write a migration for the schema changes (--name=<label>)',
+        name: 'generate',
+      },
+      { description: 'apply the pending migrations', name: 'migrate' },
+      {
+        description:
+          'make the database match the models without a migration (--force applies statements that lose data)',
+        name: 'push',
+      },
+    ],
+    usage: [
+      'henri db <command> [--store=<name>] [--name=<label>] [--force] [--json]',
+      'henri db:<command>',
+    ],
+  },
+  {
     aliases: ['d'],
     description: [
       'Removes what a generator created. Files are backed up in .backup/',
