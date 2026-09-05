@@ -23,6 +23,9 @@ pnpm format                           # prettier 3 (`pnpm format:check` in CI)
 pnpm build                            # rollup build of @usehenri/react
 pnpm --filter @usehenri/website dev   # docs site (Astro + Starlight); `build` and `preview` too
 scripts/smoke.sh                      # scaffold an app from the packed workspace and boot it
+pnpm db:up                            # postgres, mysql and mongo for local dev (compose.yaml)
+pnpm test:sql:live                    # the SQL suites against the live postgres, then mysql
+pnpm db:down                          # stop them (`db:reset` also deletes the data)
 pnpm changeset                        # record a version bump for changed packages
 ```
 
