@@ -4,16 +4,15 @@ const path = require('path');
 const util = require('util');
 const debug = require('debug')('henri:cli:destroy');
 
-const { cwd, format, version } = require('./utils');
-
-const result = {
-  fail: [],
-  success: [],
-};
-
-const TIMESTAMP = Date.now().toString();
-const GIT_PRESENT = fs.existsSync(path.join(cwd, '.git'));
-const BACKUP_BASE_DIR = path.join(cwd, '.backup', TIMESTAMP);
+const { usage } = require('./help');
+const { controllerOf } = require('./routing');
+const {
+  format,
+  insideGit,
+  names,
+  readRoutes,
+  validInstall,
+} = require('./utils');
 
 /**
  * Initial function
@@ -22,270 +21,273 @@ const BACKUP_BASE_DIR = path.join(cwd, '.backup', TIMESTAMP);
  * @return {Promise<void>} Resolves when done
  */
 const main = async (args) => {
-  const cmd = args._.shift();
+  const [cmd, ...targets] = args._;
 
-  if (GIT_PRESENT) {
-    console.log('> found a .git directory; skipping backups');
-  } else {
-    console.log(
-      '> i do not see a .git directory, will use a .backup directory'
-    );
-  }
-
-  try {
-    debug(`parsing command ${cmd}`);
-    switch (cmd) {
-      case 'model':
-        deleteModel(args._);
-        break;
-      case 'controller':
-        deleteController(args._);
-        break;
-      case 'route':
-        await deleteRoute(args._);
-        break;
-      case 'view':
-        deleteView(args._.join(''));
-        break;
-      case 'scaffold':
-        await deleteScaffold(args._);
-        break;
-      case 'crud':
-        await deleteCrud(args._);
-        break;
-      default:
-        help();
-    }
-
-    if (fs.existsSync(BACKUP_BASE_DIR)) {
-      console.log('> backups are located in', BACKUP_BASE_DIR);
-    }
-  } catch (error) {
-    console.log('> global error while running destroy, run with DEBUG');
-    debug('global', error);
-  }
-};
-
-/**
- * Removes the model
- *
- * @param {*} [filename] File and args
- * @return {void}
- */
-const deleteModel = ([filename]) => {
-  deleteOrBackup(
-    'models',
-    `${filename}.js`,
-    path.join(cwd, 'app', 'models', `${filename}.js`)
-  );
-};
-
-/**
- * Removes a controller
- *
- * @param {*} [filename] File and args
- * @return {void}
- */
-const deleteController = ([filename]) => {
-  deleteOrBackup(
-    'controllers',
-    `${filename}.js`,
-    path.join(cwd, 'app', 'controllers', `${filename}.js`)
-  );
-};
-
-/**
- * Removes a route
- *
- * @param {string} [keyName] get /path or resources path or...
- * @return {Promise<void>} Resolves when done
- */
-const deleteRoute = async (keyName = null) => {
-  if (!keyName) {
-    console.log('> the route is undefined');
-    debug(`got route ${keyName}`);
+  if (!cmd) {
+    console.log(usage('destroy'));
 
     return;
   }
 
-  try {
-    let code = `module.exports = `;
-    const location = path.join(cwd, 'config', 'routes.js');
+  const destroyer = destroyers[cmd];
 
-    const actual = require(location);
-
-    let key = (Array.isArray(keyName) && keyName.join(' ')) || keyName;
-
-    if (typeof actual[key] !== 'undefined') {
-      console.log(`> removed routing key "${key}" =>`, actual[key]);
-      delete actual[key];
-    } else {
-      console.log('> routing key', key, 'does not exist');
-      debug('actual', actual);
-      debug('key', key);
-      debug('keyName:', keyName);
-
-      return;
-    }
-
-    code += util.inspect(actual);
-
-    if (!GIT_PRESENT) {
-      fs.ensureDirSync(BACKUP_BASE_DIR);
-      fs.copyFileSync(
-        path.join(cwd, 'config', 'routes.js'),
-        path.join(BACKUP_BASE_DIR, 'routes.js')
-      );
-      debug('copied file to ', path.join(BACKUP_BASE_DIR, 'routes.js'));
-    }
-
-    fs.outputFileSync(location, await format(code));
-  } catch (error) {
-    console.log('> unable to edit routes, run with DEBUG');
-    debug(error);
+  if (!destroyer) {
+    throw new Error(
+      `Unknown target "${cmd}". Available: ${Object.keys(destroyers).join(', ')}`
+    );
   }
+
+  if (targets.length === 0) {
+    throw new Error(`Missing name: henri destroy ${cmd} <name>`);
+  }
+
+  validInstall({ fatal: true });
+
+  const ctx = context(process.cwd());
+
+  if (ctx.git) {
+    console.log('> found a git repository; skipping backups');
+  } else {
+    console.log('> no git repository, deleted files are moved to .backup/');
+  }
+
+  await destroyer(targets, ctx);
+
+  if (fs.existsSync(ctx.backupDir)) {
+    console.log('> backups are located in', ctx.backupDir);
+  }
+};
+
+/**
+ * Where and how to delete for this run
+ *
+ * @param {string} cwd Project directory
+ * @returns {{cwd: string, git: boolean, backupDir: string}} The context
+ */
+const context = (cwd) => ({
+  backupDir: path.join(cwd, '.backup', Date.now().toString()),
+  cwd,
+  git: insideGit(cwd),
+});
+
+/**
+ * Removes the model
+ *
+ * @param {string[]} [name] Model name
+ * @param {object} ctx Context
+ * @return {void}
+ */
+const model = ([name], ctx) => {
+  deleteOrBackup(
+    'model',
+    path.join('app', 'models', `${names(name).doc}.js`),
+    ctx
+  );
+};
+
+/**
+ * Removes a controller and its routes
+ *
+ * @param {string[]} [name] Controller name
+ * @param {object} ctx Context
+ * @return {Promise<void>} Resolves when done
+ */
+const controller = async ([name], ctx) => {
+  const lower = name.toLowerCase();
+
+  deleteOrBackup(
+    'controller',
+    path.join('app', 'controllers', `${lower}.js`),
+    ctx
+  );
+  await editRoutes(
+    (key, value) => controllerOf(value) === lower,
+    ctx,
+    `pointing to "${lower}"`
+  );
+};
+
+/**
+ * Removes one key from config/routes.js
+ *
+ * @param {string[]} parts The key, possibly split by the shell (get /path)
+ * @param {object} ctx Context
+ * @return {Promise<void>} Resolves when done
+ */
+const route = async (parts, ctx) => {
+  const wanted = parts.join(' ').trim();
+
+  await editRoutes((key) => key === wanted, ctx, `"${wanted}"`);
 };
 
 /**
  * Deletes a subfolder in app/views/pages
  *
- * @param {string} target Folder
+ * @param {string[]} parts Folder (ex: tasks)
+ * @param {object} ctx Context
  * @returns {void}
  */
-const deleteView = (target) => {
-  const targetBackupDir = path.join(cwd, '.backup', TIMESTAMP, 'views', target);
-  const sourceViewDir = path.join(cwd, 'app', 'views', 'pages', target);
+const view = (parts, ctx) => {
+  const target = parts.join('');
 
-  try {
-    if (!fs.existsSync(sourceViewDir)) {
-      throw new Error(`view folder not found in ${sourceViewDir}`);
-    }
-
-    if (GIT_PRESENT) {
-      fs.rmSync(sourceViewDir, { force: true, recursive: true });
-    } else {
-      fs.moveSync(sourceViewDir, targetBackupDir);
-    }
-    console.log('> removed "view" @', target);
-  } catch (error) {
-    console.log(
-      '> unable to delete',
-      target,
-      'in the views/pages folder, run with DEBUG'
-    );
-    debug(error);
-  }
+  deleteOrBackup('view', path.join('app', 'views', 'pages', target), ctx);
 };
 
 /**
- * Removes a scaffold
+ * Removes a worker
  *
- * @param {*} [filename] File and args
+ * @param {string[]} [name] Worker name
+ * @param {object} ctx Context
+ * @return {void}
+ */
+const worker = ([name], ctx) => {
+  deleteOrBackup(
+    'worker',
+    path.join('app', 'workers', `${name.toLowerCase()}.js`),
+    ctx
+  );
+};
+
+/**
+ * Removes a test file
+ *
+ * @param {string[]} [name] Test name
+ * @param {object} ctx Context
+ * @return {void}
+ */
+const test = ([name], ctx) => {
+  deleteOrBackup(
+    'test',
+    path.join('test', `${name.toLowerCase()}.test.js`),
+    ctx
+  );
+};
+
+/**
+ * Removes a scaffold: model, controller, routes and views
+ *
+ * @param {string[]} [name] Model name
+ * @param {object} ctx Context
  * @return {Promise<void>} Resolves when done
  */
-const deleteScaffold = async ([filename]) => {
-  const target = filename.toLowerCase();
+const scaffold = async ([name], ctx) => {
+  const { plural } = names(name);
 
-  deleteModel([capitalize(target)]);
-  deleteController([target]);
-  await deleteRoute(`resources ${target}`);
-  deleteView(`_scaffold/${target}`);
+  model([name], ctx);
+  await controller([plural], ctx);
+  view([plural], ctx);
 };
 
 /**
- * Removes a crud
+ * Removes a crud: model, controller and routes
  *
- * @param {*} [filename] File and args
+ * @param {string[]} [name] Model name
+ * @param {object} ctx Context
  * @return {Promise<void>} Resolves when done
  */
-const deleteCrud = async ([filename]) => {
-  const target = filename.toLowerCase();
+const crud = async ([name], ctx) => {
+  const { plural } = names(name);
 
-  deleteModel([capitalize(target)]);
-  deleteController([target]);
-  await deleteRoute(`crud ${target}`);
+  model([name], ctx);
+  await controller([plural], ctx);
 };
 
 /**
- * Deletes or makes a backup of the given file
+ * Remove the routes matching a predicate from config/routes.js
  *
- * @param {string} type The type (model, controller, etc.)
- * @param {string} fileName The target file name
- * @param {string} filePath The target full path
- * @returns {void}
+ * @param {function} matches (key, value) => boolean
+ * @param {object} ctx Context
+ * @param {string} label What was looked for, for the messages
+ * @return {Promise<void>} Resolves when written
  */
-const deleteOrBackup = (type, fileName, filePath) => {
-  if (GIT_PRESENT) {
-    if (fs.existsSync(filePath)) {
-      fs.rmSync(filePath, { force: true });
-      result.success.push(filePath);
-      console.log(`> removed "${type}" @ ${filePath}`);
-    } else {
-      console.log(`> unable to locate "${type}" @ ${filePath}`);
-      result.fail.push(filePath);
-    }
+const editRoutes = async (matches, ctx, label) => {
+  const location = path.join(ctx.cwd, 'config', 'routes.js');
+  const actual = readRoutes(ctx.cwd);
+  const removed = Object.keys(actual).filter((key) =>
+    matches(key, actual[key])
+  );
+
+  if (removed.length === 0) {
+    console.log(`> no route ${label} in config/routes.js`);
 
     return;
   }
 
-  try {
-    const targetDir = path.join(cwd, '.backup', TIMESTAMP, type);
+  backup(location, ctx);
 
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`File ${filePath} does not exist...`);
-    }
-
-    fs.ensureDirSync(targetDir);
-
-    fs.moveSync(filePath, path.join(targetDir, fileName));
-
-    console.log(`> backed up "${type}" @ ${filePath}`);
-    result.success.push(filePath);
-  } catch (err) {
-    console.log(`> unable to backup "${type}" @ ${filePath}, run with DEBUG`);
-
-    debug(err);
+  for (const key of removed) {
+    console.log(`> removed route "${key}" =>`, actual[key]);
+    delete actual[key];
   }
+
+  fs.outputFileSync(
+    location,
+    await format(`module.exports = ${util.inspect(actual, { depth: 6 })};`)
+  );
 };
 
 /**
- * Returns help
+ * Copy a file to the backup directory when the project is not in git
  *
+ * @param {string} file Absolute path
+ * @param {object} ctx Context
  * @returns {void}
  */
-const help = () => {
-  console.log(
-    `
-    henri (${version})
+const backup = (file, ctx) => {
+  if (ctx.git || !fs.existsSync(file)) {
+    return;
+  }
 
-    Usage
-      $ henri destroy <command> <target>
+  const target = path.join(ctx.backupDir, path.relative(ctx.cwd, file));
 
-    Available commands
-      model, controller, route, view, crud, scaffold
-
-    Examples
-
-      $ henri destroy model User
-        --> Deletes the User model
-
-      $ henri destroy controller locations
-        --> Deletes a controller and routes
-
-      $ henri d scaffold HighScore
-        --> Deletes a model, a controller with resources actions
-            and the matching resources routes
-  `
-  );
-  process.exit(0);
+  fs.ensureDirSync(path.dirname(target));
+  fs.copySync(file, target);
+  debug('backed up %s to %s', file, target);
 };
 
 /**
- * Capitalize a word
+ * Deletes or makes a backup of the given file or directory
  *
- * @param {string} word Word that needs to be capitalized
- * @returns {string} Capitalized word
+ * @param {string} type The type (model, controller, etc.)
+ * @param {string} relative Path relative to the project
+ * @param {object} ctx Context
+ * @returns {boolean} True when something was removed
  */
-const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
+const deleteOrBackup = (type, relative, ctx) => {
+  const location = path.join(ctx.cwd, relative);
+
+  if (!fs.existsSync(location)) {
+    console.log(`> unable to locate ${type} @ ${relative}`);
+
+    return false;
+  }
+
+  if (ctx.git) {
+    fs.rmSync(location, { force: true, recursive: true });
+    console.log(`> removed ${type} @ ${relative}`);
+
+    return true;
+  }
+
+  const target = path.join(ctx.backupDir, relative);
+
+  fs.ensureDirSync(path.dirname(target));
+  fs.moveSync(location, target, { overwrite: true });
+  console.log(`> backed up ${type} @ ${relative}`);
+
+  return true;
+};
+
+const destroyers = {
+  controller,
+  crud,
+  model,
+  route,
+  scaffold,
+  test,
+  view,
+  worker,
+};
 
 module.exports = main;
+module.exports.destroyers = destroyers;

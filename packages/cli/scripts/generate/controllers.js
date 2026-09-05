@@ -1,77 +1,221 @@
-const header = () => `const { pen } = henri; module.exports = {`;
+/**
+ * Source of the controllers written by `henri generate scaffold|crud`.
+ *
+ * Every function receives the resource names: doc = 'Post' (model global),
+ * lower = 'post' (data key of one document), plural = 'posts' (controller,
+ * routes and pages) and keys = the attributes a request may set.
+ * The output goes through prettier, so the indentation here does not matter.
+ */
 
-const index = (lower, doc) => {
-  return `
-  index: async (req, res) => {
-    res.render('/_scaffold/${lower}/index', { 
-      data: { ${lower}: await ${doc}.find() }
-    }); 
-  },`;
-};
+const header = ({ doc, keys }) => `
+// Attributes a request may set (see req.permit)
+const FIELDS = ${JSON.stringify(keys)};
 
-const newC = (lower, doc) => {
-  return `new: async (req, res) => { res.render('/_scaffold/${lower}/new') },`;
-};
-
-const create = (lower, doc) => {
-  return `create: async (req, res) => {
-    const data = req.body; const doc = new ${doc}(data);
-    const errors = await doc.validate()
-
-    if (errors) {
-      return res.status(400).send({msg: 'failed', error: errors.message});
+/**
+ * Run a query by id, null when the id is malformed
+ *
+ * @param {Promise} query A mongoose query
+ * @returns {Promise<object|null>} The document or null
+ */
+const byId = async (query) => {
+  try {
+    return await query;
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return null;
     }
-    await doc.save(); return res.send({ msg: 'success'}); },`;
-};
-
-const show = (lower, doc) => {
-  return `show: async (req, res) => {
-  if (!req.params.id) {
-    return res.render('/_scaffold/${lower}/show')
+    throw error;
   }
-  return res.render('/_scaffold/${lower}/show', {
-    data: { ${lower}: await ${doc}.find({ _id: req.params.id }) },
-  })
-},`;
 };
 
-const edit = (lower, doc) => {
-  return `edit: async (req, res) => {
-    if (!req.params.id) {
-      return res.render('/_scaffold/${lower}/edit')
-    }
-    return res.render('/_scaffold/${lower}/edit', {
-      data: { ${lower}: await ${doc}.findOne({ _id: req.params.id }) },
-    })
+/**
+ * Answer a failed validation with a 422 and one message per field
+ *
+ * @param {object} res Express response
+ * @param {Error} error The error thrown by ${doc}
+ * @returns {object} The response
+ */
+const invalid = (res, error) => {
+  if (error.name !== 'ValidationError') {
+    throw error;
+  }
+
+  const errors = Object.fromEntries(
+    Object.entries(error.errors || {}).map(([field, detail]) => [
+      field,
+      detail.message,
+    ])
+  );
+
+  return res.boom.badData(error.message, { errors });
+};
+
+module.exports = {`;
+
+const footer = () => `};`;
+
+const index = ({ doc, plural }) => `
+  index: async (req, res) => {
+    // app/views/pages/${plural}/index.js is the /${plural} page for next.js
+    res.render('/${plural}', {
+      data: { ${plural}: await ${doc}.find() },
+    });
   },`;
-};
 
-const update = (lower, doc) => {
-  return `update: async (req, res) => {
-    if (!req.params.id) {
-      return res.status(400).send({msg: 'invalid id'})
-    }
-    ${doc}.update({ _id: req.params.id }, { $set: req.body }, (err) => {
-      if (err) {
-        return res.status(400).send({msg: 'failed', error: err.message});
-      }
-      return res.send({ msg: 'success'});
-    })
+const indexJson = ({ doc, plural }) => `
+  index: async (req, res) => {
+    res.json({ ${plural}: await ${doc}.find() });
   },`;
-};
 
-const destroy = (lower, doc) => {
-  return `destroy: async (req, res) => {
-    if (!req.params.id) {
-      return res.status(400).send({msg: 'invalid id'})
+const newC = ({ plural }) => `
+  new: async (req, res) => {
+    res.render('/${plural}/new');
+  },`;
+
+const create = ({ doc, lower, plural }) => `
+  create: async (req, res) => {
+    let ${lower};
+
+    try {
+      ${lower} = await ${doc}.create(req.permit(...FIELDS));
+    } catch (error) {
+      return invalid(res, error);
     }
-    ${doc}.remove({ _id: req.params.id }, (err) => {
-      if (err) {
-        return res.status(400).send({msg: 'failed', error: err.message});
-      }
-      return res.send({ msg: 'success'});
-    })},
-  }`;
-};
 
-module.exports = { index, header, newC, create, show, edit, update, destroy };
+    return res.format({
+      html: () => res.redirect(\`/${plural}/\${${lower}.id}\`),
+      json: () => res.status(201).json({ ${lower} }),
+      default: () => res.status(201).json({ ${lower} }),
+    });
+  },`;
+
+const createJson = ({ doc, lower }) => `
+  create: async (req, res) => {
+    let ${lower};
+
+    try {
+      ${lower} = await ${doc}.create(req.permit(...FIELDS));
+    } catch (error) {
+      return invalid(res, error);
+    }
+
+    return res.status(201).json({ ${lower} });
+  },`;
+
+const show = ({ doc, lower, plural }) => `
+  show: async (req, res) => {
+    const ${lower} = await byId(${doc}.findById(req.params.id));
+
+    if (!${lower}) {
+      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
+    }
+
+    return res.render('/${plural}/show', { data: { ${lower} } });
+  },`;
+
+const edit = ({ doc, lower, plural }) => `
+  edit: async (req, res) => {
+    const ${lower} = await byId(${doc}.findById(req.params.id));
+
+    if (!${lower}) {
+      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
+    }
+
+    return res.render('/${plural}/edit', { data: { ${lower} } });
+  },`;
+
+const updateBody = ({ doc, lower }) => `
+    let ${lower};
+
+    try {
+      ${lower} = await byId(
+        ${doc}.findByIdAndUpdate(req.params.id, req.permit(...FIELDS), {
+          new: true,
+          runValidators: true,
+        })
+      );
+    } catch (error) {
+      return invalid(res, error);
+    }
+
+    if (!${lower}) {
+      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
+    }
+`;
+
+const update = (opts) => `
+  update: async (req, res) => {
+    ${updateBody(opts)}
+    return res.format({
+      html: () => res.redirect(\`/${opts.plural}/\${${opts.lower}.id}\`),
+      json: () => res.json({ ${opts.lower} }),
+      default: () => res.json({ ${opts.lower} }),
+    });
+  },`;
+
+const updateJson = (opts) => `
+  update: async (req, res) => {
+    ${updateBody(opts)}
+    return res.json({ ${opts.lower} });
+  },`;
+
+const destroyBody = ({ doc, lower }) => `
+    const ${lower} = await byId(${doc}.findByIdAndDelete(req.params.id));
+
+    if (!${lower}) {
+      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
+    }
+`;
+
+const destroy = (opts) => `
+  destroy: async (req, res) => {
+    ${destroyBody(opts)}
+    return res.format({
+      html: () => res.redirect('/${opts.plural}'),
+      json: () => res.json({ ${opts.lower} }),
+      default: () => res.json({ ${opts.lower} }),
+    });
+  },`;
+
+const destroyJson = (opts) => `
+  destroy: async (req, res) => {
+    ${destroyBody(opts)}
+    return res.json({ ${opts.lower} });
+  },`;
+
+/**
+ * A controller with the seven resources actions and html/json answers
+ *
+ * @param {object} opts { doc, lower, plural, keys }
+ * @returns {string} The source code
+ */
+const resources = (opts) =>
+  [
+    header(opts),
+    index(opts),
+    newC(opts),
+    create(opts),
+    show(opts),
+    edit(opts),
+    update(opts),
+    destroy(opts),
+    footer(),
+  ].join('\n');
+
+/**
+ * A json only controller with index, create, update and destroy
+ *
+ * @param {object} opts { doc, lower, plural, keys }
+ * @returns {string} The source code
+ */
+const crud = (opts) =>
+  [
+    header(opts),
+    indexJson(opts),
+    createJson(opts),
+    updateJson(opts),
+    destroyJson(opts),
+    footer(),
+  ].join('\n');
+
+module.exports = { crud, resources };

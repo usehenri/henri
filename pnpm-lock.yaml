@@ -78,6 +78,10 @@ importers:
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
+    devDependencies:
+      '@babel/parser':
+        specifier: ^7.28.0
+        version: 7.29.8
 
   packages/core:
     dependencies:

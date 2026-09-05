@@ -13,7 +13,7 @@ const cwd = process.cwd();
  * @param {*} file Filename
  * @returns {boolean} True or false?
  */
-const check = (file) => fs.existsSync(path.join(cwd, file));
+const check = (file) => fs.existsSync(path.join(process.cwd(), file));
 
 /**
  * Detects which package manager is available, preferring pnpm, then yarn, then npm.
@@ -48,6 +48,17 @@ const detectPackageManager = (dir = process.cwd()) => {
 };
 
 /**
+ * Resolve a module the way `require()` would from a project directory
+ *
+ * @param {string} name Module name (ex: @usehenri/react/engine)
+ * @param {string} [dir=process.cwd()] Project directory to resolve from
+ * @returns {string} Absolute path of the module entry
+ * @throws when the module is not installed in the project
+ */
+const resolveFrom = (name, dir = process.cwd()) =>
+  require.resolve(name, { paths: [path.resolve(dir)] });
+
+/**
  * Resolve the package.json of a package installed in a project
  *
  * @param {string} name Package name (ex: @usehenri/core)
@@ -55,16 +66,14 @@ const detectPackageManager = (dir = process.cwd()) => {
  * @returns {object|null} The parsed package.json or null when not installed
  */
 const resolvePackageJson = (name, dir = process.cwd()) => {
-  const paths = [path.resolve(dir)];
-
   try {
-    return require(require.resolve(`${name}/package.json`, { paths }));
+    return require(resolveFrom(`${name}/package.json`, dir));
   } catch {
     // Package hides package.json behind "exports": walk up from its entry
   }
 
   try {
-    let current = path.dirname(require.resolve(name, { paths }));
+    let current = path.dirname(resolveFrom(name, dir));
 
     while (current !== path.dirname(current)) {
       const candidate = path.join(current, 'package.json');
@@ -83,6 +92,71 @@ const resolvePackageJson = (name, dir = process.cwd()) => {
   }
 
   return null;
+};
+
+/**
+ * Read the application configuration the way @usehenri/core does:
+ * config/<NODE_ENV>.json when it exists, config/default.json otherwise.
+ *
+ * @param {string} [dir=process.cwd()] Project directory
+ * @param {string} [env=process.env.NODE_ENV] Environment name
+ * @returns {object} The configuration ({} when no file exists)
+ */
+const readConfig = (dir = process.cwd(), env = process.env.NODE_ENV) => {
+  const candidates = [
+    path.join(dir, 'config', `${env || 'dev'}.json`),
+    path.join(dir, 'config', 'default.json'),
+  ];
+
+  for (const file of candidates) {
+    if (fs.existsSync(file)) {
+      return fs.readJsonSync(file);
+    }
+  }
+
+  return {};
+};
+
+/**
+ * Load config/routes.js from a project without the require cache
+ *
+ * @param {string} [dir=process.cwd()] Project directory
+ * @returns {object} The raw routes ({} when the file is missing)
+ * @throws when the file has a syntax error
+ */
+const readRoutes = (dir = process.cwd()) => {
+  const location = path.join(dir, 'config', 'routes.js');
+
+  if (!fs.existsSync(location)) {
+    return {};
+  }
+
+  delete require.cache[require.resolve(location)];
+
+  return require(location);
+};
+
+/**
+ * Is a directory inside a git repository (a .git entry in it or above)?
+ *
+ * @param {string} [dir=process.cwd()] Directory to check
+ * @returns {boolean} True when inside a repository
+ */
+const insideGit = (dir = process.cwd()) => {
+  let current = path.resolve(dir);
+
+  while (true) {
+    if (fs.existsSync(path.join(current, '.git'))) {
+      return true;
+    }
+
+    const parent = path.dirname(current);
+
+    if (parent === current) {
+      return false;
+    }
+    current = parent;
+  }
 };
 
 /**
@@ -168,14 +242,77 @@ const format = async (code) => {
   });
 };
 
+/**
+ * Capitalize a word
+ *
+ * @param {string} word Word that needs to be capitalized
+ * @returns {string} Capitalized word
+ */
+const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
+
+/**
+ * Pluralize an english word (enough for resource names: task -> tasks,
+ * category -> categories, box -> boxes, person -> people)
+ *
+ * @param {string} word A singular word
+ * @returns {string} Its plural
+ */
+const pluralize = (word) => {
+  const lower = word.toLowerCase();
+  const irregulars = {
+    child: 'children',
+    man: 'men',
+    person: 'people',
+    woman: 'women',
+  };
+
+  if (irregulars[lower]) {
+    return irregulars[lower];
+  }
+
+  if (/(s|x|z|ch|sh)$/.test(lower)) {
+    return `${lower}es`;
+  }
+
+  if (/[^aeiou]y$/.test(lower)) {
+    return `${lower.slice(0, -1)}ies`;
+  }
+
+  return `${lower}s`;
+};
+
+/**
+ * Names derived from a model name: `Post` gives
+ * { doc: 'Post', lower: 'post', plural: 'posts' }
+ *
+ * @param {string} name Model or resource name, as typed by the user
+ * @returns {{doc: string, lower: string, plural: string}} The names
+ */
+const names = (name) => {
+  const lower = name.toLowerCase();
+
+  return {
+    doc: capitalize(name),
+    lower,
+    plural: pluralize(lower),
+  };
+};
+
 module.exports = {
   abort,
+  capitalize,
   check,
   commands,
   cwd,
   detectPackageManager,
   format,
   helpHeader,
+  insideGit,
+  names,
+  pluralize,
+  readConfig,
+  readRoutes,
+  resolveFrom,
   resolvePackageJson,
   validInstall,
   version,

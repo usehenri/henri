@@ -1,3 +1,5 @@
+// ESLint 9 is pinned in package.json because eslint-plugin-react does not
+// support ESLint 10 yet; bump both together when it does.
 const fs = require('fs');
 const path = require('path');
 const js = require('@eslint/js');
@@ -26,6 +28,7 @@ module.exports = [
       '**/node_modules/**',
       '**/.next/**',
       '**/.henri/**',
+      '**/.backup/**',
       'coverage/**',
     ],
   },
@@ -37,6 +40,7 @@ module.exports = [
       'config/**/*.js',
       'test/**/*.js',
       'eslint.config.js',
+      'vitest.config.js',
     ],
     ignores: ['app/views/**'],
     languageOptions: {
@@ -46,6 +50,15 @@ module.exports = [
         ...globals.node,
         ...henriGlobals,
         henri: 'readonly',
+      },
+    },
+  },
+  {
+    // Tests run by `henri test` (vitest globals: describe, test, expect, vi)
+    files: ['test/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...(globals.vitest || globals.jest),
       },
     },
   },
