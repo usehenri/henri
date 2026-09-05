@@ -2,6 +2,7 @@ const BaseModule = require('./base/module');
 const bounce = require('@hapi/bounce');
 
 const allowed = {
+  inertia: 'inertia',
   react: 'react',
   template: 'template',
   vue: 'vue',
@@ -62,7 +63,6 @@ class View extends BaseModule {
       );
     }
 
-    // eslint-disable-next-line global-require
     const Template = require(`./engines/template.js`);
 
     this.hbs = new Template(this.henri);
@@ -70,7 +70,6 @@ class View extends BaseModule {
     if (this.renderer === 'template') {
       this.engine = this.hbs;
     } else {
-      // eslint-disable-next-line global-require
       const Engine = require(`./engines/${allowed[this.renderer]}`);
 
       this.engine = new Engine(this.henri);
