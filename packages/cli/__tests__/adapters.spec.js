@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { hooksFor } = require('@usehenri/core/src/base/hooks');
+const { modelErrors } = require('@usehenri/core/src/base/model-errors');
 
 const { version } = require('../package.json');
 const { cleanup, exists, henri, read, tmpdir } = require('./helpers');
@@ -264,12 +265,10 @@ describe('the scaffolded resource follows the adapter', () => {
     cleanup(dir);
   });
 
-  test('drizzle: a relation for the page, no cast guard', () => {
+  test('drizzle: findById without a cast guard, instances destroy themselves', () => {
     const { app } = scaffoldWith(dir, 'dz', ['--adapter', 'drizzle']);
     const controller = read(app, 'app/controllers/tasks.js');
 
-    expect(controller).toContain('Task.query().offset(skip).limit(limit)');
-    expect(controller).toContain('Task.count()');
     // The before hook loads the record; findById() already answers null for
     // a malformed id, so there is no cast to guard
     expect(controller).toContain(
@@ -281,11 +280,10 @@ describe('the scaffolded resource follows the adapter', () => {
     expect(read(app, 'app/controllers/main.js')).toContain('Task.find()');
   });
 
-  test('sequelize: findAll, findByPk and instance updates', () => {
+  test('sequelize: findByPk and instance updates', () => {
     const { app } = scaffoldWith(dir, 'pg', ['--adapter', 'postgresql']);
     const controller = read(app, 'app/controllers/tasks.js');
 
-    expect(controller).toContain('Task.findAll({ limit, offset: skip })');
     expect(controller).toContain('Task.findByPk(id)');
     expect(controller).toContain('task.update(req.permit(...FIELDS))');
     expect(controller).toContain('task.destroy()');
@@ -294,23 +292,50 @@ describe('the scaffolded resource follows the adapter', () => {
     expect(read(app, 'app/controllers/main.js')).toContain('Task.findAll()');
   });
 
-  test('mongoose: the scaffold is unchanged', () => {
+  test('mongoose: the cast guard and the document methods', () => {
     const { app } = scaffoldWith(dir, 'mg', ['--adapter', 'mongoose']);
     const controller = read(app, 'app/controllers/tasks.js');
 
-    expect(controller).toContain('Task.find().skip(skip).limit(limit)');
-    expect(controller).toContain('Task.countDocuments()');
+    expect(controller).toContain('byId(Task.findById(req.params.id))');
+    expect(controller).toContain('req.task.set(req.permit(...FIELDS))');
+    expect(controller).toContain('req.task.deleteOne()');
     expect(controller).toContain('CastError');
+  });
+
+  test('the index and the 422 are the same code on the three flavours', () => {
+    const generator = require('../scripts/generate/controllers');
+    const resource = {
+      doc: 'Task',
+      keys: ['name'],
+      lower: 'task',
+      plural: 'tasks',
+    };
+    const written = ['drizzle', 'mongoose', 'sequelize'].map((api) =>
+      generator.resources({ ...resource, api })
+    );
+
+    for (const code of written) {
+      // Model.paginate() and henri.model.errors() answer the same shape on
+      // every adapter, so neither needs a flavour
+      expect(code).toContain(
+        'await Task.paginate(\n      req.pagination()\n    )'
+      );
+      expect(code).toContain('const errors = henri.model.errors(error);');
+      expect(code).not.toContain('countDocuments()');
+      expect(code).not.toContain('req.pagination();');
+    }
   });
 
   test('the generators read the adapter back from the configuration', () => {
     const { app } = scaffoldWith(dir, 'gen', ['--adapter', 'drizzle']);
     const { status } = henri(['g', 'crud', 'Note', 'body:text'], { cwd: app });
+    const controller = read(app, 'app/controllers/notes.js');
 
     expect(status).toBe(0);
-    expect(read(app, 'app/controllers/notes.js')).toContain(
-      'Note.query().offset(skip).limit(limit)'
+    expect(controller).toContain(
+      'req.note = await Note.findById(req.params.id)'
     );
+    expect(controller).not.toContain('CastError');
   });
 
   test('AGENTS.md and the README describe the store', () => {
@@ -320,7 +345,7 @@ describe('the scaffolded resource follows the adapter', () => {
     expect(agents).toContain('store `drizzle`');
     expect(agents).toContain('henri db:generate|migrate|push|status');
     expect(agents).not.toContain('{{');
-    // The longest combination (inertia + drizzle); see new.spec.js
+    // The budget of new.spec.js, on the store with the most to say
     expect(agents.split('\n').length).toBeLessThan(170);
 
     const readme = read(app, 'README.md');
@@ -353,10 +378,13 @@ describe('the generated controllers run on their adapter', () => {
   beforeAll(() => {
     dir = tmpdir('henri-adapter-run-');
     ({ app } = scaffoldWith(dir, 'runner', ['--adapter', 'drizzle']));
+    // Every flavour answers its 422 through henri.model.errors()
+    global.henri = { model: { errors: modelErrors } };
   });
 
   afterAll(() => {
     cleanup(dir);
+    delete global.henri;
   });
 
   /**
@@ -408,8 +436,8 @@ describe('the generated controllers run on their adapter', () => {
   });
 
   /**
-   * A fake drizzle model: a chainable relation, ids that are integers and
-   * a ValidationError with one entry per field
+   * A fake drizzle model: paginate() answers the shared page shape, ids are
+   * integers and an invalid write throws a ValidationError keyed by field
    *
    * @returns {object} The model
    */
@@ -440,11 +468,6 @@ describe('the generated controllers run on their adapter', () => {
       return instance;
     };
     const rows = [row({ id: 1, name: 'one' })];
-    const relation = {
-      limit: () => relation,
-      offset: () => relation,
-      then: (resolve, reject) => Promise.resolve(rows).then(resolve, reject),
-    };
     const invalid = () => {
       const error = new Error('Task validation failed: name: is required');
 
@@ -455,35 +478,48 @@ describe('the generated controllers run on their adapter', () => {
     };
 
     return {
-      count: async () => rows.length,
-      create: async (data) => {
-        if (!data.name) {
-          throw invalid();
-        }
+      calls,
+      model: {
+        create: async (data) => {
+          if (!data.name) {
+            throw invalid();
+          }
 
-        return { id: 2, ...data };
-      },
-      findById: async (id) => (String(id) === '1' ? rows[0] : null),
-      findByIdAndDelete: async (id) => (String(id) === '1' ? rows[0] : null),
-      findByIdAndUpdate: async (id, data) => {
-        if (data.name === '') {
-          throw invalid();
-        }
+          return { id: 2, ...data };
+        },
+        findById: async (id) => (String(id) === '1' ? rows[0] : null),
+        paginate: async (options) => {
+          calls.paginate = options;
 
-        return String(id) === '1' ? { id: 1, ...data } : null;
+          return {
+            page: options.page,
+            pages: 1,
+            perPage: options.perPage,
+            records: rows,
+            total: rows.length,
+          };
+        },
       },
-      query: () => relation,
     };
   };
 
-  test('index pages with a relation and answers a HAL collection', async () => {
-    global.Task = drizzleModel();
+  test('index pages with paginate() and answers a HAL collection', async () => {
+    const fake = drizzleModel();
+
+    global.Task = fake.model;
 
     const controller = require(path.join(app, 'app/controllers/tasks.js'));
     const res = fakeRes();
 
     await controller.index(fakeReq(), res);
 
+    // One call, handed what req.pagination() returned
+    expect(fake.calls.paginate).toEqual({
+      limit: 25,
+      page: 1,
+      perPage: 25,
+      skip: 0,
+    });
     expect(res.calls).toEqual([
       [
         'collection',
@@ -496,7 +532,7 @@ describe('the generated controllers run on their adapter', () => {
   });
 
   test('the before hook answers 404 for an id the store does not know', async () => {
-    global.Task = drizzleModel();
+    global.Task = drizzleModel().model;
 
     const controller = require(path.join(app, 'app/controllers/tasks.js'));
     const missing = fakeRes();
@@ -514,7 +550,7 @@ describe('the generated controllers run on their adapter', () => {
   });
 
   test('create answers 201, or 422 with one message per field', async () => {
-    global.Task = drizzleModel();
+    global.Task = drizzleModel().model;
 
     const controller = require(path.join(app, 'app/controllers/tasks.js'));
     const created = fakeRes();
@@ -540,7 +576,7 @@ describe('the generated controllers run on their adapter', () => {
   });
 
   test('destroy answers 204 and 404', async () => {
-    global.Task = drizzleModel();
+    global.Task = drizzleModel().model;
 
     const controller = require(path.join(app, 'app/controllers/tasks.js'));
     const gone = fakeRes();
@@ -561,7 +597,8 @@ describe('the generated controllers run on their adapter', () => {
     /**
      * A fake Sequelize model: findByPk on an integer key throws a
      * SequelizeDatabaseError for a malformed id, instances update and
-     * destroy themselves, and errors carry an array of items
+     * destroy themselves, and a validation error carries an array of items
+     * (the shape henri.model.errors() normalizes)
      *
      * @returns {object} The model
      */
@@ -594,7 +631,6 @@ describe('the generated controllers run on their adapter', () => {
       return {
         calls,
         model: {
-          count: async () => 1,
           create: async (data) => {
             calls.created = data;
             if (!data.name) {
@@ -602,11 +638,6 @@ describe('the generated controllers run on their adapter', () => {
             }
 
             return row(2, data);
-          },
-          findAll: async (options) => {
-            calls.findAll = options;
-
-            return [row(1, { name: 'one' })];
           },
           findByPk: async (id) => {
             if (id === 'unknown') {
@@ -618,6 +649,17 @@ describe('the generated controllers run on their adapter', () => {
             }
 
             return String(id) === '1' ? row(1, { name: 'one' }) : null;
+          },
+          paginate: async (options) => {
+            calls.paginate = options;
+
+            return {
+              page: options.page,
+              pages: 1,
+              perPage: options.perPage,
+              records: [row(1, { name: 'one' })],
+              total: 1,
+            };
           },
         },
       };
@@ -632,7 +674,7 @@ describe('the generated controllers run on their adapter', () => {
       sql = path.join(scaffolded.app, 'app/controllers/tasks.js');
     });
 
-    test('index pages with limit and offset', async () => {
+    test('index pages with the same paginate() call', async () => {
       const fake = sequelizeModel();
 
       global.Task = fake.model;
@@ -642,7 +684,12 @@ describe('the generated controllers run on their adapter', () => {
 
       await controller.index(fakeReq(), res);
 
-      expect(fake.calls.findAll).toEqual({ limit: 25, offset: 0 });
+      expect(fake.calls.paginate).toEqual({
+        limit: 25,
+        page: 1,
+        perPage: 25,
+        skip: 0,
+      });
       expect(res.calls[0][0]).toBe('collection');
       expect(res.calls[0][2]).toEqual({ page: 1, perPage: 25, total: 1 });
 

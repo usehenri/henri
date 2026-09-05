@@ -15,11 +15,12 @@ Every henri controller can answer JSON, and the answers follow the conventions a
 // app/controllers/tasks.js
 module.exports = {
   async index(req, res) {
-    const { page, perPage, skip, limit } = req.pagination();
-    const [tasks, total] = await Promise.all([
-      Task.find().skip(skip).limit(limit),
-      Task.countDocuments(),
-    ]);
+    const {
+      records: tasks,
+      page,
+      perPage,
+      total,
+    } = await Task.paginate(req.pagination());
 
     return res.negotiate({
       html: () => res.render('/tasks', { data: { tasks } }),
