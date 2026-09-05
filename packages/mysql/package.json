@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/mysql",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "henri mariadb/mysql database connector",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
