@@ -86,9 +86,11 @@ installing where that download is unwanted.
 
 `.github/workflows/release.yml` runs on pushes to `master`. With pending
 changesets it opens or updates a "Version Packages" pull request; merging that
-PR publishes to npm with provenance and creates GitHub releases. Publishing
-authenticates with npm trusted publishing (OIDC) or an `NPM_TOKEN` repository
-secret if one is set.
+PR runs the publish job, which publishes to npm with provenance and creates
+GitHub releases. Publishing uses npm trusted publishing (OIDC): every public
+package trusts this repository's `release.yml` running in the `npm` GitHub
+environment. There is no npm token to rotate; a new package needs its trusted
+publisher registered on npmjs.com before its first release.
 
 ## Known gaps
 
