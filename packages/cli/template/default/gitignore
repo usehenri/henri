@@ -6,7 +6,7 @@
 
 # production
 /build
-/app/views/.next
+.next/
 
 # henri runtime (model globals for the linter)
 /.henri

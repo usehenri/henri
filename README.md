@@ -25,8 +25,6 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
 - [GraphQL](#graphql)
 - [Views](#views)
   - [React](#react)
-    - [Inferno](#inferno)
-    - [Preact](#preact)
   - [Vue.js](#vue)
   - [Handlebars](#handlebars)
   - [Fetching data again](#fetching-data-again)
@@ -387,42 +385,6 @@ module.exports = {
     return config;
   },
 };
-```
-
-#### Inferno
-
-You can use Inferno instead of React in production. In development, React will be used for hot re/loading.
-
-Installation:
-
-```bash
-yarn add react react-dom inferno inferno-compat inferno-server
-```
-
-Usage (config file):
-
-```json
-{
-  "renderer": "inferno"
-}
-```
-
-#### Preact
-
-You can use Preact instead of React in production. In development, React will be used for hot re/loading.
-
-Installation:
-
-```bash
-yarn add react react-dom preact preact-compat
-```
-
-Usage (config file):
-
-```json
-{
-  "renderer": "preact"
-}
 ```
 
 ### Vue.js
