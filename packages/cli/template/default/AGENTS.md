@@ -64,6 +64,10 @@ documents carry `_id`.{{/if}}{{#if drizzle}}the drizzle model (`where`, `order`,
 
 ## Controllers
 
+- `before: { all: [...], 'show,edit,update,destroy': loadPost }` runs hooks
+  ahead of those actions (rails' `before_action`; `[fn, { only, except, run }]`
+  works too), and one that answers ends the request.
+- An action that returns without answering renders its own page with what it returned: `show: async (req) => ({ post: req.post })` renders `/posts/show`, `index` renders `/posts`.
 - `req.permit('title', 'body')` picks the allowed fields from query, body and
   params (later wins). Never pass `req.body` to a model.
 - `res.negotiate({ html: () => res.render('/posts/show', { data: { post } }),
@@ -73,6 +77,7 @@ json: () => res.resource(post) })`: the page for browsers, HAL for API
   destroy. Mutations honour `Idempotency-Key`; rate limits apply outside dev.
 - `res.boom.notFound(message, data)`, `badData` (422), `badRequest`,
   `unauthorized`, `forbidden`, `conflict`, `tooManyRequests` answer JSON.
+- `req.flash('notice', 'Saved')` before a redirect: the next page rendered gets it in `flash.notice`, once (needs a user model, so a session).
 - `req.user` is the logged-in user or undefined. Log with
   `henri.pen.info|warn|error('scope', ...)`, not `console.log`.
 - `app/controllers/tasks.js` (scaffolded) is the reference implementation.
@@ -81,18 +86,16 @@ json: () => res.resource(post) })`: the page for browsers, HAL for API
 
 ```js
 module.exports = {
-  'get /': 'main#home',
-  'resources posts': 'posts', // index, new, create, show, edit, update, destroy
-  'crud items': { controller: 'items', scope: 'api', omit: ['destroy'] }, // JSON: index, create, update
-  'get /admin': { controller: 'admin#index', roles: ['admin'] },
+  root: 'main#home', // GET /, like 'get /': 'main#home'
+  'resources posts': { only: ['index', 'show'], member: ['post archive'] },
+  'crud items': { scope: 'api', except: ['destroy'] }, // JSON: index, create, update
+  'namespace admin': { 'resources posts': { roles: ['admin'] } }, // admin/posts
 };
 ```
 
-Keys are `'<verb> /path'` (verb defaults to `get`, `:id` params); values are
-`'controller#action'` or `{ controller, roles, scope, omit }`. `roles` requires
-a logged-in user owning every role (401/403 as JSON, redirect to `/login` for
-browsers). `henri routes --json` prints the expanded table with the helper
-names (`show_tasks_path`); views use them with `getRoute()` and `pathFor()`.
+Keys are `'<verb> /path'` (verb defaults to `get`, `:id` params), `root`, `resources|crud <name>` or `namespace <name>` (a routes object; its controllers live in `app/controllers/admin/`).
+Values are `'controller#action'` or `{ controller, roles, scope, only, except, member, collection, nested }`: `member`/`collection` add `/posts/:id/x` and `/posts/x`, `nested` expands a routes object under `/posts/:post_id/`, `omit` is the old name of `except`.
+`roles` requires a logged-in user owning every role (401/403 as JSON, redirect to `/login` for browsers). `henri routes --json` prints the expanded table with the helper names (`show_posts_path`); views use them with `getRoute()` and `pathFor()`.
 
 ## Views ({{renderer}})
 

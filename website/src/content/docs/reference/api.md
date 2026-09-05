@@ -1,6 +1,6 @@
 ---
 title: API
-description: What an application touches, the henri global, the request and response helpers, the model file, the adapter and view engine contracts.
+description: What an application touches, the henri global, the request and response helpers, the controller and model files, the adapter and view engine contracts.
 sidebar:
   order: 2
 ---
@@ -19,7 +19,7 @@ sidebar:
 | `henri.mail`        | `send(message)`, `transporter`, `nodemailer`. See [Mail](/guides/mail/).                                                                                                                                                                                          |
 | `henri.graphql`     | `run(query, variables, contextValue)`, `endpoint`, `active`, the error classes. See [GraphQL](/guides/graphql/).                                                                                                                                                  |
 | `henri.router`      | `routes` (the expanded table keyed by `verb path`), `pathForRoles(user)`, `handler` (the Express router the routes are mounted on).                                                                                                                               |
-| `henri.controllers` | `get('name#action')`, `all()`.                                                                                                                                                                                                                                    |
+| `henri.controllers` | `get('name#action')`, `hooks('name#action')` (the `before` hooks of an action, as middlewares), `all()`.                                                                                                                                                          |
 | `henri.server`      | `app` (the Express application), `httpServer`, `express`, `url`, `host`, `port`.                                                                                                                                                                                  |
 | `henri.model`       | `stores` (the adapter instances by store name), `ids` (the model globals), `getStore(name)`.                                                                                                                                                                      |
 | `henri.view`        | `engine` (the view engine), `renderer`, `hbs` (the Handlebars engine, always available).                                                                                                                                                                          |
@@ -32,24 +32,36 @@ On the instance itself: `henri.env`, `isProduction`, `isDev`, `isTest`, `release
 
 ## Request and response
 
-| Member                                                              | Description                                                                                                                                                                                                                           |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `req.permit(...fields)`                                             | The listed fields from the query string, body and path parameters (later sources win); missing fields are omitted. See [Controllers](/guides/controllers/#reqpermitfields).                                                           |
-| `req.user`, `req.isAuthenticated()`                                 | Passport, with a user model: the user instance (without its password) and whether someone is logged in. `req.logIn(user, cb)` and `req.logout(cb)` take callbacks.                                                                    |
-| `req.session`                                                       | The express-session object, with a user model.                                                                                                                                                                                        |
-| `req.csrfToken`                                                     | The CSRF token of the request (a string), with a user model.                                                                                                                                                                          |
-| `req._henri`                                                        | What the view engine reads: `{ csrf, localUrl, paths, query, user }` for every request, plus `data`, `errors`, `graphql` and the role-filtered `paths` after `res.render()` on the React renderer. Pages read it through `withHenri`. |
-| `req.inertia`                                                       | `{ request, errors }` with the Inertia renderer: whether the Inertia client made the request, and the errors set for the next render.                                                                                                 |
-| `res.render(route, options)`                                        | Render a page with `{ data }` or `{ graphql }`, or answer the view options as JSON when the client asks for it. See [Controllers](/guides/controllers/#resrenderroute-options).                                                       |
-| `res.hbs(route, options)`                                           | Same, through the Handlebars engine whatever the renderer.                                                                                                                                                                            |
-| `res.boom.<name>(message, data)`                                    | A JSON error `{ statusCode, error, message, data }`. See [Controllers](/guides/controllers/#resboom).                                                                                                                                 |
-| `res.inertia.errors(obj)`, `res.inertia.location(url)`              | With the Inertia renderer: validation errors for the next render, and an external redirect.                                                                                                                                           |
-| `req.id`                                                            | The request id (`X-Request-Id`, accepted or generated), echoed on the answer and written in the log lines of the request.                                                                                                             |
-| `req.pagination()`                                                  | `{ page, perPage, skip, limit, offset }` from `?page=` and `?per_page=`, bounded by `config.api`.                                                                                                                                     |
-| `req.apiVersion`                                                    | `'v1'` when the client accepts `application/vnd.henri.v1+json`, else `null`.                                                                                                                                                          |
-| `res.resource(record, options)`, `res.collection(records, options)` | HAL answers with `_links` from the route helpers, filtered by roles; `Location` on `201`, `_embedded`, paging links and `Link`/`X-Total-Count` on collections. See [JSON API](/guides/api/).                                          |
-| `res.negotiate({ html, json })`                                     | Runs `html` for browsers and `json` for API clients.                                                                                                                                                                                  |
-| `res.format(handlers)`                                              | Express content negotiation; put `json` before `html`.                                                                                                                                                                                |
+| Member                                                              | Description                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `req.permit(...fields)`                                             | The listed fields from the query string, body and path parameters (later sources win); missing fields are omitted. See [Controllers](/guides/controllers/#reqpermitfields).                                                                                                                 |
+| `req.user`, `req.isAuthenticated()`                                 | Passport, with a user model: the user instance (without its password) and whether someone is logged in. `req.logIn(user, cb)` and `req.logout(cb)` take callbacks.                                                                                                                          |
+| `req.session`                                                       | The express-session object, with a user model.                                                                                                                                                                                                                                              |
+| `req.flash(type, message)`                                          | Queues a flash message; `req.flash(type)` reads and clears one type, `req.flash()` the whole bag. Stored in the session, so a no-op without a user model. See [Controllers](/guides/controllers/#flash-messages).                                                                           |
+| `req.csrfToken`                                                     | The CSRF token of the request (a string), with a user model.                                                                                                                                                                                                                                |
+| `req._henri`                                                        | What the view engine reads: `{ csrf, flash, localUrl, paths, query, user }` for every request, plus `data`, `errors`, `graphql` and the role-filtered `paths` after `res.render()` on the React renderer. Pages read it through `withHenri`. Reading `flash` is what consumes the messages. |
+| `req.inertia`                                                       | `{ request, errors }` with the Inertia renderer: whether the Inertia client made the request, and the errors set for the next render.                                                                                                                                                       |
+| `res.render(route, options)`                                        | Render a page with `{ data }` or `{ graphql }`, or answer the view options as JSON when the client asks for it. An action that returns without answering renders `/<controller>/<action>` with what it returned. See [Controllers](/guides/controllers/#resrenderroute-options).            |
+| `res.hbs(route, options)`                                           | Same, through the Handlebars engine whatever the renderer.                                                                                                                                                                                                                                  |
+| `res.boom.<name>(message, data)`                                    | A JSON error `{ statusCode, error, message, data }`. See [Controllers](/guides/controllers/#resboom).                                                                                                                                                                                       |
+| `res.inertia.errors(obj)`, `res.inertia.location(url)`              | With the Inertia renderer: validation errors for the next render, and an external redirect.                                                                                                                                                                                                 |
+| `req.id`                                                            | The request id (`X-Request-Id`, accepted or generated), echoed on the answer and written in the log lines of the request.                                                                                                                                                                   |
+| `req.pagination()`                                                  | `{ page, perPage, skip, limit, offset }` from `?page=` and `?per_page=`, bounded by `config.api`.                                                                                                                                                                                           |
+| `req.apiVersion`                                                    | `'v1'` when the client accepts `application/vnd.henri.v1+json`, else `null`.                                                                                                                                                                                                                |
+| `res.resource(record, options)`, `res.collection(records, options)` | HAL answers with `_links` from the route helpers, filtered by roles; `Location` on `201`, `_embedded`, paging links and `Link`/`X-Total-Count` on collections. See [JSON API](/guides/api/).                                                                                                |
+| `res.negotiate({ html, json })`                                     | Runs `html` for browsers and `json` for API clients.                                                                                                                                                                                                                                        |
+| `res.format(handlers)`                                              | Express content negotiation; put `json` before `html`.                                                                                                                                                                                                                                      |
+
+## The controller file
+
+```js
+module.exports = {
+  before: { all: [], 'show,edit': loadTask }, // or [fn, { only, except, run }]
+  index: async (req, res) => {},
+};
+```
+
+Every exported function is an action (`tasks#index`); `before` is the only reserved key. Hooks run once the route is allowed, in declaration order, and one that answers ends the request. An action that returns without answering renders `/<controller>/<action>` (`/<controller>` for `index`) with what it returned. See [Controllers](/guides/controllers/).
 
 ## The model file
 
@@ -91,14 +103,14 @@ Core loads `@usehenri/<adapter>` from the application for each store (`adapter` 
 
 Core loads the engine named by `renderer`: Handlebars is built in, `react` resolves `@usehenri/react/engine` and `inertia` `@usehenri/inertia/engine` from the application. An engine is `new Engine(henri)` with:
 
-| Method                          | Description                                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `init()`                        | Level 3: check the dependencies and the layout, create the missing files.                                          |
-| `prepare()`                     | Level 5, before the server listens: build in production, start the dev server.                                     |
-| `fallback(router)`              | Register the catch-all that serves pages no route claimed (`GET` and `HEAD` only) and the static assets.           |
-| `render(req, res, route, opts)` | Used by `res.render()`. `opts` holds `data`, `user`, `paths`, `query`, `csrf`, `localUrl`, `errors` and `graphql`. |
-| `reload()`                      | Optional, called on every application reload.                                                                      |
-| `close()`                       | Optional, called by `henri.stop()`.                                                                                |
+| Method                          | Description                                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `init()`                        | Level 3: check the dependencies and the layout, create the missing files.                                                   |
+| `prepare()`                     | Level 5, before the server listens: build in production, start the dev server.                                              |
+| `fallback(router)`              | Register the catch-all that serves pages no route claimed (`GET` and `HEAD` only) and the static assets.                    |
+| `render(req, res, route, opts)` | Used by `res.render()`. `opts` holds `data`, `user`, `paths`, `query`, `csrf`, `localUrl`, `flash`, `errors` and `graphql`. |
+| `reload()`                      | Optional, called on every application reload.                                                                               |
+| `close()`                       | Optional, called by `henri.stop()`.                                                                                         |
 
 ## Client packages
 

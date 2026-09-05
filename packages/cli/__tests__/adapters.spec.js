@@ -1,8 +1,32 @@
 const fs = require('fs');
 const path = require('path');
 
+const { hooksFor } = require('@usehenri/core/src/base/hooks');
+
 const { version } = require('../package.json');
 const { cleanup, exists, henri, read, tmpdir } = require('./helpers');
+
+/**
+ * Runs the `before` hooks of an action and then the action, the way henri's
+ * router does (a hook that answers ends the request)
+ *
+ * @param {object} controller The generated controller
+ * @param {string} action The action name
+ * @param {object} req The request
+ * @param {object} res The response
+ * @returns {Promise<*>} What the action returned, or nothing
+ */
+const run = async (controller, action, req, res) => {
+  for (const hook of hooksFor(controller.before, action, controller)) {
+    await hook(req, res);
+
+    if (res.calls.length > 0) {
+      return undefined;
+    }
+  }
+
+  return controller[action](req, res);
+};
 
 /**
  * Scaffold an application on an adapter in a temporary directory
@@ -246,7 +270,12 @@ describe('the scaffolded resource follows the adapter', () => {
 
     expect(controller).toContain('Task.query().offset(skip).limit(limit)');
     expect(controller).toContain('Task.count()');
-    expect(controller).toContain('Task.findByIdAndDelete(req.params.id)');
+    // The before hook loads the record; findById() already answers null for
+    // a malformed id, so there is no cast to guard
+    expect(controller).toContain(
+      'req.task = await Task.findById(req.params.id)'
+    );
+    expect(controller).toContain('req.task.destroy()');
     expect(controller).not.toContain('countDocuments');
     expect(controller).not.toContain('CastError');
     expect(read(app, 'app/controllers/main.js')).toContain('Task.find()');
@@ -291,7 +320,8 @@ describe('the scaffolded resource follows the adapter', () => {
     expect(agents).toContain('store `drizzle`');
     expect(agents).toContain('henri db:generate|migrate|push|status');
     expect(agents).not.toContain('{{');
-    expect(agents.split('\n').length).toBeLessThan(150);
+    // The longest combination (inertia + drizzle); see new.spec.js
+    expect(agents.split('\n').length).toBeLessThan(160);
 
     const readme = read(app, 'README.md');
 
@@ -384,7 +414,32 @@ describe('the generated controllers run on their adapter', () => {
    * @returns {object} The model
    */
   const drizzleModel = () => {
-    const rows = [{ id: 1, name: 'one' }];
+    const calls = {};
+    // The methods are hidden so a row still compares to its attributes
+    const row = (attrs) => {
+      const instance = { ...attrs };
+      const hidden = {
+        destroy: async () => {
+          calls.destroyed = instance.id;
+        },
+        update: async (data) => {
+          if (data.name === '') {
+            throw invalid();
+          }
+          calls.updated = data;
+          Object.assign(instance, data);
+
+          return instance;
+        },
+      };
+
+      for (const [name, value] of Object.entries(hidden)) {
+        Object.defineProperty(instance, name, { enumerable: false, value });
+      }
+
+      return instance;
+    };
+    const rows = [row({ id: 1, name: 'one' })];
     const relation = {
       limit: () => relation,
       offset: () => relation,
@@ -440,17 +495,20 @@ describe('the generated controllers run on their adapter', () => {
     delete global.Task;
   });
 
-  test('show answers 404 for an id the store does not know', async () => {
+  test('the before hook answers 404 for an id the store does not know', async () => {
     global.Task = drizzleModel();
 
     const controller = require(path.join(app, 'app/controllers/tasks.js'));
     const missing = fakeRes();
+    const found = fakeRes();
 
-    await controller.show(fakeReq({}, { id: 'unknown' }), missing);
+    await run(controller, 'show', fakeReq({}, { id: 'unknown' }), missing);
+    await run(controller, 'show', fakeReq({}, { id: '1' }), found);
 
     expect(missing.calls).toEqual([
       ['notFound', 404, 'Task unknown not found'],
     ]);
+    expect(found.calls).toEqual([['resource', 200, { id: 1, name: 'one' }]]);
 
     delete global.Task;
   });
@@ -488,8 +546,8 @@ describe('the generated controllers run on their adapter', () => {
     const gone = fakeRes();
     const missing = fakeRes();
 
-    await controller.destroy(fakeReq({}, { id: '1' }), gone);
-    await controller.destroy(fakeReq({}, { id: '9' }), missing);
+    await run(controller, 'destroy', fakeReq({}, { id: '1' }), gone);
+    await run(controller, 'destroy', fakeReq({}, { id: '9' }), missing);
 
     expect(gone.calls).toEqual([['end', 204]]);
     expect(missing.calls).toEqual([['notFound', 404, 'Task 9 not found']]);
@@ -597,14 +655,14 @@ describe('the generated controllers run on their adapter', () => {
       const controller = require(sql);
       const res = fakeRes();
 
-      await controller.show(fakeReq({}, { id: 'unknown' }), res);
+      await run(controller, 'show', fakeReq({}, { id: 'unknown' }), res);
 
       expect(res.calls).toEqual([['notFound', 404, 'Task unknown not found']]);
 
       delete global.Task;
     });
 
-    test('update loads the row then updates it, destroy destroys it', async () => {
+    test('the hook loads the row, then update updates it and destroy destroys it', async () => {
       const fake = sequelizeModel();
 
       global.Task = fake.model;
@@ -613,8 +671,13 @@ describe('the generated controllers run on their adapter', () => {
       const updated = fakeRes();
       const gone = fakeRes();
 
-      await controller.update(fakeReq({ name: 'two' }, { id: '1' }), updated);
-      await controller.destroy(fakeReq({}, { id: '1' }), gone);
+      await run(
+        controller,
+        'update',
+        fakeReq({ name: 'two' }, { id: '1' }),
+        updated
+      );
+      await run(controller, 'destroy', fakeReq({}, { id: '1' }), gone);
 
       expect(fake.calls.updated).toEqual({ name: 'two' });
       expect(updated.calls[0][0]).toBe('resource');

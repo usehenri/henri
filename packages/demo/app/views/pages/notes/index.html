@@ -1,0 +1,22 @@
+<html>
+
+<head>
+  <title>Notes</title>
+</head>
+
+<body>
+  {{#each @flash.notice}}
+  <p class="notice">{{this}}</p>
+  {{/each}}
+
+  <h1>Notes</h1>
+  <ul>
+    {{#each notes}}
+    <li>{{title}}</li>
+    {{else}}
+    <li>No note yet</li>
+    {{/each}}
+  </ul>
+</body>
+
+</html>

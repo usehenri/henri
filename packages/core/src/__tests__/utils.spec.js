@@ -127,12 +127,16 @@ describe('utils', () => {
       });
 
       expect(Object.keys(controllers).sort()).toEqual([
+        'admin/notes',
         'artwork',
         'artworks',
+        'comments',
         'main',
+        'notes',
         'user',
       ]);
       expect(typeof controllers.artwork.index).toBe('function');
+      expect(typeof controllers['admin/notes'].index).toBe('function');
     });
 
     test('nested directories, duplicates and missing directories', () => {

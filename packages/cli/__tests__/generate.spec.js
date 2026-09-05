@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { parse } = require('@babel/parser');
 
+const { hooksFor } = require('@usehenri/core/src/base/hooks');
+
 const { TYPES, parseAttributes } = require('../scripts/generate');
 const {
   cleanup,
@@ -135,6 +137,39 @@ const fakeModel = () => {
     return error;
   };
 
+  // A document with the mongoose methods the controllers call on it; the
+  // methods are hidden so the document still compares to its attributes
+  const document = (attributes) => {
+    const doc = { ...attributes };
+    const hidden = {
+      deleteOne: async () => {
+        calls.deleted = doc.id;
+
+        return { deletedCount: 1 };
+      },
+      save: async () => {
+        if (!doc.title && !doc.name) {
+          throw validation();
+        }
+        calls.saved = doc.id;
+
+        return doc;
+      },
+      set: (data) => {
+        calls.update = data;
+        Object.assign(doc, data);
+
+        return doc;
+      },
+    };
+
+    for (const [name, value] of Object.entries(hidden)) {
+      Object.defineProperty(doc, name, { enumerable: false, value });
+    }
+
+    return doc;
+  };
+
   return {
     calls,
     model: {
@@ -153,20 +188,32 @@ const fakeModel = () => {
           throw cast();
         }
 
-        return id === '1' ? { id: '1', title: 'one' } : null;
-      },
-      findByIdAndDelete: async (id) =>
-        id === '1' ? { id: '1', title: 'one' } : null,
-      findByIdAndUpdate: async (id, data, options) => {
-        calls.update = { data, id, options };
-        if (!data.title) {
-          throw validation();
-        }
-
-        return id === '1' ? { id, ...data } : null;
+        return id === '1' ? document({ id: '1', title: 'one' }) : null;
       },
     },
   };
+};
+
+/**
+ * Runs the `before` hooks of an action and then the action, the way henri's
+ * router does (a hook that answers ends the request)
+ *
+ * @param {object} controller The generated controller
+ * @param {string} action The action name
+ * @param {object} req The request
+ * @param {object} res The response
+ * @returns {Promise<*>} What the action returned, or nothing
+ */
+const run = async (controller, action, req, res) => {
+  for (const hook of hooksFor(controller.before, action, controller)) {
+    await hook(req, res);
+
+    if (res.calls.length > 0) {
+      return undefined;
+    }
+  }
+
+  return controller[action](req, res);
 };
 
 describe('attribute parsing', () => {
@@ -388,8 +435,9 @@ describe('henri generate', () => {
         delete global.Post;
       });
 
-      test('has the seven resources actions', () => {
+      test('has the seven resources actions and a before block', () => {
         expect(Object.keys(controller).sort()).toEqual([
+          'before',
           'create',
           'destroy',
           'edit',
@@ -398,6 +446,15 @@ describe('henri generate', () => {
           'show',
           'update',
         ]);
+        expect(Object.keys(controller.before)).toEqual([
+          'show,edit,update,destroy',
+        ]);
+        expect(hooksFor(controller.before, 'index', controller)).toEqual([]);
+        expect(hooksFor(controller.before, 'show', controller)).toHaveLength(1);
+      });
+
+      test('new returns instead of answering: henri renders its page', async () => {
+        expect(await controller.new()).toEqual({});
       });
 
       test('index answers a paginated HAL collection to JSON clients', async () => {
@@ -465,18 +522,28 @@ describe('henri generate', () => {
         ]);
       });
 
-      test('show answers the resource, renders it for browsers, or 404', async () => {
-        const found = fakeRes();
-        const page = fakeRes();
+      test('the before hook answers a 404 for a missing or malformed id', async () => {
         const missing = fakeRes();
         const malformed = fakeRes();
+        const req = fakeReq({}, { id: '9' });
+
+        await run(controller, 'show', req, missing);
+        await run(controller, 'destroy', fakeReq({}, { id: 'bad' }), malformed);
+
+        expect(missing.calls).toEqual([['notFound', 404, 'Post 9 not found']]);
+        expect(malformed.calls).toEqual([
+          ['notFound', 404, 'Post bad not found'],
+        ]);
+      });
+
+      test('show answers the resource loaded by the hook, or renders it', async () => {
+        const found = fakeRes();
+        const page = fakeRes();
 
         page.negotiate = (handlers) => handlers.html();
 
-        await controller.show(fakeReq({}, { id: '1' }), found);
-        await controller.show(fakeReq({}, { id: '1' }), page);
-        await controller.show(fakeReq({}, { id: '9' }), missing);
-        await controller.show(fakeReq({}, { id: 'bad' }), malformed);
+        await run(controller, 'show', fakeReq({}, { id: '1' }), found);
+        await run(controller, 'show', fakeReq({}, { id: '1' }), page);
 
         expect(found.calls).toEqual([
           ['resource', 200, { id: '1', title: 'one' }],
@@ -488,39 +555,48 @@ describe('henri generate', () => {
             { data: { post: { id: '1', title: 'one' } } },
           ],
         ]);
-        expect(missing.calls).toEqual([['notFound', 404, 'Post 9 not found']]);
-        expect(malformed.calls).toEqual([
-          ['notFound', 404, 'Post bad not found'],
-        ]);
       });
 
       test('update runs the validators and answers the resource', async () => {
         const res = fakeRes();
 
-        await controller.update(
+        await run(
+          controller,
+          'update',
           fakeReq({ title: 'new', unknown: 1 }, { id: '1' }),
           res
         );
 
-        expect(fake.calls.update).toEqual({
-          data: { title: 'new' },
-          id: '1',
-          options: { new: true, runValidators: true },
-        });
+        expect(fake.calls.update).toEqual({ title: 'new' });
+        expect(fake.calls.saved).toBe('1');
         expect(res.calls).toEqual([
           ['resource', 200, { id: '1', title: 'new' }],
         ]);
       });
 
-      test('destroy answers 204 or 404', async () => {
+      test('update answers 422 when the document does not validate', async () => {
+        const res = fakeRes();
+        const req = fakeReq({ title: '' }, { id: '1' });
+
+        await run(controller, 'update', req, res);
+
+        expect(res.calls).toEqual([
+          [
+            'badData',
+            422,
+            'Post validation failed: title: required',
+            { errors: { title: 'Path `title` is required.' } },
+          ],
+        ]);
+      });
+
+      test('destroy answers 204', async () => {
         const found = fakeRes();
-        const missing = fakeRes();
 
-        await controller.destroy(fakeReq({}, { id: '1' }), found);
-        await controller.destroy(fakeReq({}, { id: '9' }), missing);
+        await run(controller, 'destroy', fakeReq({}, { id: '1' }), found);
 
+        expect(fake.calls.deleted).toBe('1');
         expect(found.calls).toEqual([['end', 204]]);
-        expect(missing.calls).toEqual([['notFound', 404, 'Post 9 not found']]);
       });
     });
 
@@ -553,11 +629,13 @@ describe('henri generate', () => {
       );
 
       expect(Object.keys(controller).sort()).toEqual([
+        'before',
         'create',
         'destroy',
         'index',
         'update',
       ]);
+      expect(Object.keys(controller.before)).toEqual(['update,destroy']);
       expect(routesOf(app)['crud categories']).toBe('categories');
       expect(read(app, 'app/controllers/categories.js')).not.toContain(
         'res.render'
@@ -579,7 +657,7 @@ describe('henri generate', () => {
 
         await controller.index(fakeReq(), index);
         await controller.create(fakeReq({ name: 'n', title: 't' }), create);
-        await controller.destroy(fakeReq({}, { id: '1' }), destroy);
+        await run(controller, 'destroy', fakeReq({}, { id: '1' }), destroy);
 
         expect(index.calls).toEqual([
           [

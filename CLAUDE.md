@@ -15,7 +15,7 @@ minimum supported at runtime.
 ```bash
 mise install                          # node + pnpm from mise.toml
 pnpm install                          # whole workspace; builds @usehenri/react dist
-pnpm test                             # vitest 5, all packages (NODE_ENV=test)
+pnpm test                             # vitest 5, all packages (rebuilds @usehenri/react first)
 pnpm test packages/core               # one package (path filter); `pnpm test:cover` for coverage
 pnpm test:sql                         # the SQL adapters only (sqlite; see below for a live server)
 pnpm lint                             # eslint 10 flat config, zero warnings in CI
@@ -131,12 +131,24 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   cookie `henri.csrf`, header `X-CSRF-Token` or body `_csrf`) and
   `req.permit()` (`base/params.js`). Views and JSON only ever get
   `publicUser()` (`{ id, email, roles }` + `config.user.public`).
-- The router (`5.router.js`) expands `config/routes.js`, sets `req._henri`
-  (`csrf`, `localUrl`, `paths`, `query`, `user`) and `res.render()`, which
-  builds the view options (`data` or a `graphql` query, `errors`, role-filtered
-  `paths`) and content-negotiates HTML (the engine) or JSON. `res.boom.*`
-  (`base/boom.js`) answers `{ statusCode, error, message, data }`; 404 and 500
-  are negotiated in `base/http.js`.
+- The router (`5.router.js`) expands `config/routes.js` through
+  `base/routes.js` (`root`, `resources`/`crud` with `only`/`except`/`omit`,
+  `member`, `collection`, `namespace`, `nested`; `@usehenri/cli` requires the
+  same module so `henri routes` and `henri doctor` read the same table), sets
+  `req._henri` (`csrf`, `flash`, `localUrl`, `paths`, `query`, `user`) and
+  `res.render()`, which builds the view options (`data` or a `graphql` query,
+  `errors`, `flash`, role-filtered `paths`) and content-negotiates HTML (the
+  engine) or JSON. `res.boom.*` (`base/boom.js`) answers
+  `{ statusCode, error, message, data }`; 404 and 500 are negotiated in
+  `base/http.js`.
+- Controllers may export `before` (`base/hooks.js`): hooks the router runs
+  between the role guard and the action, keyed by action (`all`,
+  `'show,edit'`) or as `[fn, { run, only, except }]`; a hook that answers ends
+  the request, and `before` is the one export that is never an action. The
+  same module wraps every action so that returning without answering renders
+  `/<controller>/<action>` (`/<controller>` for `index`) with what it
+  returned. `req.flash()` (`base/flash.js`) keeps one-shot messages in the
+  express session and the views read them once through `flash`.
 - View engines implement `init()`, `prepare()`, `fallback(router)`,
   `render(req, res, route, opts)` and optionally `reload()` and `close()`. The
   Handlebars engine lives in `core/src/engines/template.js`; `react` resolves

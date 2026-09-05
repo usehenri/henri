@@ -41,7 +41,27 @@ const invalid = (res, error) => {
   return res.boom.badData(error.message, { errors });
 };
 
+/**
+ * Loads the artwork of `:id` into `req.artwork`, the way rails'
+ * before_action does. A hook that answers ends the request: the actions
+ * below only ever run with a document.
+ *
+ * @param {object} req Express request
+ * @param {object} res Express response
+ * @returns {Promise<object|undefined>} The 404 answer, or nothing
+ */
+const loadArtwork = async (req, res) => {
+  req.artwork = await byId(Artwork.findById(req.params.id));
+
+  if (!req.artwork) {
+    return res.boom.notFound(`Artwork ${req.params.id} not found`);
+  }
+};
+
 module.exports = {
+  // Runs before these actions, in this order (henri's before_action)
+  before: { 'show,edit,update,destroy': loadArtwork },
+
   index: async (req, res) => {
     // Page and size from ?page=2&per_page=50, bounded by config.api.maxPerPage
     const { page, perPage, skip, limit } = req.pagination();
@@ -63,9 +83,9 @@ module.exports = {
     });
   },
 
-  new: async (req, res) => {
-    res.render('/artworks/new');
-  },
+  // No answer, no res.render(): what an action returns is the data of its
+  // own page, here app/views/pages/artworks/new.js
+  new: async () => ({}),
 
   create: async (req, res) => {
     let artwork;
@@ -83,62 +103,37 @@ module.exports = {
     });
   },
 
-  show: async (req, res) => {
-    const artwork = await byId(Artwork.findById(req.params.id));
+  // req.artwork comes from the before hook above
+  show: async (req, res) =>
+    res.negotiate({
+      html: () =>
+        res.render('/artworks/show', { data: { artwork: req.artwork } }),
+      json: () => res.resource(req.artwork),
+    }),
 
-    if (!artwork) {
-      return res.boom.notFound(`Artwork ${req.params.id} not found`);
-    }
-
-    return res.negotiate({
-      html: () => res.render('/artworks/show', { data: { artwork } }),
-      json: () => res.resource(artwork),
-    });
-  },
-
-  edit: async (req, res) => {
-    const artwork = await byId(Artwork.findById(req.params.id));
-
-    if (!artwork) {
-      return res.boom.notFound(`Artwork ${req.params.id} not found`);
-    }
-
-    return res.negotiate({
-      html: () => res.render('/artworks/edit', { data: { artwork } }),
-      json: () => res.resource(artwork),
-    });
-  },
+  edit: async (req, res) =>
+    res.negotiate({
+      html: () =>
+        res.render('/artworks/edit', { data: { artwork: req.artwork } }),
+      json: () => res.resource(req.artwork),
+    }),
 
   update: async (req, res) => {
-    let artwork;
-
     try {
-      artwork = await byId(
-        Artwork.findByIdAndUpdate(req.params.id, req.permit(...FIELDS), {
-          new: true,
-          runValidators: true,
-        })
-      );
+      req.artwork.set(req.permit(...FIELDS));
+      await req.artwork.save();
     } catch (error) {
       return invalid(res, error);
     }
 
-    if (!artwork) {
-      return res.boom.notFound(`Artwork ${req.params.id} not found`);
-    }
-
     return res.negotiate({
-      html: () => res.redirect(`/artworks/${artwork.id}`),
-      json: () => res.resource(artwork),
+      html: () => res.redirect(`/artworks/${req.artwork.id}`),
+      json: () => res.resource(req.artwork),
     });
   },
 
   destroy: async (req, res) => {
-    const artwork = await byId(Artwork.findByIdAndDelete(req.params.id));
-
-    if (!artwork) {
-      return res.boom.notFound(`Artwork ${req.params.id} not found`);
-    }
+    await req.artwork.deleteOne();
 
     return res.negotiate({
       html: () => res.redirect('/artworks'),

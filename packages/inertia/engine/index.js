@@ -794,6 +794,7 @@ class InertiaEngine {
         csrf: csrfToken(req, opts),
         data: opts.data || {},
         errors,
+        flash: opts.flash || {},
         graphql: opts.graphql || null,
         localUrl: opts.localUrl || '',
         paths: opts.paths || {},

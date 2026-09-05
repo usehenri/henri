@@ -15,6 +15,9 @@ const {
 const { jsonTypes, noStore, versionGuard } = require('./base/headers');
 const { idempotency } = require('./base/idempotency');
 const { limiter, shutdown } = require('./base/rate-limit');
+const { table } = require('./base/routes');
+const flash = require('./base/flash');
+const { implicit, track } = require('./base/hooks');
 
 /** Verbs of the routes that change something (idempotency applies) */
 const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
@@ -102,13 +105,7 @@ class Router extends BaseModule {
       }
     }
 
-    for (const key in this.rawRoutes) {
-      if (typeof this.rawRoutes[key] !== 'undefined') {
-        const result = new Route(key, this.rawRoutes[key]);
-
-        this.routes = Object.assign({}, this.routes, result);
-      }
-    }
+    this.routes = table(this.rawRoutes);
 
     for (let key of Object.keys(this.routes)) {
       if (typeof this.routes[key] !== 'undefined') {
@@ -279,6 +276,10 @@ class Router extends BaseModule {
       route,
       verb,
     });
+    // `before` hooks of the controller, then the action wrapped so that
+    // returning without answering renders its page (see base/hooks.js)
+    const hooks = this.hooks(controller);
+    const handler = implicit(action, controllerName, controllerAction);
 
     if (!roles) {
       if (typeof this._roles['guest'] === 'undefined') {
@@ -291,7 +292,7 @@ class Router extends BaseModule {
         route,
       };
 
-      return this.handler[verb](route, ...before, ...after, action);
+      return this.handler[verb](route, ...before, ...after, ...hooks, handler);
     }
 
     if (!Array.isArray(roles)) {
@@ -323,8 +324,35 @@ class Router extends BaseModule {
       ...before,
       this.roleGuard(roles, name),
       ...after,
-      action
+      ...hooks,
+      handler
     );
+  }
+
+  /**
+   * The `before` hooks of a controller action, as middlewares
+   *
+   * They run once the route is allowed (behind the role guard and the
+   * idempotency replay), right before the action.
+   *
+   * @param {string} controller the controller (`tasks#show`)
+   * @returns {Array<function>} express middlewares
+   * @memberof Router
+   */
+  hooks(controller) {
+    const { controllers } = this.henri;
+
+    if (!controllers || typeof controllers.hooks !== 'function') {
+      return [];
+    }
+
+    const found = controllers.hooks(controller);
+
+    if (found.length > 0) {
+      debug('%s runs %d before hook(s)', controller, found.length);
+    }
+
+    return found;
   }
 
   /**
@@ -516,6 +544,8 @@ class Router extends BaseModule {
       csrf: req.csrfToken || null,
       data: payload,
       errors,
+      // Read once per request: rendering a page consumes the messages
+      flash: flash.consume(req),
       localUrl: this.henri.server.url,
       paths: this.pathForRoles(req.user),
       query: req.query,
@@ -606,6 +636,9 @@ class Router extends BaseModule {
    * @memberof Router
    */
   middlewares() {
+    // `req.flash()` first: the login and logout middlewares below use it too
+    this.handler.use(flash());
+
     if (this.henri._middlewares.length > 0) {
       let middlewaresLoaded = [];
 
@@ -623,13 +656,16 @@ class Router extends BaseModule {
 
     this.handler.use((req, res, cb) => {
       res.locals._req = req;
-      req._henri = {
+      // `flash` is defined lazily: reading it (the view engine copies
+      // `req._henri`) is what consumes the messages, so a request that never
+      // renders leaves them in the session for the next one
+      req._henri = flash.expose(req, {
         csrf: req.csrfToken || null,
         localUrl: this.henri.server.url,
         paths: this._roles['guest'],
         query: req.query,
         user: this.publicUser(req.user),
-      };
+      });
 
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
@@ -696,6 +732,11 @@ class Router extends BaseModule {
           json: () => res.json(opts),
         });
       };
+
+      // Tells an action that answered from one that returned without
+      // answering, which is what the implicit render needs
+      track(res);
+
       cb();
     });
 
@@ -713,163 +754,4 @@ class Router extends BaseModule {
     return false;
   }
 }
-
-/**
- * Route helper class
- *
- * @class Route
- */
-class Route {
-  /**
-   * Creates an instance of Route.
-   *
-   * @param {string} key verb + route (ex: get /paintings)
-   * @param {object} opts route options (scope, roles, etc)
-   * @memberof Route
-   */
-  constructor(key, opts) {
-    this.verb = '';
-    this.route = '';
-    this.opts = typeof opts === 'string' ? { controller: opts } : opts;
-    this.result = {};
-    this.scope = this.opts.scope ? `/${this.opts.scope}/` : '/';
-    this.parse(key, opts);
-    this.process();
-
-    return this.result;
-  }
-
-  /**
-   * Parse the route
-   *
-   * @param {string} key verb + route (ex: get /paintings)
-   * @returns {void}
-   * @memberof Route
-   */
-  parse(key) {
-    const routeKey = key.split(' ');
-    const verb = routeKey.length > 1 ? routeKey[0].toLowerCase() : 'get';
-
-    this.route = routeKey.length > 1 ? routeKey[1] : key;
-    this.verb = !verbs.includes(verb) ? 'get' : verb;
-    this.opts = Object.assign(this.opts, { route: this.route, verb });
-  }
-
-  /**
-   * Process the route information taken in the constructor
-   *
-   * @returns {void}
-   * @memberof Route
-   */
-  process() {
-    if (this.verb === 'resources' || this.verb === 'crud') {
-      const route = trim(this.route, '/');
-
-      this.buildResource(`get`, `${this.scope}${route}`, 'index');
-      this.buildResource(`post`, `${this.scope}${route}`, 'create');
-      this.buildResource(`patch`, `${this.scope}${route}/:id`, 'update');
-      this.buildResource(`put`, `${this.scope}${route}/:id`, 'update');
-      this.buildResource(`delete`, `${this.scope}${route}/:id`, 'destroy');
-
-      if (this.verb === 'resources') {
-        this.buildResource(`get`, `${this.scope}${route}/:id/edit`, 'edit');
-        this.buildResource(`get`, `${this.scope}${route}/new`, 'new');
-        this.buildResource(`get`, `${this.scope}${route}/:id`, 'show');
-      }
-    } else {
-      this.buildResource(this.verb, this.route);
-    }
-  }
-
-  /**
-   * Builds a resource (multiple routes for a resource)
-   *
-   * @param {string} verb http verb (get, post, put, etc.)
-   * @param {string} urlPath the key (url)
-   * @param {string} method action (create,edit, update, destroy, etc.)
-   * @return {void}
-   * @memberof Route
-   */
-  buildResource(verb, urlPath, method) {
-    if (this.opts.omit && this.opts.omit.includes(method)) {
-      return;
-    }
-    const rebuilt = path.posix.normalize(urlPath);
-
-    this.result[`${verb} ${rebuilt}`] = this.buildOpts(verb, rebuilt, method);
-  }
-
-  /**
-   * Builds the route object that will be used finally
-   *
-   * @param {string} verb http verb (get, post, put, etc.)
-   * @param {string} urlPath the key (url)
-   * @param {string} method action (create,edit, update, destroy, etc.)
-   * @returns {object} a router-readable object
-   * @memberof Route
-   */
-  buildOpts(verb, urlPath, method = null) {
-    const { opts } = this;
-    const controller = method
-      ? `${opts.controller}#${method}`
-      : opts.controller;
-    const [name, action] = controller.split('#');
-
-    return Object.assign({}, opts, {
-      controller: controller,
-      path: `${action}_${name}_path`,
-      // Expanded from `resources`/`crud`: HAL is enforced on these
-      resource: Boolean(method),
-      route: urlPath,
-      verb: verb,
-    });
-  }
-}
-
-const verbs = [
-  'checkout',
-  'copy',
-  'delete',
-  'get',
-  'head',
-  'lock',
-  'merge',
-  'mkactivity',
-  'mkcol',
-  'move',
-  'm-search',
-  'notify',
-  'options',
-  'patch',
-  'post',
-  'purge',
-  'put',
-  'report',
-  'search',
-  'subscribe',
-  'trace',
-  'unlock',
-  'unsubscribe',
-  'resources',
-  'crud',
-];
-
-/**
- * Trims a string
- *
- * @param {string} str string to be trimmed
- * @param {string} mask unwanted char
- * @returns {string} trimmed string
- */
-function trim(str, mask) {
-  while (~mask.indexOf(str[0])) {
-    str = str.slice(1);
-  }
-  while (~mask.indexOf(str[str.length - 1])) {
-    str = str.slice(0, -1);
-  }
-
-  return str;
-}
-
 module.exports = Router;

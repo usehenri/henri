@@ -9,6 +9,11 @@
  * for the drizzle adapter; see scripts/adapters.js). The output goes through
  * prettier, so the indentation here does not matter.
  *
+ * The shape is the rails one: a `before` block loads the record of `:id` once
+ * for the actions that need it (a hook that answers ends the request), and
+ * `new` returns instead of rendering (henri renders the page of the action
+ * with what it returns).
+ *
  * JSON clients get HAL: `res.collection()` for the index, `res.resource()`
  * for one document (201 + Location on create, 204 on destroy). Browsers get
  * the pages and redirects (scaffold only). `res.negotiate({ html, json })`
@@ -65,6 +70,33 @@ const invalid = (res, error) => {
 };
 `;
 
+/**
+ * The `before` hook loading the record of `:id`, around the lookup of a
+ * flavour
+ *
+ * @param {object} opts { doc, lower }
+ * @param {string} lookup The source code setting `req.<lower>`
+ * @returns {string} The source code
+ */
+const loadHelper = ({ doc, lower }, lookup) => `
+/**
+ * Loads the ${lower} of \`:id\` into \`req.${lower}\`, the way rails'
+ * before_action does. A hook that answers ends the request: the actions
+ * below only ever run with a record.
+ *
+ * @param {object} req Express request
+ * @param {object} res Express response
+ * @returns {Promise<object|undefined>} The 404 answer, or nothing
+ */
+const load${doc} = async (req, res) => {
+  ${lookup}
+
+  if (!req.${lower}) {
+    return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
+  }
+};
+`;
+
 // --- mongoose (disk, mongoose) ---------------------------------------------
 
 const mongoose = {
@@ -77,19 +109,8 @@ const mongoose = {
       return invalid(res, error);
     }
 `,
-  destroy: ({ doc, lower }) => `
-    const ${lower} = await byId(${doc}.findByIdAndDelete(req.params.id));
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
-    }
-`,
-  find: ({ doc, lower }) => `
-    const ${lower} = await byId(${doc}.findById(req.params.id));
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
-    }
+  destroy: ({ lower }) => `
+    await req.${lower}.deleteOne();
 `,
   helpers: (opts) => `${fields(opts)}
 /**
@@ -109,6 +130,11 @@ const byId = async (query) => {
   }
 };
 ${validationHelper(opts)}`,
+  load: (opts) =>
+    loadHelper(
+      opts,
+      `req.${opts.lower} = await byId(${opts.doc}.findById(req.params.id));`
+    ),
   page: ({ doc, plural }) => `
     // Page and size from ?page=2&per_page=50, bounded by config.api.maxPerPage
     const { page, perPage, skip, limit } = req.pagination();
@@ -117,22 +143,12 @@ ${validationHelper(opts)}`,
       ${doc}.countDocuments(),
     ]);
 `,
-  update: ({ doc, lower }) => `
-    let ${lower};
-
+  update: ({ lower }) => `
     try {
-      ${lower} = await byId(
-        ${doc}.findByIdAndUpdate(req.params.id, req.permit(...FIELDS), {
-          new: true,
-          runValidators: true,
-        })
-      );
+      req.${lower}.set(req.permit(...FIELDS));
+      await req.${lower}.save();
     } catch (error) {
       return invalid(res, error);
-    }
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
     }
 `,
 };
@@ -144,22 +160,16 @@ ${validationHelper(opts)}`,
 
 const drizzle = {
   create: mongoose.create,
-  destroy: ({ doc, lower }) => `
-    const ${lower} = await ${doc}.findByIdAndDelete(req.params.id);
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
-    }
-`,
-  find: ({ doc, lower }) => `
-    // findById() answers null for a malformed id, no cast to guard
-    const ${lower} = await ${doc}.findById(req.params.id);
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
-    }
+  destroy: ({ lower }) => `
+    await req.${lower}.destroy();
 `,
   helpers: (opts) => `${fields(opts)}${validationHelper(opts)}`,
+  load: (opts) =>
+    loadHelper(
+      opts,
+      `// findById() answers null for a malformed id, no cast to guard
+  req.${opts.lower} = await ${opts.doc}.findById(req.params.id);`
+    ),
   page: ({ doc, plural }) => `
     // Page and size from ?page=2&per_page=50, bounded by config.api.maxPerPage
     const { page, perPage, skip, limit } = req.pagination();
@@ -168,20 +178,11 @@ const drizzle = {
       ${doc}.count(),
     ]);
 `,
-  update: ({ doc, lower }) => `
-    let ${lower};
-
+  update: ({ lower }) => `
     try {
-      ${lower} = await ${doc}.findByIdAndUpdate(
-        req.params.id,
-        req.permit(...FIELDS)
-      );
+      await req.${lower}.update(req.permit(...FIELDS));
     } catch (error) {
       return invalid(res, error);
-    }
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
     }
 `,
 };
@@ -200,21 +201,8 @@ const sequelize = {
       return invalid(res, error);
     }
 `,
-  destroy: ({ doc, lower }) => `
-    const ${lower} = await byId(req.params.id);
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
-    }
-
-    await ${lower}.destroy();
-`,
-  find: ({ doc, lower }) => `
-    const ${lower} = await byId(req.params.id);
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
-    }
+  destroy: ({ lower }) => `
+    await req.${lower}.destroy();
 `,
   helpers: ({ doc, keys }) => `${fields({ keys })}
 /**
@@ -253,6 +241,8 @@ const invalid = (res, error) => {
   return res.boom.badData(error.message, { errors });
 };
 `,
+  load: (opts) =>
+    loadHelper(opts, `req.${opts.lower} = await byId(req.params.id);`),
   page: ({ doc, plural }) => `
     // Page and size from ?page=2&per_page=50, bounded by config.api.maxPerPage
     const { page, perPage, skip, limit } = req.pagination();
@@ -261,15 +251,9 @@ const invalid = (res, error) => {
       ${doc}.count(),
     ]);
 `,
-  update: ({ doc, lower }) => `
-    const ${lower} = await byId(req.params.id);
-
-    if (!${lower}) {
-      return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
-    }
-
+  update: ({ lower }) => `
     try {
-      await ${lower}.update(req.permit(...FIELDS));
+      await req.${lower}.update(req.permit(...FIELDS));
     } catch (error) {
       return invalid(res, error);
     }
@@ -280,10 +264,20 @@ const FLAVOURS = { drizzle, mongoose, sequelize };
 
 // --- the actions ------------------------------------------------------------
 
-const header = (opts) => `${of('helpers', opts)}
+const header = (opts) => `${of('helpers', opts)}${of('load', opts)}
 module.exports = {`;
 
 const footer = () => `};`;
+
+/**
+ * The `before` block of a controller (henri's before_action)
+ *
+ * @param {object} opts { doc, actions }
+ * @returns {string} The source code
+ */
+const before = ({ doc, actions }) => `
+  // Runs before these actions, in this order (henri's before_action)
+  before: { '${actions.join(',')}': load${doc} },`;
 
 const index = (opts) => `
   index: async (req, res) => {
@@ -308,9 +302,9 @@ const indexJson = (opts) => `
   },`;
 
 const newC = ({ plural }) => `
-  new: async (req, res) => {
-    res.render('/${plural}/new');
-  },`;
+  // No answer, no res.render(): what an action returns is the data of its
+  // own page, here app/views/pages/${plural}/new.js
+  new: async () => ({}),`;
 
 const create = (opts) => `
   create: async (req, res) => {
@@ -330,36 +324,35 @@ const createJson = (opts) => `
   },`;
 
 const show = (opts) => `
-  show: async (req, res) => {
-    ${of('find', opts)}
-    return res.negotiate({
-      html: () => res.render('/${opts.plural}/show', { data: { ${opts.lower} } }),
-      json: () => res.resource(${opts.lower}),
-    });
-  },`;
+  // req.${opts.lower} comes from the before hook above
+  show: async (req, res) =>
+    res.negotiate({
+      html: () =>
+        res.render('/${opts.plural}/show', { data: { ${opts.lower}: req.${opts.lower} } }),
+      json: () => res.resource(req.${opts.lower}),
+    }),`;
 
 const edit = (opts) => `
-  edit: async (req, res) => {
-    ${of('find', opts)}
-    return res.negotiate({
-      html: () => res.render('/${opts.plural}/edit', { data: { ${opts.lower} } }),
-      json: () => res.resource(${opts.lower}),
-    });
-  },`;
+  edit: async (req, res) =>
+    res.negotiate({
+      html: () =>
+        res.render('/${opts.plural}/edit', { data: { ${opts.lower}: req.${opts.lower} } }),
+      json: () => res.resource(req.${opts.lower}),
+    }),`;
 
 const update = (opts) => `
   update: async (req, res) => {
     ${of('update', opts)}
     return res.negotiate({
-      html: () => res.redirect(\`/${opts.plural}/\${${opts.lower}.id}\`),
-      json: () => res.resource(${opts.lower}),
+      html: () => res.redirect(\`/${opts.plural}/\${req.${opts.lower}.id}\`),
+      json: () => res.resource(req.${opts.lower}),
     });
   },`;
 
 const updateJson = (opts) => `
   update: async (req, res) => {
     ${of('update', opts)}
-    return res.resource(${opts.lower});
+    return res.resource(req.${opts.lower});
   },`;
 
 const destroy = (opts) => `
@@ -386,6 +379,7 @@ const destroyJson = (opts) => `
 const resources = (opts) =>
   [
     header(opts),
+    before({ actions: ['show', 'edit', 'update', 'destroy'], doc: opts.doc }),
     index(opts),
     newC(opts),
     create(opts),
@@ -405,6 +399,7 @@ const resources = (opts) =>
 const crud = (opts) =>
   [
     header(opts),
+    before({ actions: ['update', 'destroy'], doc: opts.doc }),
     indexJson(opts),
     createJson(opts),
     updateJson(opts),

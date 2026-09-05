@@ -66,6 +66,7 @@ export default withHenri(Tasks);
 | `paths`    | The routes this user may call, keyed like `index_tasks_path`                                                                                     |
 | `csrf`     | The CSRF token, or `null` without a user model                                                                                                   |
 | `errors`   | GraphQL errors of the render, or `null`                                                                                                          |
+| `flash`    | The [flash messages](/guides/controllers/#flash-messages) of this render, by type (`{ notice: ['Saved'] }`)                                      |
 | `graphql`  | `{ endpoint, query }` of the render                                                                                                              |
 | `localUrl` | The url the server listens on                                                                                                                    |
 | `error`    | The error of the last `hydrate()` or client-side fetch, or `null`                                                                                |
@@ -234,7 +235,7 @@ export default function Tasks() {
 }
 ```
 
-`useHenri()` returns the same keys as the React renderer's `withHenri` (`data`, `user`, `paths`, `csrf`, `localUrl`, `errors`, `graphql`, `pathFor`, `getRoute`, `fetch`, `hydrate`) plus `query`. They are the props of the Inertia page object, so `usePage().props` from `@inertiajs/react` holds the raw values. `hydrate()` is an Inertia partial reload of `data`; `fetch(target, payload)` is a JSON request outside the Inertia lifecycle (`GET` data goes in the query string) that sends the CSRF header and rejects with an error carrying `status` and `response`.
+`useHenri()` returns the same keys as the React renderer's `withHenri` (`data`, `user`, `paths`, `csrf`, `localUrl`, `flash`, `errors`, `graphql`, `pathFor`, `getRoute`, `fetch`, `hydrate`) plus `query`. They are the props of the Inertia page object, so `usePage().props` from `@inertiajs/react` holds the raw values. `hydrate()` is an Inertia partial reload of `data`; `fetch(target, payload)` is a JSON request outside the Inertia lifecycle (`GET` data goes in the query string) that sends the CSRF header and rejects with an error carrying `status` and `response`.
 
 Forms submit through Inertia's router: a controller answers with a redirect (`res.redirect('/tasks')`; the engine turns it into a `303` after `PUT`, `PATCH` and `DELETE`) and the client lands on the next page. To show validation errors, render the page again after `res.inertia.errors({ name: 'required' })`: they arrive in `errors`. `res.inertia.location(url)` redirects to an external url.
 

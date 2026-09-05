@@ -1,32 +1,40 @@
 ---
 title: Controllers
-description: Express handlers under app/controllers, autoloaded and reloaded on save.
+description: Express handlers under app/controllers, autoloaded and reloaded on save, with before hooks, implicit rendering and flash messages.
 sidebar:
   order: 2
 ---
 
 Controllers live in `app/controllers`. Every `.js` file there is loaded on boot, reloaded on save and referenced from `config/routes.js` as `file#action`; a file in a subdirectory is prefixed with it (`app/controllers/admin/users.js` is `admin/users#index`).
 
-A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
+A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
 
 ```js
 // app/controllers/tasks.js
 const FIELDS = ['name', 'category', 'done'];
 
+/**
+ * Loads the task of `:id`, or answers a 404 and ends the request
+ *
+ * @param {object} req Express request
+ * @param {object} res Express response
+ * @returns {Promise<object|undefined>} The 404 answer, or nothing
+ */
+const loadTask = async (req, res) => {
+  req.task = await Task.findById(req.params.id);
+
+  if (!req.task) {
+    return res.boom.notFound(`Task ${req.params.id} not found`);
+  }
+};
+
 module.exports = {
-  index: async (req, res) => {
-    res.render('/tasks', { data: { tasks: await Task.find() } });
-  },
+  before: { 'show,edit,update,destroy': loadTask },
 
-  show: async (req, res) => {
-    const task = await Task.findById(req.params.id);
+  // No res.render(): what an action returns is the data of its own page
+  index: async () => ({ tasks: await Task.find() }),
 
-    if (!task) {
-      return res.boom.notFound(`Task ${req.params.id} not found`);
-    }
-
-    return res.render('/tasks/show', { data: { task } });
-  },
+  show: async (req) => ({ task: req.task }),
 
   create: async (req, res) => {
     let task;
@@ -45,18 +53,73 @@ module.exports = {
       });
     }
 
-    return res.format({
+    req.flash('notice', 'Task created');
+
+    return res.negotiate({
       html: () => res.redirect(`/tasks/${task.id}`),
-      json: () => res.status(201).json({ task }),
-      default: () => res.status(201).json({ task }),
+      json: () => res.resource(task, { status: 201 }),
     });
   },
 };
 ```
 
-This is the shape `henri generate scaffold` writes: `req.permit()` for the input, a `422` with one message per field when validation fails, a `404` when the record does not exist, and `res.format()` so the same action serves a browser (redirect) and an API client (JSON).
+This is the shape `henri generate scaffold` writes: a `before` hook loading the record once, `req.permit()` for the input, a `422` with one message per field when validation fails, a `404` when the record does not exist, and `res.negotiate()` so the same action serves a browser (redirect) and an API client (JSON).
 
 Errors thrown or rejected by a controller are logged and answered with a `500`; the message and stack are exposed in development only. Requests nothing claims get a `404`. Both are content negotiated: JSON for API clients (the `res.boom` shape below), an HTML page for browsers.
+
+## `before` hooks
+
+`before` is henri's `before_action`: functions the router runs ahead of the actions they name, in declaration order, once the route is allowed (behind the [role guard](/guides/routes/#roles) and the `Idempotency-Key` replay). A hook is `(req, res, next)` or an async `(req, res)`, and **a hook that answers ends the request**: the action never runs.
+
+```js
+module.exports = {
+  before: {
+    all: [authenticate], // every action
+    show: loadTask, // one action
+    'edit,update,destroy': [loadTask, mustOwnIt], // several
+  },
+  // ...
+};
+```
+
+`all` (or `*`) selects every action, any other key is one action or a comma-separated list. The array form takes the Rails selectors instead:
+
+```js
+module.exports = {
+  before: [
+    authenticate, // every action
+    { only: ['show', 'edit', 'update'], run: loadTask },
+    { except: ['index', 'new'], run: mustOwnIt },
+  ],
+  // ...
+};
+```
+
+A hook may also be given by name (`before: { show: 'loadTask' }`), which resolves to another export of the same controller. `before` is never routable: it is the one key of a controller that is not an action.
+
+## Implicit rendering
+
+An action that returns without answering renders its own page with what it returned, the way Rails renders `tasks/show` when the action falls through:
+
+```js
+show: async (req) => ({ task: req.task }),
+// is res.render('/tasks/show', { data: { task: req.task } })
+```
+
+The page is `/<controller>/<action>`, and `/<controller>` for `index` (`app/views/pages/tasks/index.js` is the `/tasks` page). A non-object return value renders the page with no data. Nothing changes for an action that answers explicitly — `res.render()`, `res.json()`, `res.resource()`, `res.redirect()`, `res.boom.*`, `next()` — even when it does not await the answer. `return false` opts out, for the rare action that answers later on its own.
+
+## Flash messages
+
+`req.flash(type, message)` queues a message in the session; `req.flash(type)` reads and clears it, and `req.flash()` reads and clears the whole bag. A message survives exactly one redirect:
+
+```js
+req.flash('notice', 'Task created');
+res.redirect('/tasks');
+```
+
+The page rendered next receives them as `flash` next to `data`, `user` and `paths` (`{ notice: ['Task created'] }`), which consumes them: `{{#each @flash.notice}}` in a Handlebars page, the `flash` prop of a React page (`useHenri().flash`), `useHenri().flash` with Inertia. A request that renders nothing leaves them alone, so a `POST` that answers JSON does not eat the notice of the page after it.
+
+Flash messages live in the express session, which exists only in an application with a user model. Without one, `req.flash()` is a no-op answering an empty bag rather than an error.
 
 ## `res.render(route, options)`
 
@@ -65,7 +128,7 @@ Errors thrown or rejected by a controller are logged and answered with a `500`; 
 - `data`: an object passed to the page as its `data` prop or template context
 - `graphql`: a query string; its result becomes `data` (see [GraphQL](/guides/graphql/))
 
-Besides `data`, the view engine receives `user` (the public user or `null`), `paths` (the named routes the user may call), `query` (`req.query`), `csrf` (the CSRF token), `localUrl` (the server url), `errors` (GraphQL errors, if any) and `graphql` (`{ endpoint, query }`). A React page gets all of them as props except `query` (use `router.query`); Inertia pages and Handlebars templates get `query` too. A client asking for `application/json` gets the whole object as JSON instead of HTML; this is what the React helpers use to refresh a page.
+Besides `data`, the view engine receives `user` (the public user or `null`), `paths` (the named routes the user may call), `query` (`req.query`), `csrf` (the CSRF token), `localUrl` (the server url), `flash` (the [flash messages](#flash-messages)), `errors` (GraphQL errors, if any) and `graphql` (`{ endpoint, query }`). A React page gets all of them as props except `query` (use `router.query`); Inertia pages and Handlebars templates get `query` too. A client asking for `application/json` gets the whole object as JSON instead of HTML; this is what the React helpers use to refresh a page.
 
 `res.hbs(route, options)` renders a Handlebars template whatever the configured renderer, with the same options.
 
