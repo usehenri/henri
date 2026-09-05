@@ -2,9 +2,18 @@
   "name": "@usehenri/sequelize",
   "version": "1.0.0",
   "description": "henri sequalize class provider",
-  "main": "index.js",
-  "author": "Felix-Antoine Paradis",
   "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/sequelize"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "main": "index.js",
   "dependencies": {
     "connect-session-sequelize": "^8.0.6",
     "sequelize": "^6.37.8"

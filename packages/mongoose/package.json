@@ -2,9 +2,18 @@
   "name": "@usehenri/mongoose",
   "version": "1.0.0",
   "description": "henri mongoose database connector",
-  "main": "index.js",
-  "author": "Felix-Antoine Paradis",
   "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/mongoose"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "main": "index.js",
   "dependencies": {
     "connect-mongo": "^6.0.0",
     "debug": "^4.4.3",

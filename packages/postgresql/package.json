@@ -2,9 +2,18 @@
   "name": "@usehenri/postgresql",
   "version": "1.0.0",
   "description": "henri postgresql database connector",
-  "main": "index.js",
-  "author": "Felix-Antoine Paradis",
   "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/postgresql"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "main": "index.js",
   "dependencies": {
     "@usehenri/sequelize": "workspace:^",
     "pg": "^8.23.0",

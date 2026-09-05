@@ -2,12 +2,21 @@
   "name": "@usehenri/core",
   "version": "1.0.0",
   "description": "henri core package",
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
   "main": "src/index.js",
   "bin": {
     "henri-core": "src/index.js"
   },
-  "author": "Felix-Antoine Paradis",
-  "license": "MIT",
   "dependencies": {
     "@apollo/server": "^5.2.0",
     "@as-integrations/express5": "^1.1.2",
