@@ -1,0 +1,22 @@
+{
+  "name": "@usehenri/website",
+  "private": true,
+  "version": "0.0.0",
+  "description": "usehenri.io - landing page and documentation for henri",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.4",
+    "@astrojs/starlight": "^0.42.0",
+    "astro": "^7.3.1",
+    "sharp": "^0.35.4"
+  }
+}

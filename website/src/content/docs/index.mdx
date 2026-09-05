@@ -1,0 +1,94 @@
+---
+title: henri
+description: henri is an easy to learn, rails-like, server-side rendered JavaScript framework with real ORMs.
+template: splash
+editUrl: false
+lastUpdated: false
+hero:
+  title: The versatile JavaScript framework
+  tagline: An easy to learn, Rails-like, server-side rendered framework for Node.js. Models, controllers, routes and React views, with real ORMs and hot reload out of the box.
+  image:
+    alt: henri
+    file: ../../assets/henri.png
+  actions:
+    - text: Get started
+      link: /getting-started/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/usehenri/henri
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Rails-like structure" icon="open-book">
+    `app/models`, `app/controllers`, `app/views`, `config/routes.js`. If you
+    know Ruby on Rails, you already know where everything goes.
+  </Card>
+  <Card title="Server-side rendered React" icon="rocket">
+    Pages live in `app/views/pages` and are rendered by Next.js. Controllers
+    hand them data with `res.render()`; the same endpoint answers JSON when
+    asked for it.
+  </Card>
+  <Card title="Real ORMs" icon="document">
+    Mongoose for MongoDB, Sequelize for MySQL, MariaDB, PostgreSQL and MSSQL.
+    A zero-config disk store for prototyping. Models are global, like in
+    Rails.
+  </Card>
+  <Card title="GraphQL built in" icon="puzzle">
+    Add a `graphql` key to a model and its types and resolvers are merged into
+    a single schema, served by Apollo Server and queryable from `res.render()`.
+  </Card>
+  <Card title="Hot reload everything" icon="setting">
+    Controllers, models, routes, workers and configuration reload on save.
+    Press `R` in the terminal to list the loaded routes.
+  </Card>
+  <Card title="Generators" icon="pencil">
+    `henri new`, `henri generate model`, `henri generate scaffold`. Users get
+    password hashing, sessions and roles for free.
+  </Card>
+</CardGrid>
+
+<div class="landing-sample">
+
+## A whole app in three files
+
+```js
+// config/routes.js
+module.exports = {
+  'resources tasks': 'tasks',
+  '/': 'tasks#index',
+};
+```
+
+```js
+// app/controllers/tasks.js
+module.exports = {
+  index: async (req, res) => {
+    res.render('/tasks', { data: { tasks: await Task.find() } });
+  },
+  create: async (req, res) => {
+    await Task.create(req.body);
+    res.redirect('/');
+  },
+};
+```
+
+```jsx
+// app/views/pages/tasks.js
+import withHenri from '@usehenri/react';
+
+const Tasks = ({ data }) => (
+  <ul>
+    {data.tasks.map((task) => (
+      <li key={task._id}>{task.name}</li>
+    ))}
+  </ul>
+);
+
+export default withHenri(Tasks);
+```
+
+</div>
