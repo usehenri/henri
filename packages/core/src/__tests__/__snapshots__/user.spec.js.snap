@@ -2,17 +2,29 @@
 
 exports[`user basic should match snapshot 1`] = `
 User {
+  "adapter": [Function],
   "compare": [Function],
   "consoleOnly": false,
+  "deprecatedLogout": [Function],
+  "dummyHash": null,
   "encrypt": [Function],
+  "findByEmail": [Function],
+  "findById": [Function],
   "henri": null,
   "info": [Function],
   "init": [Function],
   "key": null,
+  "login": [Function],
+  "logout": [Function],
   "name": "user",
+  "passport": null,
+  "publicUser": [Function],
   "reloadable": false,
   "runlevel": 4,
+  "sessionStore": null,
+  "settings": null,
   "setup": [Function],
   "start": [Function],
+  "stop": [Function],
 }
 `;

@@ -4,6 +4,7 @@ const fs = require('fs');
 const includeAll = require('include-all');
 const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:model');
+const { userConfig } = require('./base/auth');
 
 /**
  * Model module
@@ -84,7 +85,7 @@ class Model extends BaseModule {
    */
   async configure(models) {
     const { config } = this.henri;
-    const user = config.has('user') ? config.get('user').toLowerCase() : 'user';
+    const user = userConfig(config).model.toLowerCase();
 
     this.reset();
 
@@ -160,7 +161,6 @@ class Model extends BaseModule {
     } = this.henri;
 
     try {
-      // eslint-disable-next-line global-require
       const Pkg = require(resolveFrom(`@usehenri/${conn}`, cwd()));
 
       debug('loaded adapter %s (%s)', store.adapter, conn);
@@ -378,30 +378,54 @@ class Model extends BaseModule {
   /**
    * Gets the connect/express session storage connector from the db adapter
    *
+   * The store is asked to the adapter every time this is called: the user
+   * module wraps it in a proxy (base/session-store.js) that calls back here
+   * after a reload, so nothing closes or replaces the store during a reload;
+   * the adapter closes it in its own stop().
+   *
+   * @async
    * @param {Express.Session} session The express session object
    * @param {string} name The store to get
-   * @returns {Express.MemoryStore} Session.Store or Session.MemoryStore instance
+   * @returns {Promise<Express.Store>} Session.Store (or MemoryStore) instance
+   * @throws when the store is not loaded or the adapter fails
    * @memberof Model
    */
-  getSessionConnector(session, name = 'default') {
-    try {
-      const connector = this.stores[name].getSessionConnector(session);
+  async getSessionConnector(session, name = 'default') {
+    const { pen } = this.henri;
+    const store = this.stores && this.stores[name];
 
-      if (connector instanceof session.MemoryStore) {
-        this.henri.pen.error('model', 'session', 'using MemoryStore instead');
-      } else {
-        this.henri.pen.info(
-          'model',
-          'session',
-          `${this.stores[name].name} (${this.stores[name].adapterName})`
-        );
-      }
-
-      return connector;
-    } catch (error) {
-      bounce.rethrow(error, 'system');
-      this.henri.pen.fatal('model', error);
+    if (!store || typeof store.getSessionConnector !== 'function') {
+      throw new Error(
+        `unable to create a session store: store '${name}' is not loaded`
+      );
     }
+
+    let connector;
+
+    try {
+      connector = await store.getSessionConnector(session);
+
+      // Adapters implementing the async contract return a ready store; a
+      // sequelize-backed store built synchronously still needs its table
+      if (
+        connector &&
+        typeof connector.sync === 'function' &&
+        !(connector instanceof session.MemoryStore)
+      ) {
+        await connector.sync();
+      }
+    } catch (error) {
+      pen.error('model', 'session', `unable to create the store of ${name}`);
+      throw error;
+    }
+
+    if (connector instanceof session.MemoryStore) {
+      pen.error('model', 'session', 'using MemoryStore instead');
+    } else {
+      pen.info('model', 'session', `${store.name} (${store.adapterName})`);
+    }
+
+    return connector;
   }
 
   /**
