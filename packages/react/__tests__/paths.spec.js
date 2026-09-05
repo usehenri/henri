@@ -3,7 +3,6 @@
  */
 const { fill, getRoute, pathFor } = require('../dist/lib/paths');
 
- 
 const paths = {
   edit_tasks_path: { method: 'get', route: '/tasks/:id/edit' },
   index_tasks_path: { method: 'get', route: '/tasks' },
@@ -11,7 +10,6 @@ const paths = {
   show_users_path: { method: 'get', route: '/orgs/:org/users/:id' },
   update_tasks_path: { method: 'patch', route: '/tasks/:id' },
 };
- 
 
 describe('paths', () => {
   let warn;

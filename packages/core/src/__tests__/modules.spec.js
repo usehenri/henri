@@ -72,11 +72,9 @@ describe('henri', () => {
     });
 
     test('should not hit init() if not a function', async () => {
-       
       const log = console.log;
       let logged = 0;
 
-       
       console.log = () => logged++;
       try {
         henri.modules.add(
@@ -90,7 +88,6 @@ describe('henri', () => {
         henri.modules.store[1][0].init = 'abc';
         await henri.modules.init();
       } finally {
-         
         console.log = log;
       }
 

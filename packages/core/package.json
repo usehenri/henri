@@ -50,6 +50,7 @@
     "cors": "^2.8.6",
     "debug": "^4.4.3",
     "detect-port": "^2.1.0",
+    "escape-html": "^1.0.3",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "glob": "^11.0.3",

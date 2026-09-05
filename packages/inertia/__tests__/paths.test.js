@@ -26,7 +26,6 @@ describe('paths', () => {
     ({ resolvePage } = await import('../src/resolve.mjs'));
   });
 
-   
   beforeEach(() => {
     warnings = [];
     warn = console.warn;
@@ -36,7 +35,6 @@ describe('paths', () => {
   afterEach(() => {
     console.warn = warn;
   });
-   
 
   describe('pathFor', () => {
     test('returns the raw entry without params', () => {

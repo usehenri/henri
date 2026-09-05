@@ -142,7 +142,6 @@ describe('pen', () => {
       expect(pen.time()).not.toEqual('');
     });
 
-     
     test('should print have line-feed (default)', () => {
       console.log = vi.fn();
       pen.notTest = true;
@@ -150,7 +149,6 @@ describe('pen', () => {
       expect(console.log).toHaveBeenCalledTimes(1);
     });
 
-     
     test('should print have line-feed (x times)', () => {
       console.log = vi.fn(() => true);
       pen.notTest = true;

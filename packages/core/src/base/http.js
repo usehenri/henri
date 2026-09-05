@@ -1,3 +1,4 @@
+const escapeHtml = require('escape-html');
 const { isLoopback } = require('../utils');
 const { STATUSES } = require('./boom');
 
@@ -7,12 +8,7 @@ const { STATUSES } = require('./boom');
  * @param {any} value the value
  * @returns {string} the escaped string
  */
-const escape = (value) =>
-  String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+const escape = (value) => escapeHtml(String(value));
 
 /**
  * Minimal html error page

@@ -23,16 +23,13 @@ describe('base module', () => {
   });
 
   test('should return console', () => {
-     
     const log = console.log;
     let calls = 0;
 
-     
     console.log = () => calls++;
     try {
       BaseModule._out();
     } finally {
-       
       console.log = log;
     }
 

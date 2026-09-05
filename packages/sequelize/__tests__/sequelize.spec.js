@@ -112,7 +112,7 @@ describe('sequelize adapter', () => {
       const { adapter: quiet } = build({}, { logging: false });
 
       expect(typeof adapter.connector.options.logging).toBe('function');
-       
+
       expect(adapter.connector.options.logging).not.toBe(console.log);
       expect(quiet.connector.options.logging).toBe(false);
     });

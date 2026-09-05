@@ -36,7 +36,6 @@ const main = ({ consoleOnly = false }, cb) => {
         cb();
       }
     } catch (error) {
-       
       console.dir(error, { colors: true });
       process.exit(1);
     }

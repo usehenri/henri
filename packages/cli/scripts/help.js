@@ -1,4 +1,3 @@
- 
 const { commands, helpHeader } = require('./utils');
 
 const FLAGS = `

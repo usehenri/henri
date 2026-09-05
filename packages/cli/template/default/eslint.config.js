@@ -6,16 +6,29 @@ const js = require('@eslint/js');
 const react = require('eslint-plugin-react');
 const globals = require('globals');
 
-// henri writes the global model ids (User, Task, ...) to .henri/globals.json
-// on boot so the linter knows about them.
-let modelGlobals = {};
+// Models are globals (User, Task, ...). Their names come from the files in
+// app/models, plus whatever henri recorded in .henri/globals.json on boot.
+const modelGlobals = {};
 
 try {
-  modelGlobals = JSON.parse(
-    fs.readFileSync(path.join(__dirname, '.henri', 'globals.json'), 'utf8')
+  for (const file of fs.readdirSync(path.join(__dirname, 'app', 'models'))) {
+    if (file.endsWith('.js')) {
+      modelGlobals[path.basename(file, '.js')] = true;
+    }
+  }
+} catch {
+  // No app/models directory yet
+}
+
+try {
+  Object.assign(
+    modelGlobals,
+    JSON.parse(
+      fs.readFileSync(path.join(__dirname, '.henri', 'globals.json'), 'utf8')
+    )
   );
 } catch {
-  // No models loaded yet, nothing to declare
+  // Nothing recorded yet
 }
 
 const henriGlobals = Object.fromEntries(

@@ -127,6 +127,9 @@ importers:
       detect-port:
         specifier: ^2.1.0
         version: 2.1.0
+      escape-html:
+        specifier: ^1.0.3
+        version: 1.0.3
       express:
         specifier: ^5.2.1
         version: 5.2.1(supports-color@8.1.1)
