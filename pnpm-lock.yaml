@@ -215,6 +215,31 @@ importers:
         specifier: workspace:^
         version: link:../cli
 
+  packages/inertia:
+    dependencies:
+      debug:
+        specifier: ^4.4.3
+        version: 4.4.3(supports-color@8.1.1)
+    devDependencies:
+      '@inertiajs/react':
+        specifier: ^3.7.0
+        version: 3.7.0(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@vitejs/plugin-react':
+        specifier: ^6.1.1
+        version: 6.1.1(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(sass@1.104.0)(yaml@2.9.0))
+      react:
+        specifier: ^19.2.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.8(react@19.2.8)
+      sass:
+        specifier: ^1.104.0
+        version: 1.104.0
+      vite:
+        specifier: ^8.2.2
+        version: 8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(sass@1.104.0)(yaml@2.9.0)
+
   packages/mongoose:
     dependencies:
       connect-mongo:
@@ -1840,6 +1865,20 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@inertiajs/core@3.7.0':
+    resolution: {integrity: sha512-JzysXTPsOpKcnR7ohwpgKE+UWBrKwW7z23DydWHSxjfQ02tJAKmNnZJAxnX7zH3zUSTqbtPge6QC8XhvfjNXmw==}
+    peerDependencies:
+      axios: ^1.15.2
+    peerDependenciesMeta:
+      axios:
+        optional: true
+
+  '@inertiajs/react@3.7.0':
+    resolution: {integrity: sha512-rc/TsVT7ihDk+cMeCuU3BjdUfTq6HJwXqGy7oPaysLQCeyfhIaP2QgExo5R1QSCFIwl9un0MeZnzTOG+i38jLw==}
+    peerDependencies:
+      react: ^19.0.0
+      react-dom: ^19.0.0
+
   '@inquirer/ansi@1.0.2':
     resolution: {integrity: sha512-S8qNSZiYzFd0wAcyG5AXCvUHC5Sr7xpZ9wZ2py9XR88jUz8wooStVx5M6dRzczbBWjic9NP7+rY0Xi7qqK/aMQ==}
     engines: {node: '>=18'}
@@ -3191,6 +3230,22 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@vitejs/plugin-react@6.1.1':
+    resolution: {integrity: sha512-yxLaQV9gkhS8ezJqCM6+ndU7mDY6gqAg75NQ+0IjwEI8IYOmQCgkRwHKVSfWXW076DsqMo0Dk+0FK1U+M5RgFw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@rolldown/plugin-babel': ^0.1.7 || ^0.2.0
+      babel-plugin-react-compiler: ^1.0.0
+      oxc-transform-react: ^0.145.0
+      vite: ^8.0.0
+    peerDependenciesMeta:
+      '@rolldown/plugin-babel':
+        optional: true
+      babel-plugin-react-compiler:
+        optional: true
+      oxc-transform-react:
+        optional: true
+
   '@whatwg-node/promise-helpers@1.3.2':
     resolution: {integrity: sha512-Nst5JdK47VIl9UcGwtv2Rcgyn5lWtZ0/mhRQ4G8NN2isxpq2TO30iqHzmwoJycjWuyUfg3GFXqP/gFHXeV57IA==}
     engines: {node: '>=16.0.0'}
@@ -3968,6 +4023,9 @@ packages:
   es-set-tostringtag@2.1.0:
     resolution: {integrity: sha512-j6vWzfrGVfyXxge+O0x5sh6cvxAog0a/4Rdd2K36zCMV5eJ+/+tOAngRO8cODMNWbVRdVlmGZQL2YS3yR8bIUA==}
     engines: {node: '>= 0.4'}
+
+  es-toolkit@1.52.0:
+    resolution: {integrity: sha512-XTNEJQh1tY1ZJVcf6ayP/2n4ZPyaHlW2FWs7xvw5ddPuhUVjLD3olQVQS7kf58JbAB48iL0uL/jerTrjtV3lDA==}
 
   esbuild@0.28.2:
     resolution: {integrity: sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==}
@@ -4809,6 +4867,14 @@ packages:
   kruptein@3.0.8:
     resolution: {integrity: sha512-0CyalFA0Cjp3jnziMp0u1uLZW2/ouhQ0mEMfYlroBXNe86na1RwAuwBcdRAegeWZNMfQy/G5fN47g/Axjtqrfw==}
     engines: {node: '>8'}
+
+  laravel-precognition@2.0.0:
+    resolution: {integrity: sha512-dmA4HGc9m+TsVNsJs9/XQBI8u6j7coilN+qKkBuhuXQzH3HypwS/c5dFQ4UqUGjBbcxIM7zdk91kM/SRZwIvWQ==}
+    peerDependencies:
+      axios: ^1.4.0
+    peerDependenciesMeta:
+      axios:
+        optional: true
 
   launch-editor@2.14.1:
     resolution: {integrity: sha512-QWBrQsMpH7gPr965dsKD/3cKWiNoTjpATQf++Xq63N6sKRGMwlVXz41O1IZTMfZQgBctD/K5Zt06+/I6pP6+HA==}
@@ -8314,6 +8380,24 @@ snapshots:
   '@img/sharp-win32-x64@0.35.4':
     optional: true
 
+  '@inertiajs/core@3.7.0(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))':
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      es-toolkit: 1.52.0
+      laravel-precognition: 2.0.0(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
+    optionalDependencies:
+      axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+
+  '@inertiajs/react@3.7.0(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@inertiajs/core': 3.7.0(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
+      es-toolkit: 1.52.0
+      laravel-precognition: 2.0.0(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+    transitivePeerDependencies:
+      - axios
+
   '@inquirer/ansi@1.0.2': {}
 
   '@inquirer/ansi@2.0.8': {}
@@ -9487,6 +9571,11 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
 
+  '@vitejs/plugin-react@6.1.1(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(sass@1.104.0)(yaml@2.9.0))':
+    dependencies:
+      '@rolldown/pluginutils': 1.0.1
+      vite: 8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(sass@1.104.0)(yaml@2.9.0)
+
   '@whatwg-node/promise-helpers@1.3.2':
     dependencies:
       tslib: 2.8.1
@@ -10315,6 +10404,8 @@ snapshots:
       get-intrinsic: 1.3.0
       has-tostringtag: 1.0.2
       hasown: 2.0.4
+
+  es-toolkit@1.52.0: {}
 
   esbuild@0.28.2:
     optionalDependencies:
@@ -11465,6 +11556,12 @@ snapshots:
   kruptein@3.0.8:
     dependencies:
       asn1.js: 5.4.1
+
+  laravel-precognition@2.0.0(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)):
+    dependencies:
+      es-toolkit: 1.52.0
+    optionalDependencies:
+      axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
 
   launch-editor@2.14.1:
     dependencies:

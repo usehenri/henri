@@ -69,6 +69,11 @@
     ],
     "roots": [
       "<rootDir>/packages"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/__tests__/fixture/",
+      "/__tests__/helpers\\.js$"
     ]
   }
 }
