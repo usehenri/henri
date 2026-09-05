@@ -1,4 +1,4 @@
-// Models are autoloaded from app/models and exposed globally (here: `Tasks`).
+// Models are autoloaded from app/models and exposed globally (here: `Task`).
 // The schema is handed to the store adapter (mongoose for disk/mongodb).
 module.exports = {
   options: {

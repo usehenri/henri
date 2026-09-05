@@ -318,21 +318,21 @@ describe('henri new --renderer inertia', () => {
     );
 
     for (const file of [
-      'app/models/Tasks.js',
+      'app/models/Task.js',
       'app/controllers/tasks.js',
       'app/views/pages/tasks/index.jsx',
       'app/views/vite.config.mjs',
+      'vitest.config.js',
     ]) {
       expect(exists(app, file)).toBe(true);
     }
 
     // Nothing from the react scaffold generator
     for (const file of [
-      'app/models/Task.js',
+      'app/models/Tasks.js',
       'app/views/pages/tasks/index.js',
       'app/views/pages/tasks/_form.js',
       'test/tasks.test.js',
-      'vitest.config.js',
     ]) {
       expect(exists(app, file)).toBe(false);
     }
