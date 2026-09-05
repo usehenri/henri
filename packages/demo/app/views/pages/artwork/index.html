@@ -1,11 +1,28 @@
 <html>
 
 <head>
-  <title>Hello!</title>
+  <title>Artworks</title>
 </head>
 
 <body>
-  {{> form/index action="/login"}}
+  <h1>Artworks</h1>
+  <ul>
+    {{#each artwork}}
+    <li>{{title}} ({{year}})</li>
+    {{else}}
+    <li>No artwork yet</li>
+    {{/each}}
+  </ul>
+
+  <h2>Add an artwork</h2>
+  <form action="/artwork" method="post">
+    <input type="text" name="title" placeholder="Title" />
+    <input type="number" name="year" placeholder="Year" />
+    <button type="submit">Create</button>
+  </form>
+
+  <h2>Login</h2>
+  {{> form/index action="/login" label="Login"}}
 </body>
 
 </html>
