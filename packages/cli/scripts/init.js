@@ -2,6 +2,7 @@ const spawn = require('cross-spawn');
 const fs = require('fs-extra');
 const path = require('path');
 
+const adapters = require('./adapters');
 const { writeAgentFiles } = require('./agents');
 const { CliError } = require('./errors');
 const { detectPackageManager, format, insideGit, version } = require('./utils');
@@ -55,6 +56,27 @@ const templateDir = () =>
   path.resolve(__dirname, '../template', RENDERERS[renderer]);
 // --- end renderer selection -------------------------------------------------
 
+// --- store selection --------------------------------------------------------
+// `henri new <app> --adapter drizzle --dialect postgres` writes the store of
+// that adapter in config/default.json, depends on its package and driver and
+// generates the sample resource against its model API. The default stays the
+// zero-config `disk` adapter (see scripts/adapters.js).
+let adapter = adapters.DEFAULT_ADAPTER;
+let dialect = adapters.DEFAULT_DIALECT;
+
+/**
+ * Pick the store adapter (and its dialect) from the CLI arguments
+ *
+ * @param {object} args CLI arguments
+ * @returns {string} the adapter
+ */
+const selectAdapter = (args) => {
+  ({ adapter, dialect } = adapters.select(args));
+
+  return adapter;
+};
+// --- end store selection ----------------------------------------------------
+
 /**
  * Initialize a new install in the current directory
  *
@@ -70,6 +92,9 @@ const main = async (args, name) => {
   const projectName = slug(name) || slug(path.basename(cwd)) || 'henri-app';
 
   selectRenderer(args);
+  selectAdapter(args);
+
+  const store = adapters.describe({ adapter, dialect, name: projectName });
 
   console.log('');
 
@@ -84,8 +109,10 @@ const main = async (args, name) => {
   const pm = detectPackageManager(cwd);
 
   copyTemplate(pm);
-  buildPackage(projectName);
-  generateConfig();
+  buildPackage(projectName, store);
+  generateConfig(store);
+  allowBuilds(store);
+  await portSample(store);
 
   // The react template gets its Task sample from the scaffold generator;
   // the other templates ship their own sample pages.
@@ -93,7 +120,7 @@ const main = async (args, name) => {
     await sampleResource(force);
   }
 
-  createReadme(projectName, pm);
+  createReadme(projectName, pm, store);
   createAgentFiles(projectName, force);
   initGit(skipGit);
 
@@ -107,7 +134,7 @@ const main = async (args, name) => {
     You can start coding right away with:
 
     # cd ${name || '.'}${skipInstall ? ` && ${pm} install` : ''} && henri server
-
+${storeNotice(store)}
     Coding agents: AGENTS.md holds the conventions of the app (CLAUDE.md
     points to it) and .mcp.json starts the henri MCP server (henri mcp).
     Check the app anytime with: henri doctor
@@ -130,6 +157,7 @@ const createAgentFiles = (name, force) => {
   );
 
   const { skipped } = writeAgentFiles(process.cwd(), {
+    adapter,
     force,
     name,
     renderer,
@@ -141,14 +169,26 @@ const createAgentFiles = (name, force) => {
 };
 
 /**
+ * Sorts the keys of a dependency map
+ *
+ * @param {object} [deps={}] Dependencies
+ * @returns {object} The same entries, sorted by name
+ */
+const sorted = (deps = {}) =>
+  Object.fromEntries(
+    Object.entries(deps).sort(([left], [right]) => left.localeCompare(right))
+  );
+
+/**
  * Creates or completes the package.json file.
  * Runs after the template copy so template dependencies are merged with
  * anything that already existed in the folder.
  *
  * @param {string} name Project name
+ * @param {object} store The selected store (see scripts/adapters.js)
  * @returns {void}
  */
-const buildPackage = (name) => {
+const buildPackage = (name, store) => {
   const cwd = process.cwd();
   let existing = {};
 
@@ -172,17 +212,25 @@ const buildPackage = (name) => {
       ])
     );
 
+  // The templates depend on the default adapter: swap it for the selected
+  // one and add the driver it needs (drizzle keeps its drivers optional).
+  const dependencies = withCliVersion(templatePkg.dependencies);
+
+  delete dependencies[adapters.PACKAGES[adapters.DEFAULT_ADAPTER]];
+  dependencies[store.package] = `^${version}`;
+  Object.assign(dependencies, store.drivers);
+
   const pkg = {
     ...templatePkg,
     ...existing,
-    dependencies: {
-      ...withCliVersion(templatePkg.dependencies),
+    dependencies: sorted({
+      ...dependencies,
       ...(existing.dependencies || {}),
-    },
-    devDependencies: {
+    }),
+    devDependencies: sorted({
       ...withCliVersion(templatePkg.devDependencies),
       ...(existing.devDependencies || {}),
-    },
+    }),
     henri: version,
     name: existing.name || name,
     scripts: {
@@ -200,9 +248,10 @@ const buildPackage = (name) => {
  *
  * @param {string} name Project name
  * @param {string} pm Package manager
+ * @param {object} store The selected store (see scripts/adapters.js)
  * @returns {void}
  */
-const createReadme = (name, pm) => {
+const createReadme = (name, pm, store) => {
   const cwd = process.cwd();
 
   console.log(' - Adding new readme file...');
@@ -211,7 +260,7 @@ const createReadme = (name, pm) => {
     fs.renameSync(path.join(cwd, 'README.md'), path.join(cwd, 'README.old.md'));
   }
 
-  fs.writeFileSync(path.join(cwd, 'README.md'), readme(name, pm));
+  fs.writeFileSync(path.join(cwd, 'README.md'), readme(name, pm, store));
 };
 
 /**
@@ -219,9 +268,10 @@ const createReadme = (name, pm) => {
  *
  * @param {string} name Project name
  * @param {string} pm Package manager
+ * @param {object} store The selected store (see scripts/adapters.js)
  * @returns {string} Markdown
  */
-const readme = (name, pm) => {
+const readme = (name, pm, store) => {
   const react = renderer === 'react';
   const sample = react
     ? `The home page lists the sample \`Task\` resource; add tasks at \`/tasks\`.
@@ -241,6 +291,24 @@ henri destroy model Post      # undo a generator`;
   const pages = react
     ? 'React pages rendered by next.js                  '
     : 'Inertia (React) pages, built by vite            ';
+  const migrations =
+    store.adapter === 'drizzle'
+      ? `
+The \`drizzle\` store has migrations (drizzle-kit, \`db/migrations\`):
+
+\`\`\`bash
+henri db:status                        # applied and pending migrations
+henri db:generate --name=add-priority  # write a migration from the models
+henri db:migrate                       # apply the pending migrations
+henri db:push                          # match the database to the models
+\`\`\`
+`
+      : '';
+  const database = store.store.url
+    ? `The default store is \`${store.adapter}\`${store.dialect ? ` (\`${store.dialect}\`)` : ''} at
+\`${store.store.url}\`${store.test ? `, and \`${store.test.url}\` under \`NODE_ENV=test\`` : ''}. Change it in \`config/default.json\`.`
+    : `The default store is \`${store.adapter}\`: a local MongoDB started with the
+application, no server to install. Change it in \`config/default.json\`.`;
 
   return `# ${name}
 
@@ -265,9 +333,10 @@ henri routes                  # the routes table from config/routes.js
 ${generators}
 henri test                    # run test/**/*.test.js
 henri build                   # build the production views
+henri doctor                  # check the app against the henri conventions
 ${pm} run lint                # eslint
 \`\`\`
-
+${migrations}
 ## Layout
 
 | Path                   | Role                                             |
@@ -284,11 +353,13 @@ ${pm} run lint                # eslint
 
 ## Configuration
 
-\`config/default.json\` is committed. \`config/<NODE_ENV>.json\` overrides it for
-an environment (\`config/local.json\` is ignored by git). Secrets do not belong
+\`config/default.json\` is committed. \`config/<NODE_ENV>.json\` replaces it as a
+whole for an environment (\`config/local.json\` is ignored by git). Secrets do not belong
 in these files: the session and token secret is \`HENRI_SECRET\` in \`.env\`,
 which is not committed. Add a \`User\` model to get password hashing, sessions
 and roles.
+
+${database}
 
 See the [documentation](https://usehenri.io) for models, routes, views,
 GraphQL, mail and workers.
@@ -334,23 +405,26 @@ const copyTemplate = (pm) => {
 };
 
 /**
- * Generate the configuration: config/default.json (committed, no secret)
- * and .env (ignored) with the secret
+ * Generate the configuration: config/default.json (committed, no secret),
+ * config/test.json when the store needs a database of its own, and .env
+ * (ignored) with the secret
  *
+ * @param {object} store The selected store (see scripts/adapters.js)
  * @returns {void}
  */
-const generateConfig = () => {
+const generateConfig = (store) => {
   const cwd = process.cwd();
+  const files = store.test
+    ? 'config/default.json, config/test.json'
+    : 'config/default.json';
 
-  console.log(' - Generating config/default.json and .env...');
+  console.log(` - Generating ${files} and .env...`);
 
   const configuration = {
     baseRole: 'guest',
     renderer,
     stores: {
-      default: {
-        adapter: 'disk',
-      },
+      default: store.store,
     },
     user: 'user',
   };
@@ -358,6 +432,16 @@ const generateConfig = () => {
   fs.writeJsonSync(path.join(cwd, 'config', 'default.json'), configuration, {
     spaces: 2,
   });
+
+  // The config/<NODE_ENV>.json file replaces default.json as a whole, so
+  // `henri test` gets the same configuration on its own database.
+  if (store.test) {
+    fs.writeJsonSync(
+      path.join(cwd, 'config', 'test.json'),
+      { ...configuration, stores: { default: store.test } },
+      { spaces: 2 }
+    );
+  }
 
   const secret = require('crypto').randomBytes(64).toString('hex');
 
@@ -368,6 +452,115 @@ const generateConfig = () => {
 HENRI_SECRET=${secret}
 `
   );
+};
+
+/**
+ * Adds the dependency build scripts the driver of the store needs to
+ * pnpm-workspace.yaml (better-sqlite3 compiles a native addon). Nothing to
+ * do when the file was not written (yarn, npm).
+ *
+ * @param {object} store The selected store (see scripts/adapters.js)
+ * @returns {void}
+ */
+const allowBuilds = (store) => {
+  const file = path.join(process.cwd(), 'pnpm-workspace.yaml');
+  const entries = Object.entries(store.builds);
+
+  if (entries.length === 0 || !fs.existsSync(file)) {
+    return;
+  }
+
+  const lines = fs.readFileSync(file, 'utf8').split('\n');
+  const start = lines.findIndex((line) => line.trim() === 'allowBuilds:');
+
+  if (start < 0) {
+    return;
+  }
+
+  for (const [name, allowed] of entries) {
+    if (lines.some((line) => line.trim().startsWith(`${name}:`))) {
+      continue;
+    }
+
+    let at = start + 1;
+
+    while (
+      at < lines.length &&
+      lines[at].startsWith('  ') &&
+      lines[at].trim() < name
+    ) {
+      at += 1;
+    }
+
+    lines.splice(at, 0, `  ${name}: ${allowed}`);
+  }
+
+  console.log(
+    ` - Allowing the ${Object.keys(store.builds).join(', ')} build in pnpm-workspace.yaml...`
+  );
+  fs.writeFileSync(file, lines.join('\n'));
+};
+
+/**
+ * Ports the sample controllers the templates ship (written for the mongoose
+ * API) to the model API of the selected store. The react template gets its
+ * sample from the scaffold generator, which is adapter aware on its own.
+ *
+ * @param {object} store The selected store (see scripts/adapters.js)
+ * @returns {Promise<void>} Resolves when written
+ */
+const portSample = async (store) => {
+  if (store.api === 'mongoose') {
+    return;
+  }
+
+  const cwd = process.cwd();
+  const controllers = require('./generate/controllers');
+  const home = path.join(cwd, 'app', 'controllers', 'main.js');
+
+  console.log(
+    ` - Porting the sample controllers to the ${store.adapter} store...`
+  );
+
+  if (store.api === 'sequelize' && fs.existsSync(home)) {
+    fs.writeFileSync(
+      home,
+      fs.readFileSync(home, 'utf8').replace('Task.find()', 'Task.findAll()')
+    );
+  }
+
+  if (renderer === 'inertia') {
+    fs.writeFileSync(
+      path.join(cwd, 'app', 'controllers', 'tasks.js'),
+      await format(
+        controllers.inertia({
+          api: store.api,
+          doc: 'Task',
+          lower: 'task',
+          plural: 'tasks',
+        })
+      )
+    );
+  }
+};
+
+/**
+ * What to do before `henri server` when the store needs a database server
+ *
+ * @param {object} store The selected store (see scripts/adapters.js)
+ * @returns {string} A paragraph for the closing message, or an empty string
+ */
+const storeNotice = (store) => {
+  const url = store.store.url || '';
+
+  if (store.adapter === 'disk' || url === '' || url.startsWith('file:')) {
+    return '';
+  }
+
+  return `
+    The "${store.adapter}" store expects a database at ${url}
+    (config/default.json${store.test ? ', config/test.json for henri test' : ''}). Create it, then start the server.
+${store.adapter === 'drizzle' ? '    Migrations: henri db:generate, henri db:migrate, henri db:status.\n' : ''}`;
 };
 
 /**

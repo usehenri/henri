@@ -2,6 +2,8 @@ const fs = require('fs-extra');
 const path = require('path');
 const handlebars = require('handlebars');
 
+const { APIS, DEFAULT_ADAPTER } = require('./adapters');
+
 /**
  * The files that make an application readable by coding agents, all from
  * template/default: AGENTS.md (the conventions, with the application name
@@ -24,18 +26,29 @@ const RENDERERS = ['react', 'inertia'];
  * @param {object} options Options
  * @param {string} options.name The application name
  * @param {string} [options.renderer='react'] react or inertia
+ * @param {string} [options.adapter='disk'] The adapter of the default store
  * @returns {string} Markdown
  */
-const renderAgents = ({ name, renderer = 'react' }) => {
+const renderAgents = ({
+  adapter = DEFAULT_ADAPTER,
+  name,
+  renderer = 'react',
+}) => {
   const source = fs.readFileSync(path.join(TEMPLATE_DIR, 'AGENTS.md'), 'utf8');
   const template = handlebars.compile(source, { noEscape: true });
   const which = RENDERERS.includes(renderer) ? renderer : 'react';
+  const store = APIS[adapter] ? adapter : DEFAULT_ADAPTER;
+  const api = APIS[store];
 
   return template({
+    adapter: store,
+    drizzle: api === 'drizzle',
     inertia: which === 'inertia',
+    mongoose: api === 'mongoose',
     name,
     react: which === 'react',
     renderer: which,
+    sequelize: api === 'sequelize',
   })
     .replace(/[ \t]+$/gm, '')
     .replace(/\n{3,}/g, '\n\n');
@@ -48,10 +61,14 @@ const renderAgents = ({ name, renderer = 'react' }) => {
  * @param {object} options Options
  * @param {string} options.name The application name
  * @param {string} [options.renderer='react'] react or inertia
+ * @param {string} [options.adapter='disk'] The adapter of the default store
  * @param {boolean} [options.force=false] Overwrite existing files
  * @returns {{created: Array<string>, skipped: Array<string>}} What was written
  */
-const writeAgentFiles = (dir, { name, renderer = 'react', force = false }) => {
+const writeAgentFiles = (
+  dir,
+  { adapter = DEFAULT_ADAPTER, name, renderer = 'react', force = false }
+) => {
   const created = [];
   const skipped = [];
 
@@ -64,7 +81,7 @@ const writeAgentFiles = (dir, { name, renderer = 'react', force = false }) => {
     }
 
     const content = template
-      ? renderAgents({ name, renderer })
+      ? renderAgents({ adapter, name, renderer })
       : fs.readFileSync(path.join(TEMPLATE_DIR, source), 'utf8');
 
     fs.outputFileSync(location, content);

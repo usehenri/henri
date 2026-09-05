@@ -104,9 +104,16 @@ await Task.create(req.permit('name', 'category'));
 await Task.findAll({ where: { done: false } });
 await Task.findByPk(id);
 await Task.create(req.permit('name', 'category'));
+
+// Drizzle (drizzle), which also answers to the two sets of names above
+await Task.where({ done: false }).order('createdAt desc');
+await Task.findById(id);
+await Task.create(req.permit('name', 'category'));
 ```
 
 Use [`req.permit()`](/guides/controllers/#reqpermitfields) rather than `req.body` when you create or update records.
+
+`henri generate scaffold|crud` reads the adapter of the default store from `config/default.json` and writes the controller against that API, so the sample resource of `henri new --adapter <name>` runs on the store it configured.
 
 ## The user model
 
@@ -132,7 +139,7 @@ Server side, `henri.user.findByEmail(email)` (lowercases its argument and return
 
 ## Adapters
 
-Each adapter is a package to install in the application; the name in `stores.<name>.adapter` selects it. All of them implement the same contract, documented in the [API reference](/reference/api/#store-adapters), and expose a few helpers on the store object, `henri.model.stores.<name>`:
+Each adapter is a package to install in the application; the name in `stores.<name>.adapter` selects it. `henri new <folder> --adapter disk|drizzle|mongoose|mysql|postgresql|mssql` (`--dialect sqlite|postgres|mysql` with `drizzle`) writes the store block, the dependencies and the driver of a new application; `disk` is the default. All of them implement the same contract, documented in the [API reference](/reference/api/#store-adapters), and expose a few helpers on the store object, `henri.model.stores.<name>`:
 
 ```js
 await henri.model.stores.default.ping(); // true when the database answers
@@ -231,11 +238,13 @@ pnpm add @usehenri/mssql
 
 ### Drizzle
 
-An SQL adapter on [Drizzle ORM](https://orm.drizzle.team/) with migrations, for sqlite, PostgreSQL and MySQL. It is the adapter henri intends to make the SQL default; the Sequelize-based ones stay supported. Install it with the driver of your dialect:
+An SQL adapter on [Drizzle ORM](https://orm.drizzle.team/) with migrations, for sqlite, PostgreSQL and MySQL. It is the adapter henri intends to make the SQL default; the Sequelize-based ones stay supported. `henri new my-app --adapter drizzle` scaffolds an application on it (sqlite by default, `--dialect postgres` or `--dialect mysql` for the others), or install it in an existing one with the driver of your dialect:
 
 ```bash
 pnpm add @usehenri/drizzle better-sqlite3   # or pg, or mysql2
 ```
+
+`better-sqlite3` compiles a native addon, so a pnpm application also needs `better-sqlite3: true` under `allowBuilds` in `pnpm-workspace.yaml` (`henri new` writes it).
 
 ```json
 {

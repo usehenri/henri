@@ -3,6 +3,7 @@ const path = require('path');
 const util = require('util');
 const handlebars = require('handlebars');
 
+const { apiOf } = require('./adapters');
 const { CliError } = require('./errors');
 const { usage } = require('./help');
 const Report = require('./report');
@@ -337,7 +338,11 @@ const scaffold = async (name, attributes = [], opts = {}) => {
  * @return {Promise<void>} Resolves when done
  */
 const resources = async (name, attributes = [], opts = {}) => {
-  const resource = { ...names(name), keys: extractKeys(attributes) };
+  const resource = {
+    ...names(name),
+    api: apiOf(process.cwd()),
+    keys: extractKeys(attributes),
+  };
   const generator = require('./generate/controllers');
 
   await output(
@@ -360,7 +365,11 @@ const resources = async (name, attributes = [], opts = {}) => {
  * @return {Promise<void>} Resolves when done
  */
 const crud = async (name, attributes = [], opts = {}) => {
-  const resource = { ...names(name), keys: extractKeys(attributes) };
+  const resource = {
+    ...names(name),
+    api: apiOf(process.cwd()),
+    keys: extractKeys(attributes),
+  };
   const generator = require('./generate/controllers');
 
   await model(name, attributes, opts);

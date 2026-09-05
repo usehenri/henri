@@ -340,11 +340,20 @@ const COMMANDS = [
         description: 'react (default) or inertia',
         flag: '--renderer <name>',
       },
+      {
+        description:
+          'store adapter: disk (default), drizzle, mongoose, mysql, postgresql, mssql',
+        flag: '--adapter <name>',
+      },
+      {
+        description: 'drizzle dialect: sqlite (default), postgres or mysql',
+        flag: '--dialect <name>',
+      },
     ],
     name: 'init',
     summary: 'add the henri structure to the current directory',
     usage: [
-      'henri init [--force | -f] [--skip-install] [--no-git] [--renderer <name>]',
+      'henri init [--force | -f] [--skip-install] [--no-git] [--renderer <name>] [--adapter <name>] [--dialect <name>]',
     ],
   },
   {
@@ -364,7 +373,8 @@ const COMMANDS = [
     description: [
       'Creates a new henri application in <folder>, with a sample Task',
       'resource, a README, AGENTS.md (the conventions for coding agents),',
-      'CLAUDE.md and .mcp.json.',
+      'CLAUDE.md and .mcp.json. The sample resource is written against the',
+      'model API of the selected --adapter.',
     ],
     flags: [
       {
@@ -381,11 +391,20 @@ const COMMANDS = [
         description: 'react (default) or inertia',
         flag: '--renderer <name>',
       },
+      {
+        description:
+          'store adapter: disk (default), drizzle, mongoose, mysql, postgresql, mssql',
+        flag: '--adapter <name>',
+      },
+      {
+        description: 'drizzle dialect: sqlite (default), postgres or mysql',
+        flag: '--dialect <name>',
+      },
     ],
     name: 'new',
     summary: 'create a new application',
     usage: [
-      'henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer <name>]',
+      'henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer <name>] [--adapter <name>] [--dialect <name>]',
     ],
   },
   {

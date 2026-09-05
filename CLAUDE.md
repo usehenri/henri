@@ -193,8 +193,10 @@ the LICENSE and a README into every public package at publish time
   development boot create the tables that are missing and report the ones
   whose columns drifted (`Migrations#completeMySQLPlan`); a mysql schema
   change needs `henri db:generate` then `henri db:migrate`.
-- `henri generate scaffold|crud` write Mongoose-only controllers and React-only
-  pages.
+- `henri generate scaffold|crud` write React-only pages. The controllers follow
+  the adapter of the default store (`scripts/adapters.js` maps it to the
+  mongoose, sequelize or drizzle flavour), which `henri new --adapter <name>`
+  configures.
 - The idempotency and rate-limit stores are in memory unless the app plugs a
   shared store (`config.api.idempotency.store`, `config.rateLimit.store`).
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not

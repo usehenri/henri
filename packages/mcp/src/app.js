@@ -260,9 +260,9 @@ class App {
   }
 
   /**
-   * The application name and renderer
+   * The application name, renderer and default store adapter
    *
-   * @returns {{name: string, renderer: string}} Identity
+   * @returns {{name: string, renderer: string, adapter: string}} Identity
    */
   identity() {
     let name = path.basename(this.cwd);
@@ -277,7 +277,11 @@ class App {
 
     const config = this.cli.utils.readConfig(this.cwd, undefined);
 
+    const stores = (config && config.stores) || {};
+    const store = stores.default || Object.values(stores)[0] || {};
+
     return {
+      adapter: String(store.adapter || 'disk').toLowerCase(),
       name,
       renderer: String(config.renderer || 'react').toLowerCase(),
     };

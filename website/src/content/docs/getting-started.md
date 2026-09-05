@@ -31,7 +31,7 @@ cd my-app
 henri server
 ```
 
-`henri new` copies the application skeleton, writes the configuration, scaffolds a sample `Task` resource, writes a README, runs `git init` (unless the folder is already inside a repository) and installs the dependencies. `--skip-install` and `--no-git` skip those two steps; `--renderer inertia` picks the [Inertia](/guides/views/#inertia) view engine instead of React. The result:
+`henri new` copies the application skeleton, writes the configuration, scaffolds a sample `Task` resource, writes a README, runs `git init` (unless the folder is already inside a repository) and installs the dependencies. `--skip-install` and `--no-git` skip those two steps; `--renderer inertia` picks the [Inertia](/guides/views/#inertia) view engine instead of React, and `--adapter drizzle|mongoose|mysql|postgresql|mssql` the [store](/guides/models/#adapters) instead of the default `disk` one. The result:
 
 ```text
 ├── .env                      <- HENRI_SECRET, ignored by git
@@ -70,6 +70,19 @@ henri server
 If you have a Ruby on Rails background, this should look familiar. The sample resource is a regular scaffold (`henri generate scaffold Task name:string! category:string done:boolean` writes the same files); `henri destroy scaffold Task` removes it.
 
 `config/default.json` is committed and holds no secret: the session secret is generated into `.env` as `HENRI_SECRET`, which henri reads on boot. The default store is the [disk adapter](/guides/models/#disk), a local MongoDB persisted under `.henri/data` (ignored by git too), so there is nothing to install to run the application.
+
+### Another database
+
+`--adapter` picks the store of the new application. The sample resource, the dependencies and `config/default.json` follow it, and a `config/test.json` is written so `henri test` runs on its own database.
+
+```bash
+henri new my-app --adapter drizzle                     # sqlite, file:.henri/app.db
+henri new my-app --adapter drizzle --dialect postgres  # or mysql
+henri new my-app --adapter postgresql                  # sequelize
+henri new my-app --adapter mongoose                    # a MongoDB server
+```
+
+`drizzle` is the [Drizzle ORM adapter](/guides/models/#drizzle): sqlite by default, so a new application still boots with no database to install, and it is the only one with migrations (`henri db:generate`, `db:migrate`, `db:push`, `db:status`). The other adapters expect a server running at the url written in `config/default.json`.
 
 ## Start coding
 
