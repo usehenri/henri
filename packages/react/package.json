@@ -67,7 +67,7 @@
     "@babel/core": "^7.28.0",
     "@babel/parser": "^7.28.0",
     "@babel/preset-env": "^7.28.0",
-    "@babel/preset-react": "^7.27.0",
+    "@babel/preset-react": "^8.0.1",
     "@rollup/plugin-babel": "^7.1.0",
     "handlebars": "^4.7.9",
     "jsdom": "^28.1.0",
