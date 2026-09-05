@@ -384,10 +384,15 @@ class InertiaEngine {
       throw error;
     }
 
-    try {
-      this.resolve('sass');
-    } catch (error) {
-      pen.warn('view', "'sass' is not installed: .scss files will not compile");
+    if (hasStylesheets(this.dir)) {
+      try {
+        this.resolve('sass');
+      } catch (error) {
+        pen.warn(
+          'view',
+          "'sass' is not installed: the .scss files of this app will not compile"
+        );
+      }
     }
 
     if (!this.henri.isTest) {
@@ -976,5 +981,34 @@ InertiaEngine.componentName = componentName;
 InertiaEngine.findPackage = findPackage;
 InertiaEngine.partial = partial;
 InertiaEngine.DEFAULTS = DEFAULTS;
+
+/**
+ * Does the application still author any Sass?
+ *
+ * The scaffold styles with Tailwind and ships no `.scss`, so an app only
+ * needs the `sass` package when it wrote some itself. Build output is
+ * skipped: it holds the compiled css, never the sources.
+ *
+ * @param {string} dir the app/views directory
+ * @returns {boolean} true when a .scss file is authored under it
+ */
+function hasStylesheets(dir) {
+  const skipped = ['node_modules', 'dist', '.next', '.cache', '.turbo'];
+
+  try {
+    return fs
+      .readdirSync(dir, { recursive: true, withFileTypes: true })
+      .some(
+        (entry) =>
+          entry.isFile() &&
+          entry.name.endsWith('.scss') &&
+          !skipped.some((name) =>
+            entry.parentPath.includes(`${path.sep}${name}`)
+          )
+      );
+  } catch {
+    return false;
+  }
+}
 
 module.exports = InertiaEngine;
