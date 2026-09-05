@@ -32,7 +32,8 @@ The file is validated on boot: a syntax error is reported with its line and colu
 | `port`         | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                    |
 | `host`         | see below     | Interface to listen on. `127.0.0.1` outside production, `0.0.0.0` in production; `HENRI_HOST` overrides it.        |
 | `cors`         | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.  |
-| `renderer`     | `template`    | View engine: `react` or `template` (Handlebars). See [Views](/guides/views/).                                      |
+| `renderer`     | `template`    | View engine: `react`, `inertia` or `template` (Handlebars). See [Views](/guides/views/).                           |
+| `inertia`      |               | Options of the `inertia` renderer (`ssr`, `id`, `entry`, `ssrEntry`, `template`). See [Views](/guides/views/).     |
 | `experimental` |               | Opt-in to unmaintained renderers, ex: `{ "vue": true }`.                                                           |
 | `stores`       |               | Named database stores. Models pick one with their `store` key, or use `default`. See [Models](/guides/models/).    |
 | `secret`       |               | Session and JWT secret. Required as soon as you have a user model; `HENRI_SECRET` can provide it.                  |

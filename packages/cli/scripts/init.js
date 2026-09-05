@@ -13,6 +13,44 @@ const { detectPackageManager, format, insideGit, version } = require('./utils');
  */
 const check = (file) => fs.existsSync(path.join(process.cwd(), file));
 
+// --- renderer selection (@usehenri/inertia) --------------------------------
+// `henri new <app> --renderer inertia` scaffolds from template/inertia and
+// writes "renderer": "inertia"; the default stays template/default (react).
+const RENDERERS = { inertia: 'inertia', react: 'default' };
+let renderer = 'react';
+
+/**
+ * Pick the renderer (and its template) from the CLI arguments
+ *
+ * @param {object} args CLI arguments
+ * @returns {string} the renderer
+ */
+const selectRenderer = (args) => {
+  const wanted = String(args.renderer || args.r || 'react').toLowerCase();
+
+  if (!RENDERERS[wanted]) {
+    console.log(
+      `
+      Unknown renderer '${wanted}'. Valid values: ${Object.keys(RENDERERS).join(', ')}
+    `
+    );
+    process.exit(-1);
+  }
+
+  renderer = wanted;
+
+  return renderer;
+};
+
+/**
+ * Template directory of the selected renderer
+ *
+ * @returns {string} absolute path
+ */
+const templateDir = () =>
+  path.resolve(__dirname, '../template', RENDERERS[renderer]);
+// --- end renderer selection -------------------------------------------------
+
 /**
  * Initialize a new install in the current directory
  *
@@ -26,6 +64,8 @@ const main = async (args, name) => {
   const skipInstall = args['skip-install'] === true;
   const skipGit = args.git === false;
   const projectName = slug(name) || slug(path.basename(cwd)) || 'henri-app';
+
+  selectRenderer(args);
 
   console.log('');
 
@@ -75,9 +115,7 @@ const buildPackage = (name) => {
   const cwd = process.cwd();
   let existing = {};
 
-  const templatePkg = fs.readJsonSync(
-    path.resolve(__dirname, '../template/default/package.json')
-  );
+  const templatePkg = fs.readJsonSync(path.join(templateDir(), 'package.json'));
 
   try {
     existing = fs.readJsonSync(path.join(cwd, 'package.old.json'));
@@ -215,7 +253,7 @@ const copyTemplate = (pm) => {
 
   console.log(' - Copying new directory structure...');
 
-  const templatePath = path.resolve(__dirname, '../template/default/');
+  const templatePath = templateDir();
 
   // Keep an existing package.json aside so buildPackage can merge it
   if (check('package.json')) {
@@ -255,7 +293,7 @@ const generateConfig = () => {
 
   const configuration = {
     baseRole: 'guest',
-    renderer: 'react',
+    renderer,
     stores: {
       default: {
         adapter: 'disk',

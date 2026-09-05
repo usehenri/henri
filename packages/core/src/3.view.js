@@ -1,6 +1,7 @@
 const BaseModule = require('./base/module');
 
 const allowed = {
+  inertia: 'inertia',
   react: 'react',
   template: 'template',
 };

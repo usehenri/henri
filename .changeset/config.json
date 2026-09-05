@@ -13,6 +13,7 @@
       "@usehenri/cli",
       "@usehenri/core",
       "@usehenri/disk",
+      "@usehenri/inertia",
       "@usehenri/mongoose",
       "@usehenri/mssql",
       "@usehenri/mysql",

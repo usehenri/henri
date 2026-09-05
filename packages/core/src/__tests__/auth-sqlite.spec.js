@@ -41,13 +41,16 @@ describe('auth (sequelize sqlite store)', () => {
 
     // Swap the demo's disk store for a sqlite one owning the user model
     disk = henri.model.stores.default;
-    sql = new Sql('default', { adapter: 'sqlite' }, henri);
-    sql.adapterName = 'sqlite';
-    sql.connector = new sql.Sequelize({
-      dialect: 'sqlite',
-      logging: false,
-      storage: ':memory:',
-    });
+    sql = new Sql(
+      'default',
+      {
+        adapter: 'sqlite',
+        dialect: 'sqlite',
+        logging: false,
+        storage: ':memory:',
+      },
+      henri
+    );
 
     const { DataTypes } = sql.Sequelize;
 
