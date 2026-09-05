@@ -1,0 +1,46 @@
+name: release
+
+# Changesets flow:
+# - a push to master with pending changesets opens/updates the "Version Packages" PR
+# - merging that PR publishes the bumped packages to npm and creates GitHub releases
+on:
+  push:
+    branches: [master]
+
+concurrency: release-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      - uses: changesets/action@v2
+        with:
+          version-script: pnpm changeset:version
+          publish-script: pnpm changeset:publish
+          commit-message: 'chore(release): version packages'
+          pr-title: 'chore(release): version packages'
+          create-github-releases: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional. Without it, npm uses trusted publishing (OIDC) and every
+          # package needs this repository + workflow registered as a trusted
+          # publisher on npmjs.com.
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'

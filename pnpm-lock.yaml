@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@changesets/changelog-github':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@changesets/cli':
         specifier: ^3.0.2
         version: 3.0.2
@@ -187,16 +190,16 @@ importers:
   packages/demo:
     dependencies:
       '@usehenri/core':
-        specifier: ^0.37.2
+        specifier: workspace:^
         version: link:../core
       '@usehenri/disk':
-        specifier: ^0.37.2
+        specifier: workspace:^
         version: link:../disk
 
   packages/disk:
     dependencies:
       '@usehenri/mongoose':
-        specifier: ^0.37.2
+        specifier: workspace:^
         version: link:../mongoose
       debug:
         specifier: ^4.4.3
@@ -236,7 +239,7 @@ importers:
   packages/mssql:
     dependencies:
       '@usehenri/sequelize':
-        specifier: ^0.37.2
+        specifier: workspace:^
         version: link:../sequelize
       sequelize:
         specifier: ^6.37.8
@@ -248,7 +251,7 @@ importers:
   packages/mysql:
     dependencies:
       '@usehenri/sequelize':
-        specifier: ^0.37.2
+        specifier: workspace:^
         version: link:../sequelize
       mysql2:
         specifier: ^3.24.3
@@ -260,7 +263,7 @@ importers:
   packages/postgresql:
     dependencies:
       '@usehenri/sequelize':
-        specifier: ^0.37.2
+        specifier: workspace:^
         version: link:../sequelize
       pg:
         specifier: ^8.23.0
@@ -1328,6 +1331,10 @@ packages:
     resolution: {integrity: sha512-3Dst2Ime2Op5nd4XmWJLPIgp11ZFqJqSkVug9izK6TDcIV4YlhPS4ECbEVR+eGI0bk0r1ItogD4j2Oli87bJrA==}
     engines: {node: ^22.11 || ^24 || >=26}
 
+  '@changesets/changelog-github@1.0.0':
+    resolution: {integrity: sha512-PNCSH5CGJrqOKxRjrMp2NLhceQv2QBs6HkjrLvYQqsEE2/ItN5R8GD/mskZZluoNWYvjPYFsY9T6swXfp5E0UA==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
   '@changesets/cli@3.0.2':
     resolution: {integrity: sha512-t/omGJj/I+Jv0kmJAkj5cstYEdUQiJnpip2F+2m3F4lQ3kAZ3o8Exep4/Fm1qq4rvw6ovlhJvZNrKdwLJ4lkuQ==}
     engines: {node: ^22.11 || ^24 || >=26, npm: '>=10.9.0', pnpm: '>=10.0.0', yarn: '>=4.5.2'}
@@ -1347,6 +1354,10 @@ packages:
 
   '@changesets/get-dependents-graph@3.0.0':
     resolution: {integrity: sha512-ji/t5wFA1zREKXRUePE6Qi+Qu2UgxCeSSGQrphezwvQZrp49B7sJ+8+wvM0tA7zPeSxYKCojDy3WWgrl+s+awg==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/get-github-info@1.0.0':
+    resolution: {integrity: sha512-nf5zPSqEKW0eXiJ4ltbjyIQ/srUHfxbghkLCjKdOLI3LehKXhiqxXcpja39eGPaj6qqGx2lFCrLJ7VWYUf9H2w==}
     engines: {node: ^22.11 || ^24 || >=26}
 
   '@changesets/git@4.0.1':
@@ -3760,6 +3771,9 @@ packages:
   csso@5.0.5:
     resolution: {integrity: sha512-0LrrStPOdJj+SPCCrGhzryycLjwcgUSHBtxNA8aIDxf0GLsRh1cKYhB00Gd1lDOS4yGH69+SNn13+TWbVHETFQ==}
     engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0, npm: '>=7.0.0'}
+
+  dataloader@2.2.3:
+    resolution: {integrity: sha512-y2krtASINtPFS1rSDjacrFgn1dcUuoREVabwlOGOe4SdxenREqwjwjElAdwvbGM7kgZz9a3KVicWR7vcz8rnzA==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -7886,6 +7900,11 @@ snapshots:
     dependencies:
       '@changesets/types': 7.0.0
 
+  '@changesets/changelog-github@1.0.0':
+    dependencies:
+      '@changesets/get-github-info': 1.0.0
+      '@changesets/types': 7.0.0
+
   '@changesets/cli@3.0.2':
     dependencies:
       '@changesets/apply-release-plan': 8.1.0
@@ -7929,6 +7948,10 @@ snapshots:
     dependencies:
       '@changesets/types': 7.0.0
       semver: 7.8.5
+
+  '@changesets/get-github-info@1.0.0':
+    dependencies:
+      dataloader: 2.2.3
 
   '@changesets/git@4.0.1':
     dependencies:
@@ -10144,6 +10167,8 @@ snapshots:
   csso@5.0.5:
     dependencies:
       css-tree: 2.2.1
+
+  dataloader@2.2.3: {}
 
   debug@2.6.9(supports-color@8.1.1):
     dependencies:

@@ -20,9 +20,10 @@
     "test:ci": "pnpm test --coverage --forceExit --runInBand --verbose --bail",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "changeset:publish": "pnpm build && changeset publish"
+    "changeset:publish": "pnpm sync-readme && pnpm build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^1.0.0",
     "@changesets/cli": "^3.0.2",
     "@eslint/js": "^10.0.1",
     "cross-env": "^10.1.0",
