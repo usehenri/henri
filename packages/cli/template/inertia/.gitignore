@@ -11,18 +11,19 @@
 # henri runtime (model globals for the linter)
 /.henri
 
-# configuration
-/config/*.json
+# configuration: config/default.json is committed, secrets live in .env
+/config/local.json
+.env
 
 # logs
 /logs/*.log
 
 # dbs and stuff
 /.tmp
+/.backup
 
 # misc
 .DS_Store
-.env
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*

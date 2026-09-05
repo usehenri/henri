@@ -2,7 +2,7 @@
 // app/views/pages/<route>.jsx with `data` available through useHenri().
 // The Inertia client follows redirects, so a form submission ends on the
 // page the controller redirects to.
-const list = () => Tasks.find().sort({ createdAt: -1 }).lean();
+const list = () => Task.find().sort({ createdAt: -1 }).lean();
 
 module.exports = {
   index: async (req, res) => {
@@ -11,7 +11,7 @@ module.exports = {
 
   create: async (req, res) => {
     try {
-      await Tasks.create({
+      await Task.create({
         category: req.body.category,
         name: req.body.name,
       });
@@ -26,7 +26,7 @@ module.exports = {
   },
 
   destroy: async (req, res) => {
-    await Tasks.deleteOne({ _id: req.params.id });
+    await Task.deleteOne({ _id: req.params.id });
 
     res.redirect('/tasks');
   },
