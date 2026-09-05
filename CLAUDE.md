@@ -15,7 +15,7 @@ minimum supported at runtime.
 ```bash
 mise install                          # node + pnpm from mise.toml
 pnpm install                          # whole workspace; builds @usehenri/react dist
-pnpm test                             # vitest 5, all packages (NODE_ENV=test)
+pnpm test                             # vitest 5, all packages (rebuilds @usehenri/react first)
 pnpm test packages/core               # one package (path filter); `pnpm test:cover` for coverage
 pnpm test:sql                         # the SQL adapters only (sqlite; see below for a live server)
 pnpm lint                             # eslint 10 flat config, zero warnings in CI
