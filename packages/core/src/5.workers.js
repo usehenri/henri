@@ -1,7 +1,7 @@
 const BaseModule = require('./base/module');
 
 const path = require('path');
-const glob = require('glob');
+const { glob } = require('glob');
 
 /**
  * Workers management module
@@ -50,8 +50,8 @@ class Workers extends BaseModule {
 
     this.files = await this.getFiles();
 
-    this.files.map(async file => {
-      // eslint-disable-next-line
+    for (const file of this.files) {
+      // eslint-disable-next-line global-require
       this.workers[file] = require(path.join(workerPath, file));
 
       if (typeof this.workers[file].start === 'function') {
@@ -69,7 +69,7 @@ class Workers extends BaseModule {
           'forgot to add a start function?'
         );
       }
-    });
+    }
 
     return this.name;
   }
@@ -86,8 +86,8 @@ class Workers extends BaseModule {
       return;
     }
 
-    return new Promise(resolve => {
-      this.files.map(async file => {
+    await Promise.all(
+      this.files.map(async (file) => {
         if (
           this.workers[file] &&
           typeof this.workers[file].stop === 'function'
@@ -108,10 +108,8 @@ class Workers extends BaseModule {
             );
           }
         }
-      });
-
-      return resolve();
-    });
+      })
+    );
   }
 
   /**
@@ -132,7 +130,7 @@ class Workers extends BaseModule {
 
     delete this.workers;
     this.files.map(
-      file =>
+      (file) =>
         delete require.cache[path.join(this.henri.cwd(), 'app/workers', file)]
     );
     this.workers = {};
@@ -146,17 +144,19 @@ class Workers extends BaseModule {
   /**
    * Get the files from app/workers
    *
-   * @returns {void}
+   * @returns {Promise<Array<string>>} worker file names
    * @memberof Workers
    */
   async getFiles() {
-    return new Promise(resolve => {
-      const workerPath = path.join(this.henri.cwd(), 'app/workers');
+    const workerPath = path.join(this.henri.cwd(), 'app/workers');
 
-      glob('**/*.js', { cwd: workerPath }, (err, files) => {
-        resolve(files);
-      });
-    });
+    try {
+      const files = await glob('**/*.js', { cwd: workerPath });
+
+      return files.sort();
+    } catch (error) {
+      return [];
+    }
   }
 }
 

@@ -1,12 +1,10 @@
-/* eslint-disable no-console, no-unused-vars */
+/* eslint-disable no-console */
 const fs = require('fs-extra');
 const path = require('path');
-const rimraf = require('rimraf');
-const prettier = require('prettier');
 const util = require('util');
 const debug = require('debug')('henri:cli:destroy');
 
-const { cwd, version } = require('./utils');
+const { cwd, format, version } = require('./utils');
 
 const result = {
   fail: [],
@@ -21,9 +19,9 @@ const BACKUP_BASE_DIR = path.join(cwd, '.backup', TIMESTAMP);
  * Initial function
  *
  * @param {*} args command line arguments
- * @return {void}
+ * @return {Promise<void>} Resolves when done
  */
-const main = args => {
+const main = async (args) => {
   const cmd = args._.shift();
 
   if (GIT_PRESENT) {
@@ -44,16 +42,16 @@ const main = args => {
         deleteController(args._);
         break;
       case 'route':
-        deleteRoute(args._);
+        await deleteRoute(args._);
         break;
       case 'view':
         deleteView(args._.join(''));
         break;
       case 'scaffold':
-        deleteScaffold(args._);
+        await deleteScaffold(args._);
         break;
       case 'crud':
-        deleteCrud(args._);
+        await deleteCrud(args._);
         break;
       default:
         help();
@@ -74,7 +72,7 @@ const main = args => {
  * @param {*} [filename] File and args
  * @return {void}
  */
-const deleteModel = ([filename, ...args]) => {
+const deleteModel = ([filename]) => {
   deleteOrBackup(
     'models',
     `${filename}.js`,
@@ -88,7 +86,7 @@ const deleteModel = ([filename, ...args]) => {
  * @param {*} [filename] File and args
  * @return {void}
  */
-const deleteController = ([filename, ...args]) => {
+const deleteController = ([filename]) => {
   deleteOrBackup(
     'controllers',
     `${filename}.js`,
@@ -100,9 +98,9 @@ const deleteController = ([filename, ...args]) => {
  * Removes a route
  *
  * @param {string} [keyName] get /path or resources path or...
- * @return {void}
+ * @return {Promise<void>} Resolves when done
  */
-const deleteRoute = (keyName = null) => {
+const deleteRoute = async (keyName = null) => {
   if (!keyName) {
     console.log('> the route is undefined');
     debug(`got route ${keyName}`);
@@ -113,7 +111,7 @@ const deleteRoute = (keyName = null) => {
   try {
     let code = `module.exports = `;
     const location = path.join(cwd, 'config', 'routes.js');
-    // eslint-disable-next-line
+
     const actual = require(location);
 
     let key = (Array.isArray(keyName) && keyName.join(' ')) || keyName;
@@ -133,6 +131,7 @@ const deleteRoute = (keyName = null) => {
     code += util.inspect(actual);
 
     if (!GIT_PRESENT) {
+      fs.ensureDirSync(BACKUP_BASE_DIR);
       fs.copyFileSync(
         path.join(cwd, 'config', 'routes.js'),
         path.join(BACKUP_BASE_DIR, 'routes.js')
@@ -140,14 +139,7 @@ const deleteRoute = (keyName = null) => {
       debug('copied file to ', path.join(BACKUP_BASE_DIR, 'routes.js'));
     }
 
-    fs.outputFileSync(
-      location,
-      prettier.format(code, {
-        parser: 'babel',
-        singleQuote: true,
-        trailingComma: 'es5',
-      })
-    );
+    fs.outputFileSync(location, await format(code));
   } catch (error) {
     console.log('> unable to edit routes, run with DEBUG');
     debug(error);
@@ -160,17 +152,17 @@ const deleteRoute = (keyName = null) => {
  * @param {string} target Folder
  * @returns {void}
  */
-const deleteView = target => {
+const deleteView = (target) => {
   const targetBackupDir = path.join(cwd, '.backup', TIMESTAMP, 'views', target);
   const sourceViewDir = path.join(cwd, 'app', 'views', 'pages', target);
 
   try {
     if (!fs.existsSync(sourceViewDir)) {
-      throw new Error('view folder not found in', sourceViewDir);
+      throw new Error(`view folder not found in ${sourceViewDir}`);
     }
 
     if (GIT_PRESENT) {
-      rimraf.sync(sourceViewDir);
+      fs.rmSync(sourceViewDir, { force: true, recursive: true });
     } else {
       fs.moveSync(sourceViewDir, targetBackupDir);
     }
@@ -189,14 +181,14 @@ const deleteView = target => {
  * Removes a scaffold
  *
  * @param {*} [filename] File and args
- * @return {void}
+ * @return {Promise<void>} Resolves when done
  */
-const deleteScaffold = ([filename, ...args]) => {
+const deleteScaffold = async ([filename]) => {
   const target = filename.toLowerCase();
 
   deleteModel([capitalize(target)]);
   deleteController([target]);
-  deleteRoute(`resources ${target}`);
+  await deleteRoute(`resources ${target}`);
   deleteView(`_scaffold/${target}`);
 };
 
@@ -204,14 +196,14 @@ const deleteScaffold = ([filename, ...args]) => {
  * Removes a crud
  *
  * @param {*} [filename] File and args
- * @return {void}
+ * @return {Promise<void>} Resolves when done
  */
-const deleteCrud = ([filename, ...args]) => {
+const deleteCrud = async ([filename]) => {
   const target = filename.toLowerCase();
 
   deleteModel([capitalize(target)]);
   deleteController([target]);
-  deleteRoute(`crud ${target}`);
+  await deleteRoute(`crud ${target}`);
 };
 
 /**
@@ -225,7 +217,7 @@ const deleteCrud = ([filename, ...args]) => {
 const deleteOrBackup = (type, fileName, filePath) => {
   if (GIT_PRESENT) {
     if (fs.existsSync(filePath)) {
-      rimraf.sync(filePath);
+      fs.rmSync(filePath, { force: true });
       result.success.push(filePath);
       console.log(`> removed "${type}" @ ${filePath}`);
     } else {
@@ -270,7 +262,7 @@ const help = () => {
       $ henri destroy <command> <target>
 
     Available commands
-      model, controller, crud, scaffold
+      model, controller, route, view, crud, scaffold
 
     Examples
 
@@ -279,7 +271,7 @@ const help = () => {
 
       $ henri destroy controller locations
         --> Deletes a controller and routes
-      
+
       $ henri d scaffold HighScore
         --> Deletes a model, a controller with resources actions
             and the matching resources routes
@@ -294,6 +286,6 @@ const help = () => {
  * @param {string} word Word that needs to be capitalized
  * @returns {string} Capitalized word
  */
-const capitalize = word => word.charAt(0).toUpperCase() + word.slice(1);
+const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
 
 module.exports = main;

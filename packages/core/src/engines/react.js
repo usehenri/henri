@@ -1,22 +1,15 @@
-const path = require('path');
 const utils = require('../utils');
 
 /**
- * Check defines the required packages and throws if they are not there
+ * Check that the packages the React (Next.js) engine needs are installed in
+ * the application. The engine itself validates optional ones (ex: sass).
  * It is called when you use this engine
  *
  * @returns {void}
  */
 async function check() {
   try {
-    await utils.checkPackages([
-      'react',
-      'react-dom',
-      'sass-loader',
-      'raw-loader',
-      'cache-loader',
-      'node-sass',
-    ]);
+    await utils.checkPackages(['next', 'react', 'react-dom']);
   } catch (error) {
     henri.pen.fatal('view', error);
     process.exit(1);
@@ -25,7 +18,6 @@ async function check() {
 
 check();
 
-module.exports = require(path.join(
-  process.cwd(),
-  './node_modules/@usehenri/react/engine/index'
-));
+module.exports = require(
+  utils.resolveFrom('@usehenri/react/engine/index', process.cwd())
+);

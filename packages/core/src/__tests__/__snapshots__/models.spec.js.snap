@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`models should match snapshot 1`] = `
 Model {
@@ -8,12 +8,12 @@ Model {
   "consoleOnly": false,
   "getStore": [Function],
   "henri": null,
-  "ids": Array [],
+  "ids": [],
   "info": [Function],
   "init": [Function],
   "key": null,
   "loadStore": [Function],
-  "models": Array [],
+  "models": [],
   "name": "model",
   "reload": [Function],
   "reloadable": true,
@@ -22,6 +22,6 @@ Model {
   "setup": [Function],
   "start": [Function],
   "stop": [Function],
-  "stores": Object {},
+  "stores": {},
 }
 `;

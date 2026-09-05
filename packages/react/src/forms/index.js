@@ -6,5 +6,17 @@ import Input from './input';
 import Radio from './radios';
 import Select from './select';
 import Validation from './validation';
+import { FormContext, useForm } from './context';
 
-export { Button, Editor, FormError, Form, Input, Radio, Select, Validation };
+export {
+  Button,
+  Editor,
+  FormContext,
+  FormError,
+  Form,
+  Input,
+  Radio,
+  Select,
+  Validation,
+  useForm,
+};

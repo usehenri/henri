@@ -1,26 +1,20 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`graphql merge should compile schema 1`] = `
-Object {
-  "data": Object {
-    "artworks": Array [
-      Object {
+{
+  "data": {
+    "artworks": [
+      {
         "title": "Le bonheur de vivre",
         "year": 1905,
       },
-      Object {
+      {
         "title": "Music",
         "year": 1910,
       },
     ],
   },
   "errors": undefined,
-  "extensions": undefined,
-  "http": Object {
-    "headers": Headers {
-      Symbol(map): Object {},
-    },
-  },
 }
 `;
 
@@ -29,11 +23,15 @@ Graphql {
   "ApolloError": [Function],
   "AuthenticationError": [Function],
   "ForbiddenError": [Function],
+  "GraphQLError": [Function],
   "SyntaxError": [Function],
   "UserInputError": [Function],
   "ValidationError": [Function],
+  "_handler": null,
+  "_middlewareRegistered": false,
   "active": false,
   "consoleOnly": false,
+  "createServer": [Function],
   "endpoint": "/_henri/gql",
   "extract": [Function],
   "graphqlServer": null,
@@ -43,10 +41,11 @@ Graphql {
   "key": null,
   "merge": [Function],
   "name": "graphql",
+  "ready": null,
   "reload": [Function],
   "reloadable": true,
   "resolvers": null,
-  "resolversList": Array [],
+  "resolversList": [],
   "run": [Function],
   "runlevel": 1,
   "schema": null,
@@ -54,6 +53,6 @@ Graphql {
   "start": [Function],
   "toApolloError": [Function],
   "types": null,
-  "typesList": Array [],
+  "typesList": [],
 }
 `;

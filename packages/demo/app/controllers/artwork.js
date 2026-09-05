@@ -19,7 +19,7 @@ module.exports = {
     if (!req.params.id) {
       return res.status(400).send({ msg: 'invalid id' });
     }
-    Artwork.update({ _id: req.params.id }, { $set: req.body }, err => {
+    Artwork.update({ _id: req.params.id }, { $set: req.body }, (err) => {
       if (err) {
         return res.status(400).send({ msg: 'failed', error: err.message });
       }
@@ -30,7 +30,7 @@ module.exports = {
     if (!req.params.id) {
       return res.status(400).send({ msg: 'invalid id' });
     }
-    Artwork.remove({ _id: req.params.id }, err => {
+    Artwork.remove({ _id: req.params.id }, (err) => {
       if (err) {
         return res.status(400).send({ msg: 'failed', error: err.message });
       }

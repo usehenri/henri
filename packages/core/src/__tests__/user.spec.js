@@ -2,8 +2,6 @@ const BaseModule = require('../base/module');
 const Henri = require('../henri');
 const User = require('../4.user');
 
-const fetch = require('isomorphic-fetch');
-
 const email = 'testing@usehenri.io';
 const password = 'delectorskaya';
 
@@ -52,7 +50,7 @@ describe('user', () => {
     });
   }, 30000);
 
-  xdescribe('with user object', () => {
+  describe.skip('with user object', () => {
     beforeAll(async () => {
       this.henri = new Henri();
       await this.henri.init();
@@ -68,12 +66,12 @@ describe('user', () => {
 
       let res = await fetch(`${this.henri.server.url}login`, {
         method: 'POST',
-      }).then(res => res);
+      }).then((res) => res);
 
       expect(res.status).toEqual(400);
     });
 
-    xtest('should login', async () => {
+    test.skip('should login', async () => {
       await this.henri._user.destroy({ email });
 
       let res = await fetch(`${this.henri.server.url}register`, {
@@ -83,7 +81,7 @@ describe('user', () => {
           'Content-Type': 'application/json',
         },
         method: 'POST',
-      }).then(res => res.json());
+      }).then((res) => res.json());
 
       expect(res).toEqual({ status: 'ok' });
     });

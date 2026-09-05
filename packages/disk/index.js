@@ -9,6 +9,10 @@ const fs = require('fs');
 /**
  * Disk database adapter
  *
+ * Runs a local MongoDB (mongodb-memory-server) so models can use the same
+ * mongoose adapter as a real MongoDB store. Data is persisted on disk under
+ * the OS temp directory, except in test mode where it stays in memory.
+ *
  * @class Disk
  */
 class Disk extends HenriMongoose {
@@ -44,24 +48,26 @@ class Disk extends HenriMongoose {
   async start() {
     debug('starting %s', this.name);
 
-    const dataPath = path.join(
-      os.tmpdir(),
-      `henri-mongo-${md5(process.cwd())}`
-    );
+    const instance = { dbName: 'henri' };
 
-    if (!fs.existsSync(dataPath)) {
-      fs.mkdirSync(dataPath);
+    if (!this.henri.isTest) {
+      const dataPath = path.join(
+        os.tmpdir(),
+        `henri-mongo-${md5(process.cwd())}`
+      );
+
+      fs.mkdirSync(dataPath, { recursive: true });
+
+      instance.dbPath = dataPath;
+      instance.storageEngine = 'wiredTiger';
+      debug('persisting data in %s', dataPath);
     }
 
-    this.mongod = new MongoMemoryServer({
-      instance: {
-        dbName: 'henri',
-        dbPath: this.henri.isTest ? null : dataPath,
-        storageEngine: this.henri.isTest ? 'ephemeralForTest' : 'wiredTiger',
-      },
-    });
+    this.mongod = await MongoMemoryServer.create({ instance });
 
-    this.config.url = await this.mongod.getConnectionString();
+    this.mongoUri = this.mongod.getUri();
+    this.config.url = this.mongoUri;
+    debug('mongod available at %s', this.mongoUri);
 
     return super.start();
   }
@@ -77,7 +83,10 @@ class Disk extends HenriMongoose {
 
     await super.stop();
 
-    await this.mongod.stop();
+    if (this.mongod) {
+      await this.mongod.stop();
+      this.mongod = null;
+    }
   }
 }
 

@@ -6,6 +6,10 @@
 
 # production
 /build
+.next/
+
+# henri runtime (model globals for the linter)
+/.henri
 
 # configuration
 /config/*.json
@@ -20,5 +24,6 @@
 .DS_Store
 .env
 npm-debug.log*
+pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -1,5 +1,5 @@
 const BaseModule = require('./base/module');
-const runJest = require('jest-cli/build/cli/index');
+const { run: runJest } = require('jest');
 
 /**
  * Workers management module
@@ -39,7 +39,7 @@ class Tests extends BaseModule {
     this.henri.pen.info('tests', 'running tests');
 
     const options = [
-      '--testPathPattern=/test/',
+      '--testPathPatterns=/test/',
       '--detectOpenHandles',
       '--passWithNoTests',
       //    '--coverage',
@@ -65,7 +65,7 @@ class Tests extends BaseModule {
    * @memberof Tests
    */
   async stop() {
-    return new Promise(resolve => resolve(this.name));
+    return new Promise((resolve) => resolve(this.name));
   }
 
   /**

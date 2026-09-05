@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const glob = require('glob');
+const { glob, globSync } = require('glob');
 const hbs = require('handlebars');
 const bounce = require('@hapi/bounce');
 
@@ -89,7 +89,7 @@ class TemplateEngine {
    */
   async prepare() {
     if (this.instance) {
-      return new Promise(resolve => resolve());
+      return new Promise((resolve) => resolve());
     }
   }
 
@@ -106,7 +106,7 @@ class TemplateEngine {
         path.join(this.henri.cwd(), 'app/views/public')
       )
     );
-    router.get('*', (req, res) => {
+    router.get('/{*splat}', (req, res) => {
       return this.render(req, res, req.path, {});
     });
   }
@@ -131,32 +131,28 @@ class TemplateEngine {
    * @returns {Promise<Array>} A promise
    * @memberof TemplateEngine
    */
-  registerPartials() {
-    return new Promise((resolve, reject) => {
-      glob(
-        '**/*.{hbs,html,htm}',
-        { cwd: path.join(this.henri.cwd(), './app/views/partials') },
-        async (err, files) => {
-          if (err) {
-            return reject(err);
-          }
-          this.partials.map(view => this.hbs.unregisterPartial(view));
+  async registerPartials() {
+    const files = (
+      await glob('**/*.{hbs,html,htm}', {
+        cwd: path.join(this.henri.cwd(), './app/views/partials'),
+        posix: true,
+      })
+    ).sort();
 
-          this.partials = [];
-          await Promise.all(
-            files.map(async view => {
-              const fileName = view.replace(path.extname(view), '');
-              const data = this.getFile(`./partials/${fileName}`);
+    this.partials.map((view) => this.hbs.unregisterPartial(view));
+    this.partials = [];
 
-              this.hbs.registerPartial(fileName, data);
-              this.partials.push(fileName);
-              Promise.resolve();
-            })
-          );
-          resolve(files);
-        }
-      );
-    });
+    for (const view of files) {
+      const fileName = view.replace(path.extname(view), '');
+      const data = this.getFile(`./partials/${fileName}`);
+
+      if (data) {
+        this.hbs.registerPartial(fileName, data);
+        this.partials.push(fileName);
+      }
+    }
+
+    return files;
   }
 
   /**
@@ -174,10 +170,11 @@ class TemplateEngine {
     }
 
     try {
-      const files = glob.sync('**/*.{hbs,html,htm}', {
+      const files = globSync('**/*.{hbs,html,htm}', {
         cwd: path.join(this.henri.cwd(), './app/views'),
-      });
-      const match = files.filter(file => file.includes(route.slice(2)));
+        posix: true,
+      }).sort();
+      const match = files.filter((file) => file.includes(route.slice(2)));
 
       if (match.length < 1) {
         throw new Error('not found');

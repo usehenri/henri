@@ -2,32 +2,31 @@
 const fs = require('fs-extra');
 const path = require('path');
 const util = require('util');
-const prettier = require('prettier');
 const handlebars = require('handlebars');
 
-const { cwd, version } = require('./utils');
+const { cwd, format, version } = require('./utils');
 
 /**
  * Initial function
  *
  * @param {*} args command line arguments
- * @return {void}
+ * @return {Promise<void>} Resolves when done
  */
-const main = args => {
+const main = async (args) => {
   const cmd = args._.shift();
 
   switch (cmd) {
     case 'model':
-      model(args._);
+      await model(args._);
       break;
     case 'controller':
-      controller(args._);
+      await controller(args._);
       break;
     case 'scaffold':
-      scaffold(args._);
+      await scaffold(args._);
       break;
     case 'crud':
-      buildCrud(args._);
+      await buildCrud(args._);
       break;
     default:
       help();
@@ -38,9 +37,9 @@ const main = args => {
  * Handle models
  *
  * @param {*} [file] File and args
- * @return {void}
+ * @return {Promise<void>} Resolves when written
  */
-const model = ([file, ...args]) => {
+const model = async ([file, ...args]) => {
   const name = capitalize(file);
 
   let code = `module.exports = `;
@@ -51,25 +50,23 @@ const model = ([file, ...args]) => {
     schema: {},
   };
 
-  if (args.length > 0) {
-    args.map(val => {
-      const parts = val.split(':');
-      let required = false;
+  args.forEach((val) => {
+    const parts = val.split(':');
+    let required = false;
 
-      if (parts[1].endsWith('!')) {
-        required = true;
-        parts[1] = parts[1].slice(0, -1);
-      }
+    if (parts[1] && parts[1].endsWith('!')) {
+      required = true;
+      parts[1] = parts[1].slice(0, -1);
+    }
 
-      base.schema[parts[0]] = { type: parts[1] || 'string' };
+    base.schema[parts[0]] = { type: parts[1] || 'string' };
 
-      if (required) {
-        base.schema[parts[0]].required = true;
-      }
-    });
-  }
+    if (required) {
+      base.schema[parts[0]].required = true;
+    }
+  });
   code += util.inspect(base, { depth: 6 });
-  output('model', 'models', name, code);
+  await output('model', 'models', name, code);
 };
 
 /**
@@ -77,49 +74,47 @@ const model = ([file, ...args]) => {
  *
  * @param {*} [file] File
  * @param {*} inner Inner of the controller function
- * @return {void}
+ * @return {Promise<void>} Resolves when written
  */
-const controller = ([file, ...args], inner) => {
-  let code = 'const { log } = henri; module.exports = {';
+const controller = async ([file, ...args], inner) => {
+  let code = 'const { pen } = henri; module.exports = {';
 
-  if (args.length > 0) {
-    args.map(val => {
-      const fback = `res.status(501).send('controller ${file}#${val} not ready')`;
+  args.forEach((val) => {
+    const fback = `res.status(501).send('controller ${file}#${val} not ready')`;
 
-      code += `${val}: async (req,res) => { ${inner || fback} },`;
-    });
-  }
+    code += `${val}: async (req,res) => { ${inner || fback} },`;
+  });
   code += '};';
 
-  output('controller', 'controllers', file, code);
+  await output('controller', 'controllers', file, code);
 };
 
 /**
  * Scaffold builder
  *
  * @param {*} [file] File
- * @return {void}
+ * @return {Promise<void>} Resolves when done
  */
-const scaffold = ([file, ...args]) => {
-  model([file, ...args]);
-  resources(file);
-  routes(`resources ${file.toLowerCase()}`, {
+const scaffold = async ([file, ...args]) => {
+  await model([file, ...args]);
+  await resources(file);
+  await routes(`resources ${file.toLowerCase()}`, {
     controller: file.toLowerCase(),
     scope: '_scaffold',
   });
-  views(file, args);
+  await views(file, args);
 };
 
 /**
  * Build the crud
  *
  * @param {*} [file] file
- * @return {void}
+ * @return {Promise<void>} Resolves when done
  */
-const buildCrud = ([file, ...args]) => {
-  model([capitalize(file), ...args]);
-  crud(file);
-  routes(`crud ${file.toLowerCase()}`, {
+const buildCrud = async ([file, ...args]) => {
+  await model([capitalize(file), ...args]);
+  await crud(file);
+  await routes(`crud ${file.toLowerCase()}`, {
     controller: file.toLowerCase(),
     scope: '_crud',
   });
@@ -129,10 +124,9 @@ const buildCrud = ([file, ...args]) => {
  * Build resources
  *
  * @param {*} file file
- * @return {void}
+ * @return {Promise<void>} Resolves when written
  */
-const resources = file => {
-  // eslint-disable-next-line
+const resources = async (file) => {
   const generator = require('./generate/controllers');
   const doc = capitalize(file);
   const lower = file.toLowerCase();
@@ -146,17 +140,16 @@ const resources = file => {
   code += generator.update(lower, doc);
   code += generator.destroy(lower, doc);
 
-  output('controller', 'controllers', file, code);
+  await output('controller', 'controllers', file, code);
 };
 
 /**
  * Create CRUD
  *
  * @param {*} file file
- * @return {void}
+ * @return {Promise<void>} Resolves when written
  */
-const crud = file => {
-  // eslint-disable-next-line
+const crud = async (file) => {
   const generator = require('./generate/controllers');
   const doc = capitalize(file);
   const lower = file.toLowerCase();
@@ -168,7 +161,7 @@ const crud = file => {
   code += generator.update(lower, doc);
   code += generator.destroy(lower, doc);
 
-  output('controller', 'controllers', file, code);
+  await output('controller', 'controllers', file, code);
 };
 
 /**
@@ -177,18 +170,16 @@ const crud = file => {
  * @param {*} file File
  * @param {*} args Arguments
  *
- * @returns {void}
+ * @returns {Promise<void>} Resolves when written
  */
-const views = (file, args) => {
+const views = async (file, args) => {
   const doc = capitalize(file);
   const lower = file.toLowerCase();
   const keys = extractKeys(args);
 
-  compileView({ doc, keys, lower, view: 'index' });
-  compileView({ doc, keys, lower, view: '_form' });
-  compileView({ doc, keys, lower, view: 'new' });
-  compileView({ doc, keys, lower, view: 'edit' });
-  compileView({ doc, keys, lower, view: 'show' });
+  for (const view of ['index', '_form', 'new', 'edit', 'show']) {
+    await compileView({ doc, keys, lower, view });
+  }
 };
 
 /**
@@ -197,7 +188,7 @@ const views = (file, args) => {
  * @param {*} [args=[]] arguments
  * @return {Array<string>} Results
  */
-const extractKeys = (args = []) => args.map(val => val.split(':')[0]);
+const extractKeys = (args = []) => args.map((val) => val.split(':')[0]);
 
 /**
  * CompileView
@@ -209,9 +200,9 @@ const extractKeys = (args = []) => args.map(val => val.split(':')[0]);
  *   view = 'index',
  *   renderer = 'react',
  * }
- * @return {void}
+ * @return {Promise<void>} Resolves when written
  */
-const compileView = ({
+const compileView = async ({
   doc,
   lower,
   keys = [],
@@ -224,7 +215,7 @@ const compileView = ({
   );
   const template = handlebars.compile(data.toString());
 
-  output(
+  await output(
     'view',
     `views/pages/_scaffold/${lower}`,
     view,
@@ -237,24 +228,17 @@ const compileView = ({
  *
  * @param {*} key The route key
  * @param {*} opts Options
- * @return {void}
+ * @return {Promise<void>} Resolves when written
  */
-const routes = (key, opts) => {
+const routes = async (key, opts) => {
   let code = `module.exports = `;
   const location = path.join(cwd, 'config', 'routes.js');
-  // eslint-disable-next-line
+
   const actual = require(location);
 
   actual[key] = opts;
   code += util.inspect(actual);
-  fs.outputFileSync(
-    location,
-    prettier.format(code, {
-      parser: 'babel',
-      singleQuote: true,
-      trailingComma: 'es5',
-    })
-  );
+  fs.outputFileSync(location, await format(code));
   console.log(`> added route "${key}" @ ${location}`);
 };
 
@@ -265,19 +249,12 @@ const routes = (key, opts) => {
  * @param {*} dir Target directory
  * @param {*} file Target file
  * @param {*} code The code that should be written in the file
- * @return {void}
+ * @return {Promise<void>} Resolves when written
  */
-const output = (type, dir, file, code) => {
+const output = async (type, dir, file, code) => {
   const location = path.join(cwd, 'app', dir, `${file}.js`);
 
-  fs.outputFileSync(
-    path.join(cwd, 'app', dir, `${file}.js`),
-    prettier.format(code, {
-      parser: 'babel',
-      singleQuote: true,
-      trailingComma: 'es5',
-    })
-  );
+  fs.outputFileSync(location, await format(code));
   console.log(`> created ${type} "${file}" @ ${location}`);
 };
 
@@ -287,7 +264,7 @@ const output = (type, dir, file, code) => {
  * @param {string} word Word that needs to be capitalized
  * @returns {string} Capitalized word
  */
-const capitalize = word => word.charAt(0).toUpperCase() + word.slice(1);
+const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
 
 /**
  * Returns help
@@ -312,7 +289,7 @@ const help = () => {
 
       $ henri generate controller locations index show gps
         --> Creates a controller and routes to those actions
-      
+
       $ henri g scaffold HighScore game:string score:integer
         --> Create a model, a controller with resources actions
             and the matching resources routes

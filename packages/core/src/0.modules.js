@@ -120,7 +120,7 @@ class Modules {
           try {
             result = await Promise.all(
               this.order[runlevel].map(
-                async func => typeof func === 'function' && (await func())
+                async (func) => typeof func === 'function' && (await func())
               )
             );
           } catch (error) {
@@ -186,7 +186,7 @@ class Modules {
         try {
           result = await Promise.all(
             level.map(
-              async func => typeof func === 'function' && (await func())
+              async (func) => typeof func === 'function' && (await func())
             )
           );
         } catch (error) {

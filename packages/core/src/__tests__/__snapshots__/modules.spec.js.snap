@@ -1,43 +1,43 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`henri should match snapshot 1`] = `
 Modules {
   "add": [Function],
-  "henri": Object {},
+  "henri": {},
   "init": [Function],
   "initialized": false,
   "modules": Map {},
-  "order": Array [
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
+  "order": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
   ],
   "reload": [Function],
-  "reloadable": Array [
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
+  "reloadable": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
   ],
-  "stopOrder": Array [],
-  "store": Array [
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
-    Array [],
+  "stopOrder": [],
+  "store": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
   ],
 }
 `;

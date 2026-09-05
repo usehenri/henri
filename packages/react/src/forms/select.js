@@ -1,24 +1,19 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { useForm } from './context';
 
-const Select = (
-  {
-    disabled = false,
-    className = 'form-control m-b',
-    baseClassName = 'form-group',
-    errorClassName = null,
-    displayProp = 'name',
-    errorMsg,
-    name,
-    placeholder,
-    required = false,
-    type,
-    validation = {},
-    sanitation = {},
-    choices = [],
-  },
-  context
-) => {
+const Select = ({
+  className = 'form-control m-b',
+  baseClassName = 'form-group',
+  displayProp = 'name',
+  name,
+  placeholder,
+  required = false,
+  sanitation = {},
+  choices = [],
+}) => {
+  const context = useForm();
+
   !context._henriForm &&
     // eslint-disable-next-line no-console
     console.warn('Select component used outside henri form.');
@@ -27,7 +22,7 @@ const Select = (
   context.addSanitizer(name, sanitation);
 
   return (
-    <div className={`${baseClassName} ${hasError && 'has-error'}`}>
+    <div className={`${baseClassName} ${hasError ? 'has-error' : ''}`}>
       <select
         className={className}
         name={name}
@@ -37,10 +32,10 @@ const Select = (
           placeholder ||
           ''
         }
-        onChange={elem => context.handleChange(elem)}
+        onChange={(elem) => context.handleChange(elem)}
         required={required}
       >
-        {choices.map(item => (
+        {choices.map((item) => (
           <option key={item._id} value={item._id}>
             {item[displayProp]}
           </option>
@@ -51,6 +46,9 @@ const Select = (
 };
 
 Select.propTypes = {
+  baseClassName: PropTypes.string,
+  choices: PropTypes.array,
+  className: PropTypes.string,
   displayProp: PropTypes.string,
   errorMsg: PropTypes.object,
   name: PropTypes.string.isRequired,
@@ -59,16 +57,6 @@ Select.propTypes = {
   sanitation: PropTypes.object,
   type: PropTypes.string,
   validation: PropTypes.object,
-};
-
-Select.contextTypes = {
-  _henriForm: PropTypes.bool,
-  addSanitizer: PropTypes.func,
-  data: PropTypes.object,
-  errors: PropTypes.object,
-  handleChange: PropTypes.func,
-  handleSubmit: PropTypes.func,
-  modified: PropTypes.bool,
 };
 
 export default Select;

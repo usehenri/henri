@@ -93,7 +93,7 @@ describe('pen', () => {
         this.pen.error = jest.fn();
         this.pen.line = jest.fn();
         this.pen.fatal('test', new Error(), `some big error...`);
-        expect(this.pen.error).toBeCalled();
+        expect(this.pen.error).toHaveBeenCalled();
         expect(this.pen.line).toHaveBeenCalledTimes(4);
       });
 
@@ -102,7 +102,7 @@ describe('pen', () => {
         this.pen.error = jest.fn();
         this.pen.line = jest.fn();
         this.pen.fatal('test', 'error', `some big error...`, { inspect: 'me' });
-        expect(this.pen.error).toBeCalled();
+        expect(this.pen.error).toHaveBeenCalled();
         expect(this.pen.line).toHaveBeenCalledTimes(6);
         expect(console.log).toHaveBeenCalledTimes(1);
       });
@@ -110,7 +110,7 @@ describe('pen', () => {
       test('should have default value in fatal', () => {
         this.pen.error = jest.fn();
         this.pen.fatal();
-        expect(this.pen.error).toBeCalledWith('fatal', 'unknown error');
+        expect(this.pen.error).toHaveBeenCalledWith('fatal', 'unknown error');
       });
 
       test('should handle long message in full desc', () => {
@@ -138,8 +138,6 @@ describe('pen', () => {
       this.pen._timeSkipped = 10;
       expect(this.pen.time()).not.toEqual('');
     });
-
-    /* eslint-disable no-console *
 
     /* eslint-disable no-console */
     test('should print have line-feed (default)', () => {

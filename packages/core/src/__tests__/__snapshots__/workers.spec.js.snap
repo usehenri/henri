@@ -1,9 +1,9 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`models should match snapshot 1`] = `
 Workers {
   "consoleOnly": false,
-  "files": Array [],
+  "files": [],
   "getFiles": [Function],
   "henri": undefined,
   "info": [Function],
@@ -16,6 +16,6 @@ Workers {
   "setup": [Function],
   "start": [Function],
   "stop": [Function],
-  "workers": Object {},
+  "workers": {},
 }
 `;

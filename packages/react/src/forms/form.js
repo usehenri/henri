@@ -1,11 +1,16 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import Validation from './validation';
 import shallowEqual from 'shallowequal';
-import { Object } from 'core-js';
+import Validation from './validation';
+import { FormContext } from './context';
+import { HenriContext } from '../withHenri';
 const _Set = require('lodash.set');
 
 class Form extends Component {
+  static displayName = 'henri(Form)';
+
+  static contextType = HenriContext;
+
   constructor(props) {
     super(props);
     this.state = {
@@ -17,18 +22,33 @@ class Form extends Component {
     };
     this.name = this.props.name;
     this.sanitizers = {};
+    this.timer = null;
   }
 
-  static displayName = 'henri(Form)';
+  componentDidMount() {
+    this.state.modified && this.setState({ modified: false });
+  }
 
-  componentWillReceiveProps(nextProps) {
-    if (nextProps.error) {
-      this.setState({ error: nextProps.error });
+  componentDidUpdate(prevProps, prevState) {
+    if (this.props.error && this.props.error !== prevProps.error) {
+      this.setState({ error: this.props.error });
       this.lock(1000);
     }
-    if (nextProps.data) {
-      this.setState({ data: nextProps.data });
+
+    if (this.props.data && this.props.data !== prevProps.data) {
+      this.setState({ data: this.props.data });
     }
+
+    if (
+      !shallowEqual(prevState.data, this.state.data) &&
+      !this.state.modified
+    ) {
+      this.setState({ modified: true });
+    }
+  }
+
+  componentWillUnmount() {
+    clearTimeout(this.timer);
   }
 
   addSanitizer = (name, sanitizers = {}) => {
@@ -62,9 +82,9 @@ class Form extends Component {
     }
 
     this.setState(({ data }) => {
-      _Set(data, name, value);
-
       const newData = Object.assign({}, data);
+
+      _Set(newData, name, value);
 
       return {
         data: newData,
@@ -73,8 +93,8 @@ class Form extends Component {
     });
   };
 
-  handleSubmit = event => {
-    event.preventDefault();
+  handleSubmit = (event) => {
+    event && event.preventDefault && event.preventDefault();
     if (this.state.disabled) {
       return;
     }
@@ -115,7 +135,7 @@ class Form extends Component {
     }
 
     if (handleSubmit) {
-      handleSubmit && handleSubmit(action, data, this.clear);
+      handleSubmit(action, data, this.clear);
 
       return this.lock();
     }
@@ -138,10 +158,17 @@ class Form extends Component {
       onFail = '',
       method = 'post',
     } = this.props;
-    const { hydrate = null, fetch } = this.context;
+    const { hydrate = null, fetch } = this.context || {};
+
+    if (typeof fetch !== 'function') {
+      // eslint-disable-next-line no-console
+      return console.error(
+        'Form used outside a page wrapped with withHenri(): unable to submit'
+      );
+    }
 
     fetch({ method, route: action }, data)
-      .then(resp => {
+      .then(() => {
         this.setState({ error: null });
         hydrate && hydrate();
         typeof onSuccess === 'function' && onSuccess(data);
@@ -149,7 +176,7 @@ class Form extends Component {
         debug && console.log('form post successful!');
         this.clear();
       })
-      .catch(err => {
+      .catch((err) => {
         // eslint-disable-next-line no-console
         debug && console.log('form post error:');
         // eslint-disable-next-line no-console
@@ -165,96 +192,60 @@ class Form extends Component {
   };
 
   clear = () => {
-    this.setState({ data: Object.assign({}) });
+    this.setState({ data: {} });
   };
 
   lock = (time = 750) => {
     this.setState({ disabled: true });
-    setInterval(() => this.setState({ disabled: false }), time);
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.setState({ disabled: false }), time);
   };
 
   raiseError = (name, msg) => {
     this.setState({ [name]: msg });
-    // TODO: not fired... hmm
-    // SetTimeout(() => this.setState({ [name]: null }), 2500);
   };
-
-  componentDidMount = () => {
-    this.state.modified && this.setState({ modified: false });
-  };
-
-  componentDidUpdate = (prevProps, prevState) => {
-    if (!shallowEqual(prevState.data, this.state.data)) {
-      this.setState({ modified: true });
-    }
-  };
-
-  getChildContext() {
-    return {
-      // Warn if not within form
-      _henriForm: true,
-      // Add a sanitizer for validation
-      addSanitizer: this.addSanitizer,
-      // Reset the form
-      clear: this.clear,
-      // Contains the data passed down. Key should match names
-      data: this.state.data,
-      // Is it disabled?
-      disabled: this.state.disabled,
-      // Global form error
-      error: this.state.error,
-      // Per components error
-      errors: this.state.errors,
-      // Send back the changes so we can update the state
-      handleChange: this.handleChange,
-      // If a component wants to trigger a submit
-      handleSubmit: this.handleSubmit,
-      // Is the form modified?
-      modified: this.state.modified,
-    };
-  }
 
   render() {
+    const value = {
+      _henriForm: true,
+      addSanitizer: this.addSanitizer,
+      clear: this.clear,
+      data: this.state.data,
+      disabled: this.state.disabled,
+      error: this.state.error,
+      errors: this.state.errors,
+      handleChange: this.handleChange,
+      handleSubmit: this.handleSubmit,
+      modified: this.state.modified,
+    };
+
     return (
-      <form
-        className={this.props.className}
-        onSubmit={this.handleSubmit}
-        id={this.name}
-      >
-        {this.props.children}
-      </form>
+      <FormContext.Provider value={value}>
+        <form
+          className={this.props.className}
+          onSubmit={this.handleSubmit}
+          id={this.name}
+        >
+          {this.props.children}
+        </form>
+      </FormContext.Provider>
     );
   }
 }
 
 Form.propTypes = {
   action: PropTypes.string,
+  children: PropTypes.node,
   className: PropTypes.string,
   data: PropTypes.object,
   debug: PropTypes.bool,
+  error: PropTypes.any,
+  handleSubmit: PropTypes.func,
   method: PropTypes.string,
   name: PropTypes.string,
   onError: PropTypes.func,
   onFail: PropTypes.string,
   onSuccess: PropTypes.func,
-};
-
-Form.childContextTypes = {
-  _henriForm: PropTypes.bool,
-  addSanitizer: PropTypes.func,
-  clear: PropTypes.func,
-  data: PropTypes.object,
-  disabled: PropTypes.bool,
-  error: PropTypes.any,
-  errors: PropTypes.object,
-  handleChange: PropTypes.func,
-  handleSubmit: PropTypes.func,
-  modified: PropTypes.bool,
-};
-
-Form.contextTypes = {
-  fetch: PropTypes.func,
-  hydrate: PropTypes.func,
 };
 
 export default Form;

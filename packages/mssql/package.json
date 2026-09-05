@@ -6,7 +6,11 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/sequelize": "^0.37.1",
-    "tedious": "^9.0.1"
+    "@usehenri/sequelize": "^0.37.2",
+    "sequelize": "^6.37.8",
+    "tedious": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

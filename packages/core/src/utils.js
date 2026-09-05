@@ -1,16 +1,60 @@
 const spawn = require('cross-spawn');
-const comparev = require('compare-versions');
+const { compareVersions } = require('compare-versions');
 const path = require('path');
 const fs = require('fs');
-const prettier = require('prettier');
+const vm = require('vm');
 const stack = require('callsite');
 const readline = require('readline');
 const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:utils');
-const inquirer = require('inquirer');
+const { checkbox } = require('@inquirer/prompts');
 
-// eslint-disable-next-line id-length
-const _ = require('lodash');
+/**
+ * Resolve a module the way `require()` would from a given directory.
+ * Walks up the parent directories, so hoisted workspace packages are found.
+ *
+ * @param {string} request module name or path (ex: '@usehenri/disk')
+ * @param {string} [dir=process.cwd()] directory to resolve from
+ * @returns {string} absolute path to the module entry file
+ * @throws when the module cannot be resolved
+ */
+function resolveFrom(request, dir = process.cwd()) {
+  return require.resolve(request, { paths: [path.resolve(dir)] });
+}
+
+/**
+ * Locate the package.json of an installed package
+ *
+ * @param {string} pkgName package name (ex: 'react')
+ * @param {string} [dir=process.cwd()] directory to resolve from
+ * @returns {object} parsed package.json
+ * @throws when the package cannot be found
+ */
+function resolvePackageJson(pkgName, dir = process.cwd()) {
+  try {
+     
+    return require(resolveFrom(`${pkgName}/package.json`, dir));
+  } catch (error) {
+    // Package uses "exports" without exposing package.json: walk up from main
+    let current = path.dirname(resolveFrom(pkgName, dir));
+
+    while (current !== path.dirname(current)) {
+      const candidate = path.join(current, 'package.json');
+
+      if (fs.existsSync(candidate)) {
+         
+        const pkg = require(candidate);
+
+        if (pkg.name === pkgName) {
+          return pkg;
+        }
+      }
+      current = path.dirname(current);
+    }
+
+    throw error;
+  }
+}
 
 /**
  *  Check if yarn exists
@@ -32,31 +76,28 @@ async function checkPackages(packages = []) {
   if (missing.length > 0) {
     const msg = generateMessage(missing);
 
-    if (henri.isDev) {
-      await inquirer
-        .prompt({
-          choices: missing,
-          message:
-            'Do you want me to try to install missing packages? (ctrl+c to cancel)',
-          name: 'install',
-          type: 'checkbox',
-        })
-        .then(({ install }) => {
-          if (yarnExists) {
-            install.unshift('add');
-            spawn.sync('yarn', install);
-          } else {
-            install.unshift('i');
-            install.unshift('--save');
-            spawn.sync('npm', install);
-          }
-        });
+    if (henri.isDev && process.stdin.isTTY) {
+      const install = await checkbox({
+        choices: missing.map((name) => ({ name, value: name })),
+        message:
+          'Do you want me to try to install missing packages? (ctrl+c to cancel)',
+      });
+
+      if (install.length > 0) {
+        if (yarnExists()) {
+          spawn.sync('yarn', ['add', ...install], { stdio: 'inherit' });
+        } else {
+          spawn.sync('npm', ['install', '--save', ...install], {
+            stdio: 'inherit',
+          });
+        }
+      }
     } else {
       throw new Error(`Unable to load ${msg.join(' ')} from the current project.
-    
+
       Try installing ${missing.length > 1 ? 'them' : 'it'}:
-      
-        # ${yarnExists ? 'yarn add' : 'npm install'} ${missing.join(' ')}
+
+        # ${yarnExists() ? 'yarn add' : 'npm install'} ${missing.join(' ')}
       `);
     }
   }
@@ -78,18 +119,12 @@ function checkMissing(packages) {
     try {
       const [pkgName, version = null] = pkg.split('@');
 
-      require.resolve(path.resolve(process.cwd(), 'node_modules', pkgName));
+      resolveFrom(pkgName);
 
       if (version) {
-        //eslint-disable-next-line global-require
-        const target = require(path.resolve(
-          process.cwd(),
-          'node_modules',
-          pkgName,
-          'package.json'
-        ));
+        const target = resolvePackageJson(pkgName);
 
-        if (comparev(target.version, version) < 0) {
+        if (compareVersions(target.version, version) < 0) {
           // eslint-disable-next-line no-console
           console.log(
             `package version error for ${pkgName}; wanted > ${version} but got ${target.version}`
@@ -113,7 +148,7 @@ function checkMissing(packages) {
  * @param {string} missing items
  * @returns {string} human readable string (i hope...)
  */
-const generateMessage = missing => {
+const generateMessage = (missing) => {
   if (missing.length > 1) {
     return missing.map((val, index) =>
       index === missing.length - 1 ? `\b\b and '${val}'` : `'${val}',`
@@ -177,7 +212,7 @@ async function syntax(location, onSuccess, inst = undefined) {
     inst = henri;
   }
 
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     if (path.extname(location) === '.html') {
       inst.status.set('locked', false);
 
@@ -193,7 +228,36 @@ async function syntax(location, onSuccess, inst = undefined) {
 }
 
 /**
- * Make it go through prettier
+ * Check the syntax of a source file with Node's own parser
+ * JSON files are parsed, CommonJS files are compiled (not executed).
+ * Other file types are not checked.
+ *
+ * @param {string} file filename (used for the extension and error frames)
+ * @param {string} source file contents
+ * @returns {boolean} true when the syntax is valid or not checkable
+ * @throws {SyntaxError} when the source does not parse
+ */
+function checkSyntax(file, source) {
+  const ext = path.extname(file).toLowerCase();
+
+  if (ext === '.json') {
+    JSON.parse(source);
+
+    return true;
+  }
+
+  if (ext === '.js' || ext === '.cjs') {
+     
+    new vm.Script(source, { filename: file });
+
+    return true;
+  }
+
+  return true;
+}
+
+/**
+ * Parse a file and report syntax errors through the pen
  *
  * @param {Promise} resolve to be resoived
  * @param {string} file filename
@@ -211,26 +275,26 @@ async function parseSyntax(resolve, file, data, onSuccess, inst = undefined) {
   }
 
   try {
-    const fileInfo = await prettier.getFileInfo(file);
-
-    if (fileInfo) {
-      prettier.format(data.toString(), { parser: fileInfo.inferredParser });
-    }
+    checkSyntax(file, data.toString());
 
     inst.status.set('locked', false);
     typeof onSuccess === 'function' && onSuccess();
 
     return resolve(true);
   } catch (error) {
-    const { line, column } = _.has(error, 'loc.start')
-      ? error.loc.start
-      : { column: 0, line: 0 };
+    // V8 syntax errors start their stack with "<file>:<line>" then a code frame
+    const lines = (error.stack || '').split('\n');
+    const match = /:(\d+)$/.exec(lines[0] || '');
+    const line = match ? match[1] : 0;
+    const frame = lines.slice(0, 3).join('\n');
 
-    inst.pen.error('server', `while parsing ${file}:${line}:${column}`);
-    // eslint-disable-line no-console
-    console.log(' '); // eslint-disable-line no-console
-    console.log(error.codeFrame); // eslint-disable-line no-console
-    console.log(' '); // eslint-disable-line no-console
+    inst.pen.error('server', `while parsing ${file}:${line}`);
+    // eslint-disable-next-line no-console
+    console.log(' ');
+    // eslint-disable-next-line no-console
+    console.log(frame);
+    // eslint-disable-next-line no-console
+    console.log(' ');
     resolve(error);
   }
 }
@@ -238,8 +302,11 @@ async function parseSyntax(resolve, file, data, onSuccess, inst = undefined) {
 module.exports = {
   bounce,
   checkPackages,
+  checkSyntax,
   clearConsole,
   getColor,
+  resolveFrom,
+  resolvePackageJson,
   stack,
   syntax,
   yarnExists,

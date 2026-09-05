@@ -16,12 +16,20 @@ class MsSQL extends Sql {
    */
   constructor(name, config, thisHenri) {
     super(name, config, thisHenri);
-    if (!config.url) {
-      thisHenri.pen.fatal('mssql', `Missing url or host in store ${name}`);
-    }
+
+    const { url, adapter, ...opts } = config;
+
     this.adapterName = 'mssql';
-    this.connector = new this.Sequelize(config.url, {
+
+    if (!url) {
+      thisHenri.pen.fatal('mssql', `Missing url or host in store ${name}`);
+
+      return;
+    }
+
+    this.connector = new this.Sequelize(url, {
       dialect: 'mssql',
+      ...opts,
       dialectModulePath: require.resolve('tedious'),
     });
   }

@@ -153,15 +153,15 @@ class Model extends BaseModule {
    * @memberof Model
    */
   loadStore(store, conn) {
-    const { cwd, pen } = this.henri;
+    const {
+      cwd,
+      pen,
+      utils: { resolveFrom },
+    } = this.henri;
 
     try {
       // eslint-disable-next-line global-require
-      const Pkg = require(path.join(
-        cwd(),
-        'node_modules',
-        `@usehenri/${conn}`
-      ));
+      const Pkg = require(resolveFrom(`@usehenri/${conn}`, cwd()));
 
       debug('loaded adapter %s (%s)', store.adapter, conn);
 
@@ -284,7 +284,7 @@ class Model extends BaseModule {
   async stop() {
     const { pen } = this.henri;
 
-    if (this.stores.length < 1) {
+    if (!this.stores || Object.keys(this.stores).length < 1) {
       pen.warn('model', 'no models/stores needed to be stopped.');
 
       return true;
@@ -297,11 +297,11 @@ class Model extends BaseModule {
     } catch (error) {
       bounce.rethrow(error, 'system');
     }
-    this.ids.forEach(name => delete global[name]);
+    this.ids.forEach((name) => delete global[name]);
     delete this.stores;
 
     this.ids = [];
-    this.stores = [];
+    this.stores = {};
     debug('stop done');
 
     return true;
@@ -329,21 +329,49 @@ class Model extends BaseModule {
   }
 
   /**
-   * Add models global ids to .eslintrc
+   * Expose the models global ids to the linter
+   *
+   * Writes `.henri/globals.json` in the project (read by the project's
+   * eslint.config.js) and, if a legacy `.eslintrc` exists, updates its
+   * `globals` too. Nothing is written in test mode.
    *
    * @return {void}
    * @memberof Model
    */
   addToEslintRc() {
+    if (this.henri.isTest) {
+      return;
+    }
+
+    const globals = {};
+
+    this.ids.forEach((modelName) => (globals[modelName] = true));
+
+    const henriDir = path.resolve(this.henri.cwd(), '.henri');
+
+    try {
+      fs.mkdirSync(henriDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(henriDir, 'globals.json'),
+        `${JSON.stringify(globals, null, 2)}\n`
+      );
+    } catch (error) {
+      debug('unable to write .henri/globals.json: %s', error.message);
+    }
+
     const eslintFile = path.resolve(this.henri.cwd(), '.eslintrc');
+
+    if (!fs.existsSync(eslintFile)) {
+      return;
+    }
 
     try {
       const eslintRc = JSON.parse(fs.readFileSync(eslintFile, 'utf8'));
 
-      this.ids.map(modelName => (eslintRc.globals[modelName] = true));
-      fs.writeFileSync(eslintFile, JSON.stringify(eslintRc, null, 2));
+      eslintRc.globals = Object.assign({}, eslintRc.globals, globals);
+      fs.writeFileSync(eslintFile, `${JSON.stringify(eslintRc, null, 2)}\n`);
     } catch (error) {
-      // Silently fail
+      debug('unable to update .eslintrc: %s', error.message);
     }
   }
 

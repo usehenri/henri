@@ -24,6 +24,7 @@ class Mongoose {
     this.config = config;
     this.models = {};
     this.mongoose = new mongoose.Mongoose();
+    this.sessionStore = null;
     this.henri = thisHenri;
 
     debug('using version %s of mongoose', this.mongoose.version);
@@ -59,7 +60,7 @@ class Mongoose {
     const instance = this.mongoose.model(
       model.globalId,
       schema,
-      model.name || null
+      model.name || undefined
     );
 
     if (isUser) {
@@ -83,6 +84,7 @@ class Mongoose {
    */
   overload(schema, model) {
     const { pen, config } = this.henri;
+    const thisHenri = this.henri;
 
     debug('overloading %s', model.globalId);
 
@@ -113,10 +115,11 @@ class Mongoose {
         type: Array,
       },
     });
-    schema.pre('save', async function (next) {
-      if (!this.isModified('password')) return next();
-      this.password = await henri.user.encrypt(this.password);
-      next();
+    schema.pre('save', async function () {
+      if (!this.isModified('password')) {
+        return;
+      }
+      this.password = await thisHenri.user.encrypt(this.password);
     });
     schema.methods.hasRole = async function (roles = []) {
       let given = Array.isArray(roles) ? roles : [roles];
@@ -137,19 +140,37 @@ class Mongoose {
 
   /**
    * Returns the session connector (for connect styles session storage)
+   * The store opens its own driver connection so it can be closed before the
+   * mongoose connection on shutdown.
    *
-   * @param {function} session session-store function
    * @returns {object} a store
    * @memberof Mongoose
    */
-  getSessionConnector(session) {
+  getSessionConnector() {
     // eslint-disable-next-line global-require
-    const MongoStore = require('connect-mongo')(session);
+    const { MongoStore } = require('connect-mongo');
 
-    return new MongoStore({
-      collection: 'henriSessions',
-      url: this.config.url,
+    this.sessionStore = MongoStore.create({
+      collectionName: 'henriSessions',
+      mongoUrl: this.config.url || this.config.host,
     });
+
+    // The store creates its TTL index in the background; make sure a failure
+    // there (ex: shutdown before it completes) is reported, not unhandled.
+    if (this.sessionStore.clientP) {
+      this.sessionStore.clientP.then(
+        () => debug('session store connected'),
+        (error) => debug('session store connection failed: %s', error.message)
+      );
+    }
+    if (this.sessionStore.collectionP) {
+      this.sessionStore.collectionP.then(
+        () => debug('session store ready'),
+        (error) => debug('session store setup failed: %s', error.message)
+      );
+    }
+
+    return this.sessionStore;
   }
 
   /**
@@ -160,13 +181,9 @@ class Mongoose {
    */
   async start() {
     debug('starting %s', this.name);
-    this.mongoose.Promise = global.Promise;
 
     const defaultOpts = {
       connectTimeoutMS: 10 * 1000,
-      useCreateIndex: true,
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
     };
 
     let opts = Object.assign({}, defaultOpts, this.config.opts || {});
@@ -196,17 +213,27 @@ class Mongoose {
   async stop() {
     debug('stopping %s', this.name);
 
-    return new Promise((resolve, reject) => {
-      this.mongoose.disconnect().then(
-        () => {
-          delete this.mongoose;
-          this.mongoose = new mongoose.Mongoose();
-          debug('stopped %s', this.name);
-          setTimeout(() => resolve(), 500);
-        },
-        (err) => reject(err)
-      );
-    });
+    if (this.sessionStore) {
+      try {
+        // Let the store finish its setup before pulling the connection
+        debug('waiting for the session store setup');
+        this.sessionStore.collectionP &&
+          (await this.sessionStore.collectionP.catch(() => null));
+        debug('closing the session store');
+        await this.sessionStore.close();
+        debug('session store closed');
+      } catch (error) {
+        debug('unable to close the session store: %s', error.message);
+      }
+      this.sessionStore = null;
+    }
+
+    debug('disconnecting mongoose');
+    await this.mongoose.disconnect();
+    delete this.mongoose;
+    this.mongoose = new mongoose.Mongoose();
+    this.models = {};
+    debug('stopped %s', this.name);
   }
 }
 

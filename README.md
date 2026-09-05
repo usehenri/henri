@@ -8,8 +8,7 @@
 
 [![npm version](https://img.shields.io/npm/v/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![npm downloads](https://img.shields.io/npm/dm/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
-[![Build Status](https://travis-ci.org/usehenri/henri.svg?branch=master)](https://travis-ci.org/usehenri/henri)
-[![Coverage Status](https://coveralls.io/repos/github/usehenri/henri/badge.svg)](https://coveralls.io/github/usehenri/henri)
+[![CI](https://github.com/usehenri/henri/actions/workflows/ci.yml/badge.svg)](https://github.com/usehenri/henri/actions/workflows/ci.yml)
 [![Join slack](https://img.shields.io/badge/slack-get_invite-green.svg?longCache=true&style=flat)](https://join.slack.com/t/usehenri/shared_invite/enQtNDU5Njg4MTA2OTY2LTU2N2I4MTVkNzQ4M2JlZTk5ZTIwODU1YTQxMzVmOTE2ZGVhZjNlZWY1ZTE2MWQxMDViZWY3ODY5ZjQwYzJiM2U)
 
 henri is an easy to learn rails-like, server-side rendered (react & vue) with powerful ORMs
@@ -26,8 +25,6 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
 - [GraphQL](#graphql)
 - [Views](#views)
   - [React](#react)
-    - [Inferno](#inferno)
-    - [Preact](#preact)
   - [Vue.js](#vue)
   - [Handlebars](#handlebars)
   - [Fetching data again](#fetching-data-again)
@@ -46,8 +43,11 @@ henri is an easy to learn rails-like, server-side rendered (react & vue) with po
 
 ### Install
 
+henri needs Node.js 22 or newer. Any package manager works; pnpm is what the
+project itself uses.
+
 ```bash
-  yarn global add henri
+  pnpm add -g henri
 
   # or
 
@@ -283,9 +283,7 @@ module.exports = {
     resolvers: {
       Query: {
         tasks: async () => {
-          return Task.find()
-            .populate('type location')
-            .exec();
+          return Task.find().populate('type location').exec();
         },
         task: async (_, id) => await Task.findOne(id).populate('type'),
       },
@@ -361,7 +359,7 @@ Example:
 import React from 'react';
 import Link from 'next/link';
 
-export default data => (
+export default (data) => (
   <div>
     <div>{data}</div>
     <Link href="/home">
@@ -387,42 +385,6 @@ module.exports = {
     return config;
   },
 };
-```
-
-#### Inferno
-
-You can use Inferno instead of React in production. In development, React will be used for hot re/loading.
-
-Installation:
-
-```bash
-yarn add react react-dom inferno inferno-compat inferno-server
-```
-
-Usage (config file):
-
-```json
-{
-  "renderer": "inferno"
-}
-```
-
-#### Preact
-
-You can use Preact instead of React in production. In development, React will be used for hot re/loading.
-
-Installation:
-
-```bash
-yarn add react react-dom preact preact-compat
-```
-
-Usage (config file):
-
-```json
-{
-  "renderer": "preact"
-}
 ```
 
 ### Vue.js
@@ -659,7 +621,7 @@ Example:
 ```js
 let timer;
 
-const start = h => {
+const start = (h) => {
   h.pen.info('worker started');
   timer = setInterval(
     () => h.pen.warn(`the argument is the henri object`),
@@ -698,6 +660,21 @@ See the [Contributing](#contributing) section for more information
 - Report bugs!
 
 ## Contributing
+
+The repository is a pnpm workspace (Node.js 22+). Tool versions are pinned in
+`mise.toml`, so with [mise](https://mise.jdx.dev) installed:
+
+```bash
+  mise install             # node + pnpm versions from mise.toml
+  pnpm install             # installs every package under packages/
+  pnpm test                # jest, whole monorepo
+  pnpm lint                # eslint (flat config) + prettier via lint-staged on commit
+  pnpm build               # builds @usehenri/react
+  pnpm changeset           # record a version bump for the packages you changed
+```
+
+The first test run downloads a MongoDB binary for the disk adapter
+(`mongodb-memory-server`) into `~/.cache/mongodb-binaries`.
 
 - Step by step wiki [here](https://github.com/usehenri/henri/wiki/Contributing)
 

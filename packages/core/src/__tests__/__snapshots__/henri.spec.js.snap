@@ -1,8 +1,8 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`henri general should match snapshot 1`] = `
 Henri {
-  "_middlewares": Array [],
+  "_middlewares": [],
   "consoleOnly": false,
   "cwd": [Function],
   "env": "test",
@@ -16,43 +16,43 @@ Henri {
     "init": [Function],
     "initialized": false,
     "modules": Map {},
-    "order": Array [
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
+    "order": [
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
     ],
     "reload": [Function],
-    "reloadable": Array [
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
+    "reloadable": [
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
     ],
-    "stopOrder": Array [],
-    "store": Array [
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
-      Array [],
+    "stopOrder": [],
+    "store": [
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
     ],
   },
   "pen": Pen {
     "_time": "42424242",
     "_timeSkipped": 0,
-    "buffer": Array [],
+    "buffer": [],
     "consoleOnly": false,
     "henri": null,
     "inTesting": true,
@@ -71,14 +71,14 @@ Henri {
   "prefix": "./packages/demo",
   "release": "0.42.0",
   "runlevel": 1,
-  "settings": Object {
+  "settings": {
     "arch": "x64",
     "package": "0.42.0",
     "platform": "linux",
   },
   "status": Map {},
-  "utils": Object {
-    "bounce": Object {
+  "utils": {
+    "bounce": {
       "background": [Function],
       "ignore": [Function],
       "isBoom": [Function],
@@ -87,12 +87,15 @@ Henri {
       "rethrow": [Function],
     },
     "checkPackages": [Function],
+    "checkSyntax": [Function],
     "clearConsole": [Function],
     "getColor": [Function],
+    "resolveFrom": [Function],
+    "resolvePackageJson": [Function],
     "stack": [Function],
     "syntax": [Function],
     "yarnExists": [Function],
   },
-  "validator": Object {},
+  "validator": {},
 }
 `;

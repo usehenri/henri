@@ -1,0 +1,32 @@
+packages:
+  - 'packages/*'
+  - 'website'
+
+# Link @usehenri/* packages from the workspace whenever the version range matches
+linkWorkspacePackages: true
+
+# pnpm >= 10 refuses to run dependency lifecycle scripts unless allow-listed.
+# true = run the build/postinstall script, false = skip it on purpose.
+allowBuilds:
+  '@ampproject/toolbox-optimizer': false
+  '@apollo/protobufjs': false
+  '@parcel/watcher': true
+  bcrypt: true
+  core-js: false
+  core-js-pure: false
+  es5-ext: false
+  esbuild: true
+  fsevents: true
+  mongodb-memory-server: true
+  sharp: true
+  sqlite3: true
+  unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - '@changesets/apply-release-plan@8.1.0'
+  - '@changesets/cli@3.0.2'
+  - '@changesets/git@4.0.1'
+  - '@changesets/read@1.0.1'
+  - eslint@10.10.0
+  - mongoose@9.9.5
+  - nodemailer@10.0.0

@@ -1,12 +1,19 @@
 {
   "name": "@usehenri/sequelize",
-  "version": "0.37.1",
+  "version": "0.37.2",
   "description": "henri sequalize class provider",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "connect-session-sequelize": "^7.0.1",
-    "sequelize": "^6.3.3"
+    "connect-session-sequelize": "^8.0.6",
+    "sequelize": "^6.37.8"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "express-session": "^1.18.2",
+    "sqlite3": "^6.0.1"
   }
 }

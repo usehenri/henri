@@ -2,28 +2,56 @@ import React from 'react';
 import axios from 'axios';
 import PropTypes from 'prop-types';
 import { withRouter } from 'next/router';
-// Import ws from 'socket.io-client';
+import { getRoute as findRoute, pathFor as findPath } from './paths';
 
+/**
+ * Context injected by withHenri: data, paths and helpers coming from the
+ * controller (through res.render) and henri's router.
+ */
+export const HenriContext = React.createContext({
+  data: {},
+  fetch: null,
+  getRoute: () => 'route-not-found',
+  hydrate: null,
+  localUrl: '',
+  pathFor: () => undefined,
+  paths: {},
+  user: null,
+});
+
+/**
+ * Hook giving access to the henri context
+ *
+ * @returns {object} the henri context value
+ */
+export const useHenri = () => React.useContext(HenriContext);
+
+/**
+ * Get a component display name
+ *
+ * @param {React.Component} Component the component
+ * @returns {string} its name
+ */
 function getDisplayName(Component) {
   return Component.displayName || Component.name || 'Unknown';
 }
 
-// Const socket = typeof window === 'undefined' ? () => {} : ws();
-
-export default ComposedComponent => {
+/**
+ * Wraps a page so it receives the controller data (and helpers) as props
+ *
+ * @param {React.Component} ComposedComponent the page
+ * @returns {React.Component} the wrapped page
+ */
+export default (ComposedComponent) => {
   class WithHenri extends React.Component {
-    constructor(props) {
-      super(props);
-
-      this.state = {
-        data: props.data || {},
-      };
-
-      this.hydrate = this.hydrate.bind(this);
-      this.fetch = this.fetch.bind(this);
-    }
-
     static displayName = `withHenri(${getDisplayName(ComposedComponent)})`;
+
+    static propTypes = {
+      data: PropTypes.any,
+      localUrl: PropTypes.string,
+      paths: PropTypes.object,
+      user: PropTypes.object,
+    };
 
     static async getInitialProps(ctx) {
       let props = Object.assign({}, ctx);
@@ -34,13 +62,13 @@ export default ComposedComponent => {
         props.query = result.data;
       }
 
+      // Server side: henri's router and view engine attach the view options
+      // (data, paths, user, ...) to the request. They win over url params.
       if (props.req && props.req._henri) {
-        props.query = Object.assign({}, props.req._henri, props.query);
+        props.query = Object.assign({}, props.query, props.req._henri);
       }
 
-      const {
-        query: { data, user = null, paths, localUrl },
-      } = props;
+      const { query: { data, user = null, paths, localUrl } = {} } = props;
 
       let composedInitialProps = {};
 
@@ -51,143 +79,68 @@ export default ComposedComponent => {
       return { data, localUrl, paths, user, ...composedInitialProps };
     }
 
-    async hydrate(data = {}) {
-      axios({
-        data,
-        method: 'get',
-        url: document.location,
-      })
-        .then(resp => {
-          this.setState({ data: resp.data && resp.data.data });
-        })
-        .catch(err => {
-          console.log('error fetching data', err);
-        });
+    constructor(props) {
+      super(props);
+
+      this.state = {
+        data: props.data || {},
+      };
     }
 
-    fetch = async ({ route = '/', method = 'get' }, data = {}) => {
-      return new Promise((resolve, reject) => {
-        axios({
-          data,
-          method,
-          url: route,
+    hydrate = async () => {
+      return axios({
+        method: 'get',
+        url: document.location.href,
+      })
+        .then((resp) => {
+          this.setState({ data: resp.data && resp.data.data });
         })
-          .then(resp => {
-            resolve(resp);
-          })
-          .catch(err => {
-            reject(err);
-          });
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.log('error fetching data', err);
+        });
+    };
+
+    fetch = async ({ route = '/', method = 'get' }, data = {}) => {
+      return axios({
+        data,
+        method,
+        url: route,
       });
     };
 
-    pathFor = (path = null, params = null, plain = false) => {
-      const { paths } = this.props;
-      let response = {
-        // We want to return an object for funcs, and string as a helper
-        __proto__: {
-          toString() {
-            return this.route;
-          },
-        },
-        method: 'get',
-        route: '',
-      };
+    pathFor = (path = null, params = null) =>
+      findPath(this.props.paths, path, params);
 
-      if (path && paths[path]) {
-        // This will render the default route with method
-        if (params === null) {
-          return paths[path];
-        }
+    getRoute = (route = null, id = null) =>
+      findRoute(this.props.paths, route, id);
 
-        // If a string is provide, defaults to id (client side for mongo ids)
-        if (typeof params === 'string') {
-          response.route = paths[path].route.replace(':id', params);
-          response.method = paths[path].method;
-
-          return response.route;
-        }
-
-        // If we use only typeof (string), on node, it is parsed as a
-        // ObjectID object, therefor missing the last if. This is for SSR or _ids
-        if (params.id && params.toString()) {
-          response.route = paths[path].route.replace(
-            ':id',
-            params.id.toString()
-          );
-          response.method = paths[path].method;
-
-          return response;
-        }
-
-        // We might have a bunch of params, iterating...
-        if (Object.keys(params).length > 0) {
-          let { route, method } = paths[path];
-
-          Object.keys(params).map(
-            val => (route = route.replace(`:${val}`, params[val]))
-          );
-
-          response.route = route;
-          response.method = method;
-
-          return response;
-        }
-      }
-
-      console.warn(`unable to match filler for route ${path} in pathFor`);
-    };
-
-    getRoute = (route = null, id = null) => {
-      const { paths } = this.props;
-
-      if (
-        route &&
-        paths &&
-        typeof paths[route] !== 'undefined' &&
-        typeof paths[route].route !== 'undefined'
-      ) {
-        return id
-          ? paths[route].route.replace(':id', id.toString())
-          : paths[route].route;
-      }
-
-      return 'route-not-found';
-    };
-
-    getChildContext() {
-      return {
-        // Contains the data passed down. Key should match names
+    render() {
+      const value = {
+        data: this.state.data,
         fetch: this.fetch,
         getRoute: this.getRoute,
         hydrate: this.hydrate,
+        localUrl: this.props.localUrl,
         pathFor: this.pathFor,
-        //        Socket: socket,
+        paths: this.props.paths,
+        user: this.props.user,
       };
-    }
 
-    render() {
       return (
-        <ComposedComponent
-          hydrate={this.hydrate}
-          fetch={this.fetch}
-          pathFor={this.pathFor}
-          getRoute={this.getRoute}
-          //       Socket={socket}
-          {...this.props}
-          data={this.state.data}
-        />
+        <HenriContext.Provider value={value}>
+          <ComposedComponent
+            hydrate={this.hydrate}
+            fetch={this.fetch}
+            pathFor={this.pathFor}
+            getRoute={this.getRoute}
+            {...this.props}
+            data={this.state.data}
+          />
+        </HenriContext.Provider>
       );
     }
   }
-
-  WithHenri.childContextTypes = {
-    fetch: PropTypes.func,
-    getRoute: PropTypes.func,
-    hydrate: PropTypes.func,
-    pathFor: PropTypes.func,
-    socket: PropTypes.func,
-  };
 
   return withRouter(WithHenri);
 };

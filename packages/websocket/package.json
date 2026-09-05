@@ -1,12 +1,14 @@
 {
   "name": "@usehenri/websocket",
-  "version": "0.37.1",
-  "description": "henri websocket loader",
+  "version": "0.37.2",
+  "description": "henri websocket loader (socket.io) - experimental, not wired into core yet",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
-    "glob": "^7.1.6",
-    "socket.io": "^2.3.0"
+    "socket.io": "^4.8.3"
   }
 }

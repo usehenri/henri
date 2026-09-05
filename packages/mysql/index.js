@@ -1,7 +1,7 @@
 const Sql = require('@usehenri/sequelize');
 
 /**
- * MySQL database adapter
+ * MySQL / MariaDB database adapter
  *
  * @class MySQL
  * @extends {Sql}
@@ -17,13 +17,19 @@ class MySQL extends Sql {
   constructor(name, config, thisHenri) {
     super(name, config, thisHenri);
 
-    const { url, ...opts } = config;
+    const { url, adapter, ...opts } = config;
 
-    if (!config.url) {
-      thisHenri.pen.fatal('mysql', `Missing url or host in store ${name}`);
-    }
     this.adapterName = 'mysql';
-    this.connector = new this.Sequelize(url, {
+
+    if (!url) {
+      thisHenri.pen.fatal('mysql', `Missing url or host in store ${name}`);
+
+      return;
+    }
+
+    // MariaDB is served by the mysql2 driver; sequelize picks the dialect
+    // from the url protocol, so normalize it
+    this.connector = new this.Sequelize(url.replace(/^mariadb:/i, 'mysql:'), {
       ...opts,
       dialectModulePath: require.resolve('mysql2'),
     });

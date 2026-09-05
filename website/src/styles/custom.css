@@ -1,0 +1,51 @@
+/* henri - ink on paper, with a blue accent (the old site used a dark blue ribbon) */
+:root {
+  --sl-color-accent-low: #10203f;
+  --sl-color-accent: #4a7be0;
+  --sl-color-accent-high: #b9ccf5;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #eceef2;
+  --sl-color-gray-2: #c0c3c9;
+  --sl-color-gray-3: #888c96;
+  --sl-color-gray-4: #545862;
+  --sl-color-gray-5: #34373f;
+  --sl-color-gray-6: #23262d;
+  --sl-color-black: #16181d;
+  --sl-font: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #d8e3fb;
+  --sl-color-accent: #2b57b8;
+  --sl-color-accent-high: #16305f;
+  --sl-color-white: #16181d;
+  --sl-color-gray-1: #23262d;
+  --sl-color-gray-2: #34373f;
+  --sl-color-gray-3: #545862;
+  --sl-color-gray-4: #888c96;
+  --sl-color-gray-5: #c0c3c9;
+  --sl-color-gray-6: #eceef2;
+  --sl-color-gray-7: #f6f7f9;
+  --sl-color-black: #fbfbfc;
+}
+
+/* The logo is black line art on white: invert it in dark mode instead of shipping two files */
+:root[data-theme='dark'] .hero img,
+:root[data-theme='dark'] .site-title img {
+  filter: invert(1);
+}
+
+.hero img {
+  max-width: 16rem;
+  border-radius: 1rem;
+}
+
+.site-title img {
+  height: 1.75rem;
+  width: auto;
+}
+
+/* Landing page: tighten the code sample under the cards */
+.landing-sample {
+  margin-top: 3rem;
+}
