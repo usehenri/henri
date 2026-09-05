@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/testing",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "henri testing helpers: boots the app for vitest and binds a supertest agent to it",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",

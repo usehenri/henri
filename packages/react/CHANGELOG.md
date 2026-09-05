@@ -1,5 +1,77 @@
 # Change Log
 
+## 1.1.0
+
+### Minor Changes
+
+- [#297](https://github.com/usehenri/henri/pull/297) [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e) Thanks [@reel](https://github.com/reel)! - React engine, `withHenri` and forms reworked against Next.js 16 and React 19.
+  
+  Engine
+  
+  - Fast Refresh works again: the engine hands henri's http server to `next()`
+    (`httpServer`) instead of forwarding websocket upgrades itself, which made
+    next.js handle each upgrade twice and drop the connection.
+  - `require('@usehenri/react/engine').build({ cwd, config })` runs `next build`
+    without booting henri (no stores, no server), for `henri build` and Docker
+    build stages. The `distDir` of `config/next.js` is honoured when checking for
+    an existing production build.
+  - `init()` fails with a clear message when `app/views/pages` is missing and
+    warns when `app/views/app` exists (pages router only). `reload()` announces
+    that `config/next.js`/`config/webpack.js` changes need a restart; `close()`
+    stops the next.js instance.
+  - A broken `config/webpack.js` hook throws (with the explanation) instead of
+    killing the build workers with `process.exit`.
+  
+  withHenri
+  
+  - Client-side navigation fetches `asPath` (the real url, query included) as
+    JSON instead of the page file path.
+  - Server side reads only what henri attached to the request (`req._henri`);
+    `?data=` and friends in the url can no longer become page props.
+  - `WithHenri` is a function component: `data` follows the props on navigation,
+    `hydrate()` keeps the current data on a non-henri answer and exposes the
+    error as `useHenri().error`. `errors`, `graphql`, `csrf` and `localUrl` reach
+    the page and the context.
+  - axios is gone: `fetch()`, `hydrate()` and navigation go through one native
+    `fetch` helper (`request`) sending `Accept: application/json`, JSON bodies
+    and the `X-CSRF-Token` header when a `csrf` token is present. Failed
+    requests reject with a `RequestError` carrying the boom body (`message`,
+    `data`, `statusCode`). `fetch()` accepts a `pathFor()` result or a string.
+  - `pathFor`/`getRoute` replace whole parameter names (`:id` no longer rewrites
+    `:identifier`).
+  
+  Forms
+  
+  - `Editor` loads Quill with `next/dynamic` (no hydration mismatch) and is
+    controlled by the form data, so `clear()` empties it.
+  - Sanitizers chain (`trim` then `escape`), are registered in an effect, and
+    apply to nested names. The form stays disabled until the request settles.
+  - `Select` renders a real placeholder option, honours `validation` and shows
+    its error; server-side field errors (`data.errors` of a 422) are displayed
+    under the fields. `Form action` accepts a `pathFor()` result.
+  - `prop-types` and `shallowequal` dropped.
+  
+  The `henri g scaffold` React templates are regenerated for this API
+  (`pathFor`/`getRoute`, `next/link`, valid table markup, guarded show/edit,
+  redirects after create/update).
+
+### Patch Changes
+
+- [#297](https://github.com/usehenri/henri/pull/297) [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e) Thanks [@reel](https://github.com/reel)! - Login, sessions and request parameters are hardened and work on every adapter.
+  
+  - User lookups go through the adapter contract (`findUserByEmail`, `findUserById`, `userId`, `toPlain`, with Mongoose/Sequelize fallbacks in core), so login on SQL stores checks the right user and sessions hold the right id. `henri.user.findByEmail()`, `findById()` and `publicUser()` are exposed to apps.
+  - Only the public representation of a user (`{ id, email, roles }` plus `config.user.public`) reaches views, `req._henri.user` and JSON answers. `config.user` accepts an object: `{ model, public, loginPath, afterLogin, sessionMaxAge }`.
+  - `req.permit(...fields)` and `henri.params(req).permit()` return the permitted fields only; use them instead of `req.body` when creating or updating records.
+  - The session cookie is `httpOnly`, `SameSite=Lax`, `Secure` in production, lives 30 days by default (`config.user.sessionMaxAge`) and is only written once something is stored in it. `trust proxy` is enabled (`config.trustProxy`).
+  - `POST /login` answers `{ user }` to JSON clients and redirects browsers (`config.user.afterLogin`); failures are `401`/`400` or a redirect to `<loginPath>?error=invalid`. `POST /logout` destroys the session; `GET /logout` is deprecated and answers `405`.
+  - Double-submit CSRF protection: the `henri.csrf` cookie must be sent back as `X-CSRF-Token` (or `X-XSRF-TOKEN`, the axios/Inertia convention) or `_csrf` on unsafe requests carrying a session (`config.csrf: false` disables it, bearer tokens are exempt). The token is available as `req._henri.csrf` and `withHenri` adds the header to `fetch()` and `hydrate()`.
+  - Routes with `roles` deny with `401`/`403` JSON or a redirect to `config.user.loginPath`, and warn at boot when no user model exists instead of crashing per request.
+  - The session store survives model reloads: express-session talks to a proxy that follows the current adapter.
+
+- [#297](https://github.com/usehenri/henri/pull/297) [`36a096e`](https://github.com/usehenri/henri/commit/36a096e2ebe128aaa6aa00c1988fe42da3a86a5e) Thanks [@reel](https://github.com/reel)! - The published packages declare their `files`: the tarballs no longer ship the
+  test suites and every package carries the LICENSE, a README and its changelog.
+  `@usehenri/websocket` is no longer published (it was never wired into core).
+
 ## 1.0.2
 
 ### Patch Changes
