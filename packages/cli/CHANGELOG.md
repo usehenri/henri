@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.0.1
+
+### Patch Changes
+
+- [#287](https://github.com/usehenri/henri/pull/287) [`1f71bcb`](https://github.com/usehenri/henri/commit/1f71bcb8285e7853e7df15941dab02067cc9d219) Thanks [@reel](https://github.com/reel)! - `henri new` scaffolds apps that depend on the `@usehenri/*` packages at the CLI's own version instead of the 0.37 line, and the generated `pnpm-workspace.yaml` warns instead of failing when pnpm meets a transitive build script that is not allow-listed. `henri server` and `henri console` now run the `@usehenri/core` the app depends on when it has one, falling back to the CLI's own copy.
+- Updated dependencies []:
+  - @usehenri/core@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

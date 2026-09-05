@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "henri cli runner",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
