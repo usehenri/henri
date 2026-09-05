@@ -353,13 +353,13 @@ describe('henri new --renderer inertia', () => {
     expect(readme).not.toContain('destroy scaffold Task');
   });
 
-  test('rejects an unknown renderer with a positive exit code', () => {
-    const { status, stdout } = henri(
+  test('rejects an unknown renderer with the usage exit code', () => {
+    const { status, stderr } = henri(
       ['new', 'bad', '--skip-install', '--no-git', '--renderer', 'nope'],
       { cwd: dir }
     );
 
-    expect(status).toBe(1);
-    expect(stdout).toContain("Unknown renderer 'nope'");
+    expect(status).toBe(2);
+    expect(stderr).toContain("Unknown renderer 'nope'");
   });
 });

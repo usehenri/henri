@@ -472,7 +472,9 @@ class App {
   }
 
   /**
-   * Does a henri development server answer on the loopback interface?
+   * Does a henri development server of this application answer on the
+   * loopback interface? (its /_routes must list the routes of this app, so
+   * another henri app on the same port does not count)
    *
    * @param {string} url The server url
    * @returns {Promise<{url: string, running: boolean}>} The status
@@ -484,7 +486,19 @@ class App {
         signal: AbortSignal.timeout(500),
       });
 
-      return { running: response.ok, url };
+      if (!response.ok) {
+        return { running: false, url };
+      }
+
+      const served = Object.keys((await response.json()) || {}).sort();
+      const own = this.routes()
+        .map((route) => `${route.verb} ${route.route}`)
+        .sort();
+      const running =
+        served.length === own.length &&
+        served.every((key, index) => key === own[index]);
+
+      return { running, url };
     } catch {
       return { running: false, url };
     }

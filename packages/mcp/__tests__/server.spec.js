@@ -11,6 +11,7 @@ const { describeField, redact, scanActions } = require('../src/app');
 const { version } = require('../package.json');
 
 const henriBin = path.resolve(__dirname, '../../henri/bin/henri.js');
+const PORT = 47311;
 const mcpBin = path.resolve(__dirname, '../bin/henri-mcp.js');
 
 /**
@@ -160,6 +161,17 @@ describe('henri mcp', () => {
 
   beforeAll(async () => {
     ({ app, dir } = scaffold());
+
+    // A port nobody listens on, so "is a server running" is deterministic
+    const file = path.join(app, 'config', 'default.json');
+
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        ...JSON.parse(fs.readFileSync(file, 'utf8')),
+        port: PORT,
+      })
+    );
     ({ client } = await connect(app));
   }, 60000);
 
@@ -336,7 +348,10 @@ describe('henri mcp', () => {
     });
     expect(structuredContent.environment.node).toBe(process.version);
     expect(structuredContent.environment.cli).toBe(version);
-    expect(structuredContent.server.running).toBe(false);
+    expect(structuredContent.server).toEqual({
+      running: false,
+      url: `http://127.0.0.1:${PORT}/`,
+    });
     expect(structuredContent.stores).toEqual([
       expect.objectContaining({
         adapter: 'disk',
