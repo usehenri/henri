@@ -1,22 +1,22 @@
 ---
 title: Routes
-description: config/routes.js, HTTP verbs, roles, crud, resources, scope and omit.
+description: config/routes.js, HTTP verbs, roles, root, crud, resources, only and except, member and collection, namespaces and nested resources.
 sidebar:
   order: 3
 ---
 
 Routes are defined in `config/routes.js`. Any page in `app/views/pages` is also rendered when no route matches first.
 
-A route is a key (a path, or an HTTP verb and a path) pointing to `controller#action`, or to an object with a `controller` and options (`roles`, `scope`, `omit`).
+A route is a key (a path, or an HTTP verb and a path) pointing to `controller#action`, or to an object with a `controller` and options (`roles`, `scope`, `only`, `except`, `member`, `collection`, `nested`).
 
 ```js
 // config/routes.js
 module.exports = {
+  root: 'main#home', // GET /
+
   '/test': 'user#info', // defaults to 'get /test'
 
   '/abc/:id': 'moo#iii', // the controller does not exist: see below
-
-  '/user/find': 'user#fetch',
 
   'get /poo': 'user#postinfo',
 
@@ -34,12 +34,16 @@ module.exports = {
   'crud categories': {
     scope: 'api',
     controller: 'categories',
-    omit: ['destroy'], // the DELETE route is not created
+    except: ['destroy'], // the DELETE route is not created
+  },
+
+  'namespace admin': {
+    'resources users': { roles: ['admin'] }, // /admin/users -> admin/users
   },
 };
 ```
 
-Keys are `verb /path` with any Express verb (`get`, `post`, `put`, `patch`, `delete`, `options`, `head`, ...), or `resources`/`crud` followed by a name. When two keys expand to the same verb and path, the later one wins.
+Keys are `verb /path` with any Express verb (`get`, `post`, `put`, `patch`, `delete`, `options`, `head`, ...), or one of the keywords `root`, `resources`, `crud` and `namespace`. When two keys expand to the same verb and path, the later one wins.
 
 `henri routes` prints the expanded table (verb, path, controller, path helper and roles) without starting the server. While the server runs, `r` prints the loaded routes and `u` the ones whose controller is missing, and in development `GET /_routes` and `GET /_controllers` return the same as JSON, from the machine running the server only.
 
@@ -85,13 +89,82 @@ GET    /happy/:id       => life#show
 
 `henri generate scaffold Post` writes the `resources posts` key and a controller with the seven actions; `henri generate crud Post` the `crud posts` key and the four JSON actions.
 
+The controller defaults to the name of the resource, so `'resources posts': {}` is `'resources posts': { controller: 'posts' }`.
+
+## Root
+
+`root` maps `GET /` to an action, like `'get /'` does:
+
+```js
+module.exports = {
+  root: 'main#home', // or { controller: 'main#home', roles: ['member'] }
+};
+```
+
 ## Scope
 
 Add `scope` to prefix the generated routes: `scope: 'api'` turns `/happy` into `/api/happy`.
 
-## Omit (crud and resources only)
+## Only and except (crud and resources only)
 
-Add an `omit` array to skip some of the generated actions: `omit: ['destroy', 'edit']`.
+`only` keeps the actions it lists, `except` drops them; both accept a string or an array, and the routes keep the order above.
+
+```js
+module.exports = {
+  'resources posts': { only: ['index', 'show'] },
+  'resources comments': { except: ['edit', 'new'] },
+};
+```
+
+`omit` is the former name of `except` and still works. Prefer `except`: `omit` is deprecated and will be dropped in a future major.
+
+## Member and collection routes
+
+Actions outside the seven get a route with `member` (one record, under `/:id`) or `collection` (the whole resource):
+
+```js
+module.exports = {
+  'resources posts': {
+    collection: { 'get search': 'search' }, // GET /posts/search -> posts#search
+    member: { 'post archive': 'archive' }, // POST /posts/:id/archive
+  },
+};
+```
+
+Both accept an array of keys (`member: ['post archive', 'preview']`, the action is named after the segment, `get` by default), or an object whose value is the action (`'archive'`), another `controller#action`, or an object of route options (`{ action: 'archive', roles: ['admin'] }`, which inherits the options of the resource). The path helper is the usual `<action>_<controller>_path`, here `search_posts_path` and `archive_posts_path`. Collection routes are registered before `/:id` so they are reachable.
+
+Unlike the seven actions, these routes are not required to answer HAL (see [JSON API](/guides/api/)).
+
+## Namespaces
+
+`namespace <name>` holds a routes object; every route inside is prefixed with `/<name>` and every controller with `<name>/`, which is a sub-directory of `app/controllers`:
+
+```js
+module.exports = {
+  'namespace admin': {
+    'get /dashboard': 'dashboard#index', // GET /admin/dashboard -> admin/dashboard#index
+    'resources users': { roles: ['admin'] }, // /admin/users -> admin/users
+  },
+};
+```
+
+Namespaces nest. Options are not inherited: each route inside declares its own `roles`.
+
+## Nested resources
+
+`nested` holds a routes object expanded under one record of the parent:
+
+```js
+module.exports = {
+  'resources posts': {
+    nested: {
+      'resources comments': { only: ['index', 'create'] },
+    },
+  },
+};
+```
+
+gives `GET` and `POST /posts/:post_id/comments` on the `comments` controller. The parameter is the singular of the parent followed by `_id`; `param: 'slug'` renames it. The nested controller is not prefixed by the parent, only by the namespace it is in.
 
 ## API options
 
@@ -114,4 +187,4 @@ module.exports = {
 
 ## Named paths
 
-Every loaded route gets a name, `<action>_<controller>_path` (`show_todo_path`, `index_categories_path`), mapping to `{ method, route, roles }`. Pages rendered with `res.render()` (and the JSON answer of the same URL) receive them in `paths`, filtered by the roles of the current user; a page served by the view engine's fallback, without a controller, only gets the routes that need no role. The React and Inertia helpers `pathFor()` and `getRoute()` build URLs from these names, so a renamed route does not break your links.
+Every loaded route gets a name, `<action>_<controller>_path` (`show_todo_path`, `index_categories_path`), mapping to `{ method, route, roles }`. The rule holds whatever the route came from, so a member route of `posts` is `archive_posts_path` and a controller in a sub-directory keeps its folder: `admin/users#index` is `index_admin/users_path`. Pages rendered with `res.render()` (and the JSON answer of the same URL) receive them in `paths`, filtered by the roles of the current user; a page served by the view engine's fallback, without a controller, only gets the routes that need no role. The React and Inertia helpers `pathFor()` and `getRoute()` build URLs from these names, so a renamed route does not break your links.
