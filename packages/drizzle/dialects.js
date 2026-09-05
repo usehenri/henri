@@ -259,10 +259,16 @@ const sqlite = {
    */
   translate: (error) => {
     if (error && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      const match = /UNIQUE constraint failed: (.+)$/.exec(error.message || '');
-      const columns = match
-        ? match[1].split(',').map((entry) => entry.trim().split('.').pop())
-        : [];
+      const prefix = 'UNIQUE constraint failed: ';
+      const message = String(error.message || '');
+      const start = message.indexOf(prefix);
+      const columns =
+        start >= 0
+          ? message
+              .slice(start + prefix.length)
+              .split(',')
+              .map((entry) => entry.trim().split('.').pop())
+          : [];
 
       return uniqueViolation(error, { columns });
     }
@@ -391,10 +397,16 @@ const postgres = {
 
   translate: (error) => {
     if (error && error.code === '23505') {
-      const match = /Key \((.+?)\)=/.exec(error.detail || '');
-      const columns = match
-        ? match[1].split(',').map((entry) => entry.trim().replace(/"/g, ''))
-        : [];
+      const detail = String(error.detail || '');
+      const start = detail.indexOf('Key (');
+      const end = start >= 0 ? detail.indexOf(')=', start) : -1;
+      const columns =
+        end > start
+          ? detail
+              .slice(start + 'Key ('.length, end)
+              .split(',')
+              .map((entry) => entry.trim().replace(/"/g, ''))
+          : [];
 
       return uniqueViolation(error, { columns });
     }
@@ -519,8 +531,17 @@ const mysql = {
 
   translate: (error) => {
     if (error && error.code === 'ER_DUP_ENTRY') {
-      const match = /for key '(.+?)'/.exec(error.message || '');
-      const key = match ? match[1].split('.').pop() : '';
+      const message = String(error.message || '');
+      const marker = "for key '";
+      const start = message.indexOf(marker);
+      const end = start >= 0 ? message.indexOf("'", start + marker.length) : -1;
+      const key =
+        end > start
+          ? message
+              .slice(start + marker.length, end)
+              .split('.')
+              .pop()
+          : '';
 
       return uniqueViolation(error, { columns: [], key });
     }
@@ -579,13 +600,18 @@ const get = (name) => {
  * @returns {?object} The dialect or null
  */
 const fromUrl = (url) => {
-  const match = /^([a-z0-9+-]+):/i.exec(String(url || ''));
+  const text = String(url || '');
+  const colon = text.indexOf(':');
+  const candidate = colon > 0 ? text.slice(0, colon).toLowerCase() : '';
+  const isScheme =
+    candidate.length > 0 &&
+    [...candidate].every((char) => /[a-z0-9+-]/.test(char));
 
-  if (!match) {
-    return /\.(db|sqlite|sqlite3)$/i.test(String(url || '')) ? sqlite : null;
+  if (!isScheme) {
+    return /\.(db|sqlite|sqlite3)$/i.test(text) ? sqlite : null;
   }
 
-  const scheme = match[1].toLowerCase().replace(/\+.*$/, '');
+  const [scheme] = candidate.split('+');
 
   if (scheme === 'file') {
     return sqlite;
