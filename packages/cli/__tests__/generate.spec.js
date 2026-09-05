@@ -3,6 +3,7 @@ const path = require('path');
 const { parse } = require('@babel/parser');
 
 const { hooksFor } = require('@usehenri/core/src/base/hooks');
+const { modelErrors } = require('@usehenri/core/src/base/model-errors');
 
 const { TYPES, parseAttributes } = require('../scripts/generate');
 const {
@@ -97,24 +98,6 @@ const fakeReq = (body = {}, params = {}) => ({
 });
 
 /**
- * A thenable mongoose-like query (find().skip().limit())
- *
- * @param {Array} rows The rows the query resolves to
- * @returns {object} The query
- */
-const fakeQuery = (rows) => {
-  const query = {
-    lean: () => query,
-    limit: () => query,
-    skip: () => query,
-    sort: () => query,
-    then: (resolve, reject) => Promise.resolve(rows).then(resolve, reject),
-  };
-
-  return query;
-};
-
-/**
  * A fake model with the mongoose methods the controllers use
  *
  * @returns {object} The model and the calls it received
@@ -170,10 +153,11 @@ const fakeModel = () => {
     return doc;
   };
 
+  const rows = [{ id: '1', title: 'one' }];
+
   return {
     calls,
     model: {
-      countDocuments: async () => 1,
       create: async (data) => {
         calls.create = data;
         if (!data.title && !data.name) {
@@ -182,13 +166,24 @@ const fakeModel = () => {
 
         return { id: '2', ...data };
       },
-      find: () => fakeQuery([{ id: '1', title: 'one' }]),
       findById: async (id) => {
         if (id === 'bad') {
           throw cast();
         }
 
         return id === '1' ? document({ id: '1', title: 'one' }) : null;
+      },
+      // The same shape on every adapter, whatever req.pagination() holds
+      paginate: async (options) => {
+        calls.paginate = options;
+
+        return {
+          page: options.page,
+          pages: 1,
+          perPage: options.perPage,
+          records: rows,
+          total: rows.length,
+        };
       },
     },
   };
@@ -250,10 +245,13 @@ describe('henri generate', () => {
 
   beforeAll(() => {
     ({ app, dir } = scaffold());
+    // The generated controllers answer a 422 through henri.model.errors()
+    global.henri = { model: { errors: modelErrors } };
   });
 
   afterAll(() => {
     cleanup(dir);
+    delete global.henri;
   });
 
   test('prints the usage without a generator', () => {
@@ -462,6 +460,14 @@ describe('henri generate', () => {
 
         await controller.index(fakeReq(), res);
 
+        // One Model.paginate(req.pagination()) call, not a find and a count
+        expect(fake.calls.paginate).toEqual({
+          limit: 25,
+          offset: 0,
+          page: 1,
+          perPage: 25,
+          skip: 0,
+        });
         expect(res.calls).toEqual([
           [
             'collection',

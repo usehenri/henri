@@ -18,6 +18,11 @@
  * for one document (201 + Location on create, 204 on destroy). Browsers get
  * the pages and redirects (scaffold only). `res.negotiate({ html, json })`
  * picks one from the Accept header.
+ *
+ * Two things do not need a flavour: `Model.paginate()` answers the same
+ * `{ records, page, perPage, total, pages }` on the three model APIs, and
+ * `henri.model.errors()` normalizes what any of them throws on an invalid
+ * write, so the index and the 422 are written once for all of them.
  */
 
 const DEFAULT_API = 'mongoose';
@@ -33,7 +38,7 @@ const apiOf = ({ api }) => (FLAVOURS[api] ? api : DEFAULT_API);
 /**
  * Pick the fragment of an api
  *
- * @param {string} part The fragment name (helpers, page, find, ...)
+ * @param {string} part The fragment name (helpers, load, create, ...)
  * @param {object} opts { doc, lower, plural, keys, api }
  * @returns {string} The source code
  */
@@ -55,19 +60,31 @@ const validationHelper = ({ doc }) => `
  * @returns {object} The response
  */
 const invalid = (res, error) => {
-  if (error.name !== 'ValidationError') {
+  // Same { field: message } whatever the store threw, null when the error
+  // is not a validation failure
+  const errors = henri.model.errors(error);
+
+  if (!errors) {
     throw error;
   }
 
-  const errors = Object.fromEntries(
-    Object.entries(error.errors || {}).map(([field, detail]) => [
-      field,
-      detail.message,
-    ])
-  );
-
   return res.boom.badData(error.message, { errors });
 };
+`;
+
+/**
+ * The paginated query of an index action: one call for the page and the
+ * counters `res.collection()` wants, on every adapter
+ *
+ * @param {object} opts { doc, plural }
+ * @returns {string} The source code
+ */
+const page = ({ doc, plural }) => `
+    // One query for the page and its counters: the page and the size come
+    // from ?page=2&per_page=50, bounded by config.api.maxPerPage
+    const { records: ${plural}, page, perPage, total } = await ${doc}.paginate(
+      req.pagination()
+    );
 `;
 
 /**
@@ -135,14 +152,6 @@ ${validationHelper(opts)}`,
       opts,
       `req.${opts.lower} = await byId(${opts.doc}.findById(req.params.id));`
     ),
-  page: ({ doc, plural }) => `
-    // Page and size from ?page=2&per_page=50, bounded by config.api.maxPerPage
-    const { page, perPage, skip, limit } = req.pagination();
-    const [${plural}, total] = await Promise.all([
-      ${doc}.find().skip(skip).limit(limit),
-      ${doc}.countDocuments(),
-    ]);
-`,
   update: ({ lower }) => `
     try {
       req.${lower}.set(req.permit(...FIELDS));
@@ -154,9 +163,8 @@ ${validationHelper(opts)}`,
 };
 
 // --- drizzle ----------------------------------------------------------------
-// The drizzle models answer to the Mongoose names too, but `find()` resolves
-// to an array instead of a chainable query and a malformed id is already
-// null, so the paginated query is a relation and there is no byId helper.
+// The drizzle models answer to the Mongoose names too, but a malformed id is
+// already null, so there is no byId helper to guard the cast.
 
 const drizzle = {
   create: mongoose.create,
@@ -170,14 +178,6 @@ const drizzle = {
       `// findById() answers null for a malformed id, no cast to guard
   req.${opts.lower} = await ${opts.doc}.findById(req.params.id);`
     ),
-  page: ({ doc, plural }) => `
-    // Page and size from ?page=2&per_page=50, bounded by config.api.maxPerPage
-    const { page, perPage, skip, limit } = req.pagination();
-    const [${plural}, total] = await Promise.all([
-      ${doc}.query().offset(skip).limit(limit),
-      ${doc}.count(),
-    ]);
-`,
   update: ({ lower }) => `
     try {
       await req.${lower}.update(req.permit(...FIELDS));
@@ -222,35 +222,9 @@ const byId = async (id) => {
   }
 };
 
-/**
- * Answer a failed validation with a 422 and one message per field
- *
- * @param {object} res Express response
- * @param {Error} error The error thrown by ${doc}
- * @returns {object} The response
- */
-const invalid = (res, error) => {
-  if (!String(error.name).startsWith('Sequelize')) {
-    throw error;
-  }
-
-  const errors = Object.fromEntries(
-    (error.errors || []).map((detail) => [detail.path, detail.message])
-  );
-
-  return res.boom.badData(error.message, { errors });
-};
-`,
+${validationHelper({ doc })}`,
   load: (opts) =>
     loadHelper(opts, `req.${opts.lower} = await byId(req.params.id);`),
-  page: ({ doc, plural }) => `
-    // Page and size from ?page=2&per_page=50, bounded by config.api.maxPerPage
-    const { page, perPage, skip, limit } = req.pagination();
-    const [${plural}, total] = await Promise.all([
-      ${doc}.findAll({ limit, offset: skip }),
-      ${doc}.count(),
-    ]);
-`,
   update: ({ lower }) => `
     try {
       await req.${lower}.update(req.permit(...FIELDS));
@@ -281,7 +255,7 @@ const before = ({ doc, actions }) => `
 
 const index = (opts) => `
   index: async (req, res) => {
-    ${of('page', opts)}
+    ${page(opts)}
     // app/views/pages/${opts.plural}/index.js is the /${opts.plural} page for next.js
     const html = () =>
       res.render('/${opts.plural}', {
@@ -297,7 +271,7 @@ const index = (opts) => `
 
 const indexJson = (opts) => `
   index: async (req, res) => {
-    ${of('page', opts)}
+    ${page(opts)}
     return res.collection(${opts.plural}, { page, perPage, total });
   },`;
 

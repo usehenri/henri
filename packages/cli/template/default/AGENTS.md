@@ -45,23 +45,17 @@ module.exports = {
     title: { type: 'string', required: true, unique: true, index: true },
     status: { type: 'string', enum: ['draft', 'live'], default: 'draft' },
   },
-  options: { timestamps: true },
+  options: {}, // timestamps: false opts out, paranoid: true soft deletes
   store: 'default', // a key of config.stores
   associate(models) {}, // optional, called once every model exists
 };
 ```
 
 Field keys: `type`, `required`, `default`, `enum`, `unique`, `index`; any other
-key is handed to the adapter as is. The global is the model of the `{{adapter}}`
-store, and what the generators write: {{#if mongoose}}Mongoose (`find().skip().limit()`,
-`countDocuments`, `findById`, `create`, `findByIdAndUpdate`, `findByIdAndDelete`),
-documents carry `_id`.{{/if}}{{#if drizzle}}the drizzle model (`where`, `order`, `include`,
-`query().offset().limit()`, `count`, `findById`, `create`, `findByIdAndUpdate`,
-`findByIdAndDelete`), rows carry `id`. Migrations live in `db/migrations`:
-`henri db:generate|migrate|push|status`, generate and commit one after a model change.{{/if}}{{#if sequelize}}Sequelize
-(`findAll`, `findByPk`, `count`, `create`, then `row.update()` and
-`row.destroy()`), rows carry `id`. There are no migrations: the boot runs
-`sequelize.sync()` and creates or extends the tables from the models.{{/if}}
+key is handed to the adapter as is. Every store adds `createdAt`/`updatedAt`,
+`Model.paginate({ page, perPage })` -> `{ records, page, perPage, total, pages }`,
+`henri.model.errors(error)` -> `{ field: message }` (`null` otherwise) and `db/seeds.js`, run by `henri db:seed`.
+The global is the model of the `{{adapter}}` store, and what the generators write: {{#if mongoose}}Mongoose (`find`, `findById`, `create`, then `doc.set()`, `doc.save()` and `doc.deleteOne()`), documents carry `_id`.{{/if}}{{#if drizzle}}the drizzle model (`where`, `order`, `include`, `findById`, `create`, then `row.update()` and `row.destroy()`), rows carry `id`. Migrations live in `db/migrations`: `henri db:generate|migrate|push|status`, generate and commit one after a model change.{{/if}}{{#if sequelize}}Sequelize (`findAll`, `findByPk`, `create`, then `row.update()` and `row.destroy()`), rows carry `id`. There are no migrations: the boot runs `sequelize.sync()` and creates or extends the tables from the models.{{/if}}
 
 ## Controllers
 
@@ -73,9 +67,9 @@ documents carry `_id`.{{/if}}{{#if drizzle}}the drizzle model (`where`, `order`,
   params (later wins). Never pass `req.body` to a model.
 - `res.negotiate({ html: () => res.render('/posts/show', { data: { post } }),
 json: () => res.resource(post) })`: the page for browsers, HAL for API
-  clients. `res.collection(posts, { page, perPage, total })` with
-  `req.pagination()` for an index, `{ status: 201 }` sets Location, 204 on
-  destroy. Mutations honour `Idempotency-Key`; rate limits apply outside dev.
+  clients. An index is one query, `Post.paginate(req.pagination())`, then
+  `res.collection(posts, { page, perPage, total })`; `{ status: 201 }` sets
+  Location, 204 on destroy. Mutations honour `Idempotency-Key`; rate limits apply outside dev.
 - `res.boom.notFound(message, data)`, `badData` (422), `badRequest`,
   `unauthorized`, `forbidden`, `conflict`, `tooManyRequests` answer JSON.
 - `req.flash('notice', 'Saved')` before a redirect: the next page rendered gets it in `flash.notice`, once (needs a user model, so a session).

@@ -144,7 +144,7 @@ henri g worker cleanup
 henri g test highscores
 ```
 
-The scaffolded controllers are written for Mongoose (`findById`, `findByIdAndUpdate`, `findByIdAndDelete`), which the disk and mongoose adapters use; adapt them by hand for a SQL store. Their `index` uses [`Model.paginate(req.pagination())`](/guides/models/#pagination) and their 422 answers [`henri.model.errors(error)`](/guides/models/#validation-errors), both of which work on every adapter. The scaffolded pages target the React renderer.
+The scaffolded controllers follow the adapter of the default store: the Mongoose API on `disk` and `mongoose`, Sequelize on `mysql`, `postgresql` and `mssql`, the Drizzle model API on `drizzle` (see [Models](/guides/models/)). What they load a record with differs; their `index` is [`Model.paginate(req.pagination())`](/guides/models/#pagination) and their 422 is [`henri.model.errors(error)`](/guides/models/#validation-errors) on all three, because both answer the same shape on every adapter. The scaffolded pages target the React renderer.
 
 ## `destroy`
 
