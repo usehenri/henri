@@ -1,23 +1,23 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { useForm } from './context';
 const _Get = require('lodash.get');
 
-const Input = (
-  {
-    disabled = false,
-    className = 'form-control',
-    baseClassName = 'form-group',
-    errorClassName = 'help-block m-b-none',
-    errorMsg,
-    name,
-    placeholder,
-    required = false,
-    type,
-    validation = {},
-    sanitation = {},
-  },
-  context
-) => {
+const Input = ({
+  disabled = false,
+  className = 'form-control',
+  baseClassName = 'form-group',
+  errorClassName = 'help-block m-b-none',
+  errorMsg = {},
+  name,
+  placeholder,
+  required = false,
+  type,
+  validation = {},
+  sanitation = {},
+}) => {
+  const context = useForm();
+
   !context._henriForm &&
     // eslint-disable-next-line no-console
     console.warn('Input component used outside henri form.');
@@ -26,7 +26,7 @@ const Input = (
   context.addSanitizer(name, sanitation);
 
   return (
-    <div className={`${baseClassName} ${hasError && 'has-error'}`}>
+    <div className={`${baseClassName} ${hasError ? 'has-error' : ''}`}>
       <input
         type={type}
         name={name}
@@ -35,7 +35,7 @@ const Input = (
         placeholder={placeholder}
         required={required}
         disabled={disabled}
-        onChange={event => context.handleChange(event, validation, sanitation)}
+        onChange={(event) => context.handleChange(event, validation, sanitation)}
       />
       {hasError && (
         <span className={errorClassName}>{errorMsg[context.errors[name]]}</span>
@@ -45,6 +45,10 @@ const Input = (
 };
 
 Input.propTypes = {
+  baseClassName: PropTypes.string,
+  className: PropTypes.string,
+  disabled: PropTypes.bool,
+  errorClassName: PropTypes.string,
   errorMsg: PropTypes.object,
   name: PropTypes.string.isRequired,
   placeholder: PropTypes.string,
@@ -52,16 +56,6 @@ Input.propTypes = {
   sanitation: PropTypes.object,
   type: PropTypes.string,
   validation: PropTypes.object,
-};
-
-Input.contextTypes = {
-  _henriForm: PropTypes.bool,
-  addSanitizer: PropTypes.func,
-  data: PropTypes.object,
-  errors: PropTypes.object,
-  handleChange: PropTypes.func,
-  handleSubmit: PropTypes.func,
-  modified: PropTypes.bool,
 };
 
 export default Input;

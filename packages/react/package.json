@@ -1,54 +1,57 @@
 {
   "name": "@usehenri/react",
   "version": "0.37.2",
-  "description": "react components for henri",
+  "description": "react components and next.js view engine for henri",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "rollup -c",
     "local": "rollup -c -w",
-    "prepublish": "rollup -c"
-  },
-  "devDependencies": {
-    "@rollup/plugin-babel": "^5.1.0",
-    "rollup": "^2.23.0"
+    "prepare": "rollup -c",
+    "prepack": "rollup -c"
   },
   "files": [
     "dist",
     "engine",
+    "engine.js",
     "forms.js",
+    "index.js",
     "withHenri.js"
   ],
   "dependencies": {
-    "@babel/core": "7.11.0",
-    "@babel/plugin-proposal-class-properties": "7.10.4",
-    "@babel/plugin-proposal-object-rest-spread": "7.11.0",
-    "@babel/plugin-transform-runtime": "7.11.0",
-    "@babel/preset-env": "7.11.0",
-    "@babel/preset-react": "7.10.4",
-    "axios": "^0.19.2",
-    "babel-core": "7.0.0-bridge.0",
-    "babel-loader": "8.1.0",
-    "babel-plugin-module-resolver": "4.0.0",
-    "babel-plugin-wrap-in-js": "1.1.1",
-    "cache-loader": "^4.0.1",
-    "caniuse-lite": "^1.0.30001023",
-    "cssnano": "^4.1.10",
-    "debug": "^4.1.1",
+    "axios": "^1.13.0",
+    "debug": "^4.4.3",
     "lodash.get": "^4.4.2",
     "lodash.set": "^4.3.2",
-    "module-alias": "^2.2.2",
-    "next": "^9.2.1",
-    "postcss-easy-import": "^3.0.0",
-    "postcss-loader": "^3.0.0",
-    "prop-types": "^15.7.2",
-    "raw-loader": "^4.0.1",
-    "react-quill": "^1.3.3",
-    "recursive-readdir": "^2.2.2",
-    "sass-loader": "^9.0.2",
+    "next": "^16.3.4",
+    "prop-types": "^15.8.1",
+    "react-quill-new": "^3.8.3",
     "shallowequal": "^1.1.0",
-    "socket.io-client": "^2.3.0",
-    "validator": "^13.1.1"
+    "validator": "^13.15.35"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sass": "^1.3.0"
+  },
+  "peerDependenciesMeta": {
+    "sass": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.0",
+    "@babel/preset-env": "^7.28.0",
+    "@babel/preset-react": "^7.27.0",
+    "@rollup/plugin-babel": "^7.1.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recursive-readdir": "^2.2.3",
+    "rollup": "^4.63.0",
+    "sass": "^1.104.0"
   }
 }
