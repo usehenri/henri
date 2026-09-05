@@ -38,8 +38,8 @@
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs}": [
-      "prettier --write",
-      "eslint --fix --no-warn-ignored --config eslint.config.js"
+      "eslint --fix --no-warn-ignored --config eslint.config.js",
+      "prettier --write"
     ],
     "*.{json,md,yml,yaml}": [
       "prettier --write"
