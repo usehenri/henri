@@ -78,10 +78,11 @@ describe('react scaffold templates', () => {
   test('the index lists every key with valid table markup', () => {
     const { code } = compile('index');
 
-    expect(code).toContain('<th>title</th>');
-    expect(code).toContain('<th>body</th>');
+    expect(code).toMatch(/<th[^>]*>title<\/th>/);
+    expect(code).toMatch(/<th[^>]*>body<\/th>/);
     expect(code).toContain("String(item.title ?? '')");
-    expect(code).toMatch(/colSpan=\{\s*2 \+ 3\s*\}/);
+    // One "Actions" column follows the keys
+    expect(code).toMatch(/colSpan=\{\s*2 \+ 1\s*\}/);
     expect(code).not.toContain('<td><td>');
     expect(code).toContain('posts.length === 0');
   });
@@ -102,7 +103,18 @@ describe('react scaffold templates', () => {
     expect(code).toContain('name="title"');
     expect(code).toContain('name="body"');
     expect(code).toContain('const PostForm');
-    expect(code).toContain('<FormError />');
+    expect(code).toContain('<FormError');
+  });
+
+  test('the pages are styled with tailwind, dark mode included', () => {
+    for (const view of views) {
+      const { code } = compile(view);
+
+      expect(code).toMatch(/className=/);
+      expect(code).toMatch(/dark:[a-z]/);
+      // No tailwind config file to look for: the theme is the stylesheet
+      expect(code).not.toContain('tailwind.config');
+    }
   });
 
   test('templates survive names with several keys and none', () => {

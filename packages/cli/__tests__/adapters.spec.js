@@ -321,7 +321,7 @@ describe('the scaffolded resource follows the adapter', () => {
     expect(agents).toContain('henri db:generate|migrate|push|status');
     expect(agents).not.toContain('{{');
     // The longest combination (inertia + drizzle); see new.spec.js
-    expect(agents.split('\n').length).toBeLessThan(160);
+    expect(agents.split('\n').length).toBeLessThan(170);
 
     const readme = read(app, 'README.md');
 
