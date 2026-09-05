@@ -55,7 +55,8 @@ key is handed to the adapter as is (Mongoose options on `disk` and `mongoose`
 stores, Sequelize attribute options on `mysql`, `postgresql`, `mssql`). The
 global is the ORM model: Mongoose (`find`, `findById`, `create`,
 `findByIdAndUpdate`, `findByIdAndDelete`) on `disk`/`mongoose`, Sequelize
-(`findAll`, `findByPk`) on SQL stores. The scaffold targets Mongoose.
+(`findAll`, `findByPk`) on SQL stores, its own Rails-like model on `drizzle`
+stores (`henri db:generate|migrate|push|status` migrations). Scaffold: Mongoose.
 
 ## Controllers
 

@@ -184,6 +184,7 @@ class Model extends BaseModule {
 
     const valid = {
       disk: 'disk',
+      drizzle: 'drizzle',
       mariadb: 'mysql',
       mongoose: 'mongoose',
       mssql: 'mssql',

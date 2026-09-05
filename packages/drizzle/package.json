@@ -1,0 +1,60 @@
+{
+  "name": "@usehenri/drizzle",
+  "version": "1.0.2",
+  "description": "henri SQL adapter on Drizzle ORM: sqlite, postgres and mysql with Rails-like models and migrations",
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/drizzle"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "dialects.js",
+    "migrations.js",
+    "model.js",
+    "relation.js",
+    "schema.js",
+    "session.js",
+    "types.js",
+    "utils.js",
+    "validation.js"
+  ],
+  "dependencies": {
+    "debug": "^4.4.3",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.2"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "better-sqlite3": ">=11",
+    "express-session": "^1.17.1",
+    "mysql2": ">=3",
+    "pg": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "better-sqlite3": "^13.0.3",
+    "express-session": "^1.19.0",
+    "mysql2": "^3.24.3",
+    "pg": "^8.23.0"
+  }
+}

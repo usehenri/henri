@@ -52,6 +52,7 @@
     "clean",
     "console",
     "d",
+    "db",
     "destroy",
     "doctor",
     "g",
