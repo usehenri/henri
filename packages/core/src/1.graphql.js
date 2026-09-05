@@ -1,16 +1,37 @@
 const BaseModule = require('./base/module');
-const { mergeTypes, mergeResolvers } = require('merge-graphql-schemas');
-const { makeExecutableSchema } = require('graphql-tools');
-const {
-  ApolloServer,
-  ApolloError,
-  toApolloError,
-  SyntaxError,
-  ValidationError,
-  AuthenticationError,
-  ForbiddenError,
-  UserInputError,
-} = require('apollo-server-express');
+const { mergeTypeDefs, mergeResolvers } = require('@graphql-tools/merge');
+const { makeExecutableSchema } = require('@graphql-tools/schema');
+const { ApolloServer } = require('@apollo/server');
+const { expressMiddleware } = require('@as-integrations/express5');
+const { GraphQLError } = require('graphql');
+const bounce = require('@hapi/bounce');
+const debug = require('debug')('henri:graphql');
+
+/**
+ * Build a GraphQLError subclass carrying an `extensions.code`
+ *
+ * @param {string} code the extension code (ex: UNAUTHENTICATED)
+ * @returns {typeof GraphQLError} the error class
+ */
+const errorWithCode = (code) =>
+  class extends GraphQLError {
+    /**
+     * @param {string} message error message
+     * @param {object} [options={}] GraphQLError options
+     */
+    constructor(message, options = {}) {
+      super(message, {
+        ...options,
+        extensions: { code, ...(options.extensions || {}) },
+      });
+    }
+  };
+
+const AuthenticationError = errorWithCode('UNAUTHENTICATED');
+const ForbiddenError = errorWithCode('FORBIDDEN');
+const UserInputError = errorWithCode('BAD_USER_INPUT');
+const ValidationError = errorWithCode('GRAPHQL_VALIDATION_FAILED');
+const SyntaxError = errorWithCode('GRAPHQL_PARSE_FAILED');
 
 /**
  * GraphQL module
@@ -41,15 +62,27 @@ class Graphql extends BaseModule {
     this.active = false;
 
     this.graphqlServer = null;
+    this.ready = null;
+
+    this._handler = null;
+    this._middlewareRegistered = false;
 
     this.init = this.init.bind(this);
     this.extract = this.extract.bind(this);
     this.merge = this.merge.bind(this);
     this.run = this.run.bind(this);
     this.reload = this.reload.bind(this);
+    this.createServer = this.createServer.bind(this);
 
-    this.ApolloError = ApolloError;
-    this.toApolloError = toApolloError;
+    this.GraphQLError = GraphQLError;
+    this.ApolloError = GraphQLError;
+    this.toApolloError = (error, code = 'INTERNAL_SERVER_ERROR') =>
+      error instanceof GraphQLError
+        ? error
+        : new GraphQLError(error.message, {
+            extensions: { code },
+            originalError: error,
+          });
     this.SyntaxError = SyntaxError;
     this.ValidationError = ValidationError;
     this.AuthenticationError = AuthenticationError;
@@ -70,25 +103,60 @@ class Graphql extends BaseModule {
       this.endpoint = this.henri.config.get('graphql');
     }
 
-    if (this.schema !== null) {
-      this.graphqlServer = new ApolloServer({
-        context: ctx => {
-          return { ctx };
-        },
-        path: this.endpoint,
-        schema: this.schema,
-      });
-
-      this.henri.addMiddleware('graphql', app => {
-        this.graphqlServer.applyMiddleware({ app });
-      });
+    if (this.schema !== null && !this.graphqlServer) {
+      await this.createServer();
     }
 
-    if (!this.henri.isProduction) {
-      this.henri.pen.info('graphql', 'graphql playground started');
+    if (!this.henri.isProduction && this.active) {
+      this.henri.pen.info('graphql', 'endpoint', this.endpoint);
     }
 
     return this.name;
+  }
+
+  /**
+   * Create (and start) the Apollo server for the current schema
+   * The express middleware is registered once and always delegates to the
+   * latest server instance, so reloads do not stack handlers.
+   *
+   * @returns {Promise<void>} resolves once the server has started
+   * @memberof Graphql
+   */
+  createServer() {
+    const server = new ApolloServer({
+      introspection: !this.henri.isProduction,
+      schema: this.schema,
+    });
+
+    this.graphqlServer = server;
+    this.ready = server
+      .start()
+      .then(() => {
+        this._handler = expressMiddleware(server, {
+          context: async ({ req, res }) => ({ req, res }),
+        });
+        debug('apollo server started');
+      })
+      .catch((error) => {
+        this.henri.pen.error('graphql', 'unable to start apollo server');
+        this.henri.pen.error('graphql', error);
+        this.active = false;
+      });
+
+    if (!this._middlewareRegistered) {
+      this._middlewareRegistered = true;
+      this.henri.addMiddleware('graphql', (app) => {
+        app.use(this.endpoint, (req, res, next) => {
+          if (!this.active || !this._handler) {
+            return next();
+          }
+
+          return this._handler(req, res, next);
+        });
+      });
+    }
+
+    return this.ready;
   }
 
   /**
@@ -128,7 +196,7 @@ class Graphql extends BaseModule {
 
     if (this.typesList.length > 0) {
       should = true;
-      this.types = mergeTypes(this.typesList);
+      this.types = mergeTypeDefs(this.typesList);
     }
 
     if (this.resolversList.length > 0) {
@@ -140,15 +208,11 @@ class Graphql extends BaseModule {
       this.active = true;
       try {
         this.schema = makeExecutableSchema({
-          resolvers: this.resolvers,
+          resolvers: this.resolvers || {},
           typeDefs: this.types,
         });
         this.henri.pen.info('graphql', 'schema', 'valid');
-        if (!this.graphqlServer) {
-          this.init();
-        } else {
-          this.graphqlServer.schema = this.schema;
-        }
+        this.createServer();
       } catch (error) {
         this.henri.pen.error('graphql', error);
         this.henri.pen.error(
@@ -172,25 +236,46 @@ class Graphql extends BaseModule {
    *
    * @async
    * @param {Graphql} [query=`{ No query }`]  the graphql query
-   * @returns {(Promise<GraphQLResponse> | "No graphql schema found.")} value
+   * @param {object} [variables] query variables
+   * @returns {(Promise<{data: object, errors: Array}> | "No graphql schema found.")} value
    * @memberof Graphql
    */
-  async run(query = `{ No query }`) {
-    if (!this.schema) {
+  async run(query = `{ No query }`, variables = undefined) {
+    if (!this.schema || !this.graphqlServer) {
       return 'No graphql schema found.';
     }
 
-    return this.graphqlServer.executeOperation({ query });
+    await this.ready;
+
+    const response = await this.graphqlServer.executeOperation({
+      query,
+      variables,
+    });
+
+    if (response.body.kind === 'single') {
+      const { data, errors } = response.body.singleResult;
+
+      return { data, errors };
+    }
+
+    return {
+      data: null,
+      errors: [new GraphQLError('incremental delivery is not supported')],
+    };
   }
 
   /**
    * Reloads the module
+   * State is cleared synchronously; the previous Apollo server is stopped in
+   * the background.
    *
    * @async
    * @returns {string} Module name
    * @memberof Graphql
    */
   async reload() {
+    const previous = this.graphqlServer;
+
     this.typesList = [];
     this.resolversList = [];
 
@@ -198,8 +283,44 @@ class Graphql extends BaseModule {
     this.types = null;
     this.resolvers = null;
     this.schema = null;
+    this.graphqlServer = null;
+    this.ready = null;
+    this._handler = null;
+
+    if (previous) {
+      try {
+        await previous.stop();
+      } catch (error) {
+        bounce.rethrow(error, 'system');
+        debug('error while stopping previous apollo server %O', error);
+      }
+    }
 
     return this.name;
+  }
+
+  /**
+   * Stops the module
+   *
+   * @async
+   * @returns {(string|boolean)} Module name or false
+   * @memberof Graphql
+   */
+  async stop() {
+    if (this.graphqlServer) {
+      try {
+        await this.graphqlServer.stop();
+      } catch (error) {
+        bounce.rethrow(error, 'system');
+      }
+      this.graphqlServer = null;
+      this._handler = null;
+      this.ready = null;
+
+      return this.name;
+    }
+
+    return false;
   }
 }
 

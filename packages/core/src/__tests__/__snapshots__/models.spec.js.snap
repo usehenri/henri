@@ -8,12 +8,12 @@ Model {
   "consoleOnly": false,
   "getStore": [Function],
   "henri": null,
-  "ids": Array [],
+  "ids": [],
   "info": [Function],
   "init": [Function],
   "key": null,
   "loadStore": [Function],
-  "models": Array [],
+  "models": [],
   "name": "model",
   "reload": [Function],
   "reloadable": true,
@@ -22,6 +22,6 @@ Model {
   "setup": [Function],
   "start": [Function],
   "stop": [Function],
-  "stores": Object {},
+  "stores": {},
 }
 `;

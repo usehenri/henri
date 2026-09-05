@@ -2,7 +2,7 @@ const BaseModule = require('../base/module');
 const Henri = require('../henri');
 const User = require('../4.user');
 
-const fetch = require('isomorphic-fetch');
+
 
 const email = 'testing@usehenri.io';
 const password = 'delectorskaya';

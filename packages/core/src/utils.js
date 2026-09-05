@@ -1,13 +1,13 @@
 const spawn = require('cross-spawn');
-const comparev = require('compare-versions');
+const { compareVersions } = require('compare-versions');
 const path = require('path');
 const fs = require('fs');
-const prettier = require('prettier');
+const vm = require('vm');
 const stack = require('callsite');
 const readline = require('readline');
 const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:utils');
-const inquirer = require('inquirer');
+const { checkbox } = require('@inquirer/prompts');
 
 // eslint-disable-next-line id-length
 const _ = require('lodash');
@@ -79,31 +79,28 @@ async function checkPackages(packages = []) {
   if (missing.length > 0) {
     const msg = generateMessage(missing);
 
-    if (henri.isDev) {
-      await inquirer
-        .prompt({
-          choices: missing,
-          message:
-            'Do you want me to try to install missing packages? (ctrl+c to cancel)',
-          name: 'install',
-          type: 'checkbox',
-        })
-        .then(({ install }) => {
-          if (yarnExists) {
-            install.unshift('add');
-            spawn.sync('yarn', install);
-          } else {
-            install.unshift('i');
-            install.unshift('--save');
-            spawn.sync('npm', install);
-          }
-        });
+    if (henri.isDev && process.stdin.isTTY) {
+      const install = await checkbox({
+        choices: missing.map((name) => ({ name, value: name })),
+        message:
+          'Do you want me to try to install missing packages? (ctrl+c to cancel)',
+      });
+
+      if (install.length > 0) {
+        if (yarnExists()) {
+          spawn.sync('yarn', ['add', ...install], { stdio: 'inherit' });
+        } else {
+          spawn.sync('npm', ['install', '--save', ...install], {
+            stdio: 'inherit',
+          });
+        }
+      }
     } else {
       throw new Error(`Unable to load ${msg.join(' ')} from the current project.
-    
+
       Try installing ${missing.length > 1 ? 'them' : 'it'}:
-      
-        # ${yarnExists ? 'yarn add' : 'npm install'} ${missing.join(' ')}
+
+        # ${yarnExists() ? 'yarn add' : 'npm install'} ${missing.join(' ')}
       `);
     }
   }
@@ -130,7 +127,7 @@ function checkMissing(packages) {
       if (version) {
         const target = resolvePackageJson(pkgName);
 
-        if (comparev(target.version, version) < 0) {
+        if (compareVersions(target.version, version) < 0) {
           // eslint-disable-next-line no-console
           console.log(
             `package version error for ${pkgName}; wanted > ${version} but got ${target.version}`
@@ -234,7 +231,36 @@ async function syntax(location, onSuccess, inst = undefined) {
 }
 
 /**
- * Make it go through prettier
+ * Check the syntax of a source file with Node's own parser
+ * JSON files are parsed, CommonJS files are compiled (not executed).
+ * Other file types are not checked.
+ *
+ * @param {string} file filename (used for the extension and error frames)
+ * @param {string} source file contents
+ * @returns {boolean} true when the syntax is valid or not checkable
+ * @throws {SyntaxError} when the source does not parse
+ */
+function checkSyntax(file, source) {
+  const ext = path.extname(file).toLowerCase();
+
+  if (ext === '.json') {
+    JSON.parse(source);
+
+    return true;
+  }
+
+  if (ext === '.js' || ext === '.cjs') {
+    // eslint-disable-next-line no-new
+    new vm.Script(source, { filename: file });
+
+    return true;
+  }
+
+  return true;
+}
+
+/**
+ * Parse a file and report syntax errors through the pen
  *
  * @param {Promise} resolve to be resoived
  * @param {string} file filename
@@ -252,26 +278,26 @@ async function parseSyntax(resolve, file, data, onSuccess, inst = undefined) {
   }
 
   try {
-    const fileInfo = await prettier.getFileInfo(file);
-
-    if (fileInfo) {
-      prettier.format(data.toString(), { parser: fileInfo.inferredParser });
-    }
+    checkSyntax(file, data.toString());
 
     inst.status.set('locked', false);
     typeof onSuccess === 'function' && onSuccess();
 
     return resolve(true);
   } catch (error) {
-    const { line, column } = _.has(error, 'loc.start')
-      ? error.loc.start
-      : { column: 0, line: 0 };
+    // V8 syntax errors start their stack with "<file>:<line>" then a code frame
+    const lines = (error.stack || '').split('\n');
+    const match = /:(\d+)$/.exec(lines[0] || '');
+    const line = match ? match[1] : 0;
+    const frame = lines.slice(0, 3).join('\n');
 
-    inst.pen.error('server', `while parsing ${file}:${line}:${column}`);
-    // eslint-disable-line no-console
-    console.log(' '); // eslint-disable-line no-console
-    console.log(error.codeFrame); // eslint-disable-line no-console
-    console.log(' '); // eslint-disable-line no-console
+    inst.pen.error('server', `while parsing ${file}:${line}`);
+    // eslint-disable-next-line no-console
+    console.log(' ');
+    // eslint-disable-next-line no-console
+    console.log(frame);
+    // eslint-disable-next-line no-console
+    console.log(' ');
     resolve(error);
   }
 }
@@ -279,6 +305,7 @@ async function parseSyntax(resolve, file, data, onSuccess, inst = undefined) {
 module.exports = {
   bounce,
   checkPackages,
+  checkSyntax,
   clearConsole,
   getColor,
   resolveFrom,

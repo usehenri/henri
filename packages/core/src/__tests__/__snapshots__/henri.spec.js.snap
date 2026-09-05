@@ -87,6 +87,7 @@ Henri {
       "rethrow": [Function],
     },
     "checkPackages": [Function],
+    "checkSyntax": [Function],
     "clearConsole": [Function],
     "getColor": [Function],
     "resolveFrom": [Function],

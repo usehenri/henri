@@ -76,7 +76,6 @@
       "packages/.*/dist",
       "packages/cli/scripts/test.js",
       "packages/demo",
-      "packages/disk",
       "packages/mssql",
       "packages/mysql",
       "packages/postgresql",
