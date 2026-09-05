@@ -2,8 +2,10 @@
 
 henri is a Rails-like, server-side rendered JavaScript framework for Node.js:
 models, controllers, routes and React views, with real ORMs and hot reload. This
-is the monorepo for the `henri` CLI, `@usehenri/core` and its adapters, and the
-usehenri.io website. It is public and open source (MIT).
+is the monorepo for the `henri` CLI, `@usehenri/core` and its adapters, the view
+engines, the testing helpers and the usehenri.io website. It is public and open
+source (MIT). The documentation in `website/src/content/docs` describes what the
+code does: keep both in sync when a behaviour changes.
 
 ## Setup and commands
 
@@ -15,10 +17,11 @@ mise install                          # node + pnpm from mise.toml
 pnpm install                          # whole workspace; builds @usehenri/react dist
 pnpm test                             # vitest 5, all packages (NODE_ENV=test)
 pnpm test packages/core               # one package (path filter); `pnpm test:cover` for coverage
-pnpm lint                             # eslint 10 flat config
-pnpm format                           # prettier 3
+pnpm lint                             # eslint 10 flat config, zero warnings in CI
+pnpm format                           # prettier 3 (`pnpm format:check` in CI)
 pnpm build                            # rollup build of @usehenri/react
-pnpm --filter @usehenri/website dev   # docs site (Astro + Starlight)
+pnpm --filter @usehenri/website dev   # docs site (Astro + Starlight); `build` and `preview` too
+scripts/smoke.sh                      # scaffold an app from the packed workspace and boot it
 pnpm changeset                        # record a version bump for changed packages
 ```
 
@@ -26,63 +29,111 @@ The first test run downloads a MongoDB binary (mongodb-memory-server) into
 `~/.cache/mongodb-binaries`. Set `MONGOMS_DISABLE_POSTINSTALL=1` when
 installing where that download is unwanted.
 
+Applications built with henri run their own tests with `henri test`, which
+spawns the app's Vitest with `NODE_ENV=test`; `@usehenri/testing` boots the
+app inside the test worker (`setup`, `teardown`, `request`, `agent`, `henri`,
+plus `@usehenri/testing/setup-file` for `setupFiles`). `packages/demo` is such
+an app and is what core's tests boot.
+
 ## Layout
 
-| Path                                    | Package               | Role                                                           |
-| --------------------------------------- | --------------------- | -------------------------------------------------------------- |
-| `packages/henri`                        | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.    |
-| `packages/cli`                          | `@usehenri/cli`       | `new`, `server`, `generate`, `console`, `build`, the template  |
-| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users   |
-| `packages/mongoose`                     | `@usehenri/mongoose`  | MongoDB adapter (Mongoose)                                     |
-| `packages/disk`                         | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server)              |
-| `packages/sequelize`                    | `@usehenri/sequelize` | Shared SQL adapter (Sequelize)                                 |
-| `packages/mysql`, `postgresql`, `mssql` | `@usehenri/*`         | Dialect packages on top of `@usehenri/sequelize`               |
-| `packages/react`                        | `@usehenri/react`     | Next.js view engine, `withHenri`, form components              |
-| `packages/testing`, `websocket`         | `@usehenri/*`         | Small helpers                                                  |
-| `packages/demo`                         | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it) |
-| `website`                               | private               | usehenri.io, deployed by Vercel from `website/`                |
+| Path                                    | Package               | Role                                                                                                                      |
+| --------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `packages/henri`                        | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                               |
+| `packages/cli`                          | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `generate`, `destroy`, `build`, `test`, `clean`, `about`; the app templates |
+| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, mail, GraphQL                                               |
+| `packages/mongoose`                     | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                              |
+| `packages/disk`                         | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                      |
+| `packages/sequelize`                    | `@usehenri/sequelize` | Shared SQL adapter (Sequelize 6)                                                                                          |
+| `packages/mysql`, `postgresql`, `mssql` | `@usehenri/*`         | Dialect packages on top of `@usehenri/sequelize`                                                                          |
+| `packages/react`                        | `@usehenri/react`     | Next.js 16 view engine, `withHenri`, `useHenri`, form components                                                          |
+| `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19 (new in 1.1, experimental)                                                      |
+| `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                         |
+| `packages/websocket`                    | private               | Not published, never wired into core                                                                                      |
+| `packages/demo`                         | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                            |
+| `website`                               | private               | usehenri.io, deployed by Vercel from `website/`                                                                           |
 
 ## How core works
 
 - `Henri` (`packages/core/src/henri.js`) registers modules, each a class extending
-  `base/module.js` with a unique `name`, a `runlevel` (0 config/logger, 1 graphql
-  and mail, 2 controllers and Express, 3 models and views, 4 users, 5 routes and
-  workers, 6 app modules, 7 tests) and `init()`. Modules on the same level start
-  concurrently; reloadable ones expose `reload()` and are torn down in reverse.
+  `base/module.js` with a unique `name`, a `runlevel` (0 config, 1 mail and
+  graphql, 2 controllers and the Express app, 3 models and the view engine,
+  4 users, 5 router and workers, 6 app modules) and `init()`. Modules on the
+  same level start concurrently; a failing `init()` fails the boot
+  (`henri.init()` rejects with an Error whose `cause` is the module error).
+  Reloadable ones expose `reload()`; `henri.stop()` stops every module even
+  when one fails and resolves with the errors. `pen.fatal()` returns an Error
+  to throw. Level 7 (`7.tests.js`) is legacy and never runs in a normal boot.
   Each module is exposed as `henri.<name>`, so names must be unique.
 - The `henri` instance and every model are globals in user apps
-  (`global.henri`, `global.Artwork`). Tests rely on this too.
-- Store adapters implement `new Adapter(name, config, henri)` with
-  `addModel(model, userModelName)`, `getModels()`, `getSessionConnector()`,
-  `start()`, `stop()`. Core loads them from the app cwd with
-  `utils.resolveFrom('@usehenri/<adapter>')`.
-- View engines implement `init()`, `prepare()`, `fallback(router)` and
-  `render(req, res, route, opts)`. The React engine passes `opts` to pages
-  through `req._henri`; the Handlebars engine lives in `core/src/engines/template.js`.
-- App configuration is `config/<NODE_ENV>.json` falling back to `default.json`
-  (`stores`, `secret`, `renderer`, `port`, `graphql`, `mail`, `user`, `baseRole`).
+  (`global.henri`, `global.Task`). Under `NODE_ENV=test` core does not set the
+  global; `@usehenri/testing` does.
+- Configuration is `config/<NODE_ENV>.json` (`dev.json` when unset) falling
+  back to `default.json`, plus `.env` in the app (`HENRI_SECRET` provides
+  `secret`, `HENRI_HOST` the bind address). Keys: `port`, `host`, `cors`,
+  `renderer`, `inertia`, `experimental`, `stores`, `secret`, `user` (string or
+  `{ model, public, loginPath, afterLogin, sessionMaxAge }`), `baseRole`,
+  `trustProxy`, `csrf`, `graphql`, `mail`.
+- Store adapters implement one contract (JSDoc `HenriAdapter` at the top of
+  `packages/sequelize/index.js` and `packages/mongoose/index.js`):
+  `new Adapter(name, config, henri)`, `addModel(model, userModelName)`,
+  `getModels()`, `start()`, `stop()`, async `getSessionConnector(session)`,
+  `findUserByEmail()`, `findUserById()`, `userId()`, `toPlain()`, `ping()`,
+  `transaction()` and, on SQL, `query()`. Core loads them from the app cwd
+  with `utils.resolveFrom('@usehenri/<adapter>')`. Model files use the henri
+  schema format (`type: 'string'|'text'|'number'|'integer'|'float'|'boolean'|
+'date'|'json'|'uuid'`, `required`, `default`, `enum`, `unique`, `index`),
+  normalized by `schema.js` in each adapter (Sequelize throws on unknown keys,
+  Mongoose passes them through). The user model gets `email` (unique,
+  lowercased), `password` (hashed, not selected by default) and `roles`
+  (stripped from mass assignment; `setRoles()` or `{ unsafe: true }`).
+- The user module (`4.user.js`) mounts express-session (`henri.sid`),
+  passport (`local` and `jwt` strategies), `POST /login`, `POST /logout`
+  (`GET` answers 405), the double-submit CSRF middleware (`base/csrf.js`,
+  cookie `henri.csrf`, header `X-CSRF-Token` or body `_csrf`) and
+  `req.permit()` (`base/params.js`). Views and JSON only ever get
+  `publicUser()` (`{ id, email, roles }` + `config.user.public`).
+- The router (`5.router.js`) expands `config/routes.js`, sets `req._henri`
+  (`csrf`, `localUrl`, `paths`, `query`, `user`) and `res.render()`, which
+  builds the view options (`data` or a `graphql` query, `errors`, role-filtered
+  `paths`) and content-negotiates HTML (the engine) or JSON. `res.boom.*`
+  (`base/boom.js`) answers `{ statusCode, error, message, data }`; 404 and 500
+  are negotiated in `base/http.js`.
+- View engines implement `init()`, `prepare()`, `fallback(router)`,
+  `render(req, res, route, opts)` and optionally `reload()` and `close()`. The
+  Handlebars engine lives in `core/src/engines/template.js`; `react` resolves
+  `@usehenri/react/engine` and `inertia` `@usehenri/inertia/engine` from the app
+  (`core/src/engines/*.js` are the loaders). The React engine passes `opts` to
+  pages through `req._henri`; `withHenri` reads only that on the server.
+  `build({ cwd, config })` on both engines builds without booting henri, which
+  is what `henri build` calls.
 
 ## Conventions
 
-- CommonJS everywhere except `packages/react/src` (ESM compiled by rollup) and
-  `website` (Astro). No TypeScript.
+- CommonJS everywhere except `packages/react/src` (ESM + JSX compiled by rollup
+  to `dist/lib`), `packages/inertia/src` and `vite.mjs` (ESM consumed by Vite)
+  and `website` (Astro). No TypeScript.
 - pnpm links strictly: every module a package `require()`s must be in that
   package's `package.json`. Internal dependencies use `workspace:^`.
 - Apps that use the React renderer must depend on `next`, `react` and `react-dom`
-  themselves (Turbopack resolves `next` from the app directory).
+  themselves (Turbopack resolves `next` from the app directory); Inertia apps on
+  `@inertiajs/react`, `react`, `react-dom`, `vite` and `@vitejs/plugin-react`.
 - ESLint rules worth knowing: `sort-keys`, `prefer-template`, `id-length`,
   `no-nested-ternary`, JSDoc on functions. Prettier: single quotes, es5 commas.
   `.hbs`, the demo views and `packages/cli/scripts/generate` are excluded from
   Prettier on purpose (its Handlebars parser mangles JSX inside templates).
-- Tests live in `__tests__/*.spec.js` (vitest, `globals: true`: no imports for
-  `describe`/`test`/`expect`/`vi`, and `require('vitest')` does not work in
-  CommonJS); snapshot tests exist for most core
-  modules, regenerate them only when the diff is explained by your change.
+- Tests live in `__tests__/*.spec.js` or `*.test.js` (vitest, `globals: true`:
+  no imports for `describe`/`test`/`expect`/`vi`, and `require('vitest')` does
+  not work in CommonJS); core's boot the demo app with the disk adapter.
+  Snapshot tests exist for most core modules, regenerate them only when the diff
+  is explained by your change.
 - Commits follow Conventional Commits (`feat(core): ...`, `fix(react): ...`).
-  Husky runs lint-staged (prettier + eslint --fix) on commit.
+  Husky runs lint-staged (prettier + eslint --fix) and commitlint on commit.
 - Any user-facing change to a public package needs a changeset
-  (`pnpm changeset`). All public packages are versioned together (a `fixed`
-  group in `.changeset/config.json`); private packages are never versioned.
+  (`pnpm changeset`) describing it for the changelog; the docs pages that
+  describe the behaviour change in the same pull request. All public packages
+  are versioned together (a `fixed` group in `.changeset/config.json`);
+  private packages are never versioned.
 
 ## Releasing
 
@@ -92,13 +143,20 @@ PR runs the publish job, which publishes to npm with provenance and creates
 GitHub releases. Publishing uses npm trusted publishing (OIDC): every public
 package trusts this repository's `release.yml` running in the `npm` GitHub
 environment. There is no npm token to rotate; a new package needs its trusted
-publisher registered on npmjs.com before its first release.
+publisher registered on npmjs.com before its first release, and must be added
+to the `fixed` group of `.changeset/config.json`. `scripts/prepublish.js` copies
+the LICENSE and a README into every public package at publish time
+(`packages/henri` gets the root README).
 
 ## Known gaps
 
 - The Vue/Nuxt renderer (`core/src/engines/vue.js`) has not been exercised
-  since 2020.
+  since 2020 and only loads with `experimental.vue: true`.
+- The Inertia engine is new in 1.1 and has had little use; its options may
+  change.
 - The SQL adapters are tested against sqlite; live MySQL, PostgreSQL and MSSQL
-  connections are not covered.
+  connections are not covered. There are no migrations (`sequelize.sync()`).
+- `henri generate scaffold|crud` write Mongoose-only controllers and React-only
+  pages.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.
