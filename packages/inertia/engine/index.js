@@ -79,6 +79,31 @@ function componentName(route = '/') {
 }
 
 /**
+ * The CSRF token of a request: what henri's router passed to the view, what
+ * its csrf middleware set (`req.csrfToken`, a string) or a csurf-style
+ * `req.csrfToken()` function
+ *
+ * @param {import('express').Request} req the request
+ * @param {object} [opts={}] the view options
+ * @returns {?string} the token or null
+ */
+function csrfToken(req, opts = {}) {
+  if (typeof opts.csrf === 'string') {
+    return opts.csrf;
+  }
+
+  if (req._henri && typeof req._henri.csrf === 'string') {
+    return req._henri.csrf;
+  }
+
+  if (typeof req.csrfToken === 'function') {
+    return req.csrfToken();
+  }
+
+  return typeof req.csrfToken === 'string' ? req.csrfToken : null;
+}
+
+/**
  * The absolute url of a request
  *
  * @param {import('express').Request} req the request
@@ -749,7 +774,7 @@ class InertiaEngine {
     return {
       component: componentName(route),
       props: {
-        csrf: typeof req.csrfToken === 'function' ? req.csrfToken() : null,
+        csrf: csrfToken(req, opts),
         data: opts.data || {},
         errors,
         graphql: opts.graphql || null,
