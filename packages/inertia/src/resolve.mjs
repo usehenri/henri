@@ -18,9 +18,7 @@ export function resolvePage(
   name,
   { dir = './pages', extensions = ['jsx', 'tsx', 'js', 'ts'] } = {}
 ) {
-  const clean = String(name || 'index')
-    .replace(/^\/+/, '')
-    .replace(/\/+$/, '');
+  const clean = trimSlashes(String(name || 'index'));
   const candidates = [];
 
   for (const ext of extensions) {
@@ -42,4 +40,24 @@ export function resolvePage(
   const page = pages[key];
 
   return typeof page === 'function' ? page() : page;
+}
+
+/**
+ * Removes the leading and trailing slashes of a page name
+ *
+ * @param {string} value the name
+ * @returns {string} the name without its outer slashes
+ */
+function trimSlashes(value) {
+  let start = 0;
+  let end = value.length;
+
+  while (start < end && value[start] === '/') {
+    start += 1;
+  }
+  while (end > start && value[end - 1] === '/') {
+    end -= 1;
+  }
+
+  return value.slice(start, end);
 }
