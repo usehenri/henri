@@ -82,11 +82,21 @@ const buildPackage = (name) => {
 
   console.log(' - Building new package file...');
 
+  // The template's @usehenri/* ranges are placeholders: a generated app
+  // depends on the same version as the CLI that created it.
+  const withCliVersion = (deps = {}) =>
+    Object.fromEntries(
+      Object.entries(deps).map(([dep, range]) => [
+        dep,
+        dep.startsWith('@usehenri/') ? `^${version}` : range,
+      ])
+    );
+
   const pkg = {
     ...templatePkg,
     ...existing,
     dependencies: {
-      ...templatePkg.dependencies,
+      ...withCliVersion(templatePkg.dependencies),
       ...(existing.dependencies || {}),
     },
     devDependencies: {
