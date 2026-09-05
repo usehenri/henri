@@ -41,7 +41,7 @@
     "graphql": "^16.11.0",
     "handlebars": "^4.7.9",
     "include-all": "^4.0.3",
-    "internal-ip": "^6.2.0",
+    "internal-ip": "^9.0.0",
     "jest": "^30.5.1",
     "lodash": "^4.17.21",
     "nodemailer": "^10.0.0",
