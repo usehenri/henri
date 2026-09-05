@@ -39,6 +39,8 @@ describe('henri new', () => {
       'app/views/pages/_app.js',
       'app/views/next.config.js',
       'app/views/jsconfig.json',
+      'app/views/postcss.config.mjs',
+      'app/views/styles/index.css',
       'eslint.config.js',
     ]) {
       expect(exists(app, file)).toBe(true);
@@ -139,7 +141,7 @@ describe('henri new', () => {
     expect(agents).not.toContain('{{');
     // A budget, not a target: AGENTS.md is read on every task, so it stays
     // short. Compress before raising it again.
-    expect(agents.split('\n').length).toBeLessThan(160);
+    expect(agents.split('\n').length).toBeLessThan(170);
     expect(agents).toContain('henri generate scaffold');
     expect(agents).toContain('req.permit');
     expect(agents).toContain('HENRI_SECRET');
@@ -177,6 +179,38 @@ describe('henri new', () => {
     expect(pkg.dependencies.react).toMatch(/^\^19\./);
     expect(pkg.dependencies['react-dom']).toMatch(/^\^19\./);
     expect(pkg.devDependencies.eslint).toMatch(/^\^9\./);
+  });
+
+  test('wires tailwind css through postcss for next.js', () => {
+    const pkg = JSON.parse(read(app, 'package.json'));
+
+    expect(pkg.dependencies.tailwindcss).toMatch(/^\^4\./);
+    expect(pkg.dependencies['@tailwindcss/postcss']).toMatch(/^\^4\./);
+
+    expect(read(app, 'app/views/postcss.config.mjs')).toContain(
+      "'@tailwindcss/postcss': {}"
+    );
+
+    const css = read(app, 'app/views/styles/index.css');
+
+    expect(css).toContain("@import 'tailwindcss'");
+    expect(css).toContain("@source '../pages/**/*.{js,jsx}'");
+
+    // The stylesheet is loaded once, from _app (next.js global styles rule)
+    expect(read(app, 'app/views/pages/_app.js')).toContain(
+      "import '../styles/index.css'"
+    );
+    expect(exists(app, 'app/views/styles/index.scss')).toBe(false);
+  });
+
+  test('styles the sample pages, dark mode included', () => {
+    for (const page of [
+      'app/views/pages/index.js',
+      'app/views/pages/tasks/index.js',
+      'app/views/pages/tasks/_form.js',
+    ]) {
+      expect(read(app, page)).toMatch(/className=.*dark:|dark:[a-z]/);
+    }
   });
 });
 
@@ -275,6 +309,27 @@ describe('henri new options', () => {
     expect(agents).not.toContain('next.js pages');
     expect(agents).not.toContain('{{');
     expect(exists(app, '.mcp.json')).toBe(true);
+  });
+
+  test('wires tailwind css through the vite plugin for inertia', () => {
+    const app = path.join(dir, 'inertia');
+    const pkg = JSON.parse(read(app, 'package.json'));
+
+    expect(pkg.dependencies.tailwindcss).toMatch(/^\^4\./);
+    expect(pkg.dependencies['@tailwindcss/vite']).toMatch(/^\^4\./);
+    expect(pkg.dependencies['@tailwindcss/postcss']).toBeUndefined();
+
+    expect(read(app, 'app/views/vite.config.mjs')).toContain(
+      "import tailwindcss from '@tailwindcss/vite'"
+    );
+    expect(read(app, 'app/views/styles/index.css')).toContain(
+      "@import 'tailwindcss'"
+    );
+    expect(read(app, 'app/views/main.jsx')).toContain(
+      "import './styles/index.css'"
+    );
+    expect(exists(app, 'app/views/styles/index.scss')).toBe(false);
+    expect(read(app, 'app/views/pages/tasks/index.jsx')).toContain('dark:');
   });
 
   test('rejects an unknown renderer', () => {

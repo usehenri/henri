@@ -130,3 +130,29 @@ if grep -q "failed to connect" "$server_log"; then
 fi
 
 log "GET / -> 200"
+
+# ---------------------------------------------------------------------------
+# 4. The page is styled: a stylesheet is linked, it is the compiled Tailwind
+#    build, and the markup carries the classes of the scaffolded pages.
+# ---------------------------------------------------------------------------
+home=$(curl -s "http://127.0.0.1:$port/")
+css=$(printf '%s' "$home" | sed -n 's/.*<link rel="stylesheet" href="\([^"]*\.css\)".*/\1/p' | head -1)
+
+if [ -z "$css" ]; then
+  echo "GET / did not link a stylesheet" >&2
+  exit 1
+fi
+
+if ! printf '%s' "$home" | grep -q 'class="mx-auto w-full max-w-3xl'; then
+  echo "GET / did not carry the tailwind classes of the welcome page" >&2
+  exit 1
+fi
+
+stylesheet=$(curl -s "http://127.0.0.1:$port$css")
+
+if ! printf '%s' "$stylesheet" | grep -q 'prefers-color-scheme'; then
+  echo "$css is not the compiled tailwind stylesheet (no dark mode rules)" >&2
+  exit 1
+fi
+
+log "GET $css -> compiled tailwind, styles applied"

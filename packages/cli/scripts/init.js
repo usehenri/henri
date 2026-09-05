@@ -306,6 +306,13 @@ henri db:push                          # match the database to the models
 \`\`\`
 `
       : '';
+  const styles = react
+    ? `To drop Tailwind, replace the content of that file with your own CSS
+and remove \`tailwindcss\`, \`@tailwindcss/postcss\` and
+\`app/views/postcss.config.mjs\`.`
+    : `To drop Tailwind, replace the content of that file with your own CSS
+and remove \`tailwindcss\`, \`@tailwindcss/vite\` and the plugin it adds in
+\`app/views/vite.config.mjs\`.`;
   const database = store.store.url
     ? `The default store is \`${store.adapter}\`${store.dialect ? ` (\`${store.dialect}\`)` : ''} at
 \`${store.store.url}\`${store.test ? `, and \`${store.test.url}\` under \`NODE_ENV=test\`` : ''}. Change it in \`config/default.json\`.`
@@ -347,11 +354,19 @@ ${migrations}
 | \`app/controllers\`      | Controllers (\`name#action\` in the routes)         |
 | \`app/views/pages\`      | ${pages}|
 | \`app/views/components\` | Shared components (\`import x from 'components/x'\`) |
+| \`app/views/styles\`     | Tailwind CSS v4: \`index.css\` is the stylesheet     |
 | \`app/workers\`          | Background workers started with the server       |
 | \`app/helpers\`          | Server-side helpers                              |
 | \`config/routes.js\`     | Routes                                           |
 | \`config/default.json\`  | Configuration (stores, renderer, user model)     |
 | \`test\`                 | Tests, run by \`henri test\`                       |
+
+## Styles
+
+The pages are styled with [Tailwind CSS](https://tailwindcss.com) v4.
+\`app/views/styles/index.css\` is the whole stylesheet: the theme goes in its
+\`@theme\` block, and dark mode follows the operating system through the
+\`dark:\` variant. ${styles}
 
 ## Configuration
 

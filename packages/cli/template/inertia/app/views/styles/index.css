@@ -1,0 +1,36 @@
+/*
+ * Tailwind CSS v4, the whole stylesheet of the application.
+ *
+ * `@import 'tailwindcss'` brings in the preflight reset, the default theme
+ * and the utilities; the classes written in the pages are generated from it.
+ * The `@tailwindcss/vite` plugin of app/views/vite.config.mjs compiles it,
+ * and app/views/main.jsx imports it once for the whole client bundle.
+ *
+ * `source(none)` turns off automatic file detection so the build never walks
+ * dist/: the files Tailwind reads are the `@source` lines below. Add one when
+ * you write classes somewhere else.
+ *
+ * Dark mode follows the operating system: Tailwind's `dark:` variant is
+ * `prefers-color-scheme: dark` unless you configure it otherwise, and
+ * `color-scheme` hands the same preference to the native form controls, the
+ * scrollbars and the focus rings.
+ *
+ * Extend the theme with `@theme { --color-brand: oklch(0.6 0.2 250); }`
+ * (that one gives `bg-brand`, `text-brand`, ...). See usehenri.io/guides/views
+ * for the henri side of it, and tailwindcss.com for everything else.
+ */
+@import 'tailwindcss' source(none);
+
+@source '../index.html';
+@source '../pages/**/*.{js,jsx}';
+@source '../components/**/*.{js,jsx}';
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-50;
+  }
+}

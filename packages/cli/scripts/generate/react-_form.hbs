@@ -3,19 +3,34 @@ import { Button, Form, FormError, Input } from '@usehenri/react/forms';
 // Shared by new and edit: `action` is a pathFor() result ({ method, route })
 // or a route string; the Form submits it as JSON and reports the errors the
 // controller answers with (a 422 boom body maps `data.errors` to the fields).
+// The className props style henri's form components with Tailwind CSS (see
+// app/views/styles/index.css).
+const field =
+  'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100 dark:focus:ring-zinc-100/10';
+const submit =
+  'inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200';
+
 const {{doc}}Form = ({ action, data = {}, button = 'Create', onSuccess }) => (
-  <Form action={action} data={data} onSuccess={onSuccess}>
-    <FormError />
+  <Form
+    action={action}
+    className="flex flex-col gap-4"
+    data={data}
+    onSuccess={onSuccess}
+  >
+    <FormError className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" />
     {{#each keys}}
     <Input
       name="{{this}}"
       placeholder="{{this}}"
       required
+      className={field}
+      baseClassName="flex flex-col gap-1"
+      errorClassName="text-sm text-red-600 dark:text-red-400"
       validation=\{{ isLength: { min: 1 } }}
       errorMsg=\{{ isLength: 'Minimum 1 char' }}
     />
     {{/each}}
-    <Button>{button} {{doc}}</Button>
+    <Button className={submit}>{button} {{doc}}</Button>
   </Form>
 );
 

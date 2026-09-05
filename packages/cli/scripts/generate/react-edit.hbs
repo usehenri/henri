@@ -5,34 +5,40 @@ import {{doc}}Form from './_form';
 // Rendered by the `edit` action with `data: { {{lower}}: {...} }` (nothing when
 // the record does not exist). The form patches the `update` action and the
 // page moves to the record once the controller answered.
+const back = 'text-sm text-zinc-500 hover:underline dark:text-zinc-400';
+
 const Edit = ({ data: { {{lower}} = null }, getRoute, pathFor, router }) => {
   const item = Array.isArray({{lower}}) ? {{lower}}[0] : {{lower}};
 
   if (!item) {
     return (
-      <div>
-        <h2>{{doc}} not found</h2>
-        <Link href={getRoute('index_{{plural}}_path')}>Back</Link>
-      </div>
+      <main className="mx-auto w-full max-w-lg px-6 py-12">
+        <h1 className="text-2xl font-semibold tracking-tight">{{doc}} not found</h1>
+        <Link className={`mt-4 inline-block ${back}`} href={getRoute('index_{{plural}}_path')}>
+          &larr; Back
+        </Link>
+      </main>
     );
   }
 
   const id = String(item._id ?? item.id);
 
   return (
-    <div>
-      <h2>Edit {{doc}}</h2>
-      <hr />
-      <{{doc}}Form
-        action={pathFor('update_{{plural}}_path', { id })}
-        data={item}
-        button="Update"
-        onSuccess={() => router.push(getRoute('show_{{plural}}_path', id))}
-      />
-      <Link href={getRoute('show_{{plural}}_path', id)}>Show</Link>
-      {' | '}
-      <Link href={getRoute('index_{{plural}}_path')}>Back</Link>
-    </div>
+    <main className="mx-auto w-full max-w-lg px-6 py-12">
+      <Link className={back} href={getRoute('show_{{plural}}_path', id)}>
+        &larr; Back to the {{lower}}
+      </Link>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Edit {{doc}}</h1>
+
+      <div className="mt-8 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+        <{{doc}}Form
+          action={pathFor('update_{{plural}}_path', { id })}
+          data={item}
+          button="Update"
+          onSuccess={() => router.push(getRoute('show_{{plural}}_path', id))}
+        />
+      </div>
+    </main>
   );
 };
 

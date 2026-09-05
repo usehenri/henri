@@ -3,7 +3,11 @@ import withHenri from '@usehenri/react';
 
 // Rendered by the `index` action with `data: { {{plural}}: [...] }`. The path
 // helpers come from config/routes.js (`resources {{plural}}`), filtered by the
-// current user's roles.
+// current user's roles. The classes are Tailwind CSS, from
+// app/views/styles/index.css: `dark:` follows the operating system.
+const cell = 'px-4 py-3 text-sm';
+const link = 'text-sm hover:underline';
+
 const Index = ({ data: { {{plural}} = [] }, fetch, getRoute, hydrate, pathFor }) => {
   const destroy = async (id) => {
     if (typeof window !== 'undefined' && !window.confirm('Delete this {{doc}}?')) {
@@ -15,50 +19,67 @@ const Index = ({ data: { {{plural}} = [] }, fetch, getRoute, hydrate, pathFor })
   };
 
   return (
-    <div>
-      <h2>Listing {{doc}}</h2>
-      <hr />
-      <table>
-        <thead>
-          <tr>
-            {{#each keys}}
-            <th>{{this}}</th>
-            {{/each}}
-            <th colSpan={3}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          { {{plural}}.length === 0 && (
+    <main className="mx-auto w-full max-w-4xl px-6 py-12">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">{{doc}}</h1>
+        <Link
+          className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          href={getRoute('new_{{plural}}_path')}
+        >
+          New {{doc}}
+        </Link>
+      </div>
+
+      <div className="mt-8 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+        <table className="w-full text-left">
+          <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
             <tr>
-              <td colSpan={ {{keys.length}} + 3}>Nothing to show</td>
-            </tr>
-          )}
-          { {{plural}}.map((item) => (
-            <tr key={String(item._id ?? item.id)}>
               {{#each keys}}
-              <td>{String(item.{{this}} ?? '')}</td>
+              <th className="px-4 py-2 font-medium">{{this}}</th>
               {{/each}}
-              <td>
-                <Link href={getRoute('show_{{plural}}_path', String(item._id ?? item.id))}>
-                  Show
-                </Link>
-              </td>
-              <td>
-                <Link href={getRoute('edit_{{plural}}_path', String(item._id ?? item.id))}>
-                  Edit
-                </Link>
-              </td>
-              <td>
-                <button type="button" onClick={() => destroy(item._id ?? item.id)}>
-                  Destroy
-                </button>
-              </td>
+              <th className="px-4 py-2 text-right font-medium">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <Link href={getRoute('new_{{plural}}_path')}>New {{doc}}</Link>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+            { {{plural}}.length === 0 && (
+              <tr>
+                <td
+                  className="px-4 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400"
+                  colSpan={ {{keys.length}} + 1}
+                >
+                  Nothing to show
+                </td>
+              </tr>
+            )}
+            { {{plural}}.map((item) => (
+              <tr
+                key={String(item._id ?? item.id)}
+                className="hover:bg-zinc-50 dark:hover:bg-zinc-900"
+              >
+                {{#each keys}}
+                <td className={cell}>{String(item.{{this}} ?? '')}</td>
+                {{/each}}
+                <td className={`${cell} space-x-4 whitespace-nowrap text-right`}>
+                  <Link className={link} href={getRoute('show_{{plural}}_path', String(item._id ?? item.id))}>
+                    Show
+                  </Link>
+                  <Link className={link} href={getRoute('edit_{{plural}}_path', String(item._id ?? item.id))}>
+                    Edit
+                  </Link>
+                  <button
+                    className="text-sm text-red-600 hover:underline dark:text-red-400"
+                    type="button"
+                    onClick={() => destroy(item._id ?? item.id)}
+                  >
+                    Destroy
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </main>
   );
 };
 

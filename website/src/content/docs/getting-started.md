@@ -49,11 +49,13 @@ henri server
 │   │   ├── jsconfig.json     <- lets pages `import x from 'components/x'`
 │   │   ├── next.config.js    <- requires @usehenri/react/engine/conf
 │   │   ├── pages
-│   │   │   ├── _app.js       <- global styles
+│   │   │   ├── _app.js       <- imports the stylesheet
 │   │   │   ├── index.js
 │   │   │   └── tasks         <- index, new, edit, show and _form
+│   │   ├── postcss.config.mjs <- Tailwind CSS v4 for next.js
 │   │   ├── public
 │   │   └── styles
+│   │       └── index.css     <- Tailwind CSS, the whole stylesheet
 │   └── workers
 ├── config
 │   ├── default.json          <- stores, renderer, user model (committed)
@@ -70,6 +72,8 @@ henri server
 ```
 
 If you have a Ruby on Rails background, this should look familiar. The sample resource is a regular scaffold (`henri generate scaffold Task name:string! category:string done:boolean` writes the same files); `henri destroy scaffold Task` removes it.
+
+The pages are styled: [Tailwind CSS](https://tailwindcss.com) v4 is wired for the renderer you picked, `app/views/styles/index.css` is the whole stylesheet, and dark mode follows the operating system. Everything the generators write from now on is styled the same way. See [Views](/guides/views/#styles) for the theme, the `@source` globs and how to opt out.
 
 `config/default.json` is committed and holds no secret: the session secret is generated into `.env` as `HENRI_SECRET`, which henri reads on boot. The default store is the [disk adapter](/guides/models/#disk), a local MongoDB persisted under `.henri/data` (ignored by git too), so there is nothing to install to run the application.
 
