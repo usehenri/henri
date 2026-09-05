@@ -2,9 +2,18 @@
   "name": "@usehenri/disk",
   "version": "1.0.0",
   "description": "henri disk database connector",
-  "main": "index.js",
-  "author": "Felix-Antoine Paradis",
   "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/disk"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "main": "index.js",
   "dependencies": {
     "@usehenri/mongoose": "workspace:^",
     "debug": "^4.4.3",

@@ -2,9 +2,18 @@
   "name": "@usehenri/mssql",
   "version": "1.0.0",
   "description": "henri mssql database connector",
-  "main": "index.js",
-  "author": "Felix-Antoine Paradis",
   "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/mssql"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "main": "index.js",
   "dependencies": {
     "@usehenri/sequelize": "workspace:^",
     "sequelize": "^6.37.8",

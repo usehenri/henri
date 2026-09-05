@@ -2,9 +2,18 @@
   "name": "@usehenri/mysql",
   "version": "1.0.0",
   "description": "henri mariadb/mysql database connector",
-  "main": "index.js",
-  "author": "Felix-Antoine Paradis",
   "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/mysql"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "main": "index.js",
   "dependencies": {
     "@usehenri/sequelize": "workspace:^",
     "mysql2": "^3.24.3",
