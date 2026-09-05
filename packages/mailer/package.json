@@ -1,8 +1,0 @@
-{
-  "name": "@usehenri/mailer",
-  "version": "0.37.0",
-  "description": "henri mailer (DEPRECATED)",
-  "main": "index.js",
-  "author": "Felix-Antoine Paradis",
-  "license": "MIT"
-}
