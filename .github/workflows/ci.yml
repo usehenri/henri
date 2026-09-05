@@ -5,6 +5,17 @@ on:
     branches: [master]
   pull_request:
 
+# A new push to the same branch cancels the run still going for the old one
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: 0
+
 jobs:
   test:
     name: Node ${{ matrix.node }}
@@ -14,7 +25,6 @@ jobs:
       matrix:
         node: [22, 24]
     env:
-      HUSKY: 0
       # Override the node version pinned in mise.toml for the matrix
       MISE_NODE_VERSION: ${{ matrix.node }}
     steps:
@@ -29,9 +39,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.local/share/pnpm/store
-          key: pnpm-store-${{ runner.os }}-node${{ matrix.node }}-${{ hashFiles('pnpm-lock.yaml') }}
+          # The store holds the same tarballs whatever the node version
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
-            pnpm-store-${{ runner.os }}-node${{ matrix.node }}-
+            pnpm-store-${{ runner.os }}-
 
       - name: Cache MongoDB binaries (mongodb-memory-server)
         uses: actions/cache@v4
@@ -45,8 +56,69 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm lint
+      - run: pnpm format:check
+
+      - run: pnpm lint --max-warnings 0
 
       - run: pnpm test:ci
         env:
           NODE_ENV: test
+
+  website:
+    name: Website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      - run: pnpm --filter @usehenri/website build
+
+  scaffold:
+    name: Scaffold
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Cache MongoDB binaries (mongodb-memory-server)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            mongodb-binaries-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          # The scaffolded app installs its own mongodb-memory-server
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      # henri new, install from the packed workspace packages, eslint,
+      # henri build, henri server --production, GET / must answer 200
+      - run: scripts/smoke.sh
