@@ -13,12 +13,24 @@ Pick a renderer in your configuration. All of them are server-side rendered; the
 
 ## React
 
-[Next.js](https://nextjs.org/) renders the pages in `app/views/pages` and injects the data sent by your controllers. If none of your routes match a request but a page does, the page is rendered directly.
+[Next.js](https://nextjs.org/) (16, pages router, Turbopack) renders the pages in `app/views/pages` and injects the data sent by your controllers. If none of your routes match a request but a page does, the page is rendered directly.
 
-Install the peer dependencies in your project:
+Install the peer dependencies in your project (`henri new` already does):
 
 ```bash
 pnpm add @usehenri/react react react-dom sass
+```
+
+Two small files live next to your pages. `henri new` ships them and the engine creates them on first boot if they are missing:
+
+```js
+// app/views/next.config.js
+module.exports = require('@usehenri/react/engine/conf');
+```
+
+```json
+// app/views/jsconfig.json
+{ "compilerOptions": { "baseUrl": "." } }
 ```
 
 ```jsx
@@ -49,13 +61,34 @@ export default withHenri(Log);
 | `fetch`     | `fetch({ route, method }, body)` calls a controller and resolves its JSON  |
 | `hydrate`   | Refetches the current page's data and updates `data`                        |
 
-The same helpers are available to nested components through the `HenriContext` exported by `@usehenri/react`, and a set of form components (`Form`, `Input`, `Select`, `Radios`, `Editor`, `Button`) ships in `@usehenri/react/forms`.
+Nested components get the same helpers from the `useHenri()` hook (or the `HenriContext` it reads):
 
-`assets`, `components`, `helpers` and `styles` resolve to the matching folders under `app/views`, so `import Nav from 'components/nav'` works from any page.
+```jsx
+// app/views/components/nav.js
+import { useHenri } from '@usehenri/react';
 
-### Extending webpack
+export default function Nav() {
+  const { user, pathFor } = useHenri();
+  return <a href={pathFor('index_tasks_path')}>{user ? user.email : 'Tasks'}</a>;
+}
+```
 
-Export a `webpack` function from `config/webpack.js` to change the Next.js configuration:
+A set of form components (`Form`, `Input`, `Select`, `Radio`, `Editor`, `Button`, `FormError`) with a `useForm()` hook ships in `@usehenri/react/forms`. `Editor` wraps Quill; import `react-quill-new/dist/quill.snow.css` from the page that uses it.
+
+`assets`, `components`, `helpers` and `styles` resolve to the matching folders under `app/views`, so `import Nav from 'components/nav'` works from any page. Global stylesheets are imported from `app/views/pages/_app.js` (a Next.js rule); component styles use CSS modules, `import styles from 'styles/tasks.module.scss'`.
+
+### Extending Next.js
+
+Export a `next` function (or a plain object) from `config/next.js` to change the Next.js configuration under either bundler:
+
+```js
+// config/next.js
+module.exports = {
+  next: (config) => ({ ...config, images: { unoptimized: true } }),
+};
+```
+
+If you need webpack-specific hooks, export a `webpack` function from `config/webpack.js`. Its presence switches the engine from Turbopack to webpack:
 
 ```js
 // config/webpack.js
