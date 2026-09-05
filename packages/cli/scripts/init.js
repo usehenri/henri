@@ -2,9 +2,8 @@
 const spawn = require('cross-spawn');
 const fs = require('fs-extra');
 const path = require('path');
-const { version } = require('./utils');
+const { detectPackageManager, version } = require('./utils');
 
-const yarnExists = spawn.sync('yarn', ['help']).status === 0;
 const cwd = process.cwd();
 
 /**
@@ -13,24 +12,21 @@ const cwd = process.cwd();
  * @param {string} file A file to check in cwd
  * @returns {boolean} result
  */
-const check = file => fs.existsSync(path.join(cwd, file));
+const check = (file) => fs.existsSync(path.join(cwd, file));
 
 /**
  * Initialize a new install
  *
  * @param {any} args CLI arguments
- * @param {any} name If true, called from new
+ * @param {any} name Project name, when called from `new`
  * @returns {void} Nothing
  */
 const main = (args, name) => {
   // Check the force flag
   const force = args.force === true || args.f === true;
+  const skipInstall = args['skip-install'] === true;
 
   console.log('');
-
-  buildPackage();
-
-  createReadme();
 
   if (check('app') && !force) {
     console.log(
@@ -42,59 +38,71 @@ const main = (args, name) => {
     process.exit(-1);
   }
 
+  createReadme();
+
   copyTemplate();
+
+  buildPackage(name);
 
   generateConfig();
 
-  installPackages();
+  const pm = skipInstall ? null : installPackages();
 
   console.log(`
     Your new project is ready to run!
 
     You can start coding right away with:
 
-    # cd ${name} && henri server
-
+    # cd ${name || '.'}${skipInstall ? ` && ${detectPackageManager()} install` : ''} && henri server
   `);
+
+  pm && console.log(`    (dependencies were installed with ${pm})\n`);
 };
 
 /**
- * Creates a package.json file
+ * Creates or completes the package.json file.
+ * Runs after the template copy so template dependencies are merged with
+ * anything that already existed in the folder.
+ *
+ * @param {string} [name] Project name
  * @returns {void}
  */
-const buildPackage = () => {
-  let pkg = {};
+const buildPackage = (name) => {
+  let existing = {};
+
+  const templatePkg = fs.readJsonSync(
+    path.resolve(__dirname, '../template/default/package.json')
+  );
 
   try {
-    // eslint-disable-next-line
-    pkg = require(path.resolve(cwd, 'package.json'));
-  } catch (error) {
-    // It does not exists... no worries, we'll create it.
+    existing = fs.readJsonSync(path.join(cwd, 'package.old.json'));
+  } catch {
+    // Nothing existed before the template copy
   }
 
   console.log(' - Building new package file...');
 
-  // Import existing dependencies if present
-  pkg.dependencies = pkg.dependencies || {};
-
-  // Import existing devDependencies if present
-  pkg.devDependencies = pkg.devDependencies || {};
-
-  // Add some runnable script
-  pkg.scripts = {
-    eject: 'henri eject',
-    production: 'henri production',
-    start: 'henri server',
-    update: 'henri update',
+  const pkg = {
+    ...templatePkg,
+    ...existing,
+    dependencies: {
+      ...templatePkg.dependencies,
+      ...(existing.dependencies || {}),
+    },
+    devDependencies: {
+      ...templatePkg.devDependencies,
+      ...(existing.devDependencies || {}),
+    },
+    henri: version,
+    name: existing.name || slug(name) || templatePkg.name,
+    scripts: {
+      ...templatePkg.scripts,
+      ...(existing.scripts || {}),
+    },
   };
 
-  pkg.henri = version;
-
-  // Write package.json to filesystem
-  fs.writeFileSync(
-    path.join(cwd, 'package.json'),
-    JSON.stringify(pkg, null, 2)
-  );
+  fs.writeJsonSync(path.join(cwd, 'package.json'), pkg, { spaces: 2 });
+  fs.removeSync(path.join(cwd, 'package.old.json'));
 };
 
 /**
@@ -118,11 +126,19 @@ const copyTemplate = () => {
 
   const templatePath = path.resolve(__dirname, '../template/default/');
 
-  fs.copySync(templatePath, cwd);
-  fs.moveSync(path.resolve(cwd, 'gitignore'), path.resolve(cwd, '.gitignore'), {
-    overwrite: true,
+  // Keep an existing package.json aside so buildPackage can merge it
+  if (check('package.json')) {
+    fs.moveSync(
+      path.join(cwd, 'package.json'),
+      path.join(cwd, 'package.old.json'),
+      { overwrite: true }
+    );
+  }
+
+  fs.copySync(templatePath, cwd, {
+    filter: (src) => path.basename(src) !== '.gitignore',
   });
-  fs.moveSync(path.resolve(cwd, 'eslintrc'), path.resolve(cwd, '.eslintrc'), {
+  fs.moveSync(path.resolve(cwd, 'gitignore'), path.resolve(cwd, '.gitignore'), {
     overwrite: true,
   });
 };
@@ -134,7 +150,7 @@ const copyTemplate = () => {
 const generateConfig = () => {
   console.log(' - Generating a new default.json config file...');
 
-  // eslint-disable-next-line
+   
   const buf = require('crypto').randomBytes(64);
   const configuration = {
     baseRole: 'guest',
@@ -149,40 +165,46 @@ const generateConfig = () => {
     user: 'user',
   };
 
-  fs.writeFileSync(
-    path.join(cwd, 'config', 'default.json'),
-    JSON.stringify(configuration, null, 2)
-  );
+  fs.writeJsonSync(path.join(cwd, 'config', 'default.json'), configuration, {
+    spaces: 2,
+  });
 };
 
 /**
- * Installs packages with yarn or npm
- * @returns {void}
+ * Installs packages with pnpm, yarn or npm (whichever is available)
+ * @returns {string} The package manager used
  */
 const installPackages = () => {
-  if (yarnExists) {
-    console.log(' - Installing needed packages using yarn...');
-    spawn.sync('yarn');
-    spawn.sync('yarn', [
-      'add',
-      '@usehenri/react',
-      '@usehenri/disk',
-      'react',
-      'react-dom',
-      '--save',
-    ]);
-  } else {
-    console.log(' - Installing needed packages using npm...');
-    spawn.sync('npm', ['install']);
-    spawn.sync('npm', [
-      'install',
-      '@usehenri/react',
-      '@usehenri/disk',
-      'react',
-      'react-dom',
-      '--save',
-    ]);
+  const pm = detectPackageManager(cwd);
+
+  console.log(` - Installing packages using ${pm}...`);
+
+  const result = spawn.sync(pm, ['install'], { stdio: 'inherit' });
+
+  if (result.status !== 0) {
+    console.log(
+      `
+      ${pm} install failed. Fix the error above then run "${pm} install" again.
+    `
+    );
   }
+
+  return pm;
 };
+
+/**
+ * Turns a folder name into a package name
+ *
+ * @param {string} [name] Folder name
+ * @returns {string|null} A safe package name
+ */
+const slug = (name) =>
+  name
+    ? path
+        .basename(name)
+        .toLowerCase()
+        .replace(/[^a-z0-9-_.]+/g, '-')
+        .replace(/^[-_.]+|[-_.]+$/g, '') || null
+    : null;
 
 module.exports = main;

@@ -1,29 +1,33 @@
 {
-  "name": "default",
+  "name": "henri-app",
   "version": "1.0.0",
   "description": "",
+  "private": true,
   "henri": true,
-  "main": "index.js",
   "scripts": {
     "start": "henri server",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "henri build",
+    "production": "henri server --production",
+    "lint": "eslint .",
+    "test": "henri test"
   },
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
-    "@zeit/next-sass": "^1.0.1",
-    "node-sass": "^4.9.3",
-    "react": "^16.10.2",
-    "react-dom": "^16.10.2"
+    "@usehenri/core": "^0.37.2",
+    "@usehenri/disk": "^0.37.2",
+    "@usehenri/react": "^0.37.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sass": "^1.80.0"
   },
   "devDependencies": {
-    "babel-eslint": "^10.0.3",
-    "eslint": "^6.5.1",
-    "eslint-config-react-app": "^5.0.2",
-    "eslint-plugin-flowtype": "^4.3.0",
-    "eslint-plugin-import": "^2.18.2",
-    "eslint-plugin-jsx-a11y": "^6.2.3",
-    "eslint-plugin-react": "^7.16.0",
-    "eslint-plugin-vue": "^5.2.3"
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^17.12.0"
   }
 }

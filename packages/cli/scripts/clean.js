@@ -1,62 +1,63 @@
-const path = require('path');
-
-const inquirer = require('inquirer');
+/* eslint-disable no-console */
 const fs = require('fs-extra');
-const rimraf = require('rimraf');
+const path = require('path');
+const { checkbox } = require('@inquirer/prompts');
 
 const { abort, validInstall } = require('./utils');
 
 /**
  * Bootstrapping function
- * @return {void}
+ * @return {Promise<void>} Resolves when done
  */
 const main = async () => {
-  validInstall({ fail: true });
+  validInstall({ fatal: true });
 
-  const opts = {
-    choices: getExistingDirectories(),
-    message: 'Choose folders to delete',
-    name: 'ans',
-    type: 'checkbox',
-  };
+  const choices = getExistingDirectories();
 
-  inquirer
-    .prompt([opts])
-    .then(answer => {
-      if (answer.ans && answer.ans.lenght < 1) {
-        abort('I will not delete anything.');
-      }
-      for (let dir of answer.ans) {
-        remove(dir);
-      }
-    })
-    .catch(err => {
-      abort(err, true);
+  if (choices.length < 1) {
+    abort('Nothing to clean.');
+  }
+
+  let selected = [];
+
+  try {
+    selected = await checkbox({
+      choices,
+      message: 'Choose folders to delete',
     });
+  } catch (error) {
+    abort(error.message, true);
+  }
+
+  if (!selected || selected.length < 1) {
+    abort('I will not delete anything.');
+  }
+
+  for (const dir of selected) {
+    remove(dir);
+  }
 };
 
 /**
  * Get the existing directories
  *
- * @returns {object} list of directories
+ * @returns {Array<{name: string, value: string}>} list of directories
  */
 const getExistingDirectories = () => {
   // Base list of potential junk to clean
   const initials = [
     '.tmp',
+    '.henri',
     'logs',
     'node_modules',
     'app/views/.cache',
     'app/views/.next',
   ];
-  const existing = initials.filter(dir =>
+  const existing = initials.filter((dir) =>
     fs.existsSync(path.resolve(process.cwd(), dir))
   );
-  const choices = existing.map(dir => {
-    return { name: dir };
-  });
 
-  return choices;
+  return existing.map((dir) => ({ name: dir, value: dir }));
 };
 
 /**
@@ -65,11 +66,9 @@ const getExistingDirectories = () => {
  * @param {string} dir The directory
  * @return {void}
  */
-const remove = dir => {
-  // eslint-disable-next-line no-console
+const remove = (dir) => {
   console.log(`> Deleting ${dir}`);
-  rimraf.sync(path.resolve(process.cwd(), dir));
-  // eslint-disable-next-line no-console
+  fs.rmSync(path.resolve(process.cwd(), dir), { force: true, recursive: true });
   console.log(`> Touching ${dir}`);
   fs.ensureDirSync(path.resolve(process.cwd(), dir));
 };

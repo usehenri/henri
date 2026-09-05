@@ -5,18 +5,19 @@
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
-    "@usehenri/core": "^0.37.2",
-    "chalk": "^4.1.0",
-    "cross-spawn": "^7.0.3",
-    "fs-extra": "^9.0.1",
-    "handlebars": "^4.7.2",
-    "inquirer": "^7.3.3",
-    "minimist": "^1.2.0",
-    "ora": "^4.0.5",
-    "prettier": "^2.0.5",
-    "rimraf": "^3.0.1",
-    "update-notifier": "^4.0.0"
+    "@inquirer/prompts": "^8.7.1",
+    "@usehenri/core": "workspace:^",
+    "chalk": "^4.1.2",
+    "cross-spawn": "^7.0.6",
+    "debug": "^4.4.3",
+    "fs-extra": "^11.4.0",
+    "handlebars": "^4.7.9",
+    "minimist": "^1.2.8",
+    "prettier": "^3.9.6"
   },
   "commands": [
     "about",

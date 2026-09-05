@@ -2,20 +2,23 @@
   "name": "henri",
   "version": "0.37.2",
   "description": "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
-  "main": "index.js",
   "preferGlobal": true,
+  "bin": "bin/henri.js",
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "lint": "prettier *.js"
+    "lint": "prettier --check bin/*.js"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/usehenri/henri.git"
   },
-  "bin": "bin/henri.js",
   "engines": {
-    "node": ">=10.0.0"
+    "node": ">=22"
   },
-  "types": "./index.d.ts",
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "bugs": {
@@ -23,6 +26,6 @@
   },
   "homepage": "https://github.com/usehenri/henri#readme",
   "dependencies": {
-    "@usehenri/cli": "^0.37.2"
+    "@usehenri/cli": "workspace:^"
   }
 }

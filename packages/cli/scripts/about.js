@@ -1,80 +1,85 @@
-// eslint-disable no-console
-
+/* eslint-disable no-console */
 const spawn = require('cross-spawn');
 const path = require('path');
 const fs = require('fs');
 
-const { cwd, validInstall } = require('./utils');
-
-let output = '';
+const { cwd, resolvePackageJson, validInstall } = require('./utils');
 
 /**
  * Initial function
- * @return {void}
+ * @return {Promise<void>} Resolves when printed
  */
 const main = async () => {
   const data = await getData();
 
   line('About your henri setup:', true);
-  line(`henri version:         ${data[0]}`);
-  line(`Node version:          ${data[1]}`);
-  line(`yarn version:          ${data[2]}`);
-  line(`npm version:           ${data[3]}`);
-  line(`henri project:         ${data[4] ? 'yes' : 'no'}`, true);
-  line(`@usehenri/core:        ${data[5]}`);
-  line(`@usehenri/disk:        ${data[6]}`);
-  line(`@usehenri/mongoose:    ${data[7]}`);
-  line(`@usehenri/mysql:       ${data[8]}`);
-  line(`@usehenri/postgresql:  ${data[9]}`);
-  line(`@usehenri/mssql:       ${data[10]}`);
-  line(`@usehenri/redis:       ${data[11]}`);
-  line(`@usehenri/rabbitmq:    ${data[12]}`);
-  line(`@usehenri/react:       ${data[13]}`);
+  line(`henri version:         ${data.cli}`);
+  line(`Node version:          ${data.node}`);
+  line(`pnpm version:          ${data.pnpm}`);
+  line(`yarn version:          ${data.yarn}`);
+  line(`npm version:           ${data.npm}`);
+  line(`henri project:         ${data.project ? 'yes' : 'no'}`, true);
+  line(`@usehenri/core:        ${data.core}`);
+  line(`@usehenri/disk:        ${data.disk}`);
+  line(`@usehenri/mongoose:    ${data.mongoose}`);
+  line(`@usehenri/mysql:       ${data.mysql}`);
+  line(`@usehenri/postgresql:  ${data.postgresql}`);
+  line(`@usehenri/mssql:       ${data.mssql}`);
+  line(`@usehenri/react:       ${data.react}`);
   line('');
-  line(`next:                  ${data[14]}`);
-  line(`nuxt:                  ${data[15]}`);
-  line(`react:                 ${data[16]}`);
-  line(`react-dom:             ${data[17]}`);
+  line(`next:                  ${data.next}`);
+  line(`nuxt:                  ${data.nuxt}`);
+  line(`react:                 ${data.reactLib}`);
+  line(`react-dom:             ${data.reactDom}`);
   line('');
-  line(`models:                ${data[18]}`);
-  line(`views:                 ${data[19]}`);
-  line(`controllers:           ${data[20]}`);
-  line(`helpers:               ${data[21]}`);
+  line(`models:                ${data.models}`);
+  line(`views:                 ${data.views}`);
+  line(`controllers:           ${data.controllers}`);
+  line(`helpers:               ${data.helpers}`);
 };
 
 /**
  * Gets the data concurrently
  *
- * @returns {Promise<any>} The promise
+ * @returns {Promise<object>} The collected information
  */
 const getData = async () => {
-  const data = await Promise.all([
-    // eslint-disable-next-line
-    require('../package.json').version,
-    run('node -v'),
-    run('yarn -v'),
-    run('npm -v'),
-    validInstall({ fatal: false }),
-    packageResolve('core'),
-    packageResolve('disk'),
-    packageResolve('mongoose'),
-    packageResolve('mysql'),
-    packageResolve('postgresql'),
-    packageResolve('mssql'),
-    packageResolve('redis'),
-    packageResolve('rabbitmq'),
-    packageResolve('react'),
-    depsResolve('next'),
-    depsResolve('nuxt'),
-    depsResolve('react'),
-    depsResolve('react-dom'),
-    ls('app/models'),
-    ls('app/views/pages'),
-    ls('app/controllers'),
-    ls('app/helpers'),
-  ]);
+  const [node, pnpm, yarn, npm, models, views, controllers, helpers] =
+    await Promise.all([
+      run('node -v'),
+      run('pnpm -v'),
+      run('yarn -v'),
+      run('npm -v'),
+      ls('app/models'),
+      ls('app/views/pages'),
+      ls('app/controllers'),
+      ls('app/helpers'),
+    ]);
 
-  return data;
+  return {
+     
+    cli: require('../package.json').version,
+    controllers,
+    core: installed('@usehenri/core'),
+    disk: installed('@usehenri/disk'),
+    helpers,
+    models,
+    mongoose: installed('@usehenri/mongoose'),
+    mssql: installed('@usehenri/mssql'),
+    mysql: installed('@usehenri/mysql'),
+    next: installed('next'),
+    node,
+    npm,
+    nuxt: installed('nuxt'),
+    pnpm,
+    postgresql: installed('@usehenri/postgresql'),
+    project: validInstall({ fatal: false }),
+    react: installed('@usehenri/react'),
+    reactDom: installed('react-dom'),
+    reactLib: installed('react'),
+    views,
+    yarn,
+  };
 };
 
 /**
@@ -85,29 +90,25 @@ const getData = async () => {
  * @return {void}
  */
 const line = (text, pad) => {
-  // eslint-disable-next-line no-console
   pad && console.log(' ');
-  // eslint-disable-next-line no-console
   console.log(` ${text}`);
-  output = output + text;
-  // eslint-disable-next-line no-console
   pad && console.log(' ');
 };
 
 /**
- * Runs the command and returns status
+ * Runs the command and returns its output
  *
  * @param {*} cmd Command to run
- * @returns {Promise<any>} A promise
+ * @returns {Promise<string>} Output or "Not installed"
  */
-const run = cmd => {
-  return new Promise(resolve => {
+const run = (cmd) => {
+  return new Promise((resolve) => {
     let data = '';
     const args = cmd.split(' ');
     const program = args.shift();
     const output = spawn(program, args);
 
-    output.stdout.on('data', out => (data += out));
+    output.stdout.on('data', (out) => (data += out));
     output.on('close', () =>
       resolve((data && data.toString().trim()) || 'Not installed')
     );
@@ -119,63 +120,30 @@ const run = cmd => {
  * Lists the folder content
  *
  * @param {*} folder Folder
- * @returns {Promise<any>} A promise
+ * @returns {Promise<string>} Comma separated entries
  */
-const ls = folder => {
-  return new Promise(resolve => {
+const ls = (folder) => {
+  return new Promise((resolve) => {
     fs.readdir(path.resolve(cwd, folder), (err, files) => {
       if (err) {
         return resolve('unreachable');
       }
-      files = files.filter(val => val[0] !== '.');
-      resolve(files.map(val => val.replace('.js', '')).join(', '));
+      files = files.filter((val) => val[0] !== '.');
+      resolve(files.map((val) => val.replace('.js', '')).join(', '));
     });
   });
 };
 
 /**
- * Tries to resolve a package
+ * Version of a package installed in the current project
  *
- * @param {*} name Package name
- * @returns {string} Package version or Not Installed
+ * @param {string} name Package name
+ * @returns {string} Package version or "Not installed"
  */
-const packageResolve = name => {
-  try {
-    // eslint-disable-next-line
-    const pkg = require(path.resolve(
-      cwd,
-      'node_modules',
-      '@usehenri',
-      name,
-      'package.json'
-    ));
+const installed = (name) => {
+  const pkg = resolvePackageJson(name, cwd);
 
-    return pkg.version;
-  } catch (error) {
-    return 'Not installed';
-  }
-};
-
-/**
- * Tries to resolve a package deps
- *
- * @param {*} name Package name
- * @returns {string} Package version or Not Installed
- */
-const depsResolve = name => {
-  try {
-    // eslint-disable-next-line
-    const pkg = require(path.resolve(
-      cwd,
-      'node_modules',
-      name,
-      'package.json'
-    ));
-
-    return pkg.version;
-  } catch (error) {
-    return 'Not installed';
-  }
+  return (pkg && pkg.version) || 'Not installed';
 };
 
 module.exports = main;

@@ -7,9 +7,9 @@ const server = require('./server');
 let name = 'henri';
 
 try {
-  // eslint-disable-next-line global-require
+   
   name = require(path.resolve(process.cwd(), 'package.json')).name || 'henri';
-} catch (error) {
+} catch {
   // Do nothing
 }
 
