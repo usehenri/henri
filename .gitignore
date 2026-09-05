@@ -45,3 +45,6 @@ yalc.lock
 
 # husky runtime files
 .husky/_
+
+# agent worktrees
+.claude/worktrees/

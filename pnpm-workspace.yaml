@@ -18,6 +18,7 @@ allowBuilds:
   esbuild: true
   fsevents: true
   mongodb-memory-server: true
+  sharp: true
   sqlite3: true
   unrs-resolver: true
 

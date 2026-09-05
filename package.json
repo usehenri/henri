@@ -57,7 +57,9 @@
       "packages/demo",
       "packages/disk",
       "packages/react",
-      "packages/websocket"
+      "packages/websocket",
+      "<rootDir>/.claude/",
+      "<rootDir>/website/"
     ],
     "collectCoverageFrom": [
       "packages/**/**/*.js",
@@ -67,6 +69,9 @@
       "!**/perf/**",
       "!**/test/**",
       "!**/dist/**"
+    ],
+    "roots": [
+      "<rootDir>/packages"
     ]
   }
 }
