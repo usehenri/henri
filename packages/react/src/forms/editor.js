@@ -1,21 +1,39 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
+import { FormContext } from './context';
 
+/**
+ * Rich text editor (quill). Rendered client-side only, as quill needs a DOM.
+ * Import 'react-quill-new/dist/quill.snow.css' in your page for the styles.
+ */
 class FormHtmlEditor extends Component {
+  static contextType = FormContext;
+
   constructor(props) {
     super(props);
+    this.ReactQuill = null;
     if (typeof window !== 'undefined') {
-      this.ReactQuill = require('react-quill');
+      // eslint-disable-next-line global-require
+      const mod = require('react-quill-new');
+
+      this.ReactQuill = mod.default || mod;
     }
   }
 
   render() {
-    const { validation = {}, sanitation = {}, name } = this.props;
+    const { validation = {}, sanitation = {}, name, ...props } = this.props;
     const ReactQuill = this.ReactQuill;
+
+    !this.context._henriForm &&
+      // eslint-disable-next-line no-console
+      console.warn('Editor component used outside henri form.');
+
+    this.context.addSanitizer(name, sanitation);
+
     if (typeof window !== 'undefined' && ReactQuill) {
       return (
         <ReactQuill
-          onChange={value =>
+          onChange={(value) =>
             this.context.handleChange(
               { target: { name, value } },
               validation,
@@ -24,33 +42,23 @@ class FormHtmlEditor extends Component {
           }
           defaultValue={this.context.data[name] || ''}
           theme="snow"
-          {...this.props}
+          {...props}
         />
       );
-    } else {
-      return <textarea />;
     }
+
+    return <textarea name={name} defaultValue={this.context.data[name] || ''} />;
   }
 }
 
 FormHtmlEditor.propTypes = {
-  name: PropTypes.string.isRequired,
-  type: PropTypes.string,
-  required: PropTypes.bool,
-  placeholder: PropTypes.string,
-  validation: PropTypes.object,
   errorMsg: PropTypes.object,
+  name: PropTypes.string.isRequired,
+  placeholder: PropTypes.string,
+  required: PropTypes.bool,
   sanitation: PropTypes.object,
-};
-
-FormHtmlEditor.contextTypes = {
-  data: PropTypes.object,
-  errors: PropTypes.object,
-  modified: PropTypes.bool,
-  handleChange: PropTypes.func,
-  handleSubmit: PropTypes.func,
-  addSanitizer: PropTypes.func,
-  _henriForm: PropTypes.bool,
+  type: PropTypes.string,
+  validation: PropTypes.object,
 };
 
 export default FormHtmlEditor;

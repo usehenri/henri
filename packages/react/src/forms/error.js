@@ -1,26 +1,25 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { useForm } from './context';
 
-const Error = ({ children }, { error = null, _henriForm = false }) => {
+const FormError = ({ children }) => {
+  const { error = null, _henriForm = false } = useForm();
+
+  // eslint-disable-next-line no-console
   !_henriForm && console.warn('Error component used outside henri form.');
+
   if (error && children) {
     return <div>{children}</div>;
   }
   if (error) {
-    return <div>{error}</div>;
+    return <div>{error === true ? 'An error occurred' : error}</div>;
   }
+
   return <div />;
 };
 
-Error.contextTypes = {
-  data: PropTypes.object,
-  disabled: PropTypes.bool,
-  errors: PropTypes.object,
-  error: PropTypes.oneOf([PropTypes.string, PropTypes.bool]),
-  modified: PropTypes.bool,
-  handleChange: PropTypes.func,
-  handleSubmit: PropTypes.func,
-  _henriForm: PropTypes.bool,
+FormError.propTypes = {
+  children: PropTypes.node,
 };
 
-export default Error;
+export default FormError;

@@ -1,144 +1,96 @@
-const webpack = require('webpack');
+/**
+ * next.js configuration used by the henri react engine.
+ *
+ * It is loaded twice: by the engine (passed to `next()` as `conf`) and, for
+ * production builds, by `next build` through the `app/views/next.config.js`
+ * file that requires this module. The latter runs in worker processes where
+ * the `henri` global does not exist, so this file only relies on
+ * `process.cwd()` (henri changes the working directory to the application
+ * root before loading the view engine).
+ *
+ * Import aliases (`import x from 'components/x'`) come from the
+ * `app/views/jsconfig.json` file (`baseUrl: "."`), which both Turbopack and
+ * webpack honour; the engine creates it when the application has none.
+ */
 const path = require('path');
-const glob = require('glob');
-const fs = require('fs');
-const withSass = require('@zeit/next-sass');
 const debug = require('debug')('henri:react');
+const { loadUserHooks } = require('./hooks');
 
-const { cwd, pen } = henri;
+const cwd = process.cwd();
+const dir = path.resolve(cwd, 'app/views');
+const hooks = loadUserHooks(cwd);
 
-const dir = path.resolve(cwd(), 'app/views');
-
-let userConfig = null;
-
-try {
-  const configFilePath = path.resolve(cwd(), 'config', 'webpack.js');
-
-  if (fs.existsSync(configFilePath)) {
-    //eslint-disable-next-line global-require
-    const conf = require(configFilePath);
-
-    if (typeof conf.webpack === 'function') {
-      userConfig = conf.webpack;
-      debug('loaded webpack configuration file to extend next.js config');
-    } else {
-      pen.error(
-        'react',
-        `Can't load your config/webpack.js file. It should export a function.`
-      );
-    }
-  } else {
-    debug('no custom webpack.js found in the config folder');
+/**
+ * Report an error through henri's pen when it exists, or the console
+ *
+ * @param {...string} args message parts
+ * @returns {void}
+ */
+function report(...args) {
+  if (global.henri && global.henri.pen) {
+    return global.henri.pen.error('react', ...args);
   }
-} catch (err) {
-  debug('will not load nextjs local config');
-  debug('error', err);
+
+  // eslint-disable-next-line no-console
+  return console.error('[react]', ...args);
 }
 
-module.exports = withSass({
-  sassLoaderOptions: {
-    includePaths: ['styles', 'node_modules']
-      .map((dir) => path.join(__dirname, dir))
-      .map((gro) => glob.sync(gro))
-      .reduce((arr, key) => arr.concat(key), []),
+/**
+ * webpack configuration hook (only used when config/webpack.js exists, which
+ * switches the bundler from Turbopack to webpack)
+ *
+ * @param {object} config webpack configuration built by next.js
+ * @param {object} options next.js webpack options ({ dev, isServer, ... })
+ * @returns {object} the configuration
+ */
+function webpack(config, options) {
+  config = hooks.webpack(config, options, options.webpack);
+
+  if (!config || !config.module || !config.module.rules || !config.resolve) {
+    report('Seems like you removed stuff from your webpack configuration...');
+    report('');
+    report('Are you sure that you are returning the config passed as argument?');
+    report('');
+    report('Check the syntax of config/webpack.js. See below for a jQuery example:');
+    report('');
+    report('    module.exports = {');
+    report('      webpack: (config, { dev }, webpack) => {');
+    report('        config.plugins.push(');
+    report('          new webpack.ProvidePlugin({');
+    report("            $: 'jquery',");
+    report("            jQuery: 'jquery',");
+    report('          })');
+    report('        );');
+    report('        return config;');
+    report('      },');
+    report('    };');
+    report('');
+    process.exit(-1);
+  }
+
+  return config;
+}
+
+let config = {
+  sassOptions: {
+    loadPaths: [path.join(dir, 'styles'), dir, path.join(cwd, 'node_modules')],
   },
+  // Note: henri's router runs first, next.js only sees what henri did not
+  // route (and the pages henri renders through res.render). Filesystem
+  // routing stays enabled: next.js 16 refuses to render page files otherwise.
+};
 
-  useFileSystemPublicRoutes: false,
+if (hooks.webpack) {
+  debug('config/webpack.js found: building with webpack instead of turbopack');
+  config.webpack = webpack;
+}
 
-  webpack: (config, { dev }) => {
-    config.resolveLoader.modules.push(
-      path.resolve(require.resolve('next'), '../../../..')
-    );
-    config.module.rules.push(
-      {
-        test: /\.s(a|c)ss$/,
-        use: [
-          {
-            loader: 'sass-loader',
-            options: {
-              includePaths: ['styles', 'node_modules']
-                .map((dir) => path.join(__dirname, dir))
-                .map((glo) => glob.sync(glo))
-                .reduce((arr, key) => arr.concat(key), []),
-            },
-          },
-        ],
-      },
-      {
-        exclude(str) {
-          return /node_modules/.test(str);
-        },
-        include: [dir],
-        test: /\.js(\?[^?]*)?$/,
-        use: [
-          {
-            loader: 'babel-loader',
-            options: {
-              cacheDirectory: true,
-              ignore: [],
-              plugins: [
-                [
-                  require.resolve('babel-plugin-module-resolver'),
-                  {
-                    alias: {
-                      assets: './assets',
-                      components: './components',
-                      helpers: './helpers',
-                      styles: './styles',
-                    },
-                    cwd: dir,
-                    root: ['.'],
-                  },
-                ],
-              ],
-              presets: [require.resolve('next/babel')],
-            },
-          },
-        ],
-      }
-    );
-    if (userConfig) {
-      config = userConfig(config, { dev }, webpack);
+if (typeof hooks.next === 'function') {
+  config = hooks.next(config) || config;
+} else if (hooks.next) {
+  config = Object.assign({}, config, hooks.next);
+}
 
-      if (
-        !config ||
-        !config.module ||
-        !config.module.rules ||
-        !config.resolveLoader
-      ) {
-        console.log('');
-        pen.error(
-          'react',
-          'Seems like you removed stuff from your webpack configuration...'
-        );
-        pen.error('react', '');
-        pen.error(
-          'react',
-          'Are you sure that you are returning the config passed as argument?'
-        );
-        pen.error('react', '');
-        pen.error(
-          'react',
-          'Check the syntax of config/webpack.js. See below for a jQuery example:'
-        );
-        pen.error('react', '');
-        pen.error('react', '    module.exports = {');
-        pen.error('react', '      webpack: (config, { dev }, webpack) => {');
-        pen.error('react', '        config.plugins.push(');
-        pen.error('react', '          new webpack.ProvidePlugin({');
-        pen.error('react', "            $: 'jquery',");
-        pen.error('react', "            jQuery: 'jquery',");
-        pen.error('react', '          })');
-        pen.error('react', '        );');
-        pen.error('react', '        return config;');
-        pen.error('react', '      },');
-        pen.error('react', '    };');
-        pen.error('react', '');
-        console.log('');
-        process.exit(-1);
-      }
-    }
+debug('next.js configuration %O', config);
 
-    return config;
-  },
-});
+module.exports = config;
