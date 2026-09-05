@@ -42,9 +42,6 @@ class BaseModuleClass {
     this.consoleOnly = false;
 
     this.init = this.init.bind(this);
-    this.info = this.info.bind(this);
-    this.setup = this.setup.bind(this);
-    this.start = this.start.bind(this);
   }
 
   /**
@@ -55,36 +52,6 @@ class BaseModuleClass {
    */
   init() {
     BaseModuleClass._out(this.name, 'init method is not implemented');
-  }
-
-  /**
-   * Method to be called if 'key' is defined
-   *
-   * @returns {String} Message
-   * @memberof BaseModuleClass
-   */
-  info() {
-    BaseModuleClass._out(this.name, 'info method is not implemented');
-  }
-
-  /**
-   * Method to set things up before starting
-   *
-   * @returns {String} Message
-   * @memberof BaseModuleClass
-   */
-  setup() {
-    BaseModuleClass._out(this.name, 'setup method is not implemented');
-  }
-
-  /**
-   * This should be called by init after setup
-   *
-   * @returns {String} Message
-   * @memberof BaseModuleClass
-   */
-  start() {
-    BaseModuleClass._out(this.name, 'start method is not implemented');
   }
 
   /**

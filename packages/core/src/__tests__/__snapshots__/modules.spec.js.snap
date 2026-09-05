@@ -2,6 +2,8 @@
 
 exports[`henri should match snapshot 1`] = `
 Modules {
+  "_reloadQueued": null,
+  "_reloading": null,
   "add": [Function],
   "henri": {},
   "init": [Function],

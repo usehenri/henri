@@ -2,6 +2,8 @@ const path = require('path');
 
 /**
  * Vue (Nuxt) engine
+ * Experimental: written for Nuxt 2 and not exercised since 2020. It only
+ * loads when `config.experimental.vue === true`.
  *
  * @class VueEngine
  */
@@ -9,16 +11,32 @@ class VueEngine {
   /**
    * Creates an instance of VueEngine.
    * @param {Henri} thisHenri The current instance of henri
+   * @throws unless config.experimental.vue is true
    * @memberof VueEngine
    */
   constructor(thisHenri) {
+    const { config, pen } = thisHenri;
+
+    if (config.get('experimental.vue', true) !== true) {
+      throw pen.fatal(
+        'vue',
+        'the vue renderer is experimental and disabled',
+        'Enable it with "experimental": { "vue": true } in your configuration'
+      );
+    }
+
+    pen.warn(
+      'vue',
+      'the vue renderer is experimental (nuxt 2) and has not been exercised since 2020'
+    );
+
     this.instance = null;
     this.henri = thisHenri;
     this.conf = {
       dev: !thisHenri.isProduction,
       srcDir: './app/views',
     };
-    this.renderer = thisHenri.config.get('renderer').toLowerCase();
+    this.renderer = config.get('renderer').toLowerCase();
     this.Builder = null;
 
     try {
@@ -41,11 +59,13 @@ class VueEngine {
   /**
    * The init method
    *
-   * @returns {void}
+   * @async
+   * @returns {Promise<void>} resolves once nuxt is created
+   * @throws when nuxt is not installed
    * @memberof VueEngine
    */
-  init() {
-    this.henri.utils.checkPackages(['nuxt']);
+  async init() {
+    await this.henri.utils.checkPackages(['nuxt'], this.henri);
 
     const { Nuxt, Builder } = require(
       this.henri.utils.resolveFrom('nuxt', this.henri.cwd())
@@ -108,7 +128,7 @@ class VueEngine {
 
       return res.send(html);
     } catch (error) {
-      if (henri.isProduction) {
+      if (this.henri.isProduction) {
         return res.status(500).send('Internal server error');
       }
       this.henri.pen.error('vue', error);

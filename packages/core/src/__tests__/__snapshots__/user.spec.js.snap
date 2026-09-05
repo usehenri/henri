@@ -6,13 +6,10 @@ User {
   "consoleOnly": false,
   "encrypt": [Function],
   "henri": null,
-  "info": [Function],
   "init": [Function],
   "key": null,
   "name": "user",
   "reloadable": false,
   "runlevel": 4,
-  "setup": [Function],
-  "start": [Function],
 }
 `;
