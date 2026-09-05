@@ -1,4 +1,3 @@
-const path = require('path');
 const utils = require('../utils');
 
 /**
@@ -25,7 +24,7 @@ async function check() {
 
 check();
 
-module.exports = require(path.join(
-  process.cwd(),
-  './node_modules/@usehenri/react/engine/index'
+module.exports = require(utils.resolveFrom(
+  '@usehenri/react/engine/index',
+  process.cwd()
 ));

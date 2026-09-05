@@ -153,15 +153,15 @@ class Model extends BaseModule {
    * @memberof Model
    */
   loadStore(store, conn) {
-    const { cwd, pen } = this.henri;
+    const {
+      cwd,
+      pen,
+      utils: { resolveFrom },
+    } = this.henri;
 
     try {
       // eslint-disable-next-line global-require
-      const Pkg = require(path.join(
-        cwd(),
-        'node_modules',
-        `@usehenri/${conn}`
-      ));
+      const Pkg = require(resolveFrom(`@usehenri/${conn}`, cwd()));
 
       debug('loaded adapter %s (%s)', store.adapter, conn);
 

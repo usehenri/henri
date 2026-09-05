@@ -50,10 +50,9 @@ class VueEngine {
   init() {
     this.henri.utils.checkPackages(['nuxt']);
     // eslint-disable-next-line
-    const { Nuxt, Builder } = require(path.resolve(
-      this.henri.cwd(),
-      'node_modules',
-      'nuxt'
+    const { Nuxt, Builder } = require(this.henri.utils.resolveFrom(
+      'nuxt',
+      this.henri.cwd()
     ));
 
     this.instance = new Nuxt(this.conf);

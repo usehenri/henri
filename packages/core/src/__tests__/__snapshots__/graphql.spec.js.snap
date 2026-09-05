@@ -1,14 +1,14 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`graphql merge should compile schema 1`] = `
-Object {
-  "data": Object {
-    "artworks": Array [
-      Object {
+{
+  "data": {
+    "artworks": [
+      {
         "title": "Le bonheur de vivre",
         "year": 1905,
       },
-      Object {
+      {
         "title": "Music",
         "year": 1910,
       },
@@ -16,9 +16,9 @@ Object {
   },
   "errors": undefined,
   "extensions": undefined,
-  "http": Object {
+  "http": {
     "headers": Headers {
-      Symbol(map): Object {},
+      Symbol(map): {},
     },
   },
 }
@@ -46,7 +46,7 @@ Graphql {
   "reload": [Function],
   "reloadable": true,
   "resolvers": null,
-  "resolversList": Array [],
+  "resolversList": [],
   "run": [Function],
   "runlevel": 1,
   "schema": null,
@@ -54,6 +54,6 @@ Graphql {
   "start": [Function],
   "toApolloError": [Function],
   "types": null,
-  "typesList": Array [],
+  "typesList": [],
 }
 `;

@@ -1,4 +1,5 @@
 {
+  "name": "@usehenri/demo",
   "private": true,
   "onboard": true,
   "version": "0.37.2",

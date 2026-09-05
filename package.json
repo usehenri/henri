@@ -1,24 +1,20 @@
 {
+  "name": "henri-monorepo",
   "private": true,
   "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "prepublish": "node scripts/prepublish.js",
-    "pretest": "lerna bootstrap",
-    "link": "cd packages/henri && yarn link",
-    "test:watch": "jest --watch --coverage --colors --runInBand --detectOpenHandles",
+    "sync-readme": "node scripts/prepublish.js",
+    "build": "yarn workspace @usehenri/react build",
+    "test": "jest",
+    "test:watch": "jest --watch --colors --runInBand --detectOpenHandles",
     "test:cover": "jest --coverage",
-    "test:precommit": "jest --coverage",
-    "test:ci": "jest --coverage --forceExit --runInBand --verbose --bail",
-    "coveralls": "nyc --instrument=false --source-map=false report --temp-directory=./coverage --reporter=text-lcov | coveralls",
-    "publish-canary": "lerna publish --yes --skip-git --exact -c",
-    "packages:audit": "lerna exec --concurrency 1 -- yarn audit --ignore-engines",
-    "packages:clean": "lerna clean --yes",
-    "packages:install": "lerna exec --concurrency 1 -- yarn install --ignore-engines && yarn install --ignore-engines",
-    "packages:lock": "lerna exec -- rm -rf node_modules yarn.lock && lerna exec -- yarn install --ignore-engines",
-    "packages:upgrade": "yarn upgrade-interactive --latest --ignore-engines && lerna exec --concurrency 1 -- yarn upgrade-interactive --latest --force --ignore-engines",
-    "packages:bootstrap": "lerna bootstrap",
-    "packages:maintenance": "yarn run packages:clean && yarn run packages:install && yarn run packages:upgrade && yarn run packages:bootstrap && yarn run packages:yalc && exit",
-    "packages:yalc": "lerna exec -- yalc push"
+    "test:ci": "jest --coverage --forceExit --runInBand --verbose --bail"
   },
   "devDependencies": {
     "@types/bcrypt-nodejs": "^0.0.31",
@@ -43,7 +39,6 @@
     "babel-eslint": "^10.0.3",
     "babel-plugin-syntax-object-rest-spread": "^6.13.0",
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
-    "coveralls": "^3.0.9",
     "cross-env": "^7.0.2",
     "eslint": "^7.5.0",
     "eslint-config-react-app": "^5.1.0",
@@ -55,21 +50,19 @@
     "eslint-plugin-node": "^11.0.0",
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-react": "^7.18.0",
+    "eslint-plugin-react-hooks": "^4.0.8",
     "eslint-plugin-standard": "^4.0.1",
     "husky": "^4.2.0",
-    "jest": "^26.2.1",
-    "lerna": "^3.20.2",
+    "jest": "^30.0.0",
     "lint-staged": "^10.0.2",
     "maildev": "^1.1.0",
-    "nyc": "^15.0.0",
     "prettier": "^2.0.5",
-    "supertest": "^4.0.2"
+    "supertest": "^7.0.0"
   },
   "lint-staged": {
     "*.js": [
       "prettier --trailing-comma es5 --single-quote --write",
-      "eslint --fix",
-      "git add"
+      "eslint --fix"
     ]
   },
   "jest": {
@@ -80,6 +73,7 @@
       "node_modules/*",
       "packages/.*/build",
       "packages/.*/build-es5",
+      "packages/.*/dist",
       "packages/cli/scripts/test.js",
       "packages/demo",
       "packages/disk",
@@ -88,10 +82,7 @@
       "packages/postgresql",
       "packages/react",
       "packages/sequelize",
-      "packages/websocket",
-      "packages/jest-runtime/src/__tests__/test_root.*",
-      "website/.*",
-      "integration_tests/runtime-internal-module-registry/__mocks__"
+      "packages/websocket"
     ],
     "collectCoverageFrom": [
       "packages/**/**/*.js",
@@ -99,15 +90,8 @@
       "!**/cli/**",
       "!**/view/**",
       "!**/perf/**",
-      "!**/test/**"
+      "!**/test/**",
+      "!**/dist/**"
     ]
-  },
-  "dependencies": {
-    "eslint-plugin-react-hooks": "^4.0.8"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged && jest --coverage"
-    }
   }
 }

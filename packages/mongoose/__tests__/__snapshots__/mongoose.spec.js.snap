@@ -1,38 +1,37 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`mongoose should match class snapshot 1`] = `
 Mongoose {
   "adapterName": "mongoose",
   "addModel": [Function],
-  "config": Object {
+  "config": {
     "url": "mongodb://",
   },
   "getModels": [Function],
   "getSessionConnector": [Function],
-  "henri": Object {},
-  "models": Object {},
+  "henri": {},
+  "models": {},
   "mongoose": Mongoose {
     "Schema": [Function],
     "_pluralize": [Function],
-    "connections": Array [
+    "connections": [
       NativeConnection {
         "_closeCalled": false,
         "_hasOpened": false,
         "_listening": false,
+        "_queue": [],
         "_readyState": 0,
         "base": [Circular],
-        "collections": Object {},
-        "config": Object {
-          "autoIndex": true,
-        },
-        "id": 1,
-        "models": Object {},
+        "collections": {},
+        "config": {},
+        "id": 0,
+        "models": {},
         "options": null,
-        "otherDbs": Array [],
-        "plugins": Array [],
-        "relatedDbs": Object {},
+        "otherDbs": [],
+        "plugins": [],
+        "relatedDbs": {},
         "replica": false,
-        "states": Object {
+        "states": {
           "0": "disconnected",
           "1": "connected",
           "2": "connecting",
@@ -46,33 +45,48 @@ Mongoose {
         },
       },
     ],
-    "modelSchemas": Object {},
-    "models": Object {},
-    "options": Object {
-      "pluralization": true,
+    "events": EventEmitter {
+      "_events": {},
+      "_eventsCount": 0,
+      "_maxListeners": undefined,
+      Symbol(shapeMode): false,
+      Symbol(kCapture): false,
     },
-    "plugins": Array [
-      Array [
+    "modelSchemas": {},
+    "models": {},
+    "options": {
+      "autoIndex": true,
+      "pluralization": true,
+      "useCreateIndex": false,
+    },
+    "plugins": [
+      [
         [Function],
-        Object {
+        {
           "deduplicate": true,
         },
       ],
-      Array [
+      [
         [Function],
-        Object {
+        {
           "deduplicate": true,
         },
       ],
-      Array [
+      [
         [Function],
-        Object {
+        {
           "deduplicate": true,
         },
       ],
-      Array [
+      [
         [Function],
-        Object {
+        {
+          "deduplicate": true,
+        },
+      ],
+      [
+        [Function],
+        {
           "deduplicate": true,
         },
       ],
@@ -86,7 +100,7 @@ Mongoose {
 `;
 
 exports[`mongoose should match types snapshot 1`] = `
-Object {
+{
   "ARRAY": [Function],
   "Array": [Function],
   "BIGINT": [Function],

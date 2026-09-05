@@ -13,6 +13,53 @@ const inquirer = require('inquirer');
 const _ = require('lodash');
 
 /**
+ * Resolve a module the way `require()` would from a given directory.
+ * Walks up the parent directories, so hoisted workspace packages are found.
+ *
+ * @param {string} request module name or path (ex: '@usehenri/disk')
+ * @param {string} [dir=process.cwd()] directory to resolve from
+ * @returns {string} absolute path to the module entry file
+ * @throws when the module cannot be resolved
+ */
+function resolveFrom(request, dir = process.cwd()) {
+  return require.resolve(request, { paths: [path.resolve(dir)] });
+}
+
+/**
+ * Locate the package.json of an installed package
+ *
+ * @param {string} pkgName package name (ex: 'react')
+ * @param {string} [dir=process.cwd()] directory to resolve from
+ * @returns {object} parsed package.json
+ * @throws when the package cannot be found
+ */
+function resolvePackageJson(pkgName, dir = process.cwd()) {
+  try {
+    // eslint-disable-next-line global-require
+    return require(resolveFrom(`${pkgName}/package.json`, dir));
+  } catch (error) {
+    // Package uses "exports" without exposing package.json: walk up from main
+    let current = path.dirname(resolveFrom(pkgName, dir));
+
+    while (current !== path.dirname(current)) {
+      const candidate = path.join(current, 'package.json');
+
+      if (fs.existsSync(candidate)) {
+        // eslint-disable-next-line global-require
+        const pkg = require(candidate);
+
+        if (pkg.name === pkgName) {
+          return pkg;
+        }
+      }
+      current = path.dirname(current);
+    }
+
+    throw error;
+  }
+}
+
+/**
  *  Check if yarn exists
  *
  * @return {boolean} it exists?
@@ -78,16 +125,10 @@ function checkMissing(packages) {
     try {
       const [pkgName, version = null] = pkg.split('@');
 
-      require.resolve(path.resolve(process.cwd(), 'node_modules', pkgName));
+      resolveFrom(pkgName);
 
       if (version) {
-        //eslint-disable-next-line global-require
-        const target = require(path.resolve(
-          process.cwd(),
-          'node_modules',
-          pkgName,
-          'package.json'
-        ));
+        const target = resolvePackageJson(pkgName);
 
         if (comparev(target.version, version) < 0) {
           // eslint-disable-next-line no-console
@@ -240,6 +281,8 @@ module.exports = {
   checkPackages,
   clearConsole,
   getColor,
+  resolveFrom,
+  resolvePackageJson,
   stack,
   syntax,
   yarnExists,
