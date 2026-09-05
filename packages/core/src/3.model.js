@@ -1,7 +1,7 @@
 const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
-const includeAll = require('include-all');
+const { loadModules } = require('./utils');
 const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:model');
 
@@ -46,32 +46,16 @@ class Model extends BaseModule {
    * @static
    * @async
    * @param {string} location defaults: ./app/models
-   * @returns {Promise<(Object|Error)>} list of objects
+   * @returns {Promise<Object>} the models, keyed by identity
+   * @throws when a model fails to load
    * @memberof Model
-   * @todo Change this to an inhouse loader with prettier validation
    */
   static async load(location) {
-    return new Promise((resolve, reject) => {
-      includeAll.optional(
-        {
-          dirname: path.resolve(location),
-          excludeDirs: /^\.(git|svn)$/,
-          filter: /(.+)\.js$/,
-          flatten: true,
-          force: true,
-        },
-        (err, modules) => {
-          if (err) {
-            debug('load rejected');
+    const models = loadModules(path.resolve(location));
 
-            return reject(err);
-          }
-          debug('loaded from fs');
+    debug('loaded from fs');
 
-          return resolve(modules);
-        }
-      );
-    });
+    return models;
   }
 
   /**
@@ -112,9 +96,13 @@ class Model extends BaseModule {
           this.henri.graphql.extract(model);
         }
       } catch (error) {
-        bounce.rethrow(error, 'system');
+        this.henri.pen.error(
+          'model',
+          `unable to configure ${id}`,
+          error.message
+        );
 
-        return {};
+        throw error;
       }
     }
 
@@ -160,7 +148,6 @@ class Model extends BaseModule {
     } = this.henri;
 
     try {
-      // eslint-disable-next-line global-require
       const Pkg = require(resolveFrom(`@usehenri/${conn}`, cwd()));
 
       debug('loaded adapter %s (%s)', store.adapter, conn);
@@ -237,7 +224,7 @@ class Model extends BaseModule {
       debug('init done');
     } catch (error) {
       this.henri.pen.error('model', 'error', error);
-      bounce.rethrow(error, 'system');
+      throw error;
     }
 
     return this.name;
