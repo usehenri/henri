@@ -651,9 +651,16 @@ class Relation {
    * Clears the `deletedAt` stamp of every matching row (paranoid models)
    *
    * @returns {Promise<number>} The number of rows restored
+   * @throws {Error} On a model without `options: { paranoid: true }`
    * @memberof Relation
    */
   async restore() {
+    if (!this.Model.paranoid) {
+      throw new Error(
+        `${this.Model.modelName}.restore() needs options: { paranoid: true }`
+      );
+    }
+
     const relation =
       this.state.deleted === 'without' ? this.withDeleted() : this;
 

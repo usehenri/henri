@@ -152,6 +152,17 @@ describe('timestamps, soft deletes and paginate (sqlite in memory)', () => {
       expect(await Task.count()).toBe(1);
     });
 
+    test('restore() says what is missing on a model without paranoid', async () => {
+      const note = await Note.create({ body: 'kept' });
+
+      await expect(Note.restore()).rejects.toThrow(
+        'Note.restore() needs options: { paranoid: true }'
+      );
+      await expect(note.restore()).rejects.toThrow(
+        'Note.restore() needs options: { paranoid: true }'
+      );
+    });
+
     test('a model without paranoid deletes for real', async () => {
       const note = await Note.create({ body: 'bye' });
 

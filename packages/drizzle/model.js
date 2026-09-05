@@ -505,6 +505,7 @@ class Model {
    *
    * @param {*} [where] The condition
    * @returns {Promise<number>} The number of rows restored
+   * @throws {Error} On a model without `options: { paranoid: true }`
    * @memberof Model
    */
   static restore(where) {
@@ -1316,10 +1317,17 @@ class Model {
    * Clears the `deletedAt` stamp of the row (paranoid models)
    *
    * @returns {Promise<Model>} The instance
+   * @throws {Error} On a model without `options: { paranoid: true }`
    * @memberof Model
    */
   async restore() {
     const { Model: Klass } = this;
+
+    if (!Klass.paranoid) {
+      throw new Error(
+        `${Klass.modelName}.restore() needs options: { paranoid: true }`
+      );
+    }
 
     await Klass.setWhere(eq(Klass.column('id'), this.id), { deletedAt: null });
     this.deletedAt = null;
