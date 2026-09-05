@@ -2,9 +2,9 @@ const BaseModule = require('./base/module');
 
 const path = require('path');
 const fs = require('fs');
-const url = require('url');
 const bounce = require('@hapi/bounce');
 const debug = require('debug')('henri:router');
+const { loopbackOnly } = require('./base/http');
 
 /**
  * Router module
@@ -123,10 +123,12 @@ class Router extends BaseModule {
       'press U to print a list'
     );
 
-    /* istanbul ignore next */
-    if (process.env.NODE_ENV !== 'production') {
-      this.handler.get('/_routes', (req, res) => res.json(this.routes));
-      this.handler.get('/_controllers', (req, res) =>
+    // Development-only introspection, and only from this machine
+    if (this.henri.isDev) {
+      const local = loopbackOnly();
+
+      this.handler.get('/_routes', local, (req, res) => res.json(this.routes));
+      this.handler.get('/_controllers', local, (req, res) =>
         res.json(this.henri.controllers.all())
       );
     }
@@ -222,7 +224,7 @@ class Router extends BaseModule {
 
     // Ideally, populate with information from path-to-regexp for better
     // ...parameters matching client-side...
-    if (fn && !/data/.test(route)) {
+    if (fn) {
       [controllerName, controllerAction] = controller.split('#');
 
       this._paths[`${controllerAction}_${controllerName}_path`] = {
@@ -275,12 +277,11 @@ class Router extends BaseModule {
       };
     });
 
+    const inst = this.henri;
+
     this.handler[verb](
       route,
       async function (req, res, next) {
-        if (req.params._id && req.params._id.includes('favicon.')) {
-          return res.status(404).send();
-        }
         if (
           req.isAuthenticated() &&
           req.user &&
@@ -290,7 +291,7 @@ class Router extends BaseModule {
         } else {
           const reas = req.user && (await req.user.hasRole(roles));
 
-          henri.pen.warn('router', 'denied');
+          inst.pen.warn('router', 'denied');
           debug(reas, req.user, roles);
 
           return res.redirect('/login');
@@ -355,8 +356,6 @@ class Router extends BaseModule {
         user: req.user || null,
       };
 
-      delete res.render;
-
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
 
@@ -410,7 +409,9 @@ class Router extends BaseModule {
 
         if (this.henri.graphql) {
           opts.graphql = {
-            endpoint: (henri.graphql.active && henri.graphql.endpoint) || false,
+            endpoint:
+              (this.henri.graphql.active && this.henri.graphql.endpoint) ||
+              false,
             query: graphql || false,
           };
         }
@@ -422,7 +423,6 @@ class Router extends BaseModule {
         });
       };
 
-      delete res.hbs;
       res.hbs = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
 
@@ -441,7 +441,9 @@ class Router extends BaseModule {
 
         if (this.henri.graphql) {
           opts.graphql = {
-            endpoint: (henri.graphql.active && henri.graphql.endpoint) || false,
+            endpoint:
+              (this.henri.graphql.active && this.henri.graphql.endpoint) ||
+              false,
             query: graphql || false,
           };
         }
@@ -552,7 +554,7 @@ class Route {
     if (this.opts.omit && this.opts.omit.includes(method)) {
       return;
     }
-    const rebuilt = url.resolve(urlPath, '');
+    const rebuilt = path.posix.normalize(urlPath);
 
     this.result[`${verb} ${rebuilt}`] = this.buildOpts(verb, rebuilt, method);
   }
