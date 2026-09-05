@@ -48,6 +48,7 @@ module.exports = [
     files: [
       'app/**/*.js',
       'config/**/*.js',
+      'db/**/*.js',
       'test/**/*.js',
       'eslint.config.js',
       'vitest.config.js',
