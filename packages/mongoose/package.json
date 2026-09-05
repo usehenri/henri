@@ -39,7 +39,7 @@
   "dependencies": {
     "connect-mongo": "^6.0.0",
     "debug": "^4.4.3",
-    "mongodb": "~7.5.0",
+    "mongodb": "~7.6.0",
     "mongoose": "^9.9.5"
   },
   "peerDependencies": {
