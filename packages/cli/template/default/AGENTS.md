@@ -99,11 +99,12 @@ Pages are next.js pages (pages router) exported through `withHenri` from
 next.js from `config/next.js` (`module.exports = { next: (config) => config }`).
 {{/if}}
 {{#if inertia}}
-Pages are `.jsx` files rendered by Inertia (Vite + React). `useHenri()` from
-`@usehenri/inertia` gives `data`, `user`, `paths`, `getRoute` and `pathFor`;
-`Form` and `Link` come from the same package. A controller hands validation
-errors to the page with `res.inertia.errors({ field: 'message' })` before
-rendering again. Vite is configured in `app/views/vite.config.mjs`.
+Pages are `.jsx` files rendered by Inertia (Vite + React); `res.render('/tasks')`
+resolves `pages/tasks/index.jsx`. `useHenri()` from `@usehenri/inertia` gives
+`data`, `user`, `paths`, `errors`, `csrf`, `getRoute`, `pathFor`, `fetch`, `hydrate`;
+`Form` (POST by default, CSRF field injected), `Link`, `Head`, `router`, `usePage`
+and `useForm` come from the same package. `res.inertia.errors({ field: 'msg' })`
+before rendering again hands validation errors to the page; `res.inertia.location(url)` redirects outside the app.
 {{/if}}
 
 ## Users and secrets
@@ -152,5 +153,5 @@ app (run from the root), 4 needs a terminal (pass the flag: `henri clean
 - Do not `require` a model or `henri`: they are globals.
 - Do not put `secret` or passwords in `config/*.json`; do not commit `.env`, `.henri/` or `.backup/`.
 - Do not set `roles` from request data; do not mass-assign `req.body`.
-- Do not edit `app/views/next.config.js`{{#if inertia}}, `app/views/ssr.jsx` or `app/views/main.jsx`{{/if}}; do not rename generated files by hand (regenerate with `--force`, or `destroy` first).
+- {{#if react}}Do not edit `app/views/next.config.js`{{/if}}{{#if inertia}}Keep the `resolvePage` resolver and `import.meta.glob('./pages/**/*.jsx')` in `app/views/main.jsx` and `ssr.jsx` (global styles and Inertia options go in `main.jsx`){{/if}}; do not rename generated files by hand (regenerate with `--force`, or `destroy` first).
 - Do not leave `henri server` running in a non-interactive session; verify with `henri test` and `henri doctor`.

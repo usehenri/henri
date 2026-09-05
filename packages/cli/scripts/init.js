@@ -381,14 +381,6 @@ const sampleResource = async (force) => {
   const attributes = ['name:string!', 'category:string', 'done:boolean'];
   const location = path.join(process.cwd(), 'app', 'models', 'Task.js');
 
-  if (renderer !== 'react') {
-    // The other templates ship their own sample (model, controller, routes
-    // and page); the react scaffold would write pages next to theirs
-    console.log(` - Keeping the sample resource of the ${renderer} template`);
-
-    return;
-  }
-
   console.log(' - Scaffolding the sample Task resource...');
 
   if (force || !fs.existsSync(location)) {

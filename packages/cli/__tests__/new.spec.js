@@ -227,8 +227,9 @@ describe('henri new options', () => {
     const app = path.join(dir, 'inertia');
 
     expect(status).toBe(0);
-    expect(stdout).toContain('Keeping the sample resource of the inertia');
-    expect(exists(app, 'app/models/Task.js')).toBe(false);
+    expect(stdout).not.toContain('Scaffolding the sample Task resource');
+    // The template's own sample, nothing scaffolded next to it
+    expect(fs.readdirSync(path.join(app, 'app/models'))).toHaveLength(1);
     expect(exists(app, 'app/views/pages/tasks/index.js')).toBe(false);
     expect(exists(app, 'app/views/pages/tasks/index.jsx')).toBe(true);
     expect(routesOf(app)['resources tasks']).toBeUndefined();
