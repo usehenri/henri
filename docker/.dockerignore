@@ -1,0 +1,10 @@
+# Build context of docker/Dockerfile. When the Dockerfile is copied to an app
+# root and uses `COPY . .`, keep this file next to it: it leaves the installed
+# and generated files out of the image.
+node_modules
+.next
+.henri
+.git
+.tmp
+coverage
+*.log
