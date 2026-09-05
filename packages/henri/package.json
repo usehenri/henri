@@ -1,6 +1,6 @@
 {
   "name": "henri",
-  "version": "0.37.2",
+  "version": "1.0.0",
   "description": "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
   "preferGlobal": true,
   "bin": "bin/henri.js",

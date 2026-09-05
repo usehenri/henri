@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/testing",
-  "version": "0.37.2",
+  "version": "1.0.0",
   "description": "henri testing helpers: jest and a supertest agent bound to the henri express app",
   "main": "index.js",
   "author": "Felix-Antoine Paradis",
