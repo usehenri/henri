@@ -163,6 +163,22 @@ henri db:status | db:generate [--name=<label>] | db:migrate | db:push [--force] 
 
 Migrations of a [Drizzle](/guides/models/#drizzle) store, in the Rails `db:` style (`henri db migrate` works too). Boots the models only, without views or workers, so it runs anywhere the database is reachable: `status` lists the applied and pending migrations of `db/migrations`, `generate` writes a migration from the schema changes, `migrate` applies the pending ones, and `push` makes the database match the models without a migration. `push` refuses statements that lose data and exits with `1` unless `--force` is passed. Stores on another adapter exit with `1`.
 
+## `doctor`
+
+```bash
+henri doctor [--json]
+```
+
+Checks the application against the conventions without starting it: no database, no views, nothing booted. Reports the Node version, the configuration and its syntax, the secret and the `.env` holding it, the git ignore rules, the store adapter, the routes and each route's controller and action, controller and model naming, the page files a `resources` route needs, the test configuration, the declared and installed dependencies, and `AGENTS.md`. Exits with `1` when it finds an error. See [Coding agents](/guides/agents/).
+
+## `mcp`
+
+```bash
+henri mcp
+```
+
+Starts the [Model Context Protocol](https://modelcontextprotocol.io/) server for the application over stdio, exposing the tools `routes`, `models`, `controllers`, `config`, `doctor`, `generate`, `destroy`, `test` and `lint`, plus the `AGENTS.md`, conventions, routes and help resources. `henri new` writes a `.mcp.json` that starts it. See [Coding agents](/guides/agents/).
+
 ## `clean`
 
 Lists the existing ones among `.tmp`, `.henri`, `logs`, `node_modules`, `app/views/.cache` and `app/views/.next`, asks which to delete, and recreates each selected directory empty.
@@ -184,3 +200,16 @@ Prints the versions of henri, Node, pnpm, yarn and npm, whether the current dire
 | `--host=<ip>`      | bind the server to this address (same as `HENRI_HOST`)            |
 | `--version`, `-v`  | print the henri version                                           |
 | `--help`, `-h`     | print the help of a command                                       |
+| `--json`           | machine readable output; errors become one JSON object on stderr  |
+
+## Exit codes
+
+| Code | Name            | Meaning                                                                      |
+| ---- | --------------- | ---------------------------------------------------------------------------- |
+| `0`  | `OK`            | Success.                                                                     |
+| `1`  | `FAILED`        | The command failed; `henri doctor` found problems; the tests failed.         |
+| `2`  | `USAGE`         | Unknown command, missing or invalid argument.                                |
+| `3`  | `NOT_A_PROJECT` | Not a henri application: run the command from the root of the app.           |
+| `4`  | `NEEDS_TTY`     | An interactive prompt was needed but stdin is not a terminal: pass the flag. |
+
+With `--json` a failure prints `{ "error": { "command", "message", "hint", "code", "exitCode" } }` on stderr. See [Coding agents](/guides/agents/).
