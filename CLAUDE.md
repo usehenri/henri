@@ -17,6 +17,7 @@ mise install                          # node + pnpm from mise.toml
 pnpm install                          # whole workspace; builds @usehenri/react dist
 pnpm test                             # vitest 5, all packages (NODE_ENV=test)
 pnpm test packages/core               # one package (path filter); `pnpm test:cover` for coverage
+pnpm test:sql                         # the SQL adapters only (sqlite; see below for a live server)
 pnpm lint                             # eslint 10 flat config, zero warnings in CI
 pnpm format                           # prettier 3 (`pnpm format:check` in CI)
 pnpm build                            # rollup build of @usehenri/react
@@ -28,6 +29,20 @@ pnpm changeset                        # record a version bump for changed packag
 The first test run downloads a MongoDB binary (mongodb-memory-server) into
 `~/.cache/mongodb-binaries`. Set `MONGOMS_DISABLE_POSTINSTALL=1` when
 installing where that download is unwanted.
+
+The SQL suites (`@usehenri/sequelize`, its dialect packages and
+`@usehenri/drizzle`) run on sqlite by default, offline. Point
+`HENRI_TEST_POSTGRES_URL` or `HENRI_TEST_MYSQL_URL` at a server and the same
+suites run on it instead, each store in a `henri_test_*` database of its own
+(created and dropped by `packages/*/__tests__/targets.js`);
+`HENRI_TEST_SQL_DIALECT` picks one when both are set. The CI runs them that
+way in the `Live PostgreSQL` and `Live MySQL` jobs, on service containers:
+
+```bash
+docker run -d --name henri-pg -e POSTGRES_USER=henri -e POSTGRES_PASSWORD=henri \
+  -e POSTGRES_DB=henri_test -p 5432:5432 postgres:17
+HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:5432/henri_test pnpm test:sql
+```
 
 Applications built with henri run their own tests with `henri test`, which
 spawns the app's Vitest with `NODE_ENV=test`; `@usehenri/testing` boots the
@@ -169,9 +184,15 @@ the LICENSE and a README into every public package at publish time
   since 2020 and only loads with `experimental.vue: true`.
 - The Inertia engine is new in 1.1 and has had little use; its options may
   change.
-- The SQL adapters are tested against sqlite; live MySQL, PostgreSQL and MSSQL
-  connections are not covered, for the Drizzle adapter too. The Sequelize
+- The SQL adapters run their suites against sqlite by default and against a
+  live PostgreSQL or MySQL server with `HENRI_TEST_POSTGRES_URL` /
+  `HENRI_TEST_MYSQL_URL` (see above); MSSQL is only covered offline (its
+  generated DDL), and no adapter is exercised against MariaDB. The Sequelize
   adapters have no migrations (`sequelize.sync()`); Drizzle has them.
+- drizzle-kit does not alter a mysql table on a push: `henri db:push` and the
+  development boot create the tables that are missing and report the ones
+  whose columns drifted (`Migrations#completeMySQLPlan`); a mysql schema
+  change needs `henri db:generate` then `henri db:migrate`.
 - `henri generate scaffold|crud` write Mongoose-only controllers and React-only
   pages.
 - The idempotency and rate-limit stores are in memory unless the app plugs a

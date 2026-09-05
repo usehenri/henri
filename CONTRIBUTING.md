@@ -16,6 +16,7 @@ mise install                          # node + pnpm from mise.toml
 pnpm install                          # whole workspace; builds @usehenri/react
 pnpm test                             # whole monorepo
 pnpm test packages/core               # one package
+pnpm test:sql                         # the SQL adapters (sqlite, or a live server)
 pnpm lint                             # eslint (flat config)
 pnpm format                           # prettier
 pnpm build                            # builds @usehenri/react
@@ -26,6 +27,25 @@ scripts/smoke.sh                      # scaffold an app from the workspace and b
 The first test run downloads a MongoDB binary for the disk adapter
 (`mongodb-memory-server`) into `~/.cache/mongodb-binaries`.
 
+### The SQL adapters on a live database
+
+`@usehenri/sequelize`, its dialect packages and `@usehenri/drizzle` run their
+suites on sqlite, so `pnpm test` needs no server and no network. Point
+`HENRI_TEST_POSTGRES_URL` or `HENRI_TEST_MYSQL_URL` at a server and the same
+suites run against it, each store in a `henri_test_*` database of its own,
+dropped when the file is done (`HENRI_TEST_SQL_DIALECT` picks one when both
+variables are set). The account needs the right to create databases:
+
+```bash
+docker run -d --name henri-pg -e POSTGRES_USER=henri -e POSTGRES_PASSWORD=henri \
+  -e POSTGRES_DB=henri_test -p 5432:5432 postgres:17
+docker run -d --name henri-mysql -e MYSQL_ROOT_PASSWORD=henri \
+  -e MYSQL_DATABASE=henri_test -p 3306:3306 mysql:8
+
+HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:5432/henri_test pnpm test:sql
+HENRI_TEST_MYSQL_URL=mysql://root:henri@127.0.0.1:3306/henri_test pnpm test:sql
+```
+
 ## Pull requests
 
 - Branch from `master`. `master` only takes pull requests whose `Node 22` and
@@ -33,7 +53,10 @@ The first test run downloads a MongoDB binary for the disk adapter
   rebased on it.
 - CI runs `prettier --check`, `eslint --max-warnings 0`, the test suite on
   Node 22 and 24, the website build and a scaffold smoke test
-  (`scripts/smoke.sh`). Run `pnpm lint` and `pnpm test` before pushing.
+  (`scripts/smoke.sh`). Run `pnpm lint` and `pnpm test` before pushing. The
+  `Live PostgreSQL` and `Live MySQL` jobs run the SQL suites against service
+  containers; they never block a pull request, so read them when you touch an
+  SQL adapter.
 - Commits follow [Conventional Commits](https://www.conventionalcommits.org)
   (`feat(core): ...`, `fix(react): ...`, `chore(ci): ...`). The husky hooks run
   lint-staged and commitlint on every commit.
