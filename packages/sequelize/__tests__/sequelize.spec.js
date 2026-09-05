@@ -1,107 +1,45 @@
 const session = require('express-session');
 const Sql = require('../index');
 const { redact } = require('../utils');
+const {
+  build,
+  fakeHenri,
+  sessions,
+  target,
+  taskModel,
+  userModel,
+} = require('./helpers');
 
 const { DataTypes, QueryTypes } = Sql.Sequelize;
 
-/**
- * Builds a minimal henri stand-in for the adapter
- *
- * @param {object} [settings={}] configuration values
- * @returns {object} fake henri
- */
-const fakeHenri = (settings = {}) => {
-  const calls = [];
-  const pen = {};
+// Raw queries need the identifiers quoted the way the target does
+const tasks = target.quote('Tasks');
+const users = target.quote('Users');
 
-  ['error', 'fatal', 'info', 'warn'].forEach((level) => {
-    pen[level] = (...args) => calls.push([level, ...args]);
-  });
-
-  return {
-    _user: null,
-    calls,
-    config: {
-      get: (key) => settings[key],
-      has: (key) => typeof settings[key] !== 'undefined',
-    },
-    pen,
-    user: {
-      encrypt: async (password) => `hashed:${password}`,
-    },
-  };
+// How a bad enum value is refused: sqlite validates it in the model, the
+// dialects with a native ENUM column let the server refuse the value
+const ENUM_ERROR = {
+  mysql: /Data truncated for column 'category'|CHECK constraint/,
+  postgres: /invalid input value for enum/,
+  sqlite: /isIn/,
 };
 
 /**
- * Builds an adapter backed by an in-memory sqlite database
+ * A JSON column, read back (a string on sqlite, parsed elsewhere)
  *
- * @param {object} [settings={}] configuration values
- * @param {object} [config={}] extra store configuration
- * @returns {{ adapter: Sql, henri: object }} adapter and its fake henri
+ * @param {*} value The value the driver answered
+ * @returns {*} The parsed value
  */
-const build = (settings = {}, config = {}) => {
-  const henri = fakeHenri(settings);
-  const adapter = new Sql(
-    'default',
-    { dialect: 'sqlite', storage: ':memory:', ...config },
-    henri
-  );
-
-  return { adapter, henri };
-};
-
-// The model scaffolded by `henri new`, in the henri format
-const taskModel = {
-  globalId: 'Task',
-  identity: 'task',
-  options: { timestamps: true },
-  schema: {
-    category: {
-      default: 'low',
-      enum: ['urgent', 'high', 'medium', 'low'],
-      type: 'string',
-    },
-    done: { default: false, type: 'boolean' },
-    name: { required: true, type: 'string' },
-  },
-  store: 'default',
-};
-
-const userModel = {
-  globalId: 'User',
-  identity: 'user',
-  options: { timestamps: true },
-  schema: { name: { type: 'string' } },
-};
-
-/**
- * Promisified express-session store calls
- *
- * @param {object} store A session store
- * @returns {object} set, get and destroy returning promises
- */
-const sessions = (store) => ({
-  destroy: (sid) =>
-    new Promise((resolve, reject) =>
-      store.destroy(sid, (error) => (error ? reject(error) : resolve()))
-    ),
-  get: (sid) =>
-    new Promise((resolve, reject) =>
-      store.get(sid, (error, data) => (error ? reject(error) : resolve(data)))
-    ),
-  set: (sid, data) =>
-    new Promise((resolve, reject) =>
-      store.set(sid, data, (error) => (error ? reject(error) : resolve()))
-    ),
-});
+const asJson = (value) =>
+  typeof value === 'string' ? JSON.parse(value) : value;
 
 describe('sequelize adapter', () => {
   describe('constructor', () => {
     test('builds the connector from the configuration', () => {
       const { adapter } = build({}, { pool: { max: 3 } });
 
-      expect(adapter.adapterName).toBe('sqlite');
-      expect(adapter.connector.getDialect()).toBe('sqlite');
+      expect(adapter.adapterName).toBe(target.name);
+      expect(adapter.connector.getDialect()).toBe(target.name);
       expect(adapter.connector.options.pool.max).toBe(3);
       expect(adapter.connector.options.adapter).toBeUndefined();
       expect(adapter.connector.options.session).toBeUndefined();
@@ -213,20 +151,25 @@ describe('sequelize adapter', () => {
         'write docs',
       ]);
       await expect(Task.create({})).rejects.toThrow(/notNull Violation/);
+      // The dialects with a native ENUM check the value themselves
       await expect(
         Task.create({ category: 'nope', name: 'x' })
-      ).rejects.toThrow(/isIn/);
+      ).rejects.toThrow(ENUM_ERROR[target.name]);
     });
 
     test('exposes ping, query and transaction', async () => {
       await expect(adapter.ping()).resolves.toBe(true);
+
+      const [counted, metadata] = await adapter.query(
+        `SELECT COUNT(*) AS total FROM ${tasks} WHERE name = ?`,
+        ['write docs']
+      );
+
+      // Postgres counts in a bigint, which the driver reads as a string
+      expect(Number(counted[0].total)).toBe(1);
+      expect(metadata).toBeDefined();
       await expect(
-        adapter.query('SELECT COUNT(*) AS total FROM Tasks WHERE name = ?', [
-          'write docs',
-        ])
-      ).resolves.toEqual([[{ total: 1 }], expect.anything()]);
-      await expect(
-        adapter.query('SELECT name FROM Tasks', [], {
+        adapter.query(`SELECT name FROM ${tasks}`, [], {
           type: QueryTypes.SELECT,
         })
       ).resolves.toEqual([{ name: 'write docs' }]);
@@ -301,7 +244,7 @@ describe('sequelize adapter', () => {
       expect(henri._user).toBe(User);
       expect(henri.calls).toContainEqual([
         'info',
-        'sqlite',
+        target.name,
         'basic user role',
         ['member'],
       ]);
@@ -496,11 +439,11 @@ describe('sequelize adapter', () => {
       expect(User.rawAttributes.roles.type).toBeInstanceOf(DataTypes.JSON);
 
       const [[row]] = await adapter.query(
-        'SELECT roles FROM Users WHERE email = ?',
+        `SELECT roles FROM ${users} WHERE email = ?`,
         ['felix@usehenri.io']
       );
 
-      expect(JSON.parse(row.roles)).toEqual(['member']);
+      expect(asJson(row.roles)).toEqual(['member']);
     });
   });
 
@@ -523,7 +466,7 @@ describe('sequelize adapter', () => {
       await expect(user.hasRole('admin')).resolves.toBe(false);
       expect(henri.calls).toContainEqual([
         'warn',
-        'sqlite',
+        target.name,
         'no basic user role. are you sure?',
       ]);
 
@@ -635,7 +578,10 @@ describe('sequelize adapter', () => {
     test('start rejects when the connection fails', async () => {
       const adapter = new Sql(
         'broken',
-        { dialect: 'sqlite', storage: '/nonexistent/dir/db.sqlite' },
+        // A database nobody created on the server, an impossible file on sqlite
+        target.live
+          ? target.store('never-created')
+          : { dialect: 'sqlite', storage: '/nonexistent/dir/db.sqlite' },
         fakeHenri()
       );
 

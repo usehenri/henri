@@ -1,7 +1,23 @@
+const { driverError } = require('../dialects');
 const { ValidationError } = require('../validation');
-const { build, taskModel } = require('./helpers');
+const { build, target, taskModel } = require('./helpers');
 
-describe('model API (sqlite in memory)', () => {
+// The driver error code of a foreign key violation
+const FOREIGN_KEY = {
+  mysql: 'ER_NO_REFERENCED_ROW_2',
+  postgres: '23503',
+  sqlite: 'SQLITE_CONSTRAINT_FOREIGNKEY',
+};
+
+/**
+ * The parameter placeholder of the target (`?`, or `$1` on postgres)
+ *
+ * @param {number} index The parameter position, from 1
+ * @returns {string} The placeholder
+ */
+const placeholder = (index) => target.dialect.placeholder(index);
+
+describe(`model API (${target.name})`, () => {
   let adapter;
   let Task;
   let Post;
@@ -499,9 +515,13 @@ describe('model API (sqlite in memory)', () => {
     });
 
     test('rejects a foreign key to a missing row', async () => {
-      await expect(
-        Post.create({ authorId: 999, title: 'orphan' })
-      ).rejects.toThrow(/FOREIGN KEY constraint failed/);
+      const failed = await Post.create({
+        authorId: 999,
+        title: 'orphan',
+      }).catch((error) => error);
+
+      expect(failed).toBeInstanceOf(Error);
+      expect(driverError(failed).code).toBe(FOREIGN_KEY[target.name]);
     });
   });
 
@@ -520,7 +540,8 @@ describe('model API (sqlite in memory)', () => {
       expect(await Task.count()).toBe(0);
 
       const result = await adapter.transaction(async (tx) => {
-        expect(tx).toBe(adapter.rawDatabase());
+        // The synchronous driver runs BEGIN/COMMIT on the database itself
+        expect(tx === adapter.rawDatabase()).toBe(target.dialect.synchronous);
         await Task.create({ name: 'kept' });
 
         return 'done';
@@ -534,16 +555,19 @@ describe('model API (sqlite in memory)', () => {
       await Task.create({ name: 'raw' });
 
       await expect(adapter.ping()).resolves.toBe(true);
-      await expect(
-        adapter.query('SELECT COUNT(*) AS total FROM tasks WHERE name = ?', [
-          'raw',
-        ])
-      ).resolves.toEqual([{ total: 1 }]);
-      await expect(
-        adapter.query('UPDATE tasks SET name = ?', ['renamed'])
-      ).resolves.toMatchObject({
-        changes: 1,
-      });
+
+      const rows = await adapter.query(
+        `SELECT COUNT(*) AS total FROM tasks WHERE name = ${placeholder(1)}`,
+        ['raw']
+      );
+
+      // Postgres counts in a bigint, which the driver reads as a string
+      expect(Number(rows[0].total)).toBe(1);
+
+      await adapter.query(`UPDATE tasks SET name = ${placeholder(1)}`, [
+        'renamed',
+      ]);
+      expect((await Task.first()).name).toBe('renamed');
     });
   });
 });
