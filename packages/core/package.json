@@ -2,6 +2,15 @@
   "name": "@usehenri/core",
   "version": "1.0.2",
   "description": "henri core package",
+  "keywords": [
+    "henri",
+    "framework",
+    "mvc",
+    "express",
+    "graphql",
+    "ssr",
+    "orm"
+  ],
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
   "homepage": "https://usehenri.io",
@@ -14,6 +23,17 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "src/index.js",
+  "files": [
+    "src",
+    "!src/__tests__",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "bin": {
     "henri-core": "src/index.js"
   },

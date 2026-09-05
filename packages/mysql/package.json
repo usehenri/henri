@@ -2,6 +2,14 @@
   "name": "@usehenri/mysql",
   "version": "1.0.2",
   "description": "henri mariadb/mysql database connector",
+  "keywords": [
+    "henri",
+    "store",
+    "adapter",
+    "mysql",
+    "mariadb",
+    "sequelize"
+  ],
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
   "homepage": "https://usehenri.io",
@@ -14,6 +22,17 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "files": [
+    "index.js",
+    "types.js",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "dependencies": {
     "@usehenri/sequelize": "workspace:^",
     "mysql2": "^3.24.3",

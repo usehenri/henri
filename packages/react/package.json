@@ -2,6 +2,14 @@
   "name": "@usehenri/react",
   "version": "1.0.2",
   "description": "react components and next.js view engine for henri",
+  "keywords": [
+    "henri",
+    "react",
+    "nextjs",
+    "ssr",
+    "forms",
+    "view-engine"
+  ],
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
   "homepage": "https://usehenri.io",
@@ -14,6 +22,21 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "files": [
+    "dist",
+    "engine",
+    "engine.js",
+    "forms.js",
+    "index.js",
+    "withHenri.js",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=22"
   },
@@ -23,14 +46,6 @@
     "prepare": "rollup -c",
     "prepack": "rollup -c"
   },
-  "files": [
-    "dist",
-    "engine",
-    "engine.js",
-    "forms.js",
-    "index.js",
-    "withHenri.js"
-  ],
   "dependencies": {
     "axios": "^1.13.0",
     "debug": "^4.4.3",
