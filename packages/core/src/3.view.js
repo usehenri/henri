@@ -35,6 +35,7 @@ class View extends BaseModule {
 
     this.init = this.init.bind(this);
     this.reload = this.reload.bind(this);
+    this.stop = this.stop.bind(this);
   }
 
   /**
@@ -89,6 +90,21 @@ class View extends BaseModule {
     }
 
     this.engine.init && (await this.engine.init());
+
+    return this.name;
+  }
+
+  /**
+   * Stops the module: closes the engine (Next.js workers, watchers)
+   *
+   * @async
+   * @returns {Promise<string>} Module name
+   * @memberof View
+   */
+  async stop() {
+    if (this.engine && typeof this.engine.close === 'function') {
+      await this.engine.close();
+    }
 
     return this.name;
   }
