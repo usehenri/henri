@@ -1,11 +1,34 @@
 ---
 title: Upgrading
-description: From henri 0.37 to 1.x, what breaks and what to change.
+description: From henri 0.37 to 1.x and from 1.1 to 1.2, what breaks and what to change.
 sidebar:
   order: 3
 ---
 
-henri 1.0 (2026) moved the framework to a current toolchain and 1.1 hardened it. Both break an application written for 0.37. This page lists the changes in the order you will meet them; the per-package details are in the [changelogs](https://github.com/usehenri/henri/releases).
+henri 1.0 (2026) moved the framework to a current toolchain and 1.1 hardened it. Both break an application written for 0.37. The 1.1 to 1.2 changes come first; everything after them is the 0.37 to 1.x list, in the order you will meet it. The per-package details are in the [changelogs](https://github.com/usehenri/henri/releases).
+
+## From 1.1 to 1.2
+
+### Timestamps are on by default
+
+Every model now gets `createdAt` and `updatedAt`, like every Rails table. Before 1.2 they were added only when the model declared `options: { timestamps: true }` on the Mongoose (`disk`, `mongoose`) and Drizzle adapters; the Sequelize adapters (`mysql`, `postgresql`, `mssql`) already added them by default, so nothing changes there.
+
+What this means for an existing application:
+
+- **MongoDB (`disk`, `mongoose`)**: nothing to do. New and updated documents get the two fields; the documents already stored keep whatever they have, and reading them is unaffected.
+- **Drizzle**: the models gain two `NOT NULL` columns, so the schema and the database no longer agree. In development the boot pushes them; in production write the migration with `henri db:generate` and apply it with `henri db:migrate` before deploying. On a table that already holds rows, review the generated statements: a `NOT NULL` column needs a default for the existing rows.
+- **Sequelize**: unchanged, `sequelize.sync()` already created them.
+
+Add `options: { timestamps: false }` to any model that should keep its old shape. `options: { timestamps: true }` still works and is now redundant: `henri generate model` no longer writes it.
+
+### New in 1.2
+
+Nothing below breaks anything, they are additions:
+
+- `options: { paranoid: true }` turns deletes into a `deletedAt` stamp on every adapter, and queries hide the stamped records. See [Soft deletes](/guides/models/#soft-deletes).
+- `Model.paginate({ page, perPage })` answers `{ records, page, perPage, total, pages }` on every adapter: `await Task.paginate(req.pagination())` replaces a find and a count. See [Pagination](/guides/models/#pagination).
+- `henri.model.errors(error)` turns any adapter's validation failure into `{ field: message }`, and answers `null` for anything else. The controllers written by `henri generate scaffold` and `crud` use it and `Model.paginate()`, so regenerate them (`--force`) to pick both up. See [Validation errors](/guides/models/#validation-errors).
+- `henri db:seed` runs `db/seeds.js` with the models loaded, on any adapter. `henri new` scaffolds the file. See [Seeds](/guides/models/#seeds).
 
 ## Toolchain
 

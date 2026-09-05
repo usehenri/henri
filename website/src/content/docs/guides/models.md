@@ -16,7 +16,7 @@ The model ids are also written to `.henri/globals.json` on boot; the scaffolded 
 module.exports = {
   store: 'default', // a store name from your configuration (default: 'default')
   name: 'tasks', // collection or table name (optional, the ORM names it otherwise)
-  options: { timestamps: true }, // Mongoose schema options, or Sequelize model options
+  options: {}, // timestamps: false, paranoid: true, and the ORM's own options
   schema: {
     name: { type: 'string', required: true },
     category: {
@@ -29,14 +29,14 @@ module.exports = {
 };
 ```
 
-| Key                 | Description                                                                                                 |
-| ------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `schema`            | The fields, in the format below.                                                                            |
-| `options`           | Handed to `new mongoose.Schema()` or `sequelize.define()` as is.                                            |
-| `store`             | The store to use, `default` when omitted. The boot fails when the store is not configured.                  |
-| `name`              | Collection name (Mongoose) or `tableName` (Sequelize).                                                      |
-| `graphql`           | `{ types, resolvers }` merged into the application schema. See [GraphQL](/guides/graphql/).                 |
-| `associate(models)` | Called once every model of the store exists, with the models keyed by global name. Declare relations there. |
+| Key                 | Description                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `schema`            | The fields, in the format below.                                                                                             |
+| `options`           | `timestamps` and `paranoid` (below), plus anything the ORM takes: handed to `new mongoose.Schema()` or `sequelize.define()`. |
+| `store`             | The store to use, `default` when omitted. The boot fails when the store is not configured.                                   |
+| `name`              | Collection name (Mongoose) or `tableName` (Sequelize).                                                                       |
+| `graphql`           | `{ types, resolvers }` merged into the application schema. See [GraphQL](/guides/graphql/).                                  |
+| `associate(models)` | Called once every model of the store exists, with the models keyed by global name. Declare relations there.                  |
 
 ```js
 // app/models/Comment.js
@@ -82,13 +82,72 @@ What the adapters do with anything else differs:
 
 `@usehenri/mongoose/types` and `@usehenri/sequelize/types` export the map above if you need the ORM types themselves.
 
+## Timestamps
+
+Every model has `createdAt` and `updatedAt`, like every Rails table. They are written on create, `updatedAt` again on every update, and they are never mass-assigned: `Model.create(req.permit(...))` cannot set them. Opt out per model:
+
+```js
+module.exports = {
+  options: { timestamps: false },
+  schema: { body: { type: 'text' } },
+};
+```
+
+This changed in henri 1.2: before it, only `options: { timestamps: true }` added them on the Mongoose and Drizzle adapters (Sequelize already added them by default). See [Upgrading](/upgrading/#timestamps-are-on-by-default).
+
+## Soft deletes
+
+`options: { paranoid: true }` is Rails' `acts_as_paranoid` (and Sequelize's own name for it): deleting a record stamps `deletedAt` instead of removing the row, and every query hides the stamped records.
+
+```js
+// app/models/Task.js
+module.exports = {
+  options: { paranoid: true },
+  schema: { name: { type: 'string', required: true } },
+};
+```
+
+```js
+await task.destroy(); // deletedAt = now, the row stays
+await Task.count(); // does not count it
+await Task.findById(task.id); // null
+```
+
+The spelling of the rest follows the adapter, because the API is the adapter's own:
+
+| Operation                | Mongoose (`disk`, `mongoose`)                                           | Sequelize (`mysql`, `postgresql`, `mssql`)                     | Drizzle                                        |
+| ------------------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- |
+| Soft delete              | `deleteOne()`, `deleteMany()`, `findByIdAndDelete()`, `doc.deleteOne()` | `destroy()`                                                    | `destroy()`, `Model.destroy(where)`            |
+| Include the deleted ones | `Model.withDeleted()`, `{ withDeleted: true }`                          | `{ paranoid: false }`                                          | `Model.withDeleted()`, `{ withDeleted: true }` |
+| The deleted ones only    | `Model.onlyDeleted()`                                                   | `{ where: { deletedAt: { [Op.ne]: null } }, paranoid: false }` | `Model.onlyDeleted()`                          |
+| Undelete                 | `doc.restore()`, `Model.restore(filter)`                                | `doc.restore()`, `Model.restore({ where })`                    | `doc.restore()`, `Model.restore(where)`        |
+| Really delete            | `{ force: true }`                                                       | `{ force: true }`                                              | `{ force: true }`                              |
+
+```js
+// Mongoose
+await Task.withDeleted().countDocuments();
+await Task.findByIdAndDelete(id, { force: true });
+
+// Sequelize
+await Task.findAll({ paranoid: false });
+await task.destroy({ force: true });
+
+// Drizzle
+await Task.withDeleted().count();
+await Task.destroy({ id }, { force: true });
+```
+
+Three things to know before turning it on: a soft deleted row still holds its `unique` values, so creating a record with the same email as a deleted one fails; eager loaded associations are not filtered, so a `populate()` or an `include()` can still surface a deleted record through its parent; and on Mongoose an aggregation pipeline sees everything, because it does not go through the query middleware.
+
+On Mongoose the behaviour is a schema plugin: it adds the `deletedAt` path, a query middleware that adds `deletedAt: null` to reads and updates, and replacements for `deleteOne`, `deleteMany`, `findOneAndDelete`, `findByIdAndDelete` and `doc.deleteOne()`. On Sequelize it is Sequelize's own `paranoid`, which needs `timestamps` (on by default). On Drizzle it is part of the model layer, so relations, `count()`, `update()` and `paginate()` all honour it.
+
 ## Generating a model
 
 ```bash
 henri generate model Post title:string! body:text published:boolean views:integer
 ```
 
-writes `app/models/Post.js` with `timestamps: true`, one field per `name:type` argument (`string` when the type is omitted, `!` marks it required) and refuses unknown types. `henri generate scaffold` and `crud` start with the same model and add the controller, routes and views; see the [CLI reference](/reference/cli/#generators).
+writes `app/models/Post.js` with one field per `name:type` argument (`string` when the type is omitted, `!` marks it required) and refuses unknown types. `henri generate scaffold` and `crud` start with the same model and add the controller, routes and views; see the [CLI reference](/reference/cli/#generators).
 
 ## Querying
 
@@ -114,6 +173,97 @@ await Task.create(req.permit('name', 'category'));
 Use [`req.permit()`](/guides/controllers/#reqpermitfields) rather than `req.body` when you create or update records.
 
 `henri generate scaffold|crud` reads the adapter of the default store from `config/default.json` and writes the controller against that API, so the sample resource of `henri new --adapter <name>` runs on the store it configured.
+
+### Pagination
+
+`Model.paginate()` is the model half of [`req.pagination()`](/guides/api/#pagination): one call answering the records and the counters [`res.collection()`](/guides/api/#answering-hal) wants, on every adapter.
+
+```js
+index: async (req, res) => {
+  const { records: tasks, page, perPage, total } = await Task.paginate(
+    req.pagination()
+  );
+
+  return res.negotiate({
+    html: () => res.render('/tasks', { data: { tasks, page, perPage, total } }),
+    json: () => res.collection(tasks, { page, perPage, total }),
+  });
+},
+```
+
+It takes `page` and `perPage` (the rest of what `req.pagination()` returns is ignored, so the object can be handed over whole) and answers `{ records, page, perPage, total, pages }` — `pages` is the number of pages, at least 1. A missing or invalid number falls back to page 1 and 25 per page. Every other key is the adapter's own query:
+
+```js
+// Mongoose: where, sort, select, populate, lean, withDeleted
+await Task.paginate({
+  page: 2,
+  perPage: 20,
+  sort: '-createdAt',
+  where: { done: false },
+});
+
+// Sequelize: any findAndCountAll option
+await Task.paginate({
+  include: ['owner'],
+  order: [['createdAt', 'DESC']],
+  page: 2,
+});
+
+// Drizzle: where, order, include, select, withDeleted; relations paginate too
+await Task.paginate({ order: '-createdAt', page: 2, where: { done: false } });
+await Task.where({ done: false }).order('-createdAt').paginate({ page: 2 });
+```
+
+`henri generate scaffold` and `crud` write the first form, so a generated index is one query on any store.
+
+### Validation errors
+
+The three ORMs reject an invalid write differently: a Mongoose `ValidationError` keyed by path, a Sequelize `SequelizeValidationError` holding an array, a Drizzle `ValidationError`, a MongoDB duplicate key or a `SequelizeUniqueConstraintError`. `henri.model.errors(error)` turns any of them into `{ field: message }`, and answers `null` for anything that is not a validation failure, so a controller can answer a 422 and let the rest bubble up:
+
+```js
+try {
+  post = await Post.create(req.permit('title', 'body'));
+} catch (error) {
+  const errors = henri.model.errors(error);
+
+  if (!errors) {
+    throw error; // not a validation failure: a real error
+  }
+
+  return res.boom.badData(error.message, { errors });
+}
+```
+
+An error with no field of its own (a model-level validation) is filed under `base`, like Rails' `errors[:base]`. The generated controllers use this helper, so a scaffold answers the same 422 body whatever the store.
+
+## Seeds
+
+`db/seeds.js` is Rails' `db/seeds.rb`, and `henri db:seed` runs it. The command boots the models only — no views, no workers — then requires the file and awaits what it exports; a function receives the running henri instance, and the model globals are there as usual.
+
+```js
+// db/seeds.js
+module.exports = async (henri) => {
+  for (const name of ['Write the seeds', 'Ship it']) {
+    const existing = await Task.findOne({ name });
+
+    if (!existing) {
+      await Task.create({ category: 'medium', name });
+    }
+  }
+
+  henri.pen.info('seeds', 'tasks are ready');
+};
+```
+
+Seeds are run again on every machine, after every reset and on every deploy, so write them idempotently: **find, then create**. `henri new` scaffolds the file with that example commented out.
+
+```bash
+henri db:seed                       # runs db/seeds.js
+henri db:seed --file=db/demo.js     # another file
+henri db:seed --production --json   # against the production database
+```
+
+It works on every adapter (the migration commands of `henri db` do not: those need [Drizzle](#drizzle)). Failures exit with `1` and, with `--json`, print `{ "error": { command, message, hint, code, exitCode } }` on stderr like every other command.
 
 ## The user model
 
@@ -286,7 +436,7 @@ henri db:migrate                         # applies the pending migrations
 henri db:push                            # makes the database match the models, no migration (development)
 ```
 
-In development the boot pushes the schema unless the store sets `"sync": false`; in production the boot applies the pending migrations when the store sets `"migrate": true` and warns about them otherwise. `henri db:push` refuses statements that lose data unless `--force` is passed; every command accepts `--store=<name>` and `--json`.
+In development the boot pushes the schema unless the store sets `"sync": false`; in production the boot applies the pending migrations when the store sets `"migrate": true` and warns about them otherwise. `henri db:push` refuses statements that lose data unless `--force` is passed; every command accepts `--store=<name>` and `--json`. `henri db:seed` is the exception: it runs [`db/seeds.js`](#seeds) on any adapter.
 
 On MySQL a push only creates the tables that do not exist yet: drizzle-kit does not alter a MySQL table on a push, so a table whose columns no longer match the model is reported (`the columns of the database and of the schema differ`) and left alone rather than altered or truncated. Change a MySQL schema with `henri db:generate` and `henri db:migrate`, which work on every dialect. sqlite and PostgreSQL push the whole diff.
 
@@ -295,3 +445,5 @@ On MySQL a push only creates the tables that do not exist yet: drizzle-kit does 
 The three SQL packages are thin dialects over `@usehenri/sequelize`. `host`, `port`, `database`, `username` and `password` are accepted instead of `url`; a store with none of them fails the boot. Every other key of the store (`pool`, `dialectOptions`, `logging`, ...) is forwarded to Sequelize. `logging` defaults to the `henri:sequelize` debug namespace (`henri server --debug=henri:sequelize` prints the queries) and credentials are redacted from that output.
 
 On boot the adapter authenticates, calls the `associate()` exports and runs `sequelize.sync()`: tables are created or extended from the models. There are no migrations.
+
+`options: { paranoid: true }` is Sequelize's own, so `restore()`, `{ paranoid: false }` and `{ force: true }` behave exactly as its documentation describes.

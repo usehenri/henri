@@ -58,6 +58,8 @@ henri server
 ├── config
 │   ├── default.json          <- stores, renderer, user model (committed)
 │   └── routes.js             <- 'get /': 'main#home', 'resources tasks': 'tasks'
+├── db
+│   └── seeds.js              <- seed data, run with `henri db:seed`
 ├── eslint.config.js
 ├── package.json
 ├── pnpm-workspace.yaml       <- allowBuilds for pnpm; npm and yarn ignore it
@@ -110,6 +112,7 @@ henri server --skip-workers  # do not start app/workers
 henri server --host=0.0.0.0  # listen on every interface
 henri routes                 # the routes table of config/routes.js
 henri console                # a REPL with henri and the models loaded
+henri db:seed                # run db/seeds.js with the models loaded
 henri test                   # run test/**/*.test.js with Vitest
 henri generate scaffold Post title:string! body:text
 ```

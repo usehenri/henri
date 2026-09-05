@@ -115,6 +115,13 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   Mongoose passes them through). The user model gets `email` (unique,
   lowercased), `password` (hashed, not selected by default) and `roles`
   (stripped from mass assignment; `setRoles()` or `{ unsafe: true }`).
+  Every model gets `createdAt`/`updatedAt` (`options.timestamps: false` opts
+  out), `paginate({ page, perPage })` answering
+  `{ records, page, perPage, total, pages }` and, with `options.paranoid`,
+  soft deletes (`deletedAt`, `withDeleted()`, `restore()`, `{ force: true }`).
+  `henri.model.errors(error)` (`base/model-errors.js`) normalizes the three
+  ORMs' validation failures to `{ field: message }`, `null` for anything else.
+  `henri db:seed` runs `db/seeds.js` on any adapter.
 - The user module (`4.user.js`) mounts express-session (`henri.sid`),
   passport (`local` and `jwt` strategies), `POST /login`, `POST /logout`
   (`GET` answers 405), the double-submit CSRF middleware (`base/csrf.js`,
