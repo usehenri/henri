@@ -60,7 +60,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
-    "string-width": "^4.2.3",
+    "string-width": "^8.2.2",
     "validator": "^13.15.35"
   },
   "devDependencies": {
