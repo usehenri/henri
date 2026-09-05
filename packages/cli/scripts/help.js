@@ -55,11 +55,13 @@ const COMMANDS = [
   },
   {
     description: [
-      'Builds the production views (next.js) without starting the server or',
-      "the databases. Nothing to do when the renderer is not 'react'.",
+      'Builds the production views without starting the server or the',
+      'databases: the next.js pages for the react renderer, the vite client',
+      'and SSR bundles (app/views/dist) for inertia. Nothing to do for the',
+      'template renderer.',
     ],
     name: 'build',
-    summary: 'build the production views',
+    summary: 'build the production views (next.js or vite)',
     usage: ['henri build'],
   },
   {
