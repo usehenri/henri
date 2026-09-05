@@ -1,12 +1,19 @@
-import React from 'react';
-import withHenri from '@usehenri/react/withHenri';
-import CreateForm from './_form';
+import Link from 'next/link';
+import withHenri from '@usehenri/react';
+import {{doc}}Form from './_form';
 
-const New = () => (
+// Rendered by the `new` action (no data). The form posts to the `create`
+// action and the page moves to the listing once the controller answered.
+const New = ({ getRoute, pathFor, router }) => (
   <div>
-    <h2>New {{ doc }}</h2>
+    <h2>New {{doc}}</h2>
     <hr />
-    <CreateForm route="/_scaffold/{{lower}}" button="Create" />
+    <{{doc}}Form
+      action={pathFor('create_{{plural}}_path')}
+      button="Create"
+      onSuccess={() => router.push(getRoute('index_{{plural}}_path'))}
+    />
+    <Link href={getRoute('index_{{plural}}_path')}>Back</Link>
   </div>
 );
 

@@ -1,42 +1,65 @@
- import React from 'react'; 
- import withHenri from '@usehenri/react/withHenri'; 
+import Link from 'next/link';
+import withHenri from '@usehenri/react';
 
- const Index = ({ data: { {{lower}} = [] }, fetch, hydrate }) => (
-  <div>
-    <h2>Listing {{doc}}</h2>
-    <hr />
-    <table>
-      <tbody>
-        <tr>
-          {{#each keys}}
-          <td>{{this}}</td>
-          {{/each}}
-        </tr>
-        { {{lower}}.length === 0 && '<tr>Nothing to show</tr>' } 
-        { {{lower}}.length > 0 && {{lower}}.map(v => (
-          <tr key={v._id}>
+// Rendered by the `index` action with `data: { {{plural}}: [...] }`. The path
+// helpers come from config/routes.js (`resources {{plural}}`), filtered by the
+// current user's roles.
+const Index = ({ data: { {{plural}} = [] }, fetch, getRoute, hydrate, pathFor }) => {
+  const destroy = async (id) => {
+    if (typeof window !== 'undefined' && !window.confirm('Delete this {{doc}}?')) {
+      return;
+    }
+
+    await fetch(pathFor('destroy_{{plural}}_path', { id: String(id) }));
+    await hydrate();
+  };
+
+  return (
+    <div>
+      <h2>Listing {{doc}}</h2>
+      <hr />
+      <table>
+        <thead>
+          <tr>
             {{#each keys}}
-            <td>
-              <td>{v.{{this}} }</td>
-            </td>
+            <th>{{this}}</th>
             {{/each}}
-            <td>
-              <a href={`/_scaffold/{{lower}}/${v._id}`}>Show</a>
-            </td>
-            <td>
-              <a href={`/_scaffold/{{lower}}/${v._id}/edit`}>Edit</a>
-            </td>
-            <td>
-              <a href="#" onClick={(e)=> { fetch(`/_scaffold/{{lower}}/${v._id}`, 'delete'); hydrate() }}>
-                Destroy
-              </a>
-            </td>
+            <th colSpan={3}>Actions</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
-    <a href="/_scaffold/{{lower}}/new">New {{doc}}</a>
-  </div>
-); 
+        </thead>
+        <tbody>
+          { {{plural}}.length === 0 && (
+            <tr>
+              <td colSpan={ {{keys.length}} + 3}>Nothing to show</td>
+            </tr>
+          )}
+          { {{plural}}.map((item) => (
+            <tr key={String(item._id ?? item.id)}>
+              {{#each keys}}
+              <td>{String(item.{{this}} ?? '')}</td>
+              {{/each}}
+              <td>
+                <Link href={getRoute('show_{{plural}}_path', String(item._id ?? item.id))}>
+                  Show
+                </Link>
+              </td>
+              <td>
+                <Link href={getRoute('edit_{{plural}}_path', String(item._id ?? item.id))}>
+                  Edit
+                </Link>
+              </td>
+              <td>
+                <button type="button" onClick={() => destroy(item._id ?? item.id)}>
+                  Destroy
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Link href={getRoute('new_{{plural}}_path')}>New {{doc}}</Link>
+    </div>
+  );
+};
 
 export default withHenri(Index);
