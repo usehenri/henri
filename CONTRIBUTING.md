@@ -75,7 +75,9 @@ HENRI_TEST_MYSQL_URL=mysql://root:henri@127.0.0.1:3306/henri_test pnpm test:sql
 
 - Tests live in `__tests__/` or `tests/` next to the code. Snapshot tests exist
   for most core modules; regenerate them only when the diff is explained by
-  your change.
+  your change. `vitest.setup.js` makes every test server bind `127.0.0.1`
+  rather than the wildcard address: read it before adding anything that
+  listens, a wildcard bind lets another process answer the suite's requests.
 
 ## Releasing
 

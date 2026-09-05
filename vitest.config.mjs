@@ -82,5 +82,8 @@ export default defineConfig({
     // Forks: core tests chdir into packages/demo, impossible in worker threads
     pool: 'forks',
     projects: projects(),
+    // Test servers bind the loopback address, never the wildcard: see the
+    // file for why a wildcard bind lets another process answer our requests
+    setupFiles: [path.join(root, 'vitest.setup.js')],
   },
 });
