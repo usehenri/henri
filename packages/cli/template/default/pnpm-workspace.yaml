@@ -1,7 +1,12 @@
-# pnpm 10+ refuses to run dependency build scripts unless they are allow-listed.
-# These are the ones an henri app needs (sass file watching, local MongoDB binary).
+# pnpm 10+ only runs dependency build scripts that are allow-listed, and pnpm 11
+# fails the install when it meets one that is not listed. Allow the ones an
+# henri app needs (sass file watching, local MongoDB binary) and warn about the
+# rest instead of failing.
+strictDepBuilds: false
 allowBuilds:
+  '@apollo/protobufjs': false
   '@parcel/watcher': true
   esbuild: true
   mongodb-memory-server: true
   sharp: true
+  unrs-resolver: false
