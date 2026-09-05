@@ -33,7 +33,7 @@ const selectRenderer = (args) => {
       Unknown renderer '${wanted}'. Valid values: ${Object.keys(RENDERERS).join(', ')}
     `
     );
-    process.exit(-1);
+    process.exit(1);
   }
 
   renderer = wanted;
@@ -83,7 +83,13 @@ const main = async (args, name) => {
   copyTemplate(pm);
   buildPackage(projectName);
   generateConfig();
-  await sampleResource(force);
+
+  // The react template gets its Task sample from the scaffold generator;
+  // the other templates ship their own sample pages.
+  if (renderer === 'react') {
+    await sampleResource(force);
+  }
+
   createReadme(projectName, pm);
   initGit(skipGit);
 
@@ -183,7 +189,28 @@ const createReadme = (name, pm) => {
  * @param {string} pm Package manager
  * @returns {string} Markdown
  */
-const readme = (name, pm) => `# ${name}
+const readme = (name, pm) => {
+  const react = renderer === 'react';
+  const sample = react
+    ? `The home page lists the sample \`Task\` resource; add tasks at \`/tasks\`.
+It is a regular scaffold (\`app/models/Task.js\`, \`app/controllers/tasks.js\`,
+\`app/views/pages/tasks/\`, the \`resources tasks\` key of \`config/routes.js\`
+and \`test/tasks.test.js\`): edit it, or remove it with
+\`henri destroy scaffold Task\`.`
+    : `The home page links to the sample tasks page (\`app/models/Tasks.js\`,
+\`app/controllers/tasks.js\`, \`app/views/pages/tasks/index.jsx\` and the
+\`/tasks\` keys of \`config/routes.js\`): edit it, or remove those files.`;
+  const generators = react
+    ? `henri generate scaffold Post title:string! body:text
+henri generate model|controller|worker|test <name>
+henri destroy scaffold Post   # undo a generator`
+    : `henri generate model|controller|worker|test <name>
+henri destroy model Post      # undo a generator`;
+  const pages = react
+    ? 'React pages rendered by next.js                  '
+    : 'Inertia (React) pages, built by vite            ';
+
+  return `# ${name}
 
 A [henri](https://usehenri.io) application: models, controllers, routes and
 server-side rendered React views, Rails style.
@@ -195,11 +222,7 @@ ${pm} install
 henri server          # development server with hot reload
 \`\`\`
 
-The home page lists the sample \`Task\` resource; add tasks at \`/tasks\`.
-It is a regular scaffold (\`app/models/Task.js\`, \`app/controllers/tasks.js\`,
-\`app/views/pages/tasks/\`, the \`resources tasks\` key of \`config/routes.js\`
-and \`test/tasks.test.js\`): edit it, or remove it with
-\`henri destroy scaffold Task\`.
+${sample}
 
 ## Commands
 
@@ -207,9 +230,7 @@ and \`test/tasks.test.js\`): edit it, or remove it with
 henri server                  # start (--production for the production build)
 henri console                 # REPL with henri and the models loaded
 henri routes                  # the routes table from config/routes.js
-henri generate scaffold Post title:string! body:text
-henri generate model|controller|worker|test <name>
-henri destroy scaffold Post   # undo a generator
+${generators}
 henri test                    # run test/**/*.test.js
 henri build                   # build the production views
 ${pm} run lint                # eslint
@@ -221,7 +242,7 @@ ${pm} run lint                # eslint
 | ---------------------- | ------------------------------------------------ |
 | \`app/models\`           | Models, autoloaded and exposed as globals        |
 | \`app/controllers\`      | Controllers (\`name#action\` in the routes)         |
-| \`app/views/pages\`      | React pages rendered by next.js                  |
+| \`app/views/pages\`      | ${pages}|
 | \`app/views/components\` | Shared components (\`import x from 'components/x'\`) |
 | \`app/workers\`          | Background workers started with the server       |
 | \`app/helpers\`          | Server-side helpers                              |
@@ -240,6 +261,7 @@ and roles.
 See the [documentation](https://usehenri.io) for models, routes, views,
 GraphQL, mail and workers.
 `;
+};
 
 /**
  * Copies the template from @usehenri/cli/template

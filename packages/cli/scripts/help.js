@@ -27,8 +27,9 @@ const USAGE = {
     Usage
       $ henri build
 
-    Builds the production views (next.js) without starting the server or
-    the databases. Nothing to do when the renderer is 'template'.`,
+    Builds the production views (next.js for react, the vite client and
+    server bundles for inertia) without starting the server or the
+    databases. Nothing to do when the renderer is 'template'.`,
 
   clean: `
     Usage
@@ -112,21 +113,23 @@ const USAGE = {
 
   init: `
     Usage
-      $ henri init [--force | -f] [--skip-install] [--no-git]
+      $ henri init [--renderer react|inertia] [--force | -f] [--skip-install] [--no-git]
 
     Adds the henri structure to the current directory. The project name is
     the name of the directory.
 
+      -r, --renderer    view engine: react (next.js, default) or inertia (vite)
       -f, --force       write into a directory that already has an app/ folder
       --skip-install    do not install the dependencies
       --no-git          do not run "git init"`,
 
   new: `
     Usage
-      $ henri new <folder> [--force | -f] [--skip-install] [--no-git]
+      $ henri new <folder> [--renderer react|inertia] [--force | -f] [--skip-install] [--no-git]
 
     Creates a new henri application in <folder>.
 
+      -r, --renderer    view engine: react (next.js, default) or inertia (vite)
       -f, --force       write into an existing folder
       --skip-install    do not install the dependencies
       --no-git          do not run "git init"`,
