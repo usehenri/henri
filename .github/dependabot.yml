@@ -8,6 +8,9 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    # Same one-day window as minimumReleaseAge in pnpm-workspace.yaml
+    cooldown:
+      default-days: 1
     groups:
       minor-and-patch:
         update-types:

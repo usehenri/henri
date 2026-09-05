@@ -20,8 +20,7 @@
       "@usehenri/postgresql",
       "@usehenri/react",
       "@usehenri/sequelize",
-      "@usehenri/testing",
-      "@usehenri/websocket"
+      "@usehenri/testing"
     ]
   ],
   "linked": [],

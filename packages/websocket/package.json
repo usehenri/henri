@@ -1,7 +1,8 @@
 {
   "name": "@usehenri/websocket",
   "version": "1.0.2",
-  "description": "henri websocket loader (socket.io) - experimental, not wired into core yet",
+  "private": true,
+  "description": "henri websocket loader (socket.io): experimental, not wired into core and not published",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
   "homepage": "https://usehenri.io",

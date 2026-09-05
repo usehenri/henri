@@ -2,6 +2,17 @@
   "name": "henri",
   "version": "1.0.2",
   "description": "henri is an easy to learn rails-like, react server-side rendered framework with a powerful and versatile ORM",
+  "keywords": [
+    "henri",
+    "framework",
+    "rails",
+    "mvc",
+    "react",
+    "nextjs",
+    "ssr",
+    "orm",
+    "cli"
+  ],
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
   "homepage": "https://github.com/usehenri/henri#readme",
@@ -17,9 +28,14 @@
   "bin": "bin/henri.js",
   "files": [
     "bin",
-    "README.md",
-    "LICENSE"
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "lint": "prettier --check bin/*.js"
   },

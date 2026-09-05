@@ -22,6 +22,11 @@ allowBuilds:
   sqlite3: true
   unrs-resolver: true
 
+# Only resolve versions published at least a day ago (supply-chain window).
+# This is pnpm 11's default, pinned here so the setting, the exclude list below
+# (versions wanted before their day was over) and dependabot's cooldown stay in
+# sync. --frozen-lockfile installs are unaffected.
+minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   - '@changesets/apply-release-plan@8.1.0'
   - '@changesets/cli@3.0.2'
