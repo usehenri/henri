@@ -496,4 +496,152 @@ describe('the generated controllers run on their adapter', () => {
 
     delete global.Task;
   });
+
+  describe('on a sequelize store', () => {
+    let sql;
+
+    /**
+     * A fake Sequelize model: findByPk on an integer key throws a
+     * SequelizeDatabaseError for a malformed id, instances update and
+     * destroy themselves, and errors carry an array of items
+     *
+     * @returns {object} The model
+     */
+    const sequelizeModel = () => {
+      const calls = {};
+      const invalid = () => {
+        const error = new Error('notNull Violation: Task.name cannot be null');
+
+        error.name = 'SequelizeValidationError';
+        error.errors = [{ message: 'Task.name cannot be null', path: 'name' }];
+
+        return error;
+      };
+      const row = (id, attrs) => ({
+        destroy: async () => {
+          calls.destroyed = id;
+        },
+        id,
+        update: async (data) => {
+          if (data.name === '') {
+            throw invalid();
+          }
+          calls.updated = data;
+
+          return { id, ...attrs, ...data };
+        },
+        ...attrs,
+      });
+
+      return {
+        calls,
+        model: {
+          count: async () => 1,
+          create: async (data) => {
+            calls.created = data;
+            if (!data.name) {
+              throw invalid();
+            }
+
+            return row(2, data);
+          },
+          findAll: async (options) => {
+            calls.findAll = options;
+
+            return [row(1, { name: 'one' })];
+          },
+          findByPk: async (id) => {
+            if (id === 'unknown') {
+              const error = new Error('invalid input syntax for type integer');
+
+              error.name = 'SequelizeDatabaseError';
+
+              throw error;
+            }
+
+            return String(id) === '1' ? row(1, { name: 'one' }) : null;
+          },
+        },
+      };
+    };
+
+    beforeAll(() => {
+      const scaffolded = scaffoldWith(dir, 'sqlrunner', [
+        '--adapter',
+        'postgresql',
+      ]);
+
+      sql = path.join(scaffolded.app, 'app/controllers/tasks.js');
+    });
+
+    test('index pages with limit and offset', async () => {
+      const fake = sequelizeModel();
+
+      global.Task = fake.model;
+
+      const controller = require(sql);
+      const res = fakeRes();
+
+      await controller.index(fakeReq(), res);
+
+      expect(fake.calls.findAll).toEqual({ limit: 25, offset: 0 });
+      expect(res.calls[0][0]).toBe('collection');
+      expect(res.calls[0][2]).toEqual({ page: 1, perPage: 25, total: 1 });
+
+      delete global.Task;
+    });
+
+    test('a malformed id is a 404, not a 500', async () => {
+      global.Task = sequelizeModel().model;
+
+      const controller = require(sql);
+      const res = fakeRes();
+
+      await controller.show(fakeReq({}, { id: 'unknown' }), res);
+
+      expect(res.calls).toEqual([['notFound', 404, 'Task unknown not found']]);
+
+      delete global.Task;
+    });
+
+    test('update loads the row then updates it, destroy destroys it', async () => {
+      const fake = sequelizeModel();
+
+      global.Task = fake.model;
+
+      const controller = require(sql);
+      const updated = fakeRes();
+      const gone = fakeRes();
+
+      await controller.update(fakeReq({ name: 'two' }, { id: '1' }), updated);
+      await controller.destroy(fakeReq({}, { id: '1' }), gone);
+
+      expect(fake.calls.updated).toEqual({ name: 'two' });
+      expect(updated.calls[0][0]).toBe('resource');
+      expect(fake.calls.destroyed).toBe(1);
+      expect(gone.calls).toEqual([['end', 204]]);
+
+      delete global.Task;
+    });
+
+    test('a validation error is a 422 with one message per field', async () => {
+      global.Task = sequelizeModel().model;
+
+      const controller = require(sql);
+      const res = fakeRes();
+
+      await controller.create(fakeReq({}), res);
+
+      expect(res.calls).toEqual([
+        [
+          'badData',
+          422,
+          'notNull Violation: Task.name cannot be null',
+          { errors: { name: 'Task.name cannot be null' } },
+        ],
+      ]);
+
+      delete global.Task;
+    });
+  });
 });
