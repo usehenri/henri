@@ -28,7 +28,7 @@ module.exports = defineConfig({
 
 The setup file boots henri before each test file and stops it after, so `henri` and the models are globals in your tests exactly like in the application, and `request()` hits the in-process server. Each file gets a fresh boot: with the disk adapter that is an empty in-memory database. `fileParallelism: false` keeps one server and one database at a time; `globals: true` gives you `describe`, `test`, `expect` and `vi` without imports.
 
-Under `NODE_ENV=test`, henri loads `config/test.json` (falling back to `default.json`), picks a free port, skips the workers, keeps the disk adapter in memory, uses nodemailer's JSON transport and stays quiet in the console.
+Under `NODE_ENV=test`, henri loads `config/test.json` (falling back to `default.json`), lets the kernel assign it a port (`config.port` is ignored, so two suites never fight over one), skips the workers, keeps the disk adapter in memory, uses nodemailer's JSON transport and stays quiet in the console.
 
 ## Writing tests
 

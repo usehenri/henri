@@ -105,7 +105,9 @@ beforeAll(async () => {
 }, 120000);
 
 afterAll(async () => {
-  await mongod.stop();
+  // A mongod that never started leaves the real error in beforeAll: stopping
+  // it here would bury it under a TypeError from every test of the file
+  await mongod?.stop();
 }, 60000);
 
 describe('mongoose adapter', () => {
