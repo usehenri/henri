@@ -40,8 +40,12 @@
     "help",
     "init",
     "new",
+    "routes",
     "s",
     "server",
     "test"
-  ]
+  ],
+  "devDependencies": {
+    "@babel/parser": "^7.28.0"
+  }
 }

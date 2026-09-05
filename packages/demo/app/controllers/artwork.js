@@ -1,41 +1,89 @@
+// Attributes a request may set (see req.permit)
+const FIELDS = ['title', 'year'];
+
+/**
+ * Run a query by id, null when the id is malformed
+ *
+ * @param {Promise} query A mongoose query
+ * @returns {Promise<object|null>} The document or null
+ */
+const byId = async (query) => {
+  try {
+    return await query;
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return null;
+    }
+    throw error;
+  }
+};
+
+/**
+ * Answer a failed validation with a 422 and one message per field
+ *
+ * @param {object} res Express response
+ * @param {Error} error The error thrown by Artwork
+ * @returns {object} The response
+ */
+const invalid = (res, error) => {
+  if (error.name !== 'ValidationError') {
+    throw error;
+  }
+
+  const errors = Object.fromEntries(
+    Object.entries(error.errors || {}).map(([field, detail]) => [
+      field,
+      detail.message,
+    ])
+  );
+
+  return res.boom.badData(error.message, { errors });
+};
+
 module.exports = {
   create: async (req, res) => {
-    try {
-      const artwork = await Artwork.create(req.permit('title', 'year'));
+    let artwork;
 
-      return res.status(201).send({ artwork, msg: 'success' });
+    try {
+      artwork = await Artwork.create(req.permit(...FIELDS));
     } catch (error) {
-      return res.status(400).send({ error: error.message, msg: 'failed' });
+      return invalid(res, error);
     }
+
+    return res.status(201).json({ artwork });
   },
   destroy: async (req, res) => {
-    try {
-      await Artwork.deleteOne({ _id: req.params.id });
+    const artwork = await byId(Artwork.findByIdAndDelete(req.params.id));
 
-      return res.send({ msg: 'success' });
-    } catch (error) {
-      return res.status(400).send({ error: error.message, msg: 'failed' });
+    if (!artwork) {
+      return res.boom.notFound(`Artwork ${req.params.id} not found`);
     }
+
+    return res.json({ artwork });
   },
   index: async (req, res) => {
     res.render('/artwork/index', {
-      data: { artwork: await Artwork.find({}) },
+      data: { artwork: await Artwork.find() },
     });
   },
   update: async (req, res) => {
+    let artwork;
+
     try {
-      const result = await Artwork.updateOne(
-        { _id: req.params.id },
-        { $set: req.permit('title', 'year') }
+      artwork = await byId(
+        Artwork.findByIdAndUpdate(req.params.id, req.permit(...FIELDS), {
+          new: true,
+          runValidators: true,
+        })
       );
-
-      if (result.matchedCount === 0) {
-        return res.boom.notFound('artwork not found');
-      }
-
-      return res.send({ msg: 'success' });
     } catch (error) {
-      return res.status(400).send({ error: error.message, msg: 'failed' });
+      return invalid(res, error);
     }
+
+    if (!artwork) {
+      return res.boom.notFound(`Artwork ${req.params.id} not found`);
+    }
+
+    return res.json({ artwork });
   },
 };
