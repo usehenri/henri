@@ -8,7 +8,7 @@ sidebar:
 ## Requirements
 
 - Node.js 22 or newer
-- A package manager: pnpm, npm or yarn. `henri new` uses the one it finds (the `packageManager` field of an existing `package.json`, then pnpm, yarn, npm).
+- A package manager: pnpm, npm or yarn. `henri new` uses the one it finds (the `packageManager` field of an existing `package.json`, its lockfile, then the manager that ran the command, then a probe) and prints its choice; `--pm pnpm|yarn|npm` forces it.
 
 :::note
 henri was revived in 2026 on a modern toolchain (Node 22+, Express 5, Next.js 16, React 19, Mongoose 9, Sequelize 6). Releases published before 1.0 still target Node 10 to 14. If you have an application written for henri 0.37, read [Upgrading](/upgrading/).
@@ -60,7 +60,7 @@ henri server
 │   └── routes.js             <- 'get /': 'main#home', 'resources tasks': 'tasks'
 ├── eslint.config.js
 ├── package.json
-├── pnpm-workspace.yaml       <- written for pnpm only
+├── pnpm-workspace.yaml       <- allowBuilds for pnpm; npm and yarn ignore it
 ├── README.md
 ├── test
 │   └── tasks.test.js         <- run with `henri test`

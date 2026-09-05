@@ -349,11 +349,16 @@ const COMMANDS = [
         description: 'drizzle dialect: sqlite (default), postgres or mysql',
         flag: '--dialect <name>',
       },
+      {
+        description:
+          'install with pnpm, yarn or npm instead of the detected one',
+        flag: '--pm <name>',
+      },
     ],
     name: 'init',
     summary: 'add the henri structure to the current directory',
     usage: [
-      'henri init [--force | -f] [--skip-install] [--no-git] [--renderer <name>] [--adapter <name>] [--dialect <name>]',
+      'henri init [--force | -f] [--skip-install] [--no-git] [--renderer <name>] [--adapter <name>] [--dialect <name>] [--pm <name>]',
     ],
   },
   {
@@ -400,11 +405,16 @@ const COMMANDS = [
         description: 'drizzle dialect: sqlite (default), postgres or mysql',
         flag: '--dialect <name>',
       },
+      {
+        description:
+          'install with pnpm, yarn or npm instead of the detected one',
+        flag: '--pm <name>',
+      },
     ],
     name: 'new',
     summary: 'create a new application',
     usage: [
-      'henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer <name>] [--adapter <name>] [--dialect <name>]',
+      'henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer <name>] [--adapter <name>] [--dialect <name>] [--pm <name>]',
     ],
   },
   {

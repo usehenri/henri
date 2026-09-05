@@ -48,10 +48,13 @@ describe('henri new', () => {
     expect(exists(app, 'app/models/Tasks.js')).toBe(false);
   });
 
-  test('writes pnpm-workspace.yaml only for pnpm', () => {
-    expect(exists(app, 'pnpm-workspace.yaml')).toBe(
-      detectPackageManager(app) === 'pnpm'
-    );
+  test('always writes pnpm-workspace.yaml (npm and yarn ignore it)', () => {
+    expect(exists(app, 'pnpm-workspace.yaml')).toBe(true);
+    expect(read(app, 'pnpm-workspace.yaml')).toContain('allowBuilds:');
+  });
+
+  test('says which package manager it picked', () => {
+    expect(result.stdout).toContain(`- Using ${detectPackageManager(app)} (`);
   });
 
   test('initializes a git repository', () => {
@@ -211,6 +214,32 @@ describe('henri new options', () => {
     expect(fs.existsSync(path.join(dir, 'taken', 'package.json'))).toBe(false);
   });
 
+  test('--pm forces the package manager and says so', () => {
+    const { status, stdout } = henri(
+      ['new', 'forced', '--skip-install', '--no-git', '--pm', 'npm'],
+      { cwd: dir }
+    );
+    const app = path.join(dir, 'forced');
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('- Using npm (--pm)');
+    expect(stdout).toContain('npm install && henri server');
+    expect(read(app, 'README.md')).toContain('npm install');
+    // The workspace file is inert for npm, and there for a later pnpm install
+    expect(exists(app, 'pnpm-workspace.yaml')).toBe(true);
+  });
+
+  test('rejects an unknown package manager', () => {
+    const { status, stderr } = henri(
+      ['new', 'bun', '--skip-install', '--no-git', '--pm', 'bun'],
+      { cwd: dir }
+    );
+
+    expect(status).toBe(2);
+    expect(stderr).toContain("Unknown package manager 'bun'");
+    expect(stderr).toContain('pnpm, yarn, npm');
+  });
+
   test('prints the usage without a folder', () => {
     const { status, stdout, stderr } = henri(['new'], { cwd: dir });
 
@@ -323,6 +352,8 @@ describe('henri new --renderer inertia', () => {
       'app/views/pages/tasks/index.jsx',
       'app/views/vite.config.mjs',
       'vitest.config.js',
+      // The template ships its own test, so `henri test` is green at once
+      'test/tasks.test.js',
     ]) {
       expect(exists(app, file)).toBe(true);
     }
@@ -332,10 +363,13 @@ describe('henri new --renderer inertia', () => {
       'app/models/Tasks.js',
       'app/views/pages/tasks/index.js',
       'app/views/pages/tasks/_form.js',
-      'test/tasks.test.js',
     ]) {
       expect(exists(app, file)).toBe(false);
     }
+
+    expect(read(app, 'test/tasks.test.js')).toContain(
+      "set('X-Inertia', 'true')"
+    );
 
     expect(routesOf(app)).toEqual({
       'delete /tasks/:id': 'tasks#destroy',

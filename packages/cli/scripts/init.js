@@ -5,7 +5,7 @@ const path = require('path');
 const adapters = require('./adapters');
 const { writeAgentFiles } = require('./agents');
 const { CliError } = require('./errors');
-const { detectPackageManager, format, insideGit, version } = require('./utils');
+const { format, insideGit, packageManagerChoice, version } = require('./utils');
 
 /**
  * Template files written by writeAgentFiles (with the placeholders filled)
@@ -106,9 +106,11 @@ const main = async (args, name) => {
     );
   }
 
-  const pm = detectPackageManager(cwd);
+  const { pm, source } = packageManagerChoice(cwd, args.pm);
 
-  copyTemplate(pm);
+  console.log(` - Using ${pm} (${source})`);
+
+  copyTemplate();
   buildPackage(projectName, store);
   generateConfig(store);
   allowBuilds(store);
@@ -369,10 +371,9 @@ GraphQL, mail and workers.
 /**
  * Copies the template from @usehenri/cli/template
  *
- * @param {string} pm Package manager (pnpm-workspace.yaml is pnpm only)
  * @returns {void}
  */
-const copyTemplate = (pm) => {
+const copyTemplate = () => {
   const cwd = process.cwd();
 
   console.log(' - Copying new directory structure...');
@@ -388,15 +389,14 @@ const copyTemplate = (pm) => {
     );
   }
 
+  // The pnpm-workspace.yaml file is written whatever the package manager:
+  // npm and yarn ignore it, and its absence is what breaks a pnpm install
+  // (ERR_PNPM_IGNORED_BUILDS on the dependencies that need a build script).
   fs.copySync(templatePath, cwd, {
     filter: (src) => {
       const base = path.basename(src);
 
-      if (base === '.gitignore' || AGENT_FILES.includes(base)) {
-        return false;
-      }
-
-      return base !== 'pnpm-workspace.yaml' || pm === 'pnpm';
+      return base !== '.gitignore' && !AGENT_FILES.includes(base);
     },
   });
   fs.moveSync(path.resolve(cwd, 'gitignore'), path.resolve(cwd, '.gitignore'), {
@@ -456,14 +456,14 @@ HENRI_SECRET=${secret}
 
 /**
  * Adds the dependency build scripts the driver of the store needs to
- * pnpm-workspace.yaml (better-sqlite3 compiles a native addon). Nothing to
- * do when the file was not written (yarn, npm).
+ * pnpm-workspace.yaml (better-sqlite3 compiles a native addon).
  *
  * @param {object} store The selected store (see scripts/adapters.js)
  * @returns {void}
  */
 const allowBuilds = (store) => {
   const file = path.join(process.cwd(), 'pnpm-workspace.yaml');
+
   const entries = Object.entries(store.builds);
 
   if (entries.length === 0 || !fs.existsSync(file)) {
@@ -545,22 +545,31 @@ const portSample = async (store) => {
 };
 
 /**
- * What to do before `henri server` when the store needs a database server
+ * What to know about the store before the first `henri server`: where the
+ * database is expected, and how to migrate it when it has migrations
  *
  * @param {object} store The selected store (see scripts/adapters.js)
  * @returns {string} A paragraph for the closing message, or an empty string
  */
 const storeNotice = (store) => {
   const url = store.store.url || '';
-
-  if (store.adapter === 'disk' || url === '' || url.startsWith('file:')) {
-    return '';
-  }
-
-  return `
+  const server =
+    store.adapter !== 'disk' && url !== '' && !url.startsWith('file:')
+      ? `
     The "${store.adapter}" store expects a database at ${url}
     (config/default.json${store.test ? ', config/test.json for henri test' : ''}). Create it, then start the server.
-${store.adapter === 'drizzle' ? '    Migrations: henri db:generate, henri db:migrate, henri db:status.\n' : ''}`;
+`
+      : '';
+  const migrations =
+    store.adapter === 'drizzle'
+      ? `
+    Development pushes the schema on boot. For production, write the first
+    migration and apply it: henri db:generate --name=init && henri db:migrate
+    (henri db:status lists them, henri db:push skips the migration files).
+`
+      : '';
+
+  return `${server}${migrations}`;
 };
 
 /**

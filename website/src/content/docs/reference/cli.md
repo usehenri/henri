@@ -31,8 +31,8 @@ henri <command> [options]
 ## `new` and `init`
 
 ```bash
-henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia] [--adapter <name>] [--dialect <name>]
-henri init [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia] [--adapter <name>] [--dialect <name>]
+henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia] [--adapter <name>] [--dialect <name>] [--pm pnpm|yarn|npm]
+henri init [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia] [--adapter <name>] [--dialect <name>] [--pm pnpm|yarn|npm]
 ```
 
 `new` creates the folder and runs `init` in it; it refuses a non-empty folder without `--force`, and `init` refuses a directory that already has an `app` folder. The project is named after the folder. Both:
@@ -42,7 +42,17 @@ henri init [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia]
 3. with the React renderer, scaffold the sample `Task` resource (model, controller, `resources tasks` route, pages and `test/tasks.test.js`) against the model API of the adapter;
 4. write a README (an existing one is renamed `README.old.md`);
 5. run `git init` unless `--no-git` is given, the folder is already inside a repository, or git is missing;
-6. install the dependencies with the detected package manager (the `packageManager` field, then pnpm, yarn, npm) unless `--skip-install` is given. `pnpm-workspace.yaml`, which allows the build scripts pnpm needs, is only written for pnpm.
+6. install the dependencies with the package manager of `--pm`, or the detected one, unless `--skip-install` is given.
+
+### `--pm`
+
+`pnpm`, `yarn` or `npm`. Without it, the manager is, in order: the `packageManager` field of an existing `package.json`, its lockfile, `npm_config_user_agent` (the manager that ran the command, set by `pnpm dlx`, `npx`, `yarn dlx` and every `<pm> run`), then a probe of `pnpm --version` and `yarn --version`, `npm` otherwise. The command prints the manager it picked and why, so a wrong guess is visible:
+
+```text
+ - Using pnpm (npm_config_user_agent)
+```
+
+The probe comes last on purpose: a version manager shim (mise, asdf) answers non-zero for `pnpm --version` outside a project it manages, which used to make `henri new` fall back to yarn on a pnpm machine. `pnpm-workspace.yaml`, which allow-lists the dependency build scripts pnpm 11 refuses to run silently, is written whatever the manager is: npm and yarn ignore the file.
 
 ### `--adapter`
 
