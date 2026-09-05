@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://usehenri.io
+    about: Guides and reference for the CLI, models, controllers, views and adapters.
+  - name: Security issue
+    url: https://github.com/usehenri/henri/security/advisories/new
+    about: Report a vulnerability privately to the maintainer.

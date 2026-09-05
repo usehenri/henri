@@ -1,0 +1,67 @@
+name: Bug report
+description: Something in henri does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Security problems should not be filed here: use
+        [private vulnerability reporting](https://github.com/usehenri/henri/security/advisories/new) instead.
+  - type: input
+    id: henri-version
+    attributes:
+      label: henri version
+      description: '`henri about` in your app, or the `@usehenri/core` version in package.json'
+      placeholder: 1.0.2
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: '`node --version`'
+      placeholder: v24.20.0
+    validations:
+      required: true
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: Store adapter
+      description: The `stores.default.adapter` of your config
+      options:
+        - disk
+        - mongoose
+        - postgresql
+        - mysql
+        - mssql
+        - none / not related
+    validations:
+      required: true
+  - type: input
+    id: adapter-version
+    attributes:
+      label: Adapter and database versions
+      placeholder: '@usehenri/mongoose 1.0.2, MongoDB 8.0'
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and package manager
+      placeholder: macOS 15, pnpm 11.25.0
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead. Paste the full output of the failing command.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Ideally starting from `henri new`, or a link to a repository.
+      placeholder: |
+        1. henri new app && cd app
+        2. henri g model task name:string
+        3. henri server
+    validations:
+      required: true
