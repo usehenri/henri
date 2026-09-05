@@ -3,8 +3,6 @@ const chalk = require('chalk');
 const stringWidth = require('string-width');
 const stack = require('callsite');
 const util = require('util');
-const notifier = require('node-notifier');
-const path = require('path');
 const { getColor } = require('./utils');
 
 /**
@@ -278,24 +276,20 @@ class Pen extends BaseModule {
   }
 
   /**
-   * Desktop notification
+   * Development-time notification (printed to the console)
    *
    * @param {string} title title of notification
    * @param {string} message message displayed
    * @returns {({title: string, message: string}|boolean)} For testing or status
    * @memberof Pen
    */
-  // eslint-disable-next-line
+
   notify(title = null, message = null) {
     if (!title && !message) {
       return false;
     }
     if (henri && henri.isDev) {
-      notifier.notify({
-        icon: path.join(__dirname, 'henri.png'),
-        message,
-        title,
-      });
+      this.warn('notify', title, message);
 
       return { message, title };
     }

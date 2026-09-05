@@ -4,7 +4,7 @@ import shallowEqual from 'shallowequal';
 import Validation from './validation';
 import { FormContext } from './context';
 import { HenriContext } from '../withHenri';
-const _Set = require('lodash.set');
+const _Set = require('lodash/set');
 
 class Form extends Component {
   static displayName = 'henri(Form)';
