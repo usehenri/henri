@@ -1,5 +1,7 @@
 const Sequelize = require('sequelize');
 
+const { DataTypes } = Sequelize;
+
 /**
  * Sequelize database adapter
  *
@@ -31,30 +33,38 @@ class Sql {
    * @memberof Sql
    */
   addModel(model, user) {
-    let isUser = false;
+    const isUser = model.identity === user;
     const schema = model.schema;
 
-    if (model.identity === user) {
+    if (isUser) {
       this.overload(schema, model, user);
-      isUser = true;
-      isUser = true;
     }
 
     const instance = this.connector.define(
       model.globalId,
-      model.schema,
+      schema,
       model.options || {}
     );
 
     if (isUser) {
-      instance.beforeCreate(async user => {
-        user.password = await this.henri.user.encrypt(user.password);
-      });
-      instance.prototype.hasRole = async function(roles = []) {
-        let given = Array.isArray(roles) ? roles : [roles];
-
-        return given.every(element => this.roles.includes(element));
+      const encrypt = async (record) => {
+        record.password = await this.henri.user.encrypt(record.password);
       };
+
+      instance.beforeCreate(encrypt);
+      instance.beforeUpdate(async (record) => {
+        if (record.changed('password')) {
+          await encrypt(record);
+        }
+      });
+
+      instance.prototype.hasRole = async function (roles = []) {
+        const given = Array.isArray(roles) ? roles : [roles];
+        const owned = this.roles || [];
+
+        return given.every((element) => owned.includes(element));
+      };
+
       this.henri._user = instance;
     }
 
@@ -68,7 +78,7 @@ class Sql {
    *
    * @param {any} schema The schema
    * @param {any} model  The model
-   * @returns {object} The model
+   * @returns {object} The schema
    * @memberof Sql
    */
   overload(schema, model) {
@@ -78,38 +88,55 @@ class Sql {
       'sequelize',
       `Found a user model (${model.globalId}), overloading it.`
     );
-    schema.email = { required: true, type: Sequelize.STRING };
-    schema.password = { required: true, type: Sequelize.STRING };
 
-    const baseRole = (config.has('baseRole') && [config.get('baseRole')]) || '';
+    schema.email = { allowNull: false, type: DataTypes.STRING };
+    schema.password = { allowNull: false, type: DataTypes.STRING };
+
+    const baseRole = config.has('baseRole') ? [config.get('baseRole')] : [];
 
     if (baseRole.length > 0) {
-      pen.info('mongoose', 'basic user role', baseRole);
+      pen.info('sequelize', 'basic user role', baseRole);
     } else {
-      pen.warn('mongoose', 'no basic user role. are you sure?');
+      pen.warn('sequelize', 'no basic user role. are you sure?');
     }
 
+    // Roles are stored as a JSON string so the same definition works on
+    // every dialect (mysql, postgresql, mssql, sqlite)
     schema.roles = {
-      defaultValue: baseRole,
+      defaultValue: JSON.stringify(baseRole.flat()),
       /**
        * Getter for the roles
        *
-       * @returns {object} The values
+       * @returns {Array<string>} The roles
        */
-      get: function() {
-        return JSON.parse(this.getDataValue('roles'));
+      get() {
+        const raw = this.getDataValue('roles');
+
+        if (Array.isArray(raw)) {
+          return raw;
+        }
+
+        try {
+          return raw ? JSON.parse(raw) : [];
+        } catch (error) {
+          return [];
+        }
       },
       /**
        * Roles setter
        *
-       * @param {string} val A role
-       * @returns {Boolean} True or not?
+       * @param {(string|Array<string>)} val A role or a list of roles
+       * @returns {void}
        */
-      set: function(val) {
-        return this.setDataValue('roles', JSON.stringify(val));
+      set(val) {
+        const list = Array.isArray(val) ? val : [val];
+
+        this.setDataValue('roles', JSON.stringify(list.flat()));
       },
-      type: 'string',
+      type: DataTypes.TEXT,
     };
+
+    return schema;
   }
 
   /**
@@ -125,13 +152,14 @@ class Sql {
   /**
    * Returns the session connector (for connect styles session storage)
    *
-   * @param {function} session session-store function
+   * @param {function} session express-session module (or its Store class)
    * @returns {object} a store
    * @memberof Sql
    */
   getSessionConnector(session) {
+    const Store = session.Store || session;
     // eslint-disable-next-line global-require
-    const SequelizeStore = require('connect-session-sequelize')(session);
+    const SequelizeStore = require('connect-session-sequelize')(Store);
 
     return new SequelizeStore({
       db: this.connector,
@@ -145,15 +173,8 @@ class Sql {
    * @memberof Sql
    */
   async start() {
-    return new Promise((resolve, reject) => {
-      this.connector
-        .authenticate()
-        .then(() => {
-          this.connector.sync();
-          resolve();
-        })
-        .catch(err => reject(err));
-    });
+    await this.connector.authenticate();
+    await this.connector.sync();
   }
 
   /**
@@ -163,14 +184,7 @@ class Sql {
    * @memberof Sql
    */
   async stop() {
-    return new Promise((resolve, reject) => {
-      this.connector
-        .close()
-        .then(() => {
-          resolve();
-        })
-        .catch(err => reject(err));
-    });
+    await this.connector.close();
   }
 }
 

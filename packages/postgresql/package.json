@@ -6,8 +6,12 @@
   "author": "Felix-Antoine Paradis",
   "license": "MIT",
   "dependencies": {
-    "@usehenri/sequelize": "^0.37.1",
-    "pg": "^8.3.0",
-    "pg-hstore": "^2.3.3"
+    "@usehenri/sequelize": "^0.37.2",
+    "pg": "^8.23.0",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.8"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
