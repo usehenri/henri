@@ -31,18 +31,45 @@ henri <command> [options]
 ## `new` and `init`
 
 ```bash
-henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia]
-henri init [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia]
+henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia] [--adapter <name>] [--dialect <name>] [--pm pnpm|yarn|npm]
+henri init [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia] [--adapter <name>] [--dialect <name>] [--pm pnpm|yarn|npm]
 ```
 
 `new` creates the folder and runs `init` in it; it refuses a non-empty folder without `--force`, and `init` refuses a directory that already has an `app` folder. The project is named after the folder. Both:
 
 1. copy the template of the renderer (`react` by default, `-r` is short for `--renderer`) and merge an existing `package.json` into the generated one (dependencies, scripts and name are kept);
-2. write `config/default.json` (`baseRole`, `renderer`, a `disk` default store, `user: "user"`) and `.env` with a random `HENRI_SECRET`;
-3. with the React renderer, scaffold the sample `Task` resource (model, controller, `resources tasks` route, pages and `test/tasks.test.js`);
+2. write `config/default.json` (`baseRole`, `renderer`, the store of `--adapter`, `user: "user"`), `config/test.json` when that store needs a database of its own, and `.env` with a random `HENRI_SECRET`;
+3. with the React renderer, scaffold the sample `Task` resource (model, controller, `resources tasks` route, pages and `test/tasks.test.js`) against the model API of the adapter;
 4. write a README (an existing one is renamed `README.old.md`);
 5. run `git init` unless `--no-git` is given, the folder is already inside a repository, or git is missing;
-6. install the dependencies with the detected package manager (the `packageManager` field, then pnpm, yarn, npm) unless `--skip-install` is given. `pnpm-workspace.yaml`, which allows the build scripts pnpm needs, is only written for pnpm.
+6. install the dependencies with the package manager of `--pm`, or the detected one, unless `--skip-install` is given.
+
+### `--pm`
+
+`pnpm`, `yarn` or `npm`. Without it, the manager is, in order: the `packageManager` field of an existing `package.json`, its lockfile, `npm_config_user_agent` (the manager that ran the command, set by `pnpm dlx`, `npx`, `yarn dlx` and every `<pm> run`), then a probe of `pnpm --version` and `yarn --version`, `npm` otherwise. The command prints the manager it picked and why, so a wrong guess is visible:
+
+```text
+ - Using pnpm (npm_config_user_agent)
+```
+
+The probe comes last on purpose: a version manager shim (mise, asdf) answers non-zero for `pnpm --version` outside a project it manages, which used to make `henri new` fall back to yarn on a pnpm machine. `pnpm-workspace.yaml`, which allow-lists the dependency build scripts pnpm 11 refuses to run silently, is written whatever the manager is: npm and yarn ignore the file.
+
+### `--adapter`
+
+| Value        | Store written in `config/default.json`                                       | Dependencies added                    |
+| ------------ | ---------------------------------------------------------------------------- | ------------------------------------- |
+| `disk`       | `{ "adapter": "disk" }` (default): a local MongoDB, nothing to install       | `@usehenri/disk`                      |
+| `drizzle`    | `{ "adapter": "drizzle", "dialect": "sqlite", "url": "file:.henri/app.db" }` | `@usehenri/drizzle`, `better-sqlite3` |
+| `mongoose`   | `mongodb://127.0.0.1:27017/<app>`                                            | `@usehenri/mongoose`                  |
+| `mysql`      | `mysql://root@127.0.0.1:3306/<app>`                                          | `@usehenri/mysql`                     |
+| `postgresql` | `postgres://postgres@127.0.0.1:5432/<app>`                                   | `@usehenri/postgresql`                |
+| `mssql`      | `mssql://sa@127.0.0.1:1433/<app>`                                            | `@usehenri/mssql`                     |
+
+Every adapter but `disk` also gets a `config/test.json` on its own database (`<app>_test`, or `:memory:` for drizzle on sqlite), because `config/<NODE_ENV>.json` replaces `config/default.json` as a whole. The generated controllers use the model API of the adapter: Mongoose on `disk` and `mongoose`, Sequelize on `mysql`, `postgresql` and `mssql`, the [Drizzle](/guides/models/#drizzle) model on `drizzle`. `henri generate scaffold|crud` reads the adapter back from the configuration, so later generators match too.
+
+### `--dialect`
+
+Only with `--adapter drizzle`: `sqlite` (the default, `better-sqlite3`, `file:.henri/app.db`), `postgres` (`pg`) or `mysql` (`mysql2`). A drizzle application has migrations, so the README it gets mentions `henri db:generate`, `henri db:migrate`, `henri db:push` and `henri db:status` (see [`db`](#db)). Any other value, or `--dialect` without `--adapter drizzle`, exits with `2`.
 
 See [Getting started](/getting-started/) for the resulting tree.
 

@@ -1,8 +1,8 @@
 # {{name}}: conventions for coding agents
 
 A [henri](https://usehenri.io) application: Rails-like MVC for Node.js, CommonJS
-on the server, renderer `{{renderer}}`. Follow these rules instead of guessing;
-`henri doctor` checks most of them, the `henri` MCP server answers the rest.
+on the server, renderer `{{renderer}}`, store `{{adapter}}`. Follow these rules instead of
+guessing; `henri doctor` checks most of them, the `henri` MCP server answers the rest.
 
 ## Layout and naming
 
@@ -51,12 +51,16 @@ module.exports = {
 ```
 
 Field keys: `type`, `required`, `default`, `enum`, `unique`, `index`; any other
-key is handed to the adapter as is (Mongoose options on `disk` and `mongoose`
-stores, Sequelize attribute options on `mysql`, `postgresql`, `mssql`). The
-global is the ORM model: Mongoose (`find`, `findById`, `create`,
-`findByIdAndUpdate`, `findByIdAndDelete`) on `disk`/`mongoose`, Sequelize
-(`findAll`, `findByPk`) on SQL stores, its own Rails-like model on `drizzle`
-stores (`henri db:generate|migrate|push|status` migrations). Scaffold: Mongoose.
+key is handed to the adapter as is. The global is the model of the `{{adapter}}`
+store, and what the generators write: {{#if mongoose}}Mongoose (`find().skip().limit()`,
+`countDocuments`, `findById`, `create`, `findByIdAndUpdate`, `findByIdAndDelete`),
+documents carry `_id`.{{/if}}{{#if drizzle}}the drizzle model (`where`, `order`, `include`,
+`query().offset().limit()`, `count`, `findById`, `create`, `findByIdAndUpdate`,
+`findByIdAndDelete`), rows carry `id`. Migrations live in `db/migrations`:
+`henri db:generate|migrate|push|status`, generate and commit one after a model change.{{/if}}{{#if sequelize}}Sequelize
+(`findAll`, `findByPk`, `count`, `create`, then `row.update()` and
+`row.destroy()`), rows carry `id`. There are no migrations: the boot runs
+`sequelize.sync()` and creates or extends the tables from the models.{{/if}}
 
 ## Controllers
 

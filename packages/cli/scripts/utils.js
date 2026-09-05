@@ -14,37 +14,94 @@ const cwd = process.cwd();
  */
 const check = (file) => fs.existsSync(path.join(process.cwd(), file));
 
+/** The package managers henri knows how to install with */
+const PACKAGE_MANAGERS = ['pnpm', 'yarn', 'npm'];
+
+/** The lockfile each one leaves in a project */
+const LOCKFILES = {
+  'package-lock.json': 'npm',
+  'pnpm-lock.yaml': 'pnpm',
+  'yarn.lock': 'yarn',
+};
+
 /**
- * Detects which package manager is available, preferring pnpm, then yarn, then npm.
- * Honors the packageManager field of the current project when present.
+ * Which package manager to install with, and why
+ *
+ * In order: an explicit choice (`--pm`), the `packageManager` field of the
+ * project, its lockfile, the manager that invoked this process
+ * (`npm_config_user_agent`, set by `pnpm dlx`, `npx`, `yarn dlx` and every
+ * `<pm> run`), then a probe of the binaries. The probe is last because a
+ * version manager shim can answer non-zero outside its own project (mise
+ * exits 1 with "No version is set for shim: pnpm"), which used to hand a
+ * pnpm user a yarn application with no pnpm-workspace.yaml.
  *
  * @param {string} [dir=process.cwd()] Project directory
- * @returns {('pnpm'|'yarn'|'npm')} The package manager binary name
+ * @param {string} [preferred] An explicit choice (--pm)
+ * @returns {{pm: ('pnpm'|'yarn'|'npm'), source: string}} The manager and
+ *   where the answer came from
+ * @throws {CliError} USAGE when `preferred` is not a known manager
  */
-const detectPackageManager = (dir = process.cwd()) => {
+const packageManagerChoice = (dir = process.cwd(), preferred = undefined) => {
+  if (typeof preferred !== 'undefined' && preferred !== null) {
+    const wanted = String(preferred).toLowerCase();
+
+    if (!PACKAGE_MANAGERS.includes(wanted)) {
+      const { CliError } = require('./errors');
+
+      throw new CliError('USAGE', `Unknown package manager '${preferred}'`, {
+        hint: `Valid values: ${PACKAGE_MANAGERS.join(', ')}`,
+      });
+    }
+
+    return { pm: wanted, source: '--pm' };
+  }
+
   try {
-    const pkg = require(path.resolve(dir, 'package.json'));
+    const pkg = fs.readJsonSync(path.resolve(dir, 'package.json'));
     const declared =
       typeof pkg.packageManager === 'string' &&
       pkg.packageManager.split('@')[0];
 
-    if (declared && ['pnpm', 'yarn', 'npm'].includes(declared)) {
-      return declared;
+    if (declared && PACKAGE_MANAGERS.includes(declared)) {
+      return { pm: declared, source: 'the packageManager field' };
     }
   } catch {
     // No package.json yet; fall through to detection
+  }
+
+  for (const [lockfile, name] of Object.entries(LOCKFILES)) {
+    if (fs.existsSync(path.resolve(dir, lockfile))) {
+      return { pm: name, source: lockfile };
+    }
+  }
+
+  const [agent] = String(process.env.npm_config_user_agent || '').split('/');
+
+  if (PACKAGE_MANAGERS.includes(agent)) {
+    return { pm: agent, source: 'npm_config_user_agent' };
   }
 
   for (const candidate of ['pnpm', 'yarn']) {
     const result = spawn.sync(candidate, ['--version'], { stdio: 'ignore' });
 
     if (!result.error && result.status === 0) {
-      return candidate;
+      return { pm: candidate, source: `${candidate} --version` };
     }
   }
 
-  return 'npm';
+  return { pm: 'npm', source: 'the default' };
 };
+
+/**
+ * Which package manager to install with (see packageManagerChoice)
+ *
+ * @param {string} [dir=process.cwd()] Project directory
+ * @param {string} [preferred] An explicit choice (--pm)
+ * @returns {('pnpm'|'yarn'|'npm')} The package manager binary name
+ * @throws {CliError} USAGE when `preferred` is not a known manager
+ */
+const detectPackageManager = (dir = process.cwd(), preferred = undefined) =>
+  packageManagerChoice(dir, preferred).pm;
 
 /**
  * Resolve a module the way `require()` would from a project directory
@@ -59,6 +116,12 @@ const resolveFrom = (name, dir = process.cwd()) =>
 
 /**
  * Resolve the package.json of a package installed in a project
+ *
+ * Three ways, because CommonJS resolution alone is not enough any more: an
+ * ESM-only package whose `exports` map has no `./package.json` and no
+ * `require` condition (`@inertiajs/react`) throws
+ * ERR_PACKAGE_PATH_NOT_EXPORTED on both attempts even though it is
+ * installed, so the last resort reads node_modules from disk.
  *
  * @param {string} name Package name (ex: @usehenri/core)
  * @param {string} [dir=process.cwd()] Project directory to resolve from
@@ -87,10 +150,34 @@ const resolvePackageJson = (name, dir = process.cwd()) => {
       current = path.dirname(current);
     }
   } catch {
-    // Not installed
+    // ESM only, or not installed at all: look on disk
   }
 
-  return null;
+  let current = path.resolve(dir);
+
+  for (;;) {
+    const candidate = path.join(
+      current,
+      'node_modules',
+      ...name.split('/'),
+      'package.json'
+    );
+
+    try {
+      if (fs.existsSync(candidate)) {
+        return fs.readJsonSync(candidate);
+      }
+    } catch {
+      // Unreadable: keep walking up
+    }
+
+    const parent = path.dirname(current);
+
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
 };
 
 /**
@@ -300,6 +387,7 @@ const names = (name) => {
 };
 
 module.exports = {
+  PACKAGE_MANAGERS,
   abort,
   capitalize,
   check,
@@ -311,6 +399,7 @@ module.exports = {
   insideGit,
   isProject,
   names,
+  packageManagerChoice,
   pluralize,
   readConfig,
   readRoutes,

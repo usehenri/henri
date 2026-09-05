@@ -30,10 +30,13 @@ export default function TasksIndex() {
 
       <ul>
         {tasks.map((task) => (
-          <li key={task._id}>
+          <li key={String(task._id ?? task.id)}>
             {task.name} ({task.category}){' '}
             <Form
-              action={pathFor('destroy_tasks_path', String(task._id))}
+              action={pathFor(
+                'destroy_tasks_path',
+                String(task._id ?? task.id)
+              )}
               method="delete"
             >
               <button type="submit">remove</button>

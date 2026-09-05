@@ -8,7 +8,7 @@ sidebar:
 ## Requirements
 
 - Node.js 22 or newer
-- A package manager: pnpm, npm or yarn. `henri new` uses the one it finds (the `packageManager` field of an existing `package.json`, then pnpm, yarn, npm).
+- A package manager: pnpm, npm or yarn. `henri new` uses the one it finds (the `packageManager` field of an existing `package.json`, its lockfile, then the manager that ran the command, then a probe) and prints its choice; `--pm pnpm|yarn|npm` forces it.
 
 :::note
 henri was revived in 2026 on a modern toolchain (Node 22+, Express 5, Next.js 16, React 19, Mongoose 9, Sequelize 6). Releases published before 1.0 still target Node 10 to 14. If you have an application written for henri 0.37, read [Upgrading](/upgrading/).
@@ -31,7 +31,7 @@ cd my-app
 henri server
 ```
 
-`henri new` copies the application skeleton, writes the configuration, scaffolds a sample `Task` resource, writes a README, runs `git init` (unless the folder is already inside a repository) and installs the dependencies. `--skip-install` and `--no-git` skip those two steps; `--renderer inertia` picks the [Inertia](/guides/views/#inertia) view engine instead of React. The result:
+`henri new` copies the application skeleton, writes the configuration, scaffolds a sample `Task` resource, writes a README, runs `git init` (unless the folder is already inside a repository) and installs the dependencies. `--skip-install` and `--no-git` skip those two steps; `--renderer inertia` picks the [Inertia](/guides/views/#inertia) view engine instead of React, and `--adapter drizzle|mongoose|mysql|postgresql|mssql` the [store](/guides/models/#adapters) instead of the default `disk` one. The result:
 
 ```text
 ├── .env                      <- HENRI_SECRET, ignored by git
@@ -60,7 +60,7 @@ henri server
 │   └── routes.js             <- 'get /': 'main#home', 'resources tasks': 'tasks'
 ├── eslint.config.js
 ├── package.json
-├── pnpm-workspace.yaml       <- written for pnpm only
+├── pnpm-workspace.yaml       <- allowBuilds for pnpm; npm and yarn ignore it
 ├── README.md
 ├── test
 │   └── tasks.test.js         <- run with `henri test`
@@ -70,6 +70,19 @@ henri server
 If you have a Ruby on Rails background, this should look familiar. The sample resource is a regular scaffold (`henri generate scaffold Task name:string! category:string done:boolean` writes the same files); `henri destroy scaffold Task` removes it.
 
 `config/default.json` is committed and holds no secret: the session secret is generated into `.env` as `HENRI_SECRET`, which henri reads on boot. The default store is the [disk adapter](/guides/models/#disk), a local MongoDB persisted under `.henri/data` (ignored by git too), so there is nothing to install to run the application.
+
+### Another database
+
+`--adapter` picks the store of the new application. The sample resource, the dependencies and `config/default.json` follow it, and a `config/test.json` is written so `henri test` runs on its own database.
+
+```bash
+henri new my-app --adapter drizzle                     # sqlite, file:.henri/app.db
+henri new my-app --adapter drizzle --dialect postgres  # or mysql
+henri new my-app --adapter postgresql                  # sequelize
+henri new my-app --adapter mongoose                    # a MongoDB server
+```
+
+`drizzle` is the [Drizzle ORM adapter](/guides/models/#drizzle): sqlite by default, so a new application still boots with no database to install, and it is the only one with migrations (`henri db:generate`, `db:migrate`, `db:push`, `db:status`). The other adapters expect a server running at the url written in `config/default.json`.
 
 ## Start coding
 

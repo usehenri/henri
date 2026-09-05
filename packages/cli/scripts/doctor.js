@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 
+const { APIS, packagesFor } = require('./adapters');
 const { CliError } = require('./errors');
 const { controllerOf, expand } = require('./routing');
 const {
@@ -20,19 +21,15 @@ const {
 
 const MINIMUM_NODE = 22;
 
-const ADAPTERS = [
-  'disk',
-  'mariadb',
-  'mongoose',
-  'mssql',
-  'mysql',
-  'postgresql',
-];
+/** The adapters core can load (scripts/adapters.js is the catalogue) */
+const ADAPTERS = Object.keys(APIS).sort();
 
-/** Packages the adapters and the renderers need in the app's package.json */
+/**
+ * Packages the renderers need in the app's package.json. What a store
+ * needs (its adapter package, and the driver of a drizzle dialect) comes
+ * from packagesFor().
+ */
 const NEEDS = {
-  disk: ['@usehenri/disk'],
-  drizzle: ['@usehenri/drizzle'],
   inertia: [
     '@usehenri/inertia',
     '@inertiajs/react',
@@ -40,11 +37,6 @@ const NEEDS = {
     'react-dom',
     'vite',
   ],
-  mariadb: ['@usehenri/mysql'],
-  mongoose: ['@usehenri/mongoose'],
-  mssql: ['@usehenri/mssql'],
-  mysql: ['@usehenri/mysql'],
-  postgresql: ['@usehenri/postgresql'],
   react: ['@usehenri/react', 'next', 'react', 'react-dom'],
 };
 
@@ -514,7 +506,7 @@ const check = (dir = process.cwd()) => {
   }
 
   for (const store of Object.values(config.stores || {})) {
-    for (const name of NEEDS[store && store.adapter] || []) {
+    for (const name of packagesFor(store)) {
       needed.add(name);
     }
   }
