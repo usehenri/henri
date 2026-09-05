@@ -1,73 +1,86 @@
 ---
 title: Configuration
-description: The config directory, environments, stores, secrets and renderer.
+description: The config directory, environments, .env, stores and the other keys.
 sidebar:
   order: 2
 ---
 
-Configuration is a JSON file in the `config` directory. henri loads the file matching your `NODE_ENV` and falls back to `default.json`, so you can have `default.json`, `production.json`, `test.json` and so on.
+Configuration is JSON in the `config` directory. henri loads `config/<NODE_ENV>.json` and falls back to `config/default.json`; with `NODE_ENV` unset it looks for `config/dev.json` first. A typical application commits `default.json` and adds `production.json` or `test.json` for the keys that differ.
 
 ```json
 {
   "stores": {
     "default": {
       "adapter": "mongoose",
-      "url": "mongodb://user:pass@mongoserver.com:10914/henri-test"
+      "url": "mongodb://localhost:27017/myapp"
     },
-    "dev": {
+    "scratch": {
       "adapter": "disk"
     }
   },
-  "secret": "25bb9ed0b0c44cc3549f1a09fc082a1aa3ec91fbd4ce9a090b",
-  "renderer": "react"
+  "renderer": "react",
+  "user": "user",
+  "baseRole": "guest"
 }
 ```
 
-The file is validated on boot: a syntax error is reported with its line and column instead of a stack trace.
+The file is parsed on boot: a syntax error is reported with its line, and the boot stops when no file can be loaded. The loaded object is frozen.
 
 ## Keys
 
-| Key            | Default       | Description                                                                                                        |
-| -------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `port`         | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                    |
-| `host`         | see below     | Interface to listen on. `127.0.0.1` outside production, `0.0.0.0` in production; `HENRI_HOST` overrides it.        |
-| `cors`         | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.  |
-| `renderer`     | `template`    | View engine: `react`, `inertia` or `template` (Handlebars). See [Views](/guides/views/).                           |
-| `inertia`      |               | Options of the `inertia` renderer (`ssr`, `id`, `entry`, `ssrEntry`, `template`). See [Views](/guides/views/).     |
-| `experimental` |               | Opt-in to unmaintained renderers, ex: `{ "vue": true }`.                                                           |
-| `stores`       |               | Named database stores. Models pick one with their `store` key, or use `default`. See [Models](/guides/models/).    |
-| `secret`       |               | Session and JWT secret. Required as soon as you have a user model; `HENRI_SECRET` can provide it.                  |
-| `user`         | `User`        | Name of the model that represents users (login, roles, password hashing), or an object. See [Users](#users).       |
-| `baseRole`     |               | Role given to every new user.                                                                                      |
-| `trustProxy`   | `true`        | Express `trust proxy` setting: `X-Forwarded-*` headers from a reverse proxy are honoured. Set `false` without one. |
-| `csrf`         | `true`        | Set to `false` to disable the CSRF protection described in [Users](#users).                                        |
-| `graphql`      | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                     |
-| `mail`         |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                 |
+| Key            | Default       | Description                                                                                                                                    |
+| -------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `port`         | `3000`        | Port to listen on. In development a busy port is replaced by the next free one.                                                                |
+| `host`         | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file. |
+| `cors`         | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                              |
+| `renderer`     | `template`    | View engine: `react`, `inertia` or `template` (Handlebars). `henri new` writes `react`. See [Views](/guides/views/).                           |
+| `inertia`      |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                            |
+| `experimental` |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                           |
+| `stores`       |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                    |
+| `secret`       |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                         |
+| `user`         | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                     |
+| `baseRole`     |               | Role, or list of roles, given to every new user.                                                                                               |
+| `trustProxy`   | `true`        | Express `trust proxy` setting: `X-Forwarded-*` headers from a reverse proxy are honoured. Set `false` without one.                             |
+| `csrf`         | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf).                                                                                   |
+| `graphql`      | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                                                 |
+| `mail`         |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                             |
+
+## Stores
+
+Each entry of `stores` names an adapter and how to reach its database. The adapter package (`@usehenri/<adapter>`) must be installed in the application.
+
+| Key                                                | Adapters      | Description                                                                                                         |
+| -------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `adapter`                                          | all           | `disk`, `mongoose`, `mysql`, `mariadb`, `postgresql` or `mssql`.                                                    |
+| `url`                                              | mongoose, SQL | Connection string. Required unless `host` is given (`mariadb://` is accepted by the mysql adapter).                 |
+| `host`, `port`, `database`, `username`, `password` | mongoose, SQL | Alternative to `url`. On mongoose, `host` may also be a full `mongodb://` url.                                      |
+| `opts`                                             | mongoose      | Options passed to `mongoose.connect()`; henri sets `connectTimeoutMS` and `serverSelectionTimeoutMS` to 10 seconds. |
+| `session`                                          | mongoose, SQL | Options of the session store (connect-mongo, whose collection is `henriSessions`, or connect-session-sequelize).    |
+| `path`, `dbName`                                   | disk          | Data directory, relative to the application (`.henri/data`), and database name (`henri`).                           |
+| `logging`, `pool`, `dialectOptions`, ...           | SQL           | Every other key is forwarded to Sequelize. `logging` defaults to the `henri:sequelize` debug namespace.             |
+
+See [Models](/guides/models/#adapters) for each adapter.
 
 ## Environment and `.env`
 
-On boot henri reads `.env` in the application directory (`KEY=value` lines, `#` comments; variables already set in the environment win) and applies these overrides:
+On boot henri reads `.env` in the application directory (`KEY=value` lines, optional `export`, quotes stripped, `#` comments; variables already set in the environment win) and applies these overrides:
 
 | Variable       | Effect                                                                 |
 | -------------- | ---------------------------------------------------------------------- |
 | `HENRI_SECRET` | Provides or replaces `secret`, so the secret can stay out of `config`. |
 | `HENRI_HOST`   | Replaces `host` (what `henri server --host` sets).                     |
+| `NODE_ENV`     | Selects the configuration file. `henri server --production` sets it.   |
 
-## Users
+Nothing else in the configuration is expanded from the environment: for a container, write `config/production.json` at start time (the repository's `docker/entrypoint.sh` does exactly that).
 
-Naming a user model adds `email`, `password` (hashed with bcrypt) and `roles` to it and mounts:
+## The `user` object
 
-- `POST /login`, taking `email` and `password` as JSON or as a form. API clients get `{ user }` back, browsers are redirected to `afterLogin`. On failure: `401` (JSON) or a redirect to `<loginPath>?error=invalid`.
-- `POST /logout`, which destroys the session and answers `{ ok: true }` or redirects to `/`. `GET /logout` is deprecated and does nothing.
-- A session cookie, `henri.sid` (httpOnly, `SameSite=Lax`, `Secure` in production, 30 days), stored in the database of the user model.
-- A CSRF token in the `henri.csrf` cookie. `POST`, `PUT`, `PATCH` and `DELETE` requests that carry a session must send it back in the `X-CSRF-Token` header or a `_csrf` field, otherwise they get a `403`. The React `fetch()` and `hydrate()` helpers do it for you; requests authenticated with a JWT bearer token are exempt.
-
-`user` also accepts an object:
+`user` is the name of the model to treat as the user model. It also accepts an object:
 
 ```json
 {
   "user": {
-    "model": "User",
+    "model": "user",
     "public": ["name", "avatar"],
     "loginPath": "/login",
     "afterLogin": "/",
@@ -76,11 +89,11 @@ Naming a user model adds `email`, `password` (hashed with bcrypt) and `roles` to
 }
 ```
 
-`public` lists the fields, besides `id`, `email` and `roles`, that views and JSON answers may see: `henri.user.publicUser(user)` builds that object and nothing else on the user document leaves the server. `loginPath` is where browsers are sent when a route denies them (default `/login`), `afterLogin` where they land after a form login and `sessionMaxAge` the session lifetime in milliseconds.
+`public` lists the fields, besides `id`, `email` and `roles`, that views and JSON answers may see; `loginPath` is where browsers are sent when a route denies them; `afterLogin` where they land after a form login; `sessionMaxAge` the session lifetime in milliseconds (30 days). See [Users](/guides/users/).
 
 ## Reading the configuration in your code
 
-The configuration is frozen and exposed on the global `henri` object:
+The configuration is exposed on the global `henri` object. Keys use dots (and brackets for arrays):
 
 ```js
 henri.config.get('stores.default.adapter'); // throws if the key is missing
