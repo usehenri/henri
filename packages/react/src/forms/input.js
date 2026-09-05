@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { useForm } from './context';
-const _Get = require('lodash.get');
+const _Get = require('lodash/get');
 
 const Input = ({
   disabled = false,

@@ -30,3 +30,10 @@ minimumReleaseAgeExclude:
   - eslint@10.10.0
   - mongoose@9.9.5
   - nodemailer@10.0.0
+
+# uuid < 11.1.1 has a buffer bounds bug (GHSA-w5hq-g745-h8pq); node-notifier
+# (an optional peer of jest) and sequelize 6 still ask for 8.x; 11.x keeps the
+# v1/v4 API they use.
+overrides:
+  'node-notifier>uuid': '^11.1.1'
+  'sequelize>uuid': '^11.1.1'

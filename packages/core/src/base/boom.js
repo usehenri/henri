@@ -1,0 +1,49 @@
+/**
+ * Minimal replacement for express-boom: decorates `res` with `res.boom.<name>()`
+ * helpers that answer with a Boom-shaped JSON body.
+ *
+ * `res.boom.notFound('No such thing', { id })` sends
+ * `{ statusCode: 404, error: 'Not Found', message: 'No such thing', data: { id } }`
+ */
+const STATUSES = {
+  badData: [422, 'Unprocessable Entity'],
+  badGateway: [502, 'Bad Gateway'],
+  badRequest: [400, 'Bad Request'],
+  conflict: [409, 'Conflict'],
+  forbidden: [403, 'Forbidden'],
+  internal: [500, 'Internal Server Error'],
+  methodNotAllowed: [405, 'Method Not Allowed'],
+  notFound: [404, 'Not Found'],
+  notImplemented: [501, 'Not Implemented'],
+  serverUnavailable: [503, 'Service Unavailable'],
+  tooManyRequests: [429, 'Too Many Requests'],
+  unauthorized: [401, 'Unauthorized'],
+};
+
+/**
+ * Express middleware adding `res.boom`
+ *
+ * @returns {function} middleware
+ */
+function boom() {
+  return (req, res, next) => {
+    res.boom = {};
+
+    for (const [name, [statusCode, error]] of Object.entries(STATUSES)) {
+      res.boom[name] = (message = error, data = undefined) => {
+        const body = { error, message, statusCode };
+
+        if (typeof data !== 'undefined') {
+          body.data = data;
+        }
+
+        return res.status(statusCode).json(body);
+      };
+    }
+
+    next();
+  };
+}
+
+module.exports = boom;
+module.exports.STATUSES = STATUSES;
