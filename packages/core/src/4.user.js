@@ -1,4 +1,42 @@
-const { fail } = require('./base/errors');
+/**
+ * What the user module refuses, and what it answers instead.
+ *
+ * Everything here is on an authentication path, so `base/arguments.js` is
+ * applied one method at a time rather than across the module: a value the
+ * *caller* chose is a coded refusal, a value the *visitor* sent keeps the
+ * answer it always had. What follows is that line drawn per method, because
+ * the reason differs each time and none of it is guessable from the table.
+ *
+ * - **`compare(password, user)`** checks the *second* argument and not the
+ *   first. A password that is not a string is the visitor's mistake and has
+ *   to be the mismatch a wrong one is, or its shape becomes the oracle. The
+ *   user is the caller's, and it has three answers now instead of one:
+ *   `null` (and nothing at all) is **no account**, which costs a hash
+ *   against `dummyHash` and then answers the mismatch, in the same words at
+ *   the same price; a record carrying **no hash** -- what `findById()` and
+ *   `req.user` are, since both deselect the password -- is
+ *   `HENRI_USER_PASSWORD_UNVERIFIABLE`, because "wrong password" to a
+ *   password that is right is a mystery nobody debugs; and a number is
+ *   `HENRI_ARGUMENT_INVALID`. The mismatch itself carries
+ *   `HENRI_USER_PASSWORD_MISMATCH` so those three are told apart by a
+ *   developer and by nobody else: the message is the one word it always was.
+ * - **`encrypt(password, options)`** checks the options and not the
+ *   password, which the policy already refuses as a `ValidationError` shaped
+ *   like a model's. `{ identiy: user }` used to hash happily and write an
+ *   **unbound** hash -- the binding of `base/password.js` silently absent,
+ *   which is a security property lost with no signal anywhere -- so the bag
+ *   is `unknown: 'near'` and the near miss is named.
+ * - **`publicUser(user)`** takes a record or nobody. `publicUser(42)` used to
+ *   answer a user-shaped object with an identifier in it, and that object
+ *   goes to a view and to a JSON body.
+ * - **`validatePassword`, `rehash`, `findByEmail`, `findById` and
+ *   `identityOf`** are in `UNCHECKED`, each for its own reason, and the
+ *   reasons are in the table. The short version: the first is a verdict a
+ *   form shows, the second runs on the sign-in path the moment a password
+ *   verified, and the last three answer null for a value that names nobody,
+ *   which is what an unknown address has to answer too.
+ */
+const { fail, stamp } = require('./base/errors');
 const BaseModule = require('./base/module');
 
 const crypto = require('crypto');
@@ -9,6 +47,7 @@ const { Strategy: LocalStrategy } = require('passport-local');
 const debug = require('debug')('henri:user');
 
 const { loadStore } = require('./base/api');
+const { check } = require('./base/arguments');
 const { publicUser, respond, userAdapter, userConfig } = require('./base/auth');
 const { params, permitMiddleware } = require('./base/params');
 const {
@@ -265,6 +304,10 @@ class User extends BaseModule {
    * adapters pass it from their create and update hooks. Without it the hash
    * is written the way it always was.
    *
+   * A misspelled key is refused rather than ignored: `{ identiy: user }`
+   * hashed happily and wrote an *unbound* hash, which is the whole of the
+   * binding gone with nothing said anywhere.
+   *
    * @async
    * @param {any} password The password
    * @param {(number|object)} [options] `{ identity, rounds }`, or a number for
@@ -275,6 +318,8 @@ class User extends BaseModule {
    * @memberof User
    */
   async encrypt(password, options = undefined) {
+    check('henri.user.encrypt', [password, options]);
+
     const verdict = this.validatePassword(password);
 
     if (!verdict.valid) {
@@ -305,15 +350,56 @@ class User extends BaseModule {
    * password" to a password that is right. A bare hash still works for as
    * long as it is unbound.
    *
+   * Three failures, and they are told apart by their code and by nothing
+   * else -- the message a mismatch carries is the one word it always was, so
+   * an application that hands it to a client says no more than it did:
+   *
+   * - `HENRI_USER_PASSWORD_MISMATCH`: the password is wrong, or there is no
+   *   account (`null`). Those two are deliberately the same answer, and the
+   *   same cost: an absent account is checked against `dummyHash`, the way
+   *   `POST /login` already checks an unknown address, so an application's
+   *   own sign-in does not time-leak which addresses are registered.
+   * - `HENRI_USER_PASSWORD_UNVERIFIABLE`: there is a record and no hash on
+   *   it to check. `findById()`, `req.user` and a deserialized session all
+   *   deselect the password, and answering "wrong password" to a password
+   *   that is right is a mystery nobody debugs.
+   * - `HENRI_ARGUMENT_INVALID`: the second argument is not a user at all.
+   *
    * @async
-   * @param {string} password A password
-   * @param {(string|object)} user The user, or a hash on its own
+   * @param {*} password A password (whatever was typed)
+   * @param {(string|object|null)} [user] The user, a hash on its own, or null
    * @returns {Promise<true>} true, or throws
-   * @throws {Error} on a mismatch, or when a bound hash arrives alone
+   * @throws {Error} on a mismatch, on a record with no hash, or when a bound
+   *   hash arrives alone
    * @memberof User
    */
   async compare(password, user) {
+    check('henri.user.compare', [password, user]);
+
+    // No account at all: the work is done anyway, against a hash bound to a
+    // uuid no row has, so that this costs what a real account costs
+    if (user === null || typeof user === 'undefined') {
+      if (this.dummyHash) {
+        await verifyPassword(
+          password,
+          this.dummyHash,
+          this.passwordPolicy,
+          this.dummyIdentity
+        );
+      }
+
+      throw this.mismatch();
+    }
+
     const given = typeof user === 'string' ? { hash: user } : this.hashOf(user);
+
+    if (typeof given.hash !== 'string' || given.hash.length === 0) {
+      throw fail(
+        'HENRI_USER_PASSWORD_UNVERIFIABLE',
+        'this user record carries no password hash to check against; load the account with henri.user.findByEmail(), which selects it (findById() and req.user do not)'
+      );
+    }
+
     const { ok } = await verifyPassword(
       password,
       given.hash,
@@ -322,10 +408,28 @@ class User extends BaseModule {
     );
 
     if (!ok) {
-      throw new Error('Invalid credentials');
+      throw this.mismatch();
     }
 
     return true;
+  }
+
+  /**
+   * The failure a password that did not verify raises.
+   *
+   * One sentence, whatever it was that did not verify: a wrong password and
+   * an address nobody has answer the same words, the same code and, above,
+   * the same amount of hashing. Returns it rather than throwing, the way
+   * `pen.fatal()` does, so the call site reads as the throw it is.
+   *
+   * @returns {Error} the error to throw
+   * @memberof User
+   */
+  mismatch() {
+    return stamp(
+      new Error('Invalid credentials'),
+      'HENRI_USER_PASSWORD_MISMATCH'
+    );
   }
 
   /**
@@ -469,11 +573,17 @@ class User extends BaseModule {
    * too, `email` included: the guarantee is that such a field never leaves
    * the server, and this is the one payload henri builds on its own.
    *
-   * @param {object} user a user instance
+   * Nobody (`null`, or an anonymous `req.user`) answers null; anything that
+   * is not a record is refused, because it used to answer an object with an
+   * identifier in it and that object goes to a view and to a JSON body.
+   *
+   * @param {?object} [user] a user instance
    * @returns {?object} the public user or null
    * @memberof User
    */
   publicUser(user) {
+    check('henri.user.publicUser', [user]);
+
     const { privacy } = this.henri;
 
     return publicUser(

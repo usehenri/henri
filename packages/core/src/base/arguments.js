@@ -62,6 +62,10 @@
  * (`list`, `count`, `about`, `prune`), `henri.calls` (`list`, `count`,
  * `about`, `prune`, `outbound`, `track`), `henri.encryption` (`markOf`,
  * `encrypt`, `decrypt`, `candidates`, `tolerate`, `rotate`),
+ * `henri.user` (`compare`, `encrypt`, `publicUser`), `henri.accounts`
+ * (`allowed`, `consume`, `identify`, `register`, `requestConfirmation`,
+ * `requestEmailChange`, `requestPasswordReset`, `sendConfirmation`,
+ * `sendReset`, `tokenFor`, `urlFor`),
  * `henri.model.getStore`, `henri.mail.send`, `deliverLater`, and what a
  * request gets: `res.resource`, `res.collection`, `res.negotiate`,
  * `res.render`, `res.hbs`, `res.boom.*`, `req.pagination`, `req.permit`,
@@ -88,6 +92,36 @@
  * `henri.reporter.report()` runs on a failure path, so refusing a wrong
  * call there would lose the failure it was called about. A wrong `source`
  * is coerced and a wrong `options` is read as none, on purpose.
+ *
+ * ## The authentication surface, where two rules pull against each other
+ *
+ * The user module and the account flows were left out of the first pass on
+ * purpose: everything they do sits on a path where a refusal can become an
+ * oracle. `POST /login` answers the same for an unknown address and a wrong
+ * password, and a reset request answers *before* it looks anything up, so
+ * that a known and an unknown address are indistinguishable in body, status
+ * and timing. A check that throws where henri used to answer, or that throws
+ * a different shape on one branch, undoes that from the inside.
+ *
+ * The line is therefore drawn by **whose mistake it is**:
+ *
+ * - a value the *caller* chose -- the record a hash is for, the purpose of a
+ *   token, the path of a link, the options of a call -- is a coded refusal,
+ *   because the alternative is what these methods used to do: mint a token
+ *   nothing can consume, build `https://host42`, write an unbound hash;
+ * - a value the *visitor* sent -- a password, a token, an address typed into
+ *   a form -- is not checked here and keeps the answer it always had. A
+ *   token is `malformed`, a password is a mismatch, an address that is not
+ *   one is the 422 the endpoint already answered.
+ *
+ * That is why `henri.user.compare(password, user)` checks its second
+ * argument and not its first; why `null` is a *value* for that second one
+ * (nobody has that address) rather than a mistake, answering the mismatch a
+ * wrong password answers, in the same words, at the same cost; and why
+ * `henri.accounts.resetPassword(token, password)` is in `UNCHECKED` with
+ * both of its arguments belonging to whoever followed the link. The
+ * per-method reasoning is in the headers of `4.user.js` and
+ * `base/accounts.js`.
  *
  * ## Where the check goes, and what it costs
  *
@@ -187,6 +221,59 @@ const ACTION = {
 
 /** Where an operation was asked from (`base/trail.js` owns the list) */
 const SOURCE = { enum: ['app', 'cli', 'http', 'job'], type: 'string' };
+
+/**
+ * A user record: a row, an instance, whatever the ORM answered.
+ *
+ * Nothing deeper is asked of it -- the adapters know what a user of theirs
+ * looks like and henri does not -- but a number is not one, and every method
+ * that took one used to answer something plausible for a number: a public
+ * user with no identifier, a token nothing names, "could not be changed".
+ */
+const USER = {
+  describe: 'a user record',
+  hint: 'henri.user.findByEmail(email) and req.user answer one',
+  type: 'object',
+};
+
+/**
+ * What a signed account token is allowed to do.
+ *
+ * The list is `PURPOSE` in `base/accounts.js`, spelled again here because
+ * that module reaches for this one; `src/__tests__/arguments.spec.js`
+ * compares the two. A fourth string is not an extension point: `seedFor()`
+ * would give it the confirmation seed and the confirmation expiry, and only
+ * a `consume()` carrying the identical typo would ever spend it.
+ */
+const PURPOSE = {
+  enum: ['confirmation', 'email-change', 'password-reset'],
+  hint: 'henri.accounts.PURPOSE holds them: confirmation, emailChange, reset',
+  type: 'string',
+};
+
+/**
+ * An address one of the account flows was asked about.
+ *
+ * A string with something in it, and deliberately **not** an address
+ * pattern: the endpoints already refuse what is not one, with the same loose
+ * test the adapters validate the column with, and a stricter test here would
+ * answer 422 for an address that is nonetheless in the database -- the
+ * enumeration leak these flows exist to avoid.
+ */
+const ADDRESS = {
+  describe: 'an email address',
+  hint: 'The endpoints refuse an address that is not one before asking',
+  pattern: /\S/u,
+  type: 'string',
+};
+
+/** A path inside the application, which is what an absolute url is built on */
+const PATH = {
+  describe: 'a path beginning with "/"',
+  hint: "henri.accounts.urlFor('/confirm/' + token)",
+  pattern: /^\//u,
+  type: 'string',
+};
 
 /** What an erasure does with the records that reference the person */
 const STRATEGY = {
@@ -454,6 +541,56 @@ const COLLECTION_OPTIONS = bag({
  * `UNCHECKED` fails too.
  */
 const SIGNATURES = {
+  'henri.accounts.allowed': [{ name: 'user', ...USER }],
+
+  'henri.accounts.consume': [
+    // Whoever followed the link chose it; `peek()` answers null for anything
+    { name: 'token', ...ANY },
+    { name: 'purpose', ...PURPOSE },
+  ],
+
+  'henri.accounts.identify': [{ name: 'user', ...USER }],
+
+  'henri.accounts.register': [
+    {
+      hint: 'henri.accounts.register(req.permit("email", "password"))',
+      name: 'attributes',
+      ...bag({}, { unknown: 'allow' }),
+    },
+  ],
+
+  'henri.accounts.requestConfirmation': [{ name: 'email', ...ADDRESS }],
+
+  'henri.accounts.requestEmailChange': [
+    { name: 'user', ...USER },
+    // The address is the one that was typed: this answers `{ errors: { email
+    // } }` for anything that is not one, which is what a form needs
+    { name: 'email', ...ANY },
+  ],
+
+  'henri.accounts.requestPasswordReset': [{ name: 'email', ...ADDRESS }],
+
+  'henri.accounts.sendConfirmation': [{ name: 'user', ...USER }],
+
+  'henri.accounts.sendReset': [{ name: 'user', ...USER }],
+
+  'henri.accounts.tokenFor': [
+    { name: 'user', ...USER },
+    { name: 'purpose', ...PURPOSE },
+    {
+      name: 'options',
+      optional: true,
+      // `expiresIn` is any whole number of milliseconds, negative included:
+      // that is how a suite mints a link that is already expired
+      ...bag({
+        data: ANY,
+        expiresIn: maybe({ integer: true, type: 'number' }),
+      }),
+    },
+  ],
+
+  'henri.accounts.urlFor': [{ name: 'path', ...PATH }],
+
   'henri.cache.clear': [],
 
   'henri.cache.delete': [{ by: 'HENRI_CACHE_KEY_INVALID', name: 'key' }],
@@ -692,6 +829,57 @@ const SIGNATURES = {
     },
   ],
 
+  'henri.user.compare': [
+    // The password is whoever is signing in; a wrong one is a mismatch and
+    // a wrong *shape* has to be the same mismatch, or the shape is the
+    // oracle. `verifyPassword()` reads anything that is not a string as ''
+    { name: 'password', ...ANY },
+    {
+      describe: 'a user record, a hash on its own, or null for no account',
+      hint: 'henri.user.compare(password, await henri.user.findByEmail(email))',
+      name: 'user',
+      // `null` is a value here and not a mistake: it is what findByEmail()
+      // answers for an address nobody has, and it answers the mismatch a
+      // wrong password answers. `undefined` goes with it, because that is
+      // what a lookup of an application's own comes back as
+      oneOf: [{ const: null }, NAME, OBJECT],
+      optional: true,
+    },
+  ],
+
+  'henri.user.encrypt': [
+    // The policy answers this one, as a ValidationError shaped like a
+    // model's, which is what puts the message next to the field
+    { name: 'password', ...ANY },
+    {
+      describe: 'a bcrypt cost, or { identity, rounds }',
+      hint: 'henri.user.encrypt(password, { identity: user }) binds the hash to that record',
+      name: 'options',
+      oneOf: [
+        COUNT,
+        bag({
+          identity: maybe({
+            describe: 'the record the hash is for, or its externalId',
+            oneOf: [NAME, OBJECT],
+          }),
+          rounds: maybe(COUNT),
+        }),
+      ],
+      optional: true,
+    },
+  ],
+
+  'henri.user.publicUser': [
+    {
+      ...maybe(OBJECT),
+      describe: 'a user record, or null',
+      name: 'user',
+      // `res.render` and the logout handler hand it `req.user`, which is
+      // absent for an anonymous visitor and answers null
+      optional: true,
+    },
+  ],
+
   'message.deliverLater': [
     {
       name: 'options',
@@ -781,6 +969,12 @@ const SIGNATURES = {
  * making a list of methods with nothing to check.
  */
 const UNCHECKED = {
+  'henri.accounts.checkPassword':
+    'henri.user.validatePassword, which never throws and answers a verdict a form can show: the password is the visitor s and "that is not a password" is the answer, not a refusal',
+  'henri.accounts.confirm':
+    'the token is whoever followed the link: tokens.peek() answers null for anything that is not one and the flow answers reason: malformed, which is what an expired, a spent and a forged link all answer',
+  'henri.accounts.resetPassword':
+    'both arguments belong to whoever followed the link: the token answers reason: malformed and the password answers reason: password, and neither says anything about the account',
   'henri.addMiddleware':
     'says so and answers false, which is its documented contract',
   'henri.analyze': 'takes a module name and answers null for anything else',
@@ -817,6 +1011,16 @@ const UNCHECKED = {
     'answers false for anything that is not one of the boundaries, which is what a caller asking about a name henri does not know should get',
   'henri.trail.record':
     'HENRI_TRAIL_INVALID_EVENT and the meta refusals already say what is wrong',
+  'henri.user.findByEmail':
+    'the address is normalized to a string first and anything that is not one answers the null an unknown address answers, deliberately: a lookup that refuses one shape and answers another is how a probe learns what it holds',
+  'henri.user.findById':
+    'the identifier comes out of a session or a token, so it is the visitor s: it answers null for a malformed one, which is the 404 an unknown one answers',
+  'henri.user.identityOf':
+    'a total function of unknown, documented to answer null for a record that carries no externalId, which is what makes password binding degrade instead of failing',
+  'henri.user.rehash':
+    'documented to answer false rather than throw, and henri calls it on the sign-in path the moment a password verified: a refusal here would fail a sign-in that already succeeded',
+  'henri.user.validatePassword':
+    'documented never to throw: it is the verdict a registration form shows next to the box, so anything that is not a password is { valid: false, errors } and not a refusal',
   'henri.utils': 'node resolution answers for itself',
   'req.authorize': 'the one implementation is henri.policies.authorize',
   'req.can': 'the one implementation is henri.policies.can',
@@ -978,6 +1182,7 @@ function unknown(where, what, value, known) {
 
 module.exports = {
   CODE,
+  PURPOSE,
   SIGNATURES,
   UNCHECKED,
   UNKNOWN,

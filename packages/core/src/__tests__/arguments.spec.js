@@ -3,10 +3,12 @@ const path = require('path');
 const supertest = require('supertest');
 
 const Henri = require('../henri');
+const { PURPOSE } = require('../base/accounts');
 const { problems } = require('../base/config-validate');
 const { isCode } = require('../base/errors');
 const {
   CODE,
+  PURPOSE: PURPOSES,
   SIGNATURES,
   UNCHECKED,
   UNKNOWN,
@@ -40,6 +42,7 @@ const ROOT = path.resolve(__dirname, '..');
  * is named in `NOT_WALKED` below.
  */
 const INTERFACES = {
+  AccountsService: 'henri.accounts',
   Cache: 'henri.cache',
   CallsModule: 'henri.calls',
   ConfigModule: 'henri.config',
@@ -56,6 +59,7 @@ const INTERFACES = {
   RetentionModule: 'henri.retention',
   TelemetryModule: 'henri.telemetry',
   TrailModule: 'henri.trail',
+  UserModule: 'henri.user',
   Utils: 'henri.utils',
 };
 
@@ -65,8 +69,6 @@ const INTERFACES = {
  * methods to `SIGNATURES` or to `UNCHECKED`, and that is the next pass.
  */
 const NOT_WALKED = {
-  AccountsService:
-    'reached through a route, where base/params-schema.js is the boundary. Four of its calls do refuse badly on their own -- register(null) throws one frame down, urlFor(42) builds https://host42, tokenFor mints a token for a purpose nothing consumes -- and that is the next pass',
   ControllersModule:
     'reads what 2.controllers.js loaded and answers null for anything else',
   GraphqlModule:
@@ -79,8 +81,6 @@ const NOT_WALKED = {
   StoreAdapter:
     'the adapter contract, implemented by the adapters and called by core',
   UploadsModule: '@usehenri/uploads ships it',
-  UserModule:
-    'the password helpers, which mostly refuse on their own terms (a policy failure, a mismatch) rather than on a shape. Two do not and are the next pass: compare(password, user) answers a bad user with the same bare error a wrong password gets, and publicUser(42) answers a user-shaped object',
   ViewEngine:
     'the engine contract, implemented by the renderers and called by core',
   ViewModule: 'the engine, the renderer name and the handlebars instance',
@@ -114,12 +114,18 @@ function methods(source, name) {
   for (const line of source.slice(start).split('\n').slice(1)) {
     if (depth === 0) {
       // `fetch<T>(key: CacheKey, ...)`, `file?(field: string)`, `stats()`
-      const match = /^\s{4}(?:readonly\s+)?(\w+)\??(?:<[^>]*>)?\(([^)]*)/u.exec(
+      const match = /^\s{4}(?:readonly\s+)?(\w+)\??(?:<[^>]*>)?\((.*)$/u.exec(
         line
       );
 
       if (match) {
-        const takes = match[2].trim() !== '';
+        const closed = match[2].indexOf(')');
+        // A declaration whose parameter list runs onto the next line has
+        // parameters, by construction: `stats()` fits on one. Reading the
+        // line alone used to make every wrapped signature look empty, so
+        // `tokenFor(\n  user, purpose\n)` was exempt from this whole file
+        const takes =
+          closed === -1 ? true : match[2].slice(0, closed).trim() !== '';
 
         found.set(match[1], found.get(match[1]) || takes);
       }
@@ -168,7 +174,15 @@ const called = new Set(
 const enforced = (signature) =>
   signature.some((argument) => !argument.by && argument.type !== 'any');
 
-/** The values a sample and a poison are picked from, in order */
+/**
+ * The values a sample and a poison are picked from, in order.
+ *
+ * The last two are values only one node accepts: a path, because a url is
+ * built by gluing one to a host, and the purpose of an account token,
+ * because it is one of three words henri owns. Both sit at the end, so
+ * `poison()` -- which takes the first value a node refuses -- picks what it
+ * always picked.
+ */
 const VALUES = [
   'x',
   1,
@@ -179,6 +193,8 @@ const VALUES = [
   () => 1,
   new Date('2024-01-02T03:04:05Z'),
   null,
+  '/a-path',
+  'password-reset',
 ];
 
 /** A value the node accepts, or undefined when it accepts none of them */
@@ -291,6 +307,12 @@ describe('the public surface and the two tables', () => {
       .map(([name]) => name);
 
     expect(never).toEqual([]);
+  });
+
+  // `base/accounts.js` reaches for `base/arguments.js`, so the list of token
+  // purposes is spelled in both: this is what keeps the copy honest
+  test('the token purposes are the ones the account flows mint', () => {
+    expect(PURPOSES.enum).toEqual(Object.values(PURPOSE).sort());
   });
 
   test('check() refuses a name it does not declare', () => {

@@ -30,10 +30,45 @@
  * The tokens are signed rather than stored (see `base/tokens.js`), so a
  * database leak hands over no working links and nothing has to be expired by
  * a cron job.
+ *
+ * ## What is refused, and what is answered
+ *
+ * The property this file exists to keep is that **a refusal never says
+ * whether an address has an account**: `POST /password/forgot` and
+ * `POST /confirm` write their answer before they look anything up, so the
+ * body, the status and the time are the same either way. `base/arguments.js`
+ * is applied with that in front of it, method by method, and the line is
+ * whose mistake it is:
+ *
+ * - **The caller's, so a coded refusal.** `urlFor(42)` built
+ *   `https://host42` and mailed it. `tokenFor(user, 'typo')` minted a token
+ *   `seedFor()` gave the confirmation seed to and nothing but the identical
+ *   typo could ever spend -- a link generated successfully that will always
+ *   fail -- so the purpose is one of the three, and `consume()` reads the
+ *   same list. `register(null)` threw a `TypeError` one frame down.
+ *   `sendReset(42)`, `sendConfirmation(42)` and `identify(42)` each answered
+ *   something that reads like success (`null`, an identifier spelled
+ *   `"undefined"`), `requestEmailChange(42, address)` blamed the address for
+ *   a wrong user, and `allowed(undefined)` -- a gate -- answered **yes**
+ *   about nobody. All of those name a *record* or a *purpose*, neither of
+ *   which any visitor picks, so refusing them tells nobody anything.
+ * - **The visitor's, so the answer it always had.** `resetPassword` and
+ *   `confirm` take a token out of a url and a password out of a form:
+ *   whatever arrives, they answer `reason: 'malformed'` or
+ *   `reason: 'password'`, which is what an expired, a spent and a forged
+ *   link all answer. `requestEmailChange`'s address is checked by the flow
+ *   itself, because it has somewhere to put the message
+ *   (`{ errors: { email } }`); `requestPasswordReset` and
+ *   `requestConfirmation` have nowhere -- they answer `Promise<void>` -- so
+ *   they take a string and the endpoint in front of them is what refuses an
+ *   address that is not one, with the same loose test the adapters validate
+ *   the column with. A stricter one here would answer 422 for an address
+ *   that is nonetheless in the database, which is the leak itself.
  */
 const { fail, stamp: withCode } = require('./errors');
 const debug = require('debug')('henri:accounts');
 
+const { check } = require('./arguments');
 const { respond } = require('./auth');
 const { EXTERNAL_ID, hasExternalId } = require('./external-id');
 const tokens = require('./tokens');
@@ -338,6 +373,10 @@ function accounts(henri) {
    * @returns {string} the absolute url
    */
   const urlFor = (target) => {
+    // A path, and it has to begin with a slash: anything else is glued to
+    // the host (`urlFor(42)` built `https://host42`) and then mailed
+    check('henri.accounts.urlFor', [target]);
+
     const base = henri.config.has('url')
       ? String(henri.config.get('url'))
       : (henri.server && henri.server.url) || '';
@@ -395,6 +434,10 @@ function accounts(henri) {
    * @returns {Promise<?string>} the token, or null when the user has no id
    */
   const tokenFor = async (user, purpose, options = {}) => {
+    // The purpose is signed into the token and read back out of it, so a
+    // fourth string mints a link nothing henri mounts can ever consume
+    check('henri.accounts.tokenFor', [user, purpose, options]);
+
     const subject = identify(adapter(), user);
     const source = await withPassword(user);
 
@@ -424,6 +467,10 @@ function accounts(henri) {
    * @returns {Promise<{ok: boolean, payload: ?object, reason: ?string, user: ?object}>} the answer
    */
   const consume = async (token, purpose) => {
+    // The token is whoever followed the link and answers `malformed`; the
+    // purpose is the caller's and a fourth one matches no token ever minted
+    check('henri.accounts.consume', [token, purpose]);
+
     const claims = tokens.peek(token);
     const failed = (reason) => ({
       ok: false,
@@ -537,8 +584,14 @@ function accounts(henri) {
    *
    * @param {object} attributes the permitted attributes
    * @returns {Promise<{ok: boolean, errors: object, user: ?object}>} the answer
+   * @throws {Error} `HENRI_ARGUMENT_INVALID` when there are no attributes
    */
-  const register = async (attributes = {}) => {
+  const register = async (attributes) => {
+    // `register(null)` read `null.email` one frame down, because the `= {}`
+    // this used to carry fills in for `undefined` and never for `null`.
+    // There is no default any more: nobody is not an account either
+    check('henri.accounts.register', [attributes]);
+
     const config = settings();
     const email = normalizeEmail(attributes.email);
     const password = attributes.password;
@@ -604,6 +657,8 @@ function accounts(henri) {
    * @returns {Promise<?string>} the token that was mailed
    */
   const sendConfirmation = async (user) => {
+    check('henri.accounts.sendConfirmation', [user]);
+
     const token = await tokenFor(user, PURPOSE.confirmation);
 
     if (!token) {
@@ -625,6 +680,8 @@ function accounts(henri) {
    * @returns {Promise<?string>} the token that was mailed
    */
   const sendReset = async (user) => {
+    check('henri.accounts.sendReset', [user]);
+
     const token = await tokenFor(user, PURPOSE.reset);
 
     if (!token) {
@@ -648,9 +705,15 @@ function accounts(henri) {
    *
    * @param {string} email the address
    * @returns {Promise<void>} resolves once the work settled
+   * @throws {Error} `HENRI_ARGUMENT_INVALID` when that is not an address
    */
-  const requestPasswordReset = (email) =>
-    later('password reset', async () => {
+  const requestPasswordReset = (email) => {
+    // This answers `Promise<void>`: there is nowhere to say "that is not an
+    // address", so it is said here. The endpoint in front of it refuses one
+    // long before this, and never with a stricter test than the column's
+    check('henri.accounts.requestPasswordReset', [email]);
+
+    return later('password reset', async () => {
       const user = await henri.user.findByEmail(email);
 
       if (!user) {
@@ -661,15 +724,19 @@ function accounts(henri) {
 
       await sendReset(user);
     });
+  };
 
   /**
    * Asks for the confirmation mail again
    *
    * @param {string} email the address
    * @returns {Promise<void>} resolves once the work settled
+   * @throws {Error} `HENRI_ARGUMENT_INVALID` when that is not an address
    */
-  const requestConfirmation = (email) =>
-    later('confirmation', async () => {
+  const requestConfirmation = (email) => {
+    check('henri.accounts.requestConfirmation', [email]);
+
+    return later('confirmation', async () => {
       const user = await henri.user.findByEmail(email);
       const plain = user ? adapter().toPlain(user) : null;
 
@@ -681,6 +748,7 @@ function accounts(henri) {
 
       await sendConfirmation(user);
     });
+  };
 
   /**
    * Changes a password from a reset token.
@@ -787,6 +855,11 @@ function accounts(henri) {
    * @returns {Promise<{ok: boolean, errors: object}>} the answer
    */
   const requestEmailChange = async (user, email) => {
+    // The user is the caller's -- a wrong one used to be reported as
+    // `{ email: 'could not be changed' }`, blaming the address -- and the
+    // address is whoever typed it, which this answers about properly
+    check('henri.accounts.requestEmailChange', [user, email]);
+
     const wanted = normalizeEmail(email);
     const plain = adapter().toPlain(user) || {};
 
@@ -824,6 +897,10 @@ function accounts(henri) {
    * @returns {boolean} true when the account may open a session
    */
   const allowed = (user) => {
+    // A gate: `allowed(undefined)` used to answer **yes** about nobody,
+    // because the "confirmation is off" branch answers yes before it looks
+    check('henri.accounts.allowed', [user]);
+
     const config = settings();
 
     if (!config.confirmation.enabled || !config.confirmation.required) {
@@ -853,7 +930,11 @@ function accounts(henri) {
     confirm,
     consume,
     drain,
-    identify: (user) => identify(adapter(), user),
+    identify: (user) => {
+      check('henri.accounts.identify', [user]);
+
+      return identify(adapter(), user);
+    },
     pending,
     policy,
     register,
