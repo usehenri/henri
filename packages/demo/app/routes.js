@@ -10,6 +10,8 @@ module.exports = {
     roles: ['admin'],
   },
   'get /admin': { controller: 'user#admin', roles: ['admin'] },
+  // A route asking for a policy that does not exist: refused, every time
+  'get /ghost': { controller: 'main#version', policy: 'ghost' },
   'get /limited': {
     controller: 'main#limited',
     rateLimit: { max: 2, windowMs: 60000 },
@@ -31,6 +33,16 @@ module.exports = {
     omit: ['destroy'],
     scope: 'api/v1',
     version: 'v1',
+  },
+  // Record-level authorization: every action of this resource goes through
+  // app/policies/memo.js (`policy: true` names the policy after the
+  // controller). `roles` and `policy` compose -- this one declares no role,
+  // so anyone may reach the endpoints and the policy decides the rest.
+  'resources memos': {
+    controller: 'memos',
+    member: { 'get peek': 'peek' },
+    omit: ['edit', 'new'],
+    policy: true,
   },
   // The full routes dsl: only, extra member and collection routes and a
   // nested resource (/notes/:note_id/comments)

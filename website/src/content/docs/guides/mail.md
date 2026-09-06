@@ -2,7 +2,7 @@
 title: Mail
 description: Mailers with views, layouts and previews, delivered with nodemailer.
 sidebar:
-  order: 8
+  order: 9
 ---
 
 A mailer is a file in `app/mailers` whose functions describe a message: who it goes to, what it is about and the data its view needs. henri renders it with the mail views in `app/views/mailers` and delivers it through nodemailer. In development you can look at every message in the browser without sending anything.

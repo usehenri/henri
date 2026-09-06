@@ -19,6 +19,8 @@ import type {
   ModelFile,
   Page,
   Pagination,
+  Policy,
+  PoliciesModule,
   PublicUser,
   Request,
   Response,
@@ -412,6 +414,43 @@ expectType<Promise<AccountResult>>(henri.accounts.confirm('h1.a.b'));
 expectType<boolean>(henri.accounts.allowed(req.user));
 expectType<Promise<boolean>>(henri.accounts.drain());
 
+// Policies: one question, and the file that answers it
+expectType<PoliciesModule>(henri.policies);
+expectType<Promise<boolean>>(henri.can(req.user, 'update', { id: 1 }));
+expectType<Promise<boolean>>(henri.can(req.user, 'index', null, 'proposal'));
+expectType<Promise<boolean>>(req.can('update', { id: 1 }));
+expectType<Promise<{ id: number }>>(req.authorize('update', { id: 1 }));
+expectType<Promise<any>>(req.scope('proposal'));
+expectType<Promise<any>>(henri.policies.scope(req.user, 'proposal'));
+expectType<403 | 404>(henri.policies.settings.status);
+expectType<string[]>(henri.policies.names());
+
+const proposalPolicy: Policy = {
+  index: (user) => Boolean(user),
+  show: (user, proposal: any) => proposal.speakerId === user.id,
+  scope: (user) => ({ speakerId: user && user.id }),
+};
+
+const policyRoutes: RoutesFile = {
+  'resources proposals': { policy: true, roles: ['speaker'] },
+  // eslint-disable-next-line sort-keys
+  'get /proposals/mine': { controller: 'proposals#mine', policy: 'proposal' },
+};
+
+const badPolicyRoute: RoutesFile = {
+  // @ts-expect-error a policy is named, or true; never a list
+  'resources proposals': { policy: ['proposal'] },
+};
+
+const policiesConfig: Configuration = {
+  policies: { status: 403, verify: false },
+};
+
+const badPolicies: Configuration = {
+  // @ts-expect-error a refusal answers 403 or 404, nothing else
+  policies: { status: 401 },
+};
+
 const badFlow: Configuration = {
   // @ts-expect-error a flow is a boolean or its settings, never a string
   user: { model: 'user', signup: 'yes' },
@@ -430,6 +469,11 @@ const badStore: Configuration = {
 export {
   badConfig,
   badFlow,
+  badPolicies,
+  badPolicyRoute,
+  policiesConfig,
+  policyRoutes,
+  proposalPolicy,
   badShutdown,
   badModule,
   noInit,

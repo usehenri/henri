@@ -98,6 +98,7 @@ module.exports = [
     languageOptions: {
       globals: {
         Artwork: 'readonly',
+        Memo: 'readonly',
         User: 'readonly',
       },
     },

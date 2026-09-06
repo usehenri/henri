@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 
 const { CliError } = require('./errors');
-const { expandEntry } = require('./routing');
+const { expandEntry, singularize } = require('./routing');
 const { detectPackageManager, isProject, readRoutes } = require('./utils');
 
 /**
@@ -210,6 +210,13 @@ const CHECKS = [
     level: 1,
     owasp: 'A02',
     what: '"binding": false: a hash copied onto another row still signs that row in',
+  },
+  {
+    asvs: 'V4.2.1',
+    check: 'policies.unenforced',
+    level: 1,
+    owasp: 'A01',
+    what: 'a policy in app/policies is never asked: no route declares it and no controller calls req.can or req.authorize',
   },
   {
     asvs: 'V2.2.1',
@@ -1203,6 +1210,86 @@ const guards = (dir) => {
 };
 
 /**
+ * A policy nothing asks.
+ *
+ * `app/policies/<name>.js` is the file that answers "may this person read
+ * *this* record", and it answers nothing on its own: a route has to declare
+ * `policy`, or a controller has to call `req.can()` / `req.authorize()`.
+ * Writing the rules and forgetting the gate is the one mistake that looks
+ * exactly like having solved the problem, so it is worth a finding.
+ *
+ * Nothing is reported for an application that ships no policy: this reads
+ * what the application said, and an application that said nothing is not
+ * being judged against a default.
+ *
+ * @param {string} dir The application directory
+ * @returns {Array<object>} The findings
+ */
+const policies = (dir) => {
+  const files = sources(dir, 'app/policies', ['.js']).map((file) =>
+    file
+      .replace(/^app\/policies\//u, '')
+      .replace(/\.js$/u, '')
+      .toLowerCase()
+  );
+
+  if (files.length === 0) {
+    return [];
+  }
+
+  const asked = new Set();
+  const remember = (word) => {
+    const bare = String(word).toLowerCase();
+    const parts = bare.split('/');
+
+    asked.add(bare);
+    parts[parts.length - 1] = singularize(parts[parts.length - 1]);
+    asked.add(parts.join('/'));
+  };
+  let raw;
+
+  try {
+    raw = readRoutes(dir);
+  } catch {
+    // `henri doctor` reports a routes file that will not load
+    raw = {};
+  }
+
+  for (const { context, key, value } of routeEntries(raw)) {
+    for (const route of expandEntry(key, value, context)) {
+      if (route.policy) {
+        const [controller] = route.controller.split('#');
+
+        remember(route.policy === true ? controller : route.policy);
+      }
+    }
+  }
+
+  // A controller asking by hand counts: `policy` on the route is one way of
+  // asking, not the only one. The controller of a policy is the one named
+  // after it, which is the same rule henri resolves a policy by
+  for (const file of sources(dir, 'app/controllers', ['.js'])) {
+    const source = stripComments(fs.readFileSync(path.join(dir, file), 'utf8'));
+
+    if (/\breq\.(can|authorize|scope)\s*\(/u.test(source)) {
+      remember(file.replace(/^app\/controllers\//u, '').replace(/\.js$/u, ''));
+    }
+  }
+
+  return files
+    .filter((name) => !asked.has(name))
+    .map((name) => ({
+      asvs: 'V4.2.1',
+      check: 'policies.unenforced',
+      file: `app/policies/${name}.js`,
+      hint: `Add "policy": true to the ${name} routes of config/routes.js, or call req.authorize(action, record) in the controller`,
+      message: `the ${name} policy is never asked: no route declares it and no controller calls req.can() or req.authorize()`,
+      owasp: OWASP.A01,
+      severity: 'medium',
+    }));
+};
+
+/**
  * Who may query the GraphQL endpoint? It is mounted, and only mounted, when
  * a model exports a `graphql` key, and it then answers anyone unless
  * `config.graphql` asks for a session, a role or the loopback interface.
@@ -1468,6 +1555,7 @@ const findings = (dir = process.cwd()) => {
     ...code(dir),
     ...views(dir),
     ...guards(dir),
+    ...policies(dir),
     ...graphql(dir, config),
   ]);
 };

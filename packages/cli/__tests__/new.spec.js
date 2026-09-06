@@ -244,8 +244,11 @@ describe('henri new', () => {
     expect(agents).not.toContain('next.js pages');
     expect(agents).not.toContain('{{');
     // A budget, not a target: AGENTS.md is read on every task, so it stays
-    // short. Compress before raising it again.
-    expect(agents.split('\n').length).toBeLessThan(170);
+    // short. Compress before raising it again. It went from 170 to 185 for
+    // the policies section: an agent that does not know app/policies exists
+    // writes the ownership `if` in the controller, which is the mistake the
+    // feature is there to stop.
+    expect(agents.split('\n').length).toBeLessThan(185);
     expect(agents).toContain('henri generate scaffold');
     expect(agents).toContain('req.permit');
     expect(agents).toContain('HENRI_SECRET');
@@ -540,7 +543,7 @@ describe('henri new --renderer react', () => {
     expect(agents).toContain('@usehenri/react');
     expect(agents).not.toContain('Inertia');
     expect(agents).not.toContain('{{');
-    expect(agents.split('\n').length).toBeLessThan(170);
+    expect(agents.split('\n').length).toBeLessThan(185);
     expect(exists(app, '.mcp.json')).toBe(true);
 
     const readme = read(app, 'README.md');

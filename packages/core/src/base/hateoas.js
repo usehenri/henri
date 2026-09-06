@@ -33,6 +33,13 @@ const { linkHeader, pageLinks, paginate } = require('./pagination');
  * A collection embeds its items under `_embedded.<type>` with the links
  * around the page (`self`, `first`, `prev`, `next`, `last`), `create` and
  * `new` when allowed, `count`, `page`, `perPage` and `total`.
+ *
+ * The roles are the first filter and the policies are the second: where the
+ * record is in hand -- and here it always is -- `edit`, `update` and
+ * `destroy` are asked about that record, and `collection`, `create` and
+ * `new` about the collection (see 3.policies.js). `self` is left alone: it
+ * names the representation the client is already holding. A model with no
+ * policy is not asked about at all.
  */
 
 /**
@@ -259,6 +266,102 @@ function send(req, res, body, status) {
 }
 
 /**
+ * What the policy is asked about, for an answer that is not the record
+ * itself.
+ *
+ * A controller that presents its records before sending them hands
+ * `res.resource()` a plain object the rules may not be able to read -- the
+ * owner column is exactly the kind of thing a presenter drops. `subject`
+ * names what to ask about instead: the record, an array parallel to the
+ * one being sent, or a function of the item and its index.
+ *
+ * @param {*} subject the `subject` option (may be undefined)
+ * @param {*} item what is being sent
+ * @param {number} index its position, for a collection
+ * @returns {*} the record the policy is asked about
+ */
+function subjectOf(subject, item, index = 0) {
+  if (typeof subject === 'undefined' || subject === null) {
+    return item;
+  }
+
+  if (typeof subject === 'function') {
+    return subject(item, index);
+  }
+
+  return Array.isArray(subject) ? subject[index] : subject;
+}
+
+/**
+ * The links a policy leaves, or the links themselves when the application
+ * has no policies module (a test double, a boot that stopped early)
+ *
+ * @param {Henri} henri the henri instance
+ * @param {*} user the user, or null
+ * @param {object} links the HAL links
+ * @param {*} record the record they are about (null for a collection)
+ * @param {object} options `{ cache, req, type }`
+ * @returns {Promise<object>} the links
+ */
+async function allowed(henri, user, links, record, options) {
+  return henri.policies
+    ? henri.policies.links(user, links, record, options)
+    : links;
+}
+
+/**
+ * Answers the policy question the route gate could not.
+ *
+ * A route declaring `policy` whose rule needs the record leaves
+ * `req._policy` behind: the record only exists here, so this is where the
+ * question is answered. A refusal replaces the body that was about to be
+ * sent, and says so through the router rather than throwing -- a controller
+ * that did not `return` its `res.resource()` would turn a throw into an
+ * unhandled rejection.
+ *
+ * An action that already asked about this action is trusted and not asked
+ * again: it holds the record, and what reaches here may be a presenter's
+ * output the rule cannot read. This is the net under an action that forgot,
+ * not a second opinion about one that did not.
+ *
+ * @param {Henri} henri the henri instance
+ * @param {Express.Request} req the request
+ * @param {Express.Response} res the response
+ * @param {*} record the record (or the `subject` the caller named)
+ * @returns {Promise<boolean>} true when the answer may be sent
+ */
+async function enforce(henri, req, res, record) {
+  const wanted = req._policy;
+
+  if (!wanted || !henri.policies || req._policyAsked.has(wanted.action)) {
+    return true;
+  }
+
+  const user = req.user || null;
+
+  req._policyAsked.add(wanted.action);
+
+  if (
+    await henri.policies.can(user, wanted.action, record, {
+      policy: wanted.name,
+      req,
+    })
+  ) {
+    return true;
+  }
+
+  henri.router.refuse(
+    req,
+    res,
+    henri.policies.refusal(user, wanted.action, record, {
+      policy: wanted.name,
+    })
+  );
+
+  return false;
+}
+
+/**
  * `res.resource(record, options)`: one HAL resource
  *
  * @param {Henri} henri the henri instance
@@ -269,10 +372,18 @@ function send(req, res, body, status) {
  * @param {string} [options.type] controller name (defaults to the route's)
  * @param {object} [options.links] extra links (`{ rel: href }` or HAL links)
  * @param {number} [options.status=200] status (201 also sets `Location`)
+ * @param {*} [options.subject] what the policy is asked about, when the
+ *   answer is a presentation of the record rather than the record
  * @returns {Express.Response} the response
  * @throws {TypeError} when the record is not an object or the type is unknown
  */
-function resource(henri, req, res, record, { type, links, status = 200 } = {}) {
+function resource(
+  henri,
+  req,
+  res,
+  record,
+  { type, links, status = 200, subject } = {}
+) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     throw stamp(
       new TypeError(
@@ -293,29 +404,46 @@ function resource(henri, req, res, record, { type, links, status = 200 } = {}) {
     );
   }
 
-  const plain = toPlain(record);
-  const paths = henri.router.pathForRoles(req.user);
-  const merged = Object.assign(
-    resourceLinks({
-      id: identify(plain),
-      params: req.params,
-      paths,
-      type: kind,
-    }),
-    normalizeLinks(links)
-  );
+  return (async () => {
+    // The route asked for a policy the gate could not answer without the
+    // record; this is the moment the record exists, so it is answered here
+    // and a refusal replaces the body it was about to send
+    const asked = subjectOf(subject, record);
 
-  if (!merged.self && req.method === 'GET') {
-    merged.self = { href: req.originalUrl || req.url };
-  }
+    if (!(await enforce(henri, req, res, asked))) {
+      return res;
+    }
 
-  if (status === 201 && merged.self) {
-    res.set('Location', merged.self.href);
-  }
+    const plain = toPlain(record);
+    const paths = henri.router.pathForRoles(req.user);
+    const merged = await allowed(
+      henri,
+      req.user || null,
+      Object.assign(
+        resourceLinks({
+          id: identify(plain),
+          params: req.params,
+          paths,
+          type: kind,
+        }),
+        normalizeLinks(links)
+      ),
+      asked,
+      { req, type: kind }
+    );
 
-  const body = Object.assign({ _links: null }, plain, { _links: merged });
+    if (!merged.self && req.method === 'GET') {
+      merged.self = { href: req.originalUrl || req.url };
+    }
 
-  return send(req, res, body, status);
+    if (status === 201 && merged.self) {
+      res.set('Location', merged.self.href);
+    }
+
+    const body = Object.assign({ _links: null }, plain, { _links: merged });
+
+    return send(req, res, body, status);
+  })();
 }
 
 /**
@@ -336,6 +464,8 @@ function resource(henri, req, res, record, { type, links, status = 200 } = {}) {
  * @param {number} [options.total] total number of records
  * @param {object} [options.links] extra links
  * @param {number} [options.status=200] status
+ * @param {*} [options.subject] what the policies are asked about: a record,
+ *   an array parallel to `records`, or `(item, index) => record`
  * @returns {Express.Response} the response
  * @throws {TypeError} when records is not an array or the type is unknown
  */
@@ -344,7 +474,7 @@ function collection(
   req,
   res,
   records,
-  { type, page, perPage, total, links, status = 200 } = {}
+  { type, page, perPage, total, links, status = 200, subject } = {}
 ) {
   if (!Array.isArray(records)) {
     throw stamp(
@@ -366,70 +496,93 @@ function collection(
     );
   }
 
-  const paths = henri.router.pathForRoles(req.user);
-  const items = records.map((record) => {
-    const plain = toPlain(record);
+  return (async () => {
+    const paths = henri.router.pathForRoles(req.user);
+    // One cache for the whole page: the collection questions (`create`,
+    // `new`, `collection`) have the same answer for every item
+    const cache = new Map();
+    const user = req.user || null;
+    const items = [];
 
-    return Object.assign({ _links: null }, plain, {
-      _links: resourceLinks({
-        id: identify(plain),
-        params: req.params,
-        paths,
-        type: kind,
-      }),
-    });
-  });
-  const url = req.originalUrl || req.url || '/';
-  const count = items.length;
-  const known = Number.isFinite(total) ? total : null;
-  const paginated =
-    Boolean(req._pagination) ||
-    [page, perPage, total].some((value) => typeof value !== 'undefined');
-  const body = {
-    _embedded: { [kind.split('/').pop()]: items },
-    _links: { self: { href: url } },
-    count,
-  };
+    for (const [index, record] of records.entries()) {
+      const plain = toPlain(record);
 
-  if (paginated) {
-    const paging =
-      req._pagination || paginate(req, henri.api.settings.pagination);
-    const current = {
-      page: Number.isFinite(page) ? page : paging.page,
-      perPage: Number.isFinite(perPage) ? perPage : paging.perPage,
-    };
-    const pages = pageLinks(url, {
-      count,
-      page: current.page,
-      perPage: current.perPage,
-      total: known,
-    });
-    const header = linkHeader(pages);
-
-    body._links = normalizeLinks(pages);
-    body.page = current.page;
-    body.perPage = current.perPage;
-
-    if (header) {
-      res.set('Link', header);
+      items.push(
+        Object.assign({ _links: null }, plain, {
+          _links: await allowed(
+            henri,
+            user,
+            resourceLinks({
+              id: identify(plain),
+              params: req.params,
+              paths,
+              type: kind,
+            }),
+            subjectOf(subject, record, index),
+            { cache, req, type: kind }
+          ),
+        })
+      );
     }
-  }
 
-  if (known !== null) {
-    body.total = known;
-    res.set('X-Total-Count', String(known));
-  } else if (!paginated) {
-    body.total = count;
-    res.set('X-Total-Count', String(count));
-  }
+    const url = req.originalUrl || req.url || '/';
+    const count = items.length;
+    const known = Number.isFinite(total) ? total : null;
+    const paginated =
+      Boolean(req._pagination) ||
+      [page, perPage, total].some((value) => typeof value !== 'undefined');
+    const body = {
+      _embedded: { [kind.split('/').pop()]: items },
+      _links: { self: { href: url } },
+      count,
+    };
 
-  Object.assign(
-    body._links,
-    collectionLinks({ params: req.params, paths, type: kind }),
-    normalizeLinks(links)
-  );
+    if (paginated) {
+      const paging =
+        req._pagination || paginate(req, henri.api.settings.pagination);
+      const current = {
+        page: Number.isFinite(page) ? page : paging.page,
+        perPage: Number.isFinite(perPage) ? perPage : paging.perPage,
+      };
+      const pages = pageLinks(url, {
+        count,
+        page: current.page,
+        perPage: current.perPage,
+        total: known,
+      });
+      const header = linkHeader(pages);
 
-  return send(req, res, body, status);
+      body._links = normalizeLinks(pages);
+      body.page = current.page;
+      body.perPage = current.perPage;
+
+      if (header) {
+        res.set('Link', header);
+      }
+    }
+
+    if (known !== null) {
+      body.total = known;
+      res.set('X-Total-Count', String(known));
+    } else if (!paginated) {
+      body.total = count;
+      res.set('X-Total-Count', String(count));
+    }
+
+    Object.assign(
+      body._links,
+      await allowed(
+        henri,
+        user,
+        collectionLinks({ params: req.params, paths, type: kind }),
+        null,
+        { cache, req, type: kind }
+      ),
+      normalizeLinks(links)
+    );
+
+    return send(req, res, body, status);
+  })();
 }
 
 /**

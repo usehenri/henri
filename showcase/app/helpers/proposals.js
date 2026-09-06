@@ -146,42 +146,16 @@ const present = (proposal, { reviews = null } = {}) => {
   };
 };
 
-/**
- * Is this user the speaker of this proposal?
- *
- * @param {?object} user `req.user`, or null for an anonymous visitor
- * @param {object} proposal A Proposal instance
- * @returns {boolean} true when the proposal is the user's own
- */
-const owns = (user, proposal) =>
-  Boolean(user) && String(proposal.speakerId) === String(user.id);
-
-/**
- * May this user read this proposal? Everyone reads what was submitted or
- * accepted; a draft and a rejection belong to their speaker and to the
- * committee.
- *
- * @param {?object} user `req.user`, or null for an anonymous visitor
- * @param {object} proposal A Proposal instance
- * @returns {boolean} true when the proposal may be shown
- */
-const mayRead = (user, proposal) => {
-  if (PUBLIC_STATES.includes(proposal.state)) {
-    return true;
-  }
-
-  const roles = (user && Array.isArray(user.roles) && user.roles) || [];
-
-  return roles.includes('admin') || owns(user, proposal);
-};
+// `owns` and `mayRead` used to live here. They are rules about one record,
+// which is what app/policies/proposal.js is for: the controller, the router,
+// the `_links` of every JSON answer and the `paths` of every page all ask
+// the same file now, and nothing has to remember to.
 
 module.exports = {
   FIELDS,
   INCLUDE,
   PUBLIC_STATES,
   averageScore,
-  mayRead,
-  owns,
   present,
   resolveReferences,
   speakerOf,

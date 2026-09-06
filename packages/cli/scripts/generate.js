@@ -468,6 +468,53 @@ module.exports = {
 };
 
 /**
+ * Generates a policy and its test.
+ *
+ * `henri generate policy Proposal` writes `app/policies/proposal.js` with
+ * the seven actions of a resource stubbed on an ownership check, and
+ * `test/proposal-policy.test.js` proving the three refusals that matter:
+ * somebody else's record, an anonymous visitor and an action nobody wrote a
+ * rule for. The column the ownership is read from defaults to `userId`:
+ *
+ *     henri generate policy Proposal speakerId
+ *
+ * @param {string} name Policy name (the model it is about, ex: Proposal)
+ * @param {string[]} rest The ownership column, when it is not `userId`
+ * @param {object} [opts] { force, report }
+ * @return {Promise<boolean>} True when the policy was written
+ */
+const policy = async (name, rest = [], opts = {}) => {
+  const { doc, lower, plural } = names(name);
+  const templates = require('./generate/policies');
+  const owner = rest[0] || 'userId';
+  const written = await output(
+    'policy',
+    'app/policies',
+    `${lower}.js`,
+    templates.policy({ doc, name: lower, owner }),
+    opts
+  );
+
+  await output(
+    'test',
+    'test',
+    `${lower}-policy.test.js`,
+    templates.test({ name: lower, owner }),
+    opts
+  );
+
+  // A policy nothing asks decides nothing, and that is the one mistake this
+  // feature exists to stop, so the last line of the generator says so
+  if (written) {
+    (opts.report || new Report()).log(
+      `> add "policy": true to the ${plural} routes of config/routes.js, or call req.authorize(action, record) in the controller`
+    );
+  }
+
+  return written;
+};
+
+/**
  * The `resources`/`crud` route of a name in config/routes.js, if any
  *
  * @param {string} lower The resource name (ex: tasks)
@@ -755,6 +802,7 @@ const generators = {
   job,
   mailer,
   model,
+  policy,
   scaffold,
   test,
   worker,

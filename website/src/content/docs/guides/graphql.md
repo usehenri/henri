@@ -2,7 +2,7 @@
 title: GraphQL
 description: Install @usehenri/graphql, add types and resolvers to your models and query them from controllers.
 sidebar:
-  order: 7
+  order: 8
 ---
 
 ```bash

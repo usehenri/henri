@@ -527,6 +527,26 @@ const SCHEMA = {
     oneOf: [text(), { of: text(), type: 'array' }],
   },
 
+  policies: {
+    describe: 'an object of policy settings ({ status, verify })',
+    hint: 'Policies live in app/policies; the key only says what a refusal answers',
+    keys: {
+      status: {
+        default: 404,
+        describe: '403 or 404',
+        hint: '404 hides that the record exists; 403 says it is there and off limits',
+        oneOf: [{ const: 403 }, { const: 404 }],
+      },
+      verify: {
+        default: true,
+        describe: 'true or false',
+        hint: 'false stops reporting a route that declared a policy its action never asked',
+        type: 'boolean',
+      },
+    },
+    type: 'object',
+  },
+
   trustProxy: {
     default: true,
     describe:

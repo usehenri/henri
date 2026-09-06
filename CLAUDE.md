@@ -63,7 +63,7 @@ an app and is what core's tests boot.
 | --------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/henri`                        | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                                                                           |
 | `packages/cli`                          | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `generate` (incl. `authentication`), `destroy`, `build`, `test`, `db`, `jobs`, `doctor`, `audit`, `mcp`, `clean`, `about`, `analyze`; the app templates |
-| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, mail                                                                                                                                    |
+| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, policies, mail                                                                                                                          |
 | `packages/mongoose`                     | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                                                                          |
 | `packages/disk`                         | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                                                                  |
 | `packages/sequelize`                    | `@usehenri/sequelize` | Shared SQL adapter (Sequelize 6)                                                                                                                                                                      |
@@ -119,7 +119,7 @@ an app and is what core's tests boot.
   printed at boot with the `filterParameters` masked. Keys: `port`, `host`, `cors`,
   `renderer`, `inertia`, `experimental`, `stores`, `secret`, `url`, `user`
   (string or `{ model, public, loginPath, afterLogin, sessionMaxAge, signup,
-passwordReset, confirmation }`), `baseRole`,
+passwordReset, confirmation }`), `baseRole`, `policies`,
   `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `jobs`,
   `rateLimit`, `helmet`, `filterParameters`, `bodyLimit`, `requestTimeout`,
   `errors`.
@@ -169,7 +169,8 @@ passwordReset, confirmation }`), `baseRole`,
 - The JSON API layer lives in `base/{api,hateoas,idempotency,rate-limit,
 request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   `res.collection()` answer HAL with `_links` from the route helpers filtered
-  by roles, `res.negotiate({ html, json })` picks the page or the JSON,
+  by roles and then by the policy of the record,
+  `res.negotiate({ html, json })` picks the page or the JSON,
   `Idempotency-Key` is honoured on every mutating route (`idempotent: false`
   opts out), express-rate-limit guards everything outside development plus
   the auth paths, `X-Request-Id` is threaded through `pen`, helmet sets the
@@ -229,14 +230,36 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   (`core/src/mailers/`), whose views sit behind `app/views/mailers`, and go
   through `deliverLater()`. `henri generate authentication` writes the pages,
   the controller, the mailer, the routes and the tests into an application.
+- Record-level authorization lives in `3.policies.js` (`henri.policies`) and
+  `base/policies.js`. `app/policies/<model>.js` is loaded the way `app/models`
+  is, one file per model, every exported function the rule of the action of
+  the same name, `(user, record, context) => boolean`. It fails closed
+  everywhere: no policy, no rule for the action and a rule that threw all
+  answer false, and only the boolean `true` allows -- there is no setting that
+  turns any of that into a yes. **A rule that declares a record parameter is
+  never asked without one**, the single predicate that lets the same file
+  answer the route gate (no record yet), the `_links` of a HAL resource (a
+  record in hand) and the `paths` of a page (no record). One way to ask:
+  `henri.can(user, action, record)`, `req.can()` and `req.authorize()` (which
+  resolves with the record and rejects with a `POLICY_DENIED` error carrying
+  `config.policies.status`, 404 by default, or 401 and the login page for an
+  anonymous visitor). `policy: true` on a route registers the guard next to
+  the role guard rather than instead of it; what the gate cannot decide is
+  enforced by `res.resource()` (unless the action already asked that question)
+  and reported by `config.policies.verify`. `res.resource`/`res.collection`
+  take a `subject` for controllers answering with a presentation of the
+  record. `policy.scope(user)` is the query seam: henri hands the value back
+  untouched, and a policy without one throws rather than meaning "everything".
+  `henri generate policy <Model> [ownerColumn]` writes the file and its test,
+  and `henri audit` reports a policy nothing asks (`policies.unenforced`).
 - The router (`5.router.js`) expands `config/routes.js` through
   `base/routes.js` (`root`, `resources`/`crud` with `only`/`except`/`omit`,
   `member`, `collection`, `namespace`, `nested`; `@usehenri/cli` requires the
   same module so `henri routes` and `henri doctor` read the same table), sets
   `req._henri` (`csrf`, `flash`, `localUrl`, `paths`, `query`, `user`) and
   `res.render()`, which builds the view options (`data` or a `graphql` query,
-  `errors`, `flash`, role-filtered `paths`) and content-negotiates HTML (the
-  engine) or JSON. `res.boom.*` (`base/boom.js`) answers
+  `errors`, `flash`, `paths` filtered by roles and then by the policies)
+  and content-negotiates HTML (the engine) or JSON. `res.boom.*` (`base/boom.js`) answers
   `{ statusCode, error, message, data }`; 404 and 500 are negotiated in
   `base/http.js`.
 - GraphQL lives in `@usehenri/graphql`. Core carries none of it: the package

@@ -59,6 +59,11 @@ module.exports = {
   // sense for a signed-in speaker say so here, so they disappear from the
   // `paths` an anonymous page receives.
   'resources proposals': {
+    // Record-level authorization: app/policies/proposal.js decides, and
+    // henri asks it. The collection actions are answered here, before the
+    // action runs; the ones that need the proposal are answered by the
+    // controller once it has loaded it
+    policy: true,
     version: 'v1',
     except: ['destroy'],
     collection: { 'get mine': { action: 'mine', roles: ['speaker'] } },
@@ -67,7 +72,13 @@ module.exports = {
       'post withdraw': { action: 'withdraw', roles: ['speaker'] },
     },
     nested: {
-      'resources reviews': { only: ['index', 'create'], roles: ['admin'] },
+      // Both guards, and they answer different questions: the role says who
+      // may reach the endpoint, app/policies/review.js who may act on it
+      'resources reviews': {
+        only: ['index', 'create'],
+        policy: true,
+        roles: ['admin'],
+      },
     },
   },
 

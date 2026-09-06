@@ -80,8 +80,9 @@ module.exports = {
 ```
 
 `req` and `res` are typed from that annotation alone: `req.permit()`,
-`req.flash()`, `req.id`, `res.render()`, `res.boom.*`, `res.resource()`,
-`res.collection()`, `res.negotiate()` and everything Express already had.
+`req.flash()`, `req.id`, `req.can()`, `req.authorize()`, `req.scope()`,
+`res.render()`, `res.boom.*`, `res.resource()`, `res.collection()`,
+`res.negotiate()` and everything Express already had.
 
 ```js
 // config/routes.js
@@ -114,6 +115,22 @@ module.exports = {
 
 The nine field types are checked; every other key of a field is passed to the
 adapter, so the shape stays open (see [Models](/guides/models/)).
+
+```js
+// app/policies/task.js
+/** @type {import('@usehenri/core').Policy} */
+module.exports = {
+  index: (user) => Boolean(user),
+  show: (user, task) => String(task.userId) === String(user.id),
+  scope: (user) => ({ userId: user && user.id }),
+};
+```
+
+The seven actions of a resource are declared, so `user`, the record and the
+context are typed inside them, and any other action of the controller takes
+the same shape. `req.can()`, `req.authorize()` and `req.scope()` come with
+the `Controller` annotation above; `authorize()` resolves with the record it
+was given, so it keeps its type. See [Policies](/guides/policies/).
 
 ```js
 // app/jobs/welcome.js

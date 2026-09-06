@@ -349,6 +349,12 @@ const { paths, pathFor } = useHenri();
 }
 ```
 
+A role answers "may this kind of person reach this endpoint". The question
+every application also has -- may this person read _this_ proposal -- is
+answered by a [policy](/guides/policies/), a file next to the model it is
+about. Policies compose with roles rather than replace them, and they filter
+`paths` and `_links` the same way, one level down.
+
 ## What leaves the server
 
 Only the public representation of a user reaches views, `req._henri.user` and JSON answers: `{ externalId, email, roles }` plus the fields listed in `config.user.public`. `henri.user.publicUser(user)` builds that object; use it whenever you send a user to a browser yourself. The identifier is the user's public one; the primary key stays on the server, like every record's (see [Identifiers](/guides/models/#identifiers)). A user model that opted out of it answers with `id` instead.

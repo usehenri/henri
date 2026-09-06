@@ -16,6 +16,7 @@ the generators write above `module.exports` (`req`, `res` and `henri` complete; 
 | `app/views/pages/tasks/`     | {{engine}} pages (`.{{ext}}`): `index`, `new`, `show`, `edit`, `_form`; `pages/tasks/index.{{ext}}` is `/tasks`          |
 | `app/views/components/`      | Shared components (`import Nav from 'components/nav'`); `assets/` and `public/` next to it                               |
 | `app/views/styles/index.css` | The Tailwind CSS v4 entry point, and the only stylesheet of the application                                              |
+| `app/policies/task.js`       | One policy per model: `{ index, show, update, ... }` taking `(user, record)`, asked by `henri.can()` and `req.can()`     |
 | `app/jobs/welcome.js`        | `{ queue, maxAttempts, timeout, perform(args, context) }`, run by `henri jobs` (needs `@usehenri/jobs`)                  |
 | `app/workers/cleanup.js`     | `{ name, start(henri), stop(henri) }`, started with the server (`--skip-workers` to skip)                                |
 | `config/default.json`        | Committed configuration: `stores`, `renderer`, `user`, `baseRole`, `port`, `graphql` (needs `@usehenri/graphql`), `mail` |
@@ -30,6 +31,7 @@ henri generate scaffold Post title:string! body:text  # model + controller + rou
 henri generate model Post title:string! body:text     # app/models/Post.js only
 henri generate controller locations index gps         # controller + one GET route per action
 henri generate crud Item name:string                  # model + JSON controller + crud routes
+henri generate policy Post authorId                    # app/policies/post.js + its test
 henri generate job welcome | worker cleanup | test posts | agents
 henri destroy scaffold Post                           # undo (model, controller, route, view, worker, test, crud too)
 ```
@@ -122,6 +124,17 @@ the store adds `email` (unique), `password` (hashed, never selected) and
 CSRF and `req.user`. `roles` cannot be mass-assigned: use `user.setRoles()`
 or `User.setRoles(id, roles)`. The secret is `HENRI_SECRET` in `.env`.
 
+## Policies
+
+`roles` says who may reach an endpoint; `app/policies/<model>.js` says who may
+act on one record: one function per action, `(user, record) => boolean`. Ask
+with `req.can('update', post)` or `await req.authorize('update', post)`, and
+put `policy: true` on the routes so henri asks too. It fails closed -- no
+policy, no rule, a rule that threw, anything but the boolean `true`: all no --
+and a rule taking a record is never asked without one, so `index`/`new`/
+`create` are answered at the route. A refusal is a 404. `paths` and `_links`
+lose what it refuses, so a page cannot offer a button the request would deny.
+
 ## Tests
 
 `henri test` runs Vitest (`vitest.config.js`, `test/**/*.test.js`) with henri
@@ -162,7 +175,7 @@ read it, do not reproduce), `logs`, `query` (reads only), `records`,
 
 - Do not use `mongoose`, `sequelize`, `mongodb` or `pg` directly, and do not `require` a model or `henri`: they are globals.
 - Do not put `secret` or passwords in `config/*.json`; do not commit `.env`, `.henri/` or `.backup/`.
-- Do not set `roles` from request data; do not mass-assign `req.body`.
+- Do not set `roles` from request data; do not mass-assign `req.body`; do not write an ownership `if` in a controller (that is what `app/policies` and `req.can()` are for, and the views and the links then get the same answer).
 - Do not add `tailwind.config.js`, a CSS module or a second stylesheet: the theme lives in `app/views/styles/index.css`.
 - {{#if react}}Do not edit `app/views/next.config.js`{{/if}}{{#if inertia}}Keep the `resolvePage` resolver and `import.meta.glob('./pages/**/*.jsx')` in `app/views/main.jsx` and `ssr.jsx` (global styles and Inertia options go in `main.jsx`){{/if}}; do not rename generated files by hand (regenerate with `--force`, or `destroy` first).
 - Do not leave `henri server` running in a non-interactive session; verify with `henri test`, `henri doctor` and `henri audit`, or with the MCP tools above, which stop the server they start. Do not add a protection henri already applies (helmet headers, the CSRF token, the session cookie flags, password hashing, the rate limits): `henri audit --checks` and usehenri.io/guides/security say what is there.

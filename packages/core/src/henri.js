@@ -11,6 +11,7 @@ const Controllers = require('./2.controllers');
 const Mailers = require('./2.mailers');
 const Server = require('./2.server');
 const Model = require('./3.model');
+const Policies = require('./3.policies');
 const View = require('./3.view');
 const User = require('./4.user');
 const Router = require('./5.router');
@@ -68,6 +69,7 @@ class Henri extends HenriBase {
     this.modules.add(new Mailers());
     this.modules.add(new Server());
     this.modules.add(new Model());
+    this.modules.add(new Policies());
     this.modules.add(new Router());
     this.modules.add(new User());
     this.modules.add(new View());
@@ -200,6 +202,26 @@ class Henri extends HenriBase {
     this.pen.error('middleware', `${name} is not a function (${typeof func})`);
 
     return false;
+  }
+
+  /**
+   * May this user take this action on this record?
+   *
+   * The one way to ask, wherever the answer is needed: a controller, a
+   * `before` hook, a view's data, a job. `req.can()` is the same question
+   * with `req.user` already filled in. It answers false for everything it
+   * cannot answer true for -- no policy, no rule, a rule that threw -- so
+   * there is no accidental yes to get (see base/policies.js).
+   *
+   * @param {*} user the user, or null
+   * @param {string} action the action (`update`)
+   * @param {*} [record=null] the record, when there is one
+   * @param {(object|string)} [options={}] `{ policy, type }`, or a policy name
+   * @returns {Promise<boolean>} allowed or not
+   * @memberof Henri
+   */
+  can(user, action, record = null, options = {}) {
+    return this.policies.can(user, action, record, options);
   }
 
   /**

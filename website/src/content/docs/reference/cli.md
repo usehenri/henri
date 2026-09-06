@@ -132,6 +132,7 @@ henri g <what> <name> [options] [--force]
 | `job <name>`                       | `app/jobs/<name>.js` with `perform(args, context)`, a queue and a retry policy.                                                                                                                                                                            |
 | `worker <name>`                    | `app/workers/<name>.js` with `start()` and `stop()`.                                                                                                                                                                                                       |
 | `mailer <name> [action ...]`       | `app/mailers/<name>.js` with one action per name (`notify` when none is given), `app/views/mailers/<name>/<action>.hbs` for each, and `app/views/mailers/layouts/mailer.hbs` and `mailer.text.hbs` when they are missing. See [Mail](/guides/mail/).       |
+| `policy <Name> [ownerColumn]`      | `app/policies/<name>.js` with the seven actions of a resource stubbed on an ownership check (`userId`, or the column named), a `scope`, and `test/<name>-policy.test.js` proving the refusals. See [Policies](/guides/policies/).                          |
 | `test <name>`                      | `test/<name>.test.js` requesting `GET /<name>` with `@usehenri/testing`.                                                                                                                                                                                   |
 | `crud <Name> [field:type ...]`     | The model, `app/controllers/<names>.js` with JSON `index`, `create`, `update` and `destroy`, and the `crud <names>` route.                                                                                                                                 |
 | `scaffold <Name> [field:type ...]` | The model, `app/controllers/<names>.js` with the seven `resources` actions answering HTML or JSON, the `resources <names>` route and the pages `app/views/pages/<names>/{index,new,edit,show,_form}` (`.jsx` with the Inertia renderer, `.js` with React). |
@@ -175,6 +176,7 @@ henri d <what> <name>
 | `job <name>`        | `app/jobs/<name>.js`                                                             |
 | `worker <name>`     | `app/workers/<name>.js`                                                          |
 | `mailer <name>`     | `app/mailers/<name>.js` and `app/views/mailers/<name>` (the shared layout stays) |
+| `policy <Name>`     | `app/policies/<name>.js` and `test/<name>-policy.test.js`                        |
 | `test <name>`       | `test/<name>.test.js`                                                            |
 | `crud <Name>`       | what `generate crud` wrote (model, controller, routes)                           |
 | `scaffold <Name>`   | what `generate scaffold` wrote (model, controller, routes, pages)                |

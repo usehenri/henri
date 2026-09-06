@@ -43,6 +43,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.            |
 | `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                      |
 | `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                                |
+| `policies`         |               | Record-level authorization: what a refusal answers and whether an unasked policy is reported, see below. See [Policies](/guides/policies/).     |
 | `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.           |
 | `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf); an object configures the origin check, below.                                      |
 | `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint, or an object with its limits and access rules, below; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/). |
@@ -57,6 +58,24 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                   |
 | `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                       |
 | `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                          |
+
+## The `policies` object
+
+What henri does with the answer of a policy in `app/policies`. The key is
+never what turns policies on -- writing the file is -- and it is only about
+the two decisions an application may reasonably differ on. See
+[Policies](/guides/policies/).
+
+| Key      | Default | Description                                                                                                                                                                                                  |
+| -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `status` | `404`   | What a refusal answers a signed-in user: `404` says nothing about whether the record exists, `403` says it is there and off limits. An anonymous visitor always gets a `401` (the login page, in a browser). |
+| `verify` | `true`  | Report a route that declared a policy henri could not answer without the record, whose action then answered without ever asking. `false` turns the line off.                                                 |
+
+```json
+{
+  "policies": { "status": 403, "verify": true }
+}
+```
 
 ## The `mailers` object
 

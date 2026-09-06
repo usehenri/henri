@@ -16,6 +16,7 @@ const populate = (app) => {
     ['g', 'worker', 'cleanup'],
     ['g', 'job', 'welcome'],
     ['g', 'mailer', 'welcome', 'confirm'],
+    ['g', 'policy', 'Post'],
     ['g', 'test', 'things'],
   ]) {
     const result = henri(args, { cwd: app });
@@ -132,6 +133,15 @@ describe('henri destroy without git', () => {
     expect(exists(app, 'app/views/mailers/welcome')).toBe(false);
     // The layout is shared by every mailer
     expect(exists(app, 'app/views/mailers/layouts/mailer.hbs')).toBe(true);
+  });
+
+  test('policy removes the file and the test written with it', () => {
+    const { status, stdout } = henri(['d', 'policy', 'Post'], { cwd: app });
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('backed up policy @ app/policies/post.js');
+    expect(exists(app, 'app/policies/post.js')).toBe(false);
+    expect(exists(app, 'test/post-policy.test.js')).toBe(false);
   });
 
   test('reports a missing file without failing', () => {

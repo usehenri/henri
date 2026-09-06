@@ -566,6 +566,79 @@ describe('henri audit', () => {
     expect(hooked.names).not.toContain('routes.unguarded');
   });
 
+  test('reports a policy nothing asks, and stays quiet once something does', () => {
+    const policy = path.join(app, 'app/policies/note.js');
+    const controller = path.join(app, 'app/controllers/notes.js');
+    const routes = path.join(app, 'config/routes.js');
+    const original = fs.readFileSync(routes, 'utf8');
+
+    fs.mkdirSync(path.dirname(policy), { recursive: true });
+    fs.writeFileSync(
+      policy,
+      `module.exports = {
+  show: (user, note) => String(note.userId) === String(user.id),
+};
+`
+    );
+    fs.writeFileSync(
+      controller,
+      `module.exports = { show: async (req, res) => res.json(req.note) };\n`
+    );
+
+    const forgotten = run(app);
+
+    // Asking in the controller is asking
+    fs.writeFileSync(
+      controller,
+      `module.exports = {
+  show: async (req, res) => res.json(await req.authorize('show', req.note)),
+};
+`
+    );
+
+    const byHand = run(app);
+
+    // ...and so is saying so on the route
+    fs.writeFileSync(
+      controller,
+      `module.exports = { show: async (req, res) => res.json(req.note) };\n`
+    );
+    fs.writeFileSync(
+      routes,
+      original.replace(
+        'module.exports = {',
+        `module.exports = {
+  'resources notes': { only: ['show'], policy: true },`
+      )
+    );
+
+    const declared = run(app);
+
+    fs.unlinkSync(policy);
+    fs.unlinkSync(controller);
+    fs.writeFileSync(routes, original);
+
+    expect(
+      forgotten.findings.filter(
+        (entry) => entry.check === 'policies.unenforced'
+      )
+    ).toEqual([
+      expect.objectContaining({
+        asvs: 'V4.2.1',
+        file: 'app/policies/note.js',
+        message: expect.stringContaining('never asked'),
+        owasp: 'A01:2021 Broken Access Control',
+        severity: 'medium',
+      }),
+    ]);
+    expect(byHand.names).not.toContain('policies.unenforced');
+    expect(declared.names).not.toContain('policies.unenforced');
+  });
+
+  test('says nothing about policies when the application ships none', () => {
+    expect(run(app).names).not.toContain('policies.unenforced');
+  });
+
   test('reports unescaped output in a page, but not in a mail layout', () => {
     expect(
       withFile(
