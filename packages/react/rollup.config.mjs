@@ -23,7 +23,10 @@ export default {
       configFile: false,
       presets: [
         ['@babel/preset-env', { targets: { node: '22' } }],
-        ['@babel/preset-react', { runtime: 'automatic' }],
+        // `development` defaults to true from preset-react 8, which emits
+        // jsxDEV() into the published bundle and breaks a production next
+        // build of the app consuming it
+        ['@babel/preset-react', { development: false, runtime: 'automatic' }],
       ],
     }),
   ],
