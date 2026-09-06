@@ -2,7 +2,7 @@
 // way `rails db:create` does. henri has no such command: `henri db:migrate`
 // and `henri db:seed` connect to a database that already exists.
 //
-//   node db/create.js              the store of config/default.json
+//   node db/create.js              the store of config/dev.json, else default
 //   node db/create.js --env=test   the store of config/test.json
 //
 // It connects to the `postgres` maintenance database on the same server and
@@ -15,7 +15,17 @@ const { Client } = require('pg');
 const env = (process.argv.find((arg) => arg.startsWith('--env=')) || '').slice(
   '--env='.length
 );
-const file = path.join(__dirname, '..', 'config', `${env || 'default'}.json`);
+const config = (name) => path.join(__dirname, '..', 'config', `${name}.json`);
+
+// Henri reads config/dev.json before config/default.json in development, and
+// that is where a local override of the port or the credentials goes: honour
+// it here too, or the first step of the README fails on a machine where
+// something else already holds 5432
+const file = env
+  ? config(env)
+  : [config('dev'), config('default')].find((candidate) =>
+      fs.existsSync(candidate)
+    ) || config('default');
 
 /**
  * The url of the default store of a configuration file
