@@ -153,6 +153,25 @@ A booted application answers the same document at `GET /_openapi.json`, in devel
 
 Exits `2` on `--out` without a file name and `1` with `HENRI_API_DESCRIPTION_UNWRITABLE` when the file cannot be written.
 
+## `graphql`
+
+```bash
+henri graphql [<Model>] [--summary] [--json]
+```
+
+Prints the GraphQL definition henri derives from `app/models`, without starting the server or touching a database. A model saying `graphql: true` gets its type, its queries and its resolvers from the schema it already declares; one writing `graphql: { types, resolvers }` is merged as it is and listed here as its own. The derivation is core's, the same one the boot builds the served schema from — so this is the read of what an application answers, not a description of it.
+
+There is no `henri generate graphql`, and that is deliberate: a definition written into a model file is a copy of the schema that stops being true the first time a column, a `personal` mark or an `encrypted` mark changes. Paste what this prints into a model's `types` when you want to own it from there on.
+
+```bash
+henri graphql                 # the SDL of every model that asks henri to derive one
+henri graphql Memo            # one model
+henri graphql --summary       # what was derived, and what was left out of each model
+henri graphql --json          # the definitions as data
+```
+
+`--summary` names each refusal with its reason: a field marked `personal: { expose: false }` is not a field, a personal one is never an argument, a randomised `encrypted` one is never an argument either, a declared foreign key is not a filter, and a `json` column has no shape to state. See [the GraphQL guide](/guides/graphql/).
+
 ## Generators
 
 ```bash
@@ -441,19 +460,22 @@ Every problem carries a stable `check` name to branch on, a `level` (`error` or 
 
 **What would fail a boot.** These are the ones that only show up when something starts, which is rarely a good moment:
 
-| Check             | What it means                                                                                                                                                                                          | Code                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
-| `models.store`    | A model names a `store` an environment's configuration does not hold, or names none where one of them has no `default`. Every `config/*.json` is compared, because each replaces `default.json` whole. | `HENRI_MODEL_UNKNOWN_STORE`, `HENRI_MODEL_NO_STORE` |
-| `config.store`    | `jobs.store`, `webhooks.store` or `trail.store` names a store that is not in the same file.                                                                                                            | one of the three `*_STORE_MISSING`                  |
-| `deps.declared`   | A package the application needs is not in `package.json`. Every `config/*.json` is read, and the message names the one that asked.                                                                     | `HENRI_STORE_ADAPTER_NOT_INSTALLED`                 |
-| `routes.policy`   | A route asks for a policy `app/policies` does not hold. Policies fail closed, so that route refuses every request.                                                                                     | —                                                   |
-| `jobs.perform`    | A file of `app/jobs` exports no `perform(args, context)`. The queue loads every one of them at boot.                                                                                                   | `HENRI_JOB_INVALID_DEFINITION`                      |
-| `jobs.recurring`  | A recurring schedule names a job that is not in `app/jobs`. Nothing fails: the work never happens.                                                                                                     | `HENRI_JOB_INVALID_SCHEDULE`                        |
-| `mailers.view`    | A mailer action has no view under `app/views/mailers`, so the request that sends the mail fails.                                                                                                       | `HENRI_MAIL_VIEW_MISSING`                           |
-| `modules.name`    | An `app/modules` file registers a name a core module or another module already has.                                                                                                                    | `HENRI_BOOT_DUPLICATE_MODULE`                       |
-| `modules.needs`   | An `app/modules` file needs a module nothing provides.                                                                                                                                                 | `HENRI_BOOT_MISSING_DEPENDENCY`                     |
-| `modules.package` | A dependency declares `"henri": { "module": … }` and the file is not there.                                                                                                                            | —                                                   |
-| `deps.version`    | The henri packages installed are not all at one version (a warning): they are published together.                                                                                                      | —                                                   |
+| Check                 | What it means                                                                                                                                                                                          | Code                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| `models.store`        | A model names a `store` an environment's configuration does not hold, or names none where one of them has no `default`. Every `config/*.json` is compared, because each replaces `default.json` whole. | `HENRI_MODEL_UNKNOWN_STORE`, `HENRI_MODEL_NO_STORE` |
+| `config.store`        | `jobs.store`, `webhooks.store` or `trail.store` names a store that is not in the same file.                                                                                                            | one of the three `*_STORE_MISSING`                  |
+| `deps.declared`       | A package the application needs is not in `package.json`. Every `config/*.json` is read, and the message names the one that asked.                                                                     | `HENRI_STORE_ADAPTER_NOT_INSTALLED`                 |
+| `graphql.declaration` | A model's `graphql` key says something henri cannot carry out.                                                                                                                                         | `HENRI_API_GRAPHQL_INVALID_DECLARATION`             |
+| `routes.policy`       | A route asks for a policy `app/policies` does not hold. Policies fail closed, so that route refuses every request.                                                                                     | —                                                   |
+| `jobs.perform`        | A file of `app/jobs` exports no `perform(args, context)`. The queue loads every one of them at boot.                                                                                                   | `HENRI_JOB_INVALID_DEFINITION`                      |
+| `jobs.recurring`      | A recurring schedule names a job that is not in `app/jobs`. Nothing fails: the work never happens.                                                                                                     | `HENRI_JOB_INVALID_SCHEDULE`                        |
+| `mailers.view`        | A mailer action has no view under `app/views/mailers`, so the request that sends the mail fails.                                                                                                       | `HENRI_MAIL_VIEW_MISSING`                           |
+| `modules.name`        | An `app/modules` file registers a name a core module or another module already has.                                                                                                                    | `HENRI_BOOT_DUPLICATE_MODULE`                       |
+| `modules.needs`       | An `app/modules` file needs a module nothing provides.                                                                                                                                                 | `HENRI_BOOT_MISSING_DEPENDENCY`                     |
+| `modules.package`     | A dependency declares `"henri": { "module": … }` and the file is not there.                                                                                                                            | —                                                   |
+| `deps.version`        | The henri packages installed are not all at one version (a warning): they are published together.                                                                                                      | —                                                   |
+
+**What a GraphQL definition would answer.** `graphql.policy` (a warning) when a model asks henri to derive a definition and there is no `app/policies/<model>.js`, or when that policy declares no `scope(user)` and the model derives a list query: every derived resolver asks a policy and policies fail closed, so the first is a query that answers `null` and an empty page and the second is one that raises `HENRI_API_GRAPHQL_SCOPE_REQUIRED`. `graphql.exposed` is the other direction — a model writing its own SDL that names a field marked `personal: { expose: false }`, which is the drift a derived definition cannot have.
 
 **What `AGENTS.md` and the views claim.** `agents.stale` (a warning) when `AGENTS.md` no longer describes the application. A file `henri generate agents` wrote carries a digest of what the application was, so the check is exact and catches every drift the file could carry — a model added, a package installed, a route changed — not only the renderer and the store; a file written by hand is compared on the renderer and the store its own sentence names, which are the two that send a generated file the wrong way. Either way an agent reading it would write pages and controllers this application cannot run. Then `views.renderer` when a page imports the other view engine, or carries an extension the configured one does not resolve. Every file under `app/views/pages` is read, not only the ones a `resources` route names: the Inertia engine resolves a page through `import.meta.glob('./pages/**/*.jsx')`, so a `.js` file there is loaded by nothing and says so nowhere, and that is exactly the page no route points at.
 

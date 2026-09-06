@@ -96,7 +96,9 @@
  * that is not JSON Schema at all -- in 3.0. The same goes for a schema that
  * means "anything" (`{}`), which is what an unknown answer has to be.
  *
- * GraphQL is out of scope: it has a schema of its own, and
+ * GraphQL is out of scope: it has a schema of its own, derived from the
+ * same model files by `base/graphql-schema.js` (which borrows `columnsOf()`
+ * and `settingsOf()` from here, so the two read a model the same way), and
  * `config.graphql` names where to ask for it.
  */
 const { singularize } = require('./routes');
@@ -2519,9 +2521,11 @@ function build({
 
 module.exports = {
   DIALECT,
+  GENERATED,
   OPENAPI_VERSION,
   build,
   columnsOf,
+  referenceOf,
   ruleSchema,
   settingsOf,
   template,

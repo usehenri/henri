@@ -605,6 +605,44 @@ const badStrategy: ModelFile = {
   schema: { title: 'string' },
 };
 
+const derived: ModelFile = {
+  graphql: true,
+  schema: { title: 'string' },
+};
+
+const asked: ModelFile = {
+  graphql: {
+    generate: true,
+    name: 'Task',
+    mutations: ['create', 'update'],
+    except: ['secret'],
+    types: 'extend type Task { owner: User }',
+    resolvers: { Task: { owner: () => null } },
+  },
+  schema: { title: 'string' },
+};
+
+const written: ModelFile = {
+  graphql: { types: 'type Task { title: String }' },
+  schema: { title: 'string' },
+};
+
+const badGraphql: ModelFile = {
+  // @ts-expect-error there are three mutations and `publish` is not one
+  graphql: { generate: true, mutations: ['publish'] },
+  schema: { title: 'string' },
+};
+
+const badGenerate: ModelFile = {
+  // @ts-expect-error `graphql` is true or an object, never the string
+  graphql: 'yes',
+  schema: { title: 'string' },
+};
+
+expectType<ModelFile>(derived);
+expectType<ModelFile>(asked);
+expectType<ModelFile>(written);
+
 // --- personal data ----------------------------------------------------------
 
 expectType<Set<string>>(henri.privacy.keys);

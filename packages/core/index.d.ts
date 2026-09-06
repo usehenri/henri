@@ -1848,9 +1848,37 @@ declare namespace start {
     /** Collection or table name; defaults to the file name, pluralized. */
     name?: string;
     options?: ModelOptions;
-    graphql?: { types?: string; resolvers?: Record<string, unknown> };
+    /**
+     * GraphQL, when the application has `@usehenri/graphql`.
+     *
+     * `true` derives the type, the queries and the resolvers from the
+     * schema above (`henri graphql` prints what that is); an object writes
+     * them by hand, or asks for the derived definition with `generate` and
+     * adds to it. Mutations are never derived unless `mutations` asks.
+     */
+    graphql?: true | GraphqlModelDefinition;
     /** Called once every model exists, with the models by global id. */
     associate?(models: Record<string, unknown>): void;
+  }
+
+  /** The `graphql` key of a model, in its object form. */
+  interface GraphqlModelDefinition {
+    /** Derive the type, the queries and the resolvers from the schema. */
+    generate?: boolean;
+    /** The GraphQL type name; defaults to the model's global id. */
+    name?: string;
+    /** `<model>(id:)` and `<models>(page, perPage, where)`; on by default. */
+    queries?: boolean;
+    /** The `where` argument of the list query; on by default. */
+    filters?: boolean;
+    /** Off by default: `true`, or any of `create`, `update`, `destroy`. */
+    mutations?: boolean | Array<'create' | 'update' | 'destroy'>;
+    /** Fields henri never generates, whatever the schema says. */
+    except?: string | string[];
+    /** SDL of the model's own, merged with anything derived. */
+    types?: string;
+    /** Resolvers of the model's own; they win over the derived ones. */
+    resolvers?: Record<string, unknown>;
   }
 
   /** What `Model.paginate({ page, perPage })` answers, on every adapter. */

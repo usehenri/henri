@@ -173,6 +173,44 @@ Usually:
 
 **Fix.** Check the path and the permissions of the directory, or print the document to stdout instead: `henri openapi > openapi.json`.
 
+### `HENRI_API_GRAPHQL_DENIED`
+
+A generated GraphQL mutation was refused by the policy of the model it writes.
+
+Usually:
+
+- the `create` rule of the model's policy answered anything but `true`
+- the application has no `app/policies/<model>.js`, and a policy that is not there refuses
+- the request reached the endpoint without a signed-in user
+
+**Fix.** Write the rule the mutation asks for in `app/policies/<model>.js` (`henri generate policy <Model>`). A generated `create` mutation asks `create` without a record, so the rule takes the user alone.
+
+### `HENRI_API_GRAPHQL_INVALID_DECLARATION`
+
+The `graphql` key of a model says something henri cannot carry out.
+
+Usually:
+
+- `graphql` is neither `true` nor an object
+- `graphql` holds a key henri does not know (`generate`, `name`, `queries`, `mutations`, `filters`, `except`, `types`, `resolvers`)
+- `graphql.mutations` names something other than `create`, `update` or `destroy`
+- the model's name is not a GraphQL type name and `graphql.name` does not give one
+- `graphql` is an object that neither generates a definition nor writes one
+
+**Fix.** `graphql: true` derives the type, the queries and the resolvers from the schema; an object takes `generate`, `name`, `queries`, `mutations`, `filters`, `except`, `types` and `resolvers`. `henri graphql` prints what a model would generate.
+
+### `HENRI_API_GRAPHQL_SCOPE_REQUIRED`
+
+A generated GraphQL list query has no scope to filter its records by.
+
+Usually:
+
+- the policy of the model declares no `scope(user)`
+- its `scope(user)` answered `null` or `undefined`
+- a `where` argument was passed and the scope is not a plain object henri can narrow
+
+**Fix.** Add `scope(user)` to `app/policies/<model>.js`: it answers the condition the list is filtered by, and `scope: () => ({})` is how a policy says "everything". henri never assumes what a list is.
+
 ### `HENRI_API_GRAPHQL_UNAVAILABLE`
 
 Something asked for the GraphQL engine, which @usehenri/graphql carries, and the application does not have it.
@@ -184,6 +222,18 @@ Usually:
 - the package was removed but the configuration or a model still reaches for it
 
 **Fix.** Install the engine in the application (`npm install @usehenri/graphql`), or remove the `graphql` key from the model, the route or the render that asks for it.
+
+### `HENRI_API_GRAPHQL_UNKNOWN_REFERENCE`
+
+A generated GraphQL mutation was given a reference that names no row.
+
+Usually:
+
+- the value sent for a reference is not the `externalId` of any row
+- the primary key of the target row was sent instead of its `externalId`
+- the row it named was deleted between the read and the write
+
+**Fix.** Send the `externalId` of the row the reference names -- the identifier henri publishes it as. A primary key does not name a row from outside (see `base/references.js`).
 
 ### `HENRI_API_INVALID_COLLECTION`
 

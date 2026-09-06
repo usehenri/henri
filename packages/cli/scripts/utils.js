@@ -2,6 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const spawn = require('cross-spawn');
 
+const { pluralize: corePluralize } = require('@usehenri/core/src/base/routes');
 const { version, commands } = require('../package.json');
 
 const cwd = process.cwd();
@@ -412,35 +413,17 @@ const format = async (code) => {
 const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
 
 /**
- * Pluralize an english word (enough for resource names: task -> tasks,
- * category -> categories, box -> boxes, person -> people)
+ * Pluralize an english word, lowercased (task -> tasks, category ->
+ * categories, box -> boxes, person -> people)
+ *
+ * The rules are core's (`base/routes.js`, next to `singularize`): the
+ * resource names this command writes and the GraphQL fields henri derives
+ * from a model have to agree on what a plural is.
  *
  * @param {string} word A singular word
  * @returns {string} Its plural
  */
-const pluralize = (word) => {
-  const lower = word.toLowerCase();
-  const irregulars = {
-    child: 'children',
-    man: 'men',
-    person: 'people',
-    woman: 'women',
-  };
-
-  if (irregulars[lower]) {
-    return irregulars[lower];
-  }
-
-  if (/(s|x|z|ch|sh)$/.test(lower)) {
-    return `${lower}es`;
-  }
-
-  if (/[^aeiou]y$/.test(lower)) {
-    return `${lower.slice(0, -1)}ies`;
-  }
-
-  return `${lower}s`;
-};
+const pluralize = (word) => corePluralize(String(word).toLowerCase());
 
 /**
  * Names derived from a model name: `Post` gives

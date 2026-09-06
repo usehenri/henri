@@ -271,6 +271,71 @@ const loadShared = (adapter, dir) => {
 };
 
 /**
+ * What henri would derive for the models declaring `graphql`, and what each
+ * of them writes by hand. Null when the models cannot be loaded from here,
+ * which is one more thing this command could not read rather than a
+ * failure: the boot is what decides.
+ *
+ * @param {string} dir The application directory
+ * @param {object} config The configuration of this environment
+ * @returns {{descriptions: ?Array<object>, error: ?Error, private: Set<string>}} What was read
+ */
+const graphqlOf = (dir, config) => {
+  const empty = { descriptions: null, error: null, private: new Set() };
+
+  try {
+    const { describe } = require('@usehenri/core/src/base/graphql-schema');
+    const { mapOf } = require('@usehenri/core/src/base/privacy');
+    const { settingsOf } = require('@usehenri/core/src/base/openapi');
+    const { loadModules } = require('@usehenri/core/src/utils');
+    const files = Object.values(
+      loadModules(path.join(dir, 'app', 'models'))
+    ).filter(Boolean);
+    const settings = settingsOf(config);
+    const user = files.find(
+      (model) =>
+        String(model.identity || '').toLowerCase() ===
+        String(settings.user.model || '').toLowerCase()
+    );
+    const privacy = mapOf(files, {
+      settings: settings.privacy,
+      subject: user ? user.globalId : null,
+    });
+
+    try {
+      return {
+        descriptions: describe(files, config),
+        error: null,
+        private: privacy.private,
+      };
+    } catch (error) {
+      // A `graphql` key henri cannot read fails the boot, and saying which
+      // model and why is the whole point of reporting it here
+      return { descriptions: null, error, private: privacy.private };
+    }
+  } catch {
+    return empty;
+  }
+};
+
+/**
+ * The field names a hand-written SDL block declares
+ *
+ * Only the names: this is not a parser, and what it is looking for is a
+ * field whose name henri would never publish. `title: String!` and
+ * `password: String` read the same way to it.
+ *
+ * @param {string} types The SDL a model wrote
+ * @returns {Set<string>} The names
+ */
+const declaredFields = (types) =>
+  new Set(
+    [...String(types).matchAll(/([A-Za-z_]\w*)\s*(?:\([^)]*\))?\s*:/gu)].map(
+      (match) => match[1]
+    )
+  );
+
+/**
  * The mail views henri ships with the mailers it mounts itself (the account
  * flows), read from the `@usehenri/core` of the application: an application
  * that writes `app/mailers/auth.js` gets those views for free, and reporting
@@ -1337,6 +1402,93 @@ const check = (dir = process.cwd()) => {
         {
           file: 'config/routes.js',
           hint: `henri generate policy ${singularize(path.posix.basename(wanted))}, or drop "policy" from the route: a policy that is not there refuses every request`,
+        }
+      );
+    }
+  }
+
+  // --- graphql --------------------------------------------------------------
+  // A model saying `graphql: true` has henri derive its type, its queries
+  // and its resolvers from its schema (base/graphql-schema.js). Two things
+  // can be true of such a model and stay invisible until a query arrives,
+  // and one thing can be true of a hand-written definition and never show up
+  // at all: a field the rest of henri refuses to publish, published here.
+  const graphql = graphqlOf(dir, config);
+
+  if (graphql.error) {
+    problem('error', 'graphql.declaration', graphql.error.message, {
+      code: graphql.error.code || null,
+      file: 'app/models',
+      hint: graphql.error.hint || 'henri graphql prints what a model derives',
+    });
+  }
+
+  for (const description of graphql.descriptions || []) {
+    if (!description.generate) {
+      const published = declaredFields(description.declaration.types || '');
+      const leaked = [...graphql.private].filter((field) =>
+        published.has(field)
+      );
+
+      if (leaked.length > 0) {
+        problem(
+          'warning',
+          'graphql.exposed',
+          `${description.model} declares ${leaked.join(', ')} in its own graphql types, and ${leaked.length === 1 ? 'that field is' : 'those fields are'} marked personal: { expose: false }`,
+          {
+            file: `app/models/${description.model}.js`,
+            hint: 'res.render(), res.resource() and res.collection() drop those names from every answer they build; a resolver of your own is the one way past that. `graphql: true` derives a definition that cannot say it',
+          }
+        );
+      }
+
+      continue;
+    }
+
+    const policy = policyFor(description.identity, policies);
+
+    if (policy === null) {
+      problem(
+        'warning',
+        'graphql.policy',
+        `${description.model} asks henri to derive a graphql definition and app/policies/${description.identity}.js does not exist`,
+        {
+          file: `app/models/${description.model}.js`,
+          hint: `Every derived resolver asks a policy and policies fail closed, so every query answers null or an empty page: henri generate policy ${description.model}`,
+        }
+      );
+
+      continue;
+    }
+
+    if (!description.queries) {
+      continue;
+    }
+
+    let scope;
+
+    try {
+      const file = path.join(dir, 'app', 'policies', `${policy}.js`);
+
+      // Read from disk the way loadModules() does: this command runs in the
+      // same process as whatever wrote the file a moment ago
+      delete require.cache[require.resolve(file)];
+      scope = require(file).scope;
+    } catch {
+      // A policy that will not load outside a booted application is not this
+      // check's business; `routes.policy` is what says whether it exists
+      continue;
+    }
+
+    if (typeof scope !== 'function') {
+      problem(
+        'warning',
+        'graphql.policy',
+        `the ${policy} policy declares no scope(user), and ${description.model} derives a ${description.queries.many} query`,
+        {
+          code: 'HENRI_API_GRAPHQL_SCOPE_REQUIRED',
+          file: `app/policies/${policy}.js`,
+          hint: 'scope(user) answers the condition the list is filtered by, and `scope: () => ({})` is how a policy says "everything". Without one the query raises rather than answering every row',
         }
       );
     }

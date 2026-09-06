@@ -736,6 +736,55 @@ const COMMANDS = [
   },
   {
     description: [
+      'Prints the GraphQL definition henri derives from app/models, without',
+      'starting the server or touching a database. A model saying',
+      '`graphql: true` gets its type, its queries and its resolvers from the',
+      'schema it already declares; one writing `graphql: { types, resolvers }`',
+      'is merged as it is and printed here as its own.',
+      '',
+      'The definition is derived at boot and not written into a file: the',
+      'identifiers, the personal marks and the encryption schemes it depends',
+      'on all change, and a checked-in copy would stop being true. This is',
+      'the read of it -- paste what it prints into a model to own it.',
+      '',
+      '`id` is the externalId and never the primary key, a declared foreign',
+      'key is the externalId of the row it names, a field marked',
+      '`personal: { expose: false }` is left out, and a personal or randomly',
+      'encrypted field is never a queryable argument. Mutations are derived',
+      'only when a model asks (`graphql: { generate: true, mutations: true }`),',
+      'and every generated resolver goes through app/policies.',
+    ],
+    examples: [
+      {
+        command: 'henri graphql',
+        description: 'The SDL of every model that asks henri to derive one',
+      },
+      {
+        command: 'henri graphql Memo',
+        description: 'One model',
+      },
+      {
+        command: 'henri graphql --summary',
+        description: 'What was derived, and what henri left out of each model',
+      },
+    ],
+    flags: [
+      {
+        description:
+          'print what was derived and what was left out, with the reason',
+        flag: '--summary',
+      },
+      {
+        description: 'print the definitions as data',
+        flag: '--json',
+      },
+    ],
+    name: 'graphql',
+    summary: 'the GraphQL definition henri derives from the models',
+    usage: ['henri graphql [<Model>] [--summary] [--json]'],
+  },
+  {
+    description: [
       'Prints this help, or the help of a command. With --json, prints the',
       'catalogue of commands, flags and exit codes.',
     ],
