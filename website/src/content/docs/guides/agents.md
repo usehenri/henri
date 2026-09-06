@@ -9,13 +9,59 @@ henri is built to be driven by a coding agent as well as by a person. The conven
 
 ## What `henri new` writes for an agent
 
-| File        | Role                                                                                                                       |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md` | The conventions of the application: the layout, the model and controller contracts, the routes DSL, the generators to use. |
-| `CLAUDE.md` | A pointer to `AGENTS.md`, so a tool looking for either finds the same text.                                                |
-| `.mcp.json` | Starts the henri MCP server (`henri mcp`) for the project.                                                                 |
+| File        | Role                                                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md` | The conventions of _this_ application, generated from it: the layout, the models, the routes, the commands that apply. |
+| `CLAUDE.md` | A pointer to `AGENTS.md`, so a tool looking for either finds the same text.                                            |
+| `.mcp.json` | Starts the henri MCP server (`henri mcp`) for the project.                                                             |
 
-`AGENTS.md` is written for the renderer and the database the app was scaffolded with, so it describes the app in front of the agent rather than henri in general. Edit it as the app grows: it is yours, and `henri generate agents` rewrites it when you want the current version back.
+## `AGENTS.md` is generated
+
+`AGENTS.md` is not a template with the app's name filled in: `henri generate agents` reads the application and writes what is true of it. The renderer and its page extension, the stores and their adapters, the models and the marks they carry (`personal`, `encrypted`, `paranoid`, a `retention` rule), the routes as [the router expands them](/guides/routes/), the controllers, the policies, the jobs, the mailers, the workers, the modules and which henri packages are installed — all of it is read from the files, and nothing is booted. An application without `@usehenri/jobs` gets no paragraph about the queue; one on Drizzle gets the Drizzle model API and the migration commands and no sentence about Mongoose. The last line of its "Do not" section names the packages the application does _not_ have, which is what stops an agent reaching for an API that is not installed.
+
+```bash
+henri generate agents          # write or refresh AGENTS.md, CLAUDE.md and .mcp.json
+henri generate agents --json   # { created, updated, skipped } like any generator
+```
+
+Run it whenever the application changes shape — a store swapped, a renderer changed, a package installed, a resource scaffolded. [`henri doctor`](#henri-doctor) says when it is time.
+
+### Regenerating never loses what you wrote
+
+Everything henri writes sits between two markers:
+
+```markdown
+<!-- henri:agents 1 app=045d7a7b2a0f gen=42e21bae9532 -->
+
+# app: conventions for coding agents
+
+...
+
+<!-- /henri:agents -->
+
+## House rules
+
+Always run `make check` before a commit.
+```
+
+Regenerating replaces the bytes _between_ the markers and copies everything before and after them through untouched. So the place for your own conventions is outside the region, and there is nothing to merge and nothing to lose.
+
+The opening marker carries two short digests: `app`, what the application was when the file was written, which is what `henri doctor` compares; and `gen`, what henri wrote in the region, which is what tells henri's own text from a hand edit. That gives four cases, and in three of them the command writes nothing you did not ask for:
+
+| The file                                        | `henri generate agents`                                          |
+| ----------------------------------------------- | ---------------------------------------------------------------- |
+| is missing                                      | Writes it whole (`created`).                                     |
+| has the region, untouched                       | Rewrites the region only (`updated`). Text around it is kept.    |
+| has the region and it was edited by hand        | Writes nothing (`skipped`), and says why. `--force` rewrites it. |
+| has no region at all (yours, or an older henri) | Writes nothing (`skipped`), and says why. `--force` replaces it. |
+
+`--force` is the only way past either refusal, so the failure mode is "your text is kept" and never "your text was kept unless".
+
+### Size is the point
+
+`AGENTS.md` is loaded on every task, so it is budgeted rather than allowed to grow: the generated region is held to 150 lines, and a fresh application lands around a hundred. A line earns its place by being one of three things — a convention that changes what an agent writes here, a fact about this application it cannot get from the documentation, or a command that will actually run here. Everything else is a manual, and a manual belongs where an agent can fetch it when it needs it.
+
+That is how the three pieces fit together and why none of them repeats another: `AGENTS.md` is the always-loaded part, the [MCP server](#the-henri-mcp-server) is the part fetched on demand (`guide` is henri's documentation at the version installed, `routes`, `models` and `config` answer for this application), and [`henri doctor`](#henri-doctor) is what checks the claims.
 
 ## Types the agent can read
 
@@ -90,7 +136,7 @@ It checks the Node version, every `config/*.json` — its syntax, then the whole
 
 It also reads what an edit breaks only at the next boot, which for an agent is the difference between a green run and a green run that means something: a model naming a store no environment configures, a store adapter only `config/production.json` asks for, a route asking for a policy that is not there, a file of `app/jobs` with no `perform`, a recurring schedule naming a job that does not exist, a mailer action with no view, an `app/modules` file whose name is taken or whose `needs` nothing provides, and the henri packages installed at two versions. One check asks a database: whether the store holds the migrations of `db/migrations` — and when it cannot reach it, it says so rather than guessing. That one needs the dependencies installed, since the store adapter is resolved from the application.
 
-`AGENTS.md` itself is checked against the configuration: `agents.stale` fires when the file names a renderer or a store the application no longer uses, which is exactly when an agent that trusts it writes the wrong code. `henri generate agents --force` rewrites it.
+`AGENTS.md` itself is checked against the application: `agents.stale` fires when the file no longer describes it, which is exactly when an agent that trusts it writes the wrong code. Because the file is [generated](#agentsmd-is-generated) it carries a digest of what the application was, so the check is exact — a model added or a package installed is drift too, not only a switched renderer or store. `henri generate agents` rewrites the generated region and keeps everything you added around it.
 
 Problems are reported as errors or warnings, each with a stable `check` name, a file, a hint saying what to run — and a `code`, the [henri error code](/reference/errors/) the boot would raise, when the check predicts a failure the framework has a name for. The full list is in [the CLI reference](/reference/cli/#doctor).
 

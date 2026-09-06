@@ -3,7 +3,7 @@ const path = require('path');
 const util = require('util');
 const handlebars = require('handlebars');
 
-const { adapterOf, apiOf } = require('./adapters');
+const { apiOf } = require('./adapters');
 const { CliError } = require('./errors');
 const { usage } = require('./help');
 const Report = require('./report');
@@ -568,7 +568,14 @@ const test = async (name, rest = [], opts = {}) => {
 
 /**
  * Writes AGENTS.md, CLAUDE.md and .mcp.json (the files coding agents read)
- * in an existing application
+ * in an existing application.
+ *
+ * AGENTS.md is generated from the application, not copied from a template,
+ * and only the region between its markers is ever rewritten: text a
+ * developer added around it comes through untouched, and a file henri did
+ * not write -- or one whose generated region was edited by hand -- is
+ * skipped with the reason rather than replaced (`--force` is the way past
+ * that, and it is the only one).
  *
  * @param {string} [name] Unused (the application name comes from package.json)
  * @param {string[]} [rest] Unused
@@ -578,22 +585,8 @@ const test = async (name, rest = [], opts = {}) => {
 const agents = async (name, rest = [], opts = {}) => {
   const { writeAgentFiles } = require('./agents');
   const report = opts.report || new Report();
-  const cwd = process.cwd();
-  let appName = path.basename(cwd);
-
-  try {
-    appName = fs.readJsonSync(path.join(cwd, 'package.json')).name || appName;
-  } catch {
-    // The folder name will do
-  }
-
-  const { created, skipped } = writeAgentFiles(cwd, {
-    // Both come from the configuration: AGENTS.md describes the store and
-    // the renderer this application actually uses
-    adapter: adapterOf(cwd),
+  const { created, skipped, updated } = writeAgentFiles(process.cwd(), {
     force: opts.force === true,
-    name: appName,
-    renderer: rendererOf(cwd),
   });
 
   for (const file of created) {
@@ -601,12 +594,17 @@ const agents = async (name, rest = [], opts = {}) => {
     report.log(`> created ${file}`);
   }
 
-  for (const file of skipped) {
-    report.add('skipped', file);
-    report.log(`> skipped ${file}: exists (use --force to overwrite)`);
+  for (const file of updated) {
+    report.add('updated', file);
+    report.log(`> updated ${file} (the generated section only)`);
   }
 
-  return created.length > 0;
+  for (const { file, reason } of skipped) {
+    report.add('skipped', file);
+    report.log(`> skipped ${file}: ${reason} (use --force to overwrite)`);
+  }
+
+  return created.length + updated.length > 0;
 };
 
 /**

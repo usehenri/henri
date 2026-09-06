@@ -245,20 +245,21 @@ describe('henri new', () => {
     const agents = read(app, 'AGENTS.md');
 
     expect(result.stdout).toContain('AGENTS.md');
-    expect(agents.startsWith('# app: conventions for coding agents')).toBe(
-      true
-    );
+    expect(agents).toContain('# app: conventions for coding agents');
     expect(agents).toContain('renderer `inertia`');
     expect(agents).toContain('Inertia pages (`.jsx`)');
     expect(agents).toContain('@usehenri/inertia');
     expect(agents).not.toContain('next.js pages');
     expect(agents).not.toContain('{{');
+    // It describes the application it was generated from: the sample
+    // resource is in it, and so is the store's own model API
+    expect(agents).toContain('`Task`');
+    expect(agents).toContain('`/tasks` -> `tasks`');
     // A budget, not a target: AGENTS.md is read on every task, so it stays
-    // short. Compress before raising it again. It went from 170 to 185 for
-    // the policies section: an agent that does not know app/policies exists
-    // writes the ownership `if` in the controller, which is the mistake the
-    // feature is there to stop.
-    expect(agents.split('\n').length).toBeLessThan(185);
+    // short. Generating it is what made it shrink -- a fresh application
+    // carries no sentence about a package it does not have. The budget
+    // itself lives in scripts/agents.js and is checked in agents.spec.js.
+    expect(agents.split('\n').length).toBeLessThan(150);
     expect(agents).toContain('henri generate scaffold');
     expect(agents).toContain('req.permit');
     expect(agents).toContain('HENRI_SECRET');
@@ -553,7 +554,7 @@ describe('henri new --renderer react', () => {
     expect(agents).toContain('@usehenri/react');
     expect(agents).not.toContain('Inertia');
     expect(agents).not.toContain('{{');
-    expect(agents.split('\n').length).toBeLessThan(185);
+    expect(agents.split('\n').length).toBeLessThan(150);
     expect(exists(app, '.mcp.json')).toBe(true);
 
     const readme = read(app, 'README.md');

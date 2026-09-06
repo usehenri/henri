@@ -665,7 +665,7 @@ const COMMANDS = [
       {
         command: 'henri g agents',
         description:
-          'Writes AGENTS.md, CLAUDE.md and .mcp.json in an existing application',
+          'Rewrites AGENTS.md from the application (the generated section only), CLAUDE.md and .mcp.json',
       },
     ],
     flags: [
@@ -725,7 +725,7 @@ const COMMANDS = [
       },
       {
         description:
-          'AGENTS.md (the conventions for coding agents), CLAUDE.md and .mcp.json',
+          'AGENTS.md, generated from this application (the renderer, the stores, the models and their marks, the routes, the jobs, the packages installed), plus CLAUDE.md and .mcp.json. Only the region between its markers is rewritten: your own text around it is kept, and a region edited by hand or a file henri did not write is skipped unless --force',
         name: 'agents',
       },
     ],

@@ -1297,7 +1297,7 @@ module.exports = Metrics;
       expect.objectContaining({
         check: 'agents.stale',
         file: 'AGENTS.md',
-        hint: expect.stringContaining('henri generate agents --force'),
+        hint: expect.stringContaining('henri generate agents rewrites'),
         level: 'warning',
         message: expect.stringContaining('the renderer is "inertia"'),
       })

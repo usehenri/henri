@@ -386,10 +386,11 @@ describe('the scaffolded resource follows the adapter', () => {
     const agents = read(app, 'AGENTS.md');
 
     expect(agents).toContain('store `drizzle`');
-    expect(agents).toContain('henri db:generate|migrate|push|status');
+    expect(agents).toContain('henri db:generate');
+    expect(agents).toContain('db/migrations');
     expect(agents).not.toContain('{{');
     // The budget of new.spec.js, on the store with the most to say
-    expect(agents.split('\n').length).toBeLessThan(185);
+    expect(agents.split('\n').length).toBeLessThan(150);
 
     const readme = read(app, 'README.md');
 
