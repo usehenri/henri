@@ -399,10 +399,30 @@ function collection(
 }
 
 /**
+ * Is this answer an Inertia page object rather than an API answer?
+ *
+ * The Inertia view engine answers a visit with `{ component, props, url,
+ * version }`, a protocol of its own with no room for `_links`, and marks it
+ * with the `X-Inertia` header. Such an answer is a rendered page, not JSON
+ * the API guard below has anything to say about.
+ *
+ * @param {Express.Request} req the request
+ * @param {Express.Response} res the response
+ * @returns {boolean} true for an Inertia page object
+ */
+function isInertiaPage(req, res) {
+  return Boolean(
+    (typeof res.getHeader === 'function' && res.getHeader('X-Inertia')) ||
+    (typeof req.get === 'function' && req.get('x-inertia'))
+  );
+}
+
+/**
  * Per-route middleware enforcing HAL on the routes expanded from
  * `resources`/`crud`: a successful JSON answer without `_links` is reported
  * once per route (`pen.warn`), and refused with a 500 when
- * `config.api.strict` is true.
+ * `config.api.strict` is true. Inertia page objects are not API answers and
+ * are left alone.
  *
  * @param {Henri} henri the henri instance
  * @param {string} name the route name (`get /tasks`)
@@ -417,6 +437,7 @@ function halGuard(henri, name) {
       const isObject = body !== null && typeof body === 'object';
       const missing =
         status < 400 &&
+        !isInertiaPage(req, res) &&
         (!isObject || Array.isArray(body) || !('_links' in body));
 
       if (!missing) {
@@ -454,6 +475,7 @@ module.exports = {
   fill,
   halGuard,
   identify,
+  isInertiaPage,
   normalizeLinks,
   resource,
   resourceLinks,
