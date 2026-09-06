@@ -528,6 +528,22 @@ const listSources = (dir, extensions) => {
 };
 
 /**
+ * A string as a regular expression matches itself and nothing else.
+ *
+ * Every metacharacter, `\\` included: escaping the few that happen to appear
+ * in a package name is the same bug as not escaping at all, one input away,
+ * and an unescaped backslash turns the next character into an escape
+ * sequence of somebody else's choosing. `@`, `/` and `-` are *not* escaped:
+ * they mean themselves outside a character class, and a unicode pattern
+ * refuses an escape that is not one.
+ *
+ * @param {string} value The string to match literally
+ * @returns {string} The pattern
+ */
+const literally = (value) =>
+  String(value).replace(/[\\^$.*+?()[\]{}|]/gu, '\\$&');
+
+/**
  * Does a source import a package, by either spelling and at any sub-path?
  * (`from '@usehenri/react'`, `require('@usehenri/react/forms')`)
  *
@@ -537,7 +553,8 @@ const listSources = (dir, extensions) => {
  */
 const imports = (source, name) =>
   new RegExp(
-    `(?:from|require\\()\\s*\\(?\\s*['"]${name.replace(/[/@-]/g, '\\$&')}(?:/[^'"]*)?['"]`
+    `(?:from|require\\()\\s*\\(?\\s*['"]${literally(name)}(?:/[^'"]*)?['"]`,
+    'u'
   ).test(uncommented(source));
 
 /**
@@ -549,7 +566,9 @@ const imports = (source, name) =>
  * @returns {boolean} Defined or not
  */
 const definesAction = (source, action) =>
-  new RegExp(`(^|[\\s,{])(async\\s+)?${action}\\s*[:(]`, 'm').test(source);
+  new RegExp(`(^|[\\s,{])(async\\s+)?${literally(action)}\\s*[:(]`, 'mu').test(
+    source
+  );
 
 /**
  * Does a model source declare a `graphql` key?
@@ -2351,3 +2370,4 @@ module.exports.moduleDeclaration = moduleDeclaration;
 module.exports.policyFor = policyFor;
 module.exports.storeOf = storeOf;
 module.exports.uncommented = uncommented;
+module.exports.imports = imports;

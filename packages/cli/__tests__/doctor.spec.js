@@ -8,6 +8,7 @@ const {
   definesGraphql,
   exportsOf,
   ignores,
+  imports,
   looksPlural,
   mailerActions,
   moduleDeclaration,
@@ -161,6 +162,23 @@ module.exports = {
   // What the stripper protects, with nothing to fall back on: a mailer whose
   // `defaults` carries a url would otherwise have no actions at all, and
   // `mailers.view` would quietly stop looking
+  test('matches a package name literally, backslash included', () => {
+    // The escape covered `/`, `@` and `-` and not `\\`, so a name holding one
+    // made the character after it an escape sequence of the name's choosing
+    expect(imports("import x from '@usehenri/react';", '@usehenri/react')).toBe(
+      true
+    );
+    expect(
+      imports("import x from '@usehenri/inertia';", '@usehenri/react')
+    ).toBe(false);
+    // `.` is not a wildcard, `+` is not a repetition, and a backslash is a
+    // backslash: each of these matches itself and nothing else
+    expect(imports("require('a.b')", 'a.b')).toBe(true);
+    expect(imports("require('axb')", 'a.b')).toBe(false);
+    expect(imports("require('a\\\\d')", 'a\\\\d')).toBe(true);
+    expect(imports("require('a1')", 'a\\\\d')).toBe(false);
+  });
+
   test('finds the actions of a mailer whose defaults carry a url', () => {
     expect(
       mailerActions(`module.exports = {
