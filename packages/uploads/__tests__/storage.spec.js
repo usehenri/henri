@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const LocalStorage = require('../src/storage/local');
-const { createStorage } = require('../src/storage');
+const { PACKAGES, createStorage } = require('../src/storage');
 const { keyFor } = require('../src/names');
 const { fakeHenri, workspace } = require('./helpers');
 
@@ -133,6 +133,57 @@ describe('the storage seam', () => {
     });
 
     expect(storage.url()).toBe('https://cdn.example.com');
+  });
+
+  test('a backend name is the package henri ships it in', () => {
+    expect(PACKAGES).toEqual({ s3: '@usehenri/s3' });
+  });
+
+  test('and the refusal says how to install it, not what require said', () => {
+    const cwd = workspace();
+    const henri = fakeHenri(cwd);
+
+    // What an application that never installed it has. The package is in
+    // this workspace, so the only honest way to see the refusal is to make
+    // the resolution fail the way it fails there
+    henri.utils.resolveFrom = () => {
+      throw new Error("Cannot find module '@usehenri/s3'");
+    };
+
+    expect(() =>
+      createStorage(henri, {
+        root: 'storage/uploads',
+        storage: 's3',
+        storageOptions: { bucket: 'henri-uploads' },
+      })
+    ).toThrow(/needs @usehenri\/s3: pnpm add @usehenri\/s3/u);
+
+    expect(() =>
+      createStorage(henri, { root: 'x', storage: './nowhere.js' })
+    ).toThrow(/unable to load the storage/u);
+  });
+
+  test('the settings of the block reach the backend, and adapter does not', () => {
+    const cwd = workspace();
+
+    fs.writeFileSync(
+      path.join(cwd, 'store.js'),
+      `class Fake {
+         constructor(name, config) { this.name = name; this.config = config; }
+         async put() {}
+         url() { return this.config.options.bucket; }
+       }
+       module.exports = Fake;`
+    );
+
+    const storage = createStorage(fakeHenri(cwd), {
+      root: 'storage/uploads',
+      storage: './store.js',
+      storageOptions: { bucket: 'henri-uploads' },
+    });
+
+    expect(storage.url()).toBe('henri-uploads');
+    expect(storage.config.options.adapter).toBeUndefined();
   });
 
   test('a module that is not a storage says so', () => {

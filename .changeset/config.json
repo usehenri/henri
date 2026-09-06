@@ -24,6 +24,7 @@
       "@usehenri/postgresql",
       "@usehenri/react",
       "@usehenri/redis",
+      "@usehenri/s3",
       "@usehenri/sequelize",
       "@usehenri/testing",
       "@usehenri/uploads",

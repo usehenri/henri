@@ -111,12 +111,22 @@ class UploadedFile {
     }
 
     const storage = options.storage || this.storage;
+    // What the parser already knows travels with the file: a backend that
+    // keeps metadata of its own (an object store keeps a `Content-Type` and
+    // wants the digest it is signing) would otherwise read the bytes again
+    // to learn what was measured on the way in
     const key = await storage.put(
       this.path,
       keyFor({
         extension: extensionFor(this.type),
         prefix: options.prefix || null,
-      })
+      }),
+      {
+        checksum: this.checksum,
+        name: this.name,
+        size: this.size,
+        type: this.type,
+      }
     );
 
     this.released = true;

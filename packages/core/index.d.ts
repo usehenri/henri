@@ -1054,8 +1054,87 @@ declare namespace start {
     root?: string;
     /** Decide the type from the bytes (`true`). */
     sniff?: boolean;
-    /** `"local"`, or the module id of a storage. */
-    storage?: string;
+    /**
+     * The backend files are kept in: `"local"` for the disk, `"s3"` for an
+     * object store (`@usehenri/s3`), the module id of a `HenriStorage`, or
+     * an object naming one and carrying its settings.
+     */
+    storage?: string | UploadStorageConfig;
+    /**
+     * Signed urls: a time-limited link that hands a file to whoever holds
+     * it, with no session and no policy. `false` (the default) hands out
+     * none, and `henri.uploads.url()` refuses.
+     */
+    urls?: false | UploadUrlsConfig;
+    /**
+     * Derived images, by name: `henri.uploads.variant(record, "thumb")`.
+     * Each one is produced once, on demand, and needs `sharp` in the
+     * application -- henri ships no image library.
+     */
+    variants?: Record<string, UploadVariantConfig>;
+  }
+
+  /**
+   * `config.uploads.urls`: what a signed url covers and how long it lasts.
+   * On an object store it is the provider's own signature; on the local
+   * disk it is henri's, verified by a route mounted at `path`.
+   */
+  interface UploadUrlsConfig {
+    /**
+     * A base url henri's own signed urls are built against. The host is
+     * outside henri's signature, so a cache may sit in front of the route;
+     * a storage that signs its own urls names its public host in its own
+     * block instead, because a provider's signature covers the host.
+     */
+    cdn?: string;
+    /** How long a url lasts, in seconds (`300`); a week at most. */
+    expiresIn?: number;
+    /**
+     * Where the route that verifies henri's own signed urls is mounted
+     * (`"/_uploads"`). Unused by a storage that signs its own.
+     */
+    path?: string;
+  }
+
+  /**
+   * `config.uploads.storage` in its object form: `adapter` names the
+   * backend and every other key is the backend's own -- a bucket, a region,
+   * an endpoint -- which henri passes along without reading.
+   */
+  interface UploadStorageConfig {
+    /** `"local"`, `"s3"`, or the module id of a `HenriStorage`. */
+    adapter: string;
+    [key: string]: unknown;
+  }
+
+  /**
+   * One entry of `config.uploads.variants`: what a derived image looks
+   * like. A width, a height, or both.
+   */
+  interface UploadVariantConfig {
+    /** How the resize fills its box (`"cover"`). */
+    fit?: 'contain' | 'cover' | 'fill' | 'inside' | 'outside';
+    /** What it is written as (`"webp"`). */
+    format?: 'avif' | 'jpeg' | 'png' | 'webp';
+    /** Pixels, 1 to 8192. */
+    height?: number;
+    /** 1 to 100 (`80`). */
+    quality?: number;
+    /** Pixels, 1 to 8192. */
+    width?: number;
+  }
+
+  /** What `variant()` resolves with: a derived file, with a key of its own. */
+  interface VariantFile {
+    key: string;
+    /** The original name of the file it was derived from. */
+    name: string | null;
+    /** The key of the file it was derived from. */
+    of: string;
+    size: number;
+    storage: string;
+    type: string;
+    uploadedAt: string;
   }
 
   /**
@@ -3577,6 +3656,29 @@ declare namespace start {
       record: StoredFile | string,
       options?: { disposition?: 'attachment' | 'inline'; maxAge?: number }
     ): Promise<unknown>;
+    /**
+     * A time-limited url that hands a stored file to a client without this
+     * process reading it: the provider's own signature on an object store,
+     * henri's own on the local disk. It is a bearer capability -- whoever
+     * holds the link holds the file until it expires -- so it needs
+     * `config.uploads.urls`, and refuses with `HENRI_UPLOAD_URLS_DISABLED`
+     * without it.
+     */
+    url(
+      record: StoredFile | string,
+      options?: {
+        expiresIn?: number;
+        disposition?: 'attachment' | 'inline';
+        filename?: string;
+        type?: string;
+      }
+    ): Promise<string>;
+    /**
+     * One declared variant of a stored image, derived once and then read
+     * back. Needs `sharp` in the application; without it this refuses with
+     * `HENRI_UPLOAD_NO_IMAGE_LIBRARY`.
+     */
+    variant(record: StoredFile | string, name: string): Promise<VariantFile>;
     /** A readable stream of a stored file. */
     get(record: StoredFile | string): Promise<NodeJS.ReadableStream>;
     /** Removes a stored file. */

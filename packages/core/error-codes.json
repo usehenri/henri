@@ -86,6 +86,10 @@
       "what": "the append-only record of who read or changed personal data"
     },
     {
+      "area": "upload",
+      "what": "the files @usehenri/uploads reads from a multipart body, the storage they are kept in and the urls that hand them back"
+    },
+    {
       "area": "user",
       "what": "the user module: sessions, passwords, tokens and the CSRF protection"
     },
@@ -979,8 +983,8 @@
       "area": "job",
       "causes": ["a job whose `perform()` never returned in time"],
       "code": "HENRI_JOB_TIMEOUT",
-      "fix": "Raise the job’s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
-      "what": "An attempt ran past the job’s timeout."
+      "fix": "Raise the job\u2019s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
+      "what": "An attempt ran past the job\u2019s timeout."
     },
     {
       "area": "job",
@@ -1505,6 +1509,101 @@
       "what": "Something tried to record a value in the access trail."
     },
     {
+      "area": "upload",
+      "causes": [
+        "uploads.variants is configured and the application does not depend on sharp",
+        "sharp is declared but was not installed for this platform"
+      ],
+      "code": "HENRI_UPLOAD_NO_IMAGE_LIBRARY",
+      "fix": "Install it in the application: pnpm add sharp. henri ships no image library, because a native addon does not belong in the install of everyone who accepts a file.",
+      "what": "A variant was asked for and there is no image library to derive it with."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "the object store answered an error, or nothing at all",
+        "the network between this process and the store",
+        "a key that is not one henri generated"
+      ],
+      "code": "HENRI_UPLOAD_STORAGE_FAILED",
+      "fix": "Read the status and the code the store answered with, which are both in the message. A request that failed for a passing reason has already been made three times.",
+      "what": "The storage could not carry out what it was asked to do."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "uploads.storage names no bucket, or one that is not a bucket name",
+        "no credentials: neither the block nor AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY",
+        "an endpoint that is not a url, or a region the bucket is not in"
+      ],
+      "code": "HENRI_UPLOAD_STORAGE_MISCONFIGURED",
+      "fix": "Check uploads.storage: it needs an adapter, a bucket and a region, and credentials from the environment or from the block.",
+      "what": "The storage the configuration names cannot be used as it is described."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "uploads.urls is false, or absent, which is the default",
+        "the storage signs no url of its own and the application has no config.secret",
+        "a storage of the application's own whose url() answered null"
+      ],
+      "code": "HENRI_UPLOAD_URLS_DISABLED",
+      "fix": "Turn them on with { \"uploads\": { \"urls\": { \"expiresIn\": 300 } } } and set HENRI_SECRET, or hand the file back from a controller with henri.uploads.send().",
+      "what": "A signed url was asked for and this application cannot make one."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "the link is older than the window it was signed for",
+        "a clock that moved between the signing process and this one"
+      ],
+      "code": "HENRI_UPLOAD_URL_EXPIRED",
+      "fix": "Ask the application for another link. Widen uploads.urls.expiresIn if every link is expiring before it is followed.",
+      "what": "A signed url henri really signed was followed after its expiry."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "the url was edited: another key, a wider window, another disposition",
+        "config.secret was rotated, which invalidates every outstanding link",
+        "the object the link names is no longer in the storage"
+      ],
+      "code": "HENRI_UPLOAD_URL_INVALID",
+      "fix": "Ask the application for the link again rather than building one by hand: everything a signed url carries is covered by its signature.",
+      "what": "A signed url did not verify."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "the file is not the image its first bytes said it was",
+        "it is larger than uploads.maxFileSize, or holds more pixels than a variant is derived from",
+        "the resize produced something other than the format it was asked for"
+      ],
+      "code": "HENRI_UPLOAD_VARIANT_FAILED",
+      "fix": "Read the message: it names what went wrong. Nothing is stored when a derivation fails, so asking again after fixing the source is safe.",
+      "what": "A variant could not be derived from the file it was asked for."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "the name is not one of config.uploads.variants",
+        "a typo, or a variant renamed in the configuration and not in the code"
+      ],
+      "code": "HENRI_UPLOAD_VARIANT_UNKNOWN",
+      "fix": "Declare it under uploads.variants. A variant name never comes from a request, so that one visitor cannot ask for ten thousand distinct sizes.",
+      "what": "A variant was asked for by a name the configuration does not declare."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "the file is not an image: its bytes said pdf, zip or anything else",
+        "it is an SVG, which is refused because it is text that carries script"
+      ],
+      "code": "HENRI_UPLOAD_VARIANT_UNSUPPORTED",
+      "fix": "Ask for a variant of an image henri recognized. The type comes from the bytes, so file.type is what decides, never the name or the Content-Type.",
+      "what": "A variant was asked for of something that is not an image one can be derived from."
+    },
+    {
       "area": "user",
       "causes": [
         "the password does not match the hash of that account",
@@ -1735,7 +1834,7 @@
         "a receiver answering 410 Gone, which also disables the endpoint"
       ],
       "code": "HENRI_WEBHOOK_DELIVERY_FAILED",
-      "fix": "The delivery is a job: it is retried with the queue’s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
+      "fix": "The delivery is a job: it is retried with the queue\u2019s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
       "what": "A receiver refused a delivery."
     },
     {

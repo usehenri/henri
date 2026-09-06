@@ -1568,10 +1568,109 @@ const SCHEMA = {
             hint: 'false trusts the Content-Type the client sent, which is not evidence',
             type: 'boolean',
           },
-          storage: text({
+          storage: {
             default: 'local',
-            describe: "'local', or the module id of a HenriStorage",
-          }),
+            describe:
+              "a backend name ('local', 's3'), the module id of a HenriStorage, or an object naming one ({ adapter, ... })",
+            hint: 'A name that is not local resolves @usehenri/<name> from the application: pnpm add @usehenri/s3',
+            oneOf: [
+              text(),
+              {
+                keys: {
+                  adapter: {
+                    describe:
+                      "a backend name ('s3'), or the module id of a HenriStorage",
+                    required: true,
+                    type: 'string',
+                  },
+                },
+                // Everything else is the backend's own (a bucket, a region,
+                // an endpoint), which henri does not own and does not read
+                type: 'object',
+                unknown: 'near',
+              },
+            ],
+          },
+          urls: {
+            default: false,
+            describe:
+              'an object of signed url settings, or false to hand out none',
+            hint: 'A signed url hands a file to whoever holds the link, with no session and no policy, until it expires: it is off until this says otherwise',
+            oneOf: [
+              { const: false },
+              {
+                keys: {
+                  cdn: text({
+                    describe:
+                      "a base url henri's own signed urls are built against",
+                    hint: "The host is outside henri's signature, so a cache may sit in front of the route; a storage that signs its own names its public host in its own block instead",
+                  }),
+                  expiresIn: {
+                    default: 300,
+                    describe:
+                      'a whole number of seconds, from 1 to 604800 (a week)',
+                    integer: true,
+                    max: 604800,
+                    min: 1,
+                    type: 'number',
+                  },
+                  path: text({
+                    default: '/_uploads',
+                    describe:
+                      'a path, where the route verifying them is mounted',
+                    hint: 'Only used by a storage that signs no url of its own, which is the local disk',
+                    pattern: /^\//u,
+                  }),
+                },
+                type: 'object',
+              },
+            ],
+          },
+          variants: {
+            describe: 'an object of derived images, by name',
+            hint: 'A variant is derived once, on demand, and needs sharp in the application: pnpm add sharp',
+            type: 'record',
+            values: {
+              hint: 'A variant needs a width, a height, or both',
+              keys: {
+                fit: {
+                  default: 'cover',
+                  describe: 'one of contain, cover, fill, inside, outside',
+                  enum: ['contain', 'cover', 'fill', 'inside', 'outside'],
+                  type: 'string',
+                },
+                format: {
+                  default: 'webp',
+                  describe: 'one of avif, jpeg, png, webp',
+                  enum: ['avif', 'jpeg', 'png', 'webp'],
+                  type: 'string',
+                },
+                height: {
+                  describe: 'a whole number of pixels, from 1 to 8192',
+                  integer: true,
+                  max: 8192,
+                  min: 1,
+                  type: 'number',
+                },
+                quality: {
+                  default: 80,
+                  describe: 'a whole number from 1 to 100',
+                  integer: true,
+                  max: 100,
+                  min: 1,
+                  type: 'number',
+                },
+                width: {
+                  describe: 'a whole number of pixels, from 1 to 8192',
+                  integer: true,
+                  max: 8192,
+                  min: 1,
+                  type: 'number',
+                },
+              },
+              type: 'object',
+            },
+          },
         },
         type: 'object',
       },

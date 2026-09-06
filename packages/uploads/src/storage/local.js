@@ -27,12 +27,16 @@ const { isKey } = require('../names');
  *   answers
  * @method async stop() Releases what it holds; `start()` may be called again
  * @method async temp() `{ path }`: a private file to stream a part into
- * @method async put(source, key) Moves `source` in under `key`; resolves with
- *   the key that was written
+ * @method async put(source, key, meta) Moves `source` in under `key`;
+ *   resolves with the key that was written. `meta` is what the parser
+ *   already knows -- `{ checksum, name, size, type }` -- which a backend
+ *   that keeps metadata of its own wants and one that does not ignores
  * @method async get(key) A readable stream of the object
  * @method async stat(key) `{ size, modifiedAt }`, or null when there is none
  * @method async delete(key) Removes it; resolves false when there was none
- * @method url(key) A public url, or null when there is no such thing
+ * @method url(key, options) A time-limited url handing the object to a
+ *   client without this process reading it, or null when the storage has no
+ *   such thing. `{ expiresIn, disposition, type }`; may be a promise
  */
 
 /** The mode of the storage root and of the temporary directory */
@@ -316,8 +320,15 @@ class LocalStorage {
   }
 
   /**
-   * The local disk has no public url, and that is the whole idea: a stored
-   * file is reached through a controller that decides who may
+   * The disk signs no url of its own, and answers so.
+   *
+   * There is nobody else to hand the file to: an object store's presigned
+   * url works because the store is a second server the client can reach, and
+   * a directory is not. `null` is the contract's word for that, and it is
+   * what makes `henri.uploads.url()` sign one itself and mount the route
+   * that verifies it (`src/signing.js`, `src/download.js`) -- so an
+   * application gets the same call and the same expiry here as it does on
+   * an object store, rather than a `null` it has to work around.
    *
    * @returns {null} null
    * @memberof LocalStorage

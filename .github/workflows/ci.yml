@@ -201,6 +201,57 @@ jobs:
         env:
           NODE_ENV: test
 
+  # `config.uploads.storage`: files on an object store instead of one
+  # machine's disk. The offline suite verifies every signature it sends with
+  # the code that made it, which proves the wire matches what was signed and
+  # nothing about whether a real server would accept it; the vectors AWS
+  # publishes prove the algorithm. This job is the third leg -- MinIO, which
+  # refuses a signature it does not like -- and it is what actually
+  # exercises @usehenri/s3 against something nobody here wrote.
+  #
+  # Started as a step rather than as a service, because the image takes a
+  # command (`server /data`) and a service container cannot be given one.
+  s3:
+    name: Live S3
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          # The object store suites never boot MongoDB
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      - name: Start MinIO
+        run: |
+          docker run -d --name henri-minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=henri -e MINIO_ROOT_PASSWORD=henri-secret \
+            quay.io/minio/minio:latest server /data
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:9000/minio/health/live && break
+            sleep 1
+          done
+
+      # Without the variable the live half of the suite skips
+      - run: pnpm test:s3
+        env:
+          NODE_ENV: test
+          HENRI_TEST_S3_KEY: henri
+          HENRI_TEST_S3_SECRET: henri-secret
+
   # The showcase application (showcase/) runs against a real PostgreSQL, so
   # its suite is not part of `pnpm test`. This job runs it, and builds the
   # production views the way a deployment would.
