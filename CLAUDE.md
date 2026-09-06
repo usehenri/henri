@@ -25,6 +25,7 @@ pnpm --filter @usehenri/website dev   # docs site (Astro + Starlight); `build` a
 scripts/smoke.sh                      # scaffold an app from the packed workspace and boot it
 pnpm db:up                            # postgres, mysql and mongo for local dev (compose.yaml)
 pnpm test:sql:live                    # the SQL suites against the live postgres, then mysql
+pnpm test:showcase                    # the showcase application's own suite (needs postgres)
 pnpm db:down                          # stop them (`db:reset` also deletes the data)
 pnpm changeset                        # record a version bump for changed packages
 ```
@@ -71,6 +72,7 @@ an app and is what core's tests boot.
 | `packages/mcp`                          | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                             |
 | `packages/websocket`                    | private               | Not published, never wired into core                                                                                                             |
 | `packages/demo`                         | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                   |
+| `showcase`                              | private               | Lineup, the showcase application (Inertia + Drizzle on PostgreSQL); its own suite, `pnpm test:showcase`                                          |
 | `website`                               | private               | usehenri.io, deployed by Vercel from `website/`                                                                                                  |
 
 ## How core works

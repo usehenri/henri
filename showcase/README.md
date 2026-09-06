@@ -1,0 +1,176 @@
+# Lineup
+
+A call for papers and program committee tool, built on henri. It is the
+showcase application of this repository: a real application, not a brochure.
+Speakers write proposals, the committee reviews and decides, and the accepted
+talks become the public programme.
+
+It is private and never published to npm. It depends on the workspace packages
+(`workspace:^`), so it always runs against the framework in this checkout.
+
+|          |                                                                       |
+| -------- | --------------------------------------------------------------------- |
+| Renderer | Inertia (Vite + React 19), server-side rendered, Tailwind CSS v4      |
+| Store    | `@usehenri/drizzle` on PostgreSQL, with migrations in `db/migrations` |
+| Models   | `User`, `Event`, `Track`, `Proposal`, `Review`                        |
+| Tests    | `pnpm --filter @usehenri/showcase test` (needs PostgreSQL)            |
+
+## From a clean checkout to a running seeded application
+
+```bash
+mise install                        # node 24 + pnpm 11
+pnpm install                        # the whole workspace
+pnpm db:up                          # PostgreSQL from compose.yaml
+cd showcase
+cp .env.example .env                # HENRI_SECRET, never committed
+pnpm db:create                      # createdb henri_showcase
+pnpm db:migrate                     # apply db/migrations
+pnpm db:seed                        # 3 editions, 24 people, 46 proposals
+pnpm start                          # henri server, http://localhost:3000
+```
+
+`pnpm db:setup` is the three database steps in one.
+
+Sign in with any of the seeded accounts; the password is always `showcase`.
+`ada@lineup.dev` and `grace@lineup.dev` are on the program committee, so they
+see `/admin`; `bruno@lineup.dev` and the twenty-one others are speakers.
+
+If your PostgreSQL is not on `127.0.0.1:5432` — `pnpm db:up` takes
+`HENRI_POSTGRES_PORT` when something else already listens there — copy
+`config/default.json` to `config/dev.json` and change `stores.default.url`.
+henri reads `config/dev.json` before `config/default.json` when `NODE_ENV` is
+unset, and that file is git-ignored. The test database is
+`config/test.json`.
+
+`HENRI_SECRET` signs the sessions. It lives in `.env`, which is git-ignored,
+so `henri doctor` stays green and no secret is ever committed; a variable
+already set in the environment wins over the file, which is how the CI job and
+the container pass their own. The container refuses to start without one.
+
+## The commands
+
+```bash
+pnpm start            # henri server, with hot reload
+pnpm test             # createdb (test) + henri test
+pnpm routes           # the expanded routes table
+pnpm doctor           # check the application against the conventions
+pnpm console          # a REPL with henri and the models
+pnpm build            # the production Vite bundles
+pnpm db:generate      # write a migration from a model change
+pnpm db:status        # applied and pending migrations
+```
+
+## What it exercises
+
+Everything below runs here; `/about` in the application says the same thing
+to a visitor.
+
+### Routes (`config/routes.js`)
+
+`root`, `resources` with `only` and `except`, `member` routes (`submit`,
+`withdraw`, `decide`, `restore`), `collection` routes (`mine`, `withdrawn`), a
+`namespace` for the committee, `reviews` nested under a proposal, per-route
+`roles`, and `version: 'v1'` on the proposals. `pnpm routes` prints all 31.
+
+### Controllers
+
+- `before` hooks in the Rails selector form (`app/controllers/proposals.js`):
+  one refuses an anonymous write, one loads the record, one refuses somebody
+  else's proposal. A hook that answers ends the request.
+- `req.permit()` decides what a form may set: a proposal cannot choose its own
+  speaker or state, a profile cannot grant itself a role.
+- `req.flash()` across a redirect, rendered by `components/layout.jsx`.
+- Implicit rendering in `app/controllers/events.js` and
+  `app/controllers/admin/dashboard.js`: the action returns an object and henri
+  renders its page with it.
+- `res.negotiate({ html, json })` so one action serves a browser and an API
+  client, and `henri.model.errors()` for a 422 with one message per field.
+
+### Users and roles
+
+Sign up (`accounts#create`, then `req.logIn`), sign in and sign out through
+henri's own `POST /login` and `POST /logout`, the CSRF token in every form, and
+`req.user` reaching the pages as `user`. `/admin` is behind `roles: ['admin']`:
+a browser is redirected to `/login`, an API client gets a `403` naming the
+role, and the path helpers a page receives are filtered by role, so a speaker's
+page holds no link to the committee.
+
+### JSON API
+
+The same routes answer HAL. `GET /proposals` with
+`Accept: application/hal+json` is a collection with `_embedded.proposals`, the
+paging links, `Link` and `X-Total-Count`; `GET /proposals/:id` is a resource
+with `_links`. Pagination is `Proposal.paginate(req.pagination())`, creates
+honour `Idempotency-Key`, every answer carries a weak `ETag`, and the route
+serves `application/vnd.henri.v1+json` and refuses other versions with a `406`.
+
+`/api` in the application is an explorer: it makes those requests from the
+browser and shows the status, the headers and the body.
+
+### Models
+
+Five models on the Drizzle adapter, with `belongsTo`/`hasMany` associations
+declared on both sides, enum, length and range validations, timestamps, and
+`options: { paranoid: true }` on `Proposal`: withdrawing soft deletes it, the
+reviews survive, and the committee restores it from `/admin/proposals/withdrawn`.
+
+`db/migrations` is the drizzle-kit layout written by `henri db:generate`. The
+development store sets `"sync": false`, so a schema change needs a migration
+rather than a silent push, and `test/schema.test.js` fails when the models and
+the migrations disagree.
+
+## Tests
+
+```bash
+pnpm --filter @usehenri/showcase test        # from the repository root
+pnpm test                                    # from showcase/
+```
+
+`henri test` runs Vitest with `NODE_ENV=test`; `@usehenri/testing` boots the
+application in the worker and binds supertest to it. The suite needs the
+PostgreSQL of `compose.yaml`, which is why it is **not** part of the
+monorepo's `pnpm test`: `vitest.config.mjs` at the root excludes `showcase/`.
+
+The five files cover the flows above: `auth.test.js` (sign up, sign in, sign
+out, CSRF), `roles.test.js` (the guard and the filtered path helpers),
+`proposals.test.js` (before hooks, `req.permit`, flash, the state transitions,
+the soft delete), `api.test.js` (HAL, pagination, `Idempotency-Key`, ETags,
+versioning) and `schema.test.js` (models, migrations, routes table).
+
+## Docker
+
+The build context is the repository root, because the application depends on
+the workspace packages:
+
+```bash
+docker build -f showcase/Dockerfile -t lineup .
+docker run --rm -p 3000:3000 \
+  -e DATABASE_URL=postgres://henri:henri@host.docker.internal:5432/henri_showcase \
+  -e HENRI_SECRET="$(openssl rand -hex 32)" \
+  lineup
+```
+
+`docker-entrypoint.sh` writes `config/production.json` from the environment on
+every start (henri expands no environment variable in its configuration) and
+the boot applies `db/migrations`. `HENRI_SEED=true` runs `db/seeds.js` first,
+`HENRI_MIGRATE=false` leaves the schema alone, `PORT` moves the port. The
+container refuses to start without `DATABASE_URL` and `HENRI_SECRET`, and
+`GET /_henri/health` is its healthcheck.
+
+## Layout
+
+```
+showcase/
+  app/
+    controllers/          main, sessions, accounts, events, tracks,
+                          proposals, reviews, admin/{dashboard,proposals,users}
+    helpers/proposals.js  what the page and the API answers share
+    models/               User, Event, Track, Proposal, Review
+    views/
+      pages/              the Inertia pages, one per rendered route
+      components/         layout, ui, proposal-form
+      styles/index.css    the whole stylesheet (Tailwind v4)
+  config/                 default.json, test.json, routes.js
+  db/                     create.js, seeds.js, migrations/
+  test/                   the suite run by `henri test`
+```

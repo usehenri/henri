@@ -18,6 +18,9 @@ const ignored = [
   'packages/cli/template/**',
   'packages/demo/**',
   'packages/react/dist/**',
+  // The showcase application runs its own suite against PostgreSQL:
+  // `pnpm --filter @usehenri/showcase test`, never `pnpm test`
+  'showcase/**',
 ];
 
 const testFiles = (pkg) => [

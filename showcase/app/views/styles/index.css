@@ -1,0 +1,32 @@
+/*
+ * Tailwind CSS v4, the whole stylesheet of the application.
+ *
+ * `source(none)` turns off automatic file detection, so Tailwind reads
+ * exactly the `@source` globs below. Dark mode follows the operating system:
+ * `dark:` is Tailwind's `prefers-color-scheme` variant and `color-scheme`
+ * hands the same preference to the native form controls and scrollbars.
+ */
+@import 'tailwindcss' source(none);
+
+@source '../index.html';
+@source '../pages/**/*.{js,jsx}';
+@source '../components/**/*.{js,jsx}';
+
+@theme {
+  --color-brand-50: oklch(0.96 0.02 275);
+  --color-brand-100: oklch(0.92 0.04 275);
+  --color-brand-500: oklch(0.55 0.19 275);
+  --color-brand-600: oklch(0.49 0.19 275);
+  --color-brand-900: oklch(0.28 0.1 275);
+  --color-brand-950: oklch(0.21 0.07 275);
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-50;
+  }
+}

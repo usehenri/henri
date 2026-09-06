@@ -1,0 +1,25 @@
+{
+  "port": 3000,
+  "renderer": "inertia",
+  "inertia": { "ssr": true },
+  "baseRole": "speaker",
+  "user": {
+    "model": "user",
+    "public": ["name", "company"],
+    "loginPath": "/login",
+    "afterLogin": "/proposals/mine"
+  },
+  "api": {
+    "perPage": 12,
+    "maxPerPage": 50,
+    "strict": true
+  },
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "postgres",
+      "url": "postgres://henri:henri@127.0.0.1:5432/henri_showcase",
+      "sync": false
+    }
+  }
+}

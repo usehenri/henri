@@ -22,6 +22,7 @@
     "test:sql:mysql": "HENRI_TEST_SQL_DIALECT=mysql HENRI_TEST_MYSQL_URL=mysql://root:henri@127.0.0.1:${HENRI_MYSQL_PORT:-3306}/henri_test vitest run --project sequelize --project mysql --project postgresql --project mssql --project drizzle",
     "test:sql:postgres": "HENRI_TEST_SQL_DIALECT=postgres HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:${HENRI_POSTGRES_PORT:-5432}/henri_test vitest run --project sequelize --project mysql --project postgresql --project mssql --project drizzle",
     "test:sql:live": "pnpm test:sql:postgres && pnpm test:sql:mysql",
+    "test:showcase": "pnpm --filter @usehenri/showcase test",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "pnpm sync-readme && pnpm build && changeset publish",

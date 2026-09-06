@@ -1,0 +1,16 @@
+# The build context of showcase/Dockerfile is the repository root: keep the
+# things that must not travel into the image out of it.
+**/node_modules
+**/.next
+**/.henri
+**/dist
+**/coverage
+**/.turbo
+.claude
+.git
+.github
+.tmp
+website
+packages/demo/.henri
+showcase/config/dev.json
+showcase/.env
