@@ -1,4 +1,10 @@
-const { canonical, canonicalInteger, isExact, settingsOf } = require('./exact');
+const {
+  canonical,
+  canonicalInteger,
+  compare,
+  isExact,
+  settingsOf,
+} = require('./exact');
 
 /**
  * `decimal` and `bigint` on a Mongoose model.
@@ -121,6 +127,11 @@ const exactPaths = (schema = {}) => {
     if (typeof type === 'string' && isExact(type.toLowerCase())) {
       paths[field] = {
         ...settingsOf(definition),
+        // Mongoose has a `min` and a `max`, and it ignores both on a
+        // Decimal128 and a BigInt without a word: henri carries them
+        // itself so a bound means the same thing on the three adapters
+        max: definition.max,
+        min: definition.min,
         type: type.toLowerCase(),
       };
     }
@@ -166,8 +177,25 @@ const exactness = (schema, paths) => {
     const refused = (this.$locals || {})[LOCALS] || {};
 
     for (const field of Object.keys(paths)) {
+      const { max, min } = paths[field];
+      const value = this.get(field);
+
       if (refused[field]) {
-        this.invalidate(field, refused[field], this.get(field));
+        this.invalidate(field, refused[field], value);
+        continue;
+      }
+
+      if (value === null || typeof value === 'undefined') {
+        continue;
+      }
+
+      // Digit by digit, never through the double the type exists to avoid
+      if (typeof min !== 'undefined' && compare(String(value), min) < 0) {
+        this.invalidate(field, `must be at least ${min}`, value);
+      }
+
+      if (typeof max !== 'undefined' && compare(String(value), max) > 0) {
+        this.invalidate(field, `must be at most ${max}`, value);
       }
     }
   });

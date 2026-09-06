@@ -130,6 +130,55 @@ cd "$app"
 log "henri generate authentication"
 node "$root/packages/henri/bin/henri.js" generate authentication
 
+# The two types a JavaScript number cannot carry. The scaffold has neither,
+# so the model is generated here: what this proves is the whole published
+# chain -- the packed core, the packed adapter and the real driver -- rather
+# than a test fixture, and it is the only place `henri generate model` writes
+# a `precision` and a `scale`
+log "henri generate model invoice (a decimal and a bigint)"
+node "$root/packages/henri/bin/henri.js" generate model invoice \
+  title:string! amount:decimal reference:bigint
+cat >db/seeds.js <<'SEEDS'
+// The round trip of the two exact types, on the store this app was
+// scaffolded with: a value goes in and the *same* value comes back, not a
+// near one. A double would answer 1.0000000000000007 for a hundred cents
+// and 9223372036854776000 for the largest 64-bit integer.
+module.exports = async () => {
+  const invoice = await Invoice.create({
+    amount: '19.99',
+    reference: '9223372036854775807',
+    title: 'exact',
+  });
+  const read = await Invoice.findById(invoice.externalId);
+
+  for (const [field, wanted] of [
+    ['amount', '19.99'],
+    ['reference', '9223372036854775807'],
+  ]) {
+    if (read[field] !== wanted) {
+      throw new Error(
+        `${field} came back as ${JSON.stringify(read[field])}, not ${wanted}`
+      );
+    }
+  }
+
+  // ... and a value the column would have quietly rounded is refused
+  const refused = await Invoice.create({
+    amount: 0.1 + 0.2,
+    title: 'float',
+  }).then(
+    () => null,
+    (error) => error
+  );
+
+  if (!refused) {
+    throw new Error('0.1 + 0.2 was stored in a decimal(12, 2)');
+  }
+
+  console.log(`  exact: ${read.amount} and ${read.reference}, and 0.1 + 0.2 refused`);
+};
+SEEDS
+
 printf '\n# Resolve the henri packages from the tarballs packed above\noverrides:\n%s' "$overrides" >>pnpm-workspace.yaml
 node -e "
   const fs = require('fs');
@@ -225,7 +274,22 @@ if [ "$adapter" = drizzle ]; then
     exit 1
   }
   rm "$app/db/schema.first.sql"
+
+  # The columns the two exact types asked for, in the DDL a real install
+  # generated: a `numeric`/`decimal` with its precision and scale, and a
+  # 64-bit integer. On sqlite both keep their digits in a text column
+  grep -qiE 'amount[^,]*(text|numeric\(12, ?2\)|decimal\(12, ?2\))' \
+    "$app/db/migrations/0000_init.sql" || {
+    echo "the decimal column is not in the generated migration" >&2
+    grep -i amount "$app/db/migrations/0000_init.sql" >&2 || true
+    exit 1
+  }
 fi
+
+# The round trip, through the packed packages and the real driver
+log "henri db:seed (the decimal and the bigint come back unchanged)"
+pnpm exec henri db:seed
+stop_mongod
 
 if [ ! -e "$app/$build_marker" ]; then
   echo "henri build did not write $build_marker" >&2

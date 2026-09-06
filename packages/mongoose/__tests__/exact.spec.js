@@ -189,4 +189,50 @@ describe('decimal and bigint (mongodb)', () => {
       normalizeSchema({ price: { precision: 99, type: 'decimal' } })
     ).toThrow(/between 1 and 38/u);
   });
+
+  test('a bound that measures text fails the boot', () => {
+    expect(() =>
+      normalizeSchema({ price: { maxLength: 4, type: 'decimal' } })
+    ).toThrow(/which measures text/u);
+  });
+
+  test('a bound is henri’s, because mongoose ignores one here', () => {
+    // `min` on a Decimal128 or a BigInt is dropped by Mongoose without a
+    // word, so it never reaches the path and henri carries it itself
+    const definition = normalizeSchema({
+      price: { min: '10.00', type: 'decimal' },
+    });
+
+    expect(definition.price.min).toBeUndefined();
+  });
+
+  test('a bound is compared by value, not letter by letter', async () => {
+    const other = build('exact-bounds');
+    const Priced = other.addModel({
+      globalId: 'Priced',
+      identity: 'priced',
+      options: { timestamps: false },
+      schema: {
+        // `'9.99' > '10'` as text, which is the answer this must not give
+        price: { min: '10', scale: 2, type: 'decimal' },
+        seats: { max: '9223372036854775806', type: 'bigint' },
+      },
+      store: 'default',
+    });
+
+    await other.start();
+
+    await expect(Priced.create({ price: '9.99' })).rejects.toThrow(
+      /must be at least 10/u
+    );
+    await expect(
+      Priced.create({ seats: '9223372036854775807' })
+    ).rejects.toThrow(/must be at most/u);
+
+    const ok = await Priced.create({ price: '100.50', seats: '5' });
+
+    expect(ok.price).toBe('100.50');
+
+    await other.stop();
+  });
 });

@@ -4,6 +4,10 @@ const { checkSettings, isExact, settingsOf } = require('./exact');
 const { setter } = require('./exact-paths');
 const { coded } = require('./utils');
 
+// Keys that measure a string, and therefore mean nothing on a `decimal` or
+// a `bigint`: the value is a string, so they would quietly count digits
+const TEXTUAL_KEYS = ['lowercase', 'match', 'maxLength', 'minLength', 'trim'];
+
 /**
  * Resolves a henri type name to a Mongoose type; anything else is returned
  * as is (Mongoose knows constructors, 'ObjectId', schemas, ...)
@@ -77,8 +81,20 @@ const normalizeField = (
   // it does on the SQL adapters (./exact-paths.js)
   if (isExact(name)) {
     const settings = settingsOf(definition);
+    const textual = TEXTUAL_KEYS.find((key) => key in definition);
+
+    if (textual) {
+      throw coded(
+        'HENRI_MODEL_INVALID_FIELD',
+        `Field '${field}' has '${textual}', which measures text: a ${name} is a number, and its bounds are 'min' and 'max'`
+      );
+    }
 
     shaped.set = setter(field, name, settings);
+    // Mongoose ignores both on a Decimal128 and a BigInt without a word;
+    // `exact-paths.js` carries them, so they are not paths options here
+    delete shaped.min;
+    delete shaped.max;
 
     if (typeof shaped.default !== 'undefined') {
       shaped.default = shaped.set(shaped.default);

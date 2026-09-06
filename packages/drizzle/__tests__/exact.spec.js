@@ -288,4 +288,88 @@ describe(`decimal and bigint (${target.name})`, () => {
       );
     });
   });
+  describe('what the definition itself may say', () => {
+    const { normalizeSchema } = require('../schema');
+
+    test('a bound that measures text fails the boot', () => {
+      expect(() =>
+        normalizeSchema({ price: { maxLength: 4, type: 'decimal' } })
+      ).toThrow(/which measures text/u);
+      expect(() =>
+        normalizeSchema({ count: { match: /x/u, type: 'bigint' } })
+      ).toThrow(/which measures text/u);
+    });
+
+    test('a precision or a scale belongs to a decimal alone', () => {
+      expect(() =>
+        normalizeSchema({ count: { scale: 2, type: 'bigint' } })
+      ).toThrow(/takes no 'scale'/u);
+      expect(() =>
+        normalizeSchema({ price: { precision: 99, type: 'decimal' } })
+      ).toThrow(/between 1 and 38/u);
+    });
+
+    test('the sequelize spellings point at the exact types', () => {
+      const fields = normalizeSchema({
+        big: 'BIGINT',
+        money: 'DECIMAL',
+        num: 'NUMERIC',
+      });
+
+      // They used to be a double and a 32-bit integer
+      expect(fields.big.type).toBe('bigint');
+      expect(fields.money.type).toBe('decimal');
+      expect(fields.num.type).toBe('decimal');
+    });
+
+    test('a default and an enum are canonicalized with the field', () => {
+      const fields = normalizeSchema({
+        price: { default: 5, enum: [5, '10.5'], scale: 2, type: 'decimal' },
+      });
+
+      expect(fields.price.default).toBe('5.00');
+      expect(fields.price.enum).toEqual(['5.00', '10.50']);
+    });
+
+    test('a default the column would not carry fails the boot', () => {
+      expect(() =>
+        normalizeSchema({
+          price: { default: 0.1 + 0.2, scale: 2, type: 'decimal' },
+        })
+      ).toThrow(/has a 'default'/u);
+    });
+  });
+
+  describe('the bounds a model declares', () => {
+    let Priced;
+
+    beforeAll(async () => {
+      Priced = adapter.addModel({
+        globalId: 'Priced',
+        identity: 'priced',
+        options: { timestamps: false },
+        schema: {
+          // `'9.99' > '10'` as text, which is the answer this must not give
+          price: { min: '10', scale: 2, type: 'decimal' },
+          seats: { max: '9223372036854775806', type: 'bigint' },
+        },
+        store: 'default',
+      });
+
+      await adapter.start();
+    });
+
+    test('are compared by value, not letter by letter', async () => {
+      await expect(Priced.create({ price: '9.99' })).rejects.toThrow(
+        /must be at least 10/u
+      );
+      await expect(
+        Priced.create({ seats: '9223372036854775807' })
+      ).rejects.toThrow(/must be at most/u);
+
+      const ok = await Priced.create({ price: '100.50', seats: '5' });
+
+      expect(ok.price).toBe('100.50');
+    });
+  });
 });
