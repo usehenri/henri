@@ -159,6 +159,8 @@ henri.cache.stats();
 
 `entries` and `bytes` are the memory backend's; they are `null` on any other. `evictions` climbing means the bounds are doing their job and the cache may be too small for what you are keeping in it.
 
+These are also where the `henri.cache.operations` counter of [Telemetry](/guides/telemetry/#metrics) reads its values: an observable instrument, asked when something collects, so watching the hit rate costs nothing between collections.
+
 ## In tests
 
 `@usehenri/testing` boots the application, so `henri.cache` is the real one. Clear it between tests that share a key:

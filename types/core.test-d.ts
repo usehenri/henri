@@ -860,6 +860,47 @@ expectType<Promise<boolean>>(henri.reporter.report(new Error('boom'), { req }));
 // @ts-expect-error the handler is a function, or null to remove it
 henri.reporter.onError('sentry');
 
+// --- telemetry ---------------------------------------------------------------
+
+expectType<Configuration>({ telemetry: false });
+expectType<Configuration>({ telemetry: { enabled: true } });
+expectType<Configuration>({
+  telemetry: { metrics: false, propagate: false, spans: 'all' },
+});
+expectType<Configuration>({ telemetry: { spans: ['http', 'jobs'] } });
+expectType<Configuration>({ telemetry: { spans: false } });
+
+const badTelemetry: Configuration = {
+  // @ts-expect-error `views` is a boundary, `renders` is not
+  telemetry: { spans: ['renders'] },
+};
+
+expectType<boolean>(henri.telemetry.enabled);
+expectType<boolean>(henri.telemetry.on('stores'));
+expectType<number>(henri.telemetry.span('app.import', () => 42));
+expectType<Promise<string>>(
+  henri.telemetry.span(
+    'app.import',
+    { attributes: { 'app.rows': 12 }, kind: 'client' },
+    async () => 'done'
+  )
+);
+expectType<{ 'content-type': string }>(
+  henri.telemetry.inject({ 'content-type': 'application/json' })
+);
+henri.telemetry.histogram('app.rows', { unit: '{row}' }).record(3, { a: 'b' });
+expectType<boolean>(
+  henri.telemetry.observe('app.tenants', { kind: 'gauge' }, (observe) =>
+    observe(4, { 'app.plan': 'pro' })
+  )
+);
+
+// @ts-expect-error a span needs something to run
+henri.telemetry.span('app.import');
+
+// @ts-expect-error the kinds are the OpenTelemetry ones
+henri.telemetry.span('app.import', { kind: 'inbound' }, () => 1);
+
 // --- the content security policy nonce --------------------------------------
 
 expectType<Configuration>({ csp: { nonce: true } });
@@ -879,6 +920,7 @@ export {
   badCache,
   badCsp,
   badLogs,
+  badTelemetry,
   cacheConfig,
   badConfig,
   badFlow,

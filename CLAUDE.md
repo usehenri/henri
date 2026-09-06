@@ -141,9 +141,9 @@ has to be named per record or per process. An application's own suite keeps
 afterLogin, sessionMaxAge, signup, passwordReset, confirmation }`),
   `baseRole`, `externalIds`, `policies`, `trustProxy`, `csrf`, `graphql`,
   `mail`, `mailers`, `api`, `jobs`, `webhooks`, `rateLimit`, `shared`,
-  `cache`, `helmet`, `csp`, `filterParameters`, `encryption`, `privacy`,
-  `retention`, `trail`, `calls`, `bodyLimit`, `uploads`, `requestTimeout`,
-  `shutdown`, `errors`.
+  `cache`, `helmet`, `csp`, `filterParameters`, `logs`, `telemetry`,
+  `encryption`, `privacy`, `retention`, `trail`, `calls`, `bodyLimit`,
+  `uploads`, `requestTimeout`, `shutdown`, `errors`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
@@ -204,6 +204,34 @@ afterLogin, sessionMaxAge, signup, passwordReset, confirmation }`),
   a property read. Not a module: it is built with the instance, because the
   first failure worth reporting is a module that would not start. The guide
   is `guides/logs.md`.
+- `henri.telemetry` (`0.telemetry.js`, `base/telemetry.js`) is
+  OpenTelemetry, and only the instrumentation: `@opentelemetry/api` is an
+  **optional peer dependency** resolved from the application, and henri
+  ships no SDK, no exporter, no sampler and no collector address. An
+  application without the package pays nothing and gets no boot line,
+  because nothing is installed rather than tested per call -- the middleware
+  is not mounted (`2.server.js`), `adapter.query()` is not wrapped
+  (`3.model.js`), no instrument is created. A span carries the method, the
+  route _pattern_, the status and `henri.request_id`, and it asks
+  `requestOf()` -- the reporter's own function -- for them, so the two
+  cannot drift; nothing from the client is in one, which is a deliberate
+  departure from the HTTP semantic conventions and is said out loud.
+  Attributes an application passes are masked like a log line. The
+  boundaries are `config.telemetry.spans` (`boot`, `http`, `jobs`, `mail`,
+  `stores`, `views`, `webhooks`), and henri's own call sites name theirs so
+  it can be turned off; the boot span is **reconstructed from
+  `henri.analyze()` after the fact**, so nothing runs during a boot for it.
+  An incoming `traceparent` decides the trace and `X-Request-Id` decides the
+  request id, neither derived from the other, and `inject()` writes one onto
+  a webhook delivery. The metrics are the request duration histogram (whose
+  count is the request count, so there is no counter), the queue depth, the
+  claim latency and the cache counters, the last two observable so nothing
+  is recorded on the hot path. henri owns no buffer and never awaits an
+  export, so a dead exporter is a dropped span; an api that throws five
+  times turns telemetry off for the process. It is the one module that is
+  not reloadable, because an observable instrument is registered once by
+  name. `@usehenri/jobs` and `@usehenri/webhooks` add their own boundary
+  through it. The guide is `guides/telemetry.md`.
 - `henri audit` (`packages/cli/scripts/audit.js`) checks an application
   against the checkable ASVS 4.0.3 requirements from its files only: the
   `CHECKS` catalogue is the mapping (requirement, level, Top 10 category) and

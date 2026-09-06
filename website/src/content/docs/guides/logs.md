@@ -207,4 +207,6 @@ try {
 
 ## What this is not
 
-OpenTelemetry, and any vendor integration. There is no tracing here, no span, no exporter and no `@usehenri/sentry`: a log format and a one-function seam are what a framework owes an application, and they are what those sit on when somebody wants them.
+A vendor integration: there is no `@usehenri/sentry` here, and there will not be one. A log format and a one-function seam are what a framework owes an application, and they are what those sit on when somebody wants them.
+
+It is not tracing either. Spans are [Telemetry](/guides/telemetry/), which sits on the same rule about what may leave the process -- `requestOf()` is literally the same function -- and joins to these lines through `henri.request_id`.
