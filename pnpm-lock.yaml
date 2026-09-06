@@ -206,6 +206,9 @@ importers:
       '@usehenri/disk':
         specifier: workspace:^
         version: link:../disk
+      '@usehenri/jobs':
+        specifier: workspace:^
+        version: link:../jobs
     devDependencies:
       '@usehenri/testing':
         specifier: workspace:^
@@ -281,6 +284,28 @@ importers:
       vite:
         specifier: ^8.2.2
         version: 8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.104.0)(tsx@4.23.13)(yaml@2.9.0)
+
+  packages/jobs:
+    dependencies:
+      debug:
+        specifier: ^4.4.3
+        version: 4.4.3(supports-color@8.1.1)
+      glob:
+        specifier: ^11.0.3
+        version: 11.1.0
+    devDependencies:
+      '@usehenri/mongoose':
+        specifier: workspace:^
+        version: link:../mongoose
+      '@usehenri/sequelize':
+        specifier: workspace:^
+        version: link:../sequelize
+      mongodb-memory-server:
+        specifier: ^11.2.0
+        version: 11.2.0(supports-color@8.1.1)
+      sqlite3:
+        specifier: ^6.0.1
+        version: 6.0.1
 
   packages/mcp:
     dependencies:

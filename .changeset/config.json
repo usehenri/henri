@@ -15,6 +15,7 @@
       "@usehenri/disk",
       "@usehenri/drizzle",
       "@usehenri/inertia",
+      "@usehenri/jobs",
       "@usehenri/mcp",
       "@usehenri/mongoose",
       "@usehenri/mssql",

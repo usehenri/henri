@@ -1,0 +1,47 @@
+{
+  "name": "@usehenri/jobs",
+  "version": "1.1.0",
+  "description": "henri background jobs: a database backed queue with retries, a dead letter queue and recurring jobs",
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/jobs"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "keywords": [
+    "henri",
+    "jobs",
+    "queue",
+    "background",
+    "worker",
+    "cron"
+  ],
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "src",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "debug": "^4.4.3",
+    "glob": "^11.0.3"
+  },
+  "devDependencies": {
+    "@usehenri/mongoose": "workspace:^",
+    "@usehenri/sequelize": "workspace:^",
+    "mongodb-memory-server": "^11.2.0",
+    "sqlite3": "^6.0.1"
+  }
+}

@@ -1,0 +1,177 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the schema > writes the DDL of mssql 1`] = `
+"IF OBJECT_ID('henri_jobs', 'U') IS NULL CREATE TABLE [henri_jobs] (
+  id VARCHAR(36) NOT NULL,
+  queue VARCHAR(120) NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  args NVARCHAR(MAX) NOT NULL,
+  state VARCHAR(16) NOT NULL,
+  priority INT NOT NULL,
+  attempts INT NOT NULL,
+  max_attempts INT NOT NULL,
+  timeout_ms INT NULL,
+  run_at BIGINT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  started_at BIGINT NULL,
+  finished_at BIGINT NULL,
+  duration_ms INT NULL,
+  claimed_by VARCHAR(120) NULL,
+  claimed_at BIGINT NULL,
+  heartbeat_at BIGINT NULL,
+  claim_token VARCHAR(36) NULL,
+  error_message NVARCHAR(MAX) NULL,
+  error_stack NVARCHAR(MAX) NULL,
+  history NVARCHAR(MAX) NULL,
+  unique_key VARCHAR(190) NULL,
+  PRIMARY KEY (id)
+);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_claim' AND object_id = OBJECT_ID('henri_jobs')) CREATE INDEX [henri_jobs_claim] ON [henri_jobs] (state, queue, priority, run_at);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_token' AND object_id = OBJECT_ID('henri_jobs')) CREATE INDEX [henri_jobs_token] ON [henri_jobs] (claim_token);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_finished' AND object_id = OBJECT_ID('henri_jobs')) CREATE INDEX [henri_jobs_finished] ON [henri_jobs] (state, finished_at);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_unique' AND object_id = OBJECT_ID('henri_jobs')) CREATE UNIQUE INDEX [henri_jobs_unique] ON [henri_jobs] (unique_key) WHERE unique_key IS NOT NULL;
+IF OBJECT_ID('henri_jobs_schedules', 'U') IS NULL CREATE TABLE [henri_jobs_schedules] (
+  name VARCHAR(190) NOT NULL,
+  job VARCHAR(120) NOT NULL,
+  spec VARCHAR(190) NOT NULL,
+  next_run_at BIGINT NOT NULL,
+  last_run_at BIGINT NULL,
+  token VARCHAR(36) NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  PRIMARY KEY (name)
+)"
+`;
+
+exports[`the schema > writes the DDL of mysql 1`] = `
+"CREATE TABLE IF NOT EXISTS \`henri_jobs\` (
+  id VARCHAR(36) NOT NULL,
+  queue VARCHAR(120) NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  args MEDIUMTEXT NOT NULL,
+  state VARCHAR(16) NOT NULL,
+  priority INT NOT NULL,
+  attempts INT NOT NULL,
+  max_attempts INT NOT NULL,
+  timeout_ms INT NULL,
+  run_at BIGINT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  started_at BIGINT NULL,
+  finished_at BIGINT NULL,
+  duration_ms INT NULL,
+  claimed_by VARCHAR(120) NULL,
+  claimed_at BIGINT NULL,
+  heartbeat_at BIGINT NULL,
+  claim_token VARCHAR(36) NULL,
+  error_message MEDIUMTEXT NULL,
+  error_stack MEDIUMTEXT NULL,
+  history MEDIUMTEXT NULL,
+  unique_key VARCHAR(190) NULL,
+  PRIMARY KEY (id),
+  KEY \`henri_jobs_claim\` (state, queue, priority, run_at),
+  KEY \`henri_jobs_token\` (claim_token),
+  KEY \`henri_jobs_finished\` (state, finished_at),
+  UNIQUE KEY \`henri_jobs_unique\` (unique_key)
+);
+CREATE TABLE IF NOT EXISTS \`henri_jobs_schedules\` (
+  name VARCHAR(190) NOT NULL,
+  job VARCHAR(120) NOT NULL,
+  spec VARCHAR(190) NOT NULL,
+  next_run_at BIGINT NOT NULL,
+  last_run_at BIGINT NULL,
+  token VARCHAR(36) NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  PRIMARY KEY (name)
+)"
+`;
+
+exports[`the schema > writes the DDL of postgres 1`] = `
+"CREATE TABLE IF NOT EXISTS "henri_jobs" (
+  id VARCHAR(36) NOT NULL,
+  queue VARCHAR(120) NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  args TEXT NOT NULL,
+  state VARCHAR(16) NOT NULL,
+  priority INTEGER NOT NULL,
+  attempts INTEGER NOT NULL,
+  max_attempts INTEGER NOT NULL,
+  timeout_ms INTEGER NULL,
+  run_at BIGINT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  started_at BIGINT NULL,
+  finished_at BIGINT NULL,
+  duration_ms INTEGER NULL,
+  claimed_by VARCHAR(120) NULL,
+  claimed_at BIGINT NULL,
+  heartbeat_at BIGINT NULL,
+  claim_token VARCHAR(36) NULL,
+  error_message TEXT NULL,
+  error_stack TEXT NULL,
+  history TEXT NULL,
+  unique_key VARCHAR(190) NULL,
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS "henri_jobs_claim" ON "henri_jobs" (state, queue, priority, run_at);
+CREATE INDEX IF NOT EXISTS "henri_jobs_token" ON "henri_jobs" (claim_token);
+CREATE INDEX IF NOT EXISTS "henri_jobs_finished" ON "henri_jobs" (state, finished_at);
+CREATE UNIQUE INDEX IF NOT EXISTS "henri_jobs_unique" ON "henri_jobs" (unique_key);
+CREATE TABLE IF NOT EXISTS "henri_jobs_schedules" (
+  name VARCHAR(190) NOT NULL,
+  job VARCHAR(120) NOT NULL,
+  spec VARCHAR(190) NOT NULL,
+  next_run_at BIGINT NOT NULL,
+  last_run_at BIGINT NULL,
+  token VARCHAR(36) NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  PRIMARY KEY (name)
+)"
+`;
+
+exports[`the schema > writes the DDL of sqlite 1`] = `
+"CREATE TABLE IF NOT EXISTS "henri_jobs" (
+  id VARCHAR(36) NOT NULL,
+  queue VARCHAR(120) NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  args TEXT NOT NULL,
+  state VARCHAR(16) NOT NULL,
+  priority INTEGER NOT NULL,
+  attempts INTEGER NOT NULL,
+  max_attempts INTEGER NOT NULL,
+  timeout_ms INTEGER NULL,
+  run_at BIGINT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  started_at BIGINT NULL,
+  finished_at BIGINT NULL,
+  duration_ms INTEGER NULL,
+  claimed_by VARCHAR(120) NULL,
+  claimed_at BIGINT NULL,
+  heartbeat_at BIGINT NULL,
+  claim_token VARCHAR(36) NULL,
+  error_message TEXT NULL,
+  error_stack TEXT NULL,
+  history TEXT NULL,
+  unique_key VARCHAR(190) NULL,
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS "henri_jobs_claim" ON "henri_jobs" (state, queue, priority, run_at);
+CREATE INDEX IF NOT EXISTS "henri_jobs_token" ON "henri_jobs" (claim_token);
+CREATE INDEX IF NOT EXISTS "henri_jobs_finished" ON "henri_jobs" (state, finished_at);
+CREATE UNIQUE INDEX IF NOT EXISTS "henri_jobs_unique" ON "henri_jobs" (unique_key);
+CREATE TABLE IF NOT EXISTS "henri_jobs_schedules" (
+  name VARCHAR(190) NOT NULL,
+  job VARCHAR(120) NOT NULL,
+  spec VARCHAR(190) NOT NULL,
+  next_run_at BIGINT NOT NULL,
+  last_run_at BIGINT NULL,
+  token VARCHAR(36) NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  PRIMARY KEY (name)
+)"
+`;

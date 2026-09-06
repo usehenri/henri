@@ -210,6 +210,21 @@ module.exports = [
     },
   },
   {
+    // The job queue owns its own database tables: a row is the snake_case
+    // columns of packages/jobs/src/store/schema.js, not a JavaScript object
+    files: ['packages/jobs/**/*.js'],
+    rules: {
+      camelcase: 'off',
+    },
+  },
+  {
+    // A job file reads as a definition: its options first, `perform` last
+    files: ['**/app/jobs/**/*.js'],
+    rules: {
+      'sort-keys': 'off',
+    },
+  },
+  {
     // The seed fixture is a henri application: its models are globals
     files: ['packages/cli/__tests__/fixtures/seed-app/**/*.js'],
     languageOptions: {
