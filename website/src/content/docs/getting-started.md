@@ -31,7 +31,7 @@ cd my-app
 henri server
 ```
 
-`henri new` copies the application skeleton, writes the configuration, scaffolds a sample `Task` resource, writes a README, runs `git init` (unless the folder is already inside a repository) and installs the dependencies. `--skip-install` and `--no-git` skip those two steps; `--renderer inertia` picks the [Inertia](/guides/views/#inertia) view engine instead of React, and `--adapter drizzle|mongoose|mysql|postgresql|mssql` the [store](/guides/models/#adapters) instead of the default `disk` one. The result:
+`henri new` copies the application skeleton, writes the configuration, scaffolds a sample `Task` resource, writes a README, runs `git init` (unless the folder is already inside a repository) and installs the dependencies. `--skip-install` and `--no-git` skip those two steps; `--renderer react` picks the [Next.js](/guides/views/#react) view engine instead of the default [Inertia](/guides/views/#inertia) one, and `--adapter drizzle|mongoose|mysql|postgresql|mssql` the [store](/guides/models/#adapters) instead of the default `disk` one. The result:
 
 ```text
 ├── .env                      <- HENRI_SECRET, ignored by git
@@ -46,16 +46,17 @@ henri server
 │   ├── views
 │   │   ├── assets
 │   │   ├── components
+│   │   ├── index.html        <- the html shell Inertia renders into
 │   │   ├── jsconfig.json     <- lets pages `import x from 'components/x'`
-│   │   ├── next.config.js    <- requires @usehenri/react/engine/conf
+│   │   ├── main.jsx          <- the browser entry, imports the stylesheet
 │   │   ├── pages
-│   │   │   ├── _app.js       <- imports the stylesheet
-│   │   │   ├── index.js
+│   │   │   ├── index.jsx
 │   │   │   └── tasks         <- index, new, edit, show and _form
-│   │   ├── postcss.config.mjs <- Tailwind CSS v4 for next.js
 │   │   ├── public
-│   │   └── styles
-│   │       └── index.css     <- Tailwind CSS, the whole stylesheet
+│   │   ├── ssr.jsx           <- the server entry
+│   │   ├── styles
+│   │   │   └── index.css     <- Tailwind CSS, the whole stylesheet
+│   │   └── vite.config.mjs   <- @usehenri/inertia/vite + Tailwind
 │   ├── jobs
 │   └── workers
 ├── config
@@ -93,9 +94,9 @@ henri new my-app --adapter mongoose                    # a MongoDB server
 
 ## Start coding
 
-`henri server` boots the modules in order (configuration, mail and GraphQL, controllers and the Express app, models and the view engine, users, routes and workers), prints the URL it listens on (`http://localhost:3000/`; development binds to `127.0.0.1`) and watches your files. Saving a controller, a model, `config/routes.js`, a worker or a configuration file reloads the affected modules without restarting the process; Next.js hot reloads the pages itself. Changes to `config/next.js` or `config/webpack.js` need a restart, and the terminal says so.
+`henri server` boots the modules in order (configuration, mail and GraphQL, controllers and the Express app, models and the view engine, users, routes and workers), prints the URL it listens on (`http://localhost:3000/`; development binds to `127.0.0.1`) and watches your files. Saving a controller, a model, `config/routes.js`, a worker or a configuration file reloads the affected modules without restarting the process; the view engine hot reloads the pages itself (Vite with Inertia, Turbopack with Next.js). With the React renderer, changes to `config/next.js` or `config/webpack.js` need a restart, and the terminal says so.
 
-Open the page, add a task at `/tasks/new`, then read `app/controllers/tasks.js` and `app/views/pages/tasks/index.js` to see the data flow: the controller calls `res.render('/tasks', { data })` and the page receives `data` through `withHenri`.
+Open the page, add a task at `/tasks/new`, then read `app/controllers/tasks.js` and `app/views/pages/tasks/index.jsx` to see the data flow: the controller calls `res.render('/tasks', { data })` and the page reads `data` with `useHenri()` (`withHenri` with the React renderer).
 
 While the server runs in an interactive terminal:
 

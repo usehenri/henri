@@ -126,7 +126,7 @@ Flash messages live in the express session, which exists only in an application 
 
 ## `res.render(route, options)`
 
-`route` is the page to render: `/tasks/show` is `app/views/pages/tasks/show.js` with the React renderer, `pages/tasks/show.jsx` with Inertia, `pages/tasks/show.hbs` with Handlebars. `options` takes one of:
+`route` is the page to render: `/tasks/show` is `app/views/pages/tasks/show.jsx` with the Inertia renderer, `pages/tasks/show.js` with React, `pages/tasks/show.hbs` with Handlebars. `options` takes one of:
 
 - `data`: an object passed to the page as its `data` prop or template context
 - `graphql`: a query string; its result becomes `data` (see [GraphQL](/guides/graphql/))

@@ -56,6 +56,17 @@ module.exports = {
 };
 ```
 
+### `henri new` scaffolds an Inertia application
+
+The default renderer is now `inertia`: `henri new` writes `"renderer": "inertia"` in `config/default.json`, scaffolds `.jsx` pages under `app/views/pages` and builds them with Vite. `henri new --renderer react` still scaffolds the Next.js application, and the React engine is supported: it is frozen on the pages router rather than removed, because the contract that hands a controller's data to a page has no equivalent in the app router. See [Views](/guides/views/).
+
+Nothing changes in an existing application. Its `renderer` key is what the boot reads, and `henri generate scaffold|crud` reads the same key: a React application keeps getting `.js` pages using `withHenri` and `@usehenri/react/forms`, an Inertia one gets `.jsx` pages using `useHenri()` and `<Form>`. There is no migration, and no supported way to convert an application from one engine to the other: the pages are rewritten by hand.
+
+Two things follow from the renderer in the generated code, if you compare a fresh scaffold with yours:
+
+- A failed write answers a browser differently. The React controllers answer a `422` and the forms show it field by field; the Inertia controllers call `res.inertia.errors()` and render the form page again. API clients get the same `422` from both.
+- `henri generate test` writes the Inertia page object assertions next to the HAL ones in an Inertia application, and the HAL ones alone in a React one.
+
 ### Timestamps are on by default
 
 Every model now gets `createdAt` and `updatedAt`, like every Rails table. Before 1.2 they were added only when the model declared `options: { timestamps: true }` on the Mongoose (`disk`, `mongoose`) and Drizzle adapters; the Sequelize adapters (`mysql`, `postgresql`, `mssql`) already added them by default, so nothing changes there.
@@ -137,7 +148,7 @@ Nothing below breaks anything, they are additions:
 
 - Node.js 22 or newer. The `henri` binary refuses to start on an older version.
 - Express 5 (Express 4 in 0.37). Middlewares you register yourself must follow its rules: wildcard routes are written `/{*splat}`, `req.query` is a getter, rejected promises in handlers reach the error handler.
-- Next.js 16 with Turbopack and React 19. `next`, `react` and `react-dom` are peer dependencies: add them to the application (`henri new` does). The `inferno` and `preact` renderers are gone. The Vue renderer only loads with `"experimental": { "vue": true }` and has not been exercised since Nuxt 2.
+- Next.js 16 with Turbopack and React 19. `next`, `react` and `react-dom` are peer dependencies: add them to the application (`henri new --renderer react` does). The `inferno` and `preact` renderers are gone. The Vue renderer only loads with `"experimental": { "vue": true }` and has not been exercised since Nuxt 2.
 - Mongoose 9 and Sequelize 6 with current drivers. Mongoose queries take no callbacks: `Model.update()` and `Model.remove()` are gone, use `updateOne()`, `findByIdAndUpdate()`, `deleteOne()` and `findByIdAndDelete()`.
 - Tests run on Vitest, not Jest (see [Testing](/guides/testing/)).
 

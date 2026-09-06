@@ -139,7 +139,10 @@ annotation when a helper builds part of it:
 
 ```js
 /** @type {import('@usehenri/core').Configuration} */
-const config = { renderer: 'react', stores: { default: { adapter: 'disk' } } };
+const config = {
+  renderer: 'inertia',
+  stores: { default: { adapter: 'disk' } },
+};
 ```
 
 It cannot drift from what henri actually accepts: the declarations and the

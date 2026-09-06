@@ -32,15 +32,15 @@ henri <command> [options]
 ## `new` and `init`
 
 ```bash
-henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia] [--adapter <name>] [--dialect <name>] [--pm pnpm|yarn|npm]
-henri init [--force | -f] [--skip-install] [--no-git] [--renderer react|inertia] [--adapter <name>] [--dialect <name>] [--pm pnpm|yarn|npm]
+henri new <folder> [--force | -f] [--skip-install] [--no-git] [--renderer inertia|react] [--adapter <name>] [--dialect <name>] [--pm pnpm|yarn|npm]
+henri init [--force | -f] [--skip-install] [--no-git] [--renderer inertia|react] [--adapter <name>] [--dialect <name>] [--pm pnpm|yarn|npm]
 ```
 
 `new` creates the folder and runs `init` in it; it refuses a non-empty folder without `--force`, and `init` refuses a directory that already has an `app` folder. The project is named after the folder. Both:
 
-1. copy the template of the renderer (`react` by default, `-r` is short for `--renderer`) and merge an existing `package.json` into the generated one (dependencies, scripts and name are kept);
+1. copy the template of the renderer (`inertia` by default, `react` for the Next.js engine; `-r` is short for `--renderer`) and merge an existing `package.json` into the generated one (dependencies, scripts and name are kept);
 2. write `config/default.json` (`baseRole`, `renderer`, the store of `--adapter`, `user: "user"`), `config/test.json` when that store needs a database of its own, and `.env` with a random `HENRI_SECRET`;
-3. with the React renderer, scaffold the sample `Task` resource (model, controller, `resources tasks` route, pages and `test/tasks.test.js`) against the model API of the adapter;
+3. scaffold the sample `Task` resource (model, controller, `resources tasks` route, pages and `test/tasks.test.js`) against the model API of the adapter and the pages of the renderer;
 4. write `db/seeds.js` (empty, with the idempotent example commented out) and a README (an existing one is renamed `README.old.md`);
 5. run `git init` unless `--no-git` is given, the folder is already inside a repository, or git is missing;
 6. install the dependencies with the package manager of `--pm`, or the detected one, unless `--skip-install` is given.
@@ -124,16 +124,16 @@ henri generate <what> <name> [options] [--force]
 henri g <what> <name> [options] [--force]
 ```
 
-| Generator                          | Writes                                                                                                                                                                                                                                               |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `model <Name> [field:type ...]`    | `app/models/<Name>.js` with the fields (timestamps are on by default).                                                                                                                                                                               |
-| `controller <name> [action ...]`   | `app/controllers/<name>.js` with one `res.boom.notImplemented()` handler per action, and a `get /<name>/<action>` route for each in `config/routes.js`.                                                                                              |
-| `job <name>`                       | `app/jobs/<name>.js` with `perform(args, context)`, a queue and a retry policy.                                                                                                                                                                      |
-| `worker <name>`                    | `app/workers/<name>.js` with `start()` and `stop()`.                                                                                                                                                                                                 |
-| `mailer <name> [action ...]`       | `app/mailers/<name>.js` with one action per name (`notify` when none is given), `app/views/mailers/<name>/<action>.hbs` for each, and `app/views/mailers/layouts/mailer.hbs` and `mailer.text.hbs` when they are missing. See [Mail](/guides/mail/). |
-| `test <name>`                      | `test/<name>.test.js` requesting `GET /<name>` with `@usehenri/testing`.                                                                                                                                                                             |
-| `crud <Name> [field:type ...]`     | The model, `app/controllers/<names>.js` with JSON `index`, `create`, `update` and `destroy`, and the `crud <names>` route.                                                                                                                           |
-| `scaffold <Name> [field:type ...]` | The model, `app/controllers/<names>.js` with the seven `resources` actions answering HTML or JSON, the `resources <names>` route and the React pages `app/views/pages/<names>/{index,new,edit,show,_form}.js`.                                       |
+| Generator                          | Writes                                                                                                                                                                                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model <Name> [field:type ...]`    | `app/models/<Name>.js` with the fields (timestamps are on by default).                                                                                                                                                                                     |
+| `controller <name> [action ...]`   | `app/controllers/<name>.js` with one `res.boom.notImplemented()` handler per action, and a `get /<name>/<action>` route for each in `config/routes.js`.                                                                                                    |
+| `job <name>`                       | `app/jobs/<name>.js` with `perform(args, context)`, a queue and a retry policy.                                                                                                                                                                            |
+| `worker <name>`                    | `app/workers/<name>.js` with `start()` and `stop()`.                                                                                                                                                                                                       |
+| `mailer <name> [action ...]`       | `app/mailers/<name>.js` with one action per name (`notify` when none is given), `app/views/mailers/<name>/<action>.hbs` for each, and `app/views/mailers/layouts/mailer.hbs` and `mailer.text.hbs` when they are missing. See [Mail](/guides/mail/).       |
+| `test <name>`                      | `test/<name>.test.js` requesting `GET /<name>` with `@usehenri/testing`.                                                                                                                                                                                   |
+| `crud <Name> [field:type ...]`     | The model, `app/controllers/<names>.js` with JSON `index`, `create`, `update` and `destroy`, and the `crud <names>` route.                                                                                                                                 |
+| `scaffold <Name> [field:type ...]` | The model, `app/controllers/<names>.js` with the seven `resources` actions answering HTML or JSON, the `resources <names>` route and the pages `app/views/pages/<names>/{index,new,edit,show,_form}` (`.jsx` with the Inertia renderer, `.js` with React). |
 
 Model and resource names are given in the singular with a capital: `Post` gives the model `Post`, the controller `posts.js`, the route `resources posts` and the pages under `posts/` (`category` gives `categories`, `person` `people`). Existing files are skipped and reported; `--force` overwrites them. Routes are added to `config/routes.js`, which is rewritten (formatted with prettier) with the new keys.
 
@@ -149,7 +149,9 @@ henri g mailer welcome confirm reset
 henri g test highscores
 ```
 
-The scaffolded controllers follow the adapter of the default store: the Mongoose API on `disk` and `mongoose`, Sequelize on `mysql`, `postgresql` and `mssql`, the Drizzle model API on `drizzle` (see [Models](/guides/models/)). What they load a record with differs; their `index` is [`Model.paginate(req.pagination())`](/guides/models/#pagination) and their 422 is [`henri.model.errors(error)`](/guides/models/#validation-errors) on all three, because both answer the same shape on every adapter. The scaffolded pages target the React renderer.
+The scaffolded controllers follow the adapter of the default store: the Mongoose API on `disk` and `mongoose`, Sequelize on `mysql`, `postgresql` and `mssql`, the Drizzle model API on `drizzle` (see [Models](/guides/models/)). What they load a record with differs; their `index` is [`Model.paginate(req.pagination())`](/guides/models/#pagination) and their 422 is [`henri.model.errors(error)`](/guides/models/#validation-errors) on all three, because both answer the same shape on every adapter.
+
+The pages follow the `renderer` of the application, read back from `config/default.json`: Inertia `.jsx` pages using `useHenri()` and `<Form>`, or Next.js `.js` pages using `withHenri` and `@usehenri/react/forms`. The renderer is also what a failed write answers a browser with: the Inertia controllers call `res.inertia.errors()` and render the form again, the React ones answer the `422` their forms read. API clients get the same `422` either way, and `henri generate test` writes the matching test (the Inertia page object plus the HAL answers, or the HAL answers alone).
 
 ## `destroy`
 
