@@ -28,6 +28,7 @@ const FOLDERS = {
   helpers: 'app/helpers',
   jobs: 'app/jobs',
   models: 'app/models',
+  modules: 'app/modules',
   views: 'app/views/pages',
   workers: 'app/workers',
 };

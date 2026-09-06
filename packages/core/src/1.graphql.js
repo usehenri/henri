@@ -47,6 +47,7 @@ class Graphql extends BaseModule {
     super();
 
     this.reloadable = true;
+    this.needs = ['config'];
     this.runlevel = 1;
     this.name = 'graphql';
     this.henri = null;

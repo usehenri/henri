@@ -54,6 +54,7 @@ class Mailers extends BaseModule {
     super();
 
     this.reloadable = true;
+    this.needs = ['config', 'mail'];
     this.runlevel = 2;
     this.name = 'mailers';
     this.henri = null;

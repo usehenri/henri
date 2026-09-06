@@ -16,7 +16,6 @@ const Jobs = require('./4.jobs');
 const User = require('./4.user');
 const Router = require('./5.router');
 const Workers = require('./5.workers');
-const Testing = require('./7.tests');
 
 const fs = require('fs');
 const path = require('path');
@@ -76,9 +75,9 @@ class Henri extends HenriBase {
     this.modules.add(new View());
     this.modules.add(new Jobs());
     this.modules.add(new Workers());
-    this.modules.add(new Testing());
 
     try {
+      await this.modules.discover();
       await this.modules.init();
     } catch (error) {
       const reason = error && error.message ? error.message : String(error);
@@ -146,6 +145,18 @@ class Henri extends HenriBase {
     }
 
     return true;
+  }
+
+  /**
+   * What the boot did: the order, the timings, what each module waited on
+   * and the chain that decided how long it took. `henri analyze` prints it.
+   *
+   * @param {string} [name] one module, instead of all of them
+   * @returns {?object} the analysis, null before init()
+   * @memberof Henri
+   */
+  analyze(name) {
+    return this.modules.analyze(name);
   }
 
   /**

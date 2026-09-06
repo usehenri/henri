@@ -48,6 +48,7 @@
   },
   "commands": [
     "about",
+    "analyze",
     "build",
     "clean",
     "console",

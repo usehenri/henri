@@ -2,6 +2,10 @@
 
 exports[`models > should match snapshot 1`] = `
 Workers {
+  "after": [
+    "user",
+  ],
+  "before": [],
   "consoleOnly": false,
   "files": [],
   "getFiles": [Function],
@@ -9,6 +13,10 @@ Workers {
   "init": [Function],
   "key": null,
   "name": "workers",
+  "needs": [
+    "config",
+    "model",
+  ],
   "reload": [Function],
   "reloadable": true,
   "runlevel": 5,

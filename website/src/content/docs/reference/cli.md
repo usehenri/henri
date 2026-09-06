@@ -24,9 +24,10 @@ henri <command> [options]
 | `test [files ...]`            | Run the tests with Vitest.                                                   |
 | `clean`                       | Remove build artifacts and caches.                                           |
 | `about`                       | Print the versions of Node, henri and the packages installed in the project. |
+| `analyze [module]`            | Boot the application and print the boot chart of its modules.                |
 | `help [command]`              | Print the help.                                                              |
 
-`routes`, `generate`, `destroy`, `build` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
+`routes`, `analyze`, `generate`, `destroy`, `build` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
 
 ## `new` and `init`
 
@@ -265,6 +266,43 @@ Lists the existing ones among `.tmp`, `.henri`, `logs`, `node_modules`, `app/vie
 ## `about`
 
 Prints the versions of henri, Node, pnpm, yarn and npm, whether the current directory is a henri project, the versions of the `@usehenri/*` packages, `next`, `react` and `react-dom` installed in it, and the names of its models, pages, controllers and helpers.
+
+## `analyze`
+
+```bash
+henri analyze [module] [--level=<n>] [--json]
+```
+
+Boots the application, prints what the boot did and stops it again: the order the modules ran in, how long each took, what it waited on and why, the chain that decided the total, and the level chart a numeric pin lands in. It is a real boot, so it opens the stores and binds a port the way `henri server` does; `--level` stops it earlier (`3` for the models, `4` for the users, `5` for the routes).
+
+```text
+ Boot: 209.5ms, 12 modules, level 6
+
+   Module       Level  Pin       Started  Took     Waited on
+   config       0      runlevel  0.1ms    1ms
+   mail         1      name      1.2ms    2.3ms    config (needs)
+   graphql      1      name      1.3ms    2.3ms    config (needs)
+   controllers  2      name      1.4ms    2.3ms    config (needs)
+   server       2      name      1.4ms    2.2ms    config (needs)
+   mailers      2      name      3.7ms    47.8ms   config (needs), mail (needs)
+   model        3      name      3.8ms    191.8ms  config (needs), graphql (needs)
+   view         3      name      7.8ms    189ms    config (needs), server (needs)
+   metrics      5      name      8.9ms    42.6ms   server (needs), config (runlevel 0)
+   user         4      name      195.7ms  0.2ms    config (needs), model (needs), server (needs)
+   workers      5      name      195.9ms  7.5ms    config (needs), model (needs), user (after)
+   router       5      name      196.8ms  12.7ms   config (needs), controllers (needs), server (needs), user (needs), mailers (after), view (after), metrics (before)
+
+ Critical path
+   config (1ms) -> server (2.2ms) -> view (189ms) -> router (12.7ms)
+```
+
+With a module name it prints that module only: the level it landed at, whether a name or the number put it there, what it waited on, which of those actually held it up, and what was waiting on it.
+
+```bash
+henri analyze metrics
+```
+
+A boot that fails prints the same chart with the module that threw, what was still running and what never started, and exits with `1`. `--json` prints the whole analysis, which is also what [`henri.analyze()`](/reference/under-the-hood/#introspection) answers in the application.
 
 ## Global flags
 

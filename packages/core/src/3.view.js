@@ -25,6 +25,7 @@ class View extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
+    this.needs = ['config', 'server'];
     this.runlevel = 3;
     this.name = 'view';
     this.henri = null;

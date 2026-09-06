@@ -20,6 +20,7 @@ class Model extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
+    this.needs = ['config', 'graphql'];
     this.runlevel = 3;
     this.name = 'model';
     this.henri = null;

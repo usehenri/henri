@@ -195,4 +195,4 @@ Express's content negotiation. henri's own answers put `json` before `html` so t
 
 Inside a controller (or anywhere else) the `henri` global exposes the loaded modules: `henri.config`, `henri.pen` (the logger), `henri.mail`, `henri.graphql`, `henri.user`, `henri.router`, `henri.server.app` (the Express app), `henri.model.stores`, `henri.validator` ([validator.js](https://github.com/validatorjs/validator.js)) and `henri.gql`. See the [API reference](/reference/api/).
 
-`henri.addMiddleware(name, fn)` registers a function that receives the router before the routes are mounted, which is how you add your own Express middlewares. It must be called before the router starts (runlevel 5), so from a model file or a custom module rather than a controller.
+`henri.addMiddleware(name, fn)` registers a function that receives the router before the routes are mounted, which is how you add your own Express middlewares. It must be called before the router starts, so from a model file or from a [module](/reference/under-the-hood/#writing-a-module) declaring `before: ['router']`, rather than a controller.

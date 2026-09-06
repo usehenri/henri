@@ -55,6 +55,43 @@ const COMMANDS = [
   },
   {
     description: [
+      'Boots the application, prints what the boot did and stops it again:',
+      'the order the modules ran in, how long each one took, what it waited',
+      'on and why, the chain that decided the total, and the level chart a',
+      'numeric pin lands in. With a module name, prints that module only:',
+      'where it landed, what held it up and what was waiting on it.',
+      '',
+      'The boot is a real one, so it opens the stores and binds a port like',
+      'henri server does. --level stops it earlier: 3 for the models, 4 for',
+      'the users, 5 for the routes.',
+    ],
+    examples: [
+      {
+        command: 'henri analyze',
+        description: 'The boot chart of the application',
+      },
+      {
+        command: 'henri analyze router',
+        description: 'Where the router module landed and what it waited on',
+      },
+      {
+        command: 'henri analyze --level 3 --json',
+        description: 'The chart of a boot that stops at the models, as JSON',
+      },
+    ],
+    flags: [
+      {
+        description: 'stop the boot at this level (0 to 6, default 6)',
+        flag: '--level=<n>',
+      },
+      JSON_FLAG,
+    ],
+    name: 'analyze',
+    summary: 'the boot chart: order, timings, dependencies and critical path',
+    usage: ['henri analyze [module] [--level=<n>] [--json]'],
+  },
+  {
+    description: [
       'Builds the production views without starting the server or the',
       'databases: the next.js pages for the react renderer, the vite client',
       'and SSR bundles (app/views/dist) for inertia. Nothing to do for the',

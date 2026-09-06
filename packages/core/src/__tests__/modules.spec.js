@@ -1,6 +1,7 @@
 const Henri = require('../henri');
 const Modules = require('../0.modules');
 const BaseModule = require('../base/module');
+const graph = require('../base/graph');
 
 describe('henri', () => {
   let henri;
@@ -16,20 +17,22 @@ describe('henri', () => {
   });
 
   describe('general', () => {
-    test('should have 8 run levels (0...7)', async () => {
-      expect(henri.modules.store).toHaveLength(8);
+    test('should have seven levels (0...6)', async () => {
+      expect(graph.LEVELS).toHaveLength(7);
+      expect(graph.MIN_RUNLEVEL).toBe(0);
+      expect(graph.MAX_RUNLEVEL).toBe(6);
     });
 
     test('should not allow duplicate', () => {
       henri.modules.add(new Runlevel0());
 
-      expect(henri.modules.store[0]).toHaveLength(1);
+      expect(henri.modules.registered).toHaveLength(1);
 
       expect(() => henri.modules.add(new Runlevel0())).toThrow(
         /module trying to load over another/
       );
 
-      expect(henri.modules.store[0]).toHaveLength(1);
+      expect(henri.modules.registered).toHaveLength(1);
     });
 
     test('should init properly', async () => {
@@ -85,7 +88,7 @@ describe('henri', () => {
           })
         );
         henri.modules.add(new Runlevel1());
-        henri.modules.store[1][0].init = 'abc';
+        henri.modules.registered[0].init = 'abc';
         await henri.modules.init();
       } finally {
         console.log = log;
@@ -141,7 +144,7 @@ describe('henri', () => {
         })
       );
       await henri.modules.init();
-      henri.modules.store[1][0].reloadable = true;
+      henri.modules.registered[0].reloadable = true;
       await expect(henri.modules.reload()).resolves.toBe(true);
     });
 
@@ -182,11 +185,28 @@ describe('henri', () => {
     test('should only allow modules with correct runlevel range', () => {
       expect(() =>
         henri.modules.add(new WeirdModule({ name: 'a', runlevel: -1 }))
-      ).toThrow(/a runlevel is out of range/);
+      ).toThrow(/a runlevel is out of range: the levels go from 0 to 6/);
 
       expect(() =>
-        henri.modules.add(new WeirdModule({ name: 'b', runlevel: 8 }))
+        henri.modules.add(new WeirdModule({ name: 'b', runlevel: 7 }))
       ).toThrow(/b runlevel is out of range/);
+    });
+
+    test('should only allow names in needs, after and before', () => {
+      for (const key of ['after', 'before', 'needs']) {
+        expect(() =>
+          henri.modules.add(
+            new WeirdModule({
+              init: () => 'e',
+              name: 'e',
+              runlevel: 1,
+              ...{ [key]: 42 },
+            })
+          )
+        ).toThrow(
+          new RegExp(`e ${key} should be a module name or an array of them`)
+        );
+      }
     });
 
     test('should only allow modules with init function', () => {

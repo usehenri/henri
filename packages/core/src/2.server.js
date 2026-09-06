@@ -304,6 +304,7 @@ class Server extends BaseModule {
    */
   constructor() {
     super();
+    this.needs = ['config'];
     this.runlevel = 2;
     this.name = 'server';
     this.henri = null;
