@@ -666,7 +666,7 @@ describe('api (demo app, disk store)', () => {
   });
 
   describe('health', () => {
-    test.each(['/readyz', '/_henri/health'])(
+    test.each(['/readyz', '/healthz', '/_henri/health'])(
       '%s answers 200 with the stores',
       async (path) => {
         const res = await request.get(path);

@@ -1,7 +1,8 @@
 /**
- * The health endpoints an orchestrator asks: `GET /livez`, `GET /readyz` and
- * `GET /_henri/health`, which stays as an alias of readiness so a deployment
- * that already points at it keeps working.
+ * The health endpoints an orchestrator asks: `GET /livez`, `GET /readyz`,
+ * and `GET /healthz` and `GET /_henri/health` beside them, which answer
+ * readiness so a proxy that knows one of those names, or a deployment
+ * already pointing at the endpoint henri used to have, keeps working.
  *
  * Liveness and readiness are two questions with opposite consequences. A
  * failed liveness probe restarts the container; a failed readiness probe
@@ -21,12 +22,13 @@
  * finishing. Readiness is what says "stop sending", and it says it before the
  * port closes (`2.server.js`).
  *
- * There is no `/healthz`. The older convention says "health" without saying
- * which of the two questions it answers, and deployments wire it to both: the
- * same path would be a liveness probe here and a readiness probe there, so
- * henri would have to guess, and guessing wrong is the restart loop above. A
- * proxy that only knows `/healthz` is pointed at `/readyz` in its own
- * configuration, or aliased in one line by the application.
+ * `/healthz` is the older convention, and it is the ambiguous one: the name
+ * says "health" without saying which of the two questions it answers, so one
+ * deployment wires it to liveness and the next to readiness. henri answers
+ * readiness there, which is what `/_henri/health` has always done and the
+ * safer of the two guesses -- a readiness answer read as liveness restarts a
+ * container whose database is down, so point a liveness probe at `/livez`
+ * and leave `/healthz` to whatever cannot be configured.
  *
  * ```json
  * {
@@ -43,6 +45,9 @@
  * for a failure, never the driver's own message, which carries the connection
  * string it could not reach. The message goes to the log, where it belongs.
  */
+
+/** `GET /healthz`: readiness, under the older ambiguous name */
+const HEALTH_PATH = '/healthz';
 
 /** `GET /livez`: the process answers */
 const LIVE_PATH = '/livez';
@@ -225,6 +230,7 @@ function ready(henri, { timeout = 2000 } = {}) {
 }
 
 module.exports = ready;
+module.exports.HEALTH_PATH = HEALTH_PATH;
 module.exports.LIVE_PATH = LIVE_PATH;
 module.exports.PATH = PATH;
 module.exports.READY_PATH = READY_PATH;

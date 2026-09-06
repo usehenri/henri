@@ -295,7 +295,7 @@ log "the account flows answer: /signup, and a reset request that says nothing"
 # 6. The probes an orchestrator asks, and a SIGTERM that drains: the server
 #    stops accepting, finishes what it is serving and exits by itself.
 # ---------------------------------------------------------------------------
-for probe in /livez /readyz /_henri/health; do
+for probe in /livez /readyz /healthz /_henri/health; do
   probe_status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port$probe" || true)
 
   if [ "$probe_status" != "200" ]; then
@@ -304,7 +304,7 @@ for probe in /livez /readyz /_henri/health; do
   fi
 done
 
-log "GET /livez, /readyz and /_henri/health -> 200"
+log "GET /livez, /readyz, /healthz and /_henri/health -> 200"
 
 kill -TERM "$server_pid"
 

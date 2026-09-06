@@ -152,6 +152,7 @@ Liveness and readiness are different questions with opposite consequences — a 
 | -------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /livez`         | Is the process running? | Always `200` while it can answer. It never touches a store: a database outage must not restart a process that is otherwise healthy.         |
 | `GET /readyz`        | Can it serve traffic?   | `200`, or `503` while the boot is still running, while the process is shutting down, and when a store fails or takes more than two seconds. |
+| `GET /healthz`       | The same as `/readyz`   | The older, ambiguous name, answered as readiness for a proxy that only knows it.                                                            |
 | `GET /_henri/health` | The same as `/readyz`   | Kept as an alias, so a deployment already pointing at it keeps working.                                                                     |
 
 ```json
@@ -164,7 +165,9 @@ Liveness and readiness are different questions with opposite consequences — a 
 
 A `503` says `"status": "unavailable"` and a `reason` (`starting`, `shutting down`, `a store did not answer`); a store that failed is `{ "adapter": "disk", "ok": false, "error": "timeout" }` — `timeout` or `unreachable`, never the driver's own message, which carries the connection string it could not reach. The message is in the log.
 
-All three run before the session and the limiters — and before the router, so an application route on one of those paths never sees the request — unauthenticated, so a load balancer can call them freely: it has no credentials. There is no `/healthz`: the name does not say which of the two questions it answers, and deployments wire it to both. Point a probe that only knows that path at `/readyz`.
+All four run before the session and the limiters — and before the router, so an application route on one of those paths never sees the request — unauthenticated, so a load balancer can call them freely: it has no credentials.
+
+`/healthz` is the ambiguous one: the name says "health" without saying which of the two questions it answers, so one deployment wires it to liveness and the next to readiness. henri answers readiness there, which is what `/_henri/health` has always done and the safer of the two guesses. Point a liveness probe at `/livez` and leave `/healthz` to whatever cannot be configured.
 
 ## Graceful shutdown
 

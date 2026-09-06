@@ -410,6 +410,7 @@ class Server extends BaseModule {
 
     app.get(health.LIVE_PATH, health.live(this.henri));
     app.get(health.READY_PATH, readiness);
+    app.get(health.HEALTH_PATH, readiness);
     app.get(health.PATH, readiness);
 
     app.use(express.static(path.resolve(this.henri.cwd(), 'app/views/public')));
