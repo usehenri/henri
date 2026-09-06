@@ -5,6 +5,8 @@
 //   node db/create.js              the store of config/dev.json, else default
 //   node db/create.js --env=test   the store of config/test.json
 //
+// DATABASE_URL wins over the file, exactly as it does when henri boots.
+//
 // It connects to the `postgres` maintenance database on the same server and
 // issues a CREATE DATABASE when the one in the url is missing, so running it
 // twice is harmless.
@@ -50,6 +52,10 @@ const storeUrl = (configFile) => {
   return url;
 };
 
+// DATABASE_URL is applied over stores.default.url by henri, so the database
+// this creates is the one the application will connect to
+const url = process.env.DATABASE_URL || storeUrl(file);
+
 /**
  * Creates the database of a connection string when it does not exist yet
  *
@@ -87,7 +93,7 @@ const create = async (url) => {
   }
 };
 
-create(storeUrl(file)).catch((error) => {
+create(url).catch((error) => {
   console.error(`db/create.js failed: ${error.message}`);
   console.error(
     'is PostgreSQL running? `pnpm db:up` starts the one of compose.yaml'
