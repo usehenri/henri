@@ -96,7 +96,7 @@ has to be named per record or per process. An application's own suite keeps
 | `packages/websocket`                    | private               | Not published, never wired into core                                                                                                                                                                                                                  |
 | `packages/demo`                         | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                                                                                                                        |
 | `showcase`                              | private               | Lineup, the showcase application (Inertia + Drizzle on PostgreSQL); its own suite, `pnpm test:showcase`                                                                                                                                               |
-| `website`                               | private               | usehenri.io, deployed by Vercel from `website/`                                                                                                                                                                                                       |
+| `website`                               | private               | usehenri.io, deployed by Vercel from `website/`, master only (`vercel.json`)                                                                                                                                                                          |
 
 ## How core works
 
