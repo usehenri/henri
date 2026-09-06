@@ -887,6 +887,10 @@ class InertiaEngine {
         errors,
         flash: opts.flash || {},
         graphql: opts.graphql || null,
+        // What this answer is in, and where the strings are. Absent unless
+        // the application has catalogues; the catalogue itself is attached
+        // by render(), and only to a document (see below)
+        i18n: opts.i18n || null,
         localUrl: opts.localUrl || '',
         paths: opts.paths || {},
         query: opts.query || req.query || {},
@@ -944,6 +948,15 @@ class InertiaEngine {
 
       return res.json(partial(req, page));
     }
+
+    // A document carries the catalogue and an Inertia visit does not: the
+    // browser that is asking loaded a document to get here, so it has the
+    // strings, and a copy on every visit is the payload this design exists
+    // to avoid. It is also what lets the server rendering translate --
+    // `this.ssr(page)` sees exactly these props (see guides/i18n.md)
+    page.props.i18n = this.henri.i18n
+      ? this.henri.i18n.embed(page.props.i18n)
+      : page.props.i18n;
 
     try {
       const html = await this.html(page, req, nonceOf(res, opts));

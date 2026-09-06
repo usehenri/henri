@@ -1096,11 +1096,15 @@ const UNCHECKED = {
   'henri.gql': 'a tagged template that answers a string, whatever it is given',
   'henri.i18n.decide':
     'answers the default locale and source: default for anything that is not a request, which is what a caller asking about nothing should get',
+  'henri.i18n.embed':
+    'a view engine is the one caller and what it passes is what view() answered; anything else comes back untouched rather than failing a render',
   'henri.i18n.has': 'answers false for anything that is not a key it holds',
   'henri.i18n.supports':
     'answers false for anything that is not one of the locales this application has, which is what it is for',
   'henri.i18n.t':
     'guarded by hand with one typeof, because a page calls it once per string and walking a schema per string is a cost nobody asked for: HENRI_LOCALE_KEY_INVALID and HENRI_LOCALE_UNKNOWN are what it raises',
+  'henri.i18n.view':
+    'the router is the one caller and what it passes is what decide() answered; anything else answers null rather than failing a render for the sake of a locale',
   'henri.mailers.onDeliverLater':
     'says so and answers false, which is its documented contract',
   'henri.model.errors':

@@ -98,6 +98,9 @@ describe('withHenri', () => {
         // Nothing was flashed: the default empty bag
         flash: {},
         graphql: { endpoint: '/g', query: false },
+        // `getInitialProps` fills the defaults in, and a page of an
+        // application with one language has no locale
+        i18n: null,
         localUrl: 'http://localhost:3000',
         paths,
         user: { email: 'a@b.c' },

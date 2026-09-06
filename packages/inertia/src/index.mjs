@@ -5,6 +5,14 @@
  */
 export { Form, normalizeAction, useForm } from './form.mjs';
 export { EMPTY, henriProps, useHenri } from './henri.mjs';
+export {
+  NO_LOCALE,
+  createTranslator,
+  interpolate,
+  remember,
+  selectPlural,
+  useTranslation,
+} from './i18n.mjs';
 export { getRoute, pathFor } from './paths.mjs';
 export { request } from './request.mjs';
 export { resolvePage } from './resolve.mjs';

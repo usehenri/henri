@@ -3449,6 +3449,14 @@ declare namespace start {
     url(locale: string): string | null;
     /** Which locale a request is in, and which step decided it. */
     decide(req: unknown): { locale: string; source: string };
+    /**
+     * What a rendered answer carries about the locale. The catalogue is not
+     * in it: an XHR answer leaves it out, because the client asking already
+     * loaded a document that had it.
+     */
+    view(decided: { locale: string; source: string }): ViewLocale | null;
+    /** The same, with the catalogue in it: what a document carries. */
+    embed(carried: ViewLocale | null): ViewLocale | null;
     /** Every key that was asked for and no locale in the chain translates. */
     missing(): Array<{ key: string; locale: string; why: string }>;
     /** How many lookups missed, remembered or not. */

@@ -30,6 +30,8 @@
     "engine.js",
     "forms.d.ts",
     "forms.js",
+    "i18n.d.ts",
+    "i18n.js",
     "index.d.ts",
     "index.js",
     "withHenri.d.ts",

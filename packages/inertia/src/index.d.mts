@@ -23,6 +23,44 @@ export interface PublicUser {
   [field: string]: unknown;
 }
 
+/** What the server said about the locale of this answer. */
+export interface ViewLocale {
+  locale: string;
+  source: string;
+  /** Where the catalogue is fetched, digest and all. */
+  url?: string;
+  /** The catalogue itself; present on a document, absent on a visit. */
+  messages?: Catalogue;
+}
+
+/** A plural entry: the `Intl.PluralRules` categories, plus exact counts. */
+export type PluralForms = Record<string, string>;
+
+/** A flat catalogue: dotted keys to a string or a set of plural forms. */
+export type Catalogue = Record<string, string | PluralForms>;
+
+/** What a translation may be given to fill its `{name}` placeholders. */
+export type TranslationValues = Record<string, unknown>;
+
+/** Options of a `t()` call that are not interpolation values. */
+export interface TranslateOptions {
+  /**
+   * What to answer when the key is not in the catalogue. Written down by a
+   * person, so it is not a guess -- and the server still records the key as
+   * missing, so it stays findable.
+   */
+  default?: string;
+  /** Select an ordinal form (`1st`, `2nd`) rather than a cardinal one. */
+  ordinal?: boolean;
+}
+
+/** The translation of a key, in the locale of the page. */
+export type Translate = (
+  key: string,
+  values?: TranslationValues,
+  options?: TranslateOptions
+) => string;
+
 /**
  * What `useHenri()` answers.
  *
@@ -40,6 +78,12 @@ export interface HenriView {
   /** Flash messages by type. */
   flash: Record<string, unknown[]>;
   graphql: any | null;
+  /**
+   * What language this page is in, where the strings are, and (on a
+   * document) the catalogue itself. `null` unless the application has
+   * catalogues in `config/locales`. `useTranslation()` is what reads it.
+   */
+  i18n: ViewLocale | null;
   /** Where the server answers, for absolute links. */
   localUrl: string;
   paths: Paths;
@@ -82,11 +126,46 @@ export declare const EMPTY: Readonly<{
   errors: Record<string, never>;
   flash: Record<string, never>;
   graphql: null;
+  i18n: null;
   localUrl: '';
   paths: Record<string, never>;
   query: Record<string, never>;
   user: null;
 }>;
+
+/** What `useTranslation()` answers before anything reached it. */
+export declare const NO_LOCALE: ViewLocale;
+
+/** Fills `{name}` from the values. Nothing is escaped: React does that. */
+export declare function interpolate(
+  template: string,
+  values?: TranslationValues
+): string;
+
+/** The form of a plural entry a count selects; `"=0"` wins over a category. */
+export declare function selectPlural(
+  forms: PluralForms,
+  count: number,
+  locale: string,
+  ordinal?: boolean
+): string | null;
+
+/** A `t()` over a flat catalogue. A missing key answers the key itself. */
+export declare function createTranslator(options: {
+  locale: string;
+  messages?: Catalogue;
+}): Translate;
+
+/** Keeps the catalogue a document arrived with, for the visits after it. */
+export declare function remember(i18n: ViewLocale | null): boolean;
+
+/** The translator of this page. */
+export declare function useTranslation(): {
+  locale: string;
+  ready: boolean;
+  source: string;
+  t: Translate;
+};
 
 /** A path helper, curried over the `paths` of a page. */
 export declare function pathFor(

@@ -305,10 +305,43 @@ class I18nModule extends BaseModule {
 
     const out = { locale: decided.locale, source: decided.source };
 
-    this.settings.client === false ||
-      (out.url = this.translator.url(out.locale));
+    if (this.settings.client === false) {
+      return out;
+    }
+
+    out.url = this.translator.url(out.locale);
+
+    // `always` is the other answer, for an application that would rather
+    // carry the strings on every visit than make one request for them
+    this.settings.client === 'always' &&
+      (out.messages = this.catalogue(out.locale));
 
     return out;
+  }
+
+  /**
+   * The same, with the catalogue in it: what a **document** carries.
+   *
+   * A view engine calls this on the render that produces a whole page, and
+   * not on the XHR answer that follows it: the browser asking for the
+   * second one loaded the first one to get here, so it already has the
+   * strings. That is the entire payload argument, and it is the reason
+   * `view()` leaves `messages` out by default.
+   *
+   * @param {?object} carried what `view()` answered
+   * @returns {?object} the same, with `messages`
+   * @memberof I18nModule
+   */
+  embed(carried) {
+    if (!this.enabled || !carried || this.settings.client === false) {
+      return carried;
+    }
+
+    return carried.messages
+      ? carried
+      : Object.assign({}, carried, {
+          messages: this.catalogue(carried.locale),
+        });
   }
 
   /**

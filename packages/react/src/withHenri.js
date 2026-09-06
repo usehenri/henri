@@ -12,6 +12,7 @@ const VIEW_KEYS = [
   'errors',
   'flash',
   'graphql',
+  'i18n',
   'localUrl',
   'paths',
   'user',
@@ -23,6 +24,7 @@ const DEFAULTS = {
   errors: null,
   flash: {},
   graphql: null,
+  i18n: null,
   localUrl: '',
   paths: {},
   user: null,
@@ -266,6 +268,9 @@ export default (ComposedComponent) => {
       errors: props.errors ?? DEFAULTS.errors,
       flash: props.flash ?? DEFAULTS.flash,
       graphql: props.graphql ?? DEFAULTS.graphql,
+      // What this page is in, and where the strings are. Null unless the
+      // application has catalogues (see useTranslation in ./i18n)
+      i18n: props.i18n ?? DEFAULTS.i18n,
       localUrl: props.localUrl ?? DEFAULTS.localUrl,
       paths,
       user: props.user ?? DEFAULTS.user,
@@ -290,6 +295,7 @@ export default (ComposedComponent) => {
         view.errors,
         view.flash,
         view.graphql,
+        view.i18n,
         view.localUrl,
         view.paths,
         view.user,
