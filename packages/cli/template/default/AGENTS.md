@@ -119,29 +119,16 @@ Work that must not block a request goes in `app/jobs`, never in a worker: `henri
 
 ## Users and secrets
 
-Set `"user": "user"` in `config/default.json` and add `app/models/User.js`:
-the store adds `email` (unique), `password` (hashed, never selected) and
-`roles` (default: `baseRole`), plus `POST /login`, `POST /logout`, sessions,
-CSRF and `req.user`. `roles` cannot be mass-assigned: use `user.setRoles()`
-or `User.setRoles(id, roles)`. The secret is `HENRI_SECRET` in `.env`.
+Set `"user": "user"` in `config/default.json` and add `app/models/User.js`: the store adds `email` (unique), `password` (hashed, never selected) and `roles` (default: `baseRole`), plus `POST /login`, `POST /logout`, sessions, CSRF and `req.user`. `roles` cannot be mass-assigned: use `user.setRoles()` or `User.setRoles(id, roles)`. The secret is `HENRI_SECRET` in `.env`.
 
 ## Policies
 
-`roles` says who may reach an endpoint; `app/policies/<model>.js` says who may
-act on one record: one function per action, `(user, record) => boolean`. Ask
-with `req.can('update', post)` or `await req.authorize('update', post)`, and
-put `policy: true` on the routes so henri asks too. It fails closed -- no
-policy, no rule, a rule that threw, anything but the boolean `true`: all no --
-and a rule taking a record is never asked without one, so `index`/`new`/
-`create` are answered at the route. A refusal is a 404. `paths` and `_links`
-lose what it refuses, so a page cannot offer a button the request would deny.
+`roles` says who may reach an endpoint; `app/policies/<model>.js` says who may act on one record: one function per action, `(user, record) => boolean`. Ask with `req.can('update', post)` or `await req.authorize('update', post)`, and put `policy: true` on the routes so henri asks too. It fails closed -- no policy, no rule, a rule that threw, anything but the boolean `true`: all no -- and a rule taking a record is never asked without one, so `index`/`new`/`create` are answered at the route. A refusal is a 404. `paths` and `_links` lose what it refuses, so a page cannot offer a button the request would deny.
 
 ## Tests
 
-`henri test` runs Vitest (`vitest.config.js`, `test/**/*.test.js`) with henri
-booted under `NODE_ENV=test`: `henri` and the models are globals, and
-`request()` from `@usehenri/testing` is a supertest bound to the server
-(`agent()` keeps cookies). `henri generate test posts` writes the skeleton.
+`henri test` runs Vitest (`vitest.config.js`, `test/**/*.test.js`) with henri booted under `NODE_ENV=test`: `henri` and the models are globals, and `request()` from `@usehenri/testing` is a supertest bound to the server (`agent()` keeps cookies). `henri generate test posts` writes the skeleton.
+Records come from `test/factories/<name>.js` (`{ attributes, traits, model, after }`, a value being a literal or a function of `{ attrs, create, sequence, traits, uid }`): `create('post', 'published', { title })` saves one and makes what it references, `build()` answers the attributes, `createList()` several. Whatever the test asserts on goes in the call, everything else in the factory.
 
 ## Commands, exit codes, MCP
 

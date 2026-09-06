@@ -16,7 +16,7 @@
 // here the rows are the measurement, so the edition is one of this file's
 // own and every request is filtered to it. Nothing another file left behind
 // can change a count, and nothing this file writes can disturb one.
-const { createProposal, createUser, request } = require('./helpers');
+const { create, request } = require('./helpers');
 
 const HAL = 'application/hal+json';
 const PAGE = 25;
@@ -81,7 +81,7 @@ describe('what a foreign key costs', () => {
 
     for (let index = 0; index < SPEAKERS; index += 1) {
       speakers.push(
-        await createUser({
+        await create('user', {
           email: `${unique}-speaker-${index}@example.test`,
           name: `Cost Speaker ${index}`,
         })
@@ -89,10 +89,9 @@ describe('what a foreign key costs', () => {
     }
 
     for (let index = 0; index < PAGE; index += 1) {
-      await createProposal({
+      await create('proposal', 'submitted', {
         eventId: event.id,
         speakerId: speakers[index % SPEAKERS].id,
-        state: 'submitted',
         title: `A proposal about the cost, number ${index}`,
         trackId: track.id,
       });

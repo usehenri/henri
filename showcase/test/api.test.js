@@ -1,13 +1,6 @@
 // The JSON API: HAL, pagination, Idempotency-Key, ETags and the versioned
 // media type. The same routes serve the pages of the application.
-const {
-  createEvent,
-  createProposal,
-  createUser,
-  request,
-  reset,
-  signIn,
-} = require('./helpers');
+const { create, request, reset, signIn } = require('./helpers');
 
 const HAL = 'application/hal+json';
 
@@ -64,22 +57,19 @@ describe('the JSON API', () => {
   beforeAll(async () => {
     await reset();
 
-    speaker = await createUser({
+    speaker = await create('user', {
       company: 'Fathom',
       email: 'api-speaker@example.test',
       name: 'API Speaker',
     });
-    admin = await createUser({
-      email: 'api-admin@example.test',
-      roles: ['speaker', 'admin'],
-    });
-    ({ event, track } = await createEvent({ name: 'API Conf' }));
+    admin = await create('user', 'admin', { email: 'api-admin@example.test' });
+    event = await create('event', { name: 'API Conf' });
+    track = await create('track', { eventId: event.id });
 
     for (let index = 0; index < 14; index += 1) {
-      const proposal = await createProposal({
+      const proposal = await create('proposal', 'submitted', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'submitted',
         title: `An API proposal number ${index}`,
         trackId: track.id,
       });
@@ -398,7 +388,7 @@ describe('the JSON API', () => {
       });
 
       test('is scoped to the user, so two of them may use one key', async () => {
-        const other = await createUser({ email: 'api-other@example.test' });
+        const other = await create('user', { email: 'api-other@example.test' });
         const { browser, csrf } = await signIn(other);
         const answer = await browser
           .post('/proposals')

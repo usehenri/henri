@@ -2,9 +2,7 @@
 // ownership, req.permit, flash messages across a redirect, implicit
 // rendering, and the soft delete behind "withdraw".
 const {
-  createEvent,
-  createProposal,
-  createUser,
+  create,
   inertiaVersion,
   page,
   request,
@@ -27,21 +25,21 @@ describe('proposals', () => {
     await reset();
     await inertiaVersion();
 
-    speaker = await createUser({
+    speaker = await create('user', {
       email: 'author@example.test',
       name: 'Author',
     });
-    other = await createUser({ email: 'other@example.test', name: 'Other' });
-    admin = await createUser({
+    other = await create('user', {
+      email: 'other@example.test',
+      name: 'Other',
+    });
+    admin = await create('user', 'admin', {
       email: 'committee@example.test',
-      roles: ['speaker', 'admin'],
     });
 
-    ({ event, track } = await createEvent({ name: 'Open Conf' }));
-    ({ event: closed } = await createEvent({
-      name: 'Closed Conf',
-      state: 'closed',
-    }));
+    event = await create('event', { name: 'Open Conf' });
+    track = await create('track', { eventId: event.id });
+    closed = await create('event', 'closed', { name: 'Closed Conf' });
   });
 
   describe('the public list', () => {
@@ -49,19 +47,17 @@ describe('proposals', () => {
       await Proposal.withDeleted().destroy({ force: true });
 
       for (let index = 0; index < 15; index += 1) {
-        await createProposal({
+        await create('proposal', 'submitted', {
           eventId: event.id,
           speakerId: speaker.id,
-          state: 'submitted',
           title: `A submitted proposal number ${index}`,
           trackId: track.id,
         });
       }
 
-      await createProposal({
+      await create('proposal', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'draft',
         title: 'A draft nobody should see',
       });
     });
@@ -113,10 +109,9 @@ describe('proposals', () => {
     });
 
     test('a draft is a 404 for everyone but its speaker and the committee', async () => {
-      const draft = await createProposal({
+      const draft = await create('proposal', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'draft',
         title: 'A draft of my own',
       });
       const anonymous = await request()
@@ -165,10 +160,9 @@ describe('proposals', () => {
     test('editing somebody else’s proposal is a 403', async () => {
       // Submitted, so it is readable: an unreadable one would be a 404 from
       // the hook before, and never reach the ownership check
-      const theirs = await createProposal({
+      const theirs = await create('proposal', 'submitted', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'submitted',
         title: 'Not yours to edit',
       });
       const { browser, csrf } = await signIn(other);
@@ -244,7 +238,7 @@ describe('proposals', () => {
 
   describe('the state transitions', () => {
     test('submitting moves the draft on and flashes across the redirect', async () => {
-      const draft = await createProposal({
+      const draft = await create('proposal', {
         eventId: event.id,
         speakerId: speaker.id,
         title: 'A draft ready to go',
@@ -276,7 +270,7 @@ describe('proposals', () => {
     });
 
     test('submitting twice is a 409', async () => {
-      const draft = await createProposal({
+      const draft = await create('proposal', {
         eventId: event.id,
         speakerId: speaker.id,
         title: 'A draft submitted twice',
@@ -297,7 +291,7 @@ describe('proposals', () => {
     });
 
     test('a closed call for papers refuses a submission', async () => {
-      const draft = await createProposal({
+      const draft = await create('proposal', {
         eventId: closed.id,
         speakerId: speaker.id,
         title: 'A draft for a closed edition',
@@ -313,10 +307,9 @@ describe('proposals', () => {
     });
 
     test('a submitted proposal can no longer be edited', async () => {
-      const submitted = await createProposal({
+      const submitted = await create('proposal', 'submitted', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'submitted',
         title: 'Already with the committee',
       });
       const { browser, csrf } = await signIn(speaker);
@@ -332,18 +325,16 @@ describe('proposals', () => {
 
   describe('withdrawing (a soft delete)', () => {
     test('hides the row everywhere and keeps its reviews', async () => {
-      const proposal = await createProposal({
+      const proposal = await create('proposal', 'submitted', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'submitted',
         title: 'A proposal about to be withdrawn',
       });
 
-      await Review.create({
+      await create('review', {
         comment: 'A review that must survive the withdrawal.',
         proposalId: proposal.id,
         reviewerId: admin.id,
-        score: 1,
       });
 
       const { browser, csrf } = await signIn(speaker);
@@ -375,10 +366,9 @@ describe('proposals', () => {
     });
 
     test('the committee sees it in the trash and puts it back', async () => {
-      const proposal = await createProposal({
+      const proposal = await create('proposal', 'submitted', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'submitted',
         title: 'A proposal to restore',
       });
       const owner = await signIn(speaker);
@@ -419,14 +409,18 @@ describe('proposals', () => {
     });
 
     test('a nested resource knows which parent it hangs under', async () => {
-      const answer = await page(
-        request(),
-        `/events/${event.externalId}/tracks`
-      );
+      // An edition of its own, because the count below is the assertion:
+      // reading it off the edition the rest of the file writes to would make
+      // this test depend on how many proposals happened to be made
+      const own = await create('event', { name: 'Nested Conf' });
+
+      await create('track', { eventId: own.id });
+
+      const answer = await page(request(), `/events/${own.externalId}/tracks`);
 
       expect(answer.status).toBe(200);
       expect(answer.body.component).toBe('tracks/index');
-      expect(answer.body.props.data.event.externalId).toBe(event.externalId);
+      expect(answer.body.props.data.event.externalId).toBe(own.externalId);
       expect(answer.body.props.data.event.id).toBeUndefined();
       expect(answer.body.props.data.tracks).toHaveLength(1);
     });
@@ -434,10 +428,9 @@ describe('proposals', () => {
 
   describe('the committee', () => {
     test('reviews a proposal through the nested route and decides on it', async () => {
-      const proposal = await createProposal({
+      const proposal = await create('proposal', 'submitted', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'submitted',
         title: 'A proposal to decide on',
       });
       const { browser, csrf } = await signIn(admin);
@@ -473,10 +466,9 @@ describe('proposals', () => {
     });
 
     test('refuses a decision that is not accepted or rejected', async () => {
-      const proposal = await createProposal({
+      const proposal = await create('proposal', 'submitted', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'submitted',
         title: 'A proposal with a bad decision',
       });
       const { browser, csrf } = await signIn(admin);

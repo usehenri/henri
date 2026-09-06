@@ -35,13 +35,15 @@
     }
   },
   "files": [
+    "README.md",
+    "errors.js",
+    "factory.js",
     "global-setup.d.mts",
     "global-setup.mjs",
     "index.d.ts",
     "index.js",
     "loopback.d.ts",
     "loopback.js",
-    "README.md",
     "setup-file.d.mts",
     "setup-file.mjs"
   ],

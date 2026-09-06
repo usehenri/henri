@@ -9,14 +9,7 @@
 const Ajv = require('ajv/dist/2020');
 const addFormats = require('ajv-formats');
 
-const {
-  createEvent,
-  createProposal,
-  createUser,
-  request,
-  reset,
-  signIn,
-} = require('./helpers');
+const { create, request, reset, signIn } = require('./helpers');
 
 const HAL = 'application/hal+json';
 const ABSTRACT =
@@ -49,18 +42,16 @@ describe('the OpenAPI description of the showcase', () => {
       });
 
     await reset();
-    speaker = await createUser({
+    speaker = await create('user', {
       company: 'Fathom',
       email: 'openapi-speaker@example.test',
       name: 'Doc Speaker',
       phone: '555-0100',
     });
-    ({ event } = await createEvent({ name: 'Doc Conf' }));
-    submitted = await createProposal({
+    event = await create('event', { name: 'Doc Conf' });
+    submitted = await create('proposal', 'submitted', {
       eventId: event.id,
       speakerId: speaker.id,
-      state: 'submitted',
-      submittedAt: new Date(),
       title: 'A proposal the description describes',
     });
   });

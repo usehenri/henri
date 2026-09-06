@@ -26,6 +26,10 @@
       "what": "config/<env>.json, the environment overrides and the credentials file"
     },
     {
+      "area": "factory",
+      "what": "the test factories of `@usehenri/testing`: `test/factories`, the records they make and the traits they apply"
+    },
+    {
       "area": "job",
       "what": "the background job queue of @usehenri/jobs"
     },
@@ -600,6 +604,49 @@
       "what": "No configuration file could be loaded."
     },
     {
+      "area": "factory",
+      "causes": [
+        "two factories that make each other, with nothing to end the chain",
+        "two fields of one factory that read each other through `attrs`"
+      ],
+      "code": "HENRI_FACTORY_DEPTH",
+      "fix": "End the chain by giving the association an id in the overrides: `create(\"proposal\", { speakerId: someone.id })`.",
+      "what": "Factories nested into each other until it had to be called a cycle."
+    },
+    {
+      "area": "factory",
+      "causes": [
+        "the file exports something other than `{ attributes }`",
+        "`model` names a model the application does not have",
+        "the file itself throws when it is loaded"
+      ],
+      "code": "HENRI_FACTORY_INVALID",
+      "fix": "A factory exports `{ attributes }`, optionally with `model`, `traits` and `after`. Name the model with `model:` when the file is not called after it.",
+      "what": "A factory definition cannot be used as one."
+    },
+    {
+      "area": "factory",
+      "causes": [
+        "a typo in the name given to `create()` or `build()`",
+        "the factory file is not in `test/factories`",
+        "the tests run from a directory that is not the application"
+      ],
+      "code": "HENRI_FACTORY_UNKNOWN",
+      "fix": "Add `test/factories/<name>.js`, or declare it in the test file with `defineFactory(name, definition)`. The message lists the factories that were found.",
+      "what": "A test asked for a factory nothing declares."
+    },
+    {
+      "area": "factory",
+      "causes": [
+        "a typo in a trait name",
+        "the trait belongs to another factory",
+        "an override object was passed as a string"
+      ],
+      "code": "HENRI_FACTORY_UNKNOWN_TRAIT",
+      "fix": "Declare the trait in the `traits` of the factory, or pass an override object instead. The message lists the traits it does have.",
+      "what": "A test asked for a trait the factory does not declare."
+    },
+    {
       "area": "job",
       "causes": [
         "an argument that is a function, a class, a bigint or a cycle",
@@ -698,8 +745,8 @@
       "area": "job",
       "causes": ["a job whose `perform()` never returned in time"],
       "code": "HENRI_JOB_TIMEOUT",
-      "fix": "Raise the job\u2019s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
-      "what": "An attempt ran past the job\u2019s timeout."
+      "fix": "Raise the job’s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
+      "what": "An attempt ran past the job’s timeout."
     },
     {
       "area": "job",

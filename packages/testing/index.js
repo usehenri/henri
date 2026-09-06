@@ -1,17 +1,13 @@
 const supertest = require('supertest');
 
-/**
- * Put one of henri's error codes on an error
- *
- * A code is a string and nothing more (`@usehenri/core/error-codes.json` is
- * the catalogue), so a failure names itself without importing anything --
- * which matters here, where core is resolved from the application.
- *
- * @param {Error} error The error
- * @param {string} code The henri error code
- * @returns {Error} The same error
- */
-const stamp = (error, code) => Object.assign(error, { code });
+const { notRunning, stamp } = require('./errors');
+const {
+  build,
+  create,
+  createList,
+  defineFactory,
+  resetFactories,
+} = require('./factory');
 
 const state = {
   instance: null,
@@ -168,12 +164,7 @@ const target = (instance) => {
     return process.env.HENRI_TEST_URL.replace(/\/$/, '');
   }
 
-  throw stamp(
-    new Error(
-      'henri is not running: `await setup()` in beforeAll, or add "@usehenri/testing/setup-file" to vitest setupFiles'
-    ),
-    'HENRI_BOOT_TESTING_NOT_RUNNING'
-  );
+  throw notRunning();
 };
 
 /**
@@ -194,7 +185,12 @@ const agent = (instance = current()) => supertest.agent(target(instance));
 
 module.exports = {
   agent,
+  build,
+  create,
+  createList,
+  defineFactory,
   request,
+  resetFactories,
   setup,
   supertest,
   teardown,

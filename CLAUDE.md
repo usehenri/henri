@@ -54,8 +54,23 @@ HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:5432/henri_test pnpm te
 Applications built with henri run their own tests with `henri test`, which
 spawns the app's Vitest with `NODE_ENV=test`; `@usehenri/testing` boots the
 app inside the test worker (`setup`, `teardown`, `request`, `agent`, `henri`,
-plus `@usehenri/testing/setup-file` for `setupFiles`). `packages/demo` is such
-an app and is what core's tests boot.
+plus `@usehenri/testing/setup-file` for `setupFiles`). It also owns the
+factories: `test/factories/<name>.js` exports `{ attributes, traits, model,
+after }`, a value is a literal or a function of the build context
+(`attrs`, `build`, `create`, `sequence`, `traits`, `uid`) resolved on demand,
+and `create`/`build`/`createList`/`defineFactory` are the calls
+(`packages/testing/factory.js`, `guides/testing.md`). An override always wins
+and is never made, which is what keeps `create('proposal', { speakerId })`
+from making a second user. `packages/demo` is such an app and is what core's
+tests boot; `showcase/test/factories` is the worked example.
+
+Every project runs its test files at the same time, core included: each of
+its files boots the demo application on a port the kernel assigns and a
+MongoDB of its own (`packages/disk/port.js`), and `vitest.setup.js` binds
+every host-less `listen()` to `127.0.0.1` so the reservation is exact. What
+those files still share is `packages/demo/.tmp`, so anything written there
+has to be named per record or per process. An application's own suite keeps
+`fileParallelism: false` unless each file gets a database of its own.
 
 ## Layout
 

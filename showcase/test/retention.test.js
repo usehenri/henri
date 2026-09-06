@@ -9,14 +9,7 @@
 // backdating rows: `createdAt` is the adapter's to write, so "two hundred
 // days from now" is the only way to say "later" without lying to the
 // database about when a record was written.
-const {
-  createEvent,
-  createProposal,
-  createUser,
-  request,
-  reset,
-  signIn,
-} = require('./helpers');
+const { create, request, reset, signIn } = require('./helpers');
 
 /** A moment, that many days ago */
 const ago = (days) => new Date(Date.now() - days * 86400000);
@@ -108,36 +101,32 @@ describe('retention', () => {
      * @returns {Promise<object>} What was created
      */
     const conference = async () => {
-      const speaker = await createUser();
-      const reviewer = await createUser({ roles: ['admin'] });
-      const { event, track } = await createEvent();
-      const draft = await createProposal({
+      const speaker = await create('user');
+      const reviewer = await create('user', 'admin');
+      const event = await create('event');
+      const track = await create('track', { eventId: event.id });
+      const draft = await create('proposal', {
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'draft',
         title: 'A draft nobody ever submitted',
       });
-      const decided = await createProposal({
+      const decided = await create('proposal', 'accepted', {
         decidedAt: ago(800),
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'accepted',
         title: 'A talk the committee decided on',
         trackId: track.id,
       });
-      const recent = await createProposal({
+      const recent = await create('proposal', 'accepted', {
         decidedAt: ago(10),
         eventId: event.id,
         speakerId: speaker.id,
-        state: 'accepted',
         title: 'A talk decided on last week',
         trackId: track.id,
       });
-      const review = await Review.create({
-        comment: 'A careful and quite specific opinion about this talk.',
+      const review = await create('review', {
         proposalId: decided.id,
         reviewerId: reviewer.id,
-        score: 2,
       });
 
       return { decided, draft, recent, review, speaker };
@@ -222,14 +211,13 @@ describe('retention', () => {
     });
 
     test('takes what a bounded run left for the next one', async () => {
-      const speaker = await createUser();
-      const { event } = await createEvent();
+      const speaker = await create('user');
+      const event = await create('event');
 
       for (let index = 0; index < 3; index += 1) {
-        await createProposal({
+        await create('proposal', {
           eventId: event.id,
           speakerId: speaker.id,
-          state: 'draft',
           title: `A draft nobody submitted, number ${index}`,
         });
       }
@@ -271,15 +259,9 @@ describe('retention', () => {
     });
 
     test('a record whose clock never started is counted, not swept', async () => {
-      const speaker = await createUser();
-      const { event } = await createEvent();
-
       // Submitted, never decided: `decidedAt` is null, so the two-year
       // clock of the `decided` rule has not started
-      await createProposal({
-        eventId: event.id,
-        speakerId: speaker.id,
-        state: 'submitted',
+      await create('proposal', 'submitted', {
         submittedAt: ago(900),
         title: 'A talk still waiting for an answer',
       });
@@ -313,15 +295,7 @@ describe('the access trail', () => {
   });
 
   test('records a sweep, one entry per rule', async () => {
-    const speaker = await createUser();
-    const { event } = await createEvent();
-
-    await createProposal({
-      eventId: event.id,
-      speakerId: speaker.id,
-      state: 'draft',
-      title: 'A draft nobody ever submitted',
-    });
+    await create('proposal', { title: 'A draft nobody ever submitted' });
 
     const before = await henri.trail.count({ action: 'retention.sweep' });
 
@@ -341,11 +315,9 @@ describe('the access trail', () => {
   });
 
   test('answers "prove the erasure happened" from an address alone', async () => {
-    const speaker = await createUser({ email: 'erased@example.test' });
-    const { event } = await createEvent();
+    const speaker = await create('user', { email: 'erased@example.test' });
 
-    await createProposal({
-      eventId: event.id,
+    await create('proposal', {
       speakerId: speaker.id,
       title: 'A talk that survives its speaker',
     });
@@ -365,13 +337,9 @@ describe('the access trail', () => {
   });
 
   test('records the reads that leave through an answer', async () => {
-    const speaker = await createUser();
-    const { event } = await createEvent();
-    const proposal = await createProposal({
-      eventId: event.id,
+    const speaker = await create('user');
+    const proposal = await create('proposal', 'submitted', {
       speakerId: speaker.id,
-      state: 'submitted',
-      submittedAt: new Date(),
       title: 'A talk somebody will read about',
     });
     const { browser } = await signIn(speaker);
