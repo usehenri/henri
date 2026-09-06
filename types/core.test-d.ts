@@ -28,6 +28,7 @@ import type {
   UnreadableValue,
   Pagination,
   Policy,
+  Reification,
   PoliciesModule,
   PublicUser,
   Request,
@@ -36,6 +37,7 @@ import type {
   SharedStore,
   StoredFile,
   UploadedFile,
+  Version,
   ViewOptions,
   WebhookDelivery,
   WebhookEndpoint,
@@ -439,6 +441,22 @@ expectType<'header' | 'proxy' | 'socket' | 'unverified' | null>(
 // @ts-expect-error the address a call carries is read off the row, not
 // asked for in a filter
 henri.calls.list({ client: '203.0.113.9' });
+
+// Model versions: reify reads, restore writes
+expectType<Promise<Version[]>>(henri.versions.list({ event: 'update' }));
+expectType<Promise<Reification>>(henri.versions.reify('018f-a-version-id'));
+expectType<boolean>(henri.versions.watches('Task'));
+
+henri.versions.acting({ actor: 'an-external-id', source: 'job' }, () => 1);
+
+// @ts-expect-error a version says one of the three things that happened
+henri.versions.list({ event: 'renamed' });
+
+// @ts-expect-error a restore is forced or refused; there is no third answer
+henri.versions.restore('018f-a-version-id', { anyway: true });
+
+// @ts-expect-error a change came from somewhere henri names
+henri.versions.acting({ source: 'nowhere' }, () => 1);
 
 // --- controllers ------------------------------------------------------------
 

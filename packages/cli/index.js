@@ -81,6 +81,7 @@ module.exports = (pkg, args) => {
     'privacy',
     'retention',
     'trail',
+    'versions',
     'webhooks',
   ]) {
     if (command && command.startsWith(`${group}:`)) {

@@ -7,6 +7,7 @@ const { Migrations } = require('./migrations');
 const { BIND_IDENTITY, createModel } = require('./model');
 const { compileTable, encryptedFields, normalizeSchema } = require('./schema');
 const { decorateModel } = require('./encryption');
+const { decorateModel: decorateVersions } = require('./versions');
 const { SESSION_FIELDS, createStore } = require('./session');
 const { ValidationError } = require('./validation');
 const {
@@ -65,6 +66,7 @@ const MODEL_OPTIONS = new Set([
   'personal',
   'retention',
   'timestamps',
+  'versioned',
 ]);
 
 /**
@@ -220,6 +222,12 @@ class Drizzle {
     if (Object.keys(encrypted).length > 0) {
       this.henri.encryption.register(Model.modelName, encrypted);
       decorateModel(Model);
+    }
+
+    // After the encryption hooks, and only for a model that asked: an
+    // application with nothing versioned registers no hook at all
+    if (Model.versioned) {
+      decorateVersions(Model);
     }
 
     if (isUser) {
@@ -1124,6 +1132,7 @@ class Drizzle {
       calls: block(read('calls')),
       jobs: block(read('jobs')),
       trail: block(read('trail')),
+      versions: block(read('versions')),
       webhooks: block(read('webhooks')),
     };
   }
@@ -1142,7 +1151,7 @@ class Drizzle {
    * @memberof Drizzle
    */
   reservedTables() {
-    const { calls, jobs, trail, webhooks } = this.reservedBlocks();
+    const { calls, jobs, trail, versions, webhooks } = this.reservedBlocks();
     const name = (value, fallback) =>
       typeof value === 'string' && value !== '' ? value : fallback;
     const queue = name(jobs.table, 'henri_jobs');
@@ -1152,6 +1161,7 @@ class Drizzle {
       `${queue}_schedules`,
       name(calls.table, 'henri_calls'),
       name(trail.table, 'henri_trail'),
+      name(versions.table, 'henri_versions'),
       name(webhooks.table, 'henri_webhooks'),
     ]);
   }

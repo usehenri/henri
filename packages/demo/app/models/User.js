@@ -21,6 +21,12 @@
 module.exports = {
   options: {
     timestamps: true,
+    // Versioned too, and it is the interesting one: `password` is never
+    // stored in a version (it is named as changed and its values are not
+    // kept), `phone` and `nationalId` are stored as their envelopes, and
+    // `gender` -- personal, and never serialized to a client -- is stored
+    // as it is, because a history that dropped it would answer nothing
+    versioned: true,
   },
   schema: {
     age: { personal: true, type: 'integer' },

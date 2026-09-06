@@ -1148,6 +1148,83 @@ const COMMANDS = [
   },
   {
     description: [
+      'The history of the models that say options: { versioned: true }.',
+      'One row per change: when, the record, the event, the attributes that',
+      'moved from what to what, who did it and during which request.',
+      '',
+      'This is not the access trail. The trail holds field names and refuses',
+      'a value; versions exist to hold the values, which is what makes',
+      'henri versions:show able to reconstruct a record and',
+      'henri versions:restore able to write it back.',
+      '',
+      'show reads and touches nothing; restore writes, and refuses a',
+      'reconstruction that is not exact unless --force. Both boot the models',
+      'only.',
+    ],
+    examples: [
+      {
+        command: 'henri versions Memo',
+        description: 'The latest changes to that model',
+      },
+      {
+        command: 'henri versions Memo 018f...-7000-...',
+        description: 'The history of one record',
+      },
+      {
+        command: 'henri versions:show <id>',
+        description: 'What the record looked like right after that change',
+      },
+      {
+        command: 'henri versions:restore <id>',
+        description: 'Write that back, creating the record again if it went',
+      },
+    ],
+    flags: [
+      { description: 'only this actor, by external id', flag: '--actor=<id>' },
+      {
+        description: 'only create, update or destroy',
+        flag: '--event=<name>',
+      },
+      { description: 'only this request id', flag: '--request=<id>' },
+      {
+        description: 'versions at or after this moment',
+        flag: '--since=<date>',
+      },
+      {
+        description: 'versions at or before this moment',
+        flag: '--until=<date>',
+      },
+      { description: 'how many versions to print (25)', flag: '--limit=<n>' },
+      {
+        description: 'restore an inexact reconstruction anyway',
+        flag: '--force',
+      },
+      JSON_FLAG,
+    ],
+    name: 'versions',
+    summary: 'what a record used to say, and how to write it back',
+    targets: [
+      {
+        description: 'the latest versions (the default)',
+        name: '[<Model> [<record>]]',
+      },
+      {
+        description: 'one version, and the record as it was after it',
+        name: 'show <id>',
+      },
+      {
+        description: 'write that record back',
+        name: 'restore <id>',
+      },
+    ],
+    usage: [
+      'henri versions [<Model> [<record>]] [--event=<name>] [--limit=<n>] [--json]',
+      'henri versions:show <id> [--json]',
+      'henri versions:restore <id> [--force] [--json]',
+    ],
+  },
+  {
+    description: [
       'The calls this application answered and the calls it made, joined by',
       'the request id henri threads through everything. It holds values --',
       'the body that came in, the body that went out -- which is what makes',

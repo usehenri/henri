@@ -15,6 +15,13 @@ evidence and is not, so the boundary is stated here rather than implied:
 { "trail": {} }
 ```
 
+Two neighbours it is deliberately not: [the call log](/guides/calls/) holds
+the bodies of an exchange for a few days, and
+[model versions](/guides/versions/) hold the values a record used to have,
+completely and for as long as you keep them. The trail is the one that
+refuses a value, because a record of who touched personal data must not
+become a second copy of it.
+
 That is the whole setup. henri creates a table at boot and appends to it. The
 trail is off until this key is there, and off means off: no table, no
 statement, no cost.

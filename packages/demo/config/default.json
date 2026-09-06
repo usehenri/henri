@@ -29,5 +29,8 @@
     "maxFiles": 2,
     "maxFields": 10
   },
-  "env": "default"
+  "env": "default",
+  "versions": {
+    "keep": "1y"
+  }
 }

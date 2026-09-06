@@ -765,6 +765,12 @@ declare namespace start {
      * made. Absent (or `false`) keeps none, and no table is created.
      */
     calls?: false | CallsConfig;
+    /**
+     * Where the history of the versioned models lives and how long it is
+     * kept. It does not turn versioning on: a model does, with
+     * `options: { versioned: true }`.
+     */
+    versions?: VersionsConfig;
     /** Maximum size of a JSON or form body (`"1mb"`). */
     bodyLimit?: string | number;
     /**
@@ -883,6 +889,34 @@ declare namespace start {
     /** Which of `config.stores` the table lives in (`"default"`). */
     store?: string;
     /** The table henri creates and appends to (`"henri_trail"`). */
+    table?: string;
+  }
+
+  /**
+   * `config.versions`: where the history of the models that say
+   * `options: { versioned: true }` is kept.
+   *
+   * There is no switch here. A model asking is what creates the table; an
+   * application with no versioned model pays nothing whatever this says.
+   */
+  interface VersionsConfig {
+    /**
+     * How long a version is kept; `false` (the default) keeps it for as
+     * long as the application does. A version holds the old values of a
+     * record, personal ones included, so the retention sweep prunes them.
+     */
+    keep?: string | number | false;
+    /**
+     * What `henri privacy:erase` does to the versions of the records it
+     * touched. `"follow"` (the default) takes the versions of a deleted
+     * record away and empties the erased values out of the versions of a
+     * record that survives; `"delete"` takes them all; `"retain"` leaves
+     * them and says so in the receipt.
+     */
+    onErase?: 'delete' | 'follow' | 'retain';
+    /** Which of `config.stores` the table lives in (`"default"`). */
+    store?: string;
+    /** The table henri creates and writes to (`"henri_versions"`). */
     table?: string;
   }
 
@@ -2859,6 +2893,143 @@ declare namespace start {
     }>;
   }
 
+  /** One version: what one change made to one record. */
+  interface Version {
+    /** A uuid v7, so the id is also the order the versions were written. */
+    id: string;
+    /** When the change was made. */
+    at: Date;
+    /** The model the record belongs to. */
+    model: string;
+    /** The record's `externalId`, never its primary key. */
+    record: string;
+    event: 'create' | 'destroy' | 'update';
+    /**
+     * `{ field: [old, new] }`. A field whose value is `null` rather than a
+     * pair changed and its values are not kept: `password`, or a name
+     * `config.filterParameters` matches.
+     */
+    changes: Record<string, [unknown, unknown] | null>;
+    /**
+     * Every stored field of the record as the delete found it. Only a
+     * `destroy` carries one: a diff cannot bring a row back.
+     */
+    snapshot: Record<string, unknown> | null;
+    /** The `externalId` of whoever made the change, when it is known. */
+    actor: string | null;
+    source: 'console' | 'http' | 'job' | 'seed' | 'system' | 'task';
+    /** The join with the call log and the logs. */
+    requestId: string | null;
+    meta: Record<string, unknown> | null;
+    /** When an erasure emptied the values of this row. */
+    erasedAt: Date | null;
+  }
+
+  /** What a version filter accepts. */
+  interface VersionFilter {
+    model?: string;
+    record?: string;
+    actor?: string;
+    event?: 'create' | 'destroy' | 'update';
+    requestId?: string;
+    source?: string;
+    since?: Date | string | number;
+    until?: Date | string | number;
+    limit?: number;
+    offset?: number;
+  }
+
+  /** What `reify()` could reconstruct, and whether it is exact. */
+  interface Reification {
+    /** The record as it was, as plain attributes. */
+    attributes: Record<string, unknown>;
+    /** False when a field's values were not kept, or nothing to fold from. */
+    complete: boolean;
+    /** The fields whose values are missing from the reconstruction. */
+    missing: string[];
+    /** Whether the record still exists. */
+    existed: boolean;
+    version: Version;
+  }
+
+  /**
+   * `henri.versions`: the history of the models that say
+   * `options: { versioned: true }`.
+   *
+   * Not the access trail. The trail records field *names* and refuses a
+   * value; this exists to hold the values, which is what makes `reify()`
+   * possible and what makes `henri privacy:erase` reach in here.
+   */
+  interface VersionsModule {
+    /** Whether any model of this application keeps versions. */
+    enabled: boolean;
+    /** `config.versions`, normalized. */
+    settings: {
+      keep: number | null;
+      onErase: 'delete' | 'follow' | 'retain';
+      store: string;
+      table: string;
+    };
+    /** Does this model keep versions? */
+    watches(model: string): boolean;
+    /**
+     * Writes one version. The adapters call it from the model hooks; an
+     * application rarely does.
+     */
+    record(event: {
+      model: string;
+      record: string;
+      event: 'create' | 'destroy' | 'update';
+      before?: Record<string, unknown> | null;
+      after?: Record<string, unknown> | null;
+      meta?: Record<string, unknown> | null;
+    }): Promise<Version | null>;
+    /** The versions of one record, newest first. */
+    of(
+      record: object | { model: string; record: string },
+      filter?: VersionFilter
+    ): Promise<Version[]>;
+    /** The versions matching a filter, newest first. */
+    list(filter?: VersionFilter): Promise<Version[]>;
+    count(filter?: VersionFilter): Promise<number>;
+    get(id: string): Promise<Version | null>;
+    /**
+     * The record as it was immediately after that version, without
+     * touching it. A read: it may be partial, and says so.
+     */
+    reify(version: string | Version): Promise<Reification>;
+    /**
+     * Writes a reified record back: an update on one that still exists, an
+     * insert under the same `externalId` on one that was destroyed. A
+     * write: it refuses an inexact reconstruction unless `force`.
+     */
+    restore(
+      version: string | Version,
+      options?: { force?: boolean }
+    ): Promise<{
+      record: unknown;
+      created: boolean;
+      missing: string[];
+      version: Version;
+    }>;
+    /**
+     * Runs something with the actor and the source it names, for a job, a
+     * console session or a seed. An async context, not a setting.
+     */
+    acting<T>(
+      who: {
+        actor?: string | object | null;
+        source?: 'console' | 'http' | 'job' | 'seed' | 'system' | 'task';
+      },
+      work: () => T
+    ): T;
+    /** Takes the versions past `config.versions.keep` away. */
+    prune(options?: { now?: number; batch?: number }): Promise<{
+      removed: number;
+      before: number | null;
+    }>;
+  }
+
   /** One call of the call log, inbound or outbound. */
   interface CallRecord {
     id: string;
@@ -3622,6 +3793,12 @@ declare namespace start {
      * the request id. Off unless `config.calls` says otherwise.
      */
     calls: CallsModule;
+    /**
+     * The history of the models that asked for one. `enabled` is false
+     * until a model says `options: { versioned: true }`, and nothing is
+     * created, mounted or written before one does.
+     */
+    versions: VersionsModule;
     /**
      * The queue, when the application depends on `@usehenri/jobs`. It is
      * `undefined` when it does not -- core carries no queue of its own --

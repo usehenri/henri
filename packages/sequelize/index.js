@@ -2,6 +2,7 @@ const Sequelize = require('sequelize');
 const debug = require('debug')('henri:sequelize');
 const { Drift, describeDifference } = require('./drift');
 const { decorateAttributes, decorateModel } = require('./encryption');
+const { decorateModel: decorateVersions } = require('./versions');
 const { lookup, paginate, publicId } = require('./plugins');
 const { normalizeSchema } = require('./schema');
 const {
@@ -214,11 +215,14 @@ class Sql {
     const options = { timestamps: true, ...(model.options || {}) };
     const external = wantsExternalId(model);
 
-    // `externalId`, `personal` and `retention` are henri options, not
-    // Sequelize ones
+    // `externalId`, `personal`, `retention` and `versioned` are henri
+    // options, not Sequelize ones
+    const keepsVersions = options.versioned;
+
     delete options.externalId;
     delete options.personal;
     delete options.retention;
+    delete options.versioned;
 
     if (model.name && !options.tableName) {
       options.tableName = model.name;
@@ -268,6 +272,12 @@ class Sql {
       this.decorateUser(instance);
       this.henri._user = instance;
       this.userModelName = model.globalId;
+    }
+
+    // Only for a model that asked: an application with nothing versioned
+    // registers no hook at all
+    if (keepsVersions) {
+      decorateVersions(instance, this.henri);
     }
 
     this.definitions[model.globalId] = { model, user };

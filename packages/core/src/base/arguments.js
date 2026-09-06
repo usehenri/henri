@@ -390,6 +390,30 @@ const AUTHORIZE_OPTIONS = {
 };
 
 /** What the access trail is read back with */
+/** Where a version says a change came from (`base/versions.js`) */
+const SOURCES = ['console', 'http', 'job', 'seed', 'system', 'task'];
+
+/** A version, or the id of one */
+const VERSION = {
+  describe: 'a version, or the id of one',
+  hint: 'henri versions <Model> <record> lists them with their ids',
+  oneOf: [NAME, OBJECT],
+};
+
+/** What a version listing takes */
+const VERSION_FILTER = bag({
+  actor: maybe(NAME),
+  event: maybe({ enum: ['create', 'destroy', 'update'], type: 'string' }),
+  limit: maybe(COUNT),
+  model: maybe(NAME),
+  offset: maybe({ integer: true, min: 0, type: 'number' }),
+  record: maybe(NAME),
+  requestId: maybe(NAME),
+  since: maybe(WHEN),
+  source: maybe({ enum: SOURCES, type: 'string' }),
+  until: maybe(WHEN),
+});
+
 const TRAIL_FILTER = bag({
   action: maybe(NAME),
   actor: maybe(NAME),
@@ -888,6 +912,59 @@ const SIGNATURES = {
     },
   ],
 
+  'henri.versions.acting': [
+    {
+      hint: "henri.versions.acting({ actor: user, source: 'job' }, () => ...)",
+      name: 'who',
+      ...bag({
+        actor: maybe({
+          describe: 'an external id, or the record itself',
+          oneOf: [NAME, OBJECT],
+        }),
+        source: maybe({ enum: SOURCES, type: 'string' }),
+      }),
+    },
+    { name: 'work', ...FUNCTION },
+  ],
+
+  'henri.versions.count': [
+    { name: 'filter', optional: true, ...VERSION_FILTER },
+  ],
+
+  'henri.versions.get': [{ name: 'id', ...NAME }],
+
+  'henri.versions.list': [
+    { name: 'filter', optional: true, ...VERSION_FILTER },
+  ],
+
+  'henri.versions.of': [
+    {
+      describe: 'a record, or { model, record }',
+      hint: 'henri.versions.of(task) reads the history of that record',
+      name: 'record',
+      ...OBJECT,
+    },
+    { name: 'filter', optional: true, ...VERSION_FILTER },
+  ],
+
+  'henri.versions.prune': [
+    {
+      name: 'options',
+      optional: true,
+      ...bag({
+        batch: maybe(COUNT),
+        now: maybe({ min: 0, type: 'number' }),
+      }),
+    },
+  ],
+
+  'henri.versions.reify': [{ name: 'version', ...VERSION }],
+
+  'henri.versions.restore': [
+    { name: 'version', ...VERSION },
+    { name: 'options', optional: true, ...bag({ force: maybe(BOOLEAN) }) },
+  ],
+
   'message.deliverLater': [
     {
       name: 'options',
@@ -1030,6 +1107,10 @@ const UNCHECKED = {
   'henri.user.validatePassword':
     'documented never to throw: it is the verdict a registration form shows next to the box, so anything that is not a password is { valid: false, errors } and not a refusal',
   'henri.utils': 'node resolution answers for itself',
+  'henri.versions.record':
+    'the adapters call it once per row they write, which is the write path: it is a seam of henri s rather than an entry point of an application s, and what it is given is what a model hook already had in its hands',
+  'henri.versions.watches':
+    'a Map lookup that answers false for anything that is not a model keeping versions, which is what a caller asking about a name henri does not know should get',
   'req.authorize': 'the one implementation is henri.policies.authorize',
   'req.can': 'the one implementation is henri.policies.can',
   'req.file':

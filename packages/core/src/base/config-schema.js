@@ -67,6 +67,9 @@ const ALWAYS = ['aborted', 'client-error', 'error'];
 
 /** What `calls.partition` accepts (`base/call-store.js`) */
 const PARTITIONS = ['day', 'month'];
+
+/** What `versions.onErase` accepts (`4.versions.js`) */
+const ON_VERSION_ERASE = ['delete', 'follow', 'retain'];
 /**
  * One `encryption.keys` entry: 32 bytes as 64 hexadecimal characters.
  *
@@ -1471,6 +1474,39 @@ const SCHEMA = {
         type: 'object',
       },
     ],
+  },
+
+  versions: {
+    default: {},
+    describe: 'an object of model versioning settings',
+    hint: 'This does not turn versioning on: a model does, with options: { versioned: true }. It says where the table lives and how long its rows are kept',
+    keys: {
+      keep: keeps({
+        default: false,
+        hint: 'A version holds the old values of a record, personal ones included, so keeping them forever is a decision to make on purpose; the retention sweep prunes them. false keeps them for as long as the application does',
+        oneOf: [{ const: false }, ...keeps().oneOf],
+      }),
+      onErase: {
+        default: 'follow',
+        describe: `one of ${ON_VERSION_ERASE.join(', ')}`,
+        hint: "'follow' takes the versions of a deleted record away and empties the erased values out of the versions of a record that survives; 'delete' takes them all; 'retain' leaves them and says so in the receipt",
+        enum: ON_VERSION_ERASE,
+        type: 'string',
+      },
+      store: text({
+        default: 'default',
+        describe: 'the name of a store',
+        hint: 'Which of config.stores the table lives in',
+      }),
+      table: {
+        default: 'henri_versions',
+        describe: 'a table name: letters, digits and underscores',
+        hint: 'henri creates it on the first boot where a model says versioned',
+        pattern: /^[A-Za-z_][A-Za-z0-9_]*$/u,
+        type: 'string',
+      },
+    },
+    type: 'object',
   },
 
   bodyLimit: {

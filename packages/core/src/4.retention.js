@@ -49,8 +49,10 @@ class Retention extends BaseModule {
     // The rules are read from the model files, and `anonymize` writes what
     // the privacy map says is personal
     this.needs = ['config', 'model', 'privacy'];
-    // A sweep is recorded in the trail when there is one
-    this.after = ['calls', 'trail', 'jobs'];
+    // A sweep is recorded in the trail when there is one, and it prunes
+    // the three tables that hold what the models no longer need to: the
+    // trail, the call log and the versions
+    this.after = ['calls', 'trail', 'versions', 'jobs'];
     this.runlevel = 4;
     this.name = 'retention';
     this.henri = null;
@@ -277,6 +279,7 @@ class Retention extends BaseModule {
 
     await this.tell(receipt, options);
     await this.sweepCalls(options);
+    await this.sweepVersions(options);
 
     const swept = receipt.rules.reduce(
       (total, rule) => total + rule.written,
@@ -291,6 +294,46 @@ class Retention extends BaseModule {
     );
 
     return receipt;
+  }
+
+  /**
+   * Prunes the versions, the way `sweepCalls()` prunes the call log.
+   *
+   * A version holds the old values of a record, personal ones included, so
+   * it is subject to retention like anything else that does -- and, like
+   * the call log, a table that cannot be pruned is a warning rather than a
+   * failed sweep. `config.versions.keep` is unset by default, and then
+   * there is nothing to do: a history nobody asked to expire does not.
+   *
+   * @async
+   * @param {object} options `dryRun` and `now`
+   * @returns {Promise<?object>} what was pruned, or null
+   * @memberof Retention
+   */
+  async sweepVersions(options) {
+    const { pen, versions } = this.henri;
+
+    if (!versions || !versions.enabled || !versions.settings.keep) {
+      return null;
+    }
+
+    if (options.dryRun) {
+      return null;
+    }
+
+    try {
+      const result = await versions.prune({
+        now: options.now ? new Date(options.now).getTime() : Date.now(),
+      });
+
+      pen.info('retention', 'versions', `${result.removed} row(s)`);
+
+      return result;
+    } catch (error) {
+      pen.warn('retention', 'unable to prune the versions', error.message);
+
+      return null;
+    }
   }
 
   /**

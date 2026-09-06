@@ -8,6 +8,7 @@ const {
   withoutInternalIds,
 } = require('./external-id');
 const { normalizeField } = require('./schema');
+const { checkMassWrite, plainOf, write } = require('./versions');
 const { ValidationError, failure, validate } = require('./validation');
 const {
   coded,
@@ -67,12 +68,20 @@ const OPTION_KEYS = new Set([
  */
 const ALLOWED = {
   // `passwordsHashed` writes a password straight through on the user model
-  // (a migrated hash); `unsafe` allows the roles through mass assignment
-  create: new Set(['passwordsHashed', 'unsafe']),
-  destroy: new Set(['force']),
+  // (a migrated hash); `unsafe` allows the roles through mass assignment;
+  // `versions` says out loud that this write is not to be versioned, which
+  // is the only way past the refusal a mass write on a versioned model gets
+  create: new Set(['passwordsHashed', 'unsafe', 'versions']),
+  destroy: new Set(['force', 'versions']),
   read: OPTION_KEYS,
   // Mongoose's `new` and `runValidators` are accepted and always on
-  update: new Set(['new', 'passwordsHashed', 'runValidators', 'unsafe']),
+  update: new Set([
+    'new',
+    'passwordsHashed',
+    'runValidators',
+    'unsafe',
+    'versions',
+  ]),
 };
 
 /**
@@ -713,14 +722,17 @@ class Model {
    * Clears the `deletedAt` stamp of every matching row (paranoid models)
    *
    * @param {*} [where] The condition
+   * @param {object} [options={}] `versions: false` to restore without a
+   *   version on a model that keeps them
    * @returns {Promise<number>} The number of rows restored
    * @throws {Error} On a model without `options: { paranoid: true }`
+   * @throws HENRI_VERSION_MASS_WRITE on a versioned model
    * @memberof Model
    */
-  static restore(where) {
+  static restore(where, options = {}) {
     const split = splitArguments(this, where);
 
-    return this.onlyDeleted().where(split.where).restore();
+    return this.onlyDeleted().where(split.where).restore(options);
   }
 
   /**
@@ -735,6 +747,15 @@ class Model {
    * @memberof Model
    */
   static async findByIdAndUpdate(id, attrs, options = {}) {
+    // A versioned model has to know what the row said before the write,
+    // and this path has no instance to ask: it reads the record first, and
+    // then every single-row update of this adapter runs through save()
+    if (this.versioned && options.versions !== false) {
+      const found = await this.findById(id);
+
+      return found ? found.update(attrs, options) : null;
+    }
+
     const key = await this.internalId(id);
 
     if (key === null) {
@@ -1308,6 +1329,7 @@ class Model {
     // funnel is where the check belongs, or the fluent spelling is the one
     // place an unknown option is still dropped in silence
     checkOptions(this, 'update', options);
+    checkMassWrite(this, 'update', options);
 
     const values = await this.prepare(
       'update',
@@ -1344,6 +1366,7 @@ class Model {
    */
   static async destroyWhere(where, options = {}) {
     checkOptions(this, 'destroy', options);
+    checkMassWrite(this, 'destroy', options);
 
     if (this.paranoid && !options.force) {
       return this.setWhere(where, { deletedAt: new Date() });
@@ -1504,6 +1527,23 @@ class Model {
   }
 
   /**
+   * The instance as the database last answered it: the values `changed()`
+   * is measured against, before `set()` moved any of them.
+   *
+   * It is what a versioned model's before state is taken from
+   * (`./versions.js`), and it is public because `instance.update(attrs)`
+   * sets first and saves second, so by the time a `beforeUpdate` hook runs
+   * the instance already holds the new values and the old ones live
+   * nowhere else.
+   *
+   * @returns {object} The attributes, hidden columns included
+   * @memberof Model
+   */
+  previousAttributes() {
+    return { ...this[STATE].original };
+  }
+
+  /**
    * The attributes to write on save: every field for a new instance, the
    * dirty ones otherwise
    *
@@ -1602,7 +1642,9 @@ class Model {
       this.deletedAt = deletedAt;
       this[STATE].original.deletedAt = deletedAt;
     } else {
-      await Klass.destroyWhere(where, { force: true });
+      // The hooks of this call are what record the version: the mass path
+      // is told not to, or it would refuse the delete of one row
+      await Klass.destroyWhere(where, { force: true, versions: false });
       this[STATE].persisted = false;
     }
 
@@ -1627,10 +1669,24 @@ class Model {
       );
     }
 
+    const before = Klass.versioned ? plainOf(this) : null;
+
     await Klass.setWhere(eq(Klass.column('id'), this.id), { deletedAt: null });
     this.deletedAt = null;
     this[STATE].original.deletedAt = null;
     this[STATE].persisted = true;
+
+    // `setWhere` runs no hook, by design -- it is what stamps `deletedAt`
+    // -- so bringing a record back would be the one change a versioned
+    // model missed. It is an update: what changed is `deletedAt`
+    if (before) {
+      await write(Klass, {
+        after: plainOf(this),
+        before,
+        event: 'update',
+        record: this.externalId,
+      });
+    }
 
     return this;
   }
@@ -1788,6 +1844,13 @@ const createModel = (adapter, definition, fields) => {
     paranoid,
     tableName: tableNameOf(definition),
     timestamps,
+    // What `options.versioned` said, or null. The wiring reads it, and so
+    // does every path that has to behave differently because a history is
+    // being kept (see ./versions.js)
+    versioned:
+      typeof options.versioned === 'undefined' || options.versioned === false
+        ? null
+        : options.versioned,
   });
 
   return Klass;

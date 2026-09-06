@@ -178,6 +178,13 @@ async function findRecords(Model, where) {
  * `unsafe` is what lets the roles of an erased account be emptied: they are
  * kept out of a mass assignment on purpose, and this is not one.
  *
+ * `versions: false` is the other one, and it is a decision rather than a
+ * convenience: a mass write on a versioned model is refused
+ * (`HENRI_VERSION_MASS_WRITE`), and even if it were not, a version of an
+ * erasure would hold the very values the erasure removed. What happens to
+ * the versions instead is `config.versions.onErase`, run once at the end
+ * of `eraseOf()` where it can see the whole plan.
+ *
  * @param {*} Model an ORM model
  * @param {object} where the condition
  * @param {object} values the values
@@ -188,12 +195,15 @@ async function updateRecords(Model, where, values) {
   const kind = kindOf(Model);
 
   if (kind === 'drizzle') {
-    return Model.withDeleted().where(where).update(values, { unsafe: true });
+    return Model.withDeleted()
+      .where(where)
+      .update(values, { unsafe: true, versions: false });
   }
 
   if (kind === 'mongoose') {
     const result = await Model.updateMany(where, { $set: values }).setOptions({
       unsafe: true,
+      versions: false,
       withDeleted: true,
     });
 
@@ -204,6 +214,7 @@ async function updateRecords(Model, where, values) {
     const [count] = await Model.update(values, {
       paranoid: false,
       unsafe: true,
+      versions: false,
       where,
     });
 
@@ -225,17 +236,27 @@ async function deleteRecords(Model, where) {
   const kind = kindOf(Model);
 
   if (kind === 'drizzle') {
-    return Model.withDeleted().where(where).destroy({ force: true });
+    return Model.withDeleted()
+      .where(where)
+      .destroy({ force: true, versions: false });
   }
 
   if (kind === 'mongoose') {
-    const result = await Model.deleteMany(where, { force: true });
+    const result = await Model.deleteMany(where, {
+      force: true,
+      versions: false,
+    });
 
     return (result && result.deletedCount) || 0;
   }
 
   if (kind === 'sequelize') {
-    return Model.destroy({ force: true, paranoid: false, where });
+    return Model.destroy({
+      force: true,
+      paranoid: false,
+      versions: false,
+      where,
+    });
   }
 
   throw unknownAdapter(Model);
@@ -698,16 +719,26 @@ function exportable(entry, records) {
  * @param {object} context.map the map (base/privacy.js)
  * @param {function} context.modelOf `(name) => the ORM model`
  * @param {string} [context.application] the name of the application
+ * @param {object} [context.versions] `henri.versions`, when a model keeps
+ *   a history: what a record used to say about a person is held about them
+ *   too, so it goes in the export
  * @param {object} subject the person, as a plain object
  * @returns {Promise<object>} the export document
  */
-async function exportOf({ map, modelOf, application = null }, subject) {
+async function exportOf(
+  { map, modelOf, application = null, versions = null },
+  subject
+) {
   const subjectEntry = map.subject;
   const primary = subjectEntry ? primaryOf(modelOf(subjectEntry.name)) : 'id';
   const document = {
     application,
     counts: {},
     generatedAt: new Date().toISOString(),
+    // Filled while the records are read and taken out again before the
+    // document is answered: it is what the versions are looked up by, and
+    // a primary key is not something an export hands anybody
+    ids: {},
     records: {},
     subject: {
       email: subject.email || null,
@@ -721,6 +752,7 @@ async function exportOf({ map, modelOf, application = null }, subject) {
   if (subjectEntry) {
     document.records[subjectEntry.name] = exportable(subjectEntry, [subject]);
     document.counts[subjectEntry.name] = 1;
+    document.ids[subjectEntry.name] = [identify(subject, primary)];
   }
 
   for (const entry of map.entries) {
@@ -739,7 +771,21 @@ async function exportOf({ map, modelOf, application = null }, subject) {
 
     document.records[entry.name] = exportable(entry, records);
     document.counts[entry.name] = records.length;
+    document.ids[entry.name] = records.map((record) =>
+      identify(record, primaryOf(modelOf(entry.name)))
+    );
   }
+
+  if (versions && versions.enabled) {
+    document.versions = await versions.exportOf(
+      Object.keys(document.ids).map((model) => ({
+        ids: document.ids[model],
+        model,
+      }))
+    );
+  }
+
+  delete document.ids;
 
   return document;
 }
@@ -752,13 +798,22 @@ async function exportOf({ map, modelOf, application = null }, subject) {
  * @param {function} context.modelOf `(name) => the ORM model`
  * @param {string} [context.application] the name of the application
  * @param {string} [context.secret] `config.secret`, the key of the digest
+ * @param {object} [context.versions] `henri.versions`, when a model keeps a
+ *   history: an erasure that left every old value sitting in a version
+ *   table would be an erasure in name only
  * @param {object} subject the person, as a plain object
  * @param {object} [options={}] `strategy`, `dryRun`, `actor`
  * @returns {Promise<object>} the receipt
  * @throws HENRI_PRIVACY_ERASE_REFUSED when the plan cannot be carried out
  */
 async function eraseOf(context, subject, options = {}) {
-  const { map, modelOf, application = null, secret = '' } = context;
+  const {
+    map,
+    modelOf,
+    application = null,
+    secret = '',
+    versions = null,
+  } = context;
   const plan = await planOf(context, subject, options);
   const subjectEntry = map.subject;
 
@@ -798,6 +853,15 @@ async function eraseOf(context, subject, options = {}) {
     });
   }
 
+  // After the records and never before: what happens to a version follows
+  // what happened to the record it describes, which the plan has just said
+  const versioned = versions
+    ? await versions.erase(plan.steps, {
+        actor: subject[EXTERNAL_ID] || null,
+        dryRun: options.dryRun === true,
+      })
+    : null;
+
   return {
     application,
     at: new Date().toISOString(),
@@ -816,6 +880,7 @@ async function eraseOf(context, subject, options = {}) {
     },
     unlinked: plan.unlinked,
     version: VERSION,
+    versions: versioned,
   };
 }
 

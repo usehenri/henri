@@ -76,6 +76,7 @@
     "server",
     "test",
     "trail",
+    "versions",
     "webhooks"
   ],
   "devDependencies": {

@@ -28,7 +28,8 @@
     "utils.js",
     "validation.js",
     "encrypted.js",
-    "encryption.js"
+    "encryption.js",
+    "versions.js"
   ],
   "dependencies": {
     "debug": "^4.4.3",

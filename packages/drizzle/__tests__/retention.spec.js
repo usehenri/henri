@@ -162,6 +162,7 @@ describe(`the access trail on ${target.name}`, () => {
       'henri_jobs',
       'henri_jobs_schedules',
       'henri_trail',
+      'henri_versions',
       'henri_webhooks',
     ]);
   });

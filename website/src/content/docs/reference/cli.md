@@ -446,6 +446,24 @@ The calls the application answered and the calls it made, joined by the request 
 
 A sweep drops whole partitions on PostgreSQL and MySQL when `config.calls.partition` asked for them, and deletes rows in bounded batches everywhere else.
 
+## `versions`
+
+```bash
+henri versions [<Model> [<record>]] [--actor=<id>] [--event=<name>] [--request=<id>] [--since=<date>] [--until=<date>] [--limit=<n>] [--json]
+henri versions:show <id> [--json]
+henri versions:restore <id> [--force] [--json]
+```
+
+The history of the models that say `options: { versioned: true }`, read back. See [Model versions](/guides/versions/). It is nothing at all until a model asks: no table, no hook, no boot line.
+
+| Command        | What it does                                                                                                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)         | The latest versions, newest first. A capitalised first word is a model, and a second is one record's `externalId`.                                                                  |
+| `show <id>`    | One version, and the record as it was immediately after it. A read: it touches nothing, and says when the reconstruction is not exact.                                              |
+| `restore <id>` | Writes that record back -- an update on one that still exists, an insert under the same `externalId` on one that was destroyed. Refuses an inexact reconstruction unless `--force`. |
+
+A restore is a change like any other and is itself recorded. This is not [the access trail](/guides/trail/): the trail refuses values and versions exist to hold them.
+
 ## `doctor`
 
 ```bash
