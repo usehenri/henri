@@ -23,7 +23,7 @@ pnpm install                        # the whole workspace
 pnpm db:up                          # PostgreSQL from compose.yaml
 cd showcase
 cp .env.example .env                # HENRI_SECRET, never committed
-pnpm db:create                      # createdb henri_showcase
+pnpm db:create                      # henri db:create, the database of config/dev.json
 pnpm db:migrate                     # apply db/migrations
 pnpm db:seed                        # 3 editions, 24 people, 46 proposals
 pnpm start                          # henri server, http://localhost:3000
@@ -210,6 +210,6 @@ showcase/
       components/         layout, ui, proposal-form
       styles/index.css    the whole stylesheet (Tailwind v4)
   config/                 default.json, test.json, routes.js
-  db/                     create.js, seeds.js, migrations/
+  db/                     seeds.js, migrations/
   test/                   the suite run by `henri test`
 ```

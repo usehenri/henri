@@ -2,10 +2,20 @@ const path = require('path');
 const fs = require('fs');
 
 const { CliError } = require('./errors');
+const database = require('./db-database');
 const { usage } = require('./help');
 const { validInstall } = require('./utils');
 
-const COMMANDS = ['generate', 'migrate', 'push', 'seed', 'status'];
+const COMMANDS = [
+  'create',
+  'drop',
+  'generate',
+  'migrate',
+  'push',
+  'reset',
+  'seed',
+  'status',
+];
 
 // Rails' db/seeds.rb
 const SEEDS = path.join('db', 'seeds.js');
@@ -57,6 +67,181 @@ const boot = async ({ sync = false, runlevel = 3 } = {}) => {
   await henri.init();
 
   return henri;
+};
+
+/**
+ * The configuration of one store, read without connecting to it.
+ *
+ * `db:create` runs before there is a database to connect to, so this stops
+ * at the configuration (runlevel 0), which is where `.env`, `DATABASE_URL`
+ * and the encrypted credentials have already been applied.
+ *
+ * @param {string} name The store name
+ * @returns {Promise<object>} The store configuration
+ * @throws {CliError} USAGE when the application has no such store
+ */
+const storeConfig = async (name) => {
+  const henri = await boot({ runlevel: 0 });
+
+  try {
+    const stores = henri.config.get('stores') || {};
+    const config = stores[name];
+
+    if (!config) {
+      throw new CliError('USAGE', `Unknown store "${name}"`, {
+        hint: `The application defines: ${Object.keys(stores).join(', ') || 'none'}`,
+      });
+    }
+
+    return config;
+  } finally {
+    await henri.stop();
+  }
+};
+
+/**
+ * Refuses a destructive command against production unless it was asked for
+ * twice: once by running it, once with --force
+ *
+ * @param {string} command The command name
+ * @param {object} args CLI arguments
+ * @param {string} what What is about to be removed
+ * @returns {void}
+ * @throws {CliError} FAILED in production without --force
+ */
+const guard = (command, args, what) => {
+  if (process.env.NODE_ENV !== 'production' || args.force === true) {
+    return;
+  }
+
+  throw new CliError(
+    'FAILED',
+    `henri db:${command} would remove ${what}, and NODE_ENV is production`,
+    { hint: 'Run it again with --force if that is really what you want' }
+  );
+};
+
+/**
+ * Whether the application drives its schema with migrations
+ *
+ * @returns {boolean} true when db/migrations holds at least one migration
+ */
+const hasMigrations = () => {
+  const folder = path.join(process.cwd(), 'db', 'migrations');
+
+  return (
+    fs.existsSync(folder) &&
+    fs.readdirSync(folder).some((entry) => entry.endsWith('.sql'))
+  );
+};
+
+/**
+ * Creates the database a store points at, when it is not there yet
+ *
+ * @param {object} args CLI arguments
+ * @param {string} name The store name
+ * @returns {Promise<object>} The result
+ */
+const create = async (args, name) => {
+  const config = await storeConfig(name);
+  const dialect = database.dialectOf(config, name);
+  const target =
+    dialect === 'sqlite'
+      ? database.sqliteFile(config) || ':memory:'
+      : database.databaseOf(config, name);
+  const existed = await database.DIALECTS[dialect].exists(config, target);
+  const outcome = existed
+    ? { created: false }
+    : await database.DIALECTS[dialect].create(config, target);
+
+  return {
+    command: 'create',
+    created: Boolean(outcome.created),
+    database: target,
+    dialect,
+    ok: true,
+    reason: outcome.reason || (existed ? 'exists' : null),
+    store: name,
+    where: database.describe(config, dialect),
+  };
+};
+
+/**
+ * Drops the database a store points at
+ *
+ * @param {object} args CLI arguments
+ * @param {string} name The store name
+ * @returns {Promise<object>} The result
+ */
+const drop = async (args, name) => {
+  const config = await storeConfig(name);
+  const dialect = database.dialectOf(config, name);
+  const target =
+    dialect === 'sqlite'
+      ? database.sqliteFile(config) || ':memory:'
+      : database.databaseOf(config, name);
+
+  guard('drop', args, target);
+
+  const outcome = await database.DIALECTS[dialect].drop(config, target);
+
+  return {
+    command: 'drop',
+    database: target,
+    dialect,
+    dropped: Boolean(outcome.dropped),
+    ok: true,
+    reason: outcome.reason || null,
+    store: name,
+    where: database.describe(config, dialect),
+  };
+};
+
+/**
+ * Drops the database, creates it again, brings the schema up and seeds it.
+ *
+ * The schema comes from the migrations when the application has any, and
+ * from the adapter's own sync when it does not, which is the same choice
+ * `henri server` makes on a fresh database. The seeds run when `db/seeds.js`
+ * exists, because a reset with an empty database is rarely what was wanted.
+ *
+ * @param {object} args CLI arguments
+ * @param {string} name The store name
+ * @returns {Promise<object>} The result
+ */
+const reset = async (args, name) => {
+  const dropped = await drop(args, name);
+  const created = await create(args, name);
+  const migrated = hasMigrations();
+  const seeded = fs.existsSync(path.join(process.cwd(), SEEDS));
+
+  const henri = await boot({ sync: !migrated });
+
+  try {
+    if (migrated) {
+      const store = await migrations(henri, name);
+
+      await run('migrate', store, args);
+    }
+  } finally {
+    await henri.stop();
+  }
+
+  if (seeded) {
+    await seed(args);
+  }
+
+  return {
+    command: 'reset',
+    database: created.database,
+    dialect: created.dialect,
+    dropped: dropped.dropped,
+    migrated,
+    ok: true,
+    seeded,
+    store: name,
+    where: created.where,
+  };
 };
 
 /**
@@ -242,6 +427,39 @@ const print = (result) => {
     console.log(`  Seeded from ${result.file} (${result.duration}ms)`);
   }
 
+  if (result.command === 'create') {
+    if (result.created) {
+      console.log(`  Created ${result.where}`);
+    } else if (result.reason === 'first-write') {
+      console.log(
+        `  ${result.dialect} makes a database on its first write: nothing to create`
+      );
+    } else if (result.reason === 'memory') {
+      console.log('  The store is in memory: nothing to create');
+    } else {
+      console.log(`  ${result.where} is already there`);
+    }
+  }
+
+  if (result.command === 'drop') {
+    if (result.dropped) {
+      console.log(`  Dropped ${result.where}`);
+    } else if (result.reason === 'unsupported') {
+      console.log(
+        `  henri does not drop a ${result.dialect} database: use its own tools`
+      );
+    } else {
+      console.log('  The store is in memory: nothing to drop');
+    }
+  }
+
+  if (result.command === 'reset') {
+    console.log(`  Reset ${result.where}`);
+    console.log(
+      `  Schema from ${result.migrated ? 'db/migrations' : 'the models'}${result.seeded ? `, seeded from ${SEEDS}` : ''}`
+    );
+  }
+
   if (result.command === 'status') {
     console.log(
       `  Store ${result.store} (${result.dialect}), ${result.folder}`
@@ -334,6 +552,12 @@ const main = async (args) => {
   try {
     if (command === 'seed') {
       result = await seed(args);
+    } else if (command === 'create') {
+      result = await create(args, name);
+    } else if (command === 'drop') {
+      result = await drop(args, name);
+    } else if (command === 'reset') {
+      result = await reset(args, name);
     } else {
       const henri = await boot();
       const store = await migrations(henri, name);
@@ -362,6 +586,9 @@ const main = async (args) => {
 
 module.exports = main;
 module.exports.COMMANDS = COMMANDS;
+module.exports.create = create;
+module.exports.drop = drop;
+module.exports.reset = reset;
 module.exports.run = run;
 module.exports.seed = seed;
 module.exports.sow = sow;
