@@ -1,13 +1,13 @@
 ---
 title: Controllers
-description: Express handlers under app/controllers, autoloaded and reloaded on save, with before hooks, implicit rendering and flash messages.
+description: Express handlers under app/controllers, autoloaded and reloaded on save, with before hooks, declared parameters, implicit rendering and flash messages.
 sidebar:
   order: 2
 ---
 
 Controllers live in `app/controllers`. Every `.js` file there is loaded on boot, reloaded on save and referenced from `config/routes.js` as `file#action`; a file in a subdirectory is prefixed with it (`app/controllers/admin/users.js` is `admin/users#index`).
 
-A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
+A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block and an optional `params` block saying what each action accepts. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
 
 A `/** @type {import('@usehenri/core').Controller} */` line above `module.exports` is what gives `req` and `res` completion in an editor; the generators write it for you. See [Types](/reference/types/).
 
@@ -98,7 +98,75 @@ module.exports = {
 };
 ```
 
-A hook may also be given by name (`before: { show: 'loadTask' }`), which resolves to another export of the same controller. `before` is never routable: it is the one key of a controller that is not an action.
+A hook may also be given by name (`before: { show: 'loadTask' }`), which resolves to another export of the same controller. `before` and [`params`](#params-what-an-action-accepts) are never routable: they are the keys of a controller that are not actions.
+
+## `params`: what an action accepts
+
+`req.permit()` picks fields by name and says nothing about what they hold. `params` says it: one block, keyed by action the way `before` is, one rule per field. What does not match never reaches the action.
+
+```js
+module.exports = {
+  params: {
+    all: { format: { type: 'string', enum: ['html', 'json'] } },
+    create: {
+      title: { type: 'string', required: true, maxLength: 120 },
+      year: { type: 'integer', min: 1400, max: 2100 },
+      tags: { type: 'array', of: 'uuid', maxLength: 5 },
+    },
+    'index,search': { page: { type: 'integer', min: 1, default: 1 } },
+  },
+
+  index: async (req) => ({ tasks: await Task.paginate(req.permit()) }),
+  create: async (req, res) =>
+    res.resource(await Task.create(req.permit()), { status: 201 }),
+};
+```
+
+`all` (or `*`) is every action, any other key is one action or a comma-separated list, and the action's own key wins over the lists before it. A rule may be the type itself: `year: 'integer'` is `year: { type: 'integer' }`.
+
+| Key                      | What it does                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `type`                   | `string`, `text`, `number`, `integer`, `float`, `boolean`, `date`, `json`, `uuid` — the [model types](/guides/models/) — and `array` |
+| `required`               | the field has to be there                                                                                                            |
+| `default`                | what an absent field is worth; a function is called per request                                                                      |
+| `enum`                   | the values accepted, checked after the coercion                                                                                      |
+| `min`, `max`             | the bounds of a number                                                                                                               |
+| `minLength`, `maxLength` | the bounds of a length: characters of a string, items of a list                                                                      |
+| `pattern`                | a regular expression a string has to match                                                                                           |
+| `of`                     | the rule every item of a list follows; a list declares it                                                                            |
+
+A rule henri cannot carry out fails the boot with `HENRI_PARAMS_DECLARATION_INVALID`, naming the controller, the action and the key: an unknown type, an unknown key (`requird`), a constraint the type does not take (`min` on a string), a `default` the rule itself refuses, a selector naming an action the controller does not export. A declaration that silently accepts everything is the mistake this feature exists to remove.
+
+### Coercion
+
+A query string is all strings. A form body is all strings. A JSON body is not, and that is the rule:
+
+- **A textual source** — the query string, a path parameter, a form body — is _parsed_ into the type. `?page=2` arrives as the number `2`, `?active=true` (or `on`, `yes`, `1`) as `true`, `?at=2024-01-02` as a `Date`. There is no other way for a client to say `2` there.
+- **A JSON body** is _checked_, never parsed: `{"page": "2"}` is a caller sending a string where the action declared a number, and it is refused. JSON can say `2`; it said `"2"`. The two types JSON cannot carry are the exception and are read from a string there as well: a `date` is an ISO-8601 string and a `uuid` is a string.
+
+The rest follows: an empty string from a textual source is an absent field (a browser sends one for every input nobody touched) unless the type is `string` or `text`; `null` is an absent field everywhere; a single textual value is a one-item list when the type is `array`, while a JSON body has to send the list; and `?year=1&year=2` is a list arriving where a number was declared, which is refused rather than silently taking one of the two.
+
+What is accepted is written back where it came from, so `req.query.page` is the number and not the string, and `req.permit()` **with no field at all** answers everything the declaration accepted, defaults included. A field nobody declared is dropped, exactly as `req.permit('title')` drops it — there is no strict mode refusing an undeclared key, because a bookmarked url carrying `utm_source` is a link somebody shared and not an attack.
+
+### When it does not match
+
+The action never runs. The answer is a `422` carrying one message per field, negotiated like every other answer henri gives:
+
+```json
+{
+  "statusCode": 422,
+  "error": "Unprocessable Entity",
+  "code": "HENRI_PARAMS_INVALID",
+  "message": "the parameters are invalid",
+  "data": {
+    "errors": { "year": "must be a whole number", "title": "is required" }
+  }
+}
+```
+
+`data.errors` is the `{ field: message }` shape [`henri.model.errors()`](/guides/models/) normalizes an ORM's validation failure to, so a form reads one thing whether the request was refused at the boundary or by the model. A browser that posted a form is sent back to the page it came from (`303`) with the messages in the flash, where a page reads them as `errors`; the values are not flashed, because henri cannot tell a password from a title. A browser that asked for anything else gets the `422` page.
+
+The check runs once the route is allowed — behind the [role guard](/guides/routes/#roles) and the [policy](/guides/policies/) — and **ahead of the `before` hooks**, so a hook that loads a record already sees the coerced value. An action that declares nothing behaves exactly as it did: nothing is checked, nothing is coerced, and `req.permit(...)` is unchanged.
 
 ## Implicit rendering
 
@@ -145,6 +213,8 @@ const same = req.permit(['email', 'password', 'name']); // arrays are flattened
 ```
 
 `henri.params(req).permit(...)` is the same helper for code outside the middleware chain, and `henri.params(req).all()` the merged parameters, for reading only.
+
+An action that declared [`params`](#params-what-an-action-accepts) has had those fields checked and coerced before it ran, so `req.permit('year')` answers the number and not the string it arrived as, and `req.permit()` with no field answers the whole declaration. Without a declaration `req.permit()` answers `{}`: nothing is permitted unless it is named.
 
 ## `res.boom`
 

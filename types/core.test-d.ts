@@ -22,6 +22,7 @@ import type {
   ErasureReceipt,
   ModelFile,
   Page,
+  ParamRule,
   PersonalExport,
   UnreadableValue,
   Pagination,
@@ -377,6 +378,57 @@ const badHook: Controller = {
   // @ts-expect-error a `before` selector needs `run`
   before: [{ only: ['show'] }],
 };
+
+const declared: Controller = {
+  params: {
+    all: { format: { type: 'string', enum: ['html', 'json'] } },
+    create: {
+      tags: { type: 'array', of: 'uuid', maxLength: 5 },
+      title: { type: 'string', required: true, maxLength: 120 },
+      // the short form is the type itself
+      year: 'integer',
+    },
+    'index,search': { page: { type: 'integer', min: 1, default: 1 } },
+  },
+  create: async (req, res) => {
+    // with a declaration, `permit()` with no field is what it accepted
+    expectType<Record<string, unknown>>(req.permit());
+
+    return res.boom.notFound();
+  },
+};
+
+expectType<Controller>(declared);
+
+const badParams: Controller = {
+  params: {
+    // @ts-expect-error a rule names a type henri has
+    create: { title: { type: 'strng' } },
+  },
+};
+
+const badRule: Controller = {
+  params: {
+    // @ts-expect-error `pattern` is a regular expression
+    create: { title: { type: 'string', pattern: '^a' } },
+  },
+};
+
+const badKey: Controller = {
+  params: {
+    // @ts-expect-error a rule takes no key of its own
+    create: { title: { type: 'string', requird: true } },
+  },
+};
+
+expectType<Controller>(badParams);
+expectType<Controller>(badRule);
+expectType<Controller>(badKey);
+
+// `henri.controllers` answers what an action declared
+expectType<Record<string, ParamRule> | null>(
+  henri.controllers.accepts('tasks#create')
+);
 
 // --- routes -----------------------------------------------------------------
 
