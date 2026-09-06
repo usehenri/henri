@@ -1,0 +1,31 @@
+# ZAP baseline rules for the showcase application (scripts/zap-baseline.sh).
+#
+# Tab separated: <rule id> <IGNORE|WARN|FAIL> <why>. A rule that is not
+# listed keeps its default, which is WARN, and the scan runs with -I, so a
+# warning never fails the job. Only the rules below with FAIL do.
+#
+# The FAIL list is short on purpose: it holds the headers and cookie
+# attributes henri sets for every application, so the scan is a regression
+# test of those defaults rather than an opinion about the showcase. A rule
+# that fires on something deliberate is IGNORE, with the reason, so that a
+# new warning stands out in the log instead of drowning.
+
+# --- what henri promises: a regression fails the scan ----------------------
+10020	FAIL	Anti-clickjacking header: helmet sets X-Frame-Options SAMEORIGIN
+10021	FAIL	X-Content-Type-Options: helmet sets nosniff
+10038	FAIL	Content-Security-Policy: henri builds one in base/headers.js
+10054	FAIL	Cookie SameSite: henri.sid and henri.csrf are both SameSite=Lax
+10202	FAIL	Anti-CSRF tokens: the double-submit cookie is mounted by 4.user.js
+40012	FAIL	Reflected cross site scripting
+40014	FAIL	Persistent cross site scripting
+40018	FAIL	SQL injection
+90019	FAIL	Server side code injection
+90020	FAIL	Remote OS command injection
+
+# --- deliberate, and documented: not worth a line in the log ---------------
+10010	IGNORE	Cookie No HttpOnly: henri.csrf is read by the browser on purpose (double submit)
+10049	IGNORE	Storable and cacheable content: the public pages are meant to be cached; noStore() covers a signed-in one
+10099	IGNORE	Source code disclosure (Python): fires on the inertia page props, which are JSON
+10111	IGNORE	Authentication request identified: informational
+10112	IGNORE	Session management response identified: informational
+90004	IGNORE	Cross-Origin-Embedder-Policy: helmet leaves COEP off, it breaks third party embeds
