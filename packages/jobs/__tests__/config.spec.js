@@ -7,6 +7,30 @@ const { storeFor } = require('../src/store');
 
 const APP = path.join(__dirname, 'fixtures', 'app');
 
+const { duration } = require('../src/duration');
+
+describe('duration', () => {
+  test('reads every accepted form', () => {
+    expect(duration('500')).toBe(500);
+    expect(duration('30s')).toBe(30000);
+    expect(duration('5 m')).toBe(300000);
+    expect(duration('1.5h')).toBe(5400000);
+    expect(duration(' 250 ')).toBe(250);
+    expect(duration(null, 42)).toBe(42);
+  });
+
+  test('refuses a value that is not a duration, without backtracking on it', () => {
+    // Leading and trailing `\s*` around an optional group let the engine try
+    // every split of a long run of spaces: quadratic on a string that never
+    // matches. This one used to take two seconds.
+    const hostile = `9${' '.repeat(60000)}x`;
+    const started = Date.now();
+
+    expect(() => duration(hostile)).toThrow(/Invalid duration/);
+    expect(Date.now() - started).toBeLessThan(250);
+  });
+});
+
 describe('configuration', () => {
   test('fills in the defaults', () => {
     const config = normalize();

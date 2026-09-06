@@ -13,7 +13,10 @@ const UNITS = new Map([
   ['w', 604800000],
 ]);
 
-const PATTERN = /^\s*(\d+(?:\.\d+)?)\s*(ms|[smhdw])?\s*$/i;
+// Trim first and keep one optional gap inside: leading and trailing `\s*`
+// around an optional group let the engine try every split of a long run of
+// spaces, which is quadratic on a string that never matches
+const PATTERN = /^(\d+(?:\.\d+)?)\s*(ms|[smhdw])?$/i;
 
 /**
  * Milliseconds of a duration
@@ -36,7 +39,7 @@ const duration = (value, fallback = null) => {
     return Math.round(value);
   }
 
-  const match = PATTERN.exec(String(value));
+  const match = PATTERN.exec(String(value).trim());
 
   if (!match) {
     throw new Error(
