@@ -31,6 +31,11 @@ import {
   request as inertiaRequest,
 } from '@usehenri/inertia';
 import { henriViteConfig } from '@usehenri/inertia/vite';
+import InertiaEngine from '@usehenri/inertia/engine';
+import withHenriSubpath from '@usehenri/react/withHenri';
+import bindTestServersToLoopback from '@usehenri/testing/loopback';
+import globalSetup from '@usehenri/testing/global-setup';
+import '@usehenri/testing/setup-file';
 import {
   agent,
   request as testRequest,
@@ -154,3 +159,14 @@ setup({ port: 3000 });
 
 // @ts-expect-error `teardown()` takes nothing
 teardown(true);
+
+// --- the subpaths, so that every shipped declaration is compiled -----------
+
+expectType<typeof withHenri>(withHenriSubpath);
+expectType<boolean>(bindTestServersToLoopback());
+expectType<Promise<() => Promise<boolean>>>(globalSetup());
+expectType<string>(InertiaEngine.componentName('/tasks/'));
+expectType<Promise<{ client: string; duration: number; ssr: string | null }>>(
+  InertiaEngine.build({ cwd: '/app' })
+);
+expectType<boolean>(InertiaEngine.DEFAULTS.ssr);
