@@ -616,6 +616,22 @@ describe('declared parameters', () => {
 
       expect(res.status).toBe(422);
     });
+
+    test('a same-host referer whose path is scheme-relative is not either', async () => {
+      // `https://<host>//elsewhere.test/x` passes a host comparison and its
+      // path is `//elsewhere.test/x`, which a browser reading a Location
+      // header treats as another origin
+      const res = await app({ year: 'integer' }, { verb: 'post' })
+        .post('/it')
+        .set('Accept', 'text/html')
+        .set('Host', 'app.test')
+        .set('Referer', 'http://app.test//elsewhere.test/x')
+        .type('form')
+        .send('year=banana');
+
+      expect(res.status).toBe(422);
+      expect(res.headers.location).toBeUndefined();
+    });
   });
 
   describe('inspect, without a request of express’s own', () => {

@@ -955,7 +955,18 @@ function back(req) {
   try {
     const url = new URL(referer, `${req.protocol || 'http'}://${host}`);
 
-    return url.host === host ? `${url.pathname}${url.search}` : null;
+    if (url.host !== host) {
+      return null;
+    }
+
+    const path = `${url.pathname}${url.search}`;
+
+    // `https://this.app//elsewhere.test/x` is same-host and its *path* is
+    // `//elsewhere.test/x`, which a browser reads as scheme-relative in a
+    // Location header: same-origin in, another origin out. A path that is
+    // not a single leading slash is not somewhere this application sent
+    // anybody, so it is not somewhere it sends them back to
+    return /^\/(?![/\\])/u.test(path) ? path : null;
   } catch (error) {
     return null;
   }
