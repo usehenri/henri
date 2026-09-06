@@ -268,7 +268,7 @@ class Privacy extends BaseModule {
   /**
    * The context the export and the erasure run in
    *
-   * @returns {object} `{ application, map, modelOf, secret }`
+   * @returns {object} `{ application, map, modelOf, secret, versions }`
    * @throws HENRI_PRIVACY_NO_SUBJECT when the application has no user model
    * @memberof Privacy
    */
@@ -292,6 +292,11 @@ class Privacy extends BaseModule {
       },
       modelOf: (name) => this.modelOf(name),
       secret: config.has('secret') ? config.get('secret') : '',
+      // Read here rather than held: this module is runlevel 3 and the
+      // versions are 4, and an export or an erasure only ever runs long
+      // after both. An erasure that could not reach a version table would
+      // leave every old value it exists to remove sitting in one
+      versions: this.henri.versions || null,
     };
   }
 

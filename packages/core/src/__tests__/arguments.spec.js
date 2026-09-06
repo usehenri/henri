@@ -61,6 +61,7 @@ const INTERFACES = {
   TrailModule: 'henri.trail',
   UserModule: 'henri.user',
   Utils: 'henri.utils',
+  VersionsModule: 'henri.versions',
 };
 
 /**

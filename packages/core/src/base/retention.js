@@ -533,7 +533,13 @@ function waitingFor(rule) {
 }
 
 /**
- * Soft deletes every record matching a condition: the stamp, not the row
+ * Soft deletes every record matching a condition: the stamp, not the row.
+ *
+ * `versions: false` for the reason `base/erasure.js` gives about its own
+ * mass writes: a sweep changes rows a rule chose rather than a person did,
+ * and a mass write on a versioned model is refused
+ * (`HENRI_VERSION_MASS_WRITE`). A rule that has to leave a version behind
+ * is a rule an application writes as a job over the records.
  *
  * @param {*} Model an ORM model
  * @param {object} where the condition
@@ -544,17 +550,17 @@ async function softDeleteRecords(Model, where) {
   const kind = kindOf(Model);
 
   if (kind === 'drizzle') {
-    return Model.where(where).destroy();
+    return Model.where(where).destroy({ versions: false });
   }
 
   if (kind === 'mongoose') {
-    const result = await Model.deleteMany(where);
+    const result = await Model.deleteMany(where, { versions: false });
 
     return (result && (result.deletedCount || result.modifiedCount)) || 0;
   }
 
   if (kind === 'sequelize') {
-    return Model.destroy({ where });
+    return Model.destroy({ versions: false, where });
   }
 
   throw refuse(

@@ -20,6 +20,10 @@ module.exports = {
     // base/retention.js)
     retention: { after: '30d', from: 'archivedAt' },
     timestamps: true,
+    // A memo keeps its history: who changed the title, what the body used
+    // to say, and enough to bring one back after it was deleted. It is
+    // off for every other model of this application, which is the point
+    versioned: true,
   },
   schema: {
     // When the author put it away. Null while they have not: a memo whose

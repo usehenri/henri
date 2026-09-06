@@ -588,7 +588,7 @@ describe('the module, in the demo application', () => {
   }, 60000);
 
   beforeEach(async () => {
-    await Memo.deleteMany({}, { force: true });
+    await Memo.deleteMany({}, { force: true, versions: false });
     await Artwork.deleteMany({}, { force: true });
     henri.retention.settings.approved = [];
   });

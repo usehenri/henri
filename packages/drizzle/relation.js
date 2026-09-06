@@ -24,6 +24,7 @@ const {
 } = require('drizzle-orm');
 const { coded, isPlainObject } = require('./utils');
 const { checkOrder, comparison, markOf } = require('./encryption');
+const { checkMassWrite } = require('./versions');
 
 /**
  * Operators accepted inside a where value: `{ age: { gt: 18 } }` (the `$`
@@ -704,16 +705,23 @@ class Relation {
   /**
    * Clears the `deletedAt` stamp of every matching row (paranoid models)
    *
+   * @param {object} [options={}] `versions: false` to restore without a
+   *   version on a model that keeps them
    * @returns {Promise<number>} The number of rows restored
    * @throws {Error} On a model without `options: { paranoid: true }`
+   * @throws HENRI_VERSION_MASS_WRITE on a versioned model
    * @memberof Relation
    */
-  async restore() {
+  async restore(options = {}) {
     if (!this.Model.paranoid) {
       throw new Error(
         `${this.Model.modelName}.restore() needs options: { paranoid: true }`
       );
     }
+
+    // `setWhere` runs no hook, so a mass restore on a versioned model
+    // would bring rows back with nothing said about it
+    checkMassWrite(this.Model, 'restore', options);
 
     const relation =
       this.state.deleted === 'without' ? this.withDeleted() : this;

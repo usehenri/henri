@@ -28,6 +28,42 @@ function currentRequestId() {
 }
 
 /**
+ * Who is acting during the request being handled, if anybody.
+ *
+ * The store is the same object `requestId()` put there, so whatever writes
+ * the actor writes it next to the id rather than opening a second context:
+ * the two travel together and nothing in between has to carry either. It
+ * is what lets `record.save()`, four calls deep in a service, be recorded
+ * against the person who signed in (`base/versions.js`).
+ *
+ * @returns {?object} `{ actor, source }`, or null outside a request
+ */
+function currentActor() {
+  const store = context.getStore();
+
+  return store && store.actor ? store.actor : null;
+}
+
+/**
+ * Says who is acting for the rest of the request
+ *
+ * @param {?object} actor `{ actor, source }`, or null to forget
+ * @returns {boolean} false outside a request, where there is nowhere to
+ *   put it
+ */
+function setActor(actor) {
+  const store = context.getStore();
+
+  if (!store) {
+    return false;
+  }
+
+  store.actor = actor || null;
+
+  return true;
+}
+
+/**
  * A new request id
  *
  * @returns {string} a uuid
@@ -62,7 +98,9 @@ module.exports = {
   FORMAT,
   HEADER,
   context,
+  currentActor,
   currentRequestId,
   generate,
   requestId,
+  setActor,
 };

@@ -3,6 +3,7 @@ const debug = require('debug')('henri:mongoose');
 const { externalId, lookups, owned, paginate, paranoid } = require('./plugins');
 const { normalizeModel } = require('./schema');
 const { encryption } = require('./encryption');
+const { versioned } = require('./versions');
 const {
   EXTERNAL_ID,
   isUuid,
@@ -144,6 +145,7 @@ class Mongoose {
       // Mongoose schema options
       personal,
       retention,
+      versioned: keepsVersions,
       ...options
     } = model.options || {};
     const { definition, encrypted } = normalizeModel(model.schema || {}, {
@@ -180,6 +182,13 @@ class Mongoose {
 
     if (isUser) {
       this.overload(schema, model);
+    }
+
+    // Last, and only for a model that asked: its post('save') has to run
+    // after the one the encryption plugin registered, which is what puts
+    // the plaintext back into the document
+    if (keepsVersions) {
+      versioned(schema, this.henri, model.globalId);
     }
 
     const instance = this.mongoose.model(

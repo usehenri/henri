@@ -67,6 +67,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `retention`        |               | What runs the retention sweep and what it may do, see below. How long a model keeps its records is said in the model. See [Retention](/guides/retention/).              |
 | `trail`            | off           | The append-only record of who read or changed personal data, see below. See [The access trail](/guides/trail/).                                                         |
 | `calls`            | off           | The calls the application answered and the calls it made, joined by the request id, see below. See [Call logs](/guides/calls/).                                         |
+| `versions`         | `{}`          | Where the history of the models that say `versioned` is kept, and for how long. It turns nothing on: a model does. See [Model versions](/guides/versions/).             |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                                                    |
 | `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                                          |
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                                           |
@@ -446,6 +447,31 @@ turning it on.
 | `sweep`           | `5000`          | How many rows one pass of the delete path takes at a time.                                                                                                                                     |
 | `store`           | `"default"`     | Which of `stores` the table lives in.                                                                                                                                                          |
 | `table`           | `"henri_calls"` | The table henri creates at boot. Changing `partition` afterwards needs a migration of your own.                                                                                                |
+
+## The `versions` object
+
+Where the history of the models that say `options: { versioned: true }` is
+kept, and how long it is kept for. **This key turns nothing on**: a model
+does, and an application with no versioned model creates no table and pays
+nothing whatever this says. See [Model versions](/guides/versions/).
+
+```json
+{
+  "versions": {
+    "keep": "2y",
+    "onErase": "follow",
+    "store": "default",
+    "table": "henri_versions"
+  }
+}
+```
+
+| Key       | Default            | Description                                                                                                                                                                                                                                                                                  |
+| --------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keep`    | off                | How long a version is kept, pruned by the retention sweep. Unset keeps it for as long as the application does. A version holds the old values of a record, personal ones included, so setting this is a decision worth making on purpose.                                                    |
+| `onErase` | `"follow"`         | What `henri privacy:erase` does to the versions of the records it touched. `"follow"` takes the versions of a deleted record away and empties the erased values out of the versions of a record that survives; `"delete"` takes them all; `"retain"` leaves them and says so in the receipt. |
+| `store`   | `"default"`        | Which of `stores` the table lives in.                                                                                                                                                                                                                                                        |
+| `table`   | `"henri_versions"` | The table henri creates on the first boot where a model says `versioned`.                                                                                                                                                                                                                    |
 
 ## Uploads
 

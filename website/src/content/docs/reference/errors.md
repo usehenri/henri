@@ -1741,6 +1741,90 @@ Usually:
 
 **Fix.** A henri token is signed with the configuration's `secret` and carries a purpose and a subject; all three are required.
 
+## version
+
+Model versioning: the `versioned` mark on a model, the table its history lives in, and reading a record back out of it.
+
+### `HENRI_VERSION_DISABLED`
+
+The versions were read back and this application keeps none.
+
+Usually:
+
+- no model of the application says `options: { versioned: true }`
+- the versions were read back before the boot reached runlevel 4
+
+**Fix.** Versioning is opt-in per model: add `options: { versioned: true }` to the model whose history you want and henri creates its table on the next boot. `config.versions` only says where that table lives and how long its rows are kept; it does not turn anything on.
+
+### `HENRI_VERSION_INCOMPLETE`
+
+A record cannot be restored exactly from the version it was asked to be restored from.
+
+Usually:
+
+- a field of the record is one whose values are never kept (`password`, or a `filterParameters` match)
+- the record was destroyed by something that wrote no snapshot
+- the versions between the one asked for and now were pruned
+
+**Fix.** A read may be partial and a write may not: `henri.versions.reify()` answers what it could reconstruct and names the gaps in `missing`, so read it, decide what those fields should be, and write them yourself. `{ force: true }` writes everything that was kept and leaves the rest of the record as it is.
+
+### `HENRI_VERSION_INVALID_OPTION`
+
+A model asked to be versioned in a way henri cannot carry out.
+
+Usually:
+
+- `versioned` is neither `true` nor an object
+- `versioned` names an option henri does not have
+- `versioned` has both `only` and `except`
+- `versioned.events` names something that is not create, update or destroy
+
+**Fix.** `versioned: true` keeps every field on every event. The object form takes `only` or `except` (a list of field names, not both) and `events` (a non-empty list of create, update and destroy). Anything else fails the boot rather than versioning something other than what was written down.
+
+### `HENRI_VERSION_MASS_WRITE`
+
+A mass update or delete was run on a model that keeps versions.
+
+Usually:
+
+- `Model.update(where, attrs)` or `Model.destroy(where)` on a versioned model
+- the fluent `Model.where(...).update()` and `.destroy()`, and the `updateMany`/`deleteMany` spellings
+
+**Fix.** A mass write runs the hooks once and without instances, so henri would have no old values to record and the history would silently miss every row. Loop over the records instead -- `for (const record of await Model.find(where)) await record.update(attrs)` -- and each one is versioned. `{ versions: false }` writes the rows without a version, which is a decision rather than a silence.
+
+### `HENRI_VERSION_NO_IDENTIFIER`
+
+A version could not name the record it is about, which has no public identifier.
+
+Usually:
+
+- the model says both `versioned` and `options: { externalId: false }`
+
+**Fix.** A version names the record it is about by its `externalId`, because that is the identifier that already leaves the server (see the models guide). Take `externalId: false` off the model, or stop versioning it.
+
+### `HENRI_VERSION_UNKNOWN`
+
+There is no version with that id, or the model it belongs to is gone.
+
+Usually:
+
+- a version id that was pruned, erased or mistyped
+- the model a version belongs to is no longer loaded
+
+**Fix.** `henri versions <Model> <record>` lists the versions of one record with their ids. A version outlives the model file that made it, so keep the model or take its versions away.
+
+### `HENRI_VERSION_UNSUPPORTED_STORE`
+
+The versions cannot be kept in the store they were pointed at.
+
+Usually:
+
+- `config.versions.store` names a store this application does not have
+- the store adapter has neither `query()` nor a MongoDB connection
+- the MongoDB store is not connected
+
+**Fix.** The versions live in a table henri owns in one of the application's stores. Point `config.versions.store` at a store backed by mongoose, sequelize or drizzle, or take `versioned` off the models that asked for it.
+
 ## view
 
 The view engines, their pages and their builds.

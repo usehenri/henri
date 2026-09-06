@@ -268,6 +268,18 @@ module.exports = [
     },
   },
   {
+    // And the versions: a row is the snake_case columns of
+    // base/version-store.js, and the module writes and reads them
+    files: [
+      'packages/core/src/4.versions.js',
+      'packages/core/src/__tests__/versions.spec.js',
+      'packages/core/src/base/version-store.js',
+    ],
+    rules: {
+      camelcase: 'off',
+    },
+  },
+  {
     // The endpoints live in a table this package owns: a row is the
     // snake_case columns of packages/webhooks/src/store/schema.js
     files: ['packages/webhooks/**/*.js'],

@@ -521,8 +521,10 @@ describe('privacy (demo app, disk store)', () => {
       gender: 'f',
     });
 
-    await User.deleteMany({ email: 'leaves@usehenri.io' });
-    await Memo.deleteMany({ ownerId: String(user._id) });
+    // Both models keep versions, so a mass delete is refused unless it
+    // says so: this is cleanup, and it is not a change anybody made
+    await User.deleteMany({ email: 'leaves@usehenri.io' }, { versions: false });
+    await Memo.deleteMany({ ownerId: String(user._id) }, { versions: false });
   });
 
   test('the export holds everything about one person, and no password', async () => {

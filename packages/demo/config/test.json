@@ -49,5 +49,8 @@
     "keep": "7d",
     "maxBody": "2kb",
     "ignore": ["/_henri/gql"]
+  },
+  "versions": {
+    "keep": "1y"
   }
 }
