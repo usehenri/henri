@@ -97,6 +97,16 @@ expectType<boolean>(henri.user.bindsPasswords());
 // @ts-expect-error the second argument is the options, not the identity itself
 henri.user.encrypt('a-password', 'a-uuid');
 
+// @ts-expect-error a misspelled key wrote an unbound hash and said nothing
+henri.user.encrypt('a-password', { identiy: req.user });
+
+// Nobody is nobody; anything that is not a record is refused at runtime too
+expectType<PublicUser | null>(henri.user.publicUser(null));
+expectType<PublicUser | null>(henri.user.publicUser());
+
+// @ts-expect-error it used to answer a user-shaped object with an id in it
+henri.user.publicUser(42);
+
 expectType<Record<string, string> | null>(henri.model.errors(new Error('x')));
 expectType<string>(henri.gql`{ tasks { id } }`);
 
@@ -332,6 +342,12 @@ res.negotiate({ html: () => res.render('/tasks'), json: () => res.json([]) });
 expectType<Promise<true>>(henri.user.compare('a-password', 'a-hash'));
 // A bound hash needs the record it belongs to, so the user is what it wants
 expectType<Promise<true>>(henri.user.compare('a-password', { id: 1 }));
+// ... and no account at all is a value, answering the mismatch a wrong
+// password answers, in the same words and at the same cost
+expectType<Promise<true>>(henri.user.compare('a-password', null));
+
+// @ts-expect-error a number is not a user, and never was one
+henri.user.compare('a-password', 42);
 
 // express is still there
 res.status(204).json({ ok: true });
@@ -716,6 +732,22 @@ expectType<Promise<void>>(henri.accounts.requestPasswordReset('ada@x.co'));
 expectType<Promise<AccountResult>>(henri.accounts.confirm('h1.a.b'));
 expectType<boolean>(henri.accounts.allowed(req.user));
 expectType<Promise<boolean>>(henri.accounts.drain());
+expectType<Promise<string | null>>(
+  henri.accounts.tokenFor(req.user, henri.accounts.PURPOSE.reset)
+);
+expectType<string>(henri.accounts.urlFor('/confirm/h1.a.b'));
+
+// @ts-expect-error a fourth purpose mints a link nothing can ever consume
+henri.accounts.tokenFor(req.user, 'invite');
+
+// @ts-expect-error a link is built from a path: this built `https://host42`
+henri.accounts.urlFor(42);
+
+// @ts-expect-error ... and so does one that forgot the leading slash
+henri.accounts.urlFor('confirm/h1.a.b');
+
+// @ts-expect-error `register(null)` read `null.email` one frame down
+henri.accounts.register(null);
 
 // Policies: one question, and the file that answers it
 expectType<PoliciesModule>(henri.policies);

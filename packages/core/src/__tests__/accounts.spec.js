@@ -616,6 +616,121 @@ describe('account flows (demo app, disk store)', () => {
     }, 30000);
   });
 
+  // What a caller got wrong is loud; what a visitor sent keeps the answer it
+  // always had. The generic half of this is `arguments.spec.js`, which calls
+  // every declared entry point with garbage derived from its own node; these
+  // are the calls that used to answer something plausible instead
+  describe('what the service refuses', () => {
+    test('a purpose nothing consumes is refused, not minted', async () => {
+      const email = address();
+
+      await signup({ email }).expect(201);
+
+      const user = await account(email);
+      const error = await henri.accounts
+        .tokenFor(user, 'reset')
+        .catch((thrown) => thrown);
+
+      // `reset` is the *key* of PURPOSE, not its value: it used to mint a
+      // link that no endpoint could ever spend
+      expect(error.code).toBe('HENRI_ARGUMENT_INVALID');
+      expect(error.message).toContain('password-reset');
+      expect(
+        await henri.accounts.tokenFor(user, henri.accounts.PURPOSE.reset)
+      ).toMatch(TOKEN);
+    }, 30000);
+
+    test('a link is built from a path, not from whatever was handed over', () => {
+      let error;
+
+      try {
+        // It used to answer `https://demo.usehenri.io42` and mail it
+        henri.accounts.urlFor(42);
+      } catch (thrown) {
+        error = thrown;
+      }
+
+      expect(error.code).toBe('HENRI_ARGUMENT_INVALID');
+      expect(() => henri.accounts.urlFor('confirm/x')).toThrow(
+        /must be a path/u
+      );
+      expect(henri.accounts.urlFor('/confirm/x')).toMatch(/\/confirm\/x$/u);
+    });
+
+    test('registering nobody is a refusal, not a TypeError one frame down', async () => {
+      const error = await henri.accounts
+        .register(null)
+        .catch((thrown) => thrown);
+
+      expect(error.code).toBe('HENRI_ARGUMENT_INVALID');
+      expect(error.name).not.toBe('TypeError');
+    });
+
+    test('a gate answers nothing at all about nobody', () => {
+      // `allowed(undefined)` answered **true**, because the branch that says
+      // "confirmation is off" answers before it looks at the record
+      expect(() => henri.accounts.allowed(undefined)).toThrow(
+        /HENRI_ARGUMENT_INVALID|must be a user record/u
+      );
+    });
+
+    test('a record with no identifier is nobody, not "undefined"', async () => {
+      expect(() => henri.accounts.identify(42)).toThrow();
+      // The three adapters stringify whatever they are handed, so a record
+      // carrying no key used to identify an account as the string below
+      expect(
+        henri.accounts.identify({ email: 'nobody@usehenri.io' })
+      ).toBeNull();
+    });
+
+    test('the mails are asked for by record, not by anything truthy', async () => {
+      await expect(henri.accounts.sendReset(42)).rejects.toMatchObject({
+        code: 'HENRI_ARGUMENT_INVALID',
+      });
+      await expect(
+        henri.accounts.sendConfirmation('someone@usehenri.io')
+      ).rejects.toMatchObject({ code: 'HENRI_ARGUMENT_INVALID' });
+    });
+
+    test('what a visitor sent keeps the answer it always had', async () => {
+      // A token out of a url, a password out of a form: whatever arrives,
+      // these say the same thing an expired and a forged link say
+      expect(await henri.accounts.resetPassword(42, 'a-long-password')).toEqual(
+        { errors: {}, ok: false, reason: 'malformed', user: null }
+      );
+      expect(await henri.accounts.confirm(null)).toMatchObject({
+        ok: false,
+        reason: 'malformed',
+      });
+      expect(await henri.accounts.resetPassword('h1.a.b', null)).toMatchObject({
+        ok: false,
+        reason: 'password',
+      });
+      expect(henri.accounts.checkPassword(42).valid).toBe(false);
+    });
+
+    test('an address the endpoint would refuse never reaches the service', async () => {
+      // The check inside requestPasswordReset() sits behind the endpoint's
+      // own refusal, and the endpoint hands it a String() of what arrived:
+      // a body that is not an address is still the 422 it was, and never a
+      // 500 raised after the answer had already gone out
+      for (const email of [{ nested: true }, 42, null, '', true, ['a', 'b']]) {
+        const res = await supertest(app)
+          .post('/password/forgot')
+          .send({ email });
+
+        expect(res.status).toBe(422);
+        expect(res.body.data.errors).toEqual({ email: 'is not a valid email' });
+
+        const confirm = await supertest(app).post('/confirm').send({ email });
+
+        expect(confirm.status).toBe(422);
+      }
+
+      expect(await delivered()).toHaveLength(0);
+    }, 30000);
+  });
+
   describe('delivery', () => {
     test('goes through the job queue when the application has one', async () => {
       const email = address();

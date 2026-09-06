@@ -69,6 +69,148 @@ describe('user', () => {
       await expect(compare(password, hash)).resolves.toBe(true);
       await expect(compare('lydia', hash)).rejects.toBeDefined();
     });
+
+    test('a wrong password and no account at all are the same answer', async () => {
+      const user = await henri._user.create({
+        email: `compare-${process.pid}@usehenri.io`,
+        password,
+      });
+      const account = await henri.user.findByEmail(user.email);
+
+      const wrong = await henri.user
+        .compare('not-the-password', account)
+        .catch((thrown) => thrown);
+      const nobody = await henri.user
+        .compare(password, null)
+        .catch((thrown) => thrown);
+
+      // Same words, same code: a caller handing either to a client says
+      // exactly what it said before, and nothing about who has an account
+      expect(wrong.message).toBe('Invalid credentials');
+      expect(nobody.message).toBe(wrong.message);
+      expect(nobody.code).toBe('HENRI_USER_PASSWORD_MISMATCH');
+      expect(wrong.code).toBe(nobody.code);
+
+      // ... and undefined goes with null, because that is what a lookup of
+      // an application's own comes back as
+      const missing = await henri.user
+        .compare(password)
+        .catch((thrown) => thrown);
+
+      expect(missing.code).toBe(nobody.code);
+    }, 20000);
+
+    test('a record with no hash on it says so, rather than "wrong password"', async () => {
+      const user = await henri._user.create({
+        email: `hashless-${process.pid}@usehenri.io`,
+        password,
+      });
+      // What findById(), req.user and a deserialized session all carry: the
+      // password column is deselected, so the right password used to answer
+      // "Invalid credentials" for ever
+      const byId = await henri.user.findById(henri.user.adapter().userId(user));
+
+      expect(byId).not.toBeNull();
+
+      const error = await henri.user
+        .compare(password, byId)
+        .catch((thrown) => thrown);
+
+      expect(error.code).toBe('HENRI_USER_PASSWORD_UNVERIFIABLE');
+      expect(error.message).toContain('findByEmail');
+    }, 20000);
+
+    test('a second argument that is not a user is a wrong call', async () => {
+      const error = await henri.user
+        .compare(password, 42)
+        .catch((thrown) => thrown);
+
+      expect(error.code).toBe('HENRI_ARGUMENT_INVALID');
+      expect(error.message).toContain('user.compare(user)');
+    });
+
+    test('an account nobody has costs what an account somebody has costs', async () => {
+      const user = await henri._user.create({
+        email: `timing-${process.pid}@usehenri.io`,
+        password,
+      });
+      const account = await henri.user.findByEmail(user.email);
+
+      /**
+       * How long one refused comparison takes, in milliseconds
+       *
+       * @param {*} target the second argument
+       * @returns {Promise<number>} the milliseconds
+       */
+      const time = async (target) => {
+        const started = process.hrtime.bigint();
+
+        await henri.user.compare('not-the-password', target).catch(() => null);
+
+        return Number(process.hrtime.bigint() - started) / 1e6;
+      };
+
+      // Warm up, then interleave so a slow moment lands on both
+      await time(account);
+      await time(null);
+
+      const known = [];
+      const nobody = [];
+
+      for (let round = 0; round < 9; round += 1) {
+        known.push(await time(account));
+        nobody.push(await time(null));
+      }
+
+      const middle = (values) =>
+        [...values].sort((one, two) => one - two)[
+          Math.floor(values.length / 2)
+        ];
+
+      // Both hash: the absent account is checked against `dummyHash`, bound
+      // to a uuid no row has, so an application's own sign-in cannot be
+      // timed to find out which addresses are registered
+      expect(middle(nobody)).toBeGreaterThan(0.5);
+      expect(Math.abs(middle(known) - middle(nobody))).toBeLessThan(25);
+    }, 30000);
+
+    test('a misspelled option is refused rather than silently unbound', async () => {
+      const user = await henri._user.create({
+        email: `binding-${process.pid}@usehenri.io`,
+        password,
+      });
+
+      // It used to hash happily and write a hash bound to nothing, which is
+      // the whole of config.user.password.binding gone with nothing said
+      const error = await henri.user
+        .encrypt(password, { identiy: user })
+        .catch((thrown) => thrown);
+
+      expect(error.code).toBe('HENRI_ARGUMENT_INVALID');
+      expect(error.message).toContain('options.identity');
+
+      expect(henri.user.bindsPasswords()).toBe(true);
+      expect(await henri.user.encrypt(password, { identity: user })).toContain(
+        '$henri-bound$'
+      );
+    }, 20000);
+
+    test('publicUser answers nobody for nobody and refuses what is not a record', () => {
+      expect(henri.user.publicUser(null)).toBeNull();
+      expect(henri.user.publicUser()).toBeNull();
+
+      // It used to answer { id: 'undefined', roles: [] }, and that object
+      // goes to a view and to a JSON body
+      let error;
+
+      try {
+        henri.user.publicUser(42);
+      } catch (thrown) {
+        error = thrown;
+      }
+
+      expect(error.code).toBe('HENRI_ARGUMENT_INVALID');
+    });
   }, 30000);
 
   describe.skip('with user object', () => {

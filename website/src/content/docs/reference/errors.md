@@ -1625,6 +1625,17 @@ Usually:
 
 The user module: sessions, passwords, tokens and the CSRF protection.
 
+### `HENRI_USER_PASSWORD_MISMATCH`
+
+A password did not verify against the hash it was checked against.
+
+Usually:
+
+- the password does not match the hash of that account
+- `henri.user.compare()` called with no account (`null`), which answers exactly this
+
+**Fix.** This is an answer rather than a failure: it is what a wrong password is. Catch it and answer the same thing an unknown address answers, which is what `POST /login` does. The code is here so a caller can tell it apart from a hash it could not check (`HENRI_USER_PASSWORD_UNVERIFIABLE`) and from a wrong call (`HENRI_ARGUMENT_INVALID`); the message never says which of the two it was.
+
 ### `HENRI_USER_PASSWORD_UNVERIFIABLE`
 
 A password hash cannot be checked here.
@@ -1633,8 +1644,9 @@ Usually:
 
 - a hash made with argon2id on a machine that has @node-rs/argon2, verified on one that does not
 - a hash bound to its record passed to compare() on its own
+- a user record loaded without its password hash, which `findById()` and a session deselect
 
-**Fix.** Install @node-rs/argon2 wherever the hashes are verified, and pass the user rather than the hash (`henri.user.compare(password, user)`) when password binding is on.
+**Fix.** Install @node-rs/argon2 wherever the hashes are verified, and pass the user rather than the hash (`henri.user.compare(password, user)`) when password binding is on. Load the account with `henri.user.findByEmail()`, which selects the hash: `req.user` and `findById()` do not carry one, and answering "wrong password" to a password that is right is the mystery this refuses to be.
 
 ### `HENRI_USER_SECRET_MISSING`
 

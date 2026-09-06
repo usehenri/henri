@@ -148,6 +148,34 @@ function lookupUser(model, id, options) {
 }
 
 /**
+ * An identifier a record actually carries.
+ *
+ * The three adapters answer `userId()` with `String(user._id || user.id)` (or
+ * the primary key attribute), which turns a record carrying no identifier at
+ * all into the nine letter string `"undefined"`. That string is *truthy*, so
+ * every guard written against it -- `serializeUser()`'s `if (!id)`,
+ * `accounts.identify()`'s null -- lets it through, and it goes on to name a
+ * session, the subject of a signed token and the `id` of the public user, as
+ * if it were a row.
+ *
+ * No primary key is spelled `undefined`, `null` or nothing, so reading those
+ * three back as nobody costs an application nothing and closes the hole for
+ * every caller at once.
+ *
+ * @param {*} value what an adapter's userId() answered
+ * @returns {(string|undefined)} the identifier, or undefined for nobody
+ */
+function identifier(value) {
+  if (value === null || typeof value === 'undefined') {
+    return undefined;
+  }
+
+  const id = String(value);
+
+  return id === '' || id === 'undefined' || id === 'null' ? undefined : id;
+}
+
+/**
  * Builds the user lookup facade used by core.
  *
  * Adapters implementing the contract (`findUserByEmail`, `findUserById`,
@@ -226,6 +254,12 @@ function userAdapter(store, model) {
       : fallback[name];
   }
 
+  // Whichever of the two answered, a record with no identifier is nobody
+  // rather than a string that reads like one (see identifier())
+  const answered = facade.userId;
+
+  facade.userId = (user) => identifier(answered(user));
+
   return facade;
 }
 
@@ -299,6 +333,7 @@ function respond(res, { json, html }) {
 
 module.exports = {
   DEFAULTS,
+  identifier,
   isSequelizeModel,
   publicUser,
   respond,

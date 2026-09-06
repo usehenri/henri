@@ -312,6 +312,14 @@ declare namespace start {
     reset: 'password-reset';
   }
 
+  /**
+   * What a signed account token is allowed to do. A fourth string is not an
+   * extension point: it would be minted with the confirmation seed and only
+   * a `consume()` carrying the identical typo could ever spend it, so it is
+   * refused with `HENRI_ARGUMENT_INVALID`.
+   */
+  type AccountPurpose = AccountPurposes[keyof AccountPurposes];
+
   /** What a flow answers: the record, and a message per field when it refused. */
   interface AccountResult {
     ok: boolean;
@@ -341,43 +349,48 @@ declare namespace start {
     register(attributes: Record<string, unknown>): Promise<AccountResult>;
     /**
      * Answers nothing about the address: the lookup and the mail run after
-     * the caller's own answer is written.
+     * the caller's own answer is written. It has nowhere to say "that is not
+     * an address", so anything that is not a string is refused; the endpoint
+     * in front of it answers 422 long before that.
      */
     requestPasswordReset(email: string): Promise<void>;
     /** Changes the password, retires the other sessions, spends the token. */
-    resetPassword(token: string, password: unknown): Promise<AccountResult>;
+    resetPassword(token: unknown, password: unknown): Promise<AccountResult>;
     requestConfirmation(email: string): Promise<void>;
     /** Confirms an address, or applies an `email-change` token. */
-    confirm(token: string): Promise<AccountResult>;
+    confirm(token: unknown): Promise<AccountResult>;
     /** Mails a link; the address changes only when it is followed. */
     requestEmailChange(
-      user: unknown,
-      email: string
+      user: object,
+      email: unknown
     ): Promise<{ ok: boolean; errors: Record<string, string> }>;
     /** Mints a token for a user; mostly useful in tests. */
     tokenFor(
-      user: unknown,
-      purpose: string,
+      user: object,
+      purpose: AccountPurpose,
       options?: { data?: unknown; expiresIn?: number }
     ): Promise<string | null>;
     /** Verifies a token and loads the account it names. */
     consume(
-      token: string,
-      purpose: string
+      token: unknown,
+      purpose: AccountPurpose
     ): Promise<{
       ok: boolean;
       payload: Record<string, unknown> | null;
       reason: string | null;
       user: any;
     }>;
-    sendConfirmation(user: unknown): Promise<string | null>;
-    sendReset(user: unknown): Promise<string | null>;
+    sendConfirmation(user: object): Promise<string | null>;
+    sendReset(user: object): Promise<string | null>;
     /** May this account open a session? (`confirmation.required`) */
-    allowed(user: unknown): boolean;
+    allowed(user: object): boolean;
     /** The public identifier a token names the account by. */
-    identify(user: unknown): string | null;
-    /** The absolute url of a path, for the links inside the mails. */
-    urlFor(path: string): string;
+    identify(user: object): string | null;
+    /**
+     * The absolute url of a path, for the links inside the mails. It is a
+     * path: anything else is glued to the host and then mailed.
+     */
+    urlFor(path: `/${string}`): string;
     /** Waits for the work the flows started after their answers. */
     drain(): Promise<boolean>;
   }
@@ -2096,18 +2109,27 @@ declare namespace start {
      * `config.user.password.binding.enabled`, the hash is bound to that
      * record and stops verifying anywhere else. A number is the deprecated
      * `rounds` argument: it overrides `config.user.password.bcryptRounds` and
-     * is ignored under argon2id.
+     * is ignored under argon2id. A misspelled key is refused rather than
+     * ignored, because ignoring it wrote an unbound hash and said nothing.
      */
     encrypt(
       password: string,
-      options?: number | { identity?: unknown; rounds?: number }
+      options?: number | { identity?: string | object | null; rounds?: number }
     ): Promise<string>;
     /**
      * Resolves `true`; rejects with an error on a mismatch, never `false`.
      * Pass the user rather than its hash: a bound hash cannot be checked
      * without the record it belongs to and rejects with a distinct error.
+     *
+     * Three failures, told apart by their code and by nothing else — the
+     * message a mismatch carries is the one word it always was.
+     * `HENRI_USER_PASSWORD_MISMATCH` is a wrong password *and* no account at
+     * all (`null`), which cost the same; `HENRI_USER_PASSWORD_UNVERIFIABLE`
+     * is a record carrying no hash to check, which `findById()` and
+     * `req.user` are; `HENRI_ARGUMENT_INVALID` is a second argument that is
+     * not a user.
      */
-    compare(password: string, user: string | object): Promise<true>;
+    compare(password: unknown, user?: string | object | null): Promise<true>;
     /**
      * Writes a stored hash again with the current parameters, after its
      * owner proved the password. Applies no policy and never throws. This is
@@ -2126,8 +2148,12 @@ declare namespace start {
     bindsPasswords(): boolean;
     findByEmail(email: string): Promise<any>;
     findById(id: string): Promise<any>;
-    /** `{ id, email, roles }` plus `config.user.public`. */
-    publicUser(user: unknown): PublicUser | null;
+    /**
+     * `{ id, email, roles }` plus `config.user.public`. Nobody answers
+     * `null`; anything that is not a record is refused, because the object
+     * it built goes to a view and to a JSON body.
+     */
+    publicUser(user?: object | null): PublicUser | null;
   }
 
   /** `henri.router`. */
