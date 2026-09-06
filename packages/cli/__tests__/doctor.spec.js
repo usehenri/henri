@@ -504,6 +504,116 @@ describe('henri doctor', () => {
     expect(run(app).names).not.toContain('deps.declared');
   });
 
+  // A model saying `graphql: true` has henri derive its definition from its
+  // schema. What is invisible until a query arrives is the authorization
+  // around it, and what is invisible forever is a hand-written type naming
+  // a field the rest of henri refuses to publish.
+  describe('the graphql definitions', () => {
+    const model = () => path.join(app, 'app/models/Task.js');
+    const policy = () => path.join(app, 'app/policies/task.js');
+    let source;
+
+    beforeEach(() => {
+      source = fs.readFileSync(model(), 'utf8');
+    });
+
+    afterEach(() => {
+      fs.writeFileSync(model(), source);
+      fs.rmSync(policy(), { force: true });
+    });
+
+    /**
+     * Writes a `graphql` key into the scaffolded model
+     *
+     * @param {string} declaration what the key holds, as source
+     * @returns {void}
+     */
+    const declare = (declaration) =>
+      fs.writeFileSync(
+        model(),
+        source.replace(
+          'module.exports = {',
+          `module.exports = {\n  graphql: ${declaration},`
+        )
+      );
+
+    test('reports a derived model with no policy behind it', () => {
+      declare('true');
+
+      expect(run(app).problems).toContainEqual(
+        expect.objectContaining({
+          check: 'graphql.policy',
+          file: 'app/models/Task.js',
+          level: 'warning',
+          message: expect.stringContaining('app/policies/task.js does not'),
+        })
+      );
+    });
+
+    test('reports a policy with no scope behind a list query', () => {
+      declare('true');
+      fs.mkdirSync(path.dirname(policy()), { recursive: true });
+      fs.writeFileSync(policy(), 'module.exports = { index: () => true };\n');
+
+      expect(run(app).problems).toContainEqual(
+        expect.objectContaining({
+          check: 'graphql.policy',
+          code: 'HENRI_API_GRAPHQL_SCOPE_REQUIRED',
+          file: 'app/policies/task.js',
+          level: 'warning',
+        })
+      );
+    });
+
+    test('says nothing when the policy answers both questions', () => {
+      declare('true');
+      fs.mkdirSync(path.dirname(policy()), { recursive: true });
+      fs.writeFileSync(
+        policy(),
+        'module.exports = { index: () => true, scope: () => ({}) };\n'
+      );
+
+      expect(run(app).names).not.toContain('graphql.policy');
+    });
+
+    // The drift a derived definition cannot have: a hand-written type
+    // naming a field `res.render()` and `res.resource()` drop
+    test('reports a hand-written type naming a field that never leaves', () => {
+      fs.writeFileSync(
+        model(),
+        source
+          .replace(
+            'module.exports = {',
+            "module.exports = {\n  graphql: { types: 'type Task { secret: String }' },"
+          )
+          .replace(
+            'schema: {',
+            "schema: {\n    secret: { type: 'string', personal: { expose: false } },"
+          )
+      );
+
+      expect(run(app).problems).toContainEqual(
+        expect.objectContaining({
+          check: 'graphql.exposed',
+          level: 'warning',
+          message: expect.stringContaining('secret'),
+        })
+      );
+    });
+
+    test('fails on a declaration that would fail the boot', () => {
+      declare("{ generate: true, mutations: ['publish'] }");
+
+      expect(run(app).problems).toContainEqual(
+        expect.objectContaining({
+          check: 'graphql.declaration',
+          code: 'HENRI_API_GRAPHQL_INVALID_DECLARATION',
+          level: 'error',
+        })
+      );
+    });
+  });
+
   // The scaffold ships an empty app/jobs: writing the first job is what makes
   // the queue a dependency, and doctor is where an application hears about it
   test('asks for @usehenri/jobs when the application has a job', () => {
