@@ -11,7 +11,6 @@ const Mailers = require('./2.mailers');
 const Server = require('./2.server');
 const Model = require('./3.model');
 const View = require('./3.view');
-const Jobs = require('./4.jobs');
 const User = require('./4.user');
 const Router = require('./5.router');
 const Workers = require('./5.workers');
@@ -71,7 +70,6 @@ class Henri extends HenriBase {
     this.modules.add(new Router());
     this.modules.add(new User());
     this.modules.add(new View());
-    this.modules.add(new Jobs());
     this.modules.add(new Workers());
 
     try {

@@ -24,9 +24,16 @@ const fakeHenri = (options = {}) => {
   const calls = [];
   const pen = {};
 
-  ['error', 'fatal', 'info', 'warn'].forEach((level) => {
+  ['error', 'info', 'warn'].forEach((level) => {
     pen[level] = (...args) => calls.push([level, ...args]);
   });
+
+  // `pen.fatal()` returns the Error its caller throws, as core's does
+  pen.fatal = (...args) => {
+    calls.push(['fatal', ...args]);
+
+    return new Error(args.join(' '));
+  };
 
   return {
     calls,

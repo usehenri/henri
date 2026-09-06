@@ -434,7 +434,10 @@ declare namespace start {
     priority?: number;
   }
 
-  /** `config.jobs`: the background job queue of `@usehenri/jobs`. */
+  /**
+   * `config.jobs`: the background job queue. Validated here whether or not
+   * the application has `@usehenri/jobs`, which is what reads it.
+   */
   interface JobsConfig {
     /** Which store of `stores` holds the queue (`default`). */
     store?: string;
@@ -1441,8 +1444,11 @@ declare namespace start {
   }
 
   /**
-   * `henri.jobs`: the background job queue of `@usehenri/jobs`. Every method
-   * throws when the application has none (`henri.jobs.enabled` is false).
+   * `henri.jobs`: the module `@usehenri/jobs` ships. It is there when the
+   * application depends on the package, and `undefined` when it does not.
+   * Installing the package is not the same as using it: an application with
+   * neither `app/jobs` nor a `jobs` block keeps the module inert
+   * (`henri.jobs.enabled` is false) and every method throws.
    */
   interface JobsModule {
     name: 'jobs';
@@ -1539,7 +1545,12 @@ declare namespace start {
     view: ViewModule;
     user: UserModule;
     router: RouterModule;
-    jobs: JobsModule;
+    /**
+     * The queue, when the application depends on `@usehenri/jobs`. It is
+     * `undefined` when it does not -- core carries no queue of its own --
+     * and a `deliverLater()` that asked for a delay says what to install.
+     */
+    jobs?: JobsModule;
     workers: WorkersModule;
     api: ApiNamespace;
     /** Registration, the password reset and the address confirmation. */

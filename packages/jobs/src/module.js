@@ -1,37 +1,40 @@
-const BaseModule = require('./base/module');
+const BaseModule = require('@usehenri/core/module');
 
 const fs = require('fs');
 const path = require('path');
 const debug = require('debug')('henri:jobs');
 
-const { resolveFrom } = require('./utils');
-
-/** The job `@usehenri/jobs` ships to send a mail rendered by the mailers */
-const MAIL_JOB = 'henri/mail';
+const { Jobs: Queue, MAIL_JOB } = require('./jobs');
 
 /**
- * Background jobs.
+ * Background jobs: the henri module this package ships.
  *
- * The queue itself lives in `@usehenri/jobs`, resolved from the application
- * the way a store adapter is: core knows the module, not the implementation.
- * An application that has neither `app/jobs` nor a `jobs` block in its
- * configuration keeps this module inert -- `henri.jobs.enabled` is false and
- * every call says what to install.
+ * `package.json` points at it with `"henri": { "module": "./module.js" }`,
+ * so an application that depends on `@usehenri/jobs` has it in the boot as
+ * `henri.jobs`, with nothing else to write. One that does not has no such
+ * module, and core carries no queue of its own.
+ *
+ * Installing the package is not the same as using it: an application that
+ * has neither `app/jobs` nor a `jobs` block in its configuration keeps the
+ * module inert -- `henri.jobs.enabled` is false, no table is created and
+ * every call says what to do.
  *
  * It needs the models: the queue reaches its own tables through the store
  * adapter. It runs after the mailers when there are any, so
  * `deliverLater()` goes through the queue. Its slot is 4, not 5: `henri
  * jobs` boots to that level so a runner never binds an HTTP port.
  *
- * @class Jobs
+ * @class JobsModule
  * @extends {BaseModule}
  */
-class Jobs extends BaseModule {
+class JobsModule extends BaseModule {
   /**
-   * Creates an instance of Jobs.
-   * @memberof Jobs
+   * Creates an instance of JobsModule.
+   *
+   * @param {object} [henri=null] A henri instance
+   * @memberof JobsModule
    */
-  constructor() {
+  constructor(henri = null) {
     super();
 
     this.reloadable = true;
@@ -39,7 +42,7 @@ class Jobs extends BaseModule {
     this.after = ['mailers'];
     this.runlevel = 4;
     this.name = 'jobs';
-    this.henri = null;
+    this.henri = henri;
 
     this.queue = null;
     this.enabled = false;
@@ -66,7 +69,7 @@ class Jobs extends BaseModule {
    *
    * @returns {boolean} true when app/jobs holds a file, or the configuration
    *   has a `jobs` block
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   wanted() {
     const { config } = this.henri;
@@ -92,8 +95,8 @@ class Jobs extends BaseModule {
    *
    * @async
    * @returns {Promise<string>} The name of the module
-   * @throws when @usehenri/jobs is missing, or a job file is not a job
-   * @memberof Jobs
+   * @throws when the queue cannot start, or a job file is not a job
+   * @memberof JobsModule
    */
   async init() {
     const { config, pen } = this.henri;
@@ -104,23 +107,10 @@ class Jobs extends BaseModule {
       return this.name;
     }
 
-    let factory;
-
-    try {
-      factory = require(resolveFrom('@usehenri/jobs', this.henri.cwd()));
-    } catch (error) {
-      throw pen.fatal(
-        'jobs',
-        `
-      This application has background jobs but @usehenri/jobs is not
-      installed. Add it with: npm install @usehenri/jobs`
-      );
-    }
-
     const settings =
       config && config.has && config.has('jobs') ? config.get('jobs') : {};
 
-    this.queue = factory(this.henri, {
+    this.queue = new Queue(this.henri, {
       config: settings || {},
       cwd: this.henri.cwd(),
     });
@@ -156,7 +146,7 @@ class Jobs extends BaseModule {
    * being a queue.
    *
    * @returns {boolean} Whether the handler was registered
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   deliverMail() {
     const { mailers } = this.henri;
@@ -175,7 +165,7 @@ class Jobs extends BaseModule {
    *
    * @async
    * @returns {Promise<boolean>} true when there was something to stop
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   async stop() {
     if (!this.queue) {
@@ -199,7 +189,7 @@ class Jobs extends BaseModule {
    *
    * @async
    * @returns {Promise<string>} Module name
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   async reload() {
     await this.stop();
@@ -214,15 +204,15 @@ class Jobs extends BaseModule {
    *
    * @returns {object} The queue
    * @throws when the application has no queue
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   ready() {
     if (!this.queue) {
       throw this.henri.pen.fatal(
         'jobs',
         `
-      This application has no job queue. Write a job with
-      'henri generate job <name>' and install @usehenri/jobs.`
+      This application has no job queue: it has neither app/jobs nor a jobs
+      block in its configuration. Write a job with: henri generate job <name>`
       );
     }
 
@@ -237,7 +227,7 @@ class Jobs extends BaseModule {
    * @param {object} [options] `wait`, `at`, `queue`, `priority`,
    *   `maxAttempts`, `timeout`, `unique`
    * @returns {Promise<object>} The enqueued job
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   perform(name, args, options) {
     return this.ready().perform(name, args, options);
@@ -250,7 +240,7 @@ class Jobs extends BaseModule {
    * @param {*} [args] What perform() receives
    * @param {object} [options] The options of perform()
    * @returns {Promise<object>} The enqueued job
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   enqueue(name, args, options) {
     return this.ready().perform(name, args, options);
@@ -264,7 +254,7 @@ class Jobs extends BaseModule {
    * @param {*} [args] What perform() receives
    * @param {object} [options] The options of perform()
    * @returns {Promise<object>} The enqueued job
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   performIn(wait, name, args, options) {
     return this.ready().performIn(wait, name, args, options);
@@ -278,7 +268,7 @@ class Jobs extends BaseModule {
    * @param {*} [args] What perform() receives
    * @param {object} [options] The options of perform()
    * @returns {Promise<object>} The enqueued job
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   performAt(when, name, args, options) {
     return this.ready().performAt(when, name, args, options);
@@ -290,7 +280,7 @@ class Jobs extends BaseModule {
    * @param {string} name The job name
    * @param {*} [args] What perform() receives
    * @returns {Promise<*>} What perform() returned
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   performNow(name, args) {
     return this.ready().performNow(name, args);
@@ -301,7 +291,7 @@ class Jobs extends BaseModule {
    *
    * @param {string} id The job id
    * @returns {Promise<?object>} The job, or null
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   get(id) {
     return this.ready().get(id);
@@ -312,7 +302,7 @@ class Jobs extends BaseModule {
    *
    * @param {object} [filter] `state`, `queue`, `name`, `limit`, `offset`
    * @returns {Promise<Array<object>>} The jobs
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   list(filter) {
     return this.ready().list(filter);
@@ -322,7 +312,7 @@ class Jobs extends BaseModule {
    * What the queue holds
    *
    * @returns {Promise<object>} Counts, timings and waits
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   stats() {
     return this.ready().stats();
@@ -332,11 +322,11 @@ class Jobs extends BaseModule {
    * The job names of the application
    *
    * @returns {Array<string>} The names
-   * @memberof Jobs
+   * @memberof JobsModule
    */
   names() {
     return this.queue ? this.queue.names() : [];
   }
 }
 
-module.exports = Jobs;
+module.exports = JobsModule;

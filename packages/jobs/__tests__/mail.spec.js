@@ -7,9 +7,9 @@ const { Runner } = require('../src/runner');
 /**
  * `henri.mailers.deliverLater()` renders a message and hands the rendered
  * nodemailer payload to whatever `onDeliverLater()` registered. That seam is
- * what turns the mailers into a real queue: core registers the handler (see
- * `packages/core/src/4.jobs.js`), and the payload is performed by the job
- * this package ships.
+ * what turns the mailers into a real queue: the module of this package
+ * registers the handler (see `JobsModule#deliverMail` in `src/module.js`),
+ * and the payload is performed by the job it ships.
  *
  * The stand-in below is the mailers module's half of the contract, so this
  * suite covers the round trip without booting a view engine.
@@ -66,7 +66,7 @@ describe(`mail delivery (${target.name})`, () => {
     };
     built.henri.mailers = mailers;
 
-    // What packages/core/src/4.jobs.js does once the queue is started
+    // What JobsModule#deliverMail does once the queue is started
     mailers.onDeliverLater((message, options) =>
       jobs.enqueue(MAIL_JOB, message, options)
     );
