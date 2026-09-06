@@ -19,9 +19,10 @@ const { paginationMiddleware } = require('./base/pagination');
 const { authLimiter, limiter } = require('./base/rate-limit');
 const { requestId } = require('./base/request-id');
 const requestTimeout = require('./base/timeout');
+const { drain, settings: stopSettings } = require('./base/shutdown');
 const debug = require('debug')('henri:server');
 
-/** How long a graceful stop may take before the process is killed (ms) */
+/** How long stopping the modules may take before the process is killed (ms) */
 const STOP_TIMEOUT = 5000;
 
 /** Debounce for filesystem events (save-all, editor temp files) (ms) */
@@ -322,6 +323,9 @@ class Server extends BaseModule {
     this._stdinListener = null;
     this._stopping = false;
 
+    /** True from the first moment of a shutdown: `/readyz` answers 503 */
+    this.draining = false;
+
     /** Exit the process (replaceable in tests) */
     this.exit = (code) => process.exit(code);
 
@@ -329,6 +333,7 @@ class Server extends BaseModule {
     this.start = this.start.bind(this);
     this.stop = this.stop.bind(this);
     this.changed = this.changed.bind(this);
+    this.drain = this.drain.bind(this);
     this.shutdown = this.shutdown.bind(this);
   }
 
@@ -364,9 +369,10 @@ class Server extends BaseModule {
     const { settings } = api;
 
     // Middleware order: request id, timeout, secure headers, compression,
-    // cors, body parsers, cookies, boom, api version, pagination, health,
-    // static files. The user module adds permit, session, passport and csrf
-    // (runlevel 4), start() adds the rate limits, the router, 404 and errors.
+    // cors, body parsers, cookies, boom, api version, pagination, the health
+    // endpoints, static files. The user module adds permit, session, passport
+    // and csrf (runlevel 4), start() adds the rate limits, the router, the
+    // 404 and the error handler.
     app.use(requestId());
 
     if (settings.requestTimeout) {
@@ -399,7 +405,12 @@ class Server extends BaseModule {
     app.use(apiVersion());
     app.use(paginationMiddleware(() => this.henri.api.settings.pagination));
 
-    app.get(health.PATH, health(this.henri));
+    // Liveness, readiness, and the name readiness answered before it had one
+    const readiness = health.ready(this.henri);
+
+    app.get(health.LIVE_PATH, health.live(this.henri));
+    app.get(health.READY_PATH, readiness);
+    app.get(health.PATH, readiness);
 
     app.use(express.static(path.resolve(this.henri.cwd(), 'app/views/public')));
 
@@ -487,7 +498,7 @@ class Server extends BaseModule {
       watch(henri);
     }
 
-    if (!henri.isTest) {
+    if (!henri.isTest && this.shutdownSettings().signals) {
       this.installSignalHandlers();
     }
 
@@ -639,14 +650,46 @@ class Server extends BaseModule {
   }
 
   /**
-   * Handle SIGINT/SIGTERM: stop henri, exit when done (or after 5s)
-   * A second signal exits immediately.
+   * The `shutdown` settings of the configuration (read every time, so a
+   * reloaded configuration is the one a later signal is served by)
    *
-   * @param {string} signal the signal name
-   * @returns {void}
+   * @returns {{delay: number, drain: number, signals: boolean}} the settings
    * @memberof Server
    */
-  shutdown(signal) {
+  shutdownSettings() {
+    return stopSettings(this.henri && this.henri.config);
+  }
+
+  /**
+   * Stops accepting connections and lets the requests in flight finish
+   *
+   * Readiness is already 503 when this runs (`draining`), so this is the
+   * moment a load balancer still polling has to notice. See
+   * `base/shutdown.js` for the order and why it is that order.
+   *
+   * @async
+   * @returns {Promise<object>} `{ drained, forced, open }`
+   * @memberof Server
+   */
+  async drain() {
+    const { delay, drain: deadline } = this.shutdownSettings();
+
+    this.draining = true;
+
+    return drain(this.httpServer, { deadline, delay, pen: this.henri.pen });
+  }
+
+  /**
+   * Handle SIGINT/SIGTERM: drain the requests in flight, stop henri, exit
+   * when done (or after the drain and stop deadlines).
+   * A second signal exits immediately.
+   *
+   * @async
+   * @param {string} signal the signal name
+   * @returns {Promise<void>} resolves once the process has been told to exit
+   * @memberof Server
+   */
+  async shutdown(signal) {
     const { pen } = this.henri;
 
     if (this._stopping) {
@@ -656,15 +699,24 @@ class Server extends BaseModule {
     }
 
     this._stopping = true;
+    this.draining = true;
     pen.line();
     pen.warn('server', `${signal} received, stopping...`);
 
+    const { delay, drain: deadline } = this.shutdownSettings();
+    const budget = delay + deadline + STOP_TIMEOUT;
     const timer = setTimeout(() => {
-      pen.error('server', `unable to stop within ${STOP_TIMEOUT}ms, exiting`);
+      pen.error('server', `unable to stop within ${budget}ms, exiting`);
       this.exit(1);
-    }, STOP_TIMEOUT);
+    }, budget);
 
     timer.unref();
+
+    try {
+      await this.drain();
+    } catch (error) {
+      pen.error('server', 'unable to drain', error);
+    }
 
     return this.henri.stop().then(
       (errors) => {
@@ -695,7 +747,10 @@ class Server extends BaseModule {
     }
 
     for (const signal of SIGNALS) {
-      const handler = () => this.shutdown(signal);
+      const handler = () =>
+        this.shutdown(signal).catch((error) =>
+          this.henri.pen.error('server', 'shutdown failed', error)
+        );
 
       process.on(signal, handler);
       this._signalHandlers.push([signal, handler]);
@@ -706,11 +761,19 @@ class Server extends BaseModule {
    * Stops the module: closes the http server and the file watcher, restores
    * the terminal and removes the signal handlers
    *
+   * This is the teardown, not the drain: `shutdown()` has already closed the
+   * listener and waited for the requests in flight by the time the modules
+   * stop. An application calling `henri.stop()` itself lands here directly,
+   * where what is still open is closed rather than waited for -- it asked for
+   * a stop, and the modules it depends on are stopping around it.
+   *
    * @async
    * @returns {(string|boolean)} Module name or false
    * @memberof Server
    */
   async stop() {
+    this.draining = true;
+
     for (const [signal, handler] of this._signalHandlers) {
       process.off(signal, handler);
     }

@@ -55,6 +55,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                      |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                            |
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                   |
+| `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                       |
 
 ## The `mailers` object
 
@@ -122,6 +123,18 @@ The keys of the [JSON API](/guides/api/), all optional:
 | `filterParameters` | `["password", "token", "secret", "authorization"]` | Substrings of the parameter names masked in everything `henri.pen` prints; `false` masks nothing.                                                                                                                                                                 |
 | `bodyLimit`        | `"1mb"`                                            | Passed to the JSON and urlencoded body parsers; a string (`"1mb"`) or a number of bytes.                                                                                                                                                                          |
 | `requestTimeout`   | `30000`                                            | Milliseconds before a `503`; `false` disables the timeout.                                                                                                                                                                                                        |
+
+## Shutdown
+
+`SIGINT` and `SIGTERM` drain the server before the modules stop: readiness answers `503`, the port closes, the requests in flight finish, and only then does `henri.stop()` run. See [Health checks](/guides/api/#health-checks).
+
+| Key                | Default | Description                                                                                                                                                                                            |
+| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `shutdown.delay`   | `0`     | Milliseconds between readiness turning `503` and the port closing. A proxy that only polls `/readyz` wants a couple of its intervals here; a platform that stops routing before the signal needs none. |
+| `shutdown.drain`   | `10000` | Milliseconds the requests in flight get once the port is closed. What is still open then has its socket destroyed, with a line in the log saying how many.                                             |
+| `shutdown.signals` | `true`  | Whether henri installs the `SIGINT` and `SIGTERM` handlers. `false` leaves the signals alone; call `henri.server.shutdown('SIGTERM')` from your own handler.                                           |
+
+Keep `delay + drain` under the termination grace period of your platform (30 seconds on Kubernetes), so the process leaves before it is killed.
 
 ## Environment and `.env`
 

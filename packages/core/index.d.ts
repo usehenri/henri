@@ -539,7 +539,28 @@ declare namespace start {
     bodyLimit?: string | number;
     /** Milliseconds before a running request is answered 503. */
     requestTimeout?: number | false;
+    shutdown?: ShutdownConfig;
     [key: string]: unknown;
+  }
+
+  /** `config.shutdown`: what a SIGTERM does before the modules stop. */
+  interface ShutdownConfig {
+    /**
+     * Milliseconds between readiness turning 503 and the port closing (`0`).
+     * A proxy that only polls `/readyz` wants a couple of its intervals.
+     */
+    delay?: number;
+    /**
+     * Milliseconds the requests in flight get once the port is closed
+     * (`10000`); what is still open then has its socket destroyed.
+     */
+    drain?: number;
+    /**
+     * Install the `SIGINT` and `SIGTERM` handlers (`true`). `false` leaves
+     * the signals to the application, which then calls
+     * `henri.server.shutdown('SIGTERM')` itself.
+     */
+    signals?: boolean;
   }
 
   /** `henri.api.settings`: the configuration above, normalized. */
@@ -1224,6 +1245,18 @@ declare namespace start {
     url: string;
     host: string | null;
     port: number;
+    /** True from the first moment of a shutdown: `/readyz` answers 503. */
+    draining: boolean;
+    /**
+     * Closes the listener and lets the requests in flight finish, within
+     * `shutdown.drain`. Called by `shutdown()`, before the modules stop.
+     */
+    drain(): Promise<{ drained: boolean; forced: boolean; open: number }>;
+    /**
+     * Drains, stops henri and exits. The `SIGINT` and `SIGTERM` handler,
+     * and what an application calls when it installs its own.
+     */
+    shutdown(signal: string): Promise<void>;
   }
 
   /** `henri.model`. */

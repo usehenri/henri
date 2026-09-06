@@ -154,9 +154,19 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   `Idempotency-Key` is honoured on every mutating route (`idempotent: false`
   opts out), express-rate-limit guards everything outside development plus
   the auth paths, `X-Request-Id` is threaded through `pen`, helmet sets the
-  headers, `filterParameters` are masked in the logs, `GET /_henri/health`
-  pings the stores. `resources`/`crud` routes answering JSON without `_links`
+  headers, `filterParameters` are masked in the logs, `GET /livez` says the
+  process answers and `GET /readyz` (with `GET /_henri/health` as its alias)
+  that it can serve -- the stores answered, the boot is done and no shutdown
+  has started. `resources`/`crud` routes answering JSON without `_links`
   are reported (refused with `config.api.strict`).
+- `SIGINT` and `SIGTERM` drain before they stop (`base/shutdown.js`,
+  `2.server.js`): readiness turns 503, `config.shutdown.delay` passes, the
+  listener closes and the idle keep-alives are hung up, the requests in
+  flight finish within `config.shutdown.drain`, and only then does
+  `henri.stop()` run. `config.shutdown.signals: false` leaves the signals to
+  the application. `henri jobs` boots to runlevel 4, never starts the server
+  and drains its own way (the runner stops claiming and finishes what it
+  holds).
 - Store adapters implement one contract (JSDoc `HenriAdapter` at the top of
   `packages/sequelize/index.js` and `packages/mongoose/index.js`):
   `new Adapter(name, config, henri)`, `addModel(model, userModelName)`,

@@ -1,11 +1,11 @@
 ---
 title: JSON API
-description: HAL answers with res.resource and res.collection, pagination, Idempotency-Key, rate limiting, request ids, versioning and the health check.
+description: HAL answers with res.resource and res.collection, pagination, Idempotency-Key, rate limiting, request ids, versioning, the health endpoints and graceful shutdown.
 sidebar:
   order: 6
 ---
 
-Every henri controller can answer JSON, and the answers follow the conventions a Rails API gives you: hypermedia links ([HAL](https://datatracker.ietf.org/doc/html/draft-kelly-json-hal)), idempotent mutations, rate limits, request ids, secure headers, filtered logs and a health check. Most of it is on by default and configured from `config/default.json`; the keys are listed in [Configuration](/configuration/#json-api).
+Every henri controller can answer JSON, and the answers follow the conventions a Rails API gives you: hypermedia links ([HAL](https://datatracker.ietf.org/doc/html/draft-kelly-json-hal)), idempotent mutations, rate limits, request ids, secure headers, filtered logs, liveness and readiness endpoints and a shutdown that drains. Most of it is on by default and configured from `config/default.json`; the keys are listed in [Configuration](/configuration/#json-api).
 
 ## Answering HAL
 
@@ -144,10 +144,39 @@ module.exports = {
 };
 ```
 
-## Health check
+## Health checks
 
-`GET /_henri/health` pings every store and answers `200` with `{ "status": "ok", "stores": { "default": { "adapter": "disk", "ok": true, "latency": 2 } } }`, or `503` and `"status": "unavailable"` when one fails or takes more than two seconds. It runs before the session and the limiters, so a load balancer can call it freely.
+Liveness and readiness are different questions with opposite consequences — a failed liveness probe restarts the container, a failed readiness probe takes it out of the load balancer — so henri answers them separately:
+
+| Path                 | Question                | Answer                                                                                                                                      |
+| -------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /livez`         | Is the process running? | Always `200` while it can answer. It never touches a store: a database outage must not restart a process that is otherwise healthy.         |
+| `GET /readyz`        | Can it serve traffic?   | `200`, or `503` while the boot is still running, while the process is shutting down, and when a store fails or takes more than two seconds. |
+| `GET /_henri/health` | The same as `/readyz`   | Kept as an alias, so a deployment already pointing at it keeps working.                                                                     |
+
+```json
+{
+  "status": "ok",
+  "stores": { "default": { "adapter": "disk", "ok": true, "latency": 2 } },
+  "uptime": 42
+}
+```
+
+A `503` says `"status": "unavailable"` and a `reason` (`starting`, `shutting down`, `a store did not answer`); a store that failed is `{ "adapter": "disk", "ok": false, "error": "timeout" }` — `timeout` or `unreachable`, never the driver's own message, which carries the connection string it could not reach. The message is in the log.
+
+All three run before the session and the limiters — and before the router, so an application route on one of those paths never sees the request — unauthenticated, so a load balancer can call them freely: it has no credentials. There is no `/healthz`: the name does not say which of the two questions it answers, and deployments wire it to both. Point a probe that only knows that path at `/readyz`.
+
+## Graceful shutdown
+
+On `SIGINT` or `SIGTERM` the server drains before the modules stop, so a rolling deploy does not cut a request in half:
+
+1. Readiness answers `503` while the port is still open, so a load balancer that polls has a chance to stop sending. `shutdown.delay` (`0`) keeps serving that long before the next step.
+2. The listener closes — the port stops accepting — and the idle keep-alive sockets are hung up, which is what would otherwise hold the close open for their whole idle timeout.
+3. The requests in flight run to their end, up to `shutdown.drain` (10 seconds). What is still open then is destroyed, and the log says how many.
+4. `henri.stop()` stops the modules, backwards; the process exits with `1` when one of them failed.
+
+`shutdown.signals: false` leaves the signals to your application, which then calls `henri.server.shutdown('SIGTERM')` itself. A `henri jobs` runner never listens on a port and drains its own way: it stops claiming, finishes the jobs it holds and writes their outcomes. See [Shutdown](/configuration/#shutdown).
 
 ## Middleware order
 
-Knowing the order helps when adding your own with `henri.addMiddleware()`: request id, timeout, helmet, compression (production), cors, body parsers, cookies, `res.boom`, the API version reader, `req.pagination`, the health check, static files, then the user module (permit, session, passport, CSRF), the authentication and global limiters, the router (per route: version guard, route limiter, role guard, idempotency, HAL guard, the action), the `404` and the error handler.
+Knowing the order helps when adding your own with `henri.addMiddleware()`: request id, timeout, helmet, compression (production), cors, body parsers, cookies, `res.boom`, the API version reader, `req.pagination`, the health endpoints, static files, then the user module (permit, session, passport, CSRF), the authentication and global limiters, the router (per route: version guard, route limiter, role guard, idempotency, HAL guard, the action), the `404` and the error handler.

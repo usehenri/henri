@@ -271,7 +271,9 @@ Reloads are serialized: a change during a reload queues exactly one more run, an
 
 ## Shutdown
 
-`henri.stop()` stops the modules in the reverse of the graph — a module always stops before the ones it depends on — keeps going when one fails, and resolves with the array of errors (empty when everything stopped). `SIGINT` and `SIGTERM` call it with a 5 second timeout before the process is killed; a second signal exits at once. The exit code is `1` when a module failed to stop.
+`henri.stop()` stops the modules in the reverse of the graph — a module always stops before the ones it depends on — keeps going when one fails, and resolves with the array of errors (empty when everything stopped). The exit code is `1` when a module failed to stop.
+
+`SIGINT` and `SIGTERM` do not call it first: they drain. `henri.server.draining` turns true, so `/readyz` answers `503` while the port is still open (`shutdown.delay`, `0` by default, keeps serving that long); the listener closes and the idle keep-alive sockets are hung up; the requests in flight finish, within `shutdown.drain` (10 seconds) before their sockets are destroyed; and only then does `henri.stop()` run, with the same 5 second timeout as before. A second signal exits at once, and `shutdown.signals: false` leaves the signals to the application — `henri.server.shutdown('SIGTERM')` is the handler it writes. See [Shutdown](/configuration/#shutdown).
 
 ## Contributing
 

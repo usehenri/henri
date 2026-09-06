@@ -666,42 +666,90 @@ describe('api (demo app, disk store)', () => {
   });
 
   describe('health', () => {
-    test('answers 200 with the stores', async () => {
-      const res = await request.get('/_henri/health');
+    test.each(['/readyz', '/_henri/health'])(
+      '%s answers 200 with the stores',
+      async (path) => {
+        const res = await request.get(path);
+
+        expect(res.status).toBe(200);
+        expect(res.headers['cache-control']).toBe('no-store');
+        expect(res.body).toEqual({
+          requestId: res.headers['x-request-id'],
+          status: 'ok',
+          stores: {
+            default: { adapter: 'disk', latency: expect.any(Number), ok: true },
+          },
+          uptime: expect.any(Number),
+          version: henri.release,
+        });
+      }
+    );
+
+    test('/livez answers 200 and says nothing about the stores', async () => {
+      const res = await request.get('/livez');
 
       expect(res.status).toBe(200);
       expect(res.headers['cache-control']).toBe('no-store');
       expect(res.body).toEqual({
         requestId: res.headers['x-request-id'],
         status: 'ok',
-        stores: {
-          default: { adapter: 'disk', latency: expect.any(Number), ok: true },
-        },
         uptime: expect.any(Number),
         version: henri.release,
       });
     });
 
-    test('answers 503 when a store does not answer', async () => {
+    test('readiness answers 503 when a store does not answer', async () => {
       const store = henri.model.stores.default;
       const { ping } = store;
 
       store.ping = async () => {
-        throw new Error('connection lost');
+        throw new Error('connection lost to postgres://henri:hunter2@db/app');
       };
 
       try {
-        const res = await request.get('/_henri/health');
+        const res = await request.get('/readyz');
 
         expect(res.status).toBe(503);
         expect(res.body.status).toBe('unavailable');
+        expect(res.body.reason).toBe('a store did not answer');
         expect(res.body.stores.default).toEqual({
           adapter: 'disk',
-          error: 'connection lost',
+          error: 'unreachable',
           ok: false,
         });
+        expect(JSON.stringify(res.body)).not.toContain('hunter2');
+
+        // Liveness is the other question: the process is fine, restarting it
+        // would not bring the store back
+        const alive = await request.get('/livez');
+
+        expect(alive.status).toBe(200);
       } finally {
         store.ping = ping;
+      }
+    });
+
+    test('readiness answers 503 as soon as the server is draining', async () => {
+      henri.server.draining = true;
+
+      try {
+        const res = await request.get('/readyz');
+
+        expect(res.status).toBe(503);
+        expect(res.body).toMatchObject({
+          reason: 'shutting down',
+          status: 'unavailable',
+        });
+
+        const alias = await request.get('/_henri/health');
+
+        expect(alias.status).toBe(503);
+
+        const alive = await request.get('/livez');
+
+        expect(alive.status).toBe(200);
+      } finally {
+        henri.server.draining = false;
       }
     });
   });
