@@ -301,12 +301,17 @@ describe('a real SIGTERM', () => {
 
     app.child.kill('SIGTERM');
 
-    // The port closes first, so a load balancer stops sending here...
+    // The port closes first, so a load balancer stops sending here. The
+    // probe asks for a path the fixture does not answer: `/slow` would take
+    // its 800ms to come back on a machine that closed the listener a moment
+    // later than this one expected, which is both a slow retry and a second
+    // `received` in the events asserted below
     await vi.waitFor(
       async () =>
-        await expect(get(app.port, '/slow')).rejects.toMatchObject({
+        await expect(get(app.port, '/gone')).rejects.toMatchObject({
           code: 'ECONNREFUSED',
-        })
+        }),
+      { interval: 25, timeout: 10000 }
     );
 
     // ...while what was already being served is answered in full

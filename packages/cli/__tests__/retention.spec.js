@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { CliError } = require('../scripts/errors');
-const { cleanup, henri, tmpdir } = require('./helpers');
+const { cleanup, henri, linkAdapter, tmpdir } = require('./helpers');
 const trail = require('../scripts/trail');
 
 // The same minimal application `henri db` and `henri privacy` run against:
@@ -11,26 +11,6 @@ const fixture = path.join(__dirname, 'fixtures', 'seed-app');
 
 /** The token of the Task rule, which `config.retention.approved` holds */
 const TOKEN = 'Task:default:4c94f8c8576e';
-
-/**
- * Core resolves `@usehenri/drizzle` from the application directory: link
- * the workspace package into the fixture's node_modules (ignored by git)
- *
- * @returns {void}
- */
-const linkAdapter = () => {
-  const target = path.join(fixture, 'node_modules', '@usehenri', 'drizzle');
-
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-
-  if (!fs.existsSync(target)) {
-    fs.symlinkSync(
-      path.resolve(__dirname, '../../drizzle'),
-      target,
-      'junction'
-    );
-  }
-};
 
 describe('henri retention and henri trail', () => {
   describe('usage', () => {
@@ -66,7 +46,7 @@ describe('henri retention and henri trail', () => {
       });
 
     beforeAll(() => {
-      linkAdapter();
+      linkAdapter(fixture, 'drizzle');
       dir = tmpdir('henri-retention-');
       receipts = path.join(dir, 'receipts');
       env = {

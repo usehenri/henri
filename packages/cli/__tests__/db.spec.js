@@ -3,7 +3,14 @@ const path = require('path');
 
 const { CliError } = require('../scripts/errors');
 const { migrations, seed, sow, status } = require('../scripts/db');
-const { cleanup, exists, henri, scaffold, tmpdir } = require('./helpers');
+const {
+  cleanup,
+  exists,
+  henri,
+  linkAdapter,
+  scaffold,
+  tmpdir,
+} = require('./helpers');
 
 // A minimal application on a drizzle sqlite store: seeding it is a full
 // boot, without a database server to start
@@ -12,26 +19,6 @@ const fixture = path.join(__dirname, 'fixtures', 'seed-app');
 // The demo application of the workspace, on the disk (mongoose) adapter:
 // db:seed must work on every adapter, not only on the drizzle one
 const demo = path.resolve(__dirname, '../../demo');
-
-/**
- * Core resolves `@usehenri/drizzle` from the application directory: link
- * the workspace package into the fixture's node_modules (ignored by git)
- *
- * @returns {void}
- */
-const linkAdapter = () => {
-  const target = path.join(fixture, 'node_modules', '@usehenri', 'drizzle');
-
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-
-  if (!fs.existsSync(target)) {
-    fs.symlinkSync(
-      path.resolve(__dirname, '../../drizzle'),
-      target,
-      'junction'
-    );
-  }
-};
 
 describe('henri db', () => {
   describe('usage', () => {
@@ -292,7 +279,7 @@ describe('henri db', () => {
     let report;
 
     beforeAll(() => {
-      linkAdapter();
+      linkAdapter(fixture, 'drizzle');
       dir = tmpdir('henri-seed-run-');
       report = path.join(dir, 'report.json');
     });

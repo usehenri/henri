@@ -84,16 +84,57 @@ const routesOf = (app) => {
 /**
  * Remove a directory
  *
+ * A directory that was never made is nothing to remove: an `afterAll` runs
+ * even when the `beforeAll` that would have made it threw, and a TypeError
+ * there hides the failure that actually happened.
+ *
  * @param {string} dir Directory
  * @returns {void}
  */
-const cleanup = (dir) => fs.rmSync(dir, { force: true, recursive: true });
+const cleanup = (dir) =>
+  dir && fs.rmSync(dir, { force: true, recursive: true });
+
+/**
+ * Link workspace packages into a fixture application's node_modules.
+ *
+ * Core resolves `@usehenri/<name>` from the application directory, and the
+ * fixtures are checked in without one. Several test files share a fixture
+ * and run at the same time, so the link is made without asking first
+ * (`existsSync` then `symlinkSync` is two operations with a gap in between,
+ * and the loser of that race got an `EEXIST` that read like a bug in the
+ * fixture); an existing link, and one another file made a moment ago, are
+ * both the wanted state.
+ *
+ * @param {string} fixture The application directory
+ * @param {...string} names The workspace package names (`drizzle`, `jobs`)
+ * @returns {void}
+ */
+const linkAdapter = (fixture, ...names) => {
+  for (const name of names) {
+    const target = path.join(fixture, 'node_modules', '@usehenri', name);
+
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+
+    try {
+      fs.symlinkSync(
+        path.resolve(__dirname, '../..', name),
+        target,
+        'junction'
+      );
+    } catch (error) {
+      if (error.code !== 'EEXIST') {
+        throw error;
+      }
+    }
+  }
+};
 
 module.exports = {
   bin,
   cleanup,
   exists,
   henri,
+  linkAdapter,
   read,
   routesOf,
   scaffold,

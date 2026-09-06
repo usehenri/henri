@@ -2,36 +2,13 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const { cleanup, henri, scaffold } = require('./helpers');
+const { cleanup, henri, linkAdapter, scaffold } = require('./helpers');
 
 const bin = path.resolve(__dirname, '../../henri/bin/henri.js');
 
 // A minimal application on a drizzle sqlite file, so the queue survives
 // between two runs of the command line
 const fixture = path.join(__dirname, 'fixtures', 'jobs-app');
-
-/**
- * The fixture depends on the adapter and on @usehenri/jobs, which is what
- * puts the queue in its boot: link the workspace packages into its
- * node_modules (ignored by the repository)
- *
- * @returns {void}
- */
-const link = () => {
-  for (const name of ['drizzle', 'jobs']) {
-    const target = path.join(fixture, 'node_modules', '@usehenri', name);
-
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-
-    if (!fs.existsSync(target)) {
-      fs.symlinkSync(
-        path.resolve(__dirname, '../../', name),
-        target,
-        'junction'
-      );
-    }
-  }
-};
 
 /**
  * Runs a henri command in the fixture and parses its JSON
@@ -117,7 +94,7 @@ describe('henri jobs', () => {
     const report = path.join(fixture, '.henri', 'performed.log');
 
     beforeAll(() => {
-      link();
+      linkAdapter(fixture, 'drizzle', 'jobs');
       fs.rmSync(path.join(fixture, '.henri'), {
         force: true,
         recursive: true,
