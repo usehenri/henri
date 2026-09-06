@@ -94,6 +94,12 @@
  * fully escaped literal `$regex`, walked character by character, never a
  * pattern from the request.
  *
+ * The three are case-insensitive: `ILIKE` on PostgreSQL, `$options: 'i'` on
+ * MongoDB, and `LIKE` elsewhere, which is insensitive under the collations
+ * these adapters open by default. A column whose collation is binary
+ * matches exactly, and that is the database's decision rather than
+ * henri's.
+ *
  * ## Ordering is not free either
  *
  * `sort` is a list of names, `-name` is descending, and the request may

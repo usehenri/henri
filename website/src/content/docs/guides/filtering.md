@@ -122,6 +122,8 @@ The line is what a database can answer with an index:
 
 An application that wants wildcard search writes that query itself.
 
+The three are **case-insensitive**: `ILIKE` on PostgreSQL, `$options: 'i'` on MongoDB, and `LIKE` elsewhere, which is insensitive under the collations these adapters open by default. A column whose collation is binary matches exactly — that is the database's decision rather than henri's.
+
 ## Ordering
 
 `?sort=-submittedAt,title` — most significant first, `-` for descending, at most `config.api.maxSort` of them (three). A column the action did not list is a 422.

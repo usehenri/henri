@@ -1349,5 +1349,23 @@ queries.spec.js`, and on a real application by the showcase's cost test.
   detected in a job, in the console or across requests. There is no history
   of findings, no span (the join is the request id and nothing more) and no
   fix applied on anyone's behalf.
+- The declared filters (`filters` in a controller) are new. Two limits are
+  deliberate and in the guide. A **text value carrying `%` or `_` is
+  refused** rather than escaped: the wildcards are what the surface exists
+  to keep out, no dialect agrees on an escape character and sqlite has none
+  without an `ESCAPE` clause core would have to write as SQL -- so an
+  application that wants wildcard search writes that query itself. And the
+  three text operators are **case-insensitive on the collations the
+  adapters open by default** (`ILIKE` on postgres, `$options: 'i'` on
+  MongoDB, `LIKE` elsewhere); a binary collation matches exactly, which is
+  the database's decision. The condition and the order are covered on
+  sqlite offline and on the live PostgreSQL and MySQL of
+  `pnpm test:sql:live` (`packages/{drizzle,sequelize}/__tests__/
+filters.spec.js`), on MongoDB through the demo application core's suite
+  boots (`get /memos/search`), and on a real index page by the showcase.
+  MSSQL rides the Sequelize mapping and has no coverage of its own, like
+  the rest of that adapter. There is no `or` between filters, no free-text
+  search across columns, no cursor paging, no filtering across an
+  association and no operator an application can add.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.

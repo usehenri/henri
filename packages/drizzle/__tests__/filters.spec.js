@@ -191,6 +191,13 @@ describe(`declared filters on ${target.name}`, () => {
     expect(await ask({ 'filter[title][contains]': 'for the' })).toEqual([
       'Rust for the web',
     ]);
+
+    // Case-insensitive, on the collations these adapters open by default:
+    // ILIKE on postgres, LIKE under an insensitive collation elsewhere
+    expect((await ask({ 'filter[title][starts]': 'rust' })).sort()).toEqual([
+      'Rust for the web',
+      'Rust in the kernel',
+    ]);
   });
 
   test('a wildcard in a text value is refused rather than escaped', () => {

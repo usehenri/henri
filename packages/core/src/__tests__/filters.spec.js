@@ -818,6 +818,19 @@ describe('a filtered index, end to end', () => {
 
     expect(res.status).toBe(200);
     expect(titles(res).sort()).toEqual(['Quarterly plan', 'Quarterly report']);
+
+    // A text operator is an escaped literal on MongoDB, matched without
+    // regard to case, and never a pattern the client wrote
+    const lowered = await search('?filter[title][contains]=quarterly');
+
+    expect(titles(lowered).sort()).toEqual([
+      'Quarterly plan',
+      'Quarterly report',
+    ]);
+
+    const literal = await search('?filter[title][contains]=.*');
+
+    expect(titles(literal)).toEqual([]);
   });
 
   test('a filter cannot reach a record the scope excludes', async () => {
