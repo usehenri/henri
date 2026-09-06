@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/redis",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "henri shared store: the rate limit, the sign-in lockout and the idempotency keys counted in Redis instead of one process",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",

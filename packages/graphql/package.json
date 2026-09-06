@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/graphql",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "henri GraphQL: the types and resolvers of the models, merged and served by Apollo Server",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
