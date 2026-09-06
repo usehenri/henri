@@ -810,6 +810,12 @@ describe('identity providers (demo app, disk store)', () => {
     });
 
     test('a known and an unknown address are one answer at one price', async () => {
+      // The refusal an unverified address gets is the one the account flows
+      // keep for a reset request: the same body, the same status and the
+      // same cost whether or not that address has an account here. It has
+      // to be, because nothing has been proved -- and a callback that took
+      // longer for a registered address would be exactly the enumeration
+      // oracle the rest of this module avoids
       const email = await registered();
       const rounds = 12;
       const timings = { known: [], unknown: [] };
@@ -821,8 +827,8 @@ describe('identity providers (demo app, disk store)', () => {
           ['known', email],
           ['unknown', address('nobody')],
         ]) {
-          const started = await begin(await visitor());
           const who = await visitor();
+          const started = await begin(who);
           const code = provider.issue(
             { email: candidate, sub: subject() },
             { challenge: started.challenge, redirectUri: started.redirectUri }
@@ -836,12 +842,12 @@ describe('identity providers (demo app, disk store)', () => {
           timings[label].push(Number(process.hrtime.bigint() - at));
           bodies.add(JSON.stringify(res.body));
           statuses.add(res.status);
+
+          expect(res.body.data.reason).toBe('unverified');
         }
       }
 
-      // The state was minted in another session, so this never reaches the
-      // exchange: the refusal is the same one, at the same price, and it
-      // never asked the database about either address
+      // One answer, whichever address it was about
       expect(statuses.size).toBe(1);
       expect(bodies.size).toBe(1);
 
@@ -850,6 +856,10 @@ describe('identity providers (demo app, disk store)', () => {
       const ratio = Math.max(known, unknown) / Math.min(known, unknown);
 
       expect(ratio).toBeLessThan(3);
+
+      // ... and the account it was about is untouched: no identity, and the
+      // address still belongs to the account that had it
+      expect(await identitiesOf(email)).toEqual([]);
     });
 
     test('two providers claiming one address: the second is refused', async () => {
