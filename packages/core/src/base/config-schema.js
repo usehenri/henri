@@ -84,6 +84,12 @@ const ENCRYPTION_KEY = {
   type: 'string',
 };
 
+/** What `i18n.missing` accepts (`base/i18n.js`, which owns the meaning) */
+const MISSING = ['auto', 'key', 'throw', 'warn'];
+
+/** What `i18n.client` accepts, plus `false` (`base/i18n.js`) */
+const CLIENTS = ['always', 'auto'];
+
 /** What `logs.format` accepts (`base/logs.js`, which owns the meaning) */
 const LOG_FORMATS = ['auto', 'json', 'pretty'];
 
@@ -762,6 +768,91 @@ const SCHEMA = {
       },
     },
     type: 'object',
+  },
+
+  i18n: {
+    describe: 'an object of i18n settings, or false to translate nothing',
+    hint: 'Absent means on when config/locales holds a catalogue and off when it does not; an application with one language pays nothing for this',
+    oneOf: [
+      { const: false },
+      {
+        keys: {
+          client: {
+            default: 'auto',
+            describe: `one of ${CLIENTS.join(', ')}, or false`,
+            hint: 'auto embeds the catalogue in a document and leaves it out of an xhr answer, which the client already has; always puts it in every answer; false keeps the strings on the server',
+            oneOf: [{ const: false }, { enum: CLIENTS, type: 'string' }],
+          },
+          default: text({
+            default: 'en',
+            describe: 'the locale everything falls back to',
+            hint: 'It has to be one of the catalogues in config/locales',
+          }),
+          fallback: {
+            default: true,
+            describe: 'true, false, a locale, or a list of locales',
+            hint: 'true falls back to i18n.default; false makes a key missing in one locale missing, whatever the others hold',
+            oneOf: [{ type: 'boolean' }, text(), { of: text(), type: 'array' }],
+          },
+          from: {
+            describe:
+              'an object saying where the locale of a request comes from',
+            hint: 'The order is fixed: an explicit call, the user, the query, the cookie, Accept-Language, the default. Each key turns one step off (false) or renames what it reads',
+            keys: {
+              cookie: {
+                default: 'henri.locale',
+                describe: 'a cookie name, or false',
+                hint: 'henri reads it and never writes it: a language switcher is an action of the application',
+                oneOf: [{ const: false }, text()],
+              },
+              header: {
+                default: true,
+                describe: 'true or false',
+                hint: 'Accept-Language, negotiated by q value',
+                type: 'boolean',
+              },
+              query: {
+                default: 'locale',
+                describe: 'a query parameter name, or false',
+                oneOf: [{ const: false }, text()],
+              },
+              user: {
+                default: null,
+                describe: 'the column of the user model holding their locale',
+                hint: 'This is also what a mail asks when it has the recipient and no request (see guides/i18n)',
+                oneOf: [{ const: null }, text()],
+              },
+            },
+            type: 'object',
+          },
+          locales: {
+            describe: 'the locales this application has',
+            hint: 'Defaults to the catalogues in config/locales; naming them here is how an unfinished one is kept out of production',
+            of: text(),
+            type: 'array',
+          },
+          missing: {
+            default: 'auto',
+            describe: `one of ${MISSING.join(', ')}`,
+            hint: 'auto is warn outside production and key in it; throw is what a test suite sets, and the only setting that makes a missing key fail a build. No mode ever guesses a sentence from the key',
+            enum: MISSING,
+            type: 'string',
+          },
+          path: text({
+            default: 'config/locales',
+            describe: 'the directory the catalogues live in',
+          }),
+          serverOnly: {
+            default: ['mailers'],
+            describe: 'the key prefixes that never reach a browser',
+            hint: 'The strings of a mail are written for a recipient, not a reader',
+            of: text(),
+            type: 'array',
+          },
+        },
+        type: 'object',
+      },
+    ],
   },
 
   api: {
@@ -1728,8 +1819,10 @@ module.exports = {
   ADAPTERS,
   ALWAYS,
   BOUNDARIES,
+  CLIENTS,
   DIALECTS,
   LOG_FORMATS,
+  MISSING,
   PARTITIONS,
   READS,
   RENDERERS,

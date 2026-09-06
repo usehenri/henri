@@ -31,6 +31,10 @@ module.exports = {
   schema: {
     age: { personal: true, type: 'integer' },
     gender: { personal: { expose: false }, type: 'string' },
+    // What language this person reads: `config.i18n.from.user` names it, so
+    // henri answers their requests in it and mails them in it -- including
+    // from a job, which has no request to ask (see guides/i18n.md)
+    locale: { type: 'string' },
     name: { personal: true, type: 'string' },
     nationalId: {
       encrypted: { deterministic: true },

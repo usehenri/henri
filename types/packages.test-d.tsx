@@ -23,12 +23,19 @@ import {
 } from '@usehenri/react/forms';
 import { build, type BuildResult } from '@usehenri/react/engine';
 import {
+  createTranslator,
+  useTranslation,
+  type Translate,
+} from '@usehenri/react/i18n';
+import {
   Link,
   pathFor,
   resolvePage,
   useHenri as useInertiaHenri,
+  useTranslation as useInertiaTranslation,
   Form as InertiaForm,
   request as inertiaRequest,
+  type ViewLocale,
 } from '@usehenri/inertia';
 import { henriViteConfig } from '@usehenri/inertia/vite';
 import InertiaEngine from '@usehenri/inertia/engine';
@@ -150,6 +157,28 @@ inertiaView.error;
 
 // @ts-expect-error `henriViteConfig` takes options, not a path
 henriViteConfig('app/views');
+
+// --- the client half of i18n ------------------------------------------------
+
+const { locale, ready, t } = useTranslation();
+
+expectType<string>(locale);
+expectType<boolean>(ready);
+expectType<string>(t('greeting', { name: 'Ada' }));
+expectType<string>(t('notes', { count: 2 }, { ordinal: false }));
+expectType<string>(t('nav.home', {}, { default: 'Home' }));
+expectType<Translate>(createTranslator({ locale: 'fr', messages: {} }));
+
+// @ts-expect-error a key is a string, and the values come second
+t(42);
+
+const inertiaTranslation = useInertiaTranslation();
+
+expectType<string>(inertiaTranslation.t('greeting'));
+expectType<ViewLocale | null>(inertiaView.i18n);
+
+// @ts-expect-error the catalogue is what the page carries, not a promise
+const badLocale: ViewLocale = { locale: 'fr', messages: 1, source: 'query' };
 
 // --- @usehenri/testing ------------------------------------------------------
 

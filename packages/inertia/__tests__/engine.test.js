@@ -136,6 +136,7 @@ describe('inertia engine', () => {
         'errors',
         'flash',
         'graphql',
+        'i18n',
         'localUrl',
         'paths',
         'query',
@@ -405,7 +406,7 @@ describe('inertia engine', () => {
         OPTS
       );
 
-      expect(Object.keys(other.body.props)).toHaveLength(9);
+      expect(Object.keys(other.body.props)).toHaveLength(10);
     });
   });
 

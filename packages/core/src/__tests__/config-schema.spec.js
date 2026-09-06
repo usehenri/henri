@@ -500,6 +500,8 @@ describe('the schema, the declarations and the documentation', () => {
     ],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
     ['MailersConfig', () => Object.keys(SCHEMA.mailers.keys)],
+    ['I18nConfig', () => Object.keys(SCHEMA.i18n.oneOf[1].keys)],
+    ['I18nFromConfig', () => Object.keys(SCHEMA.i18n.oneOf[1].keys.from.keys)],
     ['JobsConfig', () => Object.keys(SCHEMA.jobs.keys)],
     ['WebhooksConfig', () => Object.keys(SCHEMA.webhooks.keys)],
     [

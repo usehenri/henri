@@ -12,6 +12,7 @@ export const EMPTY = Object.freeze({
   errors: {},
   flash: {},
   graphql: null,
+  i18n: null,
   localUrl: '',
   paths: {},
   query: {},
@@ -32,6 +33,7 @@ export function henriProps(props = {}) {
     errors = {},
     flash = {},
     graphql = null,
+    i18n = null,
     localUrl = '',
     paths = {},
     query = {},
@@ -48,6 +50,10 @@ export function henriProps(props = {}) {
     graphql,
     // Fetch the controller data again (an Inertia partial reload)
     hydrate: (options = {}) => router.reload({ only: ['data'], ...options }),
+    // What this page is in, and where the strings are. `useTranslation()`
+    // is the hook that reads it; this is here so a page that only wants the
+    // locale (an Intl.NumberFormat, an html `lang`) does not need one
+    i18n,
     localUrl,
     pathFor: (path = null, params = null) => findPath(paths, path, params),
     paths,

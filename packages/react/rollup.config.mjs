@@ -2,13 +2,18 @@ import { babel } from '@rollup/plugin-babel';
 
 /**
  * Compiles src/ (ESM + JSX) to dist/lib (CommonJS), one output file per
- * source file so the package entry points (index.js, forms.js, withHenri.js)
+ * source file so the package entry points (index.js, forms.js, i18n.js, withHenri.js)
  * can require them directly.
  */
 export default {
   // Anything that is not a relative or absolute path is a dependency
   external: (id) => !id.startsWith('.') && !id.startsWith('/'),
-  input: ['src/withHenri.js', 'src/paths.js', 'src/forms/index.js'],
+  input: [
+    'src/withHenri.js',
+    'src/paths.js',
+    'src/i18n.js',
+    'src/forms/index.js',
+  ],
   output: {
     dir: 'dist/lib',
     exports: 'named',

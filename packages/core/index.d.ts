@@ -680,6 +680,39 @@ declare namespace start {
     previews?: boolean;
   }
 
+  /** `config.i18n.from`: where the locale of a request is read, in order. */
+  interface I18nFromConfig {
+    /** The column of the user model holding their locale; none by default. */
+    user?: string | null;
+    /** Query parameter (`locale`); `false` turns the step off. */
+    query?: string | false;
+    /** Cookie henri reads and never writes (`henri.locale`); `false` is off. */
+    cookie?: string | false;
+    /** `Accept-Language`, negotiated by q value (`true`). */
+    header?: boolean;
+  }
+
+  /** `config.i18n`: the catalogues, the locale of a request, and what a
+   * key nobody translated does. */
+  interface I18nConfig {
+    /** Where the catalogues live (`config/locales`). */
+    path?: string;
+    /** The locales this application has; the files on disk by default. */
+    locales?: string[];
+    /** The locale everything falls back to (`en`). */
+    default?: string;
+    /** `true` falls back to the default locale; `false` falls back to none. */
+    fallback?: boolean | string | string[];
+    /** Where the locale of a request is read, in order. */
+    from?: I18nFromConfig;
+    /** What a key nobody translated does (`auto`). Never a guessed sentence. */
+    missing?: 'auto' | 'key' | 'throw' | 'warn';
+    /** How the catalogue reaches a browser (`auto`); `false` keeps it here. */
+    client?: 'always' | 'auto' | false;
+    /** Key prefixes that never leave the server (`["mailers"]`). */
+    serverOnly?: string[];
+  }
+
   /**
    * The shape of `config/default.json` and of every `config/<NODE_ENV>.json`.
    * Annotate a configuration file read from JavaScript, or use it to keep a
@@ -727,6 +760,12 @@ declare namespace start {
     /** Nodemailer transport options, or `"test"` for an Ethereal account. */
     mail?: 'test' | Record<string, unknown>;
     mailers?: MailersConfig;
+    /**
+     * The catalogues of `config/locales` and the locale of a request;
+     * `false` translates nothing. Absent means on when there is a catalogue
+     * and off when there is not, and off costs a request nothing.
+     */
+    i18n?: false | I18nConfig;
     api?: ApiConfig;
     jobs?: JobsConfig;
     webhooks?: WebhooksConfig;
@@ -1493,6 +1532,28 @@ declare namespace start {
      * nonce nothing enforces.
      */
     nonce?: string;
+    /**
+     * What language this answer is in, and where a browser reads the
+     * strings. Present only when the application has catalogues: a key that
+     * is always there and always says the same thing is a key every page
+     * learns to read and every payload carries.
+     */
+    i18n?: ViewLocale;
+  }
+
+  /**
+   * The locale of one answer, as it reaches a view. `messages` is there only
+   * on a document (or with `i18n.client` set to `always`): an XHR answer
+   * leaves the catalogue out, because the client that is asking already
+   * loaded it.
+   */
+  interface ViewLocale {
+    locale: string;
+    source: 'cookie' | 'default' | 'explicit' | 'header' | 'query' | 'user';
+    /** Where the catalogue is fetched, digest and all. */
+    url?: string;
+    /** The catalogue itself, flat. */
+    messages?: Record<string, string | Record<string, string>>;
   }
 
   /** The second argument of `res.render()` and `res.hbs()`. */
@@ -1609,6 +1670,34 @@ declare namespace start {
     csrfToken?: string;
     /** What the view engine reads. */
     _henri: ViewOptions;
+    /**
+     * The locale of this request, decided once by the i18n middleware.
+     * Absent when the application has no catalogue.
+     */
+    locale?: string;
+    /** Which step of `i18n.from` decided `req.locale`. */
+    localeSource?:
+      'cookie' | 'default' | 'explicit' | 'header' | 'query' | 'user';
+    /**
+     * The translation of a key, in the locale of this request. `count` in
+     * the values selects the plural form and is interpolated like the rest.
+     * The string comes back plain: escaping is the renderer's, and the
+     * Handlebars helper is where henri does it.
+     */
+    t?(
+      key: string,
+      values?: Record<string, unknown>,
+      options?: {
+        default?: string;
+        locale?: string;
+        ordinal?: boolean;
+      }
+    ): string;
+    /**
+     * Says what this request is in, from here on. Refuses a locale the
+     * application has no catalogue for (`HENRI_LOCALE_UNKNOWN`).
+     */
+    setLocale?(locale: string): string;
     /**
      * The listed fields from the query string, body and path parameters
      * (later sources win); missing fields are omitted. With no field at all:
@@ -3313,6 +3402,67 @@ declare namespace start {
     hbs: any;
   }
 
+  /**
+   * `henri.i18n`: the catalogues of `config/locales` and the lookup over
+   * them. Always registered; `enabled` is false and every method is inert
+   * when the application has one language, which is what makes one language
+   * free.
+   */
+  interface I18nModule {
+    name: 'i18n';
+    /** Whether this application has any catalogue at all. */
+    readonly enabled: boolean;
+    /** The locales this application has; empty when it has none. */
+    readonly locales: string[];
+    /** The locale everything falls back to (`i18n.default`). */
+    readonly fallback: string;
+    /**
+     * The translation of a key. `count` in the values selects the plural
+     * form -- through `Intl.PluralRules`, and an exact `"=0"` form wins
+     * over it -- and is interpolated like every other value. A key nobody
+     * translated answers the key itself, never a sentence guessed from it,
+     * and is recorded in `missing()`.
+     */
+    t(
+      key: string,
+      values?: Record<string, unknown>,
+      options?: {
+        default?: string;
+        escape?: (value: string) => string;
+        locale?: string;
+        ordinal?: boolean;
+      }
+    ): string;
+    /** Is this key translated, in this locale or its fallbacks? */
+    has(key: string, locale?: string | null): boolean;
+    /** Is this a locale the application has? */
+    supports(locale: unknown): boolean;
+    /**
+     * The locale a person's record says they read in, from the column
+     * `i18n.from.user` names. This is what a mail asks when it has a
+     * recipient and no request -- a job, for instance.
+     */
+    forUser(user: unknown): string | null;
+    /** One locale's catalogue as it reaches a browser, flat. */
+    catalogue(locale: string): Record<string, unknown>;
+    /** Where a browser fetches that catalogue, digest and all. */
+    url(locale: string): string | null;
+    /** Which locale a request is in, and which step decided it. */
+    decide(req: unknown): { locale: string; source: string };
+    /**
+     * What a rendered answer carries about the locale. The catalogue is not
+     * in it: an XHR answer leaves it out, because the client asking already
+     * loaded a document that had it.
+     */
+    view(decided: { locale: string; source: string }): ViewLocale | null;
+    /** The same, with the catalogue in it: what a document carries. */
+    embed(carried: ViewLocale | null): ViewLocale | null;
+    /** Every key that was asked for and no locale in the chain translates. */
+    missing(): Array<{ key: string; locale: string; why: string }>;
+    /** How many lookups missed, remembered or not. */
+    misses(): number;
+  }
+
   /** `henri.mail`. */
   interface MailModule {
     name: 'mail';
@@ -3869,6 +4019,12 @@ declare namespace start {
      */
     telemetry: TelemetryModule;
     mail: MailModule;
+    /**
+     * The catalogues of `config/locales`, the locale of a request and the
+     * lookup. Always there; `enabled` is false, and everything is inert,
+     * when the application has one language.
+     */
+    i18n: I18nModule;
     /**
      * The GraphQL module, when the application depends on
      * `@usehenri/graphql`. Rendering with `{ graphql }` or declaring types

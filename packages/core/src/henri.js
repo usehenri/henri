@@ -9,6 +9,7 @@ const validator = require('validator');
 const Config = require('./0.config');
 const Telemetry = require('./0.telemetry');
 const Encryption = require('./1.encryption');
+const I18n = require('./1.i18n');
 const Mailer = require('./1.mailer');
 const Controllers = require('./2.controllers');
 const Mailers = require('./2.mailers');
@@ -80,6 +81,7 @@ class Henri extends HenriBase {
     this.modules.add(new Calls());
     this.modules.add(new Config());
     this.modules.add(new Encryption());
+    this.modules.add(new I18n());
     this.modules.add(new Mailer());
     this.modules.add(new Controllers());
     this.modules.add(new Mailers());

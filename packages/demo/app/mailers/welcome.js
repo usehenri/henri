@@ -22,6 +22,18 @@ module.exports = {
     };
   },
 
+  // The locale of a mail is the recipient's: `for` is the record, and
+  // config.i18n.from.user names the column henri reads it from. It works
+  // from a job, where there is no request to ask (see guides/i18n.md)
+  greet(user) {
+    return {
+      data: { name: user.name },
+      for: user,
+      subject: 'Hello',
+      to: user.email,
+    };
+  },
+
   plain(user) {
     return {
       html: '<p>Written by hand</p>',
@@ -33,5 +45,6 @@ module.exports = {
   previews: {
     confirm: () => [{ email: 'ada@example.com', name: 'Ada' }],
     digest: () => [{ email: 'ada@example.com', name: 'Ada' }, 3],
+    greet: () => [{ email: 'ada@example.com', locale: 'fr', name: 'Ada' }],
   },
 };

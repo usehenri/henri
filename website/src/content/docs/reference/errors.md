@@ -1099,6 +1099,57 @@ Usually:
 
 **Fix.** The queue runs on sqlite, PostgreSQL, MySQL, MSSQL and MongoDB. Point `jobs.store` at a store on one of them.
 
+## locale
+
+The catalogues of config/locales, the locale a request is decided to be in and the translations they answer.
+
+### `HENRI_LOCALE_CATALOGUE_INVALID`
+
+A locale file cannot be read, so henri refuses to boot with a language that would silently answer its own keys.
+
+Usually:
+
+- a file of config/locales is not valid JSON
+- a locale file holds something other than an object of keys
+- a value in a locale file is a number, a boolean or null rather than text or a plural form
+
+**Fix.** Open the file the message names and fix the entry it points at. A translation is a string, or an object of plural forms holding at least `other`; a list becomes numbered keys on its own.
+
+### `HENRI_LOCALE_KEY_INVALID`
+
+A translation was asked for without a key to look up.
+
+Usually:
+
+- t() was called with something that is not a string
+- a translation key was built from a value that turned out to be undefined
+
+**Fix.** Pass a non-empty string as the first argument of t(). The values go in the second argument and the options in the third.
+
+### `HENRI_LOCALE_TRANSLATION_MISSING`
+
+A key was asked for and no locale in the chain translates it.
+
+Usually:
+
+- the key is not in the catalogue of the locale, nor of the fallback
+- the key is a plural entry and the call passed no count
+- a key was renamed in one locale and not in the others
+
+**Fix.** Add the key to the locale file, or pass a written default. This only ever raises with config.i18n.missing set to "throw", which is what a test suite sets; the other modes answer the key itself and record it in henri.i18n.missing().
+
+### `HENRI_LOCALE_UNKNOWN`
+
+A locale was asked for that this application has no catalogue for.
+
+Usually:
+
+- req.setLocale() was given a locale the application has no catalogue for
+- t() was given a locale option that is not one of config.i18n.locales
+- config.i18n.default names a locale that has no file in config/locales
+
+**Fix.** Add config/locales/<locale>.json, or ask for one of the locales the message lists. henri.i18n.locales answers what an application has.
+
 ## mail
 
 The mail transport, the mailers of app/mailers and their views.

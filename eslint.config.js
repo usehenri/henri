@@ -261,6 +261,20 @@ module.exports = [
     },
   },
   {
+    // `t()` is the name this function has in every framework that has one,
+    // and every call site is a page writing a string: `translate()` would
+    // be the wrong trade in the one place where the noise is the point
+    files: [
+      'packages/core/src/1.i18n.js',
+      'packages/core/src/base/i18n.js',
+      'packages/inertia/src/i18n.mjs',
+      'packages/react/src/i18n.js',
+    ],
+    rules: {
+      'id-length': 'off',
+    },
+  },
+  {
     // ... and the key order of a compound index is the index, not a list
     files: ['packages/core/src/base/call-store.js'],
     rules: {

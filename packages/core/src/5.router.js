@@ -24,6 +24,7 @@ const openapi = require('./base/openapi');
 const { table } = require('./base/routes');
 const flash = require('./base/flash');
 const { implicit, track } = require('./base/hooks');
+const { CLIENT_PATH, middleware: locales } = require('./base/i18n');
 const { needsRecord } = require('./base/policies');
 
 /** Verbs of the routes that change something (idempotency applies) */
@@ -191,6 +192,22 @@ class Router extends BaseModule {
       if (this.henri.mailers && this.henri.mailers.previewable) {
         this.handler.use('/_mailers', local, this.henri.mailers.previews());
       }
+    }
+
+    // The catalogues a browser reads, when anything reaches one. The digest
+    // is in the name, so the answer is immutable: a client asks for a
+    // locale once and every later page finds it in the http cache. Nothing
+    // here is private -- the same strings are embedded in the document the
+    // client came from -- and the `serverOnly` prefixes never reach it
+    // (see base/i18n.js)
+    if (
+      this.henri.i18n &&
+      this.henri.i18n.enabled &&
+      this.henri.i18n.settings.client !== false
+    ) {
+      this.handler.get(`${CLIENT_PATH}/:file`, (req, res) =>
+        this.locale(req, res)
+      );
     }
 
     // What a booted application answers about itself: the last errors, the
@@ -871,6 +888,17 @@ class Router extends BaseModule {
       user: this.publicUser(req.user),
     };
 
+    // What this answer is in, and where a client reads the strings. The
+    // catalogue itself is not here: a document embeds it once and an XHR
+    // answer leaves it out, because the client that is asking already has
+    // it (see guides/i18n.md)
+    if (this.henri.i18n && this.henri.i18n.enabled) {
+      opts.i18n = this.henri.i18n.view({
+        locale: req.locale,
+        source: req.localeSource,
+      });
+    }
+
     // The nonce of this response, for the view engines and for a template
     // writing an inline script of its own. Absent unless `csp.nonce` is on:
     // a key that is always there and usually null is what makes a page
@@ -957,6 +985,38 @@ class Router extends BaseModule {
   }
 
   /**
+   * Answers one locale's catalogue, for a browser.
+   *
+   * The digest is in the file name, so the answer never changes for a name
+   * that was asked for: it is cached until the strings do, and a client
+   * that follows the url a page gave it makes this request once. A name
+   * whose digest is not the current one is a stale page asking, and it
+   * answers 404 rather than the current strings under a name that does not
+   * describe them.
+   *
+   * @param {Express.Request} req the request
+   * @param {Express.Response} res the response
+   * @returns {Express.Response} the answer
+   * @memberof Router
+   */
+  locale(req, res) {
+    const { i18n } = this.henri;
+    const asked = String(req.params.file || '').replace(/\.json$/u, '');
+    const at = asked.lastIndexOf('.');
+    const name = at === -1 ? asked : asked.slice(0, at);
+    const digest = at === -1 ? '' : asked.slice(at + 1);
+
+    if (!i18n.supports(name) || i18n.translator.digest(name) !== digest) {
+      return res.boom.notFound('no such catalogue');
+    }
+
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('Content-Language', name);
+
+    return res.json(i18n.catalogue(name));
+  }
+
+  /**
    * Add middlewares to express
    *
    * @returns {boolean} success?
@@ -965,6 +1025,14 @@ class Router extends BaseModule {
   middlewares() {
     // `req.flash()` first: the login and logout middlewares below use it too
     this.handler.use(flash());
+
+    // The locale of this request, decided once and written where it can be
+    // read: `req.locale`, `req.localeSource`, `req.t()` and
+    // `req.setLocale()`. Not mounted at all when the application has no
+    // catalogue, which is what makes one language free (see base/i18n.js)
+    this.henri.i18n &&
+      this.henri.i18n.enabled &&
+      this.handler.use(locales(this.henri));
 
     if (this.henri._middlewares.length > 0) {
       let middlewaresLoaded = [];
@@ -992,6 +1060,23 @@ class Router extends BaseModule {
         paths: this._roles['guest'],
         user: this.publicUser(req.user),
       };
+
+      // Absent unless the application translates something: a key that is
+      // always there and usually says "en" is a key every page learns to
+      // read and every payload carries (see 1.i18n.js). Read when the page
+      // is built rather than now, like `query`, because a `before` hook may
+      // still call `req.setLocale()` between here and the render
+      if (this.henri.i18n && this.henri.i18n.enabled) {
+        Object.defineProperty(exposed, 'i18n', {
+          configurable: true,
+          enumerable: true,
+          get: () =>
+            this.henri.i18n.view({
+              locale: req.locale,
+              source: req.localeSource,
+            }),
+        });
+      }
 
       // `query` is read when the page is built, not now: an action that
       // declared what it accepts has had those values coerced since

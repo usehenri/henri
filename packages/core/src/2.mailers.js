@@ -301,11 +301,13 @@ class Mailers extends BaseModule {
    * @param {string} name the mailer name
    * @param {string} action the action name
    * @param {Array} [args=[]] the arguments of the action
+   * @param {object} [extras=null] merged over what the action returned, for
+   *   what the caller knows and the action does not (`locale`, `for`)
    * @returns {Message} the message
    * @throws when the mailer or the action does not exist
    * @memberof Mailers
    */
-  message(name, action, args = []) {
+  message(name, action, args = [], extras = null) {
     const mailer = this.get(name);
 
     if (!mailer) {
@@ -322,7 +324,11 @@ class Mailers extends BaseModule {
       );
     }
 
-    const envelope = mailer[action].apply(mailer, args);
+    const answered = mailer[action].apply(mailer, args);
+    const envelope =
+      answered && typeof answered === 'object' && extras
+        ? Object.assign({}, answered, extras)
+        : answered;
 
     if (!envelope || typeof envelope !== 'object') {
       throw fail(

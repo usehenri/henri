@@ -541,7 +541,8 @@ function accounts(henri) {
    * @param {Array} args what the action receives
    * @returns {object} a Message
    */
-  const message = (action, args) => henri.mailers.message(MAILER, action, args);
+  const message = (action, args, extras = null) =>
+    henri.mailers.message(MAILER, action, args, extras);
 
   /**
    * Renders and delivers one of the account mails, through the queue when
@@ -552,7 +553,8 @@ function accounts(henri) {
    * @param {Array} args what the mailer action receives
    * @returns {Promise<*>} what the delivery answered
    */
-  const mail = (action, args) => message(action, args).deliverLater();
+  const mail = (action, args, extras = null) =>
+    message(action, args, extras).deliverLater();
 
   /**
    * The password policy: `config.user.password`, normalized by the user
@@ -665,10 +667,17 @@ function accounts(henri) {
       return null;
     }
 
-    await mail('confirm', [
-      henri.user.publicUser(user),
-      urlFor(`${settings().confirmation.path}/${token}`),
-    ]);
+    await mail(
+      'confirm',
+      [
+        henri.user.publicUser(user),
+        urlFor(`${settings().confirmation.path}/${token}`),
+      ],
+      // The mailer action gets the *public* user, which is all a template
+      // should see; the message gets the record, so it can read the locale
+      // column without that column having to be public
+      { for: user }
+    );
 
     return token;
   };
@@ -688,10 +697,14 @@ function accounts(henri) {
       return null;
     }
 
-    await mail('reset', [
-      henri.user.publicUser(user),
-      urlFor(`${settings().passwordReset.path}/reset/${token}`),
-    ]);
+    await mail(
+      'reset',
+      [
+        henri.user.publicUser(user),
+        urlFor(`${settings().passwordReset.path}/reset/${token}`),
+      ],
+      { for: user }
+    );
 
     return token;
   };
@@ -880,10 +893,14 @@ function accounts(henri) {
     }
 
     later('address change', () =>
-      mail('emailChange', [
-        Object.assign({}, henri.user.publicUser(user), { email: wanted }),
-        urlFor(`${settings().confirmation.path}/${token}`),
-      ])
+      mail(
+        'emailChange',
+        [
+          Object.assign({}, henri.user.publicUser(user), { email: wanted }),
+          urlFor(`${settings().confirmation.path}/${token}`),
+        ],
+        { for: user }
+      )
     );
 
     return { errors: {}, ok: true };

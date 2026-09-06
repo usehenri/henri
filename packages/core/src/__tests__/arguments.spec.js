@@ -48,6 +48,7 @@ const INTERFACES = {
   ConfigModule: 'henri.config',
   EncryptionModule: 'henri.encryption',
   Henri: 'henri',
+  I18nModule: 'henri.i18n',
   MailModule: 'henri.mail',
   ModelModule: 'henri.model',
   Pen: 'henri.pen',

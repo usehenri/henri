@@ -587,6 +587,15 @@ class ReactEngine {
 
     req._henri = Object.assign({}, req._henri, opts);
 
+    // The catalogue rides in the document next.js is about to render, and
+    // in nothing else: a client-side navigation asks henri's router for the
+    // same page as JSON (see withHenri's request()), and that answer
+    // carries only the locale, because the browser already has the strings
+    // (see guides/i18n.md)
+    if (this.henri.i18n && req._henri.i18n) {
+      req._henri.i18n = this.henri.i18n.embed(req._henri.i18n);
+    }
+
     return handle(req, res, { pathname: pagePath(route), search });
   }
 

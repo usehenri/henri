@@ -28,6 +28,16 @@ export interface HenriError {
   status: number | null;
 }
 
+/** What the server said about the locale of this answer. */
+export interface ViewLocale {
+  locale: string;
+  source: string;
+  /** Where the catalogue is fetched, digest and all. */
+  url?: string;
+  /** The catalogue itself; present on a document, absent on a navigation. */
+  messages?: Record<string, string | Record<string, string>>;
+}
+
 /** What `useHenri()` answers, and what a page receives as props. */
 export interface HenriView {
   /** The CSRF token of the request, to send back on a write. */
@@ -44,6 +54,12 @@ export interface HenriView {
   /** Flash messages by type; reading them on the server consumed them. */
   flash: Record<string, unknown[]>;
   graphql: any | null;
+  /**
+   * What language this page is in, where the strings are, and (on a
+   * document) the catalogue itself. `null` unless the application has
+   * catalogues in `config/locales`. `useTranslation()` is what reads it.
+   */
+  i18n: ViewLocale | null;
   /** Where the server answers, for absolute links. */
   localUrl: string;
   paths: Paths;

@@ -220,6 +220,21 @@ const ACTION = {
   type: 'string',
 };
 
+/**
+ * A locale, as its catalogue in `config/locales` is named.
+ *
+ * Nothing narrower on purpose: `fr`, `fr-CA` and `zh-Hant-TW` are all
+ * locales, and a pattern tight enough to be worth writing would refuse one
+ * of them before `henri.i18n` had a chance to say it has no such catalogue,
+ * which is the better message.
+ */
+const LOCALE = {
+  describe: 'a locale',
+  hint: 'henri.i18n.locales answers the ones this application has',
+  pattern: /\S/u,
+  type: 'string',
+};
+
 /** Where an operation was asked from (`base/trail.js` owns the list) */
 const SOURCE = { enum: ['app', 'cli', 'http', 'job'], type: 'string' };
 
@@ -702,6 +717,12 @@ const SIGNATURES = {
     },
   ],
 
+  'henri.i18n.catalogue': [{ name: 'locale', ...LOCALE }],
+
+  'henri.i18n.forUser': [{ name: 'user', ...maybe(USER) }],
+
+  'henri.i18n.url': [{ name: 'locale', ...LOCALE }],
+
   'henri.mail.send': [{ name: 'message', ...bag({}, { unknown: 'allow' }) }],
 
   'henri.model.getStore': [{ name: 'name', optional: true, ...NAME }],
@@ -1073,6 +1094,17 @@ const UNCHECKED = {
   'henri.encryption.isEnvelope': 'a total function of unknown',
   'henri.encryption.keyIdIn': 'a total function of unknown',
   'henri.gql': 'a tagged template that answers a string, whatever it is given',
+  'henri.i18n.decide':
+    'answers the default locale and source: default for anything that is not a request, which is what a caller asking about nothing should get',
+  'henri.i18n.embed':
+    'a view engine is the one caller and what it passes is what view() answered; anything else comes back untouched rather than failing a render',
+  'henri.i18n.has': 'answers false for anything that is not a key it holds',
+  'henri.i18n.supports':
+    'answers false for anything that is not one of the locales this application has, which is what it is for',
+  'henri.i18n.t':
+    'guarded by hand with one typeof, because a page calls it once per string and walking a schema per string is a cost nobody asked for: HENRI_LOCALE_KEY_INVALID and HENRI_LOCALE_UNKNOWN are what it raises',
+  'henri.i18n.view':
+    'the router is the one caller and what it passes is what decide() answered; anything else answers null rather than failing a render for the sake of a locale',
   'henri.mailers.onDeliverLater':
     'says so and answers false, which is its documented contract',
   'henri.model.errors':
@@ -1121,6 +1153,9 @@ const UNCHECKED = {
   'req.permitFiles':
     '@usehenri/uploads ships it, and a package checks its own surface',
   'req.scope': 'the one implementation is henri.policies.scope',
+  'req.setLocale':
+    'refuses every locale the application has no catalogue for, by name and with HENRI_LOCALE_UNKNOWN, which is a better message than a schema walk would write',
+  'req.t': 'the one implementation is henri.i18n.t, hand-guarded there',
   'res.hbs': "checked against res.render's signature, under its own name",
 };
 
