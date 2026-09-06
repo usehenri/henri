@@ -54,6 +54,9 @@ module.exports = {
   // controller). `roles` and `policy` compose -- this one declares no role,
   // so anyone may reach the endpoints and the policy decides the rest.
   'resources memos': {
+    // `get /memos/search` declares what it may be filtered and ordered by
+    // (see base/filters.js); everything else is a 422
+    collection: { 'get search': 'search' },
     controller: 'memos',
     member: { 'get peek': 'peek' },
     omit: ['edit', 'new'],

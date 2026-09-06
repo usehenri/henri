@@ -22,11 +22,12 @@ const { jsonTypes, noStore, seal, versionGuard } = require('./base/headers');
 const { idempotency } = require('./base/idempotency');
 const { limiter, shutdown } = require('./base/rate-limit');
 const openapi = require('./base/openapi');
-const { table } = require('./base/routes');
+const { singularize, table } = require('./base/routes');
 const flash = require('./base/flash');
 const { implicit, track } = require('./base/hooks');
 const { CLIENT_PATH, middleware: locales } = require('./base/i18n');
 const { needsRecord } = require('./base/policies');
+const filters = require('./base/filters');
 
 /** Verbs of the routes that change something (idempotency applies) */
 const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
@@ -76,6 +77,8 @@ class Router extends BaseModule {
     this._results = { loaded: [], unknown: [] };
     this._stats = { failed: 0, good: 0 };
     this._limiters = [];
+    /** The declared filters, bound to their model (see base/filters.js) */
+    this._narrows = new Map();
 
     this.handler = null;
     this.activeRoutes = new Map();
@@ -237,6 +240,7 @@ class Router extends BaseModule {
     this._results = { loaded: [], unknown: [] };
     this._stats = { failed: 0, good: 0 };
     this._limiters.splice(0).forEach(shutdown);
+    this._narrows.clear();
 
     this.handler = null;
     this.activeRoutes = new Map();
@@ -384,11 +388,14 @@ class Router extends BaseModule {
       route,
       verb,
     });
-    // What the action declared it accepts (see base/params-schema.js), then
-    // the `before` hooks of the controller, then the action wrapped so that
-    // returning without answering renders its page (see base/hooks.js)
+    // What the action declared it accepts (see base/params-schema.js), what
+    // it declared a client may filter and order its list by (see
+    // base/filters.js), then the `before` hooks of the controller, then the
+    // action wrapped so that returning without answering renders its page
+    // (see base/hooks.js)
     const checks = this.checks(controller);
     const gates = this.gates(controller, name);
+    const narrows = this.narrows(controller);
     const hooks = this.hooks(controller);
     const handler = implicit(action, controllerName, controllerAction);
 
@@ -446,6 +453,7 @@ class Router extends BaseModule {
       ...after,
       ...gates,
       ...checks,
+      ...narrows,
       ...hooks,
       handler
     );
@@ -660,6 +668,188 @@ class Router extends BaseModule {
     }
 
     return [answerGuard(this.henri, rules, name)];
+  }
+
+  /**
+   * The model an action's filters are about: the one it named, or the one
+   * the controller is named after (`proposals` -> `Proposal`, the way
+   * `base/openapi.js` and `3.policies.js` resolve it)
+   *
+   * @param {object} declared the compiled declaration
+   * @param {string} controller the controller name (`proposals`)
+   * @returns {?object} the model file, or null
+   * @memberof Router
+   */
+  modelFor(declared, controller) {
+    const models = (this.henri.model && this.henri.model.models) || [];
+    const wanted = declared.model ? String(declared.model).toLowerCase() : null;
+    const last = String(controller).split('/').pop().toLowerCase();
+    const singular = singularize(last);
+
+    return (
+      models.find((model) =>
+        wanted
+          ? String(model.globalId).toLowerCase() === wanted ||
+            String(model.identity || '').toLowerCase() === wanted
+          : String(model.identity || model.globalId).toLowerCase() ===
+              singular ||
+            String(model.identity || model.globalId).toLowerCase() === last
+      ) || null
+    );
+  }
+
+  /**
+   * The filter check of a controller action, as middlewares.
+   *
+   * This is where a declaration meets the model it is about: the columns
+   * exist or the boot fails, and what an adapter would refuse at request
+   * time -- an order over an encrypted column, a `where` over a randomised
+   * one -- is refused here instead (see base/filters.js).
+   *
+   * @param {string} controller the controller (`proposals#index`)
+   * @returns {Array<function>} express middlewares (none, or one)
+   * @throws {Error} HENRI_FILTER_DECLARATION_INVALID
+   * @memberof Router
+   */
+  narrows(controller) {
+    const { controllers, privacy } = this.henri;
+
+    if (!controllers || typeof controllers.filters !== 'function') {
+      return [];
+    }
+
+    const declared = controllers.filters(controller);
+
+    if (!declared) {
+      return [];
+    }
+
+    const [name] = String(controller).split('#');
+    const model = this.modelFor(declared, name);
+
+    if (!model) {
+      throw fail(
+        'HENRI_FILTER_DECLARATION_INVALID',
+        `${controller} declares filters and henri cannot tell which model they are about`,
+        {
+          hint: 'Name it: filters: { index: { model: "Proposal", where: { ... } } }',
+        }
+      );
+    }
+
+    const bound = filters.verify(declared, {
+      columns: openapi.columnsOf(model, openapi.settingsOf(this.henri.config)),
+      hidden: (privacy && privacy.private) || new Set(),
+      model: model.globalId,
+      where: controller,
+    });
+
+    this._narrows.set(controller, bound);
+    debug('%s filters %s', controller, model.globalId);
+
+    return [filters.guard(bound, () => this.henri.api.settings.filters)];
+  }
+
+  /**
+   * The ORM model of a global name, the way `base/graphql-resolvers.js`
+   * resolves it: the adapters first, the global second
+   *
+   * @param {string} name the global name (`Proposal`)
+   * @returns {*} the ORM model
+   * @throws {Error} when no store holds it
+   * @memberof Router
+   */
+  ormFor(name) {
+    for (const store of Object.values(
+      (this.henri.model && this.henri.model.stores) || {}
+    )) {
+      const models = typeof store.getModels === 'function' && store.getModels();
+
+      if (models && models[name]) {
+        return models[name];
+      }
+    }
+
+    if (global[name]) {
+      return global[name];
+    }
+
+    throw fail(
+      'HENRI_FILTER_ADAPTER_UNSUPPORTED',
+      `${name} is not a model of this application`
+    );
+  }
+
+  /**
+   * What `req.filter()` answers: the condition and the order this request
+   * asked for, under the condition the policy says the list is.
+   *
+   * The scope is asked for unless the call says otherwise, which is what
+   * makes this safe to reach for: `henri.policies.scope()` refuses to guess
+   * what "everything they may see" is, and so does this.
+   *
+   * @param {Express.Request} req the request
+   * @param {Express.Response} res the response
+   * @param {object} options `{ policy, scope }`
+   * @returns {Promise<object>} `{ model, order, sort, terms, where }`
+   * @throws {Error} HENRI_FILTER_DECLARATION_INVALID when nothing is declared
+   * @memberof Router
+   */
+  async narrowed(req, res, options) {
+    const state = req._filters;
+    const info = res.locals.route || {};
+
+    if (!state) {
+      throw fail(
+        'HENRI_FILTER_DECLARATION_INVALID',
+        `${info.controller ? `${info.controller}#${info.action}` : 'this action'} calls req.filter() and declares no filters`,
+        {
+          hint: 'Say what a client may narrow and order this list by: filters: { index: { where: { ... }, sort: [ ... ] } }',
+        }
+      );
+    }
+
+    const { declaration, sort, terms } = state;
+    const Model = this.ormFor(declaration.model);
+    const scope = await this.scopeFor(req, res, options);
+
+    return {
+      model: declaration.model,
+      order: filters.orderFor(Model, sort, declaration.tiebreak),
+      sort: sort.map((term) => ({
+        column: term.column,
+        descending: term.descending,
+        name: term.name,
+      })),
+      terms: terms.map((term) => ({ ...term })),
+      where: filters.narrow(Model, scope, filters.conditionFor(Model, terms)),
+    };
+  }
+
+  /**
+   * The condition a filtered list starts from: what the call handed over,
+   * what the policy answers, or nothing when the call said `scope: false`
+   *
+   * @param {Express.Request} req the request
+   * @param {Express.Response} res the response
+   * @param {object} options `{ policy, scope }`
+   * @returns {Promise<*>} the condition, or null
+   * @memberof Router
+   */
+  async scopeFor(req, res, options) {
+    if (options.scope === false) {
+      return null;
+    }
+
+    if (typeof options.scope !== 'undefined') {
+      return options.scope;
+    }
+
+    return this.henri.policies.scope(
+      req.user || null,
+      options.policy || this.policyOptions(req, res, {}).type,
+      { req }
+    );
   }
 
   /**
@@ -1267,6 +1457,14 @@ class Router extends BaseModule {
           name || this.policyOptions(req, res, {}).type,
           Object.assign({ req }, context)
         );
+
+      // What this request may narrow and order its list by, intersected
+      // with what the policy says the list is (see base/filters.js)
+      req.filter = (options = {}) => {
+        check('req.filter', [options]);
+
+        return this.narrowed(req, res, options);
+      };
 
       // HAL answers for the JSON api (see base/hateoas.js)
       res.resource = (record, options) =>

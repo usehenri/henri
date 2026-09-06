@@ -588,6 +588,10 @@ declare namespace start {
     perPage?: number;
     /** Largest page size a client may ask for (`100`). */
     maxPerPage?: number;
+    /** Most `filter[...]` terms one request may carry (`8`). */
+    maxFilters?: number;
+    /** Most columns one request may order by (`3`). */
+    maxSort?: number;
     /** Refuse (500) a JSON answer without `_links` on a resource route. */
     strict?: boolean;
     /** `Idempotency-Key` replays; `false` disables the feature. */
@@ -1561,6 +1565,7 @@ declare namespace start {
   interface ApiSettings {
     bodyLimit: string | number;
     filterParameters: string[];
+    filters: { maxFilters: number; maxSort: number };
     idempotency: false | { store: string | null; ttl: number };
     pagination: { maxPerPage: number; perPage: number };
     rateLimit:
@@ -1717,6 +1722,100 @@ declare namespace start {
     offset: number;
     /** `perPage`, for both. */
     limit: number;
+  }
+
+  /**
+   * The comparisons a declared filter may accept. `eq`, `ne`, `in`, `nin`
+   * and `null` come with every type; the ordered five come with an ordered
+   * one; the three text operators are opt-in, per field, because
+   * `contains` on an unindexed column is a scan a client can ask for.
+   */
+  type FilterOperator =
+    | 'between'
+    | 'contains'
+    | 'ends'
+    | 'eq'
+    | 'gt'
+    | 'gte'
+    | 'in'
+    | 'lt'
+    | 'lte'
+    | 'ne'
+    | 'nin'
+    | 'null'
+    | 'starts';
+
+  /**
+   * One filter a client may ask for: a parameter rule (`base/params-schema`)
+   * plus the column it means and what may be asked of it.
+   */
+  interface FilterRule extends Omit<ParamRule, 'default' | 'required'> {
+    /** The column, when the name a client writes is not it. */
+    column?: string;
+    /** What may be asked of it, on top of what its type already gives. */
+    operators?: FilterOperator[];
+  }
+
+  /** What one action lets a client narrow and order its list by. */
+  interface FilterDeclaration {
+    /** The filters, by the name a client writes in `filter[...]`. */
+    where?: Record<string, FilterRule | ParamType>;
+    /** The columns a client may `?sort=` by, or a map of name to column. */
+    sort?: string[] | Record<string, string>;
+    /** The order applied when the request asks for none (`'-createdAt'`). */
+    default?: string | string[];
+    /** The model, when the controller is not named after it. */
+    model?: string;
+  }
+
+  /**
+   * The `filters` export of a controller: what each action lets a client
+   * ask for, keyed by action the way `params` and `before` are (`all`,
+   * `'index,search'`).
+   */
+  type FilterDeclarations = Record<string, FilterDeclaration>;
+
+  /** What `req.filter()` takes. */
+  interface FilterOptions {
+    /** The policy whose `scope(user)` the filter is intersected with. */
+    policy?: string;
+    /**
+     * The condition to intersect with instead of asking a policy.
+     * `false` says the list is public and takes no scope at all.
+     */
+    scope?: false | unknown;
+  }
+
+  /** One condition a request asked for, as henri read it. */
+  interface FilterTerm {
+    column: string;
+    name: string;
+    operator: FilterOperator;
+    value: unknown;
+  }
+
+  /** One column a request asked to order by. */
+  interface FilterSortTerm {
+    column: string;
+    descending: boolean;
+    name: string;
+  }
+
+  /** What `req.filter()` answers. */
+  interface FilterResult {
+    /** The model the declaration is about. */
+    model: string;
+    /**
+     * The condition to query with: the scope and what the client asked for,
+     * intersected, spelled for the adapter of this model.
+     */
+    where: any;
+    /** The order, spelled for the adapter, tiebroken by `externalId`. */
+    order: any;
+    /** What the request asked to order by, before the tiebreaker. */
+    sort: FilterSortTerm[];
+    /** What the request asked to filter by. */
+    terms: FilterTerm[];
   }
 
   /** Flash messages by type, as the views receive them. */
@@ -1974,6 +2073,18 @@ declare namespace start {
      */
     scope(name?: string, context?: object): Promise<any>;
     /**
+     * What this request asked to filter and order its list by, under what
+     * the policy says the list is: `where` and `order` are the adapter's
+     * own, ready for `Model.find()` and `Model.paginate()`.
+     *
+     * The action has to have declared `filters` -- nothing undeclared is
+     * filterable, and a request asking for anything else was already
+     * refused with a 422 before the action ran. The scope is asked of the
+     * policy unless the call hands one over, and it can only narrow:
+     * `scope: false` says the list is public.
+     */
+    filter(options?: FilterOptions): Promise<FilterResult>;
+    /**
      * The files of a multipart body, by field. Always present, empty when
      * nothing was uploaded. With `@usehenri/uploads`.
      */
@@ -2171,13 +2282,14 @@ declare namespace start {
 
   /**
    * A controller file. Every exported function is an action (`tasks#index`);
-   * `before`, `params` and `answers` are the reserved keys.
+   * `before`, `params`, `answers` and `filters` are the reserved keys.
    *
    *     /** @type {import('@usehenri/core').Controller} *\/
    *     module.exports = {
    *       before: { 'show,edit': loadTask },
    *       params: { create: { title: { type: 'string', required: true } } },
    *       answers: { index: { tasks: { model: 'Task', type: 'array' } } },
+   *       filters: { index: { where: { done: 'boolean' }, sort: ['title'] } },
    *       index: async (req, res) => ({ tasks: await Task.find() }),
    *     };
    */
@@ -2185,8 +2297,14 @@ declare namespace start {
     before?: BeforeBlock;
     params?: ParamsBlock;
     answers?: AnswersBlock;
+    filters?: FilterDeclarations;
     [action: string]:
-      Action | BeforeBlock | ParamsBlock | AnswersBlock | undefined;
+      | Action
+      | BeforeBlock
+      | ParamsBlock
+      | AnswersBlock
+      | FilterDeclarations
+      | undefined;
   }
 
   // ---------------------------------------------------------------------------
@@ -2819,6 +2937,12 @@ declare namespace start {
     answers(key: string): Record<string, AnswerRule> | null;
     /** The parameter check of an action, as middlewares (none, or one). */
     checks(key: string): Array<(...args: any[]) => unknown>;
+    /**
+     * What an action lets a client filter and order its list by, compiled;
+     * null when nothing is. The columns are checked against the model at
+     * runlevel 5, where the models exist.
+     */
+    filters(key: string): object | null;
     all(): Record<string, unknown>;
     size(): number;
   }
