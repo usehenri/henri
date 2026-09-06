@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/jobs",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "henri background jobs: a database backed queue with retries, a dead letter queue and recurring jobs",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",

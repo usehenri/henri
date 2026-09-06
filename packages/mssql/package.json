@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/mssql",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "henri mssql database connector",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
