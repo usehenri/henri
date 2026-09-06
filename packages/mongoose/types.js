@@ -14,14 +14,24 @@ const { Schema } = require('mongoose');
  * - number:  Number
  * - integer: Number
  * - float:   Number
+ * - decimal: Decimal128 (exact; a string in JavaScript, see ./exact.js)
+ * - bigint:  BigInt, stored as a BSON 64-bit integer (a string in
+ *   JavaScript too, for the same reason)
  * - boolean: Boolean
  * - date:    Date
  * - json:    Mixed
  * - uuid:    String (portable with the SQL adapters)
+ *
+ * The two exact ones are the only names whose JavaScript value is not what
+ * Mongoose hands back: a `Decimal128` and a `BigInt` are turned into the
+ * decimal string every adapter answers with, by the hooks of
+ * `./exact-paths.js`.
  */
 module.exports = {
+  bigint: Schema.Types.BigInt,
   boolean: Boolean,
   date: Date,
+  decimal: Schema.Types.Decimal128,
   float: Number,
   integer: Number,
   json: Schema.Types.Mixed,

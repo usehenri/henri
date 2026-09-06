@@ -29,8 +29,10 @@ describe('schema normalizer', () => {
 
   test('documents the same names as the types map', () => {
     expect(Object.keys(types).sort()).toEqual([
+      'bigint',
       'boolean',
       'date',
+      'decimal',
       'float',
       'integer',
       'json',

@@ -1,5 +1,8 @@
 const TYPES = require('./types');
 const { encryptionOf, isPlainObject } = require('./encrypted');
+const { checkSettings, isExact, settingsOf } = require('./exact');
+const { setter } = require('./exact-paths');
+const { coded } = require('./utils');
 
 /**
  * Resolves a henri type name to a Mongoose type; anything else is returned
@@ -48,11 +51,39 @@ const normalizeField = (
   }
 
   // Marks for henri: `personal` for base/privacy.js, `encrypted` for
-  // base/encryption.js. Neither is a Mongoose option
-  const { allowNull, defaultValue, encrypted, personal, type, ...rest } =
-    definition;
+  // base/encryption.js. Neither is a Mongoose option, and neither are the
+  // `precision` and `scale` of a decimal column
+  const {
+    allowNull,
+    defaultValue,
+    encrypted,
+    personal,
+    precision,
+    scale,
+    type,
+    ...rest
+  } = definition;
   const mark = encryptionOf(field, definition, context);
   const shaped = { ...rest, type: normalizeField(type, field, context) };
+  const name = typeof type === 'string' ? type.toLowerCase() : null;
+  const wrong = checkSettings(name, definition);
+
+  if (wrong) {
+    throw coded('HENRI_MODEL_INVALID_FIELD', `Field '${field}' ${wrong}`);
+  }
+
+  // A `decimal` is padded to its scale on the way in and read back as a
+  // string on the way out, so a model file answers the same value here as
+  // it does on the SQL adapters (./exact-paths.js)
+  if (isExact(name)) {
+    const settings = settingsOf(definition);
+
+    shaped.set = setter(field, name, settings);
+
+    if (typeof shaped.default !== 'undefined') {
+      shaped.default = shaped.set(shaped.default);
+    }
+  }
 
   if (allowNull === false && typeof shaped.required === 'undefined') {
     shaped.required = true;

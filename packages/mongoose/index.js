@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const debug = require('debug')('henri:mongoose');
 const { externalId, lookups, owned, paginate, paranoid } = require('./plugins');
 const { normalizeModel } = require('./schema');
+const { exactPaths, exactness } = require('./exact-paths');
 const { encryption } = require('./encryption');
 const { versioned } = require('./versions');
 const {
@@ -163,6 +164,15 @@ class Mongoose {
     owned(schema, this.henri);
     paginate(schema);
     lookups(schema);
+
+    // Before everything else that reads a document back: a `decimal` and a
+    // `bigint` are strings in JavaScript, and every other hook here has to
+    // see the same value the application wrote (./exact-paths.js)
+    const exact = exactPaths(model.schema || {});
+
+    if (Object.keys(exact).length > 0) {
+      exactness(schema, exact);
+    }
 
     // Before the model is compiled: `register()` is what refuses the boot
     // when a field says `encrypted` and the application has no key

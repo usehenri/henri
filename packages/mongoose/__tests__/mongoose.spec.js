@@ -244,8 +244,10 @@ describe('mongoose adapter', () => {
       expect(definition.settings).toBe(types.json);
       expect(definition.weight).toBe(Number);
       expect(Object.keys(types).sort()).toEqual([
+        'bigint',
         'boolean',
         'date',
+        'decimal',
         'float',
         'integer',
         'json',
@@ -254,6 +256,21 @@ describe('mongoose adapter', () => {
         'text',
         'uuid',
       ]);
+    });
+
+    test('maps the two exact names to the bson types that carry them', () => {
+      const definition = normalizeSchema({
+        count: 'bigint',
+        price: { scale: 2, type: 'decimal' },
+      });
+
+      expect(definition.count).toBe(types.bigint);
+      expect(definition.price.type).toBe(types.decimal);
+      // The setter is what pads a value to the scale; `precision` and
+      // `scale` are henri's own and never reach Mongoose
+      expect(typeof definition.price.set).toBe('function');
+      expect(definition.price.scale).toBeUndefined();
+      expect(definition.price.set('19.9')).toBe('19.90');
     });
 
     test('passes mongoose definitions through and translates sequelize keys', () => {
