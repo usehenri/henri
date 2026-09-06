@@ -23,7 +23,8 @@ means off: no table, no middleware, no allocation.
 
 - **inbound**, one row per call your application answered: the method, the
   path, the route, the status, how long it took, the person when one is
-  known, and the bodies henri can read;
+  known, [where it came from](#the-clients-address), and the bodies henri
+  can read;
 - **outbound**, one row per call your application made: the same, plus the
   service it went to.
 
@@ -127,6 +128,167 @@ still recorded when it failed. Without its bodies -- the decision not to
 capture them was made before the status was known, and there is nothing to go
 back for.
 
+## The client's address
+
+An inbound row records where the request came from, and the hard part is
+not reading a header. Every one of `X-Forwarded-For`, `CF-Connecting-IP`,
+`True-Client-IP` and `X-Real-IP` is text a client typed: whether any of it
+can be believed depends entirely on whether the request really arrived
+through the proxy that sets it.
+
+So a row carries three things rather than one:
+
+| Column   | What it holds                                                                       |
+| -------- | ----------------------------------------------------------------------------------- |
+| `client` | the address henri believes the request came from, or **`null`** when it cannot tell |
+| `peer`   | the address that actually opened the socket, which is never a guess                 |
+| `source` | how `client` was decided: `socket`, `proxy`, `header` or `unverified`               |
+
+The peer is worth keeping even when the client is known: it is the
+difference between _the client says it is 1.2.3.4_ and _1.2.3.4 reached us
+through 172.16.0.9_.
+
+### What henri believes, and when
+
+There are two mechanisms, they answer to two different settings, and neither
+is a default:
+
+1. **`X-Forwarded-For` is [`trustProxy`](/configuration/#keys)'s
+   business.** It is express' `trust proxy` and express already applies it:
+   `req.ip` is the leftmost address the setting says to believe. henri does
+   not re-implement that walk.
+2. **A named header is `calls.address`'s business.** `CF-Connecting-IP` is
+   not an `X-Forwarded-For` and express will never read it. Believing one
+   takes two statements and henri requires both: `header` names it, and
+   `from` lists the proxies allowed to set it.
+
+```json
+{
+  "calls": {
+    "address": {
+      "header": "cf-connecting-ip",
+      "from": ["173.245.48.0/20", "103.21.244.0/22"]
+    }
+  }
+}
+```
+
+Naming a header without `from` **fails the boot**
+(`HENRI_CALLS_ADDRESS_UNVERIFIABLE`), because any client can send a header
+and a configuration that would have henri believe one is a configuration
+worth refusing rather than quietly working.
+
+The whole decision, as a table:
+
+| `trustProxy`        | the request carries a forwarding header | `client`   | `source`     |
+| ------------------- | --------------------------------------- | ---------- | ------------ |
+| anything            | a named header, from a listed proxy     | the header | `header`     |
+| `false`             | either way                              | the peer   | `socket`     |
+| a hop count, a list | no                                      | the peer   | `socket`     |
+| a hop count, a list | yes                                     | `req.ip`   | `proxy`      |
+| `true`              | no                                      | the peer   | `socket`     |
+| `true`              | yes                                     | **`null`** | `unverified` |
+
+### `trustProxy: true` records no address, on purpose
+
+That last row is the one that matters, and it is henri's default setting.
+`trustProxy: true` is express' _believe the leftmost entry, whoever sent
+it_ — the boot already warns that it lets anyone forge the address an
+ip-based rate limit counts. A rate limit that can be escaped is degraded; an
+address column filled from the same header is worse, because it looks like
+an answer.
+
+**An address that is a guess is worse than an empty column.** An operator
+reading a call log is usually answering _who did this_: the empty column
+asks a question and the guess answers one. So the row says `unverified`,
+keeps the peer, and `henri calls` prints it as such:
+
+```
+  2026-09-06T14:22:31.004Z  <- 201        84ms  POST   /orders
+                              from unverified, peer 10.1.2.9
+```
+
+The fix is one line — tell henri how many proxies are in front of it:
+
+```json
+{ "trustProxy": 1 }
+```
+
+`henri audit` reports the combination in a production configuration
+(`calls.address-unverified`), and reports a `from` covering every address
+(`calls.address-from-any`), which is the shape that _would_ let a client
+choose what an operator reads.
+
+### An address is personal data
+
+It gets the same care as the rest of this table rather than an exception:
+
+- it lives in **columns of its own, never in the stored headers**. The
+  forwarding headers are masked in the header blob whatever
+  `filterParameters` says, precisely so the address cannot reach the table
+  through the one place an erasure cannot write into;
+- it is swept by `calls.keep` like every other column;
+- a person's rows answer `henri privacy:export` and `henri privacy:erase`
+  (below);
+- `calls.address.anonymize` truncates it — the last octet of an IPv4 and
+  the last 80 bits of an IPv6, with the prefix length kept in the value, so
+  `203.0.113.0/24` cannot be mistaken for an address somebody really
+  connected from.
+
+```json
+{ "calls": { "address": { "anonymize": true } } }
+```
+
+**It is off by default, and that is a decision.** The column exists to
+answer _who did this_; a `/24` answers _somebody in this city_. A default
+that quietly answers a different question than the one asked is the same
+failure as recording a guess. What makes the whole address safe to hold is
+not truncation but the rules this table already has — off unless
+configured, kept thirty days, masked in the logs, and erasable. Turn it on
+if you keep the log longer than a few weeks, or if your basis for holding
+an address does not stretch that far.
+
+`"address": false` records none of it.
+
+## A person's rows, and a data subject request
+
+The call log holds **values**, which is the whole difference between it and
+the trail — so it answers a data subject request like any other record about
+a person, rather than pointing at its own retention and calling that an
+answer:
+
+- `henri privacy:export <who>` includes the rows whose `actor` is theirs,
+  under a `calls` key of the document;
+- `henri privacy:erase <who>` writes over them: the `actor`, both
+  addresses and the four payload columns go, and the row survives holding
+  the moment, the method, the url, the route, the status, the duration and
+  the request id. That is `onErase: "anonymize"` — the record of a request
+  that did happen, naming nobody.
+
+A row is a person's when it carries their `externalId`, which is the only
+join there is: an anonymous request is an address and nothing henri can tie
+to anybody.
+
+The call log is **best effort** in both, and the receipt says so. An erasure
+that has already written over a person's records must not fail because a
+debugging log was unreachable, so a failure is a warning and a `problem` in
+the receipt rather than a refusal.
+
+### What the neighbours do, and why they are different
+
+- **[The access trail](/guides/trail/) records no address, and is not
+  changing.** It holds field _names_, counts, public identifiers and
+  digests, and refuses a value — which is exactly what lets it outlive the
+  erasure it recorded. It is also hash-chained, so a row written over would
+  break the chain that makes it evidence. An address in it would be
+  personal data in the one table that is kept for a year and cannot be
+  erased from.
+- **`henri.reporter` carries nothing from the client, and is not
+  changing.** A handler gets the method, the route pattern and the status
+  and nothing else — no url, no query, no body, no headers, no user. That
+  is the property that makes it safe to hand to a third-party error
+  service, and an address is from the client.
+
 ## What never reaches a row
 
 Everything stored goes through the same redactor as your logs:
@@ -139,6 +301,11 @@ bodies alike. On top of that:
   `filterParameters` says: `authorization`, `proxy-authorization`, `cookie`,
   `set-cookie`, `x-csrf-token`, `x-api-key` and `webhook-signature`. No
   application should have to remember to write those down;
+- **the forwarding headers are masked too** — `x-forwarded-for`,
+  `x-real-ip`, `cf-connecting-ip`, `true-client-ip` and the rest. They
+  carry addresses, an address is personal data, and the stored headers are
+  the one blob an erasure cannot reach inside: the address belongs in
+  [the columns that can be truncated and erased](#the-clients-address);
 - **a url loses its userinfo**: `https://key:secret@host/` is stored as
   `https://host/`, and the filtered query values are masked;
 - **the person is their `externalId`** and nothing else. Not the primary key,

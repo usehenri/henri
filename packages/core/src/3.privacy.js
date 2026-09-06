@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const debug = require('debug')('henri:privacy');
 
+const { EXTERNAL_ID } = require('./base/external-id');
 const { check } = require('./base/arguments');
 const { fail } = require('./base/errors');
 const { userConfig } = require('./base/auth');
@@ -37,6 +38,29 @@ const {
  *
  * The person is the user model. `henri.privacy.subject(who)` finds one by
  * email address, by external id or by primary key.
+ *
+ * ## The two framework tables, and why only one of them answers
+ *
+ * The walk of `base/erasure.js` is over *models*, and the tables henri owns
+ * itself are not models. Two of them hold something about a person, and
+ * they answer differently on purpose:
+ *
+ * - **the call log** does, through `henri.calls`. It holds values -- the
+ *   bodies of a request, and now the address it came from -- so there is
+ *   something to hand over and something to write over, and "wait for
+ *   `calls.keep` to come round" is a deadline rather than an answer to a
+ *   data subject request. Its rows join on the `externalId`, so only the
+ *   requests a person was signed in for are theirs;
+ * - **the access trail** does not, and `base/trail.js` argues it where it
+ *   lives: it holds field *names*, counts, public identifiers and digests
+ *   and refuses a value, which is what lets it outlive the erasure it
+ *   recorded. It is also hash-chained, so a row written over would break
+ *   the chain that makes it evidence. Its retention is its own clock.
+ *
+ * The call log is best effort here and says so in the receipt: an erasure
+ * that already wrote over a person's records must not fail because a
+ * debugging log was unreachable, and a receipt that says the log was not
+ * reached is better than no receipt at all.
  *
  * @class Privacy
  * @extends {BaseModule}
@@ -350,6 +374,8 @@ class Privacy extends BaseModule {
       return exportOf(context, subject);
     });
 
+    document.calls = await this.callsOf(subject);
+
     await this.tell(subject, {
       action: 'privacy.export',
       meta: { models: Object.keys(document.records).length },
@@ -506,6 +532,7 @@ class Privacy extends BaseModule {
       throw error;
     }
 
+    receipt.calls = await this.forgetCalls(subject, options);
     receipt.file = options.dryRun ? null : this.record(receipt);
 
     await this.tell(subject, {
@@ -531,6 +558,83 @@ class Privacy extends BaseModule {
     );
 
     return receipt;
+  }
+
+  /**
+   * The person's own rows of the call log, for an export.
+   *
+   * Best effort, like the erasure below: a person is entitled to what the
+   * application holds about them, and a debugging log that is off or
+   * unreachable is not a reason to refuse them the rest of it. What
+   * happened is in the answer either way.
+   *
+   * @async
+   * @param {object} subject The person, as a plain object
+   * @returns {Promise<?object>} `{ records }`, `{ problem }`, or null when
+   *   this application keeps no call log
+   * @memberof Privacy
+   */
+  async callsOf(subject) {
+    const { calls } = this.henri;
+    const actor = subject && subject[EXTERNAL_ID];
+
+    if (!calls || !calls.enabled || typeof actor !== 'string') {
+      return null;
+    }
+
+    try {
+      return { records: await calls.forPerson(actor, { limit: 1000 }) };
+    } catch (error) {
+      debug('unable to read the call log: %s', error.message);
+
+      return { problem: error.code || 'unreadable' };
+    }
+  }
+
+  /**
+   * Takes the person out of the call log.
+   *
+   * The row survives and the person does not (`base/call-store.js` says
+   * exactly which columns are written over). A dry run counts and writes
+   * nothing, the way every other step of a plan does.
+   *
+   * @async
+   * @param {object} subject The person, as a plain object
+   * @param {object} options `dryRun`
+   * @returns {Promise<?object>} `{ action, count, written }`, `{ problem }`,
+   *   or null when this application keeps no call log
+   * @memberof Privacy
+   */
+  async forgetCalls(subject, options) {
+    const { calls } = this.henri;
+    const actor = subject && subject[EXTERNAL_ID];
+
+    if (!calls || !calls.enabled || typeof actor !== 'string') {
+      return null;
+    }
+
+    try {
+      const count = options.dryRun
+        ? await calls.count({ actor })
+        : await calls.forget(actor);
+
+      return {
+        action: 'anonymize',
+        count,
+        written: options.dryRun ? 0 : count,
+      };
+    } catch (error) {
+      // An erasure that has already written over a person's records must
+      // not fail because a debugging log was unreachable; the receipt is
+      // what says it was not reached
+      this.henri.pen.warn(
+        'privacy',
+        'the call log was not reached; its rows still name this person',
+        error.message
+      );
+
+      return { problem: error.code || 'unreachable' };
+    }
   }
 
   /**

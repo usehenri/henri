@@ -894,7 +894,37 @@ declare namespace start {
    * It holds **values**, which the access trail deliberately does not. See
    * the guide before turning it on.
    */
+  /**
+   * What the call log records about the client's address, and when it
+   * believes a forwarded one. `false` records none.
+   */
+  interface CallsAddressConfig {
+    /**
+     * `true` drops the last octet of an IPv4 and the last 80 bits of an
+     * IPv6, keeping the prefix length in the value (`203.0.113.0/24`).
+     * `false` by default: the column exists to answer "who did this".
+     */
+    anonymize?: boolean;
+    /**
+     * The proxies allowed to set `header`, as addresses or ranges. Naming
+     * a header without this fails the boot
+     * (`HENRI_CALLS_ADDRESS_UNVERIFIABLE`).
+     */
+    from?: string[];
+    /**
+     * A header express will not read on its own (`"cf-connecting-ip"`),
+     * believed only when the peer is one of `from`. henri names none.
+     */
+    header?: string;
+  }
+
   interface CallsConfig {
+    /**
+     * The client address: `{ anonymize, header, from }`, or `false` to
+     * record none. `X-Forwarded-For` is `trustProxy`'s business, and a
+     * blanket `trustProxy: true` records no client address at all.
+     */
+    address?: false | CallsAddressConfig;
     /**
      * The outcomes sampling never drops (`["error"]`). They are recorded
      * without their bodies: the decision not to capture one was made before
@@ -2822,6 +2852,15 @@ declare namespace start {
     duration: number | null;
     /** The `externalId` of the person, never an address. */
     actor: string | null;
+    /**
+     * Who made the call, for an inbound one. `client` is `null` when the
+     * configuration could not support an answer and `source` says so.
+     */
+    address: {
+      client: string | null;
+      peer: string | null;
+      source: 'header' | 'proxy' | 'socket' | 'unverified' | null;
+    };
     outcome: 'aborted' | 'failed' | 'ok';
     error: string | null;
     request: { headers: Record<string, string> | null; body: unknown };
@@ -2925,6 +2964,20 @@ declare namespace start {
       requestId: string,
       filter?: Record<string, unknown>
     ): Promise<CallRecord[]>;
+    /**
+     * Everything the log holds about one person, by their `externalId`.
+     * What `henri privacy:export` reads.
+     */
+    forPerson(
+      actor: string,
+      filter?: Record<string, unknown>
+    ): Promise<CallRecord[]>;
+    /**
+     * Takes one person out of the rows that named them: the `actor`, the
+     * addresses and the payloads are written over and the row survives.
+     * What `henri privacy:erase` runs.
+     */
+    forget(actor: string): Promise<number>;
     /**
      * Takes the calls past `config.calls.keep` away. Drops whole partitions
      * where the dialect has them, and deletes rows in bounded batches for

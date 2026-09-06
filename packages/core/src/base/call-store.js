@@ -70,6 +70,9 @@ const COLUMNS = [
   'status',
   'duration',
   'actor',
+  'client_ip',
+  'peer_ip',
+  'ip_source',
   'outcome',
   'error',
   'request_headers',
@@ -82,6 +85,49 @@ const COLUMNS = [
 
 /** A day, in milliseconds */
 const DAY = 86400000;
+
+/**
+ * How wide an address column is: a full IPv6 and the `/48` an anonymized
+ * one carries (`base/address.js`)
+ */
+const ADDRESS = 45;
+
+/**
+ * The columns henri adds to a table that was created before they existed.
+ *
+ * `CREATE TABLE IF NOT EXISTS` is a no-op on a table that is already
+ * there, so a call log written by an older henri would keep its old shape
+ * and refuse every `INSERT` naming a column it has not got. These run
+ * after it, and a dialect that already has the column answers with an
+ * error `ALREADY_THERE` recognises, which is the same way this file
+ * handles two processes installing at once.
+ *
+ * PostgreSQL propagates an `ADD COLUMN` to every partition of a
+ * partitioned table and MySQL rebuilds it, so the partitioned path needs
+ * nothing of its own.
+ */
+/**
+ * What an erasure writes over in a row that named a person.
+ *
+ * Everything in a row that was about them: who they were, where they
+ * connected from, and the four payload columns, which hold whatever they
+ * sent and whatever the application answered them.
+ */
+const ERASED = [
+  'actor',
+  'client_ip',
+  'peer_ip',
+  'request_headers',
+  'request_body',
+  'response_headers',
+  'response_body',
+];
+
+const ADDED = [
+  `client_ip VARCHAR(${ADDRESS}) NULL`,
+  `peer_ip VARCHAR(${ADDRESS}) NULL`,
+  'ip_source VARCHAR(16) NULL',
+];
 
 /**
  * The column definitions of the table.
@@ -105,6 +151,9 @@ const columnsFor = (dialect) => [
   `status ${dialect.int} NULL`,
   `duration ${dialect.int} NULL`,
   'actor VARCHAR(64) NULL',
+  `client_ip VARCHAR(${ADDRESS}) NULL`,
+  `peer_ip VARCHAR(${ADDRESS}) NULL`,
+  'ip_source VARCHAR(16) NULL',
   'outcome VARCHAR(16) NOT NULL',
   'error VARCHAR(190) NULL',
   `request_headers ${dialect.text} NULL`,
@@ -289,6 +338,17 @@ const install = (name, table, options = {}) => {
     dialect.guardTable ? dialect.guardTable(table, create) : create
   );
 
+  // A table created by an older henri keeps its old shape: the CREATE
+  // above was a no-op on it, so the columns it has not got are added here
+  // and a column it already has answers with an error ALREADY_THERE knows
+  for (const definition of ADDED) {
+    statements.push(
+      `ALTER TABLE ${quoted} ADD ${name === 'mssql' ? '' : 'COLUMN '}${
+        name === 'postgres' ? 'IF NOT EXISTS ' : ''
+      }${definition}`
+    );
+  }
+
   if (!dialect.inlineIndexes) {
     for (const index of indexes) {
       const statement = [
@@ -409,7 +469,7 @@ const listPartitions = (name) => {
 
 /** Errors that mean the object was created by another process first */
 const ALREADY_THERE =
-  /already exists|duplicate key|duplicate table|there is already an object named|Duplicate partition name/iu;
+  /already exists|duplicate key|duplicate table|duplicate column|there is already an object named|Duplicate partition name/iu;
 
 /**
  * The SQL backend
@@ -740,6 +800,39 @@ class SqlCalls {
   }
 
   /**
+   * Takes one person out of the rows that named them.
+   *
+   * The row survives and the person does not: what is written over is the
+   * `actor`, the two addresses and the four payload columns, which is
+   * everything in a row that was about them. What is left -- the moment,
+   * the method, the url, the route, the status, the duration and the
+   * request id -- is the operational record of a request that did happen,
+   * and it names nobody.
+   *
+   * This is `onErase: 'anonymize'`, henri's own verb for "the record
+   * survives while the person is anonymized in place", applied to a table
+   * henri owns rather than to a model.
+   *
+   * @param {string} actor the person's `externalId`
+   * @returns {Promise<number>} how many rows named them
+   * @memberof SqlCalls
+   */
+  async forget(actor) {
+    const total = await this.count({ actor });
+
+    if (total === 0) {
+      return 0;
+    }
+
+    await this.run(
+      `UPDATE ${this.table} SET ${ERASED.map((column) => `${column} = NULL`).join(', ')} WHERE actor = ?`,
+      [actor]
+    );
+
+    return total;
+  }
+
+  /**
    * Takes the rows past `before` away.
    *
    * The partitioned path drops whole periods and then runs the bounded
@@ -970,6 +1063,22 @@ class MongoCalls {
   }
 
   /**
+   * Takes one person out of the rows that named them
+   *
+   * @param {string} actor the person's `externalId`
+   * @returns {Promise<number>} how many rows named them
+   * @memberof MongoCalls
+   */
+  async forget(actor) {
+    const result = await this.collection().updateMany(
+      { actor },
+      { $unset: Object.fromEntries(ERASED.map((column) => [column, ''])) }
+    );
+
+    return (result && result.matchedCount) || 0;
+  }
+
+  /**
    * Takes the rows past `before` away, a batch at a time
    *
    * @param {number} before a timestamp in milliseconds
@@ -1069,8 +1178,11 @@ const storeFor = (adapter, settings) => {
 };
 
 module.exports = {
+  ADDED,
+  ADDRESS,
   COLUMNS,
   DAY,
+  ERASED,
   MongoCalls,
   SqlCalls,
   boundsOf,

@@ -1319,6 +1319,38 @@ const SCHEMA = {
       { const: false },
       {
         keys: {
+          address: {
+            default: {},
+            describe:
+              'an object ({ anonymize, header, from }), or false to record no address',
+            hint: 'What henri believes about the client address, and when. X-Forwarded-For is config.trustProxy\'s business; a named header needs "from" as well, and a blanket "trustProxy": true records no client address at all',
+            oneOf: [
+              { const: false },
+              {
+                keys: {
+                  anonymize: {
+                    default: false,
+                    describe: 'true or false',
+                    hint: 'true drops the last octet of an IPv4 and the last 80 bits of an IPv6, keeping the prefix length in the value (203.0.113.0/24)',
+                    type: 'boolean',
+                  },
+                  from: {
+                    describe:
+                      'a list of addresses or ranges (10.0.0.0/8, 2400:cb00::/32)',
+                    hint: 'The proxies allowed to set the named header. Without it a header is text any client can send, so naming one fails the boot',
+                    of: text(),
+                    type: 'array',
+                  },
+                  header: {
+                    describe: 'a header name (cf-connecting-ip)',
+                    hint: 'A header express will not read on its own; it is only believed when the peer is one of "from". henri names none by default',
+                    type: 'string',
+                  },
+                },
+                type: 'object',
+              },
+            ],
+          },
           always: {
             default: ['error'],
             describe: `a list of ${ALWAYS.join(', ')}, or an empty list`,
