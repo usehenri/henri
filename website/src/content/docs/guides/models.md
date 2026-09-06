@@ -51,6 +51,8 @@ module.exports = {
 
 On SQL, `associate()` runs before `sync()`, so the foreign keys end up in the tables.
 
+The keys above and the nine field types are declared in `@usehenri/core`: a `/** @type {import('@usehenri/core').ModelFile} */` line, which `henri generate model` writes, is enough for an editor to complete them. The model itself is the ORM's, and stays untyped — see [Types](/reference/types/).
+
 ## The schema format
 
 A field is `{ type, ...keys }` or a bare type. The type names and the keys below mean the same thing on every adapter, so a model written for the disk adapter moves to MongoDB or PostgreSQL unchanged.

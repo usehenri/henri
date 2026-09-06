@@ -17,6 +17,19 @@ henri is built to be driven by a coding agent as well as by a person. The conven
 
 `AGENTS.md` is written for the renderer and the database the app was scaffolded with, so it describes the app in front of the agent rather than henri in general. Edit it as the app grows: it is yours, and `henri generate agents` rewrites it when you want the current version back.
 
+## Types the agent can read
+
+Every published package ships hand-written TypeScript declarations, and the
+`jsconfig.json` of a scaffolded application already points at them. An agent
+editing a controller sees the signature of `res.render()`, the twelve names on
+`res.boom`, the keys `config/default.json` accepts and the actions
+`resources` expands to, instead of guessing them from the docs.
+
+The generators write the one JSDoc line that binds a file to its shape
+(`/** @type {import('@usehenri/core').Controller} */`), so a generated
+controller, model or routes file is typed from the moment it exists. See
+[Types](/reference/types/).
+
 ## Machine readable output
 
 Every informational command takes `--json`:

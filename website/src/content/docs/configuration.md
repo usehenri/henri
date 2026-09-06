@@ -26,6 +26,8 @@ Configuration is JSON in the `config` directory. henri loads `config/<NODE_ENV>.
 
 The file is parsed on boot: a syntax error is reported with its line, and the boot stops when no file can be loaded. The loaded object is frozen.
 
+Every key below is declared in `@usehenri/core`, so an editor completes them as you type. `henri.config.get()` and a hand-built configuration object take the same shape, `import('@usehenri/core').Configuration` — see [Types](/reference/types/).
+
 ## Keys
 
 | Key                | Default       | Description                                                                                                                                    |

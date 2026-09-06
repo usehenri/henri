@@ -5,6 +5,9 @@ sidebar:
   order: 2
 ---
 
+Every package here ships TypeScript declarations, so an editor completes and
+documents what follows without any setup: see [Types](/reference/types/).
+
 ## The `henri` global
 
 `henri` is the running instance (`global.henri`; under `NODE_ENV=test` it is `@usehenri/testing` that sets it). Every module is exposed under its name.

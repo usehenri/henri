@@ -5,7 +5,7 @@ sidebar:
   order: 10
 ---
 
-Tests run on [Vitest](https://vitest.dev). `henri test` spawns the Vitest installed in the application with `NODE_ENV=test` and exits with its code; `@usehenri/testing` boots the application inside the test worker and binds [supertest](https://github.com/ladjs/supertest) to it. `henri new` sets all of this up; in an existing application:
+Tests run on [Vitest](https://vitest.dev). `henri test` spawns the Vitest installed in the application with `NODE_ENV=test` and exits with its code; `@usehenri/testing` boots the application inside the test worker and binds [supertest](https://github.com/ladjs/supertest) to it. The package ships its own types, so `request()` and the supertest chain behind it complete in an editor ([Types](/reference/types/)). `henri new` sets all of this up; in an existing application:
 
 ```bash
 pnpm add -D vitest @usehenri/testing
