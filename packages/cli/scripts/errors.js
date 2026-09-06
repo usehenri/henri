@@ -11,7 +11,7 @@
  * numbers a shell can branch on.
  */
 
-const { catalogue, exitOf, isCode } = require('@usehenri/core/errors');
+const { catalogue, entry, exitOf, isCode } = require('@usehenri/core/errors');
 
 /**
  * Exit codes of the henri command line (see `henri help`)
@@ -98,7 +98,8 @@ class CliError extends Error {
     this.name = 'CliError';
     this.code = nameOf(code);
     this.exitCode = exitOf(this.code);
-    this.hint = hint;
+    // Without a hint of its own, the catalogue's `fix` is the next step
+    this.hint = hint || fixOf(this.code);
   }
 }
 
@@ -130,6 +131,23 @@ const coded = (error) => {
 };
 
 /**
+ * What to do about a code, when the failure did not say it itself
+ *
+ * The catalogue is where the instruction lives (`error-codes.json`: one
+ * entry per code with what it means, what usually causes it and how to fix
+ * it), so a coded failure that carries no `hint` of its own still reaches
+ * the terminal with a next step instead of only a name.
+ *
+ * @param {string} code A henri error code
+ * @returns {?string} The `fix` of its entry, or null
+ */
+const fixOf = (code) => {
+  const found = entry(code);
+
+  return (found && found.fix) || null;
+};
+
+/**
  * Coerce anything thrown into a CliError
  *
  * An error that already names one of the catalogue's codes keeps it, along
@@ -148,7 +166,7 @@ const toCliError = (error) => {
   if (known) {
     const wrapped = new CliError(known.code, known.message, {
       cause: error instanceof Error ? error : undefined,
-      hint: known.hint || null,
+      hint: known.hint || fixOf(known.code),
     });
 
     wrapped.problems = known.problems;
@@ -164,4 +182,4 @@ const toCliError = (error) => {
   });
 };
 
-module.exports = { ALIASES, CODES, CliError, EXIT_CODES, toCliError };
+module.exports = { ALIASES, CODES, CliError, EXIT_CODES, fixOf, toCliError };

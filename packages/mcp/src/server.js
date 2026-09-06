@@ -10,6 +10,7 @@ const { z: zod } = require('zod');
 const { App } = require('./app');
 const { Runtime } = require('./runtime');
 const { parseJson, runCli } = require('./cli');
+const { fixOf } = require('@usehenri/cli/scripts/errors');
 const docs = require('./docs');
 const { version } = require('../package.json');
 
@@ -96,12 +97,19 @@ const failed = (error) => {
       ? { code: 'HENRI_CLI_FAILED', message: error }
       : error;
 
+  // An agent reads this instead of the terminal, so a coded failure that
+  // says nothing about what to do next borrows the catalogue's `fix`
+  const answer =
+    detail && !detail.hint && fixOf(detail.code)
+      ? { ...detail, hint: fixOf(detail.code) }
+      : detail;
+
   return {
     content: [
-      { text: JSON.stringify({ error: detail }, null, 2), type: 'text' },
+      { text: JSON.stringify({ error: answer }, null, 2), type: 'text' },
     ],
     isError: true,
-    structuredContent: { error: detail },
+    structuredContent: { error: answer },
   };
 };
 

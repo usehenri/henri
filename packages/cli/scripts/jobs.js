@@ -247,7 +247,7 @@ const show = async (args) => {
 
   if (!job) {
     throw new CliError('FAILED', `No job with id "${id}"`, {
-      hint: 'henri jobs list gives the ids',
+      hint: '`henri jobs:list` gives the ids of what is queued, `henri jobs:dead` of what was buried',
     });
   }
 
@@ -339,7 +339,9 @@ const retry = async (args) => {
       const job = await jobs.dead.retry(id);
 
       if (!job) {
-        throw new CliError('FAILED', `No job with id "${id}"`);
+        throw new CliError('FAILED', `No dead job with id "${id}"`, {
+          hint: '`henri jobs:dead` lists the dead letter queue with the ids; a job that was already retried or discarded is no longer in it',
+        });
       }
 
       return { command: 'retry', job, ok: true, requeued: 1 };
@@ -382,7 +384,9 @@ const discard = async (args) => {
       const gone = await jobs.dead.discard(id);
 
       if (!gone) {
-        throw new CliError('FAILED', `No job with id "${id}"`);
+        throw new CliError('FAILED', `No dead job with id "${id}"`, {
+          hint: '`henri jobs:dead` lists the dead letter queue with the ids; a job that was already retried or discarded is no longer in it',
+        });
       }
 
       return { command: 'discard', discarded: 1, ok: true };

@@ -406,6 +406,7 @@ describe('api (demo app, disk store)', () => {
       expect([one.status, two.status].sort()).toEqual([200, 409]);
       expect(conflict.headers['retry-after']).toBe('1');
       expect(conflict.body.message).toMatch(/still in progress/);
+      expect(conflict.body.code).toBe('HENRI_API_IDEMPOTENCY_IN_PROGRESS');
 
       const later = await request
         .post('/slow')
@@ -564,9 +565,10 @@ describe('api (demo app, disk store)', () => {
       expect([first.status, second.status]).toEqual([200, 200]);
       expect(third.status).toBe(429);
       expect(third.body).toEqual({
+        code: 'HENRI_API_RATE_LIMITED',
         data: { limit: 2, retryAfter: expect.any(Number), windowMs: 60000 },
         error: 'Too Many Requests',
-        message: 'Too many requests, retry later',
+        message: expect.stringContaining('Too many requests: wait'),
         statusCode: 429,
       });
       expect(third.headers['retry-after']).toMatch(/^\d+$/);

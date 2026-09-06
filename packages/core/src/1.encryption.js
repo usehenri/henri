@@ -536,7 +536,7 @@ class Encryption extends BaseModule {
    *
    * @param {string} name The global id
    * @returns {*} The ORM model
-   * @throws HENRI_ENCRYPTION_NO_KEY when the model is not loaded
+   * @throws HENRI_ARGUMENT_UNKNOWN_TARGET when the model is not loaded
    * @memberof Encryption
    */
   modelOf(name) {
@@ -555,8 +555,8 @@ class Encryption extends BaseModule {
     }
 
     throw fail(
-      'HENRI_ENCRYPTION_NO_KEY',
-      `the model ${name} is not loaded: nothing to rotate`
+      'HENRI_ARGUMENT_UNKNOWN_TARGET',
+      `there is no model named ${name} in this application: name one of app/models, or drop the --model of the rotation to walk every model that has an encrypted field`
     );
   }
 

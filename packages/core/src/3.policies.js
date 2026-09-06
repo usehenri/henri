@@ -5,6 +5,7 @@ const debug = require('debug')('henri:policies');
 
 const { loadModules } = require('./utils');
 const { check, unknown } = require('./base/arguments');
+const { fail } = require('./base/errors');
 const { singularize } = require('./base/routes');
 const { userConfig } = require('./base/auth');
 const {
@@ -463,10 +464,12 @@ class Policies extends BaseModule {
     const policy = this._policies.get(found);
 
     if (typeof policy.scope !== 'function') {
-      throw new TypeError(
-        `the ${found} policy declares no scope(user): add it, or filter the ` +
-          'list in the controller -- henri will not guess what "everything ' +
-          'they may see" is'
+      throw fail(
+        'HENRI_POLICY_SCOPE_REQUIRED',
+        `the ${found} policy declares no scope(user): add it to ` +
+          `app/policies/${found.toLowerCase()}.js, or filter the list in the ` +
+          'controller -- henri will not guess what "everything they may ' +
+          'see" is, and `scope: () => ({})` is how a policy says everything'
       );
     }
 

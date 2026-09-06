@@ -259,7 +259,9 @@ function missingDependency(node, name, { ceiling, cut, loaded }) {
     return graphError(
       `"${node.name}" needs "${name}", which this boot leaves out: ` +
         `"${name}" sits at level ${cut.get(name)} and the boot stops at ` +
-        `level ${ceiling}.`,
+        `level ${ceiling}.
+  Lower the runlevel of "${name}" to ${ceiling} or below, or run the command that boots the whole application (\`henri server\`).
+  \`henri analyze\` prints the level of every module.`,
       [node.name, name],
       'HENRI_BOOT_DEPENDENCY_ABOVE_CEILING'
     );
@@ -274,7 +276,8 @@ function missingDependency(node, name, { ceiling, cut, loaded }) {
 
   return graphError(
     `"${node.name}" needs "${name}", which no module provides.
-  Loaded modules: ${loaded.join(', ')}${hint}`,
+  Loaded modules: ${loaded.join(', ')}${hint}
+  Register the module that provides "${name}" -- install the package that ships it, or add it to config/modules.js -- or fix the name in the \`needs\` of "${node.name}".`,
     [node.name, name],
     'HENRI_BOOT_MISSING_DEPENDENCY'
   );
@@ -340,7 +343,8 @@ function cycleError(kept, left, nodes) {
   }
 
   return graphError(
-    `circular dependency: ${path.join(' -> ')}\n${why.join('\n')}`,
+    `circular dependency: ${path.join(' -> ')}\n${why.join('\n')}
+  Drop one of those declarations, or replace a \`needs\` that is only about ordering with an \`after\`.`,
     cycle,
     'HENRI_BOOT_CIRCULAR_DEPENDENCY'
   );

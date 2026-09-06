@@ -383,9 +383,10 @@ describe('server', () => {
       expect(json.status).toBe(404);
       expect(json.body).toEqual({
         error: 'Not Found',
-        message: 'Cannot GET /nope',
+        message: expect.stringContaining('Cannot GET /nope'),
         statusCode: 404,
       });
+      expect(json.body.message).toContain('henri routes');
 
       const html = await request.get('/nope').set('Accept', 'text/html');
 

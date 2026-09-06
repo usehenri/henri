@@ -393,7 +393,8 @@ describe('auth (demo app, disk store)', () => {
       const res = await agent.post('/artwork').send({ title: 'none', year: 1 });
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe('Invalid CSRF token');
+      expect(res.body.message).toMatch(/^Invalid CSRF token/u);
+      expect(res.body.code).toBe('HENRI_USER_CSRF_INVALID');
     });
 
     test('rejects a wrong token', async () => {

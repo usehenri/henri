@@ -146,7 +146,9 @@ const resolveType = (type, field) => {
 
   throw coded(
     'HENRI_MODEL_UNKNOWN_TYPE',
-    `Unsupported type ${describe(type)} for field '${field}'`
+    `Unsupported type ${describe(type)} for field '${field}'; use one of ${Object.keys(
+      TYPES
+    ).join(', ')} or a Sequelize data type`
   );
 };
 
@@ -367,7 +369,7 @@ const normalizeField = (
     if (option) {
       throw coded(
         'HENRI_MODEL_FIELD_INCOMPLETE',
-        `Field '${field}' has '${option}' but no type`
+        `Field '${field}' has '${option}' but no type: write ${field}: { type: 'string', ${option}: ... }, or the short form ${field}: 'string'`
       );
     }
 

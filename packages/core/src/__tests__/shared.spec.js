@@ -377,7 +377,7 @@ describe('config.shared', () => {
 
     expect(() =>
       loadBackend('nope', FIXTURES, require('../utils').resolveFrom)
-    ).toThrow(/install it with `npm install @usehenri\/nope`/u);
+    ).toThrow(/install it in the application \(npm install @usehenri\/nope\)/u);
   });
 
   test('createShared builds the backend the configuration names', () => {

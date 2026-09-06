@@ -29,7 +29,7 @@ describe('henri', () => {
       expect(henri.modules.registered).toHaveLength(1);
 
       expect(() => henri.modules.add(new Runlevel0())).toThrow(
-        /module trying to load over another/
+        /two modules answer to the name/
       );
 
       expect(henri.modules.registered).toHaveLength(1);
@@ -230,7 +230,7 @@ describe('henri', () => {
             runlevel: 2,
           })
         )
-      ).toThrow(/has no valid reload function. Is it reloadable/);
+      ).toThrow(/says it is reloadable and has no reload function/);
 
       expect(() =>
         henri.modules.add(

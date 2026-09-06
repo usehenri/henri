@@ -425,7 +425,9 @@ describe('csrf', () => {
       method,
     };
     const res = {
-      boom: { forbidden: (message) => calls.push(['forbidden', message]) },
+      boom: {
+        forbidden: (...args) => calls.push(['forbidden', ...args]),
+      },
       cookie: (name, value, options) =>
         calls.push(['cookie', name, value, options]),
     };
@@ -497,7 +499,14 @@ describe('csrf', () => {
       });
 
       expect(next).toBe(false);
-      expect(calls).toEqual([['forbidden', 'Invalid CSRF token']]);
+      expect(calls).toEqual([
+        [
+          'forbidden',
+          expect.stringContaining('Invalid CSRF token'),
+          undefined,
+          'HENRI_USER_CSRF_INVALID',
+        ],
+      ]);
     }
   });
 

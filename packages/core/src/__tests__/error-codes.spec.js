@@ -16,8 +16,11 @@ const {
   url,
 } = require('../base/errors');
 
+const { SCHEMA } = require('../base/config-schema');
+
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const PACKAGES = path.join(ROOT, 'packages');
+const CLI = path.join(PACKAGES, 'cli');
 const PAGE = path.join(
   ROOT,
   'website',
@@ -120,6 +123,243 @@ const documented = () =>
     ...fs.readFileSync(PAGE, 'utf8').matchAll(/^### `(HENRI_[A-Z0-9_]+)`$/gmu),
   ].map((match) => match[1]);
 
+/**
+ * Every text of an entry, with the field it came from: an instruction is
+ * an instruction wherever it was written down.
+ *
+ * @param {object} code a catalogue entry
+ * @returns {Array<Array<string>>} `[field, text]` pairs
+ */
+const texts = (code) => [
+  ['what', code.what],
+  ['fix', code.fix],
+  ...code.causes.map((cause) => ['causes', cause]),
+];
+
+/* --------------------------------------------------------------------- *
+ * The commands the catalogue is allowed to name.
+ *
+ * `packages/cli` owns the list and this reads it: the top level from the
+ * `commands` of its package.json (which is what `index.js` dispatches on),
+ * the subcommands from the `COMMANDS` a group's script exports, and the
+ * generators from `generate.js`. Nothing is copied here, so a command that
+ * is renamed or retired makes the catalogue that still names it fail.
+ * --------------------------------------------------------------------- */
+
+/** The top level commands, straight from the package that dispatches them */
+const COMMANDS = require(path.join(CLI, 'package.json')).commands;
+
+/** What a group's script exports, once per group */
+const groups = new Map();
+
+/**
+ * The subcommands of a command, or null when it takes none
+ *
+ * @param {string} name a top level command
+ * @returns {?Array<string>} the subcommands, or null
+ */
+function subcommandsOf(name) {
+  if (!groups.has(name)) {
+    const script = require(path.join(CLI, 'scripts', name));
+    const named = script.generators || script.destroyers;
+    const list = Array.isArray(script.COMMANDS)
+      ? script.COMMANDS
+      : named && Object.keys(named);
+
+    groups.set(
+      name,
+      Array.isArray(list) && list.every((one) => typeof one === 'string')
+        ? list
+        : null
+    );
+  }
+
+  return groups.get(name);
+}
+
+/**
+ * What is wrong with a command line the catalogue printed, if anything
+ *
+ * A span stops being read at the first thing that is not a name: a flag, a
+ * placeholder, a redirection. `henri db:status --sql` is `db:status`, and
+ * `henri versions <Model>` is `versions`.
+ *
+ * @param {string} line the command line, without its backticks
+ * @returns {?string} what is wrong, or null when it is a real command
+ */
+function wrongCommand(line) {
+  const [, first, second] = line.split(/\s+/u);
+  const [name, ...rest] = String(first || '').split(':');
+
+  if (!COMMANDS.includes(name)) {
+    return `there is no \`henri ${name}\` command`;
+  }
+
+  const subcommands = subcommandsOf(name);
+
+  if (rest.length > 0) {
+    return subcommands && subcommands.includes(rest.join(':'))
+      ? null
+      : `\`henri ${name}\` has no "${rest.join(':')}" (it has ${
+          subcommands ? subcommands.join(', ') : 'no subcommands'
+        })`;
+  }
+
+  // `henri jobs list` is `henri jobs:list` written the other way; anything
+  // that is not a bare name (a flag, `<who>`, `>`) ends the command
+  if (!subcommands || !/^[a-z][a-z0-9:-]*$/u.test(second || '')) {
+    return null;
+  }
+
+  return subcommands.includes(second)
+    ? null
+    : `\`henri ${name}\` has no "${second}" (it has ${subcommands.join(', ')})`;
+}
+
+/* --------------------------------------------------------------------- *
+ * The configuration keys the catalogue is allowed to name: the ones
+ * `base/config-schema.js` declares, and only those.
+ * --------------------------------------------------------------------- */
+
+/** Every path of the schema, `*` standing for a key an application names */
+const PATHS = new Set();
+
+/**
+ * Walk a schema node, collecting the paths under it
+ *
+ * @param {object} node a schema node
+ * @param {string} prefix the path so far
+ * @param {number} [depth=0] recursion guard
+ * @returns {void}
+ */
+function collect(node, prefix, depth = 0) {
+  if (!node || typeof node !== 'object' || depth > 8) {
+    return;
+  }
+
+  for (const one of node.oneOf || []) {
+    collect(one, prefix, depth + 1);
+  }
+
+  for (const [key, child] of Object.entries(node.keys || {})) {
+    const full = prefix ? `${prefix}.${key}` : key;
+
+    PATHS.add(full);
+    collect(child, full, depth + 1);
+  }
+
+  if (node.values) {
+    PATHS.add(`${prefix}.*`);
+    collect(node.values, `${prefix}.*`, depth + 1);
+  }
+}
+
+for (const [key, node] of Object.entries(SCHEMA)) {
+  PATHS.add(key);
+  collect(node, key);
+}
+
+/** The top level keys, which is what says a dotted name is a config key */
+const TOP = new Set(Object.keys(SCHEMA));
+
+/**
+ * Does the schema declare this key? (`stores.default.url` is `stores.*.url`)
+ *
+ * @param {string} key a dotted key, without the `config.` prefix
+ * @returns {boolean} true when it is declared
+ */
+const declares = (key) => {
+  const wanted = key.split('.');
+
+  return [...PATHS].some((declared) => {
+    const parts = declared.split('.');
+
+    return (
+      parts.length === wanted.length &&
+      parts.every((part, index) => part === '*' || part === wanted[index])
+    );
+  });
+};
+
+/** `config.<key>`, unless it is a call (`config.get(...)`) */
+const EXPLICIT = /(?<![\w.])config\.([a-z]\w*(?:\.\w+)*)/gu;
+
+/** Anything inside backticks */
+const TICKED = /`([^`]+)`/gu;
+
+/** A dotted name, the shape a configuration key is written in */
+const DOTTED = /^[a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+$/u;
+
+/**
+ * The configuration keys a text names
+ *
+ * Two shapes: `config.<key>` anywhere, and a dotted name inside backticks
+ * whose first segment is a key henri owns (`jobs.store`), which is how the
+ * catalogue writes them when the sentence already said "configuration".
+ *
+ * @param {string} text the text
+ * @returns {Array<string>} the keys, without the `config.` prefix
+ */
+function keysNamed(text) {
+  const found = [];
+
+  for (const match of text.matchAll(EXPLICIT)) {
+    if (text[match.index + match[0].length] !== '(') {
+      found.push(match[1]);
+    }
+  }
+
+  for (const match of text.matchAll(TICKED)) {
+    const span = match[1].replace(/^config\./u, '');
+
+    if (DOTTED.test(span) && TOP.has(span.split('.')[0])) {
+      found.push(span);
+    }
+  }
+
+  return [...new Set(found)];
+}
+
+/** Words that carry no meaning when two sentences are compared */
+const STOP = new Set(
+  (
+    'a an the and or of to it is was be been are for in on at that this which ' +
+    'who with what not no nor but so as by from into its their there here ' +
+    'they them he she'
+  ).split(' ')
+);
+
+/**
+ * The content words of a sentence
+ *
+ * @param {string} text the sentence
+ * @returns {Set<string>} the words
+ */
+const words = (text) =>
+  new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/gu, ' ')
+      .split(/\s+/u)
+      .filter((word) => word.length > 2 && !STOP.has(word))
+  );
+
+/**
+ * How much two sentences say the same thing (0 nothing, 1 everything)
+ *
+ * @param {string} one the first
+ * @param {string} two the second
+ * @returns {number} the Jaccard similarity of their content words
+ */
+function overlap(one, two) {
+  const left = words(one);
+  const right = words(two);
+  const shared = [...left].filter((word) => right.has(word)).length;
+  const union = new Set([...left, ...right]).size;
+
+  return union === 0 ? 1 : shared / union;
+}
+
 describe('the error code catalogue', () => {
   test('every entry is complete, unique and shaped like a code', () => {
     const names = catalogue.codes.map((code) => code.code);
@@ -188,6 +428,112 @@ describe('the catalogue and the source', () => {
     for (const name of ENVIRONMENT) {
       expect(isCode(name)).toBe(false);
     }
+  });
+});
+
+/**
+ * Every entry says what to do next, and everything it names exists.
+ *
+ * A "how to fix it" that names a command henri does not have, or a
+ * configuration key it does not own, is worse than no instruction at all:
+ * it sends a person down a path that ends nowhere. So the two kinds of
+ * thing a fix points at are checked against the source that owns them --
+ * `packages/cli` for the commands, `base/config-schema.js` for the keys --
+ * rather than against a copy kept here.
+ */
+describe('the catalogue reads like an instruction', () => {
+  test('every command it names is a real one', () => {
+    const wrong = [];
+
+    for (const code of catalogue.codes) {
+      for (const [field, text] of texts(code)) {
+        for (const match of text.matchAll(TICKED)) {
+          if (!/^henri\s/u.test(match[1])) {
+            continue;
+          }
+
+          const problem = wrongCommand(match[1]);
+
+          problem && wrong.push(`${code.code}.${field}: ${problem}`);
+        }
+      }
+    }
+
+    expect(wrong).toEqual([]);
+  });
+
+  test('every configuration key it names is one henri declares', () => {
+    const wrong = [];
+
+    for (const code of catalogue.codes) {
+      for (const [field, text] of texts(code)) {
+        for (const key of keysNamed(text)) {
+          declares(key) ||
+            wrong.push(
+              `${code.code}.${field}: config.${key} is not in the schema`
+            );
+        }
+      }
+    }
+
+    expect(wrong).toEqual([]);
+  });
+
+  test('the rules would catch a command or a key that is not there', () => {
+    expect(wrongCommand('henri nope')).toMatch(/no `henri nope` command/u);
+    expect(wrongCommand('henri db:nope')).toMatch(/has no "nope"/u);
+    expect(wrongCommand('henri jobs nope')).toMatch(/has no "nope"/u);
+    expect(wrongCommand('henri db:status --sql')).toBeNull();
+    expect(wrongCommand('henri versions <Model> <record>')).toBeNull();
+    expect(wrongCommand('henri openapi > openapi.json')).toBeNull();
+    expect(wrongCommand('henri generate policy <Model>')).toBeNull();
+    expect(wrongCommand('henri destroy model Thing')).toBeNull();
+    expect(wrongCommand('henri destroy nope Thing')).toMatch(/has no "nope"/u);
+
+    expect(keysNamed('`jobs.nope` and `config.jobs.store`')).toEqual([
+      'jobs.store',
+      'jobs.nope',
+    ]);
+    expect(keysNamed('`config.jobs.store` twice: config.jobs.store')).toEqual([
+      'jobs.store',
+    ]);
+    expect(declares('jobs.nope')).toBe(false);
+    expect(declares('stores.default.url')).toBe(true);
+    expect(keysNamed('`henri.model.errors()` and config.get(key)')).toEqual([]);
+  });
+
+  test('every fix says something the meaning did not', () => {
+    const restated = [];
+
+    for (const code of catalogue.codes) {
+      expect(typeof code.fix).toBe('string');
+      expect(code.fix.trim().length).toBeGreaterThan(19);
+
+      const one = code.fix.toLowerCase().replace(/[^a-z0-9]/gu, '');
+      const two = code.what.toLowerCase().replace(/[^a-z0-9]/gu, '');
+
+      if (
+        one === two ||
+        one.includes(two) ||
+        overlap(code.fix, code.what) > 0.5
+      ) {
+        restated.push(code.code);
+      }
+    }
+
+    expect(restated).toEqual([]);
+  });
+
+  test('a fix that only restates the meaning is caught', () => {
+    expect(
+      overlap('The store was not reached.', 'The store, not reached.')
+    ).toBe(1);
+    expect(
+      overlap(
+        'A model has no store and there is no default one.',
+        'Configure `stores.default`, or give the model a `store`.'
+      )
+    ).toBeLessThan(0.5);
   });
 });
 

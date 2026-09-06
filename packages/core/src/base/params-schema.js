@@ -478,14 +478,19 @@ function declarations(controller, name, actions) {
   }
 
   if (!isObject(block)) {
-    throw invalid(name, 'declares `params` as something other than an object');
+    throw invalid(
+      name,
+      'declares `params` as something other than an object: a params block ' +
+        "is { '<action>': { field: rule } }, with `all` for every action"
+    );
   }
 
   for (const [key, fields] of Object.entries(block)) {
     if (!isObject(fields)) {
       throw invalid(
         name,
-        `declares "${key}" as something other than a list of fields`
+        `declares "${key}" as something other than a list of fields: write ` +
+          `${key}: { page: 'integer' }, one rule per field`
       );
     }
 

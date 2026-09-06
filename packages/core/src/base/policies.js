@@ -53,6 +53,8 @@
  */
 
 /** Settings of `config.policies` when the key is absent */
+const { stamp } = require('./errors');
+
 const DEFAULTS = Object.freeze({ status: 404, verify: true });
 
 /** The statuses a refusal may answer */
@@ -100,8 +102,13 @@ function policiesConfig(config) {
   const raw = config.get('policies');
 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new TypeError(
-      'config.policies must be an object ({ status, verify })'
+    throw stamp(
+      new TypeError(
+        `config.policies must be an object ({ status, verify }): status is ${STATUSES.join(
+          ' or '
+        )} and decides what a refusal answers, verify says whether an unenforced policy is reported`
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 

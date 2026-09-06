@@ -239,10 +239,9 @@ class Model extends BaseModule {
 
       throw pen.fatal(
         'models',
-        `
-      Unable to load database adapter '${store.adapter}'. Seems like you 
-      should install it using: npm install @usehenri/${store.adapter}`,
-        null,
+        `unable to load the '${store.adapter}' adapter`,
+        `Install it in the application: npm install @usehenri/${store.adapter}
+henri resolves an adapter from the application, never from itself. \`henri doctor\` reports what is missing.`,
         null,
         'HENRI_STORE_ADAPTER_NOT_INSTALLED'
       );
@@ -277,7 +276,9 @@ class Model extends BaseModule {
           Object.keys(config.has('stores') ? config.get('stores') : {}).join(
             ', '
           ) || 'none'
-        }`
+        }. Add "${name}" to the \`stores\` block of config/${
+          this.henri.env || 'dev'
+        }.json, or point whatever asked for it at one of those`
       );
     }
 
@@ -296,8 +297,8 @@ class Model extends BaseModule {
     if (typeof valid[store.adapter] === 'undefined') {
       throw pen.fatal(
         'models',
-        `Adapter '${store.adapter}' is not valid. Check your configuration file.`,
-        null,
+        `stores.${name}.adapter is '${store.adapter}', which henri does not have`,
+        `Set it to one of: ${Object.keys(valid).join(', ')}.`,
         null,
         'HENRI_STORE_UNKNOWN_ADAPTER'
       );
@@ -577,7 +578,10 @@ class Model extends BaseModule {
     if (!store || typeof store.getSessionConnector !== 'function') {
       throw fail(
         'HENRI_STORE_SESSION_UNAVAILABLE',
-        `unable to create a session store: store '${name}' is not loaded`
+        `unable to create a session store: store '${name}' has none. ` +
+          `Point the sessions at a store whose adapter carries one ` +
+          `(mongoose, disk, or a SQL store), or drop \`user\` from the ` +
+          `configuration to boot without sessions`
       );
     }
 
@@ -664,17 +668,27 @@ class Model extends BaseModule {
   checkStoreOrDie(model) {
     const { config } = this.henri;
 
+    const names = Object.keys(config.has('stores') ? config.get('stores') : {});
+
     if (!model.store && !config.has('stores.default')) {
       throw fail(
         'HENRI_MODEL_NO_STORE',
-        `There is no default store and ${model.identity} is missing one`
+        `there is no default store and app/models/${model.identity} names none: ` +
+          `add "stores": { "default": { ... } } to config/${
+            this.henri.env || 'dev'
+          }.json, or give the model a \`store\` naming one of ${
+            names.join(', ') || 'the stores you configure'
+          }`
       );
     }
 
     if (model.store && !config.has(`stores.${model.store}`)) {
       throw fail(
         'HENRI_MODEL_UNKNOWN_STORE',
-        `It seems like ${model.store} is not configured. ${model.identity} is using it.`
+        `app/models/${model.identity} names the store "${model.store}", which ` +
+          `the configuration does not hold: it holds ${
+            names.join(', ') || 'none'
+          }. Add it to the \`stores\` block, or point the model at one of those`
       );
     }
   }

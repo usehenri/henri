@@ -99,25 +99,25 @@ Routes expanded from `resources` and `crud` are expected to answer HAL: a JSON a
 
 ## Idempotency
 
-Clients retrying a `POST`, `PUT`, `PATCH` or `DELETE` send an `Idempotency-Key` header (any ASCII string up to 255 characters), with the same semantics as Stripe:
+Clients retrying a `POST`, `PUT`, `PATCH` or `DELETE` send an `Idempotency-Key` header (1 to 255 printable ASCII characters, otherwise a `400` carrying `HENRI_API_IDEMPOTENCY_KEY_INVALID`), with the same semantics as Stripe:
 
-| Situation                                       | Answer                                                 |
-| ----------------------------------------------- | ------------------------------------------------------ |
-| First request with the key                      | Executed; status, headers and body stored for 24 hours |
-| Same key, same request, already answered        | The stored answer, with `Idempotency-Replayed: true`   |
-| Same key, same request, still in flight         | `409` with `Retry-After: 1`                            |
-| Same key, different method, path or body        | `422`                                                  |
-| First answer was a `5xx` or the request aborted | Nothing stored, the client may retry                   |
+| Situation                                       | Answer                                                           |
+| ----------------------------------------------- | ---------------------------------------------------------------- |
+| First request with the key                      | Executed; status, headers and body stored for 24 hours           |
+| Same key, same request, already answered        | The stored answer, with `Idempotency-Replayed: true`             |
+| Same key, same request, still in flight         | `409` with `Retry-After: 1`, `HENRI_API_IDEMPOTENCY_IN_PROGRESS` |
+| Same key, different method, path or body        | `422`, `HENRI_API_IDEMPOTENCY_KEY_REUSED`                        |
+| First answer was a `5xx` or the request aborted | Nothing stored, the client may retry                             |
 
 Keys are scoped to the user, the session or the ip, so two users may use the same key. Every mutating route from `config/routes.js` honours the header; `idempotent: false` on a route opts it out, and core's `/login` and `/logout` are never covered. `config.api.idempotency: false` turns the feature off.
 
 The answers live in this process's memory unless the application says otherwise, which stops being idempotent the moment it runs two processes: [`config.shared`](/configuration/#the-shared-object) names one backend for these keys, the rate limit and the sign-in lockout at once. `config.api.idempotency.store` still names a module of its own (exporting `{ get, set, delete }`, or a `(henri, { name }) => store` factory) and still wins over it, and `henri.api.idempotencyStore` can be replaced after the boot.
 
-A shared store that does not answer is the one case where the request is always refused — `503` with a `Retry-After`, whatever `shared.onError` says. Serving a mutating request whose first answer cannot be read is what the header exists to prevent.
+A shared store that does not answer is the one case where the request is always refused — `503` with a `Retry-After` and `HENRI_STORE_SHARED_UNAVAILABLE`, whatever `shared.onError` says. Serving a mutating request whose first answer cannot be read is what the header exists to prevent.
 
 ## Rate limiting
 
-Requests are limited with [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit), per user id when logged in and per ip otherwise (`trustProxy` decides which ip). The answer is a `429` from `res.boom.tooManyRequests` with `data: { limit, retryAfter, windowMs }` and the draft-7 `RateLimit`, `RateLimit-Policy` and `Retry-After` headers.
+Requests are limited with [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit), per user id when logged in and per ip otherwise (`trustProxy` decides which ip). The answer is a `429` from `res.boom.tooManyRequests` carrying `HENRI_API_RATE_LIMITED`, with `data: { limit, retryAfter, windowMs }` and the draft-7 `RateLimit`, `RateLimit-Policy` and `Retry-After` headers.
 
 - Global: `config.rateLimit`, 600 requests per minute by default. It is not enforced in development, where the Next and Vite dev servers fetch hundreds of assets through the router; it is in test and production.
 - Authentication: `config.rateLimit.auth`, 10 `POST` per minute per ip on the login path and on `/register`, `/signup`, `/password`, `/forgot-password` and `/reset-password` (`paths` overrides the list).

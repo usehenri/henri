@@ -288,15 +288,17 @@ function csrf({
    * Refuses the request
    *
    * @param {Express.Response} res the response
-   * @param {string} message why
+   * @param {string} message why, and what the client should do about it
+   * @param {string} code the henri error code of this refusal
    * @returns {*} the response
    */
-  const refuse = (res, message) => {
+  const refuse = (res, message, code) => {
     if (res.boom && typeof res.boom.forbidden === 'function') {
-      return res.boom.forbidden(message);
+      return res.boom.forbidden(message, undefined, code);
     }
 
     return res.status(403).json({
+      code,
       error: 'Forbidden',
       message,
       statusCode: 403,
@@ -344,14 +346,22 @@ function csrf({
         header(req, 'sec-fetch-site')
       );
 
-      return refuse(res, 'Cross-origin request refused');
+      return refuse(
+        res,
+        'Cross-origin request refused: post from this application, or add the origin to csrf.trustedOrigins',
+        'HENRI_USER_CSRF_ORIGIN_REFUSED'
+      );
     }
 
     if (safeEqual(sentToken(req), token)) {
       return next();
     }
 
-    return refuse(res, 'Invalid CSRF token');
+    return refuse(
+      res,
+      `Invalid CSRF token: send the ${cookie} cookie back in the X-CSRF-Token header or the _csrf field of the body`,
+      'HENRI_USER_CSRF_INVALID'
+    );
   };
 }
 
