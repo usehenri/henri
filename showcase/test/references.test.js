@@ -101,10 +101,9 @@ describe('what a foreign key costs', () => {
   afterAll(async () => {
     // Put the database back the way it was found: the next file resets what
     // it needs, and nothing here should be in its way
-    await Proposal.withDeleted().destroy({
-      force: true,
-      where: { eventId: event.id },
-    });
+    // The condition is the first argument: a `where` inside the options was
+    // read by nothing and this deleted every proposal in the database
+    await Proposal.destroy({ eventId: event.id }, { force: true });
     await Track.destroy({ id: track.id });
     await Event.destroy({ id: event.id });
   });
