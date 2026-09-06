@@ -1,6 +1,7 @@
 const escapeHtml = require('escape-html');
 const { redactUrl } = require('./redact');
 const { isLoopback } = require('../utils');
+const { recorder } = require('./runtime');
 const { STATUSES } = require('./boom');
 
 /**
@@ -109,6 +110,12 @@ function errorHandler(henri) {
     } else {
       henri.pen.warn('server', where, `${status}`, err.message);
     }
+
+    // Kept with the request that caused it, for `henri mcp` to hand to an
+    // agent instead of making it reproduce the failure first
+    const record = recorder(henri);
+
+    record && record.error(err, { req, status });
 
     if (res.headersSent) {
       return next(err);

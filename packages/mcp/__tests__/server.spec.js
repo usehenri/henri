@@ -1,18 +1,21 @@
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const {
   StdioClientTransport,
+  getDefaultEnvironment,
 } = require('@modelcontextprotocol/sdk/client/stdio.js');
 
 const { describeField, redact, scanActions } = require('../src/app');
+const { freePort, probe } = require('../src/runtime');
 const { version } = require('../package.json');
 
 const henriBin = path.resolve(__dirname, '../../henri/bin/henri.js');
 const PORT = 47311;
 const mcpBin = path.resolve(__dirname, '../bin/henri-mcp.js');
+const demo = path.resolve(__dirname, '../../demo');
 
 /**
  * Scaffold an application with `henri new` in a temporary directory
@@ -38,13 +41,16 @@ const scaffold = () => {
  * Start the server for an application and connect a client to it
  *
  * @param {string} app The application directory
+ * @param {object} [env={}] Environment variables on top of the default one
+ *   (which carries no NODE_ENV, like the editor that starts `henri mcp`)
  * @returns {Promise<{client: Client, transport: StdioClientTransport}>} The client
  */
-const connect = async (app) => {
+const connect = async (app, env = {}) => {
   const transport = new StdioClientTransport({
     args: [mcpBin],
     command: process.execPath,
     cwd: app,
+    env: Object.assign(getDefaultEnvironment(), env),
     stderr: 'pipe',
   });
   const client = new Client({ name: 'henri-mcp-tests', version: '0.0.0' });
@@ -52,6 +58,83 @@ const connect = async (app) => {
   await client.connect(transport);
 
   return { client, transport };
+};
+
+/**
+ * A copy of the demo application in a temporary directory, on a port of its
+ * own: a real henri application with real models, whose store and mongod
+ * are not the ones any other suite is using
+ *
+ * @returns {Promise<{dir: string, app: string, port: number}>} The fixture
+ */
+const fixture = async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'henri-mcp-app-'));
+  const app = path.join(dir, 'app');
+  const port = await freePort();
+
+  fs.cpSync(demo, app, {
+    filter: (source) =>
+      !source.includes(`${path.sep}node_modules`) &&
+      !source.includes(`${path.sep}.henri`),
+    recursive: true,
+  });
+  fs.symlinkSync(
+    path.join(demo, 'node_modules'),
+    path.join(app, 'node_modules')
+  );
+
+  const config = path.join(app, 'config');
+  const defaults = JSON.parse(
+    fs.readFileSync(path.join(config, 'default.json'), 'utf8')
+  );
+
+  // One configuration whatever NODE_ENV says, so the server and the mcp
+  // server agree on the port without either being told
+  for (const file of fs.readdirSync(config)) {
+    fs.rmSync(path.join(config, file));
+  }
+  fs.writeFileSync(
+    path.join(config, 'default.json'),
+    JSON.stringify(Object.assign({}, defaults, { port }), null, 2)
+  );
+
+  return { app, dir, port };
+};
+
+/**
+ * Start a development server for an application and wait until it answers
+ *
+ * @param {string} app The application directory
+ * @param {number} port The port it was configured with
+ * @returns {Promise<object>} The child process
+ * @throws when it does not answer in time
+ */
+const boot = async (app, port) => {
+  const env = Object.assign({}, process.env, { NO_COLOR: '1' });
+
+  delete env.NODE_ENV;
+
+  const child = spawn(
+    process.execPath,
+    [path.resolve(__dirname, '../src/run-cli.js'), 'server'],
+    { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  const cwd = fs.realpathSync(app);
+  const until = Date.now() + 90000;
+
+  child.stdout.resume();
+  child.stderr.resume();
+
+  while (Date.now() < until) {
+    if (await probe(port, cwd)) {
+      return child;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+
+  child.kill('SIGKILL');
+  throw new Error(`the demo application did not answer on ${port}`);
 };
 
 /**
@@ -194,10 +277,17 @@ describe('henri mcp', () => {
       'controllers',
       'destroy',
       'doctor',
+      'errors',
       'generate',
+      'guide',
       'lint',
+      'logs',
       'models',
+      'query',
+      'records',
+      'request',
       'routes',
+      'runtime_routes',
       'test',
     ]);
 
@@ -215,6 +305,7 @@ describe('henri mcp', () => {
       'henri://conventions',
       'henri://help',
       'henri://routes',
+      'henri://runtime',
     ]);
   });
 
@@ -494,6 +585,271 @@ describe('henri mcp', () => {
     expect(
       JSON.parse(help.contents[0].text).commands.map((c) => c.name)
     ).toContain('doctor');
+  });
+
+  test('guide: the documentation of the version installed here', async () => {
+    const { isError, structuredContent } = await call(client, 'guide');
+
+    expect(isError).toBe(false);
+    expect(structuredContent.count).toBeGreaterThan(10);
+    expect(structuredContent.pages.map((entry) => entry.slug)).toContain(
+      'guides/routes'
+    );
+    expect(structuredContent.versions.node).toBe(process.version);
+    expect(structuredContent.versions.cli).toBe(version);
+
+    const routes = await call(client, 'guide', { page: 'guides/routes' });
+
+    expect(routes.structuredContent.title).toBe('Routes');
+    expect(routes.structuredContent.text).toContain('config/routes.js');
+    expect(routes.structuredContent.truncated).toBe(false);
+  });
+
+  test('guide: refuses a page that is not one', async () => {
+    for (const page of ['../../../etc/passwd', 'nothing/here']) {
+      const result = await call(client, 'guide', { page });
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent.error.code).toBe('UNKNOWN_PAGE');
+    }
+  });
+
+  test('the runtime tools say what is missing instead of booting', async () => {
+    // The scaffolded app has no dependencies installed (--skip-install)
+    for (const [tool, args] of [
+      ['errors', {}],
+      ['logs', {}],
+      ['query', { sql: 'SELECT 1' }],
+      ['records', { model: 'Task' }],
+      ['runtime_routes', {}],
+      ['request', { path: '/' }],
+    ]) {
+      const result = await call(client, tool, args);
+
+      expect({ isError: result.isError, tool }).toEqual({
+        isError: true,
+        tool,
+      });
+      expect(result.structuredContent.error.code).toBe('NOT_INSTALLED');
+      expect(result.structuredContent.error.hint).toMatch(/install/i);
+    }
+  }, 60000);
+
+  test('refuses to start anything when told not to', async () => {
+    const { client: quiet } = await connect(app, { HENRI_MCP_AUTOSTART: '0' });
+
+    try {
+      const { isError, structuredContent } = await call(quiet, 'errors');
+
+      expect(isError).toBe(true);
+      expect(structuredContent.error.code).toBe('NO_SERVER');
+      expect(structuredContent.error.hint).toContain('henri server');
+    } finally {
+      await quiet.close();
+    }
+  }, 60000);
+
+  test('refuses a production application, and says so', async () => {
+    const { client: live } = await connect(app, { NODE_ENV: 'production' });
+
+    try {
+      const { isError, structuredContent } = await call(live, 'query', {
+        sql: 'SELECT 1',
+      });
+
+      expect(isError).toBe(true);
+      expect(structuredContent.error.code).toBe('PRODUCTION');
+      expect(structuredContent.error.message).toContain('production');
+    } finally {
+      await live.close();
+    }
+  }, 60000);
+});
+
+describe('henri mcp against a running application', () => {
+  let dir;
+  let app;
+  let client;
+  let server;
+  let port;
+
+  beforeAll(async () => {
+    ({ app, dir, port } = await fixture());
+    server = await boot(app, port);
+    ({ client } = await connect(app));
+  }, 120000);
+
+  afterAll(async () => {
+    if (client) {
+      await client.close();
+    }
+    if (server) {
+      const ended = new Promise((resolve) => server.once('exit', resolve));
+
+      server.kill('SIGKILL');
+      await ended;
+    }
+    fs.rmSync(dir, { force: true, recursive: true });
+  }, 30000);
+
+  test('attaches to the server that is already running', async () => {
+    const { isError, structuredContent } = await call(client, 'runtime_routes');
+
+    expect(isError).toBe(false);
+    expect(structuredContent.source).toBe('attached');
+    expect(structuredContent.url).toBe(`http://127.0.0.1:${port}`);
+    expect(structuredContent.app).toMatchObject({
+      env: 'dev',
+      stores: { default: { adapter: 'disk', queryable: false } },
+    });
+  });
+
+  test('runtime_routes: what the router mounted, not what the file says', async () => {
+    const { structuredContent } = await call(client, 'runtime_routes');
+    const root = structuredContent.routes.find(
+      (route) => route.route === '/' && route.verb === 'get'
+    );
+
+    expect(root).toMatchObject({
+      action: 'home',
+      active: true,
+      controller: 'main',
+      helper: 'home_main_path',
+    });
+    expect(structuredContent.inactive).toBe(0);
+    expect(structuredContent.internal).toContain('GET /_henri/health');
+    expect(structuredContent.internal).toContain('GET /_mailers');
+  });
+
+  test('request: makes one and hands back what it answered', async () => {
+    const { isError, structuredContent } = await call(client, 'request', {
+      path: '/version',
+    });
+
+    expect(isError).toBe(false);
+    expect(structuredContent.status).toBe(200);
+    expect(structuredContent.headers['x-request-id']).toBeTruthy();
+    expect(structuredContent.requestId).toBe(
+      structuredContent.headers['x-request-id']
+    );
+    expect(JSON.parse(structuredContent.body)).toHaveProperty('_links');
+  });
+
+  test('request then errors: the failure and the request that caused it', async () => {
+    const answer = await call(client, 'request', {
+      body: '{"broken"',
+      headers: {
+        'content-type': 'application/json',
+        'x-request-id': 'mcp-broken-1',
+      },
+      method: 'POST',
+      path: '/echo?token=super-secret',
+    });
+
+    expect(answer.structuredContent.status).toBe(400);
+
+    const { structuredContent } = await call(client, 'errors', {
+      requestId: 'mcp-broken-1',
+    });
+
+    expect(structuredContent.count).toBe(1);
+
+    const [error] = structuredContent.errors;
+
+    expect(error.status).toBe(400);
+    expect(error.requestId).toBe('mcp-broken-1');
+    expect(error.stack).toContain('at ');
+    expect(error.request.method).toBe('POST');
+    expect(error.request.url).toBe('/echo?token=%5BFILTERED%5D');
+    expect(JSON.stringify(structuredContent)).not.toContain('super-secret');
+  });
+
+  test('logs: the lines the application wrote, filtered', async () => {
+    const { structuredContent } = await call(client, 'logs', {
+      contains: 'routes loaded',
+      level: ['info'],
+    });
+
+    expect(structuredContent.lines.length).toBeGreaterThan(0);
+    expect(structuredContent.lines[0].name).toBe('router');
+    expect(structuredContent.kept).toBe(500);
+  });
+
+  test('records: a page of a model, and the refusals', async () => {
+    const page = await call(client, 'records', { model: 'Artwork' });
+
+    expect(page.isError).toBe(false);
+    expect(page.structuredContent).toMatchObject({
+      model: 'Artwork',
+      page: 1,
+      perPage: 25,
+    });
+
+    const unknown = await call(client, 'records', { model: 'Teapot' });
+
+    expect(unknown.isError).toBe(true);
+    expect(unknown.structuredContent.error.code).toBe('UNKNOWN_MODEL');
+
+    const operator = await call(client, 'records', {
+      model: 'User',
+      where: { $where: '1 == 1' },
+    });
+
+    expect(operator.isError).toBe(true);
+    expect(operator.text).toMatch(/no operators/);
+  });
+
+  test('query: the writes are refused by the application', async () => {
+    for (const sql of [
+      'DELETE FROM users',
+      'DROP TABLE users',
+      'UPDATE users SET roles = 1',
+      'SELECT 1; DELETE FROM users',
+    ]) {
+      const refused = await call(client, 'query', { sql });
+
+      expect({ isError: refused.isError, sql }).toEqual({
+        isError: true,
+        sql,
+      });
+      expect(refused.structuredContent.error.code).toBe('REFUSED');
+      expect(refused.structuredContent.error.url).toBe(
+        `http://127.0.0.1:${port}`
+      );
+    }
+  });
+
+  test('query: says a MongoDB store is not one to query', async () => {
+    const { isError, structuredContent } = await call(client, 'query', {
+      sql: 'SELECT 1',
+    });
+
+    expect(isError).toBe(true);
+    expect(structuredContent.error.code).toBe('NO_QUERY');
+    expect(structuredContent.error.message).toContain('disk');
+  });
+
+  test('request: refuses to forge the runtime header', async () => {
+    const { isError, text } = await call(client, 'request', {
+      headers: { 'X-Henri-Runtime': '1' },
+      path: '/_henri/runtime',
+    });
+
+    expect(isError).toBe(true);
+    expect(text).toContain('x-henri-runtime');
+  });
+
+  test('serves the running application as a resource', async () => {
+    const resource = await client.readResource({ uri: 'henri://runtime' });
+    const identity = JSON.parse(resource.contents[0].text);
+
+    expect(identity.app.pid).toBe(server.pid);
+    expect(identity.models.map((model) => model.name).sort()).toEqual([
+      'Artwork',
+      'User',
+    ]);
+    expect(identity.filterParameters).toContain('password');
+    expect(identity.limits.rows).toBe(100);
   });
 });
 

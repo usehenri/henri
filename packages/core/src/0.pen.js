@@ -5,6 +5,7 @@ const util = require('util');
 const { getColor, stack } = require('./utils');
 const { currentRequestId } = require('./base/request-id');
 const { filterParameters, redact } = require('./base/redact');
+const { recorder } = require('./base/runtime');
 
 /**
  * Write stuff in the console...
@@ -291,6 +292,13 @@ class Pen extends BaseModule {
    * @memberof Pen
    */
   shout(name, level, ...args) {
+    // Recorded before anything is printed, and whether or not it is: the
+    // runtime tools of `henri mcp` read the same lines a terminal shows
+    // (see base/runtime.js; production keeps none)
+    const record = recorder(this.henri || global.henri);
+
+    record && record.log(name, level, args);
+
     if (!this.notTest && this.inTesting) {
       return;
     }

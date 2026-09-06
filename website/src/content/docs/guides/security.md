@@ -47,14 +47,26 @@ Nothing below needs a configuration key. It is on unless you turn it off, and
 | V14 Configuration          | [helmet](https://helmetjs.github.io/) sets the headers, with a Content Security Policy that names its origins (no `https:` wildcard) and lets the dev servers work, no HSTS outside production, and `X-Powered-By` off. `Permissions-Policy` denies the camera, the microphone, the location and the other powerful browser features until an application names one. CORS is off unless you ask for it. A double-submit CSRF token (`henri.csrf`, `X-CSRF-Token`) guards every `POST`, `PUT`, `PATCH` and `DELETE` of a session, and the request must also come from an origin this application recognizes (`Sec-Fetch-Site`, then `Origin`), which is the half the token alone does not cover. Secrets live in `.env` or in [encrypted credentials](/configuration/#encrypted-credentials). The configuration is validated against a schema before the first module starts.                                                                                                                                                                                                    |
 
 Two more that are not ASVS requirements but are the same kind of work: the
-development introspection routes (`/_routes`, `/_controllers`, `/_mailers`) are
-mounted only in development _and_ only for the loopback interface, checked on
-the socket rather than on a header a client can forge; and the health
-endpoints (`GET /livez`, `GET /readyz` and `GET /_henri/health`) answer
-without authentication, on purpose, so a load balancer can call them. They say
-the names of the stores, their adapter and whether each answered, and a
-failure is `timeout` or `unreachable` — never the driver's message, which
-carries the connection string it could not reach.
+development introspection routes (`/_routes`, `/_controllers`, `/_mailers`,
+`/_henri/runtime`) are mounted only in development _and_ only for the loopback
+interface, checked on the socket rather than on a header a client can forge;
+and the health endpoints (`GET /livez`, `GET /readyz`, `GET /healthz` and
+`GET /_henri/health`) answer without authentication, on purpose, so a load
+balancer can call them. They say the names of the stores, their adapter and
+whether each answered, and a failure is `timeout` or `unreachable` — never the
+driver's message, which carries the connection string it could not reach.
+
+`/_henri/runtime` reads more than the others -- the last errors, the logs, the
+database -- so it carries two guards on top of those two. It answers nothing
+without `X-Henri-Runtime: 1`, a header a page cannot send cross-origin without
+a preflight the endpoint never grants, and it refuses any request carrying
+`Origin` or `Sec-Fetch-Site`, which every browser attaches and no command line
+sends: a tab the developer happens to have open cannot reach it. What it will
+run is decided before the store is touched -- a single `SELECT`, `WITH ...
+SELECT`, `EXPLAIN`, `SHOW` or `DESCRIBE`, with the strings and the comments
+removed first, and no word that writes, locks, waits or reads a file -- and
+what comes back is redacted with `filterParameters`, `password` included
+whatever the configuration says. See [Coding agents](/guides/agents/).
 
 ## What stays yours
 

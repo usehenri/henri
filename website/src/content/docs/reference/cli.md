@@ -295,7 +295,7 @@ A finding in `config/test.json` is reported one severity lower. The dependency s
 henri mcp
 ```
 
-Starts the [Model Context Protocol](https://modelcontextprotocol.io/) server for the application over stdio, exposing the tools `routes`, `models`, `controllers`, `config`, `doctor`, `audit`, `generate`, `destroy`, `test` and `lint`, plus the `AGENTS.md`, conventions, routes and help resources. `henri new` writes a `.mcp.json` that starts it. See [Coding agents](/guides/agents/).
+Starts the [Model Context Protocol](https://modelcontextprotocol.io/) server for the application over stdio. It exposes the tools that read the files -- `routes`, `models`, `controllers`, `config`, `doctor`, `audit`, `generate`, `destroy`, `test`, `lint` and `guide` -- and the ones that ask the running application: `errors`, `logs`, `query`, `records`, `runtime_routes` and `request`. Those attach to the development server when one is running and start one otherwise (`HENRI_MCP_AUTOSTART=0` forbids it); they refuse a production application. Resources: `AGENTS.md`, the conventions, the routes, the running application and the help. `henri new` writes a `.mcp.json` that starts it. See [Coding agents](/guides/agents/).
 
 ## `clean`
 

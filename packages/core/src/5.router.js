@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const debug = require('debug')('henri:router');
 const { loopbackOnly } = require('./base/http');
+const runtime = require('./base/runtime');
 const { respond, userConfig } = require('./base/auth');
 const {
   collection,
@@ -178,6 +179,14 @@ class Router extends BaseModule {
       if (this.henri.mailers && this.henri.mailers.previewable) {
         this.handler.use('/_mailers', local, this.henri.mailers.previews());
       }
+    }
+
+    // What a booted application answers about itself: the last errors, the
+    // logs, the routes it really registered and a read-only look at the
+    // stores, for `henri mcp` and the agents behind it. Never in production,
+    // never from another machine and never from a browser (base/runtime.js)
+    if (!this.henri.isProduction) {
+      this.handler.use(runtime.PATH, loopbackOnly(), runtime(this.henri));
     }
 
     await this.startView(reload);

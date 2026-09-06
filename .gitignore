@@ -52,3 +52,6 @@ yalc.lock
 # Written into every public package by scripts/prepublish.js at publish time
 packages/*/LICENSE
 packages/*/README.md
+
+# Documentation pages copied into @usehenri/mcp by scripts/prepublish.js
+packages/mcp/docs/
