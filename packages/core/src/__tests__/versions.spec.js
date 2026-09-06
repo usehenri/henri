@@ -369,6 +369,30 @@ describe('versions (demo app, disk store)', () => {
   const memo = (attrs = {}) =>
     Memo.create({ body: 'the body', title: 'the title', ...attrs });
 
+  test('a versioned model with no public identifier fails the boot', async () => {
+    const Versions = require('../4.versions');
+    const module = new Versions();
+
+    module.henri = {
+      config: henri.config,
+      model: {
+        models: [
+          {
+            globalId: 'Anonymous',
+            options: { externalId: false, versioned: true },
+            schema: {},
+          },
+        ],
+        stores: henri.model.stores,
+      },
+      pen: henri.pen,
+    };
+
+    await expect(module.init()).rejects.toMatchObject({
+      code: 'HENRI_VERSION_NO_IDENTIFIER',
+    });
+  });
+
   test('the module says which models asked', () => {
     expect(henri.versions.enabled).toBe(true);
     expect(henri.versions.watches('Memo')).toBe(true);

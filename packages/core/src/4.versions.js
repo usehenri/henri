@@ -16,7 +16,6 @@ const { storeFor } = require('./base/version-store');
 const {
   BATCH,
   EVENTS,
-  SOURCES,
   changesOf,
   diffOf,
   filtersOf,
@@ -125,9 +124,22 @@ class Versions extends BaseModule {
     for (const model of (this.henri.model && this.henri.model.models) || []) {
       const mark = markOf(model);
 
-      if (mark) {
-        this.marks.set(model.globalId, mark);
+      if (!mark) {
+        continue;
       }
+
+      // A version names its record by the public identifier, so a model
+      // that has none cannot be versioned -- and the boot is where that is
+      // said, rather than the first write of a Tuesday afternoon
+      if ((model.options || {}).externalId === false) {
+        throw refuse(
+          'HENRI_VERSION_NO_IDENTIFIER',
+          `${model.globalId} says versioned and externalId: false, and a version names the record it is about by its externalId`,
+          'Take externalId: false off the model, or stop versioning it'
+        );
+      }
+
+      this.marks.set(model.globalId, mark);
     }
 
     if (this.marks.size === 0) {
@@ -327,18 +339,11 @@ class Versions extends BaseModule {
    * @memberof Versions
    */
   acting(who, work) {
+    // `base/arguments.js` holds the list of sources, so a wrong one is
+    // refused there rather than twice
     check('henri.versions.acting', [who, work]);
 
     const { actor = null, source = 'system' } = who || {};
-
-    if (!SOURCES.includes(source)) {
-      throw refuse(
-        'HENRI_ARGUMENT_INVALID',
-        `henri.versions.acting(who) has no source named '${source}'`,
-        `It is one of ${SOURCES.join(', ')}`
-      );
-    }
-
     const external =
       actor && typeof actor === 'object' ? actor[EXTERNAL_ID] || null : actor;
 
