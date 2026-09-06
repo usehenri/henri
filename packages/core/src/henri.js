@@ -1,6 +1,7 @@
 const HenriBase = require('./base/henri');
 const Modules = require('./0.modules');
 const Pen = require('./0.pen');
+const { Reporter } = require('./base/reporting');
 const utils = require('./utils');
 const { fallback } = require('./base/errors');
 const validator = require('validator');
@@ -40,6 +41,10 @@ class Henri extends HenriBase {
     super(props);
 
     this.pen = new Pen(true, this);
+    // Built here rather than registered as a module: the first failure
+    // worth reporting is a module that would not start (see
+    // base/reporting.js)
+    this.reporter = new Reporter(this);
     this.modules = new Modules(this);
 
     this.validator = validator;
@@ -90,13 +95,20 @@ class Henri extends HenriBase {
       await this.modules.init();
     } catch (error) {
       const reason = error && error.message ? error.message : String(error);
-
-      throw fallback(
+      const failure = fallback(
         new Error(`henri - unable to execute init(): ${reason}`, {
           cause: error,
         }),
         'HENRI_BOOT_FAILED'
       );
+
+      // Awaited, unlike the request path: the process usually exits right
+      // after this, and an asynchronous reporter needs its flush in first.
+      // `report()` bounds the wait itself, so a handler that hangs does not
+      // take the boot with it (base/reporting.js)
+      await this.reporter.report(failure, { source: 'boot' });
+
+      throw failure;
     }
 
     return true;

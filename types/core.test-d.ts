@@ -781,6 +781,28 @@ const badLogs: Configuration = {
   logs: { format: 'logfmt' },
 };
 
+expectType<boolean>(henri.reporter.enabled);
+expectType<boolean>(henri.reporter.onError(null));
+expectType<boolean>(
+  henri.reporter.onError(({ code, error, request, requestId, source }) => {
+    expectType<string | null>(code);
+    expectType<Error>(error);
+    expectType<string | null>(requestId);
+    expectType<'application' | 'boot' | 'rejection' | 'request'>(source);
+
+    if (request) {
+      expectType<number | null>(request.status);
+    }
+  })
+);
+expectType<Promise<boolean>>(
+  henri.reporter.report(new Error('boom'), { meta: { invoice: 'inv_1' } })
+);
+expectType<Promise<boolean>>(henri.reporter.report(new Error('boom'), { req }));
+
+// @ts-expect-error the handler is a function, or null to remove it
+henri.reporter.onError('sentry');
+
 // --- the content security policy nonce --------------------------------------
 
 expectType<Configuration>({ csp: { nonce: true } });

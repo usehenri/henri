@@ -76,6 +76,11 @@ class HenriBase {
         }
 
         this.pen.fatal('promise', error, null, prom);
+
+        // The third and last place henri answers a failure for the
+        // application (base/reporting.js). Not awaited: nothing here is
+        // waiting for anything
+        this.reporter && this.reporter.report(error, { source: 'rejection' });
       });
     }
   }

@@ -1785,6 +1785,66 @@ declare namespace start {
     notify(title?: string | null, message?: string | null): void;
   }
 
+  /**
+   * What `henri.reporter` hands the handler: the error itself, its stable
+   * code, the request id and enough of the request to act on. Nothing that
+   * came from the client and nothing about a person: no url, no query, no
+   * body, no params, no headers and no user.
+   */
+  interface ErrorReport {
+    /** When it was reported. */
+    at: Date;
+    /** The henri error code of the failure, `null` when it carries none. */
+    code: string | null;
+    /** The error itself, untouched: a reporter is there for the stack. */
+    error: Error;
+    /** What `report()` was called with, masked like a log line. */
+    meta?: Record<string, unknown>;
+    /**
+     * The method, the route pattern (`/artworks/:id`) and the status henri
+     * answered with. `null` outside a request, and every member is `null`
+     * when henri does not know it.
+     */
+    request: {
+      method: string | null;
+      route: string | null;
+      status: number | null;
+    } | null;
+    /** `X-Request-Id`, `null` outside a request. */
+    requestId: string | null;
+    /** Where henri caught it. */
+    source: 'application' | 'boot' | 'rejection' | 'request';
+  }
+
+  /**
+   * `henri.reporter`: the one place an application hears about every
+   * failure henri catches -- the boot, a 5xx and an unhandled rejection.
+   * A handler that throws or hangs never takes the request or the boot with
+   * it, and no handler at all costs nothing.
+   */
+  interface Reporter {
+    /** Is a handler registered? */
+    readonly enabled: boolean;
+    /**
+     * Register the handler, replacing any previous one; `null` removes it.
+     * Follows `henri.mailers.onDeliverLater()`.
+     */
+    onError(handler: ((report: ErrorReport) => unknown) | null): boolean;
+    /**
+     * Report a failure of the application's own. Never throws and never
+     * rejects; resolves with whether a handler was given it.
+     */
+    report(
+      error: unknown,
+      options?: {
+        meta?: Record<string, unknown>;
+        req?: Request | ExpressRequest;
+        source?: 'application' | 'boot' | 'rejection' | 'request';
+        status?: number;
+      }
+    ): Promise<boolean>;
+  }
+
   /** `henri.user`. */
   interface UserModule {
     name: 'user';
@@ -3038,6 +3098,12 @@ declare namespace start {
   interface Henri {
     config: ConfigModule;
     pen: Pen;
+    /**
+     * Where an application hears about the failures henri catches: the boot,
+     * a 5xx and an unhandled rejection. `onError(fn)` registers the one
+     * handler, `report(error, options)` adds the application's own.
+     */
+    reporter: Reporter;
     mail: MailModule;
     /**
      * The GraphQL module, when the application depends on
