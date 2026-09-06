@@ -56,6 +56,7 @@ henri server
 │   │   ├── public
 │   │   └── styles
 │   │       └── index.css     <- Tailwind CSS, the whole stylesheet
+│   ├── jobs
 │   └── workers
 ├── config
 │   ├── default.json          <- stores, renderer, user model (committed)

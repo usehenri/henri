@@ -262,6 +262,7 @@ const COMMANDS = [
         name: 'view <folder>',
       },
       { description: 'delete app/workers/<name>.js', name: 'worker <name>' },
+      { description: 'delete app/jobs/<name>.js', name: 'job <name>' },
       {
         description:
           'delete app/mailers/<name>.js and app/views/mailers/<name>',
@@ -331,6 +332,10 @@ const COMMANDS = [
         description: 'Creates app/workers/cleanup.js with start and stop',
       },
       {
+        command: 'henri g job welcome',
+        description: 'Creates app/jobs/welcome.js, run by henri jobs',
+      },
+      {
         command: 'henri g mailer welcome confirm',
         description:
           'Creates app/mailers/welcome.js and app/views/mailers/welcome/confirm.hbs; preview it on /_mailers',
@@ -367,6 +372,10 @@ const COMMANDS = [
       {
         description: 'app/workers/<name>.js with start and stop',
         name: 'worker <name>',
+      },
+      {
+        description: 'app/jobs/<name>.js with perform, retries and a queue',
+        name: 'job <name>',
       },
       {
         description:
@@ -447,6 +456,109 @@ const COMMANDS = [
     summary: 'add the henri structure to the current directory',
     usage: [
       'henri init [--force | -f] [--skip-install] [--no-git] [--renderer <name>] [--adapter <name>] [--dialect <name>] [--pm <name>]',
+    ],
+  },
+  {
+    description: [
+      'Runs a worker process that claims jobs from the queue and performs',
+      'them, keeps the recurring schedules of config/<env>.json moving and',
+      'puts back the jobs a runner died on. Several runners are meant to run',
+      'at once against one database. It stops on SIGINT, SIGTERM and SIGQUIT,',
+      'finishing the jobs it already claimed. Without a command it runs;',
+      'install, status, list, dead, show, perform, retry and discard drive',
+      'the queue from the outside.',
+    ],
+    examples: [
+      {
+        command: 'henri jobs --queue=mailers --concurrency=10',
+        description: 'A runner for one queue only',
+      },
+      {
+        command: 'henri jobs --once',
+        description: 'Perform everything that is due, then exit',
+      },
+      {
+        command: 'henri jobs:dead --json',
+        description: 'The dead letter queue, as JSON',
+      },
+      {
+        command: 'henri jobs:retry --all',
+        description: 'Put every dead job back in its queue',
+      },
+    ],
+    flags: [
+      {
+        description: 'only these queues, comma separated (default: all)',
+        flag: '--queue=<a,b>',
+      },
+      {
+        description: 'how many jobs at once (default: jobs.concurrency, 5)',
+        flag: '--concurrency=<n>',
+      },
+      {
+        description: 'perform what is due and exit instead of looping',
+        flag: '--once',
+      },
+      {
+        description: 'do not honour the recurring schedules',
+        flag: '--no-recurring',
+      },
+      {
+        description: 'list/retry/discard: how many, and which job or state',
+        flag: '--limit=<n> --name=<job> --state=<state>',
+      },
+      { description: 'retry, discard: every matching job', flag: '--all' },
+      {
+        description: 'perform: enqueue it later instead of now',
+        flag: '--in=<duration> --at=<date>',
+      },
+      {
+        description: 'perform: run it here and now instead of enqueuing',
+        flag: '--now',
+      },
+      { description: 'print the result as JSON', flag: '--json' },
+    ],
+    name: 'jobs',
+    summary: 'run the background jobs, and drive the queue',
+    targets: [
+      {
+        description: 'claim and perform jobs until a signal stops it',
+        name: 'run',
+      },
+      {
+        description: 'create the queue tables (idempotent)',
+        name: 'install',
+      },
+      {
+        description: 'counts by queue and state, timings and schedules',
+        name: 'status',
+      },
+      {
+        description: 'the jobs of the queue (--state, --queue, --name)',
+        name: 'list',
+      },
+      { description: 'the dead letter queue', name: 'dead' },
+      {
+        description: 'one job with its error, its stack and its history',
+        name: 'show <id>',
+      },
+      {
+        description: 'enqueue a job by hand (JSON arguments)',
+        name: 'perform <name> [json]',
+      },
+      {
+        description: 'put a dead job back in its queue (or --all)',
+        name: 'retry <id>',
+      },
+      {
+        description: 'delete a dead job for good (or --all)',
+        name: 'discard <id>',
+      },
+    ],
+    usage: [
+      'henri jobs [--queue=<a,b>] [--concurrency=<n>] [--once] [--no-recurring]',
+      'henri jobs <command> [options] [--json]',
+      'henri jobs:<command>',
     ],
   },
   {

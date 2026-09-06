@@ -162,6 +162,21 @@ const worker = ([name], ctx) => {
 };
 
 /**
+ * Removes a job
+ *
+ * @param {string[]} [name] Job name
+ * @param {object} ctx Context
+ * @return {void}
+ */
+const job = ([name], ctx) => {
+  deleteOrBackup(
+    'job',
+    path.join('app', 'jobs', `${name.toLowerCase()}.js`),
+    ctx
+  );
+};
+
+/**
  * Removes a mailer and its views
  *
  * @param {string[]} [name] Mailer name
@@ -319,6 +334,7 @@ const deleteOrBackup = (type, relative, ctx) => {
 const destroyers = {
   controller,
   crud,
+  job,
   mailer,
   model,
   route,

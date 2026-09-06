@@ -115,6 +115,25 @@ module.exports = {
 The nine field types are checked; every other key of a field is passed to the
 adapter, so the shape stays open (see [Models](/guides/models/)).
 
+```js
+// app/jobs/welcome.js
+/** @type {import('@usehenri/core').JobDefinition} */
+module.exports = {
+  queue: 'mailers',
+  maxAttempts: 5,
+  timeout: '30s',
+
+  perform: async (args, { henri, job, signal }) => {
+    henri.pen.info('welcome', job.id, job.attempt);
+  },
+};
+```
+
+`context` is typed from that annotation, and so is what `henri.jobs` answers:
+`perform()`, `performIn()` and `performAt()` resolve with a `Job`, `stats()`
+with a `JobStats`, and `henri.jobs.dead` with the same. See
+[Jobs](/guides/jobs/).
+
 `Configuration` is the shape of `config/default.json`, and is worth an
 annotation when a helper builds part of it:
 

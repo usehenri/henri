@@ -1,0 +1,16 @@
+{
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "sqlite",
+      "url": "file:.henri/jobs.db"
+    }
+  },
+  "jobs": {
+    "backoff": { "base": "1h", "jitter": 0 },
+    "recurring": {
+      "nightly": { "cron": "0 3 * * *", "job": "ping", "queue": "maintenance" }
+    }
+  },
+  "secret": "jobs-are-at-least-once"
+}

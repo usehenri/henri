@@ -17,7 +17,7 @@ mise install                          # node + pnpm from mise.toml
 pnpm install                          # whole workspace; builds @usehenri/react dist
 pnpm test                             # vitest 5, all packages (rebuilds @usehenri/react first)
 pnpm test packages/core               # one package (path filter); `pnpm test:cover` for coverage
-pnpm test:sql                         # the SQL adapters only (sqlite; see below for a live server)
+pnpm test:sql                         # the SQL adapters and the job queue (sqlite; see below for a live server)
 pnpm test:types                       # the hand-written .d.ts: packaging, then tsc over types/
 pnpm lint                             # eslint 10 flat config, zero warnings in CI
 pnpm format                           # prettier 3 (`pnpm format:check` in CI)
@@ -57,32 +57,33 @@ an app and is what core's tests boot.
 
 ## Layout
 
-| Path                                    | Package               | Role                                                                                                                                             |
-| --------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `packages/henri`                        | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                      |
-| `packages/cli`                          | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `generate`, `destroy`, `build`, `test`, `db`, `doctor`, `mcp`, `clean`, `about`; the app templates |
-| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, mail, GraphQL                                                                      |
-| `packages/mongoose`                     | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                     |
-| `packages/disk`                         | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                             |
-| `packages/sequelize`                    | `@usehenri/sequelize` | Shared SQL adapter (Sequelize 6)                                                                                                                 |
-| `packages/mysql`, `postgresql`, `mssql` | `@usehenri/*`         | Dialect packages on top of `@usehenri/sequelize`                                                                                                 |
-| `packages/drizzle`                      | `@usehenri/drizzle`   | SQL adapter on Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`), new in 1.1                                      |
-| `packages/react`                        | `@usehenri/react`     | Next.js 16 view engine, `withHenri`, `useHenri`, form components                                                                                 |
-| `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19 (new in 1.1, experimental)                                                                             |
-| `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                |
-| `packages/mcp`                          | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                             |
-| `packages/websocket`                    | private               | Not published, never wired into core                                                                                                             |
-| `packages/demo`                         | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                   |
-| `showcase`                              | private               | Lineup, the showcase application (Inertia + Drizzle on PostgreSQL); its own suite, `pnpm test:showcase`                                          |
-| `website`                               | private               | usehenri.io, deployed by Vercel from `website/`                                                                                                  |
+| Path                                    | Package               | Role                                                                                                                                                     |
+| --------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/henri`                        | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                              |
+| `packages/cli`                          | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `generate`, `destroy`, `build`, `test`, `db`, `jobs`, `doctor`, `mcp`, `clean`, `about`; the app templates |
+| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, mail, GraphQL                                                                              |
+| `packages/mongoose`                     | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                             |
+| `packages/disk`                         | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                     |
+| `packages/sequelize`                    | `@usehenri/sequelize` | Shared SQL adapter (Sequelize 6)                                                                                                                         |
+| `packages/mysql`, `postgresql`, `mssql` | `@usehenri/*`         | Dialect packages on top of `@usehenri/sequelize`                                                                                                         |
+| `packages/drizzle`                      | `@usehenri/drizzle`   | SQL adapter on Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`), new in 1.1                                              |
+| `packages/react`                        | `@usehenri/react`     | Next.js 16 view engine, `withHenri`, `useHenri`, form components                                                                                         |
+| `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19 (new in 1.1, experimental)                                                                                     |
+| `packages/jobs`                         | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1                                 |
+| `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                        |
+| `packages/mcp`                          | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                     |
+| `packages/websocket`                    | private               | Not published, never wired into core                                                                                                                     |
+| `packages/demo`                         | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                           |
+| `showcase`                              | private               | Lineup, the showcase application (Inertia + Drizzle on PostgreSQL); its own suite, `pnpm test:showcase`                                                  |
+| `website`                               | private               | usehenri.io, deployed by Vercel from `website/`                                                                                                          |
 
 ## How core works
 
 - `Henri` (`packages/core/src/henri.js`) registers modules, each a class extending
   `base/module.js` with a unique `name`, a `runlevel` (0 config, 1 mail and
-  graphql, 2 controllers, mailers and the Express app, 3 models and the view engine,
-  4 users, 5 router and workers, 6 app modules) and `init()`. Modules on the
-  same level start concurrently; a failing `init()` fails the boot
+  graphql, 2 controllers, mailers and the Express app, 3 models and the view
+  engine, 4 users and jobs, 5 router and workers, 6 app modules) and `init()`.
+  Modules on the same level start concurrently; a failing `init()` fails the boot
   (`henri.init()` rejects with an Error whose `cause` is the module error).
   Reloadable ones expose `reload()`; `henri.stop()` stops every module even
   when one fails and resolves with the errors. `pen.fatal()` returns an Error
@@ -100,8 +101,8 @@ an app and is what core's tests boot.
   printed at boot with the `filterParameters` masked. Keys: `port`, `host`, `cors`,
   `renderer`, `inertia`, `experimental`, `stores`, `secret`, `user` (string or
   `{ model, public, loginPath, afterLogin, sessionMaxAge }`), `baseRole`,
-  `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `rateLimit`, `helmet`,
-  `filterParameters`, `bodyLimit`, `requestTimeout`.
+  `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `jobs`,
+  `rateLimit`, `helmet`, `filterParameters`, `bodyLimit`, `requestTimeout`.
 - The JSON API layer lives in `base/{api,hateoas,idempotency,rate-limit,
 request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   `res.collection()` answer HAL with `_links` from the route helpers filtered
@@ -148,6 +149,23 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   engine) or JSON. `res.boom.*` (`base/boom.js`) answers
   `{ statusCode, error, message, data }`; 404 and 500 are negotiated in
   `base/http.js`.
+- Background jobs live in `@usehenri/jobs`, which core loads from the app the
+  way it loads a store adapter (`4.jobs.js`, runlevel 4, so `henri jobs` boots
+  to that level and binds no port) and exposes as `henri.jobs`
+  (`perform`/`performIn`/`performAt`/`performNow`, `list`, `stats`, `dead.*`).
+  A job is `app/jobs/<name>.js` exporting `perform(args, context)` plus
+  `queue`, `priority`, `maxAttempts`, `timeout` and `backoff`. The queue owns
+  `henri_jobs` and `henri_jobs_schedules` and reaches them through
+  `adapter.query()` or the MongoDB collections, never through a model; every
+  moment is a BIGINT of epoch milliseconds. Claiming is one statement per
+  dialect (`FOR UPDATE SKIP LOCKED`, `UPDATE ... ORDER BY ... LIMIT`,
+  `UPDLOCK, READPAST`, a subquery on sqlite, `findOneAndUpdate` on MongoDB)
+  and the claimed rows are read back by the token it stamped, so two runners
+  never perform one job. `henri jobs` runs a worker (`--queue`,
+  `--concurrency`, `--once`), `henri jobs:install|status|list|dead|show|
+perform|retry|discard` drive it. The module also registers
+  `henri.mailers.onDeliverLater()`, so `deliverLater()` enqueues the rendered
+  message as the built-in `henri/mail` job.
 - Controllers may export `before` (`base/hooks.js`): hooks the router runs
   between the role guard and the action, keyed by action (`all`,
   `'show,edit'`) or as `[fn, { run, only, except }]`; a hook that answers ends
@@ -260,5 +278,10 @@ the LICENSE and a README into every public package at publish time
   configures.
 - The idempotency and rate-limit stores are in memory unless the app plugs a
   shared store (`config.api.idempotency.store`, `config.rateLimit.store`).
+- `@usehenri/jobs` is new in 1.1. Its claim is covered against sqlite,
+  PostgreSQL, MySQL and MongoDB (`packages/jobs/__tests__/claim.spec.js`,
+  `mongo.spec.js`; `pnpm test:sql:live` runs the SQL ones on real servers with
+  concurrent connection pools). MSSQL only has its generated DDL and claim
+  statement covered offline, like the rest of that adapter.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.

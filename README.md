@@ -14,8 +14,8 @@ henri is a Rails-like, server-side rendered JavaScript framework for Node.js:
 models backed by real ORMs (MongoDB through Mongoose, MySQL, PostgreSQL and
 MSSQL through Sequelize, or a zero-config local store), thin controllers,
 declarative routes with roles and CRUD, React views rendered by Next.js or by
-Vite with Inertia.js, GraphQL, mail, workers, tests on Vitest and hot reload,
-all driven by one CLI.
+Vite with Inertia.js, GraphQL, mail, background jobs, workers, tests on Vitest
+and hot reload, all driven by one CLI.
 
 ## Install
 

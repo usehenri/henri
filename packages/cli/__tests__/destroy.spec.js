@@ -14,6 +14,7 @@ const populate = (app) => {
     ['g', 'scaffold', 'Post', 'title:string'],
     ['g', 'controller', 'locations', 'index', 'gps'],
     ['g', 'worker', 'cleanup'],
+    ['g', 'job', 'welcome'],
     ['g', 'mailer', 'welcome', 'confirm'],
     ['g', 'test', 'things'],
   ]) {
@@ -107,10 +108,11 @@ describe('henri destroy without git', () => {
     expect(missing.stdout).toContain('no route "get /nothing"');
   });
 
-  test('view, worker and test remove their files', () => {
+  test('view, worker, job and test remove their files', () => {
     for (const [args, file] of [
       [['d', 'view', 'tasks'], 'app/views/pages/tasks'],
       [['d', 'worker', 'cleanup'], 'app/workers/cleanup.js'],
+      [['d', 'job', 'welcome'], 'app/jobs/welcome.js'],
       [['d', 'test', 'things'], 'test/things.test.js'],
     ]) {
       const { status, stdout } = henri(args, { cwd: app });

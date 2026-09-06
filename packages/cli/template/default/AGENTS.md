@@ -16,6 +16,7 @@ the generators write above `module.exports` (`req`, `res` and `henri` complete; 
 | `app/views/pages/tasks/`     | {{#if react}}next.js pages (`.js`): `index`, `new`, `show`, `edit`, `_form`; `pages/tasks/index.js` is `/tasks`{{/if}}{{#if inertia}}Inertia pages (`.jsx`, Vite + React){{/if}} |
 | `app/views/components/`      | Shared components (`import Nav from 'components/nav'`); `assets/` and `public/` next to it                                                                                       |
 | `app/views/styles/index.css` | The Tailwind CSS v4 entry point, and the only stylesheet of the application                                                                                                      |
+| `app/jobs/welcome.js`        | `{ queue, maxAttempts, timeout, perform(args, context) }`, run by `henri jobs` (needs `@usehenri/jobs`)                                                                          |
 | `app/workers/cleanup.js`     | `{ name, start(henri), stop(henri) }`, started with the server (`--skip-workers` to skip)                                                                                        |
 | `config/default.json`        | Committed configuration: `stores`, `renderer`, `user`, `baseRole`, `port`, `graphql`, `mail`                                                                                     |
 | `config/<NODE_ENV>.json`     | `dev.json`, `production.json` or `test.json` replaces `default.json` as a whole (keys are not merged)                                                                            |
@@ -29,7 +30,7 @@ henri generate scaffold Post title:string! body:text  # model + controller + rou
 henri generate model Post title:string! body:text     # app/models/Post.js only
 henri generate controller locations index gps         # controller + one GET route per action
 henri generate crud Item name:string                  # model + JSON controller + crud routes
-henri generate worker cleanup | test posts | agents   # app/workers, test/, AGENTS.md
+henri generate job welcome | worker cleanup | test posts | agents
 henri destroy scaffold Post                           # undo (model, controller, route, view, worker, test, crud too)
 ```
 
@@ -79,9 +80,7 @@ json: () => res.resource(post) })`: the page for browsers, HAL for API
 - `res.boom.notFound(message, data)`, `badData` (422), `badRequest`,
   `unauthorized`, `forbidden`, `conflict`, `tooManyRequests` answer JSON.
 - `req.flash('notice', 'Saved')` before a redirect: the next page rendered gets it in `flash.notice`, once (needs a user model, so a session).
-- `req.user` is the logged-in user or undefined. Log with
-  `henri.pen.info|warn|error('scope', ...)`, not `console.log`.
-- `app/controllers/tasks.js` (scaffolded) is the reference implementation.
+- `req.user` is the logged-in user or undefined; log with `henri.pen.info|warn|error('scope', ...)`, not `console.log`. `app/controllers/tasks.js` (scaffolded) is the reference implementation.
 
 ## Routes
 
@@ -122,12 +121,12 @@ before rendering again hands validation errors to the page; `res.inertia.locatio
 `app/views/styles/index.css` is the whole stylesheet of the application.
 {{#if react}}`app/views/pages/_app.js` imports it once, `app/views/postcss.config.mjs` compiles it.{{/if}}{{#if inertia}}`app/views/main.jsx` imports it once, the `@tailwindcss/vite` plugin of `app/views/vite.config.mjs` compiles it.{{/if}}
 
-Utility classes in the pages: no CSS modules, no second stylesheet, no
-`tailwind.config.js` (v4 has none; the theme is `@theme` in that file). Dark
-mode is the `dark:` variant and follows the system, so a colour class wants
-its counterpart. Tailwind reads only the `@source` globs of `index.css`
-(`pages/`, `components/`): add one before writing classes elsewhere. A class
-list long enough to hide the markup goes in a `const` at the top of the page.
+Utility classes in the pages: no CSS modules, no second stylesheet, no `tailwind.config.js` (v4 has none; the theme is `@theme` in that file). Dark mode is the `dark:` variant and follows the system, so a colour class wants its counterpart.
+Tailwind reads only the `@source` globs of `index.css` (`pages/`, `components/`): add one before writing classes elsewhere. A class list long enough to hide the markup goes in a `const` at the top of the page.
+
+## Jobs
+
+Work that must not block a request goes in `app/jobs`, never in a worker: `henri.jobs.perform('welcome', { userId })` (`performIn('5m', ...)`, `performAt(date, ...)`) writes one row and returns; a `henri jobs` process performs it, retries it with a backoff and, out of attempts, keeps it in the dead letter queue (`henri jobs:dead`, `jobs:retry`, `jobs:status`). Arguments must survive JSON: pass ids, never a model instance or a `Buffer`. The queue is at-least-once, so a job must be idempotent. Recurring work is `jobs.recurring` in `config/default.json` (`{ "job": "cleanup", "cron": "0 3 * * *" }`, read in UTC), never a `setInterval` in a worker: `app/workers` is for long-lived processes only.
 
 ## Users and secrets
 
@@ -146,14 +145,15 @@ booted under `NODE_ENV=test`: `henri` and the models are globals, and
 
 ## Commands, exit codes, MCP
 
-| Command                              | Result                                             |
-| ------------------------------------ | -------------------------------------------------- |
-| `henri doctor [--json]`              | Conventions check; run it after every change       |
-| `henri routes --json`                | The routes table                                   |
-| `henri generate\|destroy ... --json` | Files written or removed, routes added or removed  |
-| `henri test [files]`                 | The tests (exits with vitest's code)               |
-| `pnpm lint`                          | `eslint .` (the model globals are declared)        |
-| `henri server`, `build`, `console`   | Dev server with hot reload, production views, REPL |
+| Command                              | Result                                                                 |
+| ------------------------------------ | ---------------------------------------------------------------------- |
+| `henri doctor [--json]`              | Conventions check; run it after every change                           |
+| `henri routes --json`                | The routes table                                                       |
+| `henri generate\|destroy ... --json` | Files written or removed, routes added or removed                      |
+| `henri test [files]`                 | The tests (exits with vitest's code)                                   |
+| `pnpm lint`                          | `eslint .` (the model globals are declared)                            |
+| `henri jobs [--once] [--queue=]`     | Perform the background jobs (`jobs:status`, `jobs:dead`, `jobs:retry`) |
+| `henri server`, `build`, `console`   | Dev server with hot reload, production views, REPL                     |
 
 Exit codes: 0 ok, 1 failed (or problems found), 2 usage error, 3 not a henri
 app (run from the root), 4 needs a terminal (pass the flag: `henri clean

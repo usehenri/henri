@@ -26,6 +26,7 @@ const PACKAGES = [
 const FOLDERS = {
   controllers: 'app/controllers',
   helpers: 'app/helpers',
+  jobs: 'app/jobs',
   models: 'app/models',
   views: 'app/views/pages',
   workers: 'app/workers',

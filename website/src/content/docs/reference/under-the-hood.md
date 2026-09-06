@@ -15,7 +15,7 @@ henri is a set of modules booted in run levels. Modules on the same level start 
 | 1     | `mail`, `graphql`                                                                                |
 | 2     | `controllers`, `mailers` (`app/mailers`), `server` (the Express app is built, not listening yet) |
 | 3     | `model` (stores and model globals), `view` (the engine's `init()`)                               |
-| 4     | `user` (sessions, passport, CSRF, `req.permit()`)                                                |
+| 4     | `user` (sessions, passport, CSRF, `req.permit()`), `jobs` (the queue)                            |
 | 5     | `router` (routes, the engine's `prepare()`, then the server listens), `workers`                  |
 | 6     | your own modules                                                                                 |
 
@@ -23,7 +23,7 @@ The logger (`henri.pen`) and the registry (`henri.modules`) exist before level 0
 
 ## Reloads
 
-In development the server watches `app/controllers`, `app/helpers`, `app/mailers`, `app/models`, `app/workers`, `app/views/partials`, `config` and `package.json`. Changes are debounced, every changed file is syntax checked first (an error is printed and nothing reloads), then `henri.reload()` runs: the application's own files are evicted from the require cache (nothing under `node_modules`) and the reloadable modules run their `reload()` in level order: `config`, `graphql`, `controllers`, `mailers`, `model`, `view`, `router`, `workers`. `server`, `mail` and `user` are not reloadable. Reloads are serialized: a change during a reload queues exactly one more run.
+In development the server watches `app/controllers`, `app/helpers`, `app/jobs`, `app/mailers`, `app/models`, `app/workers`, `app/views/partials`, `config` and `package.json`. Changes are debounced, every changed file is syntax checked first (an error is printed and nothing reloads), then `henri.reload()` runs: the application's own files are evicted from the require cache (nothing under `node_modules`) and the reloadable modules run their `reload()` in level order: `config`, `graphql`, `controllers`, `mailers`, `model`, `view`, `jobs`, `router`, `workers`. `server`, `mail` and `user` are not reloadable. Reloads are serialized: a change during a reload queues exactly one more run.
 
 A model reload stops and restarts the stores; the session store follows the new adapter. The Handlebars engine drops its template cache (mail views are cached by modification time, so editing one is picked up without a reload); the React engine only announces that `config/next.js` or `config/webpack.js` changed (Next.js watches the pages itself); the Inertia engine lets Vite watch. `Ctrl+R` in the terminal triggers the same reload.
 

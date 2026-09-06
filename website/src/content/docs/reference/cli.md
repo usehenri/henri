@@ -127,6 +127,7 @@ henri g <what> <name> [options] [--force]
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `model <Name> [field:type ...]`    | `app/models/<Name>.js` with the fields (timestamps are on by default).                                                                                                                                                                               |
 | `controller <name> [action ...]`   | `app/controllers/<name>.js` with one `res.boom.notImplemented()` handler per action, and a `get /<name>/<action>` route for each in `config/routes.js`.                                                                                              |
+| `job <name>`                       | `app/jobs/<name>.js` with `perform(args, context)`, a queue and a retry policy.                                                                                                                                                                      |
 | `worker <name>`                    | `app/workers/<name>.js` with `start()` and `stop()`.                                                                                                                                                                                                 |
 | `mailer <name> [action ...]`       | `app/mailers/<name>.js` with one action per name (`notify` when none is given), `app/views/mailers/<name>/<action>.hbs` for each, and `app/views/mailers/layouts/mailer.hbs` and `mailer.text.hbs` when they are missing. See [Mail](/guides/mail/). |
 | `test <name>`                      | `test/<name>.test.js` requesting `GET /<name>` with `@usehenri/testing`.                                                                                                                                                                             |
@@ -141,6 +142,7 @@ Fields are `name:type`, `string` when the type is omitted; a trailing `!` (`name
 henri generate model User name:string! birthday:date
 henri generate controller locations index show
 henri g scaffold HighScore game:string! score:integer
+henri g job welcome
 henri g worker cleanup
 henri g mailer welcome confirm reset
 henri g test highscores
@@ -161,6 +163,7 @@ henri d <what> <name>
 | `controller <name>` | `app/controllers/<name>.js` and every route pointing to it                       |
 | `route <key>`       | one key of `config/routes.js`: `henri destroy route "get /about"`                |
 | `view <folder>`     | `app/views/pages/<folder>`                                                       |
+| `job <name>`        | `app/jobs/<name>.js`                                                             |
 | `worker <name>`     | `app/workers/<name>.js`                                                          |
 | `mailer <name>`     | `app/mailers/<name>.js` and `app/views/mailers/<name>` (the shared layout stays) |
 | `test <name>`       | `test/<name>.test.js`                                                            |
@@ -212,6 +215,32 @@ The encrypted secrets of an environment, in the Rails `credentials:` style (`hen
 `show` prints the decrypted credentials on stdout. With `--json` it prints the environment, the file and the key paths it holds — never a value, in this command and in every error message.
 
 Both exit with `1` when the key is missing or wrong, naming the file and `HENRI_CREDENTIALS_KEY`. See [Configuration](/configuration/#encrypted-credentials).
+
+## `jobs`
+
+```bash
+henri jobs [--queue=<a,b>] [--concurrency=<n>] [--once] [--no-recurring]
+henri jobs:install | jobs:status | jobs:list | jobs:dead | jobs:show <id>
+henri jobs:perform <name> [json] [--in=<duration>] [--at=<date>] [--queue=<name>] [--now]
+henri jobs:retry <id> | --all      |  henri jobs:discard <id> | --all      [--json]
+```
+
+Runs and drives the [job queue](/guides/jobs/) of `@usehenri/jobs`, in the same `jobs:` style as `db:` (`henri jobs status` works too). Every command boots to the models (runlevel 4): no HTTP server, no views, no `app/workers`, so several runners live on one machine. An application without the package, or without `app/jobs` and a `jobs` configuration, exits with `1` and says what to install. Every command accepts `--json`.
+
+Without a command, `henri jobs` runs a worker: it claims jobs, performs up to `--concurrency` of them at once (`jobs.concurrency`, five by default), honours the recurring schedules, puts back the jobs of runners that died and stops on `SIGINT`, `SIGTERM` or `SIGQUIT` after finishing what it had claimed. `--queue=mailers,reports` limits it to some queues; `--once` performs what is due and exits instead of looping, which is what a cron entry wants; `--no-recurring` leaves the schedules alone.
+
+| Command                 | What it does                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `install`               | Creates `henri_jobs` and `henri_jobs_schedules` and their indexes. Idempotent; run it in a deploy that sets `"install": false`. |
+| `status`                | Counts by queue and state, the timings of the finished jobs, how long the oldest due job has waited, the schedules.             |
+| `list`                  | The jobs, newest change first (`--state`, `--queue`, `--name`, `--limit`).                                                      |
+| `dead`                  | The dead letter queue.                                                                                                          |
+| `show <id>`             | One job with its arguments, its error, its stack and the history of every attempt.                                              |
+| `perform <name> [json]` | Enqueues a job by hand; `--in=<duration>` or `--at=<date>` for later, `--now` to run it inline instead.                         |
+| `retry <id>`            | Puts a dead job back in its queue, attempts reset. `--all` (with `--queue`/`--name`) for every matching one.                    |
+| `discard <id>`          | Deletes a dead job for good. `--all` (with `--queue`/`--name`) for every matching one.                                          |
+
+`--wait` is a global flag (it belongs to `--inspect`), which is why the delay of an enqueue is `--in`.
 
 ## `doctor`
 
