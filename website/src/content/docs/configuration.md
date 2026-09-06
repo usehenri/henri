@@ -66,7 +66,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                              |
 | `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                                  |
 | `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                                     |
-| `webhooks`         |               | Settings of the [outbound webhooks](/guides/webhooks/), see below; needs `@usehenri/webhooks`, which delivers through the queue.                |
+| `webhooks`         |               | Settings of the [outbound webhooks](/guides/webhooks/), see below; needs `@usehenri/webhooks`, which delivers through the queue.                           |
 
 ## The `externalIds` object
 

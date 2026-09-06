@@ -282,6 +282,8 @@ class Jobs {
     this.config.recurring.sort((one, other) =>
       one.name.localeCompare(other.name)
     );
+
+    return true;
   }
 
   /**

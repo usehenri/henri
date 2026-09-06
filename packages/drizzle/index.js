@@ -1020,6 +1020,7 @@ class Drizzle {
       value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const jobs = block(read('jobs'));
     const trail = block(read('trail'));
+    const webhooks = block(read('webhooks'));
     const name = (value, fallback) =>
       typeof value === 'string' && value !== '' ? value : fallback;
     const queue = name(jobs.table, 'henri_jobs');
@@ -1028,6 +1029,7 @@ class Drizzle {
       queue,
       `${queue}_schedules`,
       name(trail.table, 'henri_trail'),
+      name(webhooks.table, 'henri_webhooks'),
     ]);
   }
 
