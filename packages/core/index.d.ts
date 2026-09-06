@@ -2709,6 +2709,12 @@ declare namespace start {
     /** Whether anything is being recorded. */
     enabled: boolean;
     /**
+     * The id of the request being handled, or `null` outside one. The seam
+     * a package outside core reaches for when it has to carry the id into
+     * a job.
+     */
+    requestId(): string | null;
+    /**
      * Records one finished outbound call. Answers `false` on a disabled
      * log, on a request the sampling dropped, and when a bound refused it.
      */

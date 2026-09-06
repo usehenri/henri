@@ -138,7 +138,7 @@ describe('an application with no secret of its own', () => {
 
     expect(row.secrets).toContain(endpoint.secret);
     expect(
-      built.henri.calls.filter(
+      built.henri.logged.filter(
         ([level, , said]) =>
           level === 'warn' && String(said).includes('not encrypted')
       )

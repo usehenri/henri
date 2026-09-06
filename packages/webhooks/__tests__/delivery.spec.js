@@ -341,4 +341,51 @@ describe('a delivery, end to end', () => {
     await work();
     await webhooks.remove(endpoint.id);
   });
+  test('a delivery is one of the outbound calls the call log holds', async () => {
+    // The stand-in is `henri.calls` of core: what this package asks it for
+    // is the request id at emit time and one `track()` per attempt
+    const recorded = [];
+
+    henri.calls = {
+      enabled: true,
+      requestId: () => 'req-from-the-request',
+      track: (details) => (answer) => {
+        recorded.push({ ...details, ...answer });
+
+        return true;
+      },
+    };
+
+    const server = await serve();
+    const endpoint = await webhooks.register({
+      events: ['tracked.event'],
+      url: server.url,
+    });
+
+    await webhooks.emit('tracked.event', { total: 7 });
+    await work();
+
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({
+      method: 'POST',
+      service: 'webhooks',
+      status: 200,
+      url: server.url,
+    });
+    // The request that caused the emit is over: the id travelled with the
+    // job, which is what makes the join work at all
+    expect(recorded[0].requestId).toBe('req-from-the-request');
+    // The envelope goes in as an object, because a body the log cannot walk
+    // is a body it cannot redact
+    expect(recorded[0].request.body).toMatchObject({
+      data: { total: 7 },
+      type: 'tracked.event',
+    });
+    expect(recorded[0].request.headers['webhook-signature']).toEqual(
+      expect.any(String)
+    );
+
+    henri.calls = null;
+    await webhooks.remove(endpoint.id);
+  });
 });

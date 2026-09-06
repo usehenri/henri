@@ -17,19 +17,23 @@ if (typeof afterAll === 'function') {
 /**
  * A minimal henri stand-in
  *
+ * `logged` holds the pen lines: `calls` is `henri.calls`, the call log of
+ * core, and a stand-in that shadowed it would hide the one thing this
+ * package asks it for (the request id a delivery joins on).
+ *
  * @param {object} [options={}] `secret`, `cache`, `jobs`
- * @returns {object} A fake henri, with the pen calls in `calls`
+ * @returns {object} A fake henri, with the pen lines in `logged`
  */
 const fakeHenri = (options = {}) => {
-  const calls = [];
+  const logged = [];
   const pen = {};
 
   ['error', 'info', 'warn'].forEach((level) => {
-    pen[level] = (...args) => calls.push([level, ...args]);
+    pen[level] = (...args) => logged.push([level, ...args]);
   });
 
   pen.fatal = (...args) => {
-    calls.push(['fatal', ...args]);
+    logged.push(['fatal', ...args]);
 
     return new Error(args.join(' '));
   };
@@ -41,13 +45,14 @@ const fakeHenri = (options = {}) => {
 
   return {
     cache: options.cache || null,
-    calls,
+    calls: options.calls || null,
     config: {
       get: (key) => values[key],
       has: (key) => typeof values[key] !== 'undefined',
     },
     cwd: () => process.cwd(),
     jobs: options.jobs || null,
+    logged,
     pen,
   };
 };

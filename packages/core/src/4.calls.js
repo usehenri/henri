@@ -233,6 +233,22 @@ class Calls extends BaseModule {
   }
 
   /**
+   * The id of the request being handled, when there is one.
+   *
+   * The seam a package outside core reaches for: `@usehenri/webhooks`
+   * stamps it into the delivery job it enqueues, so the delivery that goes
+   * out ten seconds later still joins the request that caused it. It
+   * answers whether or not the log is on, because it is a fact about the
+   * request rather than about the log.
+   *
+   * @returns {?string} the id, or null outside a request
+   * @memberof Calls
+   */
+  requestId() {
+    return currentRequestId();
+  }
+
+  /**
    * Records one finished inbound call.
    *
    * Called from `res.on('close')`, so the answer is already on its way out
