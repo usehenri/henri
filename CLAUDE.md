@@ -532,8 +532,29 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   `calls.always` keeping the failures sampling dropped (without their
   bodies). Everything stored goes through `redactor(henri)` and, on top of
   it, `authorization`/`cookie`/`set-cookie`/`x-csrf-token`/`x-api-key`/
-  `webhook-signature` are masked whatever `filterParameters` says, a url
-  loses its userinfo and the person is their `externalId`. `calls.keep`
+  `webhook-signature` and every forwarding header are masked whatever
+  `filterParameters` says, a url
+  loses its userinfo and the person is their `externalId`. An inbound row
+  also records where the request came from (`base/address.js`,
+  `config.calls.address`), in three columns rather than one: `client_ip`,
+  what henri believes; `peer_ip`, the socket; and `ip_source`, how it was
+  decided. `X-Forwarded-For` is believed through `config.trustProxy`, which
+  express already applies, and a header express will not read
+  (`cf-connecting-ip`) only through `calls.address.header` **and**
+  `calls.address.from`, the proxies allowed to set it -- a header without
+  `from` fails the boot (`HENRI_CALLS_ADDRESS_UNVERIFIABLE`). A blanket
+  `trustProxy: true` in front of a forwarded request records **no client
+  address at all** and says `unverified`, because an address that is a
+  guess is worse than an empty column; `henri audit` reports that
+  (`calls.address-unverified`) and a `from` covering everything
+  (`calls.address-from-any`). `calls.address.anonymize` truncates to a /24
+  or a /48 keeping the prefix length in the value, and is off by default.
+  An address is personal data, so it is in columns of its own rather than
+  the header blob and a person's rows answer `henri privacy:export` and
+  `henri privacy:erase` (`henri.calls.forPerson()`/`forget()`, best effort,
+  joined on the `externalId`) -- the trail records no address on purpose,
+  because it holds no values and is hash-chained, and `henri.reporter`
+  still carries nothing from the client. `calls.keep`
   (30d) is pruned by the retention sweep, and where the dialect has ranges
   (`calls.partition`, PostgreSQL and MySQL) the sweep drops whole periods
   instead of rows -- with a catch-all partition so no row is ever refused,

@@ -323,6 +323,27 @@ function addressConfig(raw) {
 }
 
 /**
+ * One header's value as text, whatever shape it arrived in.
+ *
+ * Node joins duplicate headers into one string for everything except
+ * `set-cookie`, so a forwarding header is a string today. This does not
+ * depend on that table staying what it is: an array would otherwise read
+ * as "no header at all", which under a blanket `trustProxy` is the
+ * difference between refusing to believe a forged address and recording
+ * it as though it came off the socket.
+ *
+ * @param {object} headers the request headers
+ * @param {?string} name the header
+ * @returns {?string} the value, or null when there is none
+ */
+function valueOf(headers, name) {
+  const value = name && headers ? headers[name] : null;
+  const text = Array.isArray(value) ? value[0] : value;
+
+  return typeof text === 'string' && text !== '' ? text : null;
+}
+
+/**
  * Does this request carry an address somebody forwarded?
  *
  * @param {object} headers the request headers
@@ -334,9 +355,7 @@ function forwarded(headers, named) {
     return false;
   }
 
-  return [...FORWARDING, named].some(
-    (name) => name && typeof headers[name] === 'string' && headers[name] !== ''
-  );
+  return [...FORWARDING, named].some((name) => Boolean(valueOf(headers, name)));
 }
 
 /**
@@ -348,13 +367,9 @@ function forwarded(headers, named) {
  * @returns {?string} the address, or null
  */
 function claimed(headers, name) {
-  const value = headers && headers[name];
+  const value = valueOf(headers, name);
 
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  return normalize(value.split(',')[0]);
+  return value ? normalize(value.split(',')[0]) : null;
 }
 
 /**
@@ -465,4 +480,5 @@ module.exports = {
   normalize,
   trustOf,
   trustedProxies,
+  valueOf,
 };

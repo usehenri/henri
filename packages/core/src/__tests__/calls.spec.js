@@ -373,6 +373,23 @@ describe('the client address', () => {
     expect(answer.peer).toBe('172.16.0.9');
   });
 
+  // Node joins duplicate headers into one string, so a forwarding header
+  // is a string today. Reading an array as "no header at all" would, under
+  // a blanket trustProxy, record the forged address as though it had come
+  // off the socket -- so the shape is not what the answer rests on
+  test('a forwarding header that arrived as a list is still a forwarded one', () => {
+    expect(
+      addressOf(
+        asking({
+          headers: { 'x-forwarded-for': ['1.2.3.4', '5.6.7.8'] },
+          ip: '1.2.3.4',
+          trust: true,
+        }),
+        addressConfig({})
+      )
+    ).toEqual({ client: null, peer: '172.16.0.9', source: 'unverified' });
+  });
+
   test('a blanket trustProxy with nothing forwarded is still the socket', () => {
     expect(
       addressOf(asking({ ip: '172.16.0.9', trust: true }), addressConfig({}))
