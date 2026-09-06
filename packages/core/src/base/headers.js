@@ -547,6 +547,65 @@ function noStore(req, res) {
   return false;
 }
 
+/**
+ * Is this answer an Inertia page object rather than an API answer?
+ *
+ * The Inertia view engine answers a visit with `{ component, props, url,
+ * version }`, a protocol of its own with no room for `_links`, and marks it
+ * with the `X-Inertia` header. Such an answer is a rendered page, not JSON
+ * the HAL guard or the answer gate has anything to say about -- its props
+ * went through the gate as `data` when the router built them.
+ *
+ * @param {Express.Request} req the request
+ * @param {Express.Response} res the response
+ * @returns {boolean} true for an Inertia page object
+ */
+function isInertiaPage(req, res) {
+  return Boolean(
+    (typeof res.getHeader === 'function' && res.getHeader('X-Inertia')) ||
+    (typeof req.get === 'function' && req.get('x-inertia'))
+  );
+}
+
+/**
+ * Marks a body henri built itself, so the answer gate lets it through.
+ *
+ * `res.resource()`, `res.collection()`, `res.render()`'s JSON and the boom
+ * envelope are henri's own answers: the ones carrying records went through
+ * the publish and the strip already, and the ones that do not are an
+ * envelope with a shape of its own. Doing it twice would cost a copy per
+ * answer and, on an error body, would drop a field *name* that is a message
+ * rather than a value. The mark lives here, with no dependency of its own,
+ * because everything that writes an answer can reach it and nothing that
+ * writes an answer may import the gate (see base/answers.js).
+ *
+ * @param {Express.Response} res the response
+ * @returns {Express.Response} the response
+ */
+function seal(res) {
+  if (res) {
+    res._sealed = true;
+  }
+
+  return res;
+}
+
+/**
+ * Was this body sealed? Reading it clears the mark: it describes one answer
+ *
+ * @param {Express.Response} res the response
+ * @returns {boolean} sealed or not
+ */
+function sealed(res) {
+  if (!res || res._sealed !== true) {
+    return false;
+  }
+
+  res._sealed = false;
+
+  return true;
+}
+
 module.exports = {
   HAL,
   JSON_TYPE,
@@ -557,12 +616,15 @@ module.exports = {
   cachedCsp,
   createNonce,
   cspDirectives,
+  isInertiaPage,
   jsonType,
   jsonTypes,
   merge,
   noStore,
   nonceEnabled,
   normalizeVersion,
+  seal,
+  sealed,
   secureHeaders,
   versionGuard,
 };

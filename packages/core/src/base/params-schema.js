@@ -1155,5 +1155,8 @@ module.exports = {
   guard,
   inspect,
   rule,
+  // `base/answers.js` asks the same question in the other direction, so
+  // there is one table of what each type is and one answer per type
+  typed,
   write,
 };

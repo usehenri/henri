@@ -16,8 +16,9 @@ const {
   resourceLinks,
 } = require('./base/hateoas');
 const { publish } = require('./base/references');
+const { guard: answerGuard, verify: verifyAnswers } = require('./base/answers');
 const { engine: graphqlEngine } = require('./base/graphql');
-const { jsonTypes, noStore, versionGuard } = require('./base/headers');
+const { jsonTypes, noStore, seal, versionGuard } = require('./base/headers');
 const { idempotency } = require('./base/idempotency');
 const { limiter, shutdown } = require('./base/rate-limit');
 const openapi = require('./base/openapi');
@@ -259,6 +260,7 @@ class Router extends BaseModule {
   describe() {
     const { config, controllers, model, policies } = this.henri;
     const accepts = {};
+    const answers = {};
     const actions = {};
     let info = {};
 
@@ -269,6 +271,7 @@ class Router extends BaseModule {
       // process read the controller, so an action declaring nothing is a
       // fact here rather than something henri could not find out
       accepts[route.controller] = controllers.accepts(route.controller) || {};
+      answers[route.controller] = controllers.answers(route.controller) || {};
     }
 
     try {
@@ -288,6 +291,7 @@ class Router extends BaseModule {
     return openapi.build({
       accepts,
       actions,
+      answers,
       config,
       info,
       models: (model && model.models) || [],
@@ -384,6 +388,7 @@ class Router extends BaseModule {
     // the `before` hooks of the controller, then the action wrapped so that
     // returning without answering renders its page (see base/hooks.js)
     const checks = this.checks(controller);
+    const gates = this.gates(controller, name);
     const hooks = this.hooks(controller);
     const handler = implicit(action, controllerName, controllerAction);
 
@@ -439,6 +444,7 @@ class Router extends BaseModule {
       ...before,
       ...guards,
       ...after,
+      ...gates,
       ...checks,
       ...hooks,
       handler
@@ -610,6 +616,50 @@ class Router extends BaseModule {
     }
 
     return found;
+  }
+
+  /**
+   * The exit gate of a controller action, as a middleware.
+   *
+   * There is always one, and that is the point: the floor -- publish, then
+   * strip what the models marked `personal: { expose: false }` -- runs on
+   * every JSON answer a controller sends, whether or not the action declared
+   * anything. What a declaration adds is the shape: the model of a
+   * hand-built object, the fields that may leave and the report when the
+   * answer is not the one that was promised (see base/answers.js).
+   *
+   * The declaration is checked against the models here rather than where it
+   * was compiled, because a controller loads at runlevel 2 and the models at
+   * 3: this runs at 5, and a declaration henri cannot carry out still fails
+   * the boot.
+   *
+   * @param {string} controller the controller (`memos#index`)
+   * @param {string} name the route name (`get /memos`)
+   * @returns {Array<function>} express middlewares (always one)
+   * @memberof Router
+   */
+  gates(controller, name) {
+    const { controllers, model, privacy } = this.henri;
+    const rules =
+      controllers && typeof controllers.answers === 'function'
+        ? controllers.answers(controller)
+        : null;
+
+    if (rules) {
+      const files = (model && model.models) || [];
+
+      verifyAnswers(rules, {
+        mark: (globalId, field) =>
+          privacy ? privacy.fields(globalId)[field] || null : null,
+        model: (globalId) =>
+          files.find((file) => file.globalId === globalId) || null,
+        where: controller,
+      });
+
+      debug('%s declares what it answers', controller);
+    }
+
+    return [answerGuard(this.henri, rules, name)];
   }
 
   /**
@@ -980,6 +1030,9 @@ class Router extends BaseModule {
     }
 
     noStore(req, res);
+    // `data` was published and stripped by viewOptions(): the answer gate
+    // leaves this shape alone (see base/answers.js)
+    seal(res);
 
     return res.json(Object.assign({}, opts, { _links: links }));
   }
@@ -1255,7 +1308,7 @@ class Router extends BaseModule {
             this.henri.view.hbs.instance.render(req, res, route, opts),
           html: () =>
             this.henri.view.hbs.instance.render(req, res, route, opts),
-          json: () => res.json(opts),
+          json: () => seal(res).json(opts),
         });
       };
 

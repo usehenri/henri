@@ -13,6 +13,7 @@ const { check } = require('./arguments');
  * henri.
  */
 const { isCode } = require('./errors');
+const { seal } = require('./headers');
 
 const STATUSES = {
   badData: [422, 'Unprocessable Entity'],
@@ -53,6 +54,11 @@ function boom() {
         if (typeof data !== 'undefined') {
           body.data = data;
         }
+
+        // The envelope henri writes itself: the answer gate leaves it
+        // alone rather than dropping a field name that is a message here
+        // (see base/answers.js)
+        seal(res);
 
         return res.status(statusCode).json(body);
       };

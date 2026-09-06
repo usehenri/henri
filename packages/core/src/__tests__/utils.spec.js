@@ -139,6 +139,7 @@ describe('utils', () => {
         'main',
         'memos',
         'notes',
+        'reports',
         'uploads',
         'user',
       ]);

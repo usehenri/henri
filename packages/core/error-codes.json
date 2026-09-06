@@ -6,6 +6,10 @@
       "what": "the MCP server of `henri mcp` and the running application it reads"
     },
     {
+      "area": "answers",
+      "what": "what a controller declared its actions answer (`answers`), and the gate every JSON answer leaves through"
+    },
+    {
       "area": "api",
       "what": "the JSON API layer: HAL answers, the health endpoints, the OpenAPI description of what an application exposes and the optional GraphQL engine"
     },
@@ -197,6 +201,32 @@
       "code": "HENRI_AGENT_UNREACHABLE",
       "fix": "Check that the development server is still running, and read its output: a boot that failed halfway leaves the port closed.",
       "what": "The running application did not answer."
+    },
+    {
+      "area": "answers",
+      "causes": [
+        "a rule with no `type` and no `model`, or a type henri does not have",
+        "a `model` that is not a model of this application, or a `from` that is not `Model.field`",
+        "`model` next to a type that is not `array`, or a list with neither `of` nor `model`",
+        "an unknown key, usually a misspelling of `required` or `expose`",
+        "a `from` naming a column the model marked `personal: { expose: false }`, without `expose: true`",
+        "a selector naming an action the controller does not export"
+      ],
+      "code": "HENRI_ANSWERS_DECLARATION_INVALID",
+      "fix": "The message names the controller, the action and the field. A rule is `{ type, model, from, of, required, expose }`, or the type itself (`total: 'integer'`); `model` names one of this application's models and `from` is `Model.field`. See the Controllers guide.",
+      "what": "A controller declares an answer henri cannot carry out."
+    },
+    {
+      "area": "answers",
+      "causes": [
+        "a field the action declared `required` is not in what it sent",
+        "a declared field holds something other than the type it declared",
+        "the action sent fields it never declared, which were dropped",
+        "the action declared fields and answered with a list or a scalar"
+      ],
+      "code": "HENRI_ANSWERS_MISMATCH",
+      "fix": "The answer is reported once per route (`pen.warn`) and only refused like this with `config.api.strict`. Either send what the action declared, or change the `answers` block to describe what it sends.",
+      "what": "An action answered something other than what it declared, and `config.api.strict` refused it."
     },
     {
       "area": "api",
@@ -991,8 +1021,8 @@
       "area": "job",
       "causes": ["a job whose `perform()` never returned in time"],
       "code": "HENRI_JOB_TIMEOUT",
-      "fix": "Raise the job\u2019s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
-      "what": "An attempt ran past the job\u2019s timeout."
+      "fix": "Raise the job’s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
+      "what": "An attempt ran past the job’s timeout."
     },
     {
       "area": "job",
@@ -1915,7 +1945,7 @@
         "a receiver answering 410 Gone, which also disables the endpoint"
       ],
       "code": "HENRI_WEBHOOK_DELIVERY_FAILED",
-      "fix": "The delivery is a job: it is retried with the queue\u2019s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
+      "fix": "The delivery is a job: it is retried with the queue’s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
       "what": "A receiver refused a delivery."
     },
     {
