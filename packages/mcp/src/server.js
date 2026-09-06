@@ -8,7 +8,9 @@ const {
 const { z: zod } = require('zod');
 
 const { App } = require('./app');
+const { Runtime } = require('./runtime');
 const { parseJson, runCli } = require('./cli');
+const docs = require('./docs');
 const { version } = require('../package.json');
 
 /**
@@ -52,7 +54,21 @@ const TARGETS = [
   'test',
 ];
 
-const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor, audit and test.`;
+const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor, audit and test. The guide tool serves the documentation of the henri version installed here: read it instead of guessing from memory. errors, logs, query, records, runtime_routes and request answer against the running application rather than its files: start with errors when something failed, and use request to check a fix without a browser.`;
+
+/** The levels pen writes with */
+const LEVELS = ['error', 'warn', 'info', 'verbose', 'debug', 'silly'];
+
+/** The verbs the request tool takes */
+const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+
+/** A value a query parameter or a `where` may hold */
+const SCALAR = zod.union([
+  zod.string(),
+  zod.number(),
+  zod.boolean(),
+  zod.null(),
+]);
 
 /**
  * A tool result carrying JSON (as text for every client, structured for
@@ -83,6 +99,27 @@ const failed = (error) => {
     isError: true,
     structuredContent: { error: detail },
   };
+};
+
+/**
+ * What a runtime tool answers: the result, or the refusal with the url that
+ * refused it. The rules behind a refusal are the running application's, not
+ * this server's (see src/runtime.js).
+ *
+ * @param {object} result what the Runtime answered
+ * @returns {object} The MCP tool result
+ */
+const answered = (result) => {
+  if (result && result.error) {
+    return failed(
+      Object.assign({}, result.error, {
+        source: result.source || null,
+        url: result.url || null,
+      })
+    );
+  }
+
+  return ok(result);
 };
 
 /**
@@ -133,6 +170,9 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
     { name: 'henri', version },
     { instructions: INSTRUCTIONS }
   );
+  const runtime = new Runtime(app);
+
+  server.runtime = runtime;
 
   // Read-only tools --------------------------------------------------------
 
@@ -253,6 +293,277 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
       title: 'Doctor',
     },
     async () => ok(await app.doctor())
+  );
+
+  // The running application ---------------------------------------------------
+
+  server.registerTool(
+    'errors',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        "The errors the running application answered with, newest first: the message, the stack, and the request that caused it (method, url, params, query, body, the controller#action it reached, the user's id and roles, the X-Request-Id). This is what to read first when something failed: it saves reproducing the failure. Filtered parameters are masked and the application keeps only its last errors. Needs a development server: this server attaches to the one already running, or starts one and says so.",
+      inputSchema: {
+        limit: zod
+          .number()
+          .int()
+          .min(1)
+          .max(25)
+          .optional()
+          .describe('How many errors (5 by default, newest first)'),
+        requestId: zod
+          .string()
+          .max(200)
+          .optional()
+          .describe('Only the errors of one request (an X-Request-Id)'),
+      },
+      title: 'Last errors',
+    },
+    async ({ limit, requestId }) =>
+      answered(
+        await runtime.call('/errors', {
+          query: Object.assign(
+            {},
+            limit ? { limit } : {},
+            requestId ? { requestId } : {}
+          ),
+        })
+      )
+  );
+
+  server.registerTool(
+    'logs',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'The lines the running application wrote (henri.pen), newest last, with the module that wrote them, the level and the id of the request they belong to. The parameter filtering of the application applies here exactly as it does in the terminal: a filtered key never comes back. Bounded, and the answer says how many lines matched and how many it kept.',
+      inputSchema: {
+        contains: zod
+          .string()
+          .max(200)
+          .optional()
+          .describe('Only the lines holding this text (case-insensitive)'),
+        level: zod
+          .array(zod.enum(LEVELS))
+          .optional()
+          .describe(
+            'Only these levels (error, warn, info, verbose, debug, silly)'
+          ),
+        limit: zod
+          .number()
+          .int()
+          .min(1)
+          .max(500)
+          .optional()
+          .describe('How many lines (100 by default)'),
+        requestId: zod
+          .string()
+          .max(200)
+          .optional()
+          .describe('Only the lines of one request (an X-Request-Id)'),
+      },
+      title: 'Recent logs',
+    },
+    async ({ contains, level, limit, requestId }) =>
+      answered(
+        await runtime.call('/logs', {
+          query: Object.assign(
+            {},
+            contains ? { contains } : {},
+            level && level.length > 0 ? { level: level.join(',') } : {},
+            limit ? { limit } : {},
+            requestId ? { requestId } : {}
+          ),
+        })
+      )
+  );
+
+  server.registerTool(
+    'query',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'One read against a store of the running application, through its adapter. The application refuses anything that is not a single SELECT, WITH ... SELECT, EXPLAIN, SHOW or DESCRIBE, and refuses it whether or not the store exists: a statement carrying INSERT, UPDATE, DELETE, DROP, SET, LOCK or a second statement comes back as REFUSED with the word that refused it, and never reaches the database. Values go in `params`, never in the text. The rows come back redacted (a `password` column is always masked) and capped; the answer says when it truncated. A MongoDB store has no query(): use the records tool instead.',
+      inputSchema: {
+        limit: zod
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe('How many rows (100 at most, which is also the default)'),
+        params: zod
+          .array(SCALAR)
+          .optional()
+          .describe(
+            'The values of the placeholders (? on sqlite and mysql, $1 on postgres)'
+          ),
+        sql: zod.string().max(4000).describe('The statement, a read only'),
+        store: zod
+          .string()
+          .max(60)
+          .optional()
+          .describe('Which store (default when unset)'),
+      },
+      title: 'Read the database',
+    },
+    async ({ limit, params, sql, store }) =>
+      answered(
+        await runtime.call('/query', { body: { limit, params, sql, store } })
+      )
+  );
+
+  server.registerTool(
+    'records',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'Rows of a model of the running application, read through the model itself rather than the driver, so what the adapter hides stays hidden: a password is not selected, a soft deleted row does not come back, and the filtered keys are masked. Either one record by id (the externalId or the internal id, whichever the application uses) or one page, optionally narrowed by a flat `where` of equalities. Operators are refused: `where` is `{ field: value }` and nothing else. At most 25 records per page.',
+      inputSchema: {
+        id: SCALAR.optional().describe(
+          'One record by id (externalId or primary key)'
+        ),
+        model: zod
+          .string()
+          .regex(NAME)
+          .describe('The model (its global name: Post, User)'),
+        page: zod
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe('Which page (1 by default)'),
+        perPage: zod
+          .number()
+          .int()
+          .min(1)
+          .max(25)
+          .optional()
+          .describe('How many records (25 at most, which is also the default)'),
+        where: zod
+          .record(zod.string(), SCALAR)
+          .optional()
+          .describe('Equalities the records must match ({ "done": true })'),
+      },
+      title: 'Read records',
+    },
+    async ({ id, model, page, perPage, where }) =>
+      answered(
+        await runtime.call('/records', {
+          body: { id, model, page, perPage, where },
+        })
+      )
+  );
+
+  server.registerTool(
+    'runtime_routes',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'The routes the running router actually mounted, which is not always what config/routes.js reads: `active: false` marks a route whose controller or action does not exist (it answers 501), `hooks` counts the before hooks that run ahead of the action, and `internal` lists the endpoints henri mounts itself (health, the runtime endpoints, the development introspection, the mailer previews). Compare it with the routes tool when a route behaves unlike the file says it should.',
+      inputSchema: {},
+      title: 'Mounted routes',
+    },
+    async () => answered(await runtime.call('/routes'))
+  );
+
+  server.registerTool(
+    'request',
+    {
+      annotations: { destructiveHint: true, readOnlyHint: false },
+      description:
+        'Make one request against the running application and return what it answered: the status, the headers, the body and the X-Request-Id, which the errors and logs tools take as a filter. This is how to check a fix without a browser. It goes through the whole stack, so a POST, PUT, PATCH or DELETE really writes, exactly as a browser would: name the method deliberately. GET by default; redirects are not followed, so a 302 and its Location come back as they are. The body is truncated past 20000 characters and the answer says so.',
+      inputSchema: {
+        body: zod
+          .union([zod.string(), zod.record(zod.string(), zod.any())])
+          .optional()
+          .describe('The body: an object is sent as JSON, a string as it is'),
+        headers: zod
+          .record(zod.string(), zod.string())
+          .optional()
+          .describe(
+            'Extra headers (Accept, Cookie, Authorization, X-CSRF-Token)'
+          ),
+        method: zod
+          .enum(METHODS)
+          .optional()
+          .describe('The verb (GET by default)'),
+        path: zod
+          .string()
+          .max(2000)
+          .describe('The path, with its query string (/tasks?page=2)'),
+      },
+      title: 'Request the app',
+    },
+    async ({ body, headers = {}, method = 'GET', path: route }) => {
+      if (!route.startsWith('/')) {
+        return failed({
+          code: 'USAGE',
+          message: `path "${route}" must start with /`,
+        });
+      }
+
+      const forbidden = Object.keys(headers).find(
+        (name) => name.toLowerCase() === 'x-henri-runtime'
+      );
+
+      if (forbidden) {
+        return failed({
+          code: 'USAGE',
+          hint: 'Use the errors, logs, query, records and runtime_routes tools instead',
+          message:
+            'x-henri-runtime is the header of the runtime endpoints: this tool makes ordinary requests',
+        });
+      }
+
+      return answered(
+        await runtime.request({ body, headers, method, path: route })
+      );
+    }
+  );
+
+  server.registerTool(
+    'guide',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'The documentation of the henri version installed in this application, shipped with this server: without a page, the index (every page with what it covers) and the versions of the henri packages actually installed here; with a page, its markdown. Read it instead of recalling henri from memory: the framework changed.',
+      inputSchema: {
+        page: zod
+          .string()
+          .max(120)
+          .optional()
+          .describe(
+            'A slug from the index (guides/routes, configuration, reference/cli)'
+          ),
+      },
+      title: 'henri guide',
+    },
+    async ({ page }) => {
+      const installed = app.installed();
+
+      if (!page) {
+        const pages = docs.index();
+
+        return pages.length > 0
+          ? ok({ count: pages.length, pages, versions: installed })
+          : failed({
+              code: 'NO_DOCS',
+              hint: 'Reinstall @usehenri/mcp',
+              message: 'the documentation was not shipped with this server',
+            });
+      }
+
+      const found = docs.page(page);
+
+      return found
+        ? ok(Object.assign({ versions: installed }, found))
+        : failed({
+            code: 'UNKNOWN_PAGE',
+            hint: 'Call guide without a page to list them',
+            message: `there is no documentation page named "${page}"`,
+          });
+    }
   );
 
   // Generators: the only write path ------------------------------------------
@@ -559,6 +870,26 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
   );
 
   server.registerResource(
+    'runtime',
+    'henri://runtime',
+    {
+      description:
+        'The running application: where it runs, its stores and whether they can be queried, its models, its renderer, the parameters it masks in the logs and the caps every runtime answer is bounded by',
+      mimeType: 'application/json',
+      title: 'The running application',
+    },
+    async (uri) => ({
+      contents: [
+        {
+          mimeType: 'application/json',
+          text: JSON.stringify(await runtime.describe(), null, 2),
+          uri: uri.href,
+        },
+      ],
+    })
+  );
+
+  server.registerResource(
     'help',
     'henri://help',
     {
@@ -611,12 +942,23 @@ const serve = async ({ cwd = process.cwd() } = {}) => {
 
   const server = createServer({ cwd });
   const transport = new StdioServerTransport();
+  const { runtime } = server;
+
+  // An application this server started belongs to this server: it goes when
+  // the client does, and when the process is killed under it
+  const bury = () => {
+    runtime.stop().catch(() => null);
+  };
+
+  process.once('exit', bury);
+  process.once('SIGINT', bury);
+  process.once('SIGTERM', bury);
 
   await server.connect(transport);
 
   return new Promise((resolve) => {
     server.server.onclose = () => resolve();
-  });
+  }).finally(() => runtime.stop());
 };
 
 module.exports = { GENERATORS, TARGETS, createServer, serve };

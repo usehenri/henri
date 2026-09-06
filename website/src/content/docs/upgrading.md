@@ -183,6 +183,7 @@ Nothing below breaks anything, they are additions:
 - `henri.model.errors(error)` turns any adapter's validation failure into `{ field: message }`, and answers `null` for anything else. The controllers written by `henri generate scaffold` and `crud` use it and `Model.paginate()`, so regenerate them (`--force`) to pick both up. See [Validation errors](/guides/models/#validation-errors).
 - `henri db:seed` runs `db/seeds.js` with the models loaded, on any adapter. `henri new` scaffolds the file. See [Seeds](/guides/models/#seeds).
 - `config.user.password.pepper` mixes a server-side key into every hash, so a stolen table cannot be cracked offline. It is off by default, it is its own key rather than `config.secret`, and **losing it makes every peppered password unverifiable**. See [The pepper](/guides/users/#the-pepper).
+- A development server answers `/_henri/runtime` on the loopback interface, and `henri mcp` turns it into tools that read the last errors with the request that caused them, the logs, the routes really mounted, the database (reads only) and the answer to a request it makes. Nothing is recorded and nothing is mounted in production. See [Asking the running application](/guides/agents/#asking-the-running-application).
 
 ## Toolchain
 

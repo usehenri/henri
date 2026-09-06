@@ -149,10 +149,14 @@ app (run from the root), 4 needs a terminal (pass the flag: `henri clean
 
 `.mcp.json` starts `henri mcp` for Claude Code; Cursor: `.cursor/mcp.json` with
 `{ "mcpServers": { "henri": { "command": "henri", "args": ["mcp"] } } }`
-(`node_modules/.bin/henri-mcp` when `henri` is not on the PATH). Tools:
+(`node_modules/.bin/henri-mcp` when `henri` is not on the PATH). On the files:
 `routes`, `models`, `controllers`, `config`, `generate`, `destroy`, `test`,
-`lint`, `doctor`, `audit`; resources: `henri://agents.md`, `henri://routes`,
-`henri://conventions`.
+`lint`, `doctor`, `audit`, `guide` (henri's docs at the installed version: read
+them, do not recall henri). On the running app, which it attaches to or starts:
+`errors` (the last failures with their stack and request, by `X-Request-Id`:
+read it, do not reproduce), `logs`, `query` (reads only), `records`,
+`runtime_routes`, `request`. Resources: `henri://agents.md`, `routes`,
+`runtime`, `conventions`.
 
 ## Do not
 
@@ -161,4 +165,4 @@ app (run from the root), 4 needs a terminal (pass the flag: `henri clean
 - Do not set `roles` from request data; do not mass-assign `req.body`.
 - Do not add `tailwind.config.js`, a CSS module or a second stylesheet: the theme lives in `app/views/styles/index.css`.
 - {{#if react}}Do not edit `app/views/next.config.js`{{/if}}{{#if inertia}}Keep the `resolvePage` resolver and `import.meta.glob('./pages/**/*.jsx')` in `app/views/main.jsx` and `ssr.jsx` (global styles and Inertia options go in `main.jsx`){{/if}}; do not rename generated files by hand (regenerate with `--force`, or `destroy` first).
-- Do not leave `henri server` running in a non-interactive session; verify with `henri test`, `henri doctor` and `henri audit`. Do not add a protection henri already applies (helmet headers, the CSRF token, the session cookie flags, password hashing, the rate limits): `henri audit --checks` and usehenri.io/guides/security say what is there.
+- Do not leave `henri server` running in a non-interactive session; verify with `henri test`, `henri doctor` and `henri audit`, or with the MCP tools above, which stop the server they start. Do not add a protection henri already applies (helmet headers, the CSRF token, the session cookie flags, password hashing, the rate limits): `henri audit --checks` and usehenri.io/guides/security say what is there.

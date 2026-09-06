@@ -98,7 +98,7 @@ An agent should read `--checks` before it reads the findings: it says what the a
 
 `henri mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io/) server over stdio for the application in the current directory. `henri new` writes a `.mcp.json` that starts it, so an MCP-aware editor or agent picks it up with no configuration.
 
-Tools:
+Tools that read the files, without starting anything:
 
 | Tool          | What it does                                                                        |
 | ------------- | ----------------------------------------------------------------------------------- |
@@ -112,7 +112,54 @@ Tools:
 | `destroy`     | Undoes a generator.                                                                 |
 | `test`        | Runs the app's tests and returns the result.                                        |
 | `lint`        | Runs the linter and returns the findings.                                           |
+| `guide`       | This documentation, at the version installed, with the versions next to it.         |
 
-Resources: `AGENTS.md` itself, `henri://conventions` (the framework conventions), `henri://routes` and `henri://help`.
+Resources: `AGENTS.md` itself, `henri://conventions` (the framework conventions), `henri://routes`, `henri://runtime` and `henri://help`.
 
 The server acts on the application in its working directory and nothing else, and every write goes through the same generators a person would run, so what an agent produces is what `henri generate` produces.
+
+## Asking the running application
+
+Reading the files answers what the application _says_. The rest of the tools answer what it _does_, against a booted application:
+
+| Tool             | What it answers                                                                                                      |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `errors`         | The last errors with their stack and the request that caused each one, filterable by `X-Request-Id`.                 |
+| `logs`           | The lines `henri.pen` wrote, by level, by text or by request id, with `filterParameters` still applied.              |
+| `query`          | One read against a store, through its adapter. Reads only, bounded, redacted.                                        |
+| `records`        | A page of a model, or one record, read through the model rather than the driver.                                     |
+| `runtime_routes` | The routes the router actually mounted, including the ones whose controller is missing and the endpoints henri adds. |
+| `request`        | One request against the application: status, headers, body and the request id, so a fix can be checked at once.      |
+
+`errors` is the one to reach for first. henri stamps every request with `X-Request-Id`, every log line of that request quotes it, and the recorded error keeps it, so one failure gives an agent the stack, the parameters, the controller it reached and every line written while it was handled -- without reproducing anything. `request` closes the loop: make the call, read the id it answers with, ask `errors` and `logs` for that id.
+
+### Where the answers come from
+
+These tools talk to a henri development server over the loopback interface. The MCP server **attaches to the one already running** when it finds it, which is the point: the errors and the logs worth reading are the ones that happened in the process you are working in, and with the default `disk` store the database only exists inside it. When nothing answers, the MCP server **starts one itself** (loopback, on a port it picks) and stops it when the editor disconnects. Every answer says which of the two happened, and on which url:
+
+```json
+{
+  "app": {
+    "cwd": "/srv/app",
+    "env": "dev",
+    "pid": 4213,
+    "stores": { "default": { "adapter": "drizzle", "queryable": true } }
+  },
+  "source": "attached",
+  "url": "http://127.0.0.1:3000"
+}
+```
+
+`HENRI_MCP_AUTOSTART=0` in the MCP server's environment forbids starting one: the tools then say `NO_SERVER` and name the command to run.
+
+### What they refuse
+
+The rules are enforced by the running application (`base/runtime.js` in `@usehenri/core`), not by the MCP server, so a refusal is henri's refusal:
+
+- **Development only.** The endpoints are mounted only when `NODE_ENV` is neither `production` nor `test`, nothing is recorded in production, and there is no flag that turns either on. Pointed at a production application, the tools answer `PRODUCTION` and stop; `NODE_ENV=production` is refused before a server would be started.
+- **This machine, and no browser.** The loopback check of `/_routes` and `/_mailers`, plus a required `X-Henri-Runtime: 1` header and a refusal of anything carrying `Origin` or `Sec-Fetch-Site`.
+- **Reads only, proved before the store is touched.** One statement, of `SELECT`, `WITH ... SELECT`, `EXPLAIN`, `SHOW` or `DESCRIBE`, with the strings and the comments removed first so nothing hides in them. A statement carrying `INSERT`, `UPDATE`, `DELETE`, `DROP`, `SET`, `LOCK`, `PG_SLEEP` or a second statement comes back as `REFUSED` with the word that refused it and never reaches the database. Values travel as parameters. `records` refuses anything but a flat `where` of equalities, so no `$where` and no operator.
+- **Redacted.** What `filterParameters` masks in the logs is masked here, in the log lines, in the recorded parameters, in the query rows and in the records; `password` is masked whatever the configuration says, and reading through the model keeps the adapter's own protections (a hash is not selected, a soft-deleted row does not come back).
+- **Bounded, and it says so.** 500 log lines kept, 25 errors, 100 rows a query, 25 records a page, 2000 characters a line, 40 stack frames. Anything cut carries `truncated: true` and the limit that cut it.
+
+`request` is the one tool that can change data, because it is the application's own endpoint doing it: a `POST` really posts, exactly as a browser would. It is never implicit -- the method is `GET` unless the agent names another one.

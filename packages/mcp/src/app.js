@@ -16,6 +16,25 @@ const CREDENTIALS = /^([a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:)([^/\s@]+)(@)/i;
 
 const REDACTED = '[redacted]';
 
+/** The henri packages an application may hold, for the guide tool */
+const PACKAGES = [
+  '@usehenri/core',
+  '@usehenri/cli',
+  '@usehenri/mcp',
+  '@usehenri/testing',
+  '@usehenri/disk',
+  '@usehenri/drizzle',
+  '@usehenri/graphql',
+  '@usehenri/inertia',
+  '@usehenri/jobs',
+  '@usehenri/mongoose',
+  '@usehenri/mssql',
+  '@usehenri/mysql',
+  '@usehenri/postgresql',
+  '@usehenri/react',
+  '@usehenri/sequelize',
+];
+
 /**
  * Locate the @usehenri/cli to use: the application's own when installed,
  * the one this package depends on otherwise
@@ -286,6 +305,27 @@ class App {
       name,
       renderer: String(config.renderer || 'react').toLowerCase(),
     };
+  }
+
+  /**
+   * The versions of the henri packages this application actually has, which
+   * is what the documentation shipped with this server describes
+   *
+   * @returns {object} { node, cli, packages: { '@usehenri/core': '1.2.0' } }
+   */
+  installed() {
+    const { utils } = this.cli;
+    const packages = {};
+
+    for (const name of PACKAGES) {
+      const found = utils.resolvePackageJson(name, this.cwd);
+
+      if (found) {
+        packages[name] = found.version;
+      }
+    }
+
+    return { cli: this.cli.version, node: process.version, packages };
   }
 
   /**
