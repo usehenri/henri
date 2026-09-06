@@ -119,7 +119,16 @@ Like `/_routes` and `/_controllers`, the previews exist **only in development** 
 
 ## Delivering later
 
-`deliverLater()` renders the message and hands it to a delivery handler instead of sending it inline:
+`deliverLater()` renders the message and hands it to a delivery handler instead of sending it inline. **Install [`@usehenri/jobs`](/guides/jobs/) and that handler is already registered**: the rendered message becomes a job on the `mailers` queue, retried with a backoff and, out of attempts, kept in the dead letter queue like anything else.
+
+```js
+await henri.mailers.welcome.confirm(user).deliverLater();
+await henri.mailers.welcome.confirm(user).deliverLater({ wait: '10m' });
+```
+
+The options of the call are the options of an enqueue, so `wait`, `at`, `queue` and `priority` all work; `henri jobs` sends them. See [Jobs](/guides/jobs/#delivering-mail-through-the-queue).
+
+Another queue plugs into the same seam:
 
 ```js
 henri.mailers.onDeliverLater((message, options) =>
