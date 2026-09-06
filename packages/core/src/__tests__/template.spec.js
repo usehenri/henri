@@ -174,6 +174,10 @@ describe('template engine', () => {
       );
       write('partials/greeting.hbs', 'Hello');
       write('partials/broken.hbs', '{{#if broken}}never closed');
+      write(
+        'pages/inline.hbs',
+        '<script nonce="{{nonce}}">go()</script><b>{{@nonce}}</b>'
+      );
 
       henri = fakeHenri(cwd);
       engine = new TemplateEngine(henri);
@@ -233,6 +237,27 @@ describe('template engine', () => {
 
       expect(res.status).toBe(200);
       expect(res.text).toBe('<p>Hello world (me@example.com)</p>');
+    });
+
+    // A template is the one thing that knows where its inline scripts are,
+    // so the engine hands the nonce over and rewrites nothing
+    test('{{nonce}} and {{@nonce}} write the nonce of the response', async () => {
+      expect(engine.supportsNonce).toBe(true);
+
+      const nonced = await agent(engine, () => ({ nonce: 'AbC-_123' })).get(
+        '/render/inline'
+      );
+
+      expect(nonced.text).toBe(
+        '<script nonce="AbC-_123">go()</script><b>AbC-_123</b>'
+      );
+
+      // The nonce is base64url so that nothing along the way escapes it:
+      // base64 padding would come out of handlebars as &#x3D; and name a
+      // different nonce than the header does
+      const off = await request.get('/render/inline');
+
+      expect(off.text).toBe('<script nonce="">go()</script><b></b>');
     });
 
     test('a broken partial is reported and skipped', () => {

@@ -19,6 +19,13 @@ declare class ReactEngine {
   build(): Promise<ReactEngine.BuildResult | null>;
   reload(): Promise<true>;
   close(): Promise<true>;
+  /**
+   * Next carries the CSP nonce itself, off the request header henri writes,
+   * so core lets `config.csp.nonce` boot with this renderer.
+   */
+  readonly supportsNonce: true;
+  /** The `_document` this application wrote, if it wrote one. */
+  customDocument(): string | null;
 }
 
 declare namespace ReactEngine {

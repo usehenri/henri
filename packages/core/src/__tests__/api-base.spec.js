@@ -7,8 +7,12 @@ const boom = require('../base/boom');
 const health = require('../base/health');
 const { errorHandler, notFound } = require('../base/http');
 const {
+  NONCE_SENTINEL,
+  cachedCsp,
+  createNonce,
   cspDirectives,
   merge,
+  nonceEnabled,
   normalizeVersion,
   secureHeaders,
 } = require('../base/headers');
@@ -373,6 +377,138 @@ describe('secure headers', () => {
       d: 1,
       e: 2,
     });
+  });
+});
+
+describe('the content security policy nonce', () => {
+  /**
+   * An app answering with the helmet middleware of a henri, echoing what the
+   * request and the response carry
+   *
+   * @param {object} henri a henri look-alike
+   * @returns {object} supertest
+   */
+  const withNonce = (henri) => {
+    const app = express();
+
+    app.use(secureHeaders(henri));
+    app.get('/', (req, res) =>
+      res.json({
+        mirrored: req.headers['content-security-policy'] || null,
+        nonce: res.locals.cspNonce || null,
+      })
+    );
+
+    return supertest(app);
+  };
+
+  const on = () => fakeHenri({ csp: { nonce: true } });
+
+  test('is off unless the application asks for it', async () => {
+    const res = await withNonce(fakeHenri()).get('/');
+
+    expect(res.body.nonce).toBeNull();
+    expect(res.headers['content-security-policy']).not.toContain('nonce-');
+  });
+
+  test('names the nonce of the response in script-src', async () => {
+    const res = await withNonce(on()).get('/');
+
+    expect(res.body.nonce).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(res.headers['content-security-policy']).toContain(
+      `script-src 'self' 'nonce-${res.body.nonce}'`
+    );
+  });
+
+  test('is a different one on every response', async () => {
+    const app = withNonce(on());
+    const first = await app.get('/');
+    const second = await app.get('/');
+
+    expect(first.body.nonce).not.toBe(second.body.nonce);
+    expect(createNonce()).not.toBe(createNonce());
+  });
+
+  test("takes 'unsafe-inline' out of script-src and leaves style-src alone", () => {
+    const nonce = "'nonce-abc'";
+    const dev = cspDirectives({ isDev: true, nonce });
+    const prod = cspDirectives({ nonce });
+
+    // The browser ignores 'unsafe-inline' next to a nonce: the header says so
+    expect(dev['script-src']).toEqual(["'self'", "'unsafe-eval'", nonce]);
+    expect(prod['script-src']).toEqual(["'self'", nonce]);
+    // A style="" attribute cannot carry a nonce, and React sets them
+    expect(dev['style-src']).toEqual(["'self'", "'unsafe-inline'"]);
+    expect(dev['style-src']).not.toContain(nonce);
+  });
+
+  // Next reads the nonce off the request header, and
+  // its parser takes the first directive starting with 'script-src'
+  test('mirrors the header it sent onto the request, script-src first', async () => {
+    const res = await withNonce(on()).get('/');
+    const directives = res.body.mirrored.split(';').map((one) => one.trim());
+    const index = directives.findIndex((one) => one.startsWith('script-src'));
+
+    expect(res.body.mirrored).toBe(res.headers['content-security-policy']);
+    expect(directives[index]).toContain(`'nonce-${res.body.nonce}'`);
+    expect(directives[index]).not.toContain('script-src-attr');
+  });
+
+  test('replaces a Content-Security-Policy a client sent, on or off', async () => {
+    const sent = "script-src 'nonce-picked-by-the-client'";
+    const answered = await withNonce(on())
+      .get('/')
+      .set('Content-Security-Policy', sent);
+    const off = await withNonce(fakeHenri())
+      .get('/')
+      .set('Content-Security-Policy', sent);
+
+    expect(answered.body.mirrored).not.toContain('picked-by-the-client');
+    expect(answered.body.mirrored).toContain(`'nonce-${answered.body.nonce}'`);
+    expect(off.body.mirrored).toBeNull();
+  });
+
+  test('serializes the header once and splits it around the nonce', () => {
+    const cached = cachedCsp({
+      directives: cspDirectives({ nonce: `'nonce-${NONCE_SENTINEL}'` }),
+      useDefaults: false,
+    });
+
+    expect(cached.name).toBe('Content-Security-Policy');
+    expect(cached.prefix).toContain("script-src 'self' 'nonce-");
+    expect(cached.suffix).toContain("script-src-attr 'none'");
+    expect(`${cached.prefix}a-nonce${cached.suffix}`).not.toContain(
+      NONCE_SENTINEL
+    );
+  });
+
+  // Anything that cannot be joined once falls back to helmet joining it per
+  // request, which still has to answer with this response's nonce
+  test('falls back to helmet when the header cannot be cached', async () => {
+    const henri = fakeHenri({
+      csp: { nonce: true },
+      helmet: {
+        contentSecurityPolicy: {
+          directives: { 'script-src': ["'self'", () => "'unsafe-hashes'"] },
+        },
+      },
+    });
+    const res = await withNonce(henri).get('/');
+
+    expect(cachedCsp({ directives: { 'default-src': [() => "'self'"] } })).toBe(
+      null
+    );
+    expect(res.headers['content-security-policy']).toContain("'unsafe-hashes'");
+    expect(res.body.mirrored).toBe(res.headers['content-security-policy']);
+  });
+
+  test('nonceEnabled reads the key and nothing else', () => {
+    expect(nonceEnabled(fakeHenri().config)).toBe(false);
+    expect(nonceEnabled(fakeHenri({ csp: {} }).config)).toBe(false);
+    expect(nonceEnabled(fakeHenri({ csp: { nonce: 'yes' } }).config)).toBe(
+      false
+    );
+    expect(nonceEnabled(on().config)).toBe(true);
   });
 });
 

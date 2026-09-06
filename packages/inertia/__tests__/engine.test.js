@@ -442,6 +442,79 @@ describe('inertia engine', () => {
       expect(res.body).not.toContain('<!--body-->');
     });
 
+    test('nonces the whole document, and says so to vite', async () => {
+      const { engine, henri } = ready();
+
+      dirs.push(henri.dir);
+      expect(engine.supportsNonce).toBe(true);
+
+      const res = fakeRes();
+
+      await engine.render(
+        fakeReq('/tasks'),
+        res,
+        '/tasks/index',
+        Object.assign({ nonce: 'AbC-_123' }, OPTS)
+      );
+
+      // The runtime seam: vite's client reads this for the styles it injects
+      // in development and the chunks __vitePreload loads in production
+      expect(res.body).toContain(
+        '<meta property="csp-nonce" nonce="AbC-_123">'
+      );
+      expect(res.body).toContain(
+        '<link rel="stylesheet" href="/assets/main-abc.css" nonce="AbC-_123">'
+      );
+      expect(res.body).toContain(
+        '<script type="module" src="/assets/main-abc.js" nonce="AbC-_123">'
+      );
+      expect(res.body).toContain(
+        '<link rel="modulepreload" href="/assets/vendor-abc.js" nonce="AbC-_123">'
+      );
+      // The page object the server bundle embedded is a script too
+      expect(res.body).toContain(
+        '<script data-page="app" type="application/json" nonce="AbC-_123">'
+      );
+    });
+
+    test('takes the nonce from res.locals when the view options have none', async () => {
+      const { engine, henri } = ready();
+
+      dirs.push(henri.dir);
+
+      const res = fakeRes();
+
+      res.locals.cspNonce = 'FromTheHeaderXXXXXXXXX';
+      await engine.render(fakeReq('/tasks'), res, '/tasks/index', OPTS);
+
+      expect(res.body).toContain('nonce="FromTheHeaderXXXXXXXXX"');
+    });
+
+    // The document carries the nonce, the page object never does: an Inertia
+    // visit swaps props into a document whose policy is the one it loaded
+    // with, so a nonce in those props names nothing
+    test('keeps the nonce out of the page object', async () => {
+      const { engine, henri } = ready();
+
+      dirs.push(henri.dir);
+      engine.ssr = null;
+
+      const res = fakeRes();
+
+      await engine.render(
+        fakeReq('/tasks', {
+          headers: { 'x-inertia': 'true', 'x-inertia-version': 'v1' },
+        }),
+        res,
+        '/tasks/index',
+        Object.assign({ nonce: 'AbC-_123' }, OPTS)
+      );
+
+      expect(res.calls).toEqual([['json']]);
+      expect(JSON.stringify(res.body)).not.toContain('AbC-_123');
+      expect(res.body.props).not.toHaveProperty('nonce');
+    });
+
     test('embeds the page object for the browser when ssr is off', async () => {
       const { engine, henri } = ready();
 

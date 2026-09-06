@@ -354,3 +354,91 @@ if [ "$after" = "200" ]; then
 fi
 
 log "SIGTERM -> drained, stopped and let go of the port"
+
+# ---------------------------------------------------------------------------
+# 7. The same build with `"csp": { "nonce": true }`: every response draws a
+#    nonce, the header names it, the renderer writes it on every script of
+#    the document, and the next response draws another one. A nonce that is
+#    named and not written would refuse the page's own scripts, which is why
+#    this is checked against a booted application and not only in a unit
+#    test.
+# ---------------------------------------------------------------------------
+log "henri server --production, with csp.nonce"
+node -e "
+  const fs = require('fs');
+  const file = 'config/default.json';
+  const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+  config.csp = { nonce: true };
+  fs.writeFileSync(file, JSON.stringify(config, null, 2));
+"
+
+nonce_log=$work/server-nonce.log
+pnpm exec henri server --production >"$nonce_log" 2>&1 &
+server_pid=$!
+
+status=""
+for _ in $(seq 1 60); do
+  status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/" || true)
+  [ "$status" = "200" ] && break
+  if ! kill -0 "$server_pid" 2>/dev/null; then
+    cat "$nonce_log"
+    echo "henri server exited before answering with csp.nonce on" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+if [ "$status" != "200" ]; then
+  cat "$nonce_log"
+  echo "GET / did not answer 200 with csp.nonce on (last: ${status:-none})" >&2
+  exit 1
+fi
+
+nonce_of() {
+  curl -sS -D "$work/headers-$1" -o "$work/page-$1.html" "http://127.0.0.1:$port/"
+  tr -d '\r' <"$work/headers-$1" |
+    sed -n 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: //p' |
+    sed -n "s/.*'nonce-\([A-Za-z0-9_-]*\)'.*/\1/p"
+}
+
+first=$(nonce_of first)
+second=$(nonce_of second)
+
+if [ -z "$first" ]; then
+  cat "$work/headers-first"
+  echo "the Content-Security-Policy names no nonce" >&2
+  exit 1
+fi
+
+if [ "$first" = "$second" ]; then
+  echo "two responses carried the same nonce ($first)" >&2
+  exit 1
+fi
+
+if ! grep -q "nonce=\"$first\"" "$work/page-first.html"; then
+  echo "the nonce of the header ($first) is nowhere in the document" >&2
+  exit 1
+fi
+
+# Every script of the document carries it: one that does not is a script the
+# browser refuses, since 'unsafe-inline' is gone from script-src
+unnonced=$(grep -oE '<script[^>]*>' "$work/page-first.html" | grep -vc 'nonce=' || true)
+
+if [ "$unnonced" != "0" ]; then
+  grep -oE '<script[^>]*>' "$work/page-first.html" | grep -v 'nonce=' >&2
+  echo "$unnonced script tags carry no nonce" >&2
+  exit 1
+fi
+
+if tr -d '\r' <"$work/headers-first" |
+  sed -n 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: //p' |
+  grep -qE "script-src[^;]*'unsafe-inline'"; then
+  echo "script-src still allows 'unsafe-inline' with a nonce in play" >&2
+  exit 1
+fi
+
+kill -TERM "$server_pid"
+wait "$server_pid" 2>/dev/null || true
+server_pid=""
+
+log "csp.nonce -> $first, then $second, both written on every script"

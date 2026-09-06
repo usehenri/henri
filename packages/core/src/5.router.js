@@ -776,6 +776,14 @@ class Router extends BaseModule {
       user: this.publicUser(req.user),
     };
 
+    // The nonce of this response, for the view engines and for a template
+    // writing an inline script of its own. Absent unless `csp.nonce` is on:
+    // a key that is always there and usually null is what makes a page
+    // stamp a nonce nothing enforces
+    if (res.locals && res.locals.cspNonce) {
+      opts.nonce = res.locals.cspNonce;
+    }
+
     if (this.henri.graphql) {
       opts.graphql = {
         endpoint:
@@ -883,13 +891,22 @@ class Router extends BaseModule {
       // `flash` is defined lazily: reading it (the view engine copies
       // `req._henri`) is what consumes the messages, so a request that never
       // renders leaves them in the session for the next one
-      req._henri = flash.expose(req, {
+      const exposed = {
         csrf: req.csrfToken || null,
         localUrl: this.henri.server.url,
         paths: this._roles['guest'],
         query: req.query,
         user: this.publicUser(req.user),
-      });
+      };
+
+      // Only with `csp.nonce` on: the key is absent otherwise, so an
+      // application that did not ask for one never reads a null and takes it
+      // for a nonce (see base/headers.js)
+      if (res.locals.cspNonce) {
+        exposed.nonce = res.locals.cspNonce;
+      }
+
+      req._henri = flash.expose(req, exposed);
 
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;

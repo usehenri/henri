@@ -46,6 +46,23 @@ class TemplateEngine {
     this.partials = [];
     this.ready = null;
 
+    /**
+     * The engine writes the nonce of the response wherever a template asks
+     * for it: `{{nonce}}` (the helper below) or `{{@nonce}}` (the view
+     * option, like `{{@user}}` or `{{@paths}}`). A template that ships an
+     * inline script is the one that knows where it is, so henri does not
+     * rewrite the html it compiles.
+     */
+    this.supportsNonce = true;
+
+    this.hbs.registerHelper('nonce', (options) => {
+      const data = (options && options.data) || {};
+
+      // Never `undefined` in the document: an empty attribute is refused by
+      // the browser, which is the truthful answer when there is no nonce
+      return data.nonce || '';
+    });
+
     /** Kept for res.hbs, which renders through the instance */
     this.instance = {
       render: (req, res, route, opts) => this.renderPage(req, res, route, opts),

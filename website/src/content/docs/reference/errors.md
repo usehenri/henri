@@ -1181,6 +1181,17 @@ Usually:
 
 **Fix.** Install the renderer in the application: `npm install @usehenri/inertia @inertiajs/react react react-dom vite @vitejs/plugin-react`.
 
+### `HENRI_VIEW_NONCE_UNSUPPORTED`
+
+The configuration asks for a Content Security Policy nonce and the renderer cannot carry it.
+
+Usually:
+
+- `"csp": { "nonce": true }` with a renderer that does not write the nonce into the document
+- a view engine of your own, or an older one, that does not declare `supportsNonce`
+
+**Fix.** Use a renderer that carries it -- `inertia`, `react` or `template` -- or turn the nonce off (`"csp": { "nonce": false }`). A view engine of your own carries one by writing it on every script and style tag it emits and setting `supportsNonce = true`.
+
 ### `HENRI_VIEW_NO_BUILD`
 
 The view engine has no build() to call.

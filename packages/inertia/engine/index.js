@@ -122,6 +122,33 @@ function csrfToken(req, opts = {}) {
 }
 
 /**
+ * The Content Security Policy nonce of this response: the view option
+ * henri's router built, or `res.locals.cspNonce` where the header was set
+ *
+ * It never reaches the page object. An Inertia visit after the first one is
+ * answered as JSON and swaps the props of a document the browser already
+ * has, whose policy is the one it was loaded with: a nonce arriving in those
+ * props would be a value no policy names, and a page stamping it on a script
+ * would be writing something the browser refuses. The nonce belongs to the
+ * document, so it stays in the document.
+ *
+ * @param {import('express').Response} res the response
+ * @param {object} [opts={}] the view options
+ * @returns {?string} the nonce or null
+ */
+function nonceOf(res, opts = {}) {
+  if (typeof opts.nonce === 'string' && opts.nonce.length > 0) {
+    return opts.nonce;
+  }
+
+  const locals = (res && res.locals) || {};
+
+  return typeof locals.cspNonce === 'string' && locals.cspNonce.length > 0
+    ? locals.cspNonce
+    : null;
+}
+
+/**
  * The absolute url of a request
  *
  * @param {import('express').Request} req the request
@@ -330,6 +357,13 @@ class InertiaEngine {
     this.manifest = null;
     this.template = '';
     this.version = 'dev';
+
+    /**
+     * The engine writes the nonce of the response on every script, style and
+     * stylesheet link of the document it builds, and hands it to Vite's own
+     * runtime through `<meta property="csp-nonce">` (see ./shell.js).
+     */
+    this.supportsNonce = true;
 
     this.init = this.init.bind(this);
     this.build = this.build.bind(this);
@@ -912,7 +946,7 @@ class InertiaEngine {
     }
 
     try {
-      const html = await this.html(page, req);
+      const html = await this.html(page, req, nonceOf(res, opts));
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
 
@@ -928,10 +962,11 @@ class InertiaEngine {
    * @async
    * @param {object} page the page object
    * @param {import('express').Request} req the request
+   * @param {?string} [nonce=null] the CSP nonce of this response
    * @returns {Promise<string>} html
    * @memberof InertiaEngine
    */
-  async html(page, req) {
+  async html(page, req, nonce = null) {
     let template = this.template;
     let head = [];
     let body = null;
@@ -974,11 +1009,17 @@ class InertiaEngine {
     const assets = this.vite
       ? shell.devTags(this.options.entry, this.styles)
       : shell.assetTags(this.manifest, this.options.entry);
+    const meta = nonce ? [shell.nonceMeta(nonce)] : [];
 
-    return shell.inject(template, {
-      body,
-      head: [].concat(head, assets).join('\n    '),
-    });
+    // Every tag of the document is nonced at once, this engine's and the
+    // ones vite and the server bundle wrote (see shell.withNonce)
+    return shell.withNonce(
+      shell.inject(template, {
+        body,
+        head: [].concat(meta, head, assets).join('\n    '),
+      }),
+      nonce
+    );
   }
 
   /**

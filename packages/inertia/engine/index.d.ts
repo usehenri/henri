@@ -17,6 +17,12 @@ declare class InertiaEngine {
   ): Promise<void>;
   build(): Promise<InertiaEngine.BuildResult>;
   close(): Promise<true>;
+  /**
+   * The engine writes the CSP nonce of the response on every script, style
+   * and stylesheet link of the document it builds, so core lets
+   * `config.csp.nonce` boot with this renderer.
+   */
+  readonly supportsNonce: true;
 }
 
 declare namespace InertiaEngine {
