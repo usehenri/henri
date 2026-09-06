@@ -225,14 +225,33 @@ describe('the OpenAPI description of the showcase', () => {
       ).toEqual(expect.arrayContaining(['IdempotencyKey', 'CsrfToken']));
     });
 
-    test('the request body it declares is what the action accepts', () => {
+    test('the request body it declares is what the action declared', () => {
+      // The controller declares `params`, so the body is that -- what henri
+      // itself checks -- rather than the writable columns of the model
       const schema =
         document.paths['/proposals'].post.requestBody.content[
           'application/json'
         ].schema;
+
+      expect(Object.keys(schema.properties).sort()).toEqual([
+        'abstract',
+        'eventId',
+        'title',
+        'trackId',
+      ]);
+      expect(schema.properties.title).toEqual({
+        maxLength: 120,
+        type: 'string',
+      });
+      // Open, because an undeclared key is dropped rather than refused and
+      // the action still permits the model's other columns by name
+      expect(schema.additionalProperties).toBe(true);
+      expect(schema.required).toBeUndefined();
+    });
+
+    test('the columns of the model are still described, untouched', () => {
       const input = document.components.schemas.ProposalInput;
 
-      expect(schema).toEqual({ $ref: '#/components/schemas/ProposalInput' });
       // The FIELDS of app/helpers/proposals.js
       for (const field of [
         'abstract',
@@ -247,6 +266,117 @@ describe('the OpenAPI description of the showcase', () => {
       // Nothing is required: the speaker is the session, never the body
       expect(input.required).toBeUndefined();
       expect(input.properties.speakerId.type).toBeUndefined();
+    });
+  });
+
+  describe('what an action declared it accepts', () => {
+    test('GET /proposals declares its filters and refuses what it says', async () => {
+      const operation = document.paths['/proposals'].get;
+      const named = Object.fromEntries(
+        operation.parameters
+          .filter((parameter) => !parameter.$ref)
+          .map((parameter) => [parameter.name, parameter])
+      );
+
+      // A GET answers 422 -- the check is registered whatever the verb --
+      // and the document says which 422 it is
+      expect(operation.responses['422']).toEqual({
+        $ref: '#/components/responses/InvalidParameters',
+      });
+      expect(named.state.schema).toEqual({
+        enum: ['accepted', 'submitted'],
+        type: 'string',
+      });
+      expect(named.event.schema).toEqual({ format: 'uuid', type: 'string' });
+      expect(operation['x-henri'].params).toEqual({
+        fields: ['event', 'state'],
+      });
+      expect(operation['x-henri'].enforced).toEqual(['_links', 'params']);
+
+      // ... and the application answers exactly that
+      const refused = await request()
+        .get('/proposals?state=draft')
+        .set('Accept', HAL);
+
+      expect(refused.status).toBe(422);
+      expect(refused.body.code).toBe('HENRI_PARAMS_INVALID');
+      expect(Object.keys(refused.body.data.errors)).toEqual(['state']);
+
+      const valid = compile({ $ref: '#/components/schemas/Error' });
+
+      expect([valid(refused.body), valid.errors]).toEqual([true, null]);
+
+      // The paging parameters are still there: the declaration names
+      // neither, so neither is replaced
+      expect(
+        operation.parameters.filter((parameter) => parameter.$ref)
+      ).toEqual([
+        { $ref: '#/components/parameters/Page' },
+        { $ref: '#/components/parameters/PerPage' },
+      ]);
+      expect((await request().get('/proposals?state=accepted')).status).toBe(
+        200
+      );
+    });
+
+    test('POST /proposals names both 422s it can answer, and answers both', async () => {
+      const operation = document.paths['/proposals'].post;
+      const { browser, csrf } = await signIn(speaker);
+
+      // The route honours Idempotency-Key *and* the action declares
+      // parameters: one status, two failures, and the component says so
+      expect(operation.responses['422']).toEqual({
+        $ref: '#/components/responses/UnprocessableEntity',
+      });
+      expect(
+        document.components.responses.UnprocessableEntity.description
+      ).toContain('HENRI_PARAMS_INVALID');
+
+      const refused = await browser
+        .post('/proposals')
+        .set('Accept', HAL)
+        .set('X-CSRF-Token', csrf)
+        .send({ abstract: ABSTRACT, eventId: event.externalId, title: 42 });
+
+      expect(refused.status).toBe(422);
+      expect(refused.body.code).toBe('HENRI_PARAMS_INVALID');
+      expect(Object.keys(refused.body.data.errors)).toEqual(['title']);
+
+      const replayed = await browser
+        .post('/proposals')
+        .set('Accept', HAL)
+        .set('X-CSRF-Token', csrf)
+        .set('Idempotency-Key', 'the-document-key')
+        .send({
+          abstract: ABSTRACT,
+          eventId: event.externalId,
+          title: 'A proposal that takes the key',
+        });
+      const mismatch = await browser
+        .post('/proposals')
+        .set('Accept', HAL)
+        .set('X-CSRF-Token', csrf)
+        .set('Idempotency-Key', 'the-document-key')
+        .send({
+          abstract: ABSTRACT,
+          eventId: event.externalId,
+          title: 'Another proposal on the same key',
+        });
+
+      expect(replayed.status).toBe(201);
+      expect(mismatch.status).toBe(422);
+      expect(mismatch.body.code).not.toBe('HENRI_PARAMS_INVALID');
+    });
+
+    test('an action with no declaration says nothing about one', () => {
+      // The admin controller declares no `params`, and the document does
+      // not pretend it does
+      const operation = document.paths['/admin/proposals'].get;
+
+      expect(operation['x-henri'].params).toBeUndefined();
+      expect(operation.responses['422']).toBeUndefined();
+      // Nothing anywhere in this document went unread
+      expect(document.info['x-henri'].params).toBeUndefined();
     });
   });
 
@@ -270,7 +400,7 @@ describe('the OpenAPI description of the showcase', () => {
       expect([asPage(answer.body), asPage.errors]).toEqual([true, null]);
       // And still the envelope henri enforces, which is why both are named
       expect(asCollection(answer.body)).toBe(true);
-      expect(operation['x-henri'].enforced).toBe('_links');
+      expect(operation['x-henri'].enforced).toEqual(['_links']);
     });
   });
 

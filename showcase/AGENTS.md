@@ -106,6 +106,14 @@ The global is the model of the `drizzle` store, and what the generators write: t
 - An action that returns without answering renders its own page with what it returned: `show: async (req) => ({ post: req.post })` renders `/posts/show`, `index` renders `/posts`.
 - `req.permit('title', 'body')` picks the allowed fields from query, body and
   params (later wins). Never pass `req.body` to a model.
+- `params: { index: { state: { type: 'string', enum: [...] } }, 'create,update':
+{ title: { type: 'string', maxLength: 120 } } }` says what each action
+  accepts: checked and coerced ahead of the action on every verb, 422 with one
+  message per field otherwise, and `henri openapi` writes the operation's
+  parameters and request body from it. `app/controllers/proposals.js` is the
+  one that declares them. What may arrive over HTTP goes here; what makes a
+  record (a title of at least eight characters) stays in the model, so the
+  form gets that message next to the field.
 - `res.negotiate({ html: () => res.render('/posts/show', { data: { post } }),
 json: () => res.resource(post) })`: the page for browsers, HAL for API
   clients. An index is one query, `Post.paginate(req.pagination())`, then
