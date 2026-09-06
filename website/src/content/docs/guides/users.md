@@ -66,6 +66,15 @@ if (!created.ok) {
 }
 ```
 
+### What the service refuses, and what it answers
+
+These methods sit on an authentication path, where a refusal that says too much is an account-enumeration oracle. So [the check on their arguments](/reference/api/#wrong-calls) is drawn by whose mistake it is:
+
+- **Yours is loud.** A record (`register`, `sendReset`, `sendConfirmation`, `allowed`, `identify`, `requestEmailChange`, `tokenFor`), a token purpose (`tokenFor`, `consume` — one of `henri.accounts.PURPOSE`, never a fourth string) and the path of a link (`urlFor`, which begins with a `/`) are all values you chose, so `HENRI_ARGUMENT_INVALID` names what is wrong. Each of those used to answer something plausible instead: a link built onto the host with no slash between, a token no endpoint could ever spend, `{ email: 'could not be changed' }` for a wrong _user_, and a gate answering yes about nobody.
+- **A visitor's is the answer it always was.** `resetPassword(token, password)` and `confirm(token)` take whatever followed the link: anything that is not a token is `reason: 'malformed'`, which is what an expired, a spent and a forged one all answer, and anything that is not a password is `reason: 'password'`. `requestEmailChange` answers `{ errors: { email } }` for an address that is not one, because it has a form to put the message on.
+
+`requestPasswordReset(email)` and `requestConfirmation(email)` are the pair in between: they answer `Promise<void>`, so they have nowhere to say "that is not an address" and refuse a value that is not a string. The endpoints in front of them already answer `422` for an address that is not one — with the same loose test the store validates the column with, never a stricter one, because a stricter one would refuse an address that is nonetheless in the database.
+
 ## Registration
 
 `POST /signup` takes `email`, `password` and the attributes `config.user.signup.fields` lists. Nothing else is read: `roles`, `confirmedAt` and `passwordChangedAt` are never assignable, whatever a form sends, and the store hashes the password on the way in.
@@ -253,6 +262,16 @@ await henri.user.compare(password, user); // resolves true, or throws
 
 Handing it a bound hash alone rejects with an error that says so, rather than answering "invalid credentials" to a password that is right.
 
+It never resolves `false`: it rejects, and the four ways it can are told apart by their [code](/reference/errors/) and by nothing else — the message a mismatch carries is the one word it always was, so handing it to a client says exactly what it said before.
+
+| Code                               | What happened                                                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `HENRI_USER_PASSWORD_MISMATCH`     | The password is wrong — **or** there is no account (`null`), which is the same answer.    |
+| `HENRI_USER_PASSWORD_UNVERIFIABLE` | There is a record and no hash on it, or a bound hash arrived alone.                       |
+| `HENRI_ARGUMENT_INVALID`           | The second argument is not a user at all. See [Wrong calls](/reference/api/#wrong-calls). |
+
+The first two rows are the ones worth reading twice. **No account and a wrong password are deliberately the same answer, at the same cost**: an address nobody has is checked against a hash bound to a uuid no row has, exactly the way `POST /login` does it, so your own sign-in endpoint cannot be timed to find out which addresses are registered. And **`req.user` and `findById()` carry no hash** — the password column is deselected on both — so passing one of those used to answer "invalid credentials" to the right password, for ever. It now says so. Load the account with `findByEmail()`.
+
 Setting a password needs to know which row it is for, which every ordinary write does — `User.create()`, `user.save()`, `user.update()`, `User.findByIdAndUpdate()`, `User.bulkCreate()`, `insertMany()`, and a `Model.update()` whose condition matches one row. A mass update that matches **more than one** row is refused with a validation error on `password`: one hash belongs to one record, and writing an unbound one instead would quietly reopen the door this closes. Give each account its own password, or turn `binding.enabled` off.
 
 #### What it does and does not buy
@@ -358,6 +377,8 @@ about. Policies compose with roles rather than replace them, and they filter
 ## What leaves the server
 
 Only the public representation of a user reaches views, `req._henri.user` and JSON answers: `{ externalId, email, roles }` plus the fields listed in `config.user.public`. `henri.user.publicUser(user)` builds that object; use it whenever you send a user to a browser yourself. The identifier is the user's public one; the primary key stays on the server, like every record's (see [Identifiers](/guides/models/#identifiers)). A user model that opted out of it answers with `id` instead.
+
+Nobody (`null`, or an anonymous `req.user`) answers `null`. Anything that is not a record is refused rather than serialized: the object it used to build carried an identifier that named no row, and that object goes to a view and to a JSON body.
 
 ```json
 {
