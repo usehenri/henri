@@ -84,6 +84,48 @@ describe('configuration', () => {
   });
 });
 
+describe('the configuration refuses', () => {
+  test('a cron expression the runner could not read', () => {
+    // It has to fail here: a runner that threw on its first tick would
+    // claim nothing, ever, and only log one line a second
+    expect(() =>
+      normalize({ recurring: { broken: { cron: 'not a cron', job: 'ok' } } })
+    ).toThrow('the recurring schedule "broken" is invalid');
+  });
+
+  test('a cron expression that can never come round', () => {
+    expect(() =>
+      normalize({ recurring: { never: { cron: '0 0 30 2 *', job: 'ok' } } })
+    ).toThrow('can never come round');
+  });
+
+  test('an interval under a second', () => {
+    expect(() =>
+      normalize({ recurring: { hot: { every: '0s', job: 'ok' } } })
+    ).toThrow('which is under a second');
+  });
+
+  test('a table name that is not a plain identifier', () => {
+    expect(() => normalize({ table: 'jobs"; DROP TABLE users; --' })).toThrow(
+      'invalid table name'
+    );
+    expect(() => normalize({ table: 'app.jobs' })).toThrow(
+      'invalid table name'
+    );
+  });
+
+  test('and keeps a schedule it can read', () => {
+    const config = normalize({
+      recurring: {
+        leap: { cron: '0 0 29 2 *', job: 'ok' },
+        nightly: { cron: '0 3 * * mon-fri', job: 'ok' },
+      },
+    });
+
+    expect(config.recurring).toHaveLength(2);
+  });
+});
+
 describe('definitions', () => {
   test('loads every file, filling in the defaults of the queue', () => {
     const definitions = load(path.join(APP, 'app', 'jobs'), normalize());

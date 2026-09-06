@@ -213,8 +213,10 @@ class MongoStore {
     try {
       await this.jobs().insertOne({ _id: id, ...rest });
     } catch (error) {
-      // A duplicate key means another caller enqueued it first
-      if (job.unique_key) {
+      // Only a duplicate key is answered with the job that holds it. Any
+      // other failure is the caller's to see, or an enqueue would silently
+      // do nothing
+      if (job.unique_key && error.code === 11000) {
         const existing = await this.findByUniqueKey(job.unique_key);
 
         if (existing && existing.id !== id) {
@@ -266,6 +268,10 @@ class MongoStore {
    * @memberof MongoStore
    */
   async claim({ queues = [], limit = 1, runner, token, now }) {
+    // `includeResultMetadata: false` is the default of the v6+ driver and is
+    // named here on purpose: under an older one findOneAndUpdate answers
+    // `{ value }`, which would read as a win for every runner
+
     const filter = { run_at: { $lte: now }, state: 'pending' };
     const claimed = [];
 
@@ -289,6 +295,7 @@ class MongoStore {
           },
         },
         {
+          includeResultMetadata: false,
           returnDocument: 'after',
           // Ordered, like an ORDER BY
           // eslint-disable-next-line sort-keys
@@ -311,29 +318,40 @@ class MongoStore {
   /**
    * Writes the outcome of an attempt
    *
+   * With a token the write only lands while this runner still owns the
+   * document, so a runner that was recovered from cannot write over the new
+   * owner's outcome.
+   *
    * @param {string} id The job id
    * @param {object} changes The fields to set
+   * @param {string} [token] The claim token this runner holds
    * @returns {Promise<void>} Resolves when written
    * @memberof MongoStore
    */
-  async update(id, changes) {
+  async update(id, changes, token) {
     if (Object.keys(changes).length === 0) {
       return;
     }
 
-    await this.jobs().updateOne({ _id: id }, { $set: changes });
+    const filter = token
+      ? { _id: id, claim_token: token, state: 'running' }
+      : { _id: id };
+
+    await this.jobs().updateOne(filter, { $set: changes });
   }
 
   /**
    * Puts back the jobs of runners that stopped answering
    *
-   * @param {object} options `now` and `stuckAfter`
+   * @param {object} options `now`, `stuckAfter` and `limit`
    * @returns {Promise<Array<object>>} The rows that were recovered
    * @memberof MongoStore
    */
-  async recover({ now, stuckAfter }) {
+  async recover({ now, stuckAfter, limit = 100 }) {
     const documents = await this.jobs()
       .find({ heartbeat_at: { $lt: now - stuckAfter }, state: 'running' })
+      .sort({ heartbeat_at: 1 })
+      .limit(limit)
       .toArray();
     const rows = documents.map((document) => this.row(document));
 
@@ -350,7 +368,11 @@ class MongoStore {
             state: dead ? 'dead' : 'pending',
             updated_at: now,
           },
-          $unset: { claim_token: '' },
+          // A dead job holds its unique key no longer: the same work may be
+          // enqueued again while this one sits in the dead letter queue
+          $unset: dead
+            ? { claim_token: '', unique_key: '' }
+            : { claim_token: '' },
         }
       );
     }
@@ -361,33 +383,51 @@ class MongoStore {
   /**
    * Tells the database this runner is still on these jobs
    *
+   * A runner that was already recovered from no longer owns these documents,
+   * so the token is part of the filter.
+   *
    * @param {Array<string>} ids The job ids
    * @param {number} now The current time
+   * @param {string} [token] The claim token this runner holds
    * @returns {Promise<void>} Resolves when written
    * @memberof MongoStore
    */
-  async heartbeat(ids, now) {
+  async heartbeat(ids, now, token) {
     if (ids.length === 0) {
       return;
     }
 
-    await this.jobs().updateMany(
-      { _id: { $in: ids } },
-      { $set: { heartbeat_at: now } }
-    );
+    const filter = { _id: { $in: ids } };
+
+    if (token) {
+      filter.claim_token = token;
+    }
+
+    await this.jobs().updateMany(filter, { $set: { heartbeat_at: now } });
   }
 
   /**
    * Deletes the finished jobs older than a moment
    *
    * @param {number} before A timestamp
+   * @param {number} [limit=1000] How many documents one pass deletes
    * @returns {Promise<number>} How many documents were deleted
    * @memberof MongoStore
    */
-  async prune(before) {
+  async prune(before, limit = 1000) {
+    const documents = await this.jobs()
+      .find({ finished_at: { $lt: before }, state: 'done' })
+      .sort({ finished_at: 1 })
+      .limit(limit)
+      .project({ _id: 1 })
+      .toArray();
+
+    if (documents.length === 0) {
+      return 0;
+    }
+
     const result = await this.jobs().deleteMany({
-      finished_at: { $lt: before },
-      state: 'done',
+      _id: { $in: documents.map((document) => document._id) },
     });
 
     return result.deletedCount || 0;
@@ -569,10 +609,12 @@ class MongoStore {
         token: null,
       });
     } catch (error) {
-      debug('schedule %s already recorded (%s)', name, error.message);
+      // Another runner recording it first is the expected failure; anything
+      // else is answered with null, and the runner says so
+      debug('schedule %s not recorded (%s)', name, error.message);
     }
 
-    return this.schedule(name);
+    return this.schedule(name).catch(() => null);
   }
 
   /**
@@ -594,7 +636,7 @@ class MongoStore {
           updated_at: now,
         },
       },
-      { returnDocument: 'after' }
+      { includeResultMetadata: false, returnDocument: 'after' }
     );
 
     return Boolean(document);

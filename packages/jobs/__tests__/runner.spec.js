@@ -128,13 +128,58 @@ describe(`runner (${target.name})`, () => {
     });
     await jobs.store.update(enqueued.id, { heartbeat_at: 1 });
 
-    runner.running.set(enqueued.id, Promise.resolve());
+    runner.running.set(enqueued.id, {
+      promise: Promise.resolve(),
+      token: 'beat-token',
+    });
     await runner.beat();
     runner.running.clear();
 
     const row = await jobs.store.find(enqueued.id);
 
     expect(Number(row.heartbeat_at)).toBeGreaterThan(1);
+  });
+
+  test('heartbeats the jobs of a drain too', async () => {
+    await jobs.perform('counter', { token: 'drained' });
+
+    const runner = new Runner(jobs);
+
+    expect(runner.heartbeatTimer).toBeNull();
+    await runner.once();
+    // Started for the drain, and let go of when it is done
+    expect(runner.heartbeatTimer).toBeNull();
+    expect(global.__henriJobsRuns).toEqual(['drained']);
+  });
+
+  test('a sweep still happens when a schedule is broken', async () => {
+    const runner = new Runner(jobs);
+    const job = await jobs.perform('ok', null);
+
+    // A schedule the runner cannot honour, added behind its back
+    jobs.config.recurring = [
+      {
+        args: null,
+        cron: '0 * * * *',
+        every: null,
+        job: 'nowhere',
+        name: 'x',
+        priority: null,
+        queue: null,
+        spec: 'cron:0 * * * *',
+      },
+    ];
+    await new Runner(jobs).once();
+    jobs.config.recurring = [];
+
+    await jobs.store.update(job.id, { finished_at: Date.now() - 100000 });
+    runner.keepCompleted = 1000;
+    runner.maintenanceAt = 0;
+    runner.sweepAt = 0;
+    await runner.maintain();
+
+    // The sweep ran even though the schedule could not
+    expect(await jobs.get(job.id)).toBeNull();
   });
 
   test('prunes the finished jobs while it runs', async () => {

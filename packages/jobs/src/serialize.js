@@ -142,10 +142,16 @@ const serialize = (args, options = {}) => {
 /**
  * Reads back what serialize() stored
  *
+ * Nothing readable answers null, which is what a listing wants. A runner
+ * asks for `strict`: performing a job with `null` arguments because the
+ * column truncated them would be worse than failing the attempt.
+ *
  * @param {?string} json The stored JSON
+ * @param {object} [options={}] `strict` throws on unreadable JSON
  * @returns {*} The arguments (null when there were none)
+ * @throws {JobArgumentError} With `strict`, when the JSON cannot be read
  */
-const deserialize = (json) => {
+const deserialize = (json, options = {}) => {
   if (json === null || typeof json === 'undefined' || json === '') {
     return null;
   }
@@ -157,6 +163,13 @@ const deserialize = (json) => {
   try {
     return JSON.parse(json);
   } catch (error) {
+    if (options.strict) {
+      throw new JobArgumentError(
+        `the stored arguments are not readable JSON (${json.length} bytes): they were written by an older version, or the column truncated them`,
+        { cause: error, path: 'args' }
+      );
+    }
+
     return null;
   }
 };

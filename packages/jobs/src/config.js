@@ -1,3 +1,4 @@
+const { next, parse } = require('./cron');
 const { duration } = require('./duration');
 
 /**
@@ -68,6 +69,28 @@ const recurring = (name, entry) => {
     );
   }
 
+  // Parsed here, not on the first tick of a runner: an expression a runner
+  // cannot read would otherwise throw inside its loop, every second, with
+  // nothing being claimed while it does
+  if (value.cron) {
+    try {
+      if (next(parse(value.cron)) === null) {
+        throw new Error(`"${value.cron}" can never come round`);
+      }
+    } catch (error) {
+      throw new Error(
+        `@usehenri/jobs: the recurring schedule "${name}" is invalid: ${error.message}`,
+        { cause: error }
+      );
+    }
+  }
+
+  if (value.every && duration(value.every) < 1000) {
+    throw new Error(
+      `@usehenri/jobs: the recurring schedule "${name}" runs every ${value.every}, which is under a second`
+    );
+  }
+
   return {
     args: typeof value.args === 'undefined' ? null : value.args,
     cron: value.cron || null,
@@ -78,6 +101,28 @@ const recurring = (name, entry) => {
     queue: value.queue || null,
     spec: value.cron ? `cron:${value.cron}` : `every:${duration(value.every)}`,
   };
+};
+
+/**
+ * Checks a table name before it is written into every statement
+ *
+ * The queue interpolates its table names: they are configuration, not
+ * request input, but an application may now set any key from the
+ * environment, and a name that is not a plain identifier gives a syntax
+ * error deep in a query instead of a sentence here.
+ *
+ * @param {string} value The name
+ * @returns {string} The name
+ * @throws {Error} When it is not a plain identifier
+ */
+const table = (value) => {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    throw new Error(
+      `@usehenri/jobs: invalid table name "${value}": letters, digits and underscores only`
+    );
+  }
+
+  return value;
 };
 
 /**
@@ -121,11 +166,11 @@ const normalize = (config = {}) => {
     store: value.store || DEFAULTS.store,
     stuckAfter: duration(value.stuckAfter, duration(DEFAULTS.stuckAfter)),
     tables: {
-      jobs: value.table || DEFAULTS.table,
-      schedules: `${value.table || DEFAULTS.table}_schedules`,
+      jobs: table(value.table || DEFAULTS.table),
+      schedules: `${table(value.table || DEFAULTS.table)}_schedules`,
     },
     timeout: duration(value.timeout, DEFAULTS.timeout),
   };
 };
 
-module.exports = { DEFAULTS, normalize, queues };
+module.exports = { DEFAULTS, normalize, queues, table };

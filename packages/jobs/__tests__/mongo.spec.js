@@ -174,6 +174,46 @@ describe('queue (mongodb)', () => {
     expect((await jobs.get(enqueued.id)).state).toBe('pending');
   });
 
+  test('a runner that was recovered from cannot write its outcome', async () => {
+    const enqueued = await jobs.perform('ok', null);
+    const [claimed] = await jobs.store.claim({
+      limit: 1,
+      now: Date.now(),
+      queues: [],
+      runner: 'zombie',
+      token: 'zombie-token',
+    });
+
+    await jobs.store.update(enqueued.id, { heartbeat_at: 0 });
+    await jobs.store.recover({ now: Date.now(), stuckAfter: 1000 });
+    await jobs.store.claim({
+      limit: 1,
+      now: Date.now(),
+      queues: [],
+      runner: 'the-new-owner',
+      token: 'new-token',
+    });
+
+    await jobs.run(claimed, { runner: 'zombie' });
+
+    const job = await jobs.get(enqueued.id);
+
+    expect(job.state).toBe('running');
+    expect(job.claimedBy).toBe('the-new-owner');
+  });
+
+  test('frees the unique key of a job once it is finished', async () => {
+    const first = await jobs.perform('ok', { n: 1 }, { unique: 'monthly' });
+
+    await new Runner(jobs).once();
+    expect((await jobs.get(first.id)).state).toBe('done');
+
+    const second = await jobs.perform('ok', { n: 2 }, { unique: 'monthly' });
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.state).toBe('pending');
+  });
+
   test('honours a recurring schedule with the same CAS as SQL', async () => {
     const henri = fakeHenri({ cwd: path.join(__dirname, 'fixtures', 'app') });
     const scheduled = new Jobs(henri, {

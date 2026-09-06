@@ -75,9 +75,41 @@ const HISTORY_LIMIT = 10;
 const ALREADY_THERE =
   /already exists|duplicate key|duplicate table|there is already an object named/i;
 
+/**
+ * Errors that mean a unique index refused the row.
+ *
+ * Sequelize names its own (`SequelizeUniqueConstraintError`, whose message
+ * is the unhelpful `Validation error`), the drivers word theirs differently,
+ * and drizzle passes the driver's through.
+ */
+const DUPLICATE =
+  /unique|duplicate|Validation error|SQLITE_CONSTRAINT|ER_DUP_ENTRY|23505/i;
+
 /** Errors that mean "another writer got there first, try again" */
 const RETRYABLE =
   /deadlock|lock wait timeout|database is locked|database table is locked|SQLITE_BUSY/i;
+
+/**
+ * Everything an error says about itself, wrappers included
+ *
+ * Sequelize keeps the driver error on `parent`, drizzle on `cause`; the
+ * useful words (deadlock, duplicate, already exists) are down there.
+ *
+ * @param {*} error An error
+ * @param {number} [depth=4] How far to unwrap
+ * @returns {string} The messages, joined
+ */
+const reasons = (error, depth = 4) => {
+  const said = [];
+  let current = error;
+
+  for (let step = 0; step < depth && current; step += 1) {
+    said.push(String(current.message || ''), String(current.code || ''));
+    current = current.parent || current.original || current.cause;
+  }
+
+  return said.join(' ');
+};
 
 /**
  * A number read back from any driver (pg hands BIGINT over as a string)
@@ -221,9 +253,7 @@ class SqlStore {
       try {
         return await fn();
       } catch (error) {
-        const message = `${(error && error.message) || ''} ${(error && error.parent && error.parent.message) || ''}`;
-
-        if (!RETRYABLE.test(message)) {
+        if (!RETRYABLE.test(reasons(error))) {
           throw error;
         }
 
@@ -249,9 +279,7 @@ class SqlStore {
       try {
         await this.run(statement);
       } catch (error) {
-        const message = `${(error && error.message) || ''} ${(error && error.parent && error.parent.message) || ''}`;
-
-        if (!ALREADY_THERE.test(message)) {
+        if (!ALREADY_THERE.test(reasons(error))) {
           throw error;
         }
 
@@ -313,10 +341,10 @@ class SqlStore {
         values
       );
     } catch (error) {
-      // Every driver words a unique violation differently: rather than
-      // matching messages, look the key up -- if the row is there, another
-      // caller (or another runner) enqueued it first
-      if (job.unique_key) {
+      // Only a duplicate key is answered with the job that holds it. Any
+      // other failure -- a value too long, a connection gone -- is the
+      // caller's to see, or an enqueue would silently do nothing
+      if (job.unique_key && DUPLICATE.test(reasons(error))) {
         const existing = await this.findByUniqueKey(job.unique_key);
 
         if (existing && existing.id !== job.id) {
@@ -452,21 +480,34 @@ class SqlStore {
   /**
    * Writes the outcome of an attempt
    *
+   * With a token the write only lands while this runner still owns the row.
+   * That matters: a runner whose heartbeat went stale has had its jobs put
+   * back and re-claimed by someone else, and it must not write its outcome
+   * over the new owner's.
+   *
    * @param {string} id The job id
    * @param {object} changes The columns to set
+   * @param {string} [token] The claim token this runner holds
    * @returns {Promise<void>} Resolves when written
    * @memberof SqlStore
    */
-  async update(id, changes) {
+  async update(id, changes, token) {
     const keys = Object.keys(changes);
 
     if (keys.length === 0) {
       return;
     }
 
+    const own = token ? ` AND claim_token = ? AND state = 'running'` : '';
+    const params = [...keys.map((key) => changes[key]), id];
+
+    if (token) {
+      params.push(token);
+    }
+
     await this.run(
-      `UPDATE ${this.tables.jobs} SET ${keys.map((key) => `${key} = ?`).join(', ')} WHERE id = ?`,
-      [...keys.map((key) => changes[key]), id]
+      `UPDATE ${this.tables.jobs} SET ${keys.map((key) => `${key} = ?`).join(', ')} WHERE id = ?${own}`,
+      params
     );
   }
 
@@ -478,17 +519,26 @@ class SqlStore {
    * Jobs with attempts left go back to `pending`, the others to the dead
    * letter queue.
    *
+   * The sweep is bounded: after a crash that left thousands of rows behind,
+   * a runner puts back a batch and gets on with claiming rather than
+   * blocking its own loop for the whole pass.
+   *
    * @param {object} options Options
    * @param {number} options.now The current time
    * @param {number} options.stuckAfter How long without a heartbeat is dead
+   * @param {number} [options.limit=100] How many rows one sweep puts back
    * @returns {Promise<Array<object>>} The rows that were recovered
    * @memberof SqlStore
    */
-  async recover({ now, stuckAfter }) {
+  async recover({ now, stuckAfter, limit = 100 }) {
     const table = this.tables.jobs;
+    const page =
+      this.dialect === 'mssql'
+        ? 'ORDER BY heartbeat_at ASC OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY'
+        : 'ORDER BY heartbeat_at ASC LIMIT ?';
     const rows = await this.select(
-      `SELECT * FROM ${table} WHERE state = 'running' AND heartbeat_at < ?`,
-      [now - stuckAfter]
+      `SELECT * FROM ${table} WHERE state = 'running' AND heartbeat_at < ? ${page}`,
+      [now - stuckAfter, limit]
     );
 
     for (const row of rows) {
@@ -497,10 +547,13 @@ class SqlStore {
       const dead = attempts >= max;
 
       await this.run(
-        `UPDATE ${table} SET state = ?, run_at = ?, claim_token = NULL, error_message = ?, finished_at = ?, updated_at = ? WHERE id = ? AND state = 'running' AND claim_token = ?`,
+        `UPDATE ${table} SET state = ?, run_at = ?, claim_token = NULL, unique_key = ?, error_message = ?, finished_at = ?, updated_at = ? WHERE id = ? AND state = 'running' AND claim_token = ?`,
         [
           dead ? 'dead' : 'pending',
           now,
+          // A dead job holds its unique key no longer: the same work may be
+          // enqueued again while this one sits in the dead letter queue
+          dead ? null : row.unique_key,
           `the runner ${row.claimed_by} stopped answering while performing this job`,
           dead ? now : null,
           now,
@@ -516,19 +569,26 @@ class SqlStore {
   /**
    * Tells the database this runner is still on these jobs
    *
+   * A runner that was already recovered from no longer owns these rows, so
+   * the token is part of the filter: its heartbeats become no-ops instead of
+   * hiding the staleness the recovery is there to notice.
+   *
    * @param {Array<string>} ids The job ids
    * @param {number} now The current time
+   * @param {string} [token] The claim token this runner holds
    * @returns {Promise<void>} Resolves when written
    * @memberof SqlStore
    */
-  async heartbeat(ids, now) {
+  async heartbeat(ids, now, token) {
     if (ids.length === 0) {
       return;
     }
 
+    const own = token ? ' AND claim_token = ?' : '';
+
     await this.run(
-      `UPDATE ${this.tables.jobs} SET heartbeat_at = ? WHERE id IN (${marks(ids)})`,
-      [now, ...ids]
+      `UPDATE ${this.tables.jobs} SET heartbeat_at = ? WHERE id IN (${marks(ids)})${own}`,
+      token ? [now, ...ids, token] : [now, ...ids]
     );
   }
 
@@ -536,25 +596,32 @@ class SqlStore {
    * Deletes the finished jobs older than a moment
    *
    * @param {number} before A timestamp
+   * @param {number} [limit=1000] How many rows one pass deletes
    * @returns {Promise<number>} How many rows were deleted
    * @memberof SqlStore
    */
-  async prune(before) {
+  async prune(before, limit = 1000) {
+    const page =
+      this.dialect === 'mssql'
+        ? 'ORDER BY finished_at ASC OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY'
+        : 'ORDER BY finished_at ASC LIMIT ?';
     const rows = await this.select(
-      `SELECT id FROM ${this.tables.jobs} WHERE state = 'done' AND finished_at < ?`,
-      [before]
+      `SELECT id FROM ${this.tables.jobs} WHERE state = 'done' AND finished_at < ? ${page}`,
+      [before, limit]
     );
 
     if (rows.length === 0) {
       return 0;
     }
 
+    const ids = rows.map((row) => row.id);
+
     await this.run(
-      `DELETE FROM ${this.tables.jobs} WHERE state = 'done' AND finished_at < ?`,
-      [before]
+      `DELETE FROM ${this.tables.jobs} WHERE id IN (${marks(ids)})`,
+      ids
     );
 
-    return rows.length;
+    return ids.length;
   }
 
   /**
@@ -567,6 +634,10 @@ class SqlStore {
   async list({ state, queue, name, limit = 50, offset = 0 } = {}) {
     const filter = [];
     const params = [];
+    // The driver binds what it is given: `LIMIT '25'` is text where sqlite
+    // wants an integer
+    const rows = Math.max(1, Number(limit) || 50);
+    const from = Math.max(0, Number(offset) || 0);
 
     if (state) {
       filter.push('state = ?');
@@ -588,7 +659,7 @@ class SqlStore {
       this.dialect === 'mssql'
         ? 'OFFSET ? ROWS FETCH NEXT ? ROWS ONLY'
         : 'LIMIT ? OFFSET ?';
-    const paging = this.dialect === 'mssql' ? [offset, limit] : [limit, offset];
+    const paging = this.dialect === 'mssql' ? [from, rows] : [rows, from];
 
     return this.select(
       `SELECT * FROM ${this.tables.jobs} ${where} ORDER BY updated_at DESC, id ASC ${page}`,
@@ -733,10 +804,13 @@ class SqlStore {
         ]
       );
     } catch (error) {
-      debug('schedule %s already recorded (%s)', row.name, error.message);
+      // Another runner recording it first is the expected failure; anything
+      // else (no table, no permission) is answered with null, and the runner
+      // says so rather than silently never running the schedule
+      debug('schedule %s not recorded (%s)', row.name, error.message);
     }
 
-    return this.schedule(row.name);
+    return this.schedule(row.name).catch(() => null);
   }
 
   /**
@@ -857,9 +931,11 @@ const create = (adapter, tables) => {
 
 module.exports = {
   COLUMNS,
+  DUPLICATE,
   HISTORY_LIMIT,
   SqlStore,
   create,
   describe,
+  reasons,
   toNumber,
 };

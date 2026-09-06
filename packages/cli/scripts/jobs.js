@@ -102,20 +102,25 @@ const run = async (args) => {
 
   let result;
 
-  if (args.once === true) {
-    result = await runner.once();
-  } else {
-    const stopped = new Promise((resolve) => {
-      const stop = () => resolve(runner.stop());
+  try {
+    if (args.once === true) {
+      result = await runner.once();
+    } else {
+      const stopped = new Promise((resolve) => {
+        const stop = () => resolve(runner.stop());
 
-      SIGNALS.forEach((signal) => process.once(signal, stop));
-    });
+        SIGNALS.forEach((signal) => process.once(signal, stop));
+      });
 
-    runner.start();
-    result = await stopped;
+      runner.start();
+      result = await stopped;
+    }
+  } finally {
+    // Whatever went wrong, the runner lets go of its jobs and the drivers
+    // are closed: without this the process hangs on an open pool
+    await runner.stop().catch(() => null);
+    await henri.stop();
   }
-
-  await henri.stop();
 
   return {
     command: 'run',
@@ -137,9 +142,13 @@ const run = async (args) => {
 const install = async (args) => {
   const henri = await boot();
   const jobs = await queueOf(henri);
-  const statements = await jobs.queue.store.install();
+  let statements;
 
-  await henri.stop();
+  try {
+    statements = await jobs.queue.store.install();
+  } finally {
+    await henri.stop();
+  }
 
   return {
     command: 'install',
@@ -159,20 +168,20 @@ const install = async (args) => {
 const status = async (args) => {
   const henri = await boot();
   const jobs = await queueOf(henri);
-  const stats = await jobs.stats();
+  const recurring = jobs.queue.config.recurring.map((entry) => ({
+    job: entry.job,
+    name: entry.name,
+    spec: entry.spec,
+  }));
+  let stats;
 
-  await henri.stop();
+  try {
+    stats = await jobs.stats();
+  } finally {
+    await henri.stop();
+  }
 
-  return {
-    command: 'status',
-    ok: true,
-    recurring: jobs.queue.config.recurring.map((entry) => ({
-      job: entry.job,
-      name: entry.name,
-      spec: entry.spec,
-    })),
-    ...stats,
-  };
+  return { command: 'status', ok: true, recurring, ...stats };
 };
 
 /**
@@ -223,9 +232,13 @@ const show = async (args) => {
 
   const henri = await boot();
   const jobs = await queueOf(henri);
-  const job = await jobs.get(id);
+  let job;
 
-  await henri.stop();
+  try {
+    job = await jobs.get(id);
+  } finally {
+    await henri.stop();
+  }
 
   if (!job) {
     throw new CliError('FAILED', `No job with id "${id}"`, {
@@ -567,7 +580,10 @@ const main = async (args) => {
   }
 
   if (args.json) {
-    console.log(JSON.stringify(result, null, 2));
+    // `process.exit()` truncates a pipe that has not drained: wait for it
+    await new Promise((resolve) =>
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`, resolve)
+    );
   } else {
     print(result);
   }

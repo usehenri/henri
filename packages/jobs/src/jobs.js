@@ -107,6 +107,12 @@ class Jobs {
     this.started = false;
     this.runners = new Set();
 
+    /**
+     * The retry policy of a job whose file this runner does not have: the
+     * queue's own, so an unknown name is retried rather than buried
+     */
+    this.unknown = { backoff: this.config.backoff, name: null };
+
     this.dead = {
       count: () => this.count({ state: 'dead' }),
       discard: (id) => this.discard(id),
@@ -178,6 +184,19 @@ class Jobs {
     }
 
     this.started = true;
+
+    const missing = this.config.recurring
+      .filter((entry) => !this.definitions[entry.job])
+      .map((entry) => `${entry.name} -> ${entry.job}`);
+
+    if (missing.length > 0) {
+      this.log(
+        'warn',
+        'recurring schedules naming a job that is not in app/jobs, skipped:',
+        missing.join(', ')
+      );
+    }
+
     debug('started with %d job(s)', Object.keys(this.definitions).length);
 
     return this;
@@ -244,7 +263,13 @@ class Jobs {
     if (model && typeof model.getStore === 'function') {
       // A store no model uses has not been built yet; the model module keeps
       // it from here on, so it is stopped with the others
-      const store = model.getStore(name);
+      let store = null;
+
+      try {
+        store = model.getStore(name);
+      } catch (error) {
+        debug('store %s cannot be built: %s', name, error.message);
+      }
 
       if (store) {
         this.ownsAdapter = true;
@@ -312,6 +337,9 @@ class Jobs {
    * @param {number} [options.maxAttempts] How many attempts before it dies
    * @param {(number|string)} [options.timeout] How long one attempt may take
    * @param {string} [options.unique] A key no other waiting job may hold
+   * @param {string} [options.id] The id to give the job, so a caller racing
+   *   another on the same `unique` key can tell whether it is the one that
+   *   enqueued it (the recurring schedules use it)
    * @returns {Promise<object>} The enqueued job
    * @throws {JobError} UNKNOWN_JOB, or BAD_ARGUMENTS when the arguments
    *   cannot be stored
@@ -334,7 +362,7 @@ class Jobs {
       finished_at: null,
       heartbeat_at: null,
       history: null,
-      id: randomUUID(),
+      id: options.id || randomUUID(),
       max_attempts: Math.max(
         1,
         Number(options.maxAttempts) || definition.maxAttempts
@@ -564,11 +592,15 @@ class Jobs {
    * on a dead job (the point of the dead letter queue) and on one that is
    * still waiting (it runs now).
    *
+   * A job a runner is performing right now is refused: requeuing it would
+   * hand the same work to a second runner.
+   *
    * @param {string} id The job id
    * @param {object} [options={}] Options
    * @param {(number|string)} [options.wait] Run it that much later
    * @param {(Date|string|number)} [options.at] Run it at that moment
    * @returns {Promise<?object>} The job, or null when there is no such id
+   * @throws {JobError} RUNNING when a runner is performing it
    * @memberof Jobs
    */
   async retry(id, options = {}) {
@@ -577,6 +609,16 @@ class Jobs {
 
     if (!row) {
       return null;
+    }
+
+    if (row.state === 'running') {
+      throw new JobError(
+        'RUNNING',
+        `The job ${id} is being performed by ${row.claimed_by}`,
+        {
+          hint: 'Wait for it to finish, or for the runner that died on it to be recovered from (jobs.stuckAfter)',
+        }
+      );
     }
 
     const now = Date.now();
@@ -690,13 +732,36 @@ class Jobs {
     try {
       definition = this.definition(row.name);
     } catch (error) {
-      return this.failed(row, error, { attempts, duration: 0, store });
+      // A runner that is older than the process that enqueued this does not
+      // have the file yet: put the job back rather than kill it, so a
+      // rolling deploy does not fill the dead letter queue
+      return this.failed(row, error, {
+        attempts,
+        definition: this.unknown,
+        duration: 0,
+        store,
+      });
+    }
+
+    let args;
+
+    try {
+      args = deserialize(row.args, { strict: true });
+    } catch (error) {
+      // Performing a job with `null` where its arguments should be is worse
+      // than failing the attempt and saying so
+      return this.failed(row, error, {
+        attempts,
+        definition,
+        duration: 0,
+        store,
+      });
     }
 
     const context = {
       henri: this.henri,
       job: {
-        args: deserialize(row.args),
+        args,
         attempt: attempts,
         enqueuedAt: at(row.created_at),
         id: row.id,
@@ -721,17 +786,27 @@ class Jobs {
 
     const finished = Date.now();
 
-    await store.update(row.id, {
-      claim_token: null,
-      duration_ms: finished - started,
-      error_message: null,
-      error_stack: null,
-      finished_at: finished,
-      state: 'done',
-      updated_at: finished,
-    });
+    await store.update(
+      row.id,
+      {
+        claim_token: null,
+        duration_ms: finished - started,
+        error_message: null,
+        error_stack: null,
+        finished_at: finished,
+        state: 'done',
+        // A finished job holds its unique key no longer
+        unique_key: null,
+        updated_at: finished,
+      },
+      row.claim_token
+    );
 
-    return { job: toJob(await store.find(row.id)), state: 'done' };
+    const job = toJob(await store.find(row.id));
+
+    this.lost(row, job);
+
+    return { job, state: 'done' };
   }
 
   /**
@@ -805,17 +880,24 @@ class Jobs {
 
     const wait = dead ? 0 : this.backoff(definition, attempts);
 
-    await store.update(row.id, {
-      claim_token: null,
-      duration_ms: took,
-      error_message: message,
-      error_stack: (error && error.stack) || null,
-      finished_at: dead ? now : null,
-      history: JSON.stringify(history),
-      run_at: dead ? row.run_at : now + wait,
-      state: dead ? 'dead' : 'pending',
-      updated_at: now,
-    });
+    await store.update(
+      row.id,
+      {
+        claim_token: null,
+        duration_ms: took,
+        error_message: message,
+        error_stack: (error && error.stack) || null,
+        finished_at: dead ? now : null,
+        history: JSON.stringify(history),
+        run_at: dead ? toNumber(row.run_at) : now + wait,
+        state: dead ? 'dead' : 'pending',
+        // A dead job holds its unique key no longer: the same work may be
+        // enqueued again while this one waits in the dead letter queue
+        unique_key: dead ? null : row.unique_key,
+        updated_at: now,
+      },
+      row.claim_token
+    );
 
     this.log(
       dead ? 'error' : 'warn',
@@ -826,11 +908,39 @@ class Jobs {
       message
     );
 
-    return {
-      error,
-      job: toJob(await store.find(row.id)),
-      state: dead ? 'dead' : 'pending',
-    };
+    const job = toJob(await store.find(row.id));
+
+    this.lost(row, job);
+
+    return { error, job, state: dead ? 'dead' : 'pending' };
+  }
+
+  /**
+   * Says so when the outcome of an attempt was refused
+   *
+   * The write only lands while the runner still owns the row. It does not
+   * when the runner's heartbeat went stale and someone else took the job
+   * back, which means the job is about to be performed twice: nothing is
+   * lost, but it is worth a line in the log.
+   *
+   * @param {object} row The row this runner had claimed
+   * @param {?object} job The job as it is now
+   * @returns {boolean} Whether the outcome was refused
+   * @memberof Jobs
+   */
+  lost(row, job) {
+    if (!job || !row.claim_token || job.state !== 'running') {
+      return false;
+    }
+
+    this.log(
+      'warn',
+      row.name,
+      row.id,
+      'was taken over while it was being performed; the outcome was dropped'
+    );
+
+    return true;
   }
 }
 

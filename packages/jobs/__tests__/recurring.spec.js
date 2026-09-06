@@ -173,6 +173,44 @@ describe(`recurring (${target.name})`, () => {
     expect(await jobs.store.schedule('gone')).toBeNull();
   });
 
+  test('one bad schedule never stops the runner', async () => {
+    const jobs = await withSchedule({
+      good: { cron: '0 * * * *', job: 'ok' },
+      nowhere: { cron: '0 * * * *', job: 'no-such-job' },
+    });
+    const runner = new Runner(jobs);
+
+    // The schedule naming a job that is not in app/jobs is skipped, said
+    // once, and the one next to it still runs
+    expect(await runner.schedule(Date.now())).toEqual([]);
+
+    await jobs.store.resetSchedule({
+      name: 'good',
+      next: Date.now() - 1000,
+      now: Date.now(),
+      spec: 'cron:0 * * * *',
+    });
+
+    const enqueued = await runner.schedule(Date.now());
+
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0].name).toBe('ok');
+  });
+
+  test('says once that a schedule names a job it cannot find', async () => {
+    const jobs = await withSchedule({
+      nowhere: { every: '1h', job: 'no-such-job' },
+    });
+    const runner = new Runner(jobs);
+
+    expect(await runner.schedule(Date.now())).toEqual([]);
+    expect(await runner.schedule(Date.now())).toEqual([]);
+
+    // Said once, not once a second, and the schedule is never recorded
+    expect(runner.warned.has('nowhere')).toBe(true);
+    expect(await jobs.store.schedule('nowhere')).toBeNull();
+  });
+
   test('refuses a schedule with neither cron nor every', async () => {
     await expect(withSchedule({ broken: { job: 'ok' } })).rejects.toThrow(
       'needs a "cron" or an "every"'

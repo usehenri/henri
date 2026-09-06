@@ -1,8 +1,11 @@
 const os = require('os');
-const { randomUUID } = require('crypto');
+const { randomUUID: uuid } = require('crypto');
 const debug = require('debug')('henri:jobs:runner');
 
 const { next: nextRun } = require('./cron');
+
+/** What a schedule waits before it looks again at an expression */
+const MINUTE = 60000;
 
 /** The signals a runner stops on */
 const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGQUIT'];
@@ -45,11 +48,12 @@ class Runner {
     this.stuckAfter = config.stuckAfter;
     this.keepCompleted = config.keepCompleted;
     this.id =
-      options.id ||
-      `${os.hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
+      options.id || `${os.hostname()}:${process.pid}:${uuid().slice(0, 8)}`;
 
+    /** The jobs in flight: id -> { promise, token } */
     this.running = new Map();
     this.stopping = false;
+    this.stopped = null;
     this.loop = null;
     this.timer = null;
     this.wake = null;
@@ -60,6 +64,9 @@ class Runner {
     this.handlers = [];
     this.performed = 0;
     this.failed = 0;
+    this.beatFailed = false;
+    /** Schedules already reported as unrunnable, so they are said once */
+    this.warned = new Set();
   }
 
   /**
@@ -96,12 +103,7 @@ class Runner {
       this.trap();
     }
 
-    this.heartbeatTimer = setInterval(
-      () => this.beat(),
-      Math.max(1000, Math.floor(this.stuckAfter / 4))
-    );
-    this.heartbeatTimer.unref();
-
+    this.beating();
     this.loop = this.cycle();
 
     this.log(
@@ -117,21 +119,61 @@ class Runner {
   }
 
   /**
+   * Starts the heartbeat that says this runner is still on its jobs
+   *
+   * @returns {void}
+   * @memberof Runner
+   */
+  beating() {
+    if (this.heartbeatTimer) {
+      return;
+    }
+
+    this.heartbeatTimer = setInterval(
+      () => this.beat(),
+      Math.max(1000, Math.floor(this.stuckAfter / 4))
+    );
+    this.heartbeatTimer.unref();
+  }
+
+  /**
+   * Stops the heartbeat
+   *
+   * @returns {void}
+   * @memberof Runner
+   */
+  stopBeating() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  /**
    * Stops the loop and waits for the jobs in flight
    *
    * The jobs already claimed are performed to the end and their outcome is
-   * written down; nothing new is claimed.
+   * written down; nothing new is claimed. Every caller waits for the same
+   * shutdown: the CLI's signal handler and `henri.stop()` both call this.
    *
    * @returns {Promise<object>} `{ performed, failed }`
    * @memberof Runner
    */
-  async stop() {
-    if (this.stopping) {
-      await this.loop;
-
-      return { failed: this.failed, performed: this.performed };
+  stop() {
+    if (!this.stopped) {
+      this.stopped = this.shutdown();
     }
 
+    return this.stopped;
+  }
+
+  /**
+   * The shutdown itself
+   *
+   * @returns {Promise<object>} `{ performed, failed }`
+   * @memberof Runner
+   */
+  async shutdown() {
     this.stopping = true;
     this.release();
 
@@ -149,19 +191,26 @@ class Runner {
       wake();
     }
 
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
+    this.stopBeating();
 
     await this.loop;
-    await Promise.all([...this.running.values()]);
+    await Promise.all(this.inFlight());
 
     this.loop = null;
     this.jobs.runners.delete(this);
     this.log('info', 'runner', this.id, 'stopped');
 
     return { failed: this.failed, performed: this.performed };
+  }
+
+  /**
+   * The promises of the jobs being performed right now
+   *
+   * @returns {Array<Promise>} The promises
+   * @memberof Runner
+   */
+  inFlight() {
+    return [...this.running.values()].map((entry) => entry.promise);
   }
 
   /**
@@ -179,7 +228,9 @@ class Runner {
           this.id,
           `${signal}, finishing the jobs in flight`
         );
-        this.stop();
+        this.stop().catch((error) =>
+          this.log('error', 'runner', this.id, error.message)
+        );
       };
 
       this.handlers.push([signal, handler]);
@@ -264,6 +315,9 @@ class Runner {
   async once({ maintain = true } = {}) {
     this.stopping = false;
     this.jobs.runners.add(this);
+    // A drain can outlive `stuckAfter` as easily as the loop can: without
+    // the heartbeat its jobs would be recovered out from under it
+    this.beating();
 
     try {
       if (maintain) {
@@ -278,12 +332,13 @@ class Runner {
         }
 
         if (claimed === 0) {
-          await Promise.race([...this.running.values()]);
+          await Promise.race(this.inFlight());
         }
       }
 
-      await Promise.all([...this.running.values()]);
+      await Promise.all(this.inFlight());
     } finally {
+      this.stopBeating();
       this.jobs.runners.delete(this);
     }
 
@@ -300,21 +355,22 @@ class Runner {
     const room = this.concurrency - this.running.size;
 
     if (room < 1) {
-      await Promise.race([...this.running.values()]);
+      await Promise.race(this.inFlight());
 
       return 1;
     }
 
+    const token = uuid();
     const rows = await this.jobs.storeOrDie().claim({
       limit: room,
       now: Date.now(),
       queues: this.queues,
       runner: this.id,
-      token: randomUUID(),
+      token,
     });
 
     for (const row of rows) {
-      this.running.set(row.id, this.hold(row));
+      this.running.set(row.id, { promise: this.hold(row), token });
     }
 
     return rows.length;
@@ -355,15 +411,35 @@ class Runner {
    * @memberof Runner
    */
   async beat() {
-    const ids = [...this.running.keys()];
+    const batches = new Map();
 
-    if (ids.length === 0) {
+    for (const [id, entry] of this.running) {
+      const ids = batches.get(entry.token) || [];
+
+      ids.push(id);
+      batches.set(entry.token, ids);
+    }
+
+    if (batches.size === 0) {
       return;
     }
 
+    const now = Date.now();
+
     try {
-      await this.jobs.storeOrDie().heartbeat(ids, Date.now());
+      for (const [token, ids] of batches) {
+        await this.jobs.storeOrDie().heartbeat(ids, now, token);
+      }
+
+      this.beatFailed = false;
     } catch (error) {
+      // A heartbeat that keeps failing means these jobs are about to be
+      // recovered and performed a second time: say so once
+      if (!this.beatFailed) {
+        this.beatFailed = true;
+        this.log('warn', 'runner', this.id, 'heartbeat failed', error.message);
+      }
+
       debug('heartbeat failed: %s', error.message);
     }
   }
@@ -386,14 +462,23 @@ class Runner {
     // looked at every second at most
     this.maintenanceAt = now + Math.max(this.pollInterval, 1000);
 
+    if (now >= this.sweepAt) {
+      await this.sweep(now);
+    }
+
     if (this.recurring) {
       await this.schedule(now);
     }
+  }
 
-    if (now < this.sweepAt) {
-      return;
-    }
-
+  /**
+   * Puts back the jobs of runners that died and prunes the finished ones
+   *
+   * @param {number} now The current time
+   * @returns {Promise<void>} Resolves when done
+   * @memberof Runner
+   */
+  async sweep(now) {
     // Nothing here is urgent: a job left behind is not late until
     // `stuckAfter` has gone by, and the pruning is housekeeping
     this.sweepAt = now + Math.max(5000, Math.floor(this.stuckAfter / 10));
@@ -437,69 +522,131 @@ class Runner {
     }
 
     for (const entry of schedules) {
-      const upcoming = this.nextRunOf(entry, now);
-      let row = await store.schedule(entry.name);
-
-      if (!row) {
-        row = await store.addSchedule({
-          created_at: now,
-          job: entry.job,
-          name: entry.name,
-          next_run_at: upcoming,
-          spec: entry.spec,
-          updated_at: now,
-        });
-      }
-
-      if (!row) {
-        continue;
-      }
-
-      // The configuration changed under a schedule that was already recorded
-      if (row.spec !== entry.spec) {
-        await store.resetSchedule({
-          name: entry.name,
-          next: upcoming,
-          now,
-          spec: entry.spec,
-        });
-        continue;
-      }
-
-      const due = Number(row.next_run_at);
-
-      if (due > now) {
-        continue;
-      }
-
-      const won = await store.advanceSchedule({
-        due,
-        name: entry.name,
-        next: this.nextRunOf(entry, now),
-        now,
-        spec: entry.spec,
-        token: randomUUID(),
-      });
-
-      if (!won) {
-        continue;
-      }
-
       try {
-        const job = await this.jobs.perform(entry.job, entry.args, {
-          priority: entry.priority === null ? undefined : entry.priority,
-          queue: entry.queue || undefined,
-          unique: `recurring:${entry.name}:${due}`,
-        });
+        const job = await this.due(entry, now, store);
 
-        enqueued.push(job);
-        this.log('info', 'recurring', entry.name, '->', entry.job, job.id);
+        if (job) {
+          enqueued.push(job);
+        }
       } catch (error) {
+        // One schedule must never stop the runner claiming: the loop that
+        // calls this is the same one that claims jobs
         this.log('error', 'recurring', entry.name, error.message);
+        debug('%O', error);
       }
     }
 
     return enqueued;
+  }
+
+  /**
+   * Enqueues one schedule if its moment has come
+   *
+   * The job is enqueued **before** the schedule is moved on, and it carries
+   * the slot as its unique key: whichever runner gets here, exactly one job
+   * exists for that slot, and an enqueue that fails leaves the schedule due
+   * so the next tick tries again.
+   *
+   * @param {object} entry A normalized schedule
+   * @param {number} now The current time
+   * @param {object} store The store backend
+   * @returns {Promise<?object>} The job this runner enqueued, or null
+   * @memberof Runner
+   */
+  async due(entry, now, store) {
+    if (!this.jobs.definitions[entry.job]) {
+      return this.giveUp(entry, `no job named "${entry.job}" in app/jobs`);
+    }
+
+    const upcoming = this.nextRunOf(entry, now);
+
+    if (upcoming === null) {
+      return this.giveUp(entry, `${entry.spec} can never come round again`);
+    }
+
+    let row = await store.schedule(entry.name);
+
+    if (!row) {
+      row = await store.addSchedule({
+        created_at: now,
+        job: entry.job,
+        name: entry.name,
+        next_run_at: upcoming,
+        spec: entry.spec,
+        updated_at: now,
+      });
+    }
+
+    if (!row) {
+      return this.giveUp(
+        entry,
+        'the schedule could not be recorded; is the queue installed?'
+      );
+    }
+
+    // The configuration changed under a schedule that was already recorded
+    if (row.spec !== entry.spec) {
+      await store.resetSchedule({
+        name: entry.name,
+        next: upcoming,
+        now,
+        spec: entry.spec,
+      });
+
+      return null;
+    }
+
+    const due = Number(row.next_run_at);
+
+    if (due > now) {
+      return null;
+    }
+
+    const id = uuid();
+    const job = await this.jobs.perform(entry.job, entry.args, {
+      id,
+      priority: entry.priority === null ? undefined : entry.priority,
+      queue: entry.queue || undefined,
+      unique: `recurring:${entry.name}:${due}`,
+    });
+
+    // Now that the slot is in the queue the schedule may move on; if another
+    // runner moved it already, its own enqueue and this one are the same row
+    await store.advanceSchedule({
+      due,
+      name: entry.name,
+      next: this.nextRunOf(entry, now) || now + MINUTE,
+      now,
+      spec: entry.spec,
+      token: uuid(),
+    });
+
+    if (job.id !== id) {
+      // Another runner enqueued this slot first
+      return null;
+    }
+
+    this.warned.delete(entry.name);
+    this.log('info', 'recurring', entry.name, '->', entry.job, job.id);
+
+    return job;
+  }
+
+  /**
+   * Says once why a schedule is being skipped
+   *
+   * @param {object} entry A normalized schedule
+   * @param {string} why What is wrong with it
+   * @returns {null} Always null, so callers can return it
+   * @memberof Runner
+   */
+  giveUp(entry, why) {
+    if (!this.warned.has(entry.name)) {
+      this.warned.add(entry.name);
+      this.log('warn', 'recurring', entry.name, 'skipped:', why);
+    }
+
+    return null;
   }
 
   /**
@@ -510,7 +657,8 @@ class Runner {
    *
    * @param {object} entry A normalized schedule
    * @param {number} now The current time
-   * @returns {number} A timestamp in milliseconds
+   * @returns {?number} A timestamp in milliseconds, or null when the
+   *   expression can never match again
    * @memberof Runner
    */
   nextRunOf(entry, now) {
@@ -518,7 +666,9 @@ class Runner {
       return (Math.floor(now / entry.every) + 1) * entry.every;
     }
 
-    return nextRun(entry.cron, now) || now + 86400000;
+    // Null when the expression can never match again (`0 0 30 2 *`); it is
+    // not turned into some other moment, which would make "never" mean daily
+    return nextRun(entry.cron, now);
   }
 }
 

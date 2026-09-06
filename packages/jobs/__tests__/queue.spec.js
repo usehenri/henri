@@ -266,7 +266,10 @@ describe(`queue (${target.name})`, () => {
       expect(await jobs.dead.discard('nope')).toBe(false);
     });
 
-    test('buries a job whose file is gone', async () => {
+    test('puts back a job this runner has no file for', async () => {
+      // A rolling deploy: the runner is older than the process that
+      // enqueued the job, so the name means nothing to it yet. Burying it
+      // would fill the dead letter queue with work the next runner can do
       const enqueued = await jobs.perform('ok', null);
 
       delete jobs.definitions.ok;
@@ -279,8 +282,24 @@ describe(`queue (${target.name})`, () => {
 
       const job = await jobs.get(enqueued.id);
 
-      expect(job.state).toBe('dead');
+      expect(job.state).toBe('pending');
+      expect(job.attempts).toBe(1);
       expect(job.error.message).toBe('No job named "ok"');
+      expect(new Date(job.runAt).getTime()).toBeGreaterThan(Date.now());
+    });
+
+    test('buries it once it is out of attempts', async () => {
+      const enqueued = await jobs.perform('ok', null, { maxAttempts: 1 });
+
+      delete jobs.definitions.ok;
+
+      try {
+        await new Runner(jobs).once();
+      } finally {
+        await jobs.start();
+      }
+
+      expect((await jobs.get(enqueued.id)).state).toBe('dead');
     });
   });
 
@@ -324,6 +343,134 @@ describe(`queue (${target.name})`, () => {
       await jobs.store.recover({ now: Date.now(), stuckAfter: 1000 });
 
       expect((await jobs.get(enqueued.id)).state).toBe('dead');
+    });
+  });
+
+  describe('ownership', () => {
+    test('a runner that was recovered from cannot write its outcome', async () => {
+      const enqueued = await jobs.perform('ok', null);
+      // The runner that claimed it, and then went quiet
+      const [claimed] = await jobs.store.claim({
+        limit: 1,
+        now: Date.now(),
+        queues: [],
+        runner: 'zombie',
+        token: 'zombie-token',
+      });
+
+      await jobs.store.update(enqueued.id, { heartbeat_at: 0 });
+      await jobs.store.recover({ now: Date.now(), stuckAfter: 1000 });
+
+      // Someone else takes it and is performing it right now
+      await jobs.store.claim({
+        limit: 1,
+        now: Date.now(),
+        queues: [],
+        runner: 'the-new-owner',
+        token: 'new-token',
+      });
+
+      // The zombie wakes up and writes what it thinks happened
+      await jobs.run(claimed, { runner: 'zombie' });
+
+      const job = await jobs.get(enqueued.id);
+
+      expect(job.state).toBe('running');
+      expect(job.claimedBy).toBe('the-new-owner');
+    });
+
+    test('a runner that still owns a job writes its outcome', async () => {
+      const enqueued = await jobs.perform('ok', null);
+      const [claimed] = await jobs.store.claim({
+        limit: 1,
+        now: Date.now(),
+        queues: [],
+        runner: 'the-owner',
+        token: 'owner-token',
+      });
+
+      await jobs.run(claimed, { runner: 'the-owner' });
+
+      expect((await jobs.get(enqueued.id)).state).toBe('done');
+    });
+
+    test('a heartbeat from a runner that lost the job does nothing', async () => {
+      const enqueued = await jobs.perform('ok', null);
+
+      await jobs.store.claim({
+        limit: 1,
+        now: Date.now(),
+        queues: [],
+        runner: 'zombie',
+        token: 'gone-token',
+      });
+      await jobs.store.update(enqueued.id, { heartbeat_at: 1 });
+      await jobs.store.heartbeat([enqueued.id], Date.now(), 'gone-token');
+
+      expect(
+        Number((await jobs.store.find(enqueued.id)).heartbeat_at)
+      ).toBeGreaterThan(1);
+
+      await jobs.store.update(enqueued.id, { heartbeat_at: 1 });
+      await jobs.store.heartbeat([enqueued.id], Date.now(), 'some-other-token');
+
+      expect(Number((await jobs.store.find(enqueued.id)).heartbeat_at)).toBe(1);
+    });
+
+    test('refuses to requeue a job a runner is performing', async () => {
+      const enqueued = await jobs.perform('ok', null);
+
+      await jobs.store.claim({
+        limit: 1,
+        now: Date.now(),
+        queues: [],
+        runner: 'busy',
+        token: 'busy-token',
+      });
+
+      await expect(jobs.retry(enqueued.id)).rejects.toThrow(
+        'is being performed by busy'
+      );
+      expect((await jobs.get(enqueued.id)).state).toBe('running');
+    });
+
+    test('frees the unique key of a job once it is finished', async () => {
+      const first = await jobs.perform('ok', { n: 1 }, { unique: 'monthly' });
+
+      await new Runner(jobs).once();
+      expect((await jobs.get(first.id)).state).toBe('done');
+
+      const second = await jobs.perform('ok', { n: 2 }, { unique: 'monthly' });
+
+      expect(second.id).not.toBe(first.id);
+      expect(second.state).toBe('pending');
+    });
+
+    test('frees the unique key of a job that died', async () => {
+      const first = await jobs.perform('boom', null, {
+        maxAttempts: 1,
+        unique: 'nightly',
+      });
+
+      await new Runner(jobs).once();
+      expect((await jobs.get(first.id)).state).toBe('dead');
+
+      const second = await jobs.perform('boom', null, { unique: 'nightly' });
+
+      expect(second.id).not.toBe(first.id);
+      expect(await jobs.dead.count()).toBe(1);
+    });
+
+    test('fails the attempt when the stored arguments cannot be read', async () => {
+      const enqueued = await jobs.perform('ok', { fine: true });
+
+      await jobs.store.update(enqueued.id, { args: '{not json' });
+      await new Runner(jobs).once();
+
+      const job = await jobs.get(enqueued.id);
+
+      expect(job.attempts).toBe(1);
+      expect(job.error.message).toContain('not readable JSON');
     });
   });
 

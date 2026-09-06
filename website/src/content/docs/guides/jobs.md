@@ -85,7 +85,7 @@ await henri.jobs.perform(
 );
 ```
 
-`unique` is enforced by a unique index, so two requests racing to enqueue the same work end up with one job: the second call answers the job that already exists instead of failing.
+`unique` is enforced by a unique index, so two requests racing to enqueue the same work end up with one job: the second call answers the job that already exists instead of failing. The key belongs to the job only while it is **waiting or running** — once it is done, or once it has died, the key is free and the same work may be enqueued again.
 
 A name with no file under `app/jobs` is refused on the spot, with the list of the jobs there are — a typo never becomes a row nobody performs.
 
@@ -123,6 +123,8 @@ The runner boots the application to the models (runlevel 4): no HTTP server, no 
 
 On `SIGINT`, `SIGTERM` or `SIGQUIT` the runner stops claiming, finishes what it is holding, writes the outcomes and exits — the usual restart of a deployment loses nothing. A runner that is killed outright leaves its jobs `running`; another runner notices that nothing has refreshed their heartbeat for `jobs.stuckAfter` (five minutes) and puts them back.
 
+The outcome of an attempt carries the token of the claim it belongs to, so a runner that went quiet long enough to be recovered from cannot write over the runner that took its job: its outcome is dropped and a line says so. Keep `stuckAfter` above the longest a job may take, or a job that blocks the event loop will be performed twice.
+
 `--once` drains: it performs everything that is due and exits, which is what a cron entry or a CI step wants. A retry scheduled in the future is left alone, so a drain always ends.
 
 ### At least once
@@ -159,7 +161,9 @@ await henri.jobs.dead.discard(id);
 await henri.jobs.dead.discardAll();
 ```
 
-A retry resets the attempt count, so the retry policy applies again from the start.
+A retry resets the attempt count, so the retry policy applies again from the start. A job a runner is performing right now is refused rather than requeued: that would hand the same work to a second runner.
+
+A runner that does not have a job's file — an older process during a rolling deploy — puts the job back with a backoff instead of killing it, so the deploy finishes and the job runs.
 
 Jobs that succeed are kept for `jobs.keepCompleted` (a day) so their timings can be read, then pruned by the runner.
 
@@ -192,6 +196,8 @@ The cron of the application, declared in `config/<env>.json` and honoured by the
 **Missed runs do not pile up.** A schedule holds the next moment it is due. When that moment has passed, the runner that moves the schedule forward — exactly one, because the update only matches while the schedule still holds the moment it read — enqueues the job, and the moment that follows is computed **from now**, not from the one that was missed. An hour of downtime on an hourly job costs one run, not sixty. The enqueued job also carries a unique key of its slot, so two runners cannot both put it in.
 
 Changing a `cron` or an `every` in the configuration moves the schedule to the next moment of the new expression without running it; removing it from the configuration forgets it.
+
+An expression henri cannot read, or one that can never come round (`0 0 30 2 *`), **fails the boot** rather than being discovered by a runner on its first tick. A schedule naming a job that is not in `app/jobs` is reported at boot and skipped, and so is any schedule that fails: one broken schedule never stops a runner claiming.
 
 ## Delivering mail through the queue
 
