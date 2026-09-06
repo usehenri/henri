@@ -125,7 +125,7 @@
  */
 
 const { fail } = require('./errors');
-const { isInertiaPage, sealed } = require('./headers');
+const { isInertiaPage, seal, sealed } = require('./headers');
 const { prepare, settle } = require('./references');
 const { TYPES: PARAM_TYPES, typed } = require('./params-schema');
 
@@ -774,6 +774,11 @@ function gate(henri, rules, body) {
  * that does not still has its answer written, because the failure path
  * answers rather than throwing into nobody's catch.
  *
+ * What it hands on is sealed, so a request that reached two matching routes
+ * -- an action that called `next()` -- is gated by the one that answered and
+ * not again by the one before it, whose declaration describes another
+ * action.
+ *
  * @param {Henri} henri the henri instance
  * @param {?object} rules the compiled rules of the action, or null
  * @param {string} name the route name (`get /memos`)
@@ -808,20 +813,28 @@ function guard(henri, rules, name) {
       }
 
       if (gated.problems.length > 0 && !report(henri, name, gated.problems)) {
-        return json({
+        res.statusCode = 500;
+
+        return seal(res).json({
           code: CODE,
           error: 'Internal Server Error',
           message: `${name} does not answer what it declared (config.api.strict)`,
-          statusCode: (res.statusCode = 500),
+          statusCode: 500,
         });
       }
 
       if (!gated.settle) {
+        seal(res);
+
         return json(gated.answer);
       }
 
       return gated.settle().then(
-        (answer) => json(answer),
+        (answer) => {
+          seal(res);
+
+          return json(answer);
+        },
         (error) => {
           // A controller that did not `return` its `res.json()` would turn a
           // throw here into an unhandled rejection, so this answers instead
@@ -836,7 +849,7 @@ function guard(henri, rules, name) {
 
           res.statusCode = 500;
 
-          return json({
+          return seal(res).json({
             code: CODE,
             error: 'Internal Server Error',
             message: `${name} could not publish its answer`,
