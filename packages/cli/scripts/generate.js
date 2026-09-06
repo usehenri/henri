@@ -3,7 +3,7 @@ const path = require('path');
 const util = require('util');
 const handlebars = require('handlebars');
 
-const { apiOf } = require('./adapters');
+const { adapterOf, apiOf } = require('./adapters');
 const { CliError } = require('./errors');
 const { usage } = require('./help');
 const Report = require('./report');
@@ -301,6 +301,9 @@ const agents = async (name, rest = [], opts = {}) => {
 
   const renderer = String(readConfig(cwd).renderer || 'react').toLowerCase();
   const { created, skipped } = writeAgentFiles(cwd, {
+    // Both come from the configuration: AGENTS.md describes the store and
+    // the renderer this application actually uses
+    adapter: adapterOf(cwd),
     force: opts.force === true,
     name: appName,
     renderer,

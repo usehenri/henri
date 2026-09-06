@@ -98,6 +98,48 @@ module.exports = [
     },
   },
   {
+    // The showcase application (showcase/): its models are globals, like in
+    // every henri app. Its views are ESM + JSX bundled by Vite, so they get a
+    // block of their own below.
+    files: ['showcase/**/*.js'],
+    ignores: ['showcase/app/views/**'],
+    languageOptions: {
+      globals: {
+        Event: 'readonly',
+        Proposal: 'readonly',
+        Review: 'readonly',
+        Track: 'readonly',
+        User: 'readonly',
+      },
+    },
+    rules: {
+      // Route parameters and path helpers are snake_case by design
+      // (`:proposal_id`, `index_admin/proposals_path`)
+      camelcase: 'off',
+    },
+  },
+  {
+    // The Inertia pages and components of the showcase
+    files: ['showcase/app/views/**/*.{js,jsx,mjs}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        React: 'readonly',
+      },
+    },
+    rules: {
+      ...projectRules,
+      // Route parameters are snake_case (`pathFor(name, { proposal_id })`)
+      camelcase: 'off',
+      // JSX identifiers are components, not variables
+      'id-length': 'off',
+    },
+  },
+  {
     files: ['**/*.mjs'],
     languageOptions: {
       ecmaVersion: 'latest',
@@ -139,8 +181,15 @@ module.exports = [
     },
   },
   {
-    // Key order is deliberate in configuration files and type maps
-    files: ['**/*.config.{js,mjs}', 'eslint.config.js', '**/types.js'],
+    // Key order is deliberate in configuration files and type maps, and in a
+    // routes file it is load-bearing: henri registers the routes in file
+    // order, so `get /proposals/mine` must come before `get /proposals/:id`
+    files: [
+      '**/*.config.{js,mjs}',
+      'eslint.config.js',
+      '**/config/routes.js',
+      '**/types.js',
+    ],
     rules: {
       'sort-keys': 'off',
     },
@@ -159,6 +208,7 @@ module.exports = [
     files: [
       'packages/cli/scripts/**/*.js',
       'scripts/**/*.js',
+      'showcase/db/*.js',
       '**/__tests__/**/*.js',
       '**/tests/**/*.js',
       '**/*.spec.js',

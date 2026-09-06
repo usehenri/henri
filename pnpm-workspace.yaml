@@ -1,5 +1,6 @@
 packages:
   - 'packages/*'
+  - 'showcase'
   - 'website'
 
 # Link @usehenri/* packages from the workspace whenever the version range matches

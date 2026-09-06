@@ -16,3 +16,8 @@ packages/*/CHANGELOG.md
 packages/demo/app/views/
 packages/cli/scripts/generate/
 .tmp/
+# Written by drizzle-kit through `henri db:generate`, and read back by it
+showcase/db/migrations/
+
+# Local, gitignored configuration overrides (see showcase/README.md)
+**/config/dev.json

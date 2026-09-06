@@ -213,19 +213,27 @@ const packagesFor = (store) => {
  * @param {string} [dir=process.cwd()] The application directory
  * @returns {string} mongoose (the default), sequelize or drizzle
  */
-const apiOf = (dir = process.cwd()) => {
+const apiOf = (dir = process.cwd()) => APIS[adapterOf(dir)] || 'mongoose';
+
+/**
+ * The adapter of the default store of an application
+ *
+ * @param {string} [dir=process.cwd()] The application directory
+ * @returns {string} An adapter name, `disk` when there is nothing to read
+ */
+const adapterOf = (dir = process.cwd()) => {
   let config = {};
 
   try {
     config = readConfig(dir, undefined);
   } catch {
-    // An unreadable configuration: the mongoose flavour is the default
+    // An unreadable configuration: the default adapter will do
   }
 
   const stores = (config && config.stores) || {};
   const store = stores.default || Object.values(stores)[0] || {};
 
-  return APIS[store.adapter] || 'mongoose';
+  return String(store.adapter || DEFAULT_ADAPTER).toLowerCase();
 };
 
 /**
@@ -298,6 +306,7 @@ module.exports = {
   DIALECTS,
   PACKAGES,
   SCAFFOLDS,
+  adapterOf,
   apiOf,
   describe,
   dialectOf,

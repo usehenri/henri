@@ -1,0 +1,18 @@
+# Local secrets. config/default.json carries a development-only secret so a
+# clean checkout boots; drop a HENRI_SECRET here to use your own.
+.env
+
+# Local configuration overrides. henri reads config/dev.json before
+# config/default.json when NODE_ENV is unset, which is the place to point the
+# store at a PostgreSQL that is not on 127.0.0.1:5432.
+config/dev.json
+
+# Written by docker/entrypoint.sh inside the image
+config/production.json
+
+# Vite builds and the model globals henri records on boot
+app/views/dist
+.henri
+
+# Files henri destroy moves aside
+.backup/

@@ -238,7 +238,7 @@ An error with no field of its own (a model-level validation) is filed under `bas
 
 ## Seeds
 
-`db/seeds.js` is Rails' `db/seeds.rb`, and `henri db:seed` runs it. The command boots the models only — no views, no workers — then requires the file and awaits what it exports; a function receives the running henri instance, and the model globals are there as usual.
+`db/seeds.js` is Rails' `db/seeds.rb`, and `henri db:seed` runs it. The command boots the models and the user module — no views, no router, no workers — then requires the file and awaits what it exports; a function receives the running henri instance, and the model globals are there as usual. The user module is part of the boot because creating a user hashes its password through `henri.user.encrypt()`, so seeds can write users like any other record.
 
 ```js
 // db/seeds.js

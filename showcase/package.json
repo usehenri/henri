@@ -1,0 +1,46 @@
+{
+  "name": "@usehenri/showcase",
+  "version": "0.0.0",
+  "description": "Lineup: the henri showcase application, a call for papers and program committee tool",
+  "private": true,
+  "henri": true,
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "scripts": {
+    "start": "henri server",
+    "production": "henri server --production",
+    "build": "henri build",
+    "console": "henri console",
+    "routes": "henri routes",
+    "doctor": "henri doctor",
+    "db:create": "node db/create.js",
+    "db:migrate": "henri db:migrate",
+    "db:generate": "henri db:generate",
+    "db:status": "henri db:status",
+    "db:seed": "henri db:seed",
+    "db:setup": "node db/create.js && henri db:migrate && henri db:seed",
+    "test": "node db/create.js --env=test && henri test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@inertiajs/react": "^3.7.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@usehenri/core": "workspace:^",
+    "@usehenri/drizzle": "workspace:^",
+    "@usehenri/inertia": "workspace:^",
+    "@vitejs/plugin-react": "^6.1.1",
+    "henri": "workspace:^",
+    "pg": "^8.23.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.2"
+  },
+  "devDependencies": {
+    "@usehenri/testing": "workspace:^",
+    "vitest": "^5.0.0"
+  }
+}
