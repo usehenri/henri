@@ -5,6 +5,7 @@ const { loadModules } = require('./utils');
 const debug = require('debug')('henri:model');
 const { userConfig } = require('./base/auth');
 const { modelErrors } = require('./base/model-errors');
+const { engine: graphqlEngine } = require('./base/graphql');
 
 /**
  * Model module
@@ -20,7 +21,10 @@ class Model extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
-    this.needs = ['config', 'graphql'];
+    this.needs = ['config'];
+    // Ordering only: the schema is built from the models, but an
+    // application without @usehenri/graphql has no graphql module at all
+    this.after = ['graphql'];
     this.runlevel = 3;
     this.name = 'model';
     this.henri = null;
@@ -95,7 +99,10 @@ class Model extends BaseModule {
         this.models.push(model);
 
         if (model.graphql) {
-          this.henri.graphql.extract(model);
+          graphqlEngine(
+            this.henri,
+            `${model.globalId} declares graphql types and resolvers`
+          ).extract(model);
         }
       } catch (error) {
         this.henri.pen.error(
@@ -108,7 +115,9 @@ class Model extends BaseModule {
       }
     }
 
-    this.henri.graphql.merge();
+    // Without @usehenri/graphql there is nothing to merge, and nothing to
+    // say: only a model reaching for it above is worth an error
+    this.henri.graphql && this.henri.graphql.merge();
 
     return configuration;
   }

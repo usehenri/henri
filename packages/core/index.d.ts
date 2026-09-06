@@ -361,7 +361,10 @@ declare namespace start {
     trustProxy?: boolean | number | string;
     /** `false` disables the CSRF protection. */
     csrf?: boolean | CsrfConfig;
-    /** Path of the GraphQL endpoint, or its settings. */
+    /**
+     * Path of the GraphQL endpoint, or its settings. Validated here whether
+     * or not the application has `@usehenri/graphql`, which is what reads it.
+     */
     graphql?: string | GraphqlConfig;
     /** Nodemailer transport options, or `"test"` for an Ethereal account. */
     mail?: 'test' | Record<string, unknown>;
@@ -1096,7 +1099,11 @@ declare namespace start {
     nodemailer: any;
   }
 
-  /** `henri.graphql`. */
+  /**
+   * `henri.graphql`: the module `@usehenri/graphql` ships. It is there when
+   * the application depends on the package, and `undefined` when it does
+   * not -- core carries no GraphQL of its own.
+   */
   interface GraphqlModule {
     name: 'graphql';
     /** Path of the endpoint (`/_henri/gql`). */
@@ -1324,7 +1331,12 @@ declare namespace start {
     config: ConfigModule;
     pen: Pen;
     mail: MailModule;
-    graphql: GraphqlModule;
+    /**
+     * The GraphQL module, when the application depends on
+     * `@usehenri/graphql`. Rendering with `{ graphql }` or declaring types
+     * on a model without it fails and says what to install.
+     */
+    graphql?: GraphqlModule;
     controllers: ControllersModule;
     server: ServerModule;
     model: ModelModule;

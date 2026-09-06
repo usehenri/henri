@@ -112,18 +112,6 @@ importers:
 
   packages/core:
     dependencies:
-      '@apollo/server':
-        specifier: ^5.2.0
-        version: 5.5.1(graphql@16.14.2)(supports-color@8.1.1)
-      '@as-integrations/express5':
-        specifier: ^1.1.2
-        version: 1.1.2(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(express@5.2.1(supports-color@8.1.1))
-      '@graphql-tools/merge':
-        specifier: ^9.2.3
-        version: 9.2.3(graphql@16.14.2)
-      '@graphql-tools/schema':
-        specifier: ^10.1.0
-        version: 10.1.0(graphql@16.14.2)
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -163,9 +151,6 @@ importers:
       glob:
         specifier: ^11.0.3
         version: 11.1.0
-      graphql:
-        specifier: ^16.11.0
-        version: 16.14.2
       handlebars:
         specifier: ^4.7.9
         version: 4.7.9
@@ -207,6 +192,9 @@ importers:
       '@usehenri/disk':
         specifier: workspace:^
         version: link:../disk
+      '@usehenri/graphql':
+        specifier: workspace:^
+        version: link:../graphql
       '@usehenri/jobs':
         specifier: workspace:^
         version: link:../jobs
@@ -254,6 +242,37 @@ importers:
       pg:
         specifier: ^8.23.0
         version: 8.23.0
+
+  packages/graphql:
+    dependencies:
+      '@apollo/server':
+        specifier: ^5.2.0
+        version: 5.5.1(graphql@16.14.2)(supports-color@8.1.1)
+      '@as-integrations/express5':
+        specifier: ^1.1.2
+        version: 1.1.2(@apollo/server@5.5.1(graphql@16.14.2)(supports-color@8.1.1))(express@5.2.1(supports-color@8.1.1))
+      '@graphql-tools/merge':
+        specifier: ^9.2.3
+        version: 9.2.3(graphql@16.14.2)
+      '@graphql-tools/schema':
+        specifier: ^10.1.0
+        version: 10.1.0(graphql@16.14.2)
+      debug:
+        specifier: ^4.4.3
+        version: 4.4.3(supports-color@8.1.1)
+      graphql:
+        specifier: ^16.11.0
+        version: 16.14.2
+    devDependencies:
+      '@usehenri/core':
+        specifier: workspace:^
+        version: link:../core
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1(supports-color@8.1.1)
+      supertest:
+        specifier: ^7.2.2
+        version: 7.2.2(supports-color@8.1.1)
 
   packages/henri:
     dependencies:

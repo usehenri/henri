@@ -8,6 +8,7 @@
   "dependencies": {
     "@usehenri/core": "workspace:^",
     "@usehenri/disk": "workspace:^",
+    "@usehenri/graphql": "workspace:^",
     "@usehenri/jobs": "workspace:^"
   },
   "engines": {

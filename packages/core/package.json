@@ -7,7 +7,6 @@
     "framework",
     "mvc",
     "express",
-    "graphql",
     "ssr",
     "orm"
   ],
@@ -40,10 +39,6 @@
     "henri-core": "src/index.js"
   },
   "dependencies": {
-    "@apollo/server": "^5.2.0",
-    "@as-integrations/express5": "^1.1.2",
-    "@graphql-tools/merge": "^9.2.3",
-    "@graphql-tools/schema": "^10.1.0",
     "@types/express": "^5.0.6",
     "bcryptjs": "^3.0.3",
     "chalk": "^4.1.2",
@@ -57,7 +52,6 @@
     "express-rate-limit": "8.7.0",
     "express-session": "^1.19.0",
     "glob": "^11.0.3",
-    "graphql": "^16.11.0",
     "handlebars": "^4.7.9",
     "helmet": "8.3.0",
     "nodemailer": "^10.0.0",

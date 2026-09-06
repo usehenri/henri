@@ -1,13 +1,28 @@
 const supertest = require('supertest');
 const express = require('express');
-const Henri = require('../henri');
-const boom = require('../base/boom');
-const {
-  accessGuard,
-  graphqlConfig,
-  measure,
-} = require('../base/graphql-guard');
 const { parse } = require('graphql');
+
+const create = require('..');
+const { accessGuard, graphqlConfig, measure } = require('../src/graphql-guard');
+const { fakeHenri } = require('./helpers');
+
+/**
+ * The `res.boom` core mounts on every response, as much of it as the access
+ * guard uses. The guard answers through it, so a bare express app needs one.
+ *
+ * @returns {function} express middleware
+ */
+const boom = () => (req, res, next) => {
+  const answer = (statusCode, error) => (message) =>
+    res.status(statusCode).json({ error, message, statusCode });
+
+  res.boom = {
+    forbidden: answer(403, 'Forbidden'),
+    unauthorized: answer(401, 'Unauthorized'),
+  };
+
+  return next();
+};
 
 /**
  * The measurements of a query document
@@ -201,17 +216,15 @@ describe('measuring a query', () => {
   });
 });
 
-describe('the graphql endpoint (demo app)', () => {
-  const skipWorkers = process.env.SKIP_WORKERS;
-  let henri;
+describe('the graphql endpoint', () => {
+  let engine;
   let agent;
 
   beforeAll(async () => {
-    process.env.SKIP_WORKERS = '1';
-    henri = new Henri({ runlevel: 1 });
-    await henri.init();
+    engine = create(fakeHenri());
+    await engine.init();
 
-    henri.graphql.extract({
+    engine.extract({
       graphql: {
         resolvers: {
           Query: {
@@ -224,30 +237,23 @@ describe('the graphql endpoint (demo app)', () => {
         `,
       },
     });
-    henri.graphql.merge();
-    await henri.graphql.ready;
+    engine.merge();
+    await engine.ready;
 
     // The module registers its middleware through henri.addMiddleware, which
-    // needs the server module; mount the handler on a bare app instead so
-    // this suite stays at runlevel 1
+    // needs core's server module; mount the handler on a bare app instead,
+    // with what core would have put in front of it
     const app = express();
 
     app.use(express.json());
     app.use(boom());
-    app.use('/_henri/gql', (req, res, next) =>
-      henri.graphql._handler(req, res, next)
-    );
+    app.use('/_henri/gql', (req, res, next) => engine._handler(req, res, next));
     agent = supertest(app);
   }, 60000);
 
   afterAll(async () => {
-    await henri.stop();
-    if (typeof skipWorkers === 'undefined') {
-      delete process.env.SKIP_WORKERS;
-    } else {
-      process.env.SKIP_WORKERS = skipWorkers;
-    }
-  }, 60000);
+    await engine.stop();
+  });
 
   /**
    * Posts a query the way a graphql client does

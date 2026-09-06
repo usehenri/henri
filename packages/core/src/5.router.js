@@ -13,6 +13,7 @@ const {
   resourceLinks,
 } = require('./base/hateoas');
 const { stripInternalIds } = require('./base/external-id');
+const { engine: graphqlEngine } = require('./base/graphql');
 const { jsonTypes, noStore, versionGuard } = require('./base/headers');
 const { idempotency } = require('./base/idempotency');
 const { limiter, shutdown } = require('./base/rate-limit');
@@ -547,10 +548,12 @@ class Router extends BaseModule {
     let errors = null;
 
     if (graphql) {
-      const result = await this.henri.graphql.run(graphql, undefined, {
-        req,
-        res,
-      });
+      // Never undefined and never silent: a page built from a query without
+      // @usehenri/graphql fails the request and says what to install
+      const result = await graphqlEngine(
+        this.henri,
+        'this render is built from a graphql query'
+      ).run(graphql, undefined, { req, res });
 
       payload = (result && result.data) || result || data;
       errors = result && result.errors;
