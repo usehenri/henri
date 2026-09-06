@@ -75,7 +75,7 @@
     "@babel/preset-react": "^8.0.1",
     "@rollup/plugin-babel": "^7.1.0",
     "handlebars": "^4.7.9",
-    "jsdom": "^28.1.0",
+    "jsdom": "^30.0.1",
     "next": "^16.3.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
