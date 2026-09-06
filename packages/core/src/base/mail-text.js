@@ -81,6 +81,30 @@ function decode(value) {
 }
 
 /**
+ * Removes every occurrence of a pattern, and keeps removing until the string
+ * stops changing.
+ *
+ * One pass is not enough: `<scr<script>ipt>` becomes `<script` once the inner
+ * tag is taken out, so a single replace leaves a fragment in the text part.
+ * Every pass strictly shortens the string, so this terminates.
+ *
+ * @param {string} value the string to clean
+ * @param {RegExp} pattern what to remove, with the global flag
+ * @returns {string} the string, with nothing left to remove
+ */
+function removeAll(value, pattern) {
+  let text = value;
+  let previous = null;
+
+  while (previous !== text) {
+    previous = text;
+    text = text.replace(pattern, '');
+  }
+
+  return text;
+}
+
+/**
  * The text of an anchor, with its target when it adds something
  * `<a href="https://x">Open</a>` becomes `Open (https://x)`, and an anchor
  * whose text already is the url is left alone.
@@ -91,7 +115,7 @@ function decode(value) {
  */
 function anchor(href, inner) {
   const target = decode(String(href || '')).trim();
-  const label = decode(inner.replace(/<[^>]*>/g, '')).trim();
+  const label = decode(removeAll(inner, /<[^>]*>/g)).trim();
 
   if (!target || target.startsWith('#') || target === label) {
     return inner;
@@ -120,7 +144,7 @@ function htmlToText(html) {
     );
   }
 
-  text = text.replace(/<!--[\s\S]*?-->/g, '');
+  text = removeAll(text, /<!--[\s\S]*?-->/g);
   // Anchors keep their target before the tags go away
   text = text.replace(
     /<a\b[^>]*\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a\s*>/gi,
@@ -145,7 +169,11 @@ function htmlToText(html) {
     text = text.replace(new RegExp(`</${tag}\\s*>`, 'gi'), '\n\n');
   }
 
-  text = text.replace(/<[^>]*>/g, '');
+  text = removeAll(text, /<[^>]*>/g);
+  // A malformed document can leave an unterminated opener behind, and
+  // `<scr` is not a tag any pattern above will match. Drop the bracket so
+  // nothing element shaped survives into the text part.
+  text = text.replace(/<(?=[/!?a-z])/gi, '');
   text = decode(text);
 
   return text

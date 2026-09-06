@@ -242,6 +242,22 @@ describe('mailers', () => {
   });
 
   describe('htmlToText', () => {
+    test('leaves nothing element shaped behind, however malformed', () => {
+      // One strip pass turns `<scr<script>ipt>` into `<script`, and the
+      // leftover opener has no closing bracket for a tag pattern to match
+      expect(htmlToText('<p>Hello <scr<script>ipt>alert(1)</script></p>')).toBe(
+        'Hello scr'
+      );
+      expect(htmlToText('<p>a<!--<!-- nested -->b</p>')).toBe('ab');
+      expect(htmlToText('<p>x</p>')).not.toContain('<');
+    });
+
+    test('keeps a less-than sign that is not a tag', () => {
+      expect(htmlToText('<p>5 &lt; 6 and 7 &gt; 6</p>')).toBe(
+        '5 < 6 and 7 > 6'
+      );
+    });
+
     test('drops what never belongs in the text part', () => {
       expect(
         htmlToText('<style>b{color:red}</style><script>x()</script><p>Hi</p>')
