@@ -156,6 +156,10 @@ class SqlStore {
   /**
    * Runs a statement that returns no rows
    *
+   * A statement the database refused because another writer held the rows
+   * (a deadlock, a lock timeout, a busy sqlite file) never executed: it was
+   * rolled back, so running it again is safe and is what the retry does.
+   *
    * @param {string} sql The statement, with `?` placeholders
    * @param {Array} [params=[]] The parameters
    * @returns {Promise<void>} Resolves when done
@@ -164,7 +168,7 @@ class SqlStore {
   async run(sql, params = []) {
     debug('run %s %o', sql, brief(params));
 
-    await this.adapter.query(this.prepare(sql), params);
+    await this.retrying(() => this.adapter.query(this.prepare(sql), params));
   }
 
   /**
@@ -182,9 +186,9 @@ class SqlStore {
   async select(sql, params = []) {
     debug('select %s %o', sql, brief(params));
 
-    const result = await this.adapter.query(this.prepare(sql), params, {
-      type: 'SELECT',
-    });
+    const result = await this.retrying(() =>
+      this.adapter.query(this.prepare(sql), params, { type: 'SELECT' })
+    );
 
     return Array.isArray(result) ? result : [];
   }
@@ -198,20 +202,22 @@ class SqlStore {
    * @throws {Error} The last error when every attempt failed
    * @memberof SqlStore
    */
-  async retrying(fn, attempts = 5) {
+  async retrying(fn, attempts = 8) {
     let last = null;
 
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
         return await fn();
       } catch (error) {
-        if (!RETRYABLE.test(String((error && error.message) || ''))) {
+        const message = `${(error && error.message) || ''} ${(error && error.parent && error.parent.message) || ''}`;
+
+        if (!RETRYABLE.test(message)) {
           throw error;
         }
 
         last = error;
         debug('retrying after %s', error.message);
-        await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+        await new Promise((resolve) => setTimeout(resolve, 15 * (attempt + 1)));
       }
     }
 
@@ -413,7 +419,7 @@ class SqlStore {
       token,
     });
 
-    await this.retrying(() => this.run(sql, params));
+    await this.run(sql, params);
 
     return this.select(
       `SELECT * FROM ${this.tables.jobs} WHERE claim_token = ? AND state = 'running' ORDER BY priority ASC, run_at ASC, id ASC`,

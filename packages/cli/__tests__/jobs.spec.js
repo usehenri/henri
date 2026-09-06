@@ -1,7 +1,10 @@
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 const { cleanup, henri, scaffold } = require('./helpers');
+
+const bin = path.resolve(__dirname, '../../henri/bin/henri.js');
 
 // A minimal application on a drizzle sqlite file, so the queue survives
 // between two runs of the command line
@@ -50,6 +53,24 @@ const run = (args, env = {}) => {
     stderr: answer.stderr,
   };
 };
+
+/**
+ * Starts `henri jobs --once` as a process of its own
+ *
+ * @param {object} env Extra environment
+ * @returns {Promise<number>} Its exit code
+ */
+const runner = (env) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [bin, 'jobs', '--once', '--json'], {
+      cwd: fixture,
+      env: { ...process.env, ...env },
+      stdio: 'ignore',
+    });
+
+    child.on('error', reject);
+    child.on('exit', (code) => resolve(code));
+  });
 
 describe('henri jobs', () => {
   describe('usage', () => {
@@ -267,6 +288,37 @@ describe('henri jobs', () => {
         result: { inline: true },
       });
     });
+
+    test('two runner processes perform each job exactly once', async () => {
+      const log = path.join(fixture, '.henri', 'concurrent.log');
+      const tokens = [];
+
+      for (let index = 0; index < 12; index += 1) {
+        const token = `concurrent-${index}`;
+
+        tokens.push(token);
+        expect(
+          run(['jobs', 'perform', 'ping', JSON.stringify({ token })]).status
+        ).toBe(0);
+      }
+
+      const codes = await Promise.all([
+        runner({ HENRI_JOBS_REPORT: log }),
+        runner({ HENRI_JOBS_REPORT: log }),
+      ]);
+
+      expect(codes).toEqual([0, 0]);
+
+      const performed = fs
+        .readFileSync(log, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line).token);
+
+      // Every job ran, and none of them ran twice
+      expect([...performed].sort()).toEqual([...tokens].sort());
+      expect(run(['jobs', 'list', '--state=pending']).result.jobs).toEqual([]);
+    }, 180000);
 
     test('prints for humans without --json', () => {
       const answer = henri(['jobs:status'], {
