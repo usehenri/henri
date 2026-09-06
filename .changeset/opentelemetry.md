@@ -1,5 +1,6 @@
 ---
 '@usehenri/core': minor
+'@usehenri/cli': minor
 '@usehenri/jobs': minor
 '@usehenri/webhooks': minor
 ---
@@ -23,3 +24,5 @@ The children are the boundaries henri already knows, without reaching into anybo
 **When the exporter is down or slow, a span is dropped** — the cache's rule, where a dead backend is a miss. henri owns none of the pipeline: nothing is ever awaited, `forceFlush()` is never called, there is no queue and no map of open spans here, and every span ends in a `finally` or when the response closes. A sampled-out span costs an object. A tracer that throws is logged and, after five failures, telemetry turns itself off for the life of the process and says so once.
 
 `config.telemetry` is `{ enabled, metrics, propagate, spans }`, or `false`. Leave it out and telemetry follows the package: on when `@opentelemetry/api` resolves from the application, off when it does not. `enabled: true` says the application requires it, and a boot without the package then fails with `HENRI_TELEMETRY_UNAVAILABLE` rather than going quiet.
+
+`henri doctor` reports `deps.declared` when `enabled` is `true` and the package is in no `package.json`, so that boot failure is one a check catches first.
