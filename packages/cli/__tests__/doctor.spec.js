@@ -273,6 +273,28 @@ describe('henri doctor', () => {
     expect(run(app).names).not.toContain('deps.declared');
   });
 
+  // The scaffold ships an empty app/jobs: writing the first job is what makes
+  // the queue a dependency, and doctor is where an application hears about it
+  test('asks for @usehenri/jobs when the application has a job', () => {
+    const file = path.join(app, 'app/jobs/welcome.js');
+
+    fs.writeFileSync(file, 'module.exports = { perform: async () => null };');
+
+    const { problems } = run(app);
+
+    fs.rmSync(file);
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.declared',
+        hint: expect.stringContaining('@usehenri/jobs'),
+        level: 'error',
+      })
+    );
+
+    expect(run(app).names).not.toContain('deps.declared');
+  });
+
   test('reports .env not ignored, and a missing .env as a warning', () => {
     const ignore = path.join(app, '.gitignore');
     const original = fs.readFileSync(ignore, 'utf8');

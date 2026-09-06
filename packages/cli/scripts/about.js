@@ -14,6 +14,7 @@ const PACKAGES = [
   '@usehenri/react',
   '@usehenri/inertia',
   '@usehenri/graphql',
+  '@usehenri/jobs',
   '@usehenri/testing',
   '@usehenri/mcp',
   'next',

@@ -2,5 +2,9 @@
   "name": "jobs-fixture",
   "private": true,
   "henri": true,
-  "description": "Runs henri jobs on a drizzle sqlite store, without a server"
+  "description": "Runs henri jobs on a drizzle sqlite store, without a server",
+  "dependencies": {
+    "@usehenri/drizzle": "^1.1.0",
+    "@usehenri/jobs": "^1.1.0"
+  }
 }

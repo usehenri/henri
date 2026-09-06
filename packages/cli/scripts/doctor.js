@@ -643,6 +643,14 @@ const check = (dir = process.cwd()) => {
     needed.add('@usehenri/graphql');
   }
 
+  // So is the queue: a job in app/jobs, or a configured jobs block, needs it
+  if (
+    typeof config.jobs !== 'undefined' ||
+    listModules(path.join(dir, 'app', 'jobs')).length > 0
+  ) {
+    needed.add('@usehenri/jobs');
+  }
+
   const undeclared = [...needed].filter((name) => !declared[name]);
 
   if (undeclared.length > 0) {
