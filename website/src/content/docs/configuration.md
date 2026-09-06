@@ -40,7 +40,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                            |
 | `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                     |
 | `secret`           |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                          |
-| `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.           |
+| `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.            |
 | `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                      |
 | `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                                |
 | `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.           |

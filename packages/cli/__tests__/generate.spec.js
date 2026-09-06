@@ -485,11 +485,11 @@ describe('henri generate', () => {
       const files = [
         'app/models/User.js',
         'app/controllers/accounts.js',
-        'app/views/pages/accounts/login.js',
-        'app/views/pages/accounts/new.js',
-        'app/views/pages/accounts/forgot.js',
-        'app/views/pages/accounts/reset.js',
-        'app/views/pages/accounts/confirm.js',
+        'app/views/pages/accounts/login.jsx',
+        'app/views/pages/accounts/new.jsx',
+        'app/views/pages/accounts/forgot.jsx',
+        'app/views/pages/accounts/reset.jsx',
+        'app/views/pages/accounts/confirm.jsx',
         'app/mailers/auth.js',
         'app/views/mailers/auth/confirm.hbs',
         'app/views/mailers/auth/reset.hbs',
@@ -501,7 +501,7 @@ describe('henri generate', () => {
         expect(exists(auth, file)).toBe(true);
       }
 
-      for (const file of files.filter((one) => one.endsWith('.js'))) {
+      for (const file of files.filter((one) => !one.endsWith('.hbs'))) {
         expect(() => parseFile(auth, file)).not.toThrow();
       }
     });
@@ -520,16 +520,16 @@ describe('henri generate', () => {
     });
 
     test('the forms post to the endpoints henri mounts', () => {
-      expect(read(auth, 'app/views/pages/accounts/new.js')).toContain(
+      expect(read(auth, 'app/views/pages/accounts/new.jsx')).toContain(
         'action="/signup"'
       );
-      expect(read(auth, 'app/views/pages/accounts/forgot.js')).toContain(
+      expect(read(auth, 'app/views/pages/accounts/forgot.jsx')).toContain(
         'action="/password/forgot"'
       );
-      expect(read(auth, 'app/views/pages/accounts/reset.js')).toContain(
+      expect(read(auth, 'app/views/pages/accounts/reset.jsx')).toContain(
         'action="/password/reset"'
       );
-      expect(read(auth, 'app/views/pages/accounts/login.js')).toContain(
+      expect(read(auth, 'app/views/pages/accounts/login.jsx')).toContain(
         'action="/login"'
       );
     });
@@ -557,21 +557,27 @@ describe('henri generate', () => {
       ]);
     });
 
-    test('writes jsx pages under the inertia renderer', () => {
+    test('the pages take the renderer of the application', () => {
+      // The default renderer, above: Inertia pages reading useHenri()
+      expect(read(auth, 'app/views/pages/accounts/new.jsx')).toContain(
+        "from '@usehenri/inertia'"
+      );
+
       const { app: other, dir: otherDir } = scaffold([
         '--no-git',
         '--renderer',
-        'inertia',
+        'react',
       ]);
 
       try {
         expect(henri(['g', 'authentication'], { cwd: other }).status).toBe(0);
-        expect(exists(other, 'app/views/pages/accounts/new.jsx')).toBe(true);
-        expect(read(other, 'app/views/pages/accounts/new.jsx')).toContain(
-          "from '@usehenri/inertia'"
+        expect(exists(other, 'app/views/pages/accounts/new.js')).toBe(true);
+        expect(exists(other, 'app/views/pages/accounts/new.jsx')).toBe(false);
+        expect(read(other, 'app/views/pages/accounts/new.js')).toContain(
+          "from '@usehenri/react'"
         );
         expect(() =>
-          parseFile(other, 'app/views/pages/accounts/new.jsx')
+          parseFile(other, 'app/views/pages/accounts/new.js')
         ).not.toThrow();
       } finally {
         cleanup(otherDir);
