@@ -215,6 +215,7 @@ The other four drive the migrations of a [Drizzle](/guides/models/#drizzle) stor
 ```bash
 henri credentials:edit [--env=<name>]
 henri credentials:show [--env=<name>] [--json]
+henri credentials:rotate [--env=<name>] [--json]
 ```
 
 The encrypted secrets of an environment, in the Rails `credentials:` style (`henri credentials edit` works too). `--env` defaults to `NODE_ENV`, and to `dev` when it is unset, which is the environment henri reads its configuration file under; `--production` selects production like everywhere else.
@@ -223,7 +224,9 @@ The encrypted secrets of an environment, in the Rails `credentials:` style (`hen
 
 `show` prints the decrypted credentials on stdout. With `--json` it prints the environment, the file and the key paths it holds — never a value, in this command and in every error message.
 
-Both exit with `1` when the key is missing or wrong, naming the file and `HENRI_CREDENTIALS_KEY`. See [Configuration](/configuration/#encrypted-credentials).
+`rotate` re-encrypts the file under a fresh key, keeping the values. The current key has to open the file first, and the re-encrypted file is read back before the new key is stored: a rotation that cannot be verified puts the old file back and changes nothing. The new key is written to the key file, or printed once when `HENRI_CREDENTIALS_KEY` held the old one — `--json` never prints it. The old key opens nothing afterwards, so anything holding a copy needs the new one before its next boot.
+
+All three exit with `1` when the key is missing or wrong, naming the file and `HENRI_CREDENTIALS_KEY`. See [Configuration](/configuration/#encrypted-credentials).
 
 ## `jobs`
 

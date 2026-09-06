@@ -191,6 +191,7 @@ Rails' `credentials:edit`, in henri. `config/credentials/<env>.json.enc` holds t
 henri credentials:edit                     # the development environment
 henri credentials:edit --env production    # creates the key and the file
 henri credentials:show --env production --json   # the key paths, no values
+henri credentials:rotate --env production        # a new key, same values
 ```
 
 `edit` decrypts into a file only you can read, opens `EDITOR` (or `VISUAL`) on it, and encrypts what comes back when the editor closes. The plaintext is removed on every exit path, including an editor that fails and an interrupted process, and what you save must be a JSON object or the credentials are left as they were.
@@ -205,6 +206,8 @@ henri credentials:show --env production --json   # the key paths, no values
 ```
 
 **The key** is `HENRI_CREDENTIALS_KEY`, or `config/credentials/<env>.key` (64 hexadecimal characters, what `openssl rand -hex 32` prints). The variable wins. `henri new` ignores `config/credentials/*.key` from the first commit, `henri credentials:edit` adds the line when it generates a key, and `henri doctor` reports a key that is not ignored or that reached the git index. When the file exists and no key can be found, the boot stops with `config/credentials/production.json.enc needs a key: set HENRI_CREDENTIALS_KEY, or put it back in config/credentials/production.key` — never a silent boot without secrets.
+
+**Rotating the key** is `henri credentials:rotate`: the file is re-encrypted under a fresh key and the values are untouched, which is what to run when a key may have leaked. The current key has to open the file first and the new file is read back before the new key is stored, so a rotation cannot lose the contents. The new key is written to `config/credentials/<env>.key`, or printed once when `HENRI_CREDENTIALS_KEY` held the old one, because a deployment that deliberately has no key file should not be given one. Everything holding the old key needs the new one before its next boot.
 
 **The cipher is AES-256-GCM**, from node's own crypto. The envelope is one line, `henri:v1:<iv>:<tag>:<ciphertext>`, all base64, and the environment name is authenticated along with the content: a modified file, a wrong key, and a `production.json.enc` renamed to `staging.json.enc` all fail loudly instead of decrypting to nonsense. No error message quotes the file, the key or a decrypted value.
 

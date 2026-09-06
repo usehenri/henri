@@ -7,7 +7,7 @@ const { CliError } = require('./errors');
 const { usage } = require('./help');
 const { validInstall } = require('./utils');
 
-const COMMANDS = ['edit', 'show'];
+const COMMANDS = ['edit', 'rotate', 'show'];
 
 /** What a new credentials file starts with: the secret henri needs anyway */
 const TEMPLATE = () => ({
@@ -318,7 +318,85 @@ const show = (credentials, cwd, env) => {
 };
 
 /**
- * Runs `henri credentials <edit|show>` (`henri credentials:<command>` too)
+ * Runs `henri credentials:rotate`: re-encrypts the file under a new key.
+ *
+ * What rotates is the key, not the values. An operator who thinks a key may
+ * have leaked wants the file to stop opening with the old one, in one step
+ * rather than "show, generate a key, edit, paste it all back", which is the
+ * kind of manual sequence that ends with a secret in a shell history.
+ *
+ * The old key has to open the file first, so a rotation is never a way to
+ * lose the contents. The new file is read back with the new key before the
+ * key itself is stored: if that verification fails, the old file is put back
+ * and nothing has moved. The new key is written where the old one came from
+ * -- the key file on a development machine, and standard output when the key
+ * arrived in the environment, because a deployment that deliberately has no
+ * key file should not be given one.
+ *
+ * @param {object} credentials core's credentials module
+ * @param {string} cwd the application directory
+ * @param {string} env the environment
+ * @returns {object} what happened ({ command, env, file, keys, source })
+ * @throws {CliError} FAILED when the file will not open, or will not verify
+ */
+const rotate = (credentials, cwd, env) => {
+  const found = read(credentials, cwd, env);
+  const { source } = credentials.readKey(cwd, env);
+  const file = credentials.fileFor(cwd, env);
+  const relative = path.relative(cwd, file);
+  const previous = fs.readFileSync(file);
+  const next = credentials.generateKey();
+  const key = credentials.parseKey(next, 'the new key');
+
+  credentials.write(cwd, env, found.values, key);
+
+  try {
+    credentials.decrypt(fs.readFileSync(file, 'utf8'), key, env, relative);
+  } catch (error) {
+    fs.writeFileSync(file, previous, { mode: 0o600 });
+
+    throw new CliError(
+      'FAILED',
+      `${relative} did not read back after being re-encrypted`,
+      {
+        cause: error,
+        hint: 'The file was put back as it was; the key did not change',
+      }
+    );
+  }
+
+  const keyFile = credentials.keyFileFor(cwd, env);
+  const inEnvironment = source === credentials.KEY_VARIABLE;
+
+  if (inEnvironment) {
+    return { command: 'rotate', env, file: relative, key: next, source };
+  }
+
+  try {
+    fs.writeFileSync(keyFile, `${next}\n`, { mode: 0o600 });
+  } catch (error) {
+    // The file is already encrypted with a key nothing has stored yet:
+    // printing it is the recovery, and it is better than losing the file
+    throw new CliError(
+      'FAILED',
+      `${relative} was re-encrypted but ${path.relative(cwd, keyFile)} could not be written`,
+      {
+        cause: error,
+        hint: `Save this key now, it is the only one that opens the file: ${next}`,
+      }
+    );
+  }
+
+  return {
+    command: 'rotate',
+    env,
+    file: relative,
+    source: path.relative(cwd, keyFile),
+  };
+};
+
+/**
+ * Runs `henri credentials <edit|rotate|show>` (`henri credentials:<command>` too)
  *
  * `--json` prints the key paths, never a value: the decrypted content only
  * ever reaches stdout, from `credentials:show` without `--json`.
@@ -349,13 +427,11 @@ const main = async (args) => {
   const credentials = load();
   const cwd = process.cwd();
   const env = environmentOf(args);
-  const result =
-    command === 'edit'
-      ? edit(credentials, cwd, env)
-      : show(credentials, cwd, env);
+  const runners = { edit, rotate, show };
+  const result = runners[command](credentials, cwd, env);
 
   if (args.json) {
-    const { values, ...safe } = result;
+    const { key, values, ...safe } = result;
 
     console.log(JSON.stringify(safe, null, 2));
 
@@ -364,6 +440,31 @@ const main = async (args) => {
 
   if (command === 'show') {
     console.log(JSON.stringify(result.values, null, 2));
+
+    return;
+  }
+
+  if (command === 'rotate') {
+    console.log('');
+    console.log(`  Re-encrypted ${result.file} under a new key.`);
+
+    if (result.key) {
+      console.log(
+        `  ${credentials.KEY_VARIABLE} held the old one, so here is the new one, once:`
+      );
+      console.log('');
+      console.log(`    ${result.key}`);
+      console.log('');
+      console.log(
+        '  Set it wherever the deployment reads it from before the next boot.'
+      );
+    } else {
+      console.log(`  Wrote the new key to ${result.source}.`);
+    }
+
+    console.log('  The old key opens nothing now. Anything holding a copy');
+    console.log('  of it -- a deployment, a teammate -- needs the new one.');
+    console.log('');
 
     return;
   }
@@ -380,6 +481,7 @@ const main = async (args) => {
 module.exports = main;
 module.exports.COMMANDS = COMMANDS;
 module.exports.edit = edit;
+module.exports.rotate = rotate;
 module.exports.environmentOf = environmentOf;
 module.exports.ignore = ignore;
 module.exports.show = show;
