@@ -1,8 +1,13 @@
 const mongoose = require('mongoose');
 const debug = require('debug')('henri:mongoose');
-const { externalId, paginate, paranoid } = require('./plugins');
+const { externalId, lookups, owned, paginate, paranoid } = require('./plugins');
 const { normalizeSchema } = require('./schema');
-const { EXTERNAL_ID, uuidv7, wantsExternalId } = require('./external-id');
+const {
+  EXTERNAL_ID,
+  isUuid,
+  uuidv7,
+  wantsExternalId,
+} = require('./external-id');
 const { buildUrl, coded, fatal, normalizeEmail, redact } = require('./utils');
 
 /**
@@ -21,6 +26,9 @@ const { buildUrl, coded, fatal, normalizeEmail, redact } = require('./utils');
  *   selected by default) and `roles` (only writable through `setRoles()` or
  *   with `{ unsafe: true }`).
  * @method getModels() All ORM models by global id
+ * @method references() The declared foreign keys, by model
+ * @method async externalIdsOf(model, keys) The public identifiers of
+ *   documents, by document id
  * @method async start() Connects; calls the `associate(models)` export of
  *   each model file once every model exists
  * @method async stop() Disconnects; `start()` may be called again
@@ -146,7 +154,9 @@ class Mongoose {
 
     debug('adding model %s', model.globalId);
 
+    owned(schema, this.henri);
     paginate(schema);
+    lookups(schema);
 
     // Every model carries a public identifier; the document id is internal
     if (wantsExternalId({ options: { externalId: external } })) {
@@ -449,8 +459,9 @@ class Mongoose {
     schema.statics.setRoles = function setRoles(id, roles) {
       const list = Array.isArray(roles) ? roles.flat() : [roles];
 
-      return this.findByIdAndUpdate(
-        id,
+      // Either identifier: this is henri's own call, not a url naming a row
+      return this.findOneAndUpdate(
+        isUuid(id) ? { [EXTERNAL_ID]: id } : { _id: id },
         { $set: { roles: list } },
         { returnDocument: 'after', unsafe: true }
       );
@@ -467,6 +478,118 @@ class Mongoose {
    */
   getModels() {
     return this.models || {};
+  }
+
+  /**
+   * What this store can state about its foreign keys, for core's exit gate
+   * (core's `base/references.js`).
+   *
+   * The source is the schema, and only what it declared: `ref` on a path
+   * (`{ type: ObjectId, ref: 'User' }`) and `ref` on the caster of an array
+   * of them. Two things a Mongoose schema can also say are deliberately not
+   * read, because neither can be answered without the document in hand and
+   * a wrong answer publishes the identifier of a row in another collection:
+   * `refPath`, where the target is named by a sibling field, and a `ref`
+   * given as a function.
+   *
+   * A path holding an id without saying so -- `ownerId: { type: 'string' }`
+   * -- is not a reference here, and henri does not read its name to decide
+   * otherwise.
+   *
+   * @returns {object} `{ [globalId]: { externalId, references } }`
+   * @memberof Mongoose
+   */
+  references() {
+    const described = {};
+    const known = new Set(Object.keys(this.models));
+
+    for (const globalId of Object.keys(this.models)) {
+      const Model = this.models[globalId];
+      const references = {};
+
+      Model.schema.eachPath((name, path) => {
+        if (name === '_id' || name === EXTERNAL_ID) {
+          return;
+        }
+
+        const options = path.options || {};
+        // An array of refs keeps the element's options on its embedded
+        // schema type (`caster` on the mongoose versions that used it)
+        const element =
+          (path.embeddedSchemaType && path.embeddedSchemaType.options) ||
+          (path.caster && path.caster.options) ||
+          {};
+        const target =
+          typeof options.ref === 'string' ? options.ref : element.ref;
+
+        // `refPath` and a function `ref` name a collection per document:
+        // henri leaves those alone rather than resolve the wrong one
+        if (typeof target !== 'string' || !known.has(target)) {
+          return;
+        }
+
+        references[name] = { as: null, target };
+      });
+
+      described[globalId] = {
+        externalId: Boolean(Model.schema.path(EXTERNAL_ID)),
+        references,
+      };
+    }
+
+    return described;
+  }
+
+  /**
+   * The public identifiers of documents named by their document id: one
+   * query for the whole set, which is what keeps a page of records from
+   * costing a query per reference.
+   *
+   * Soft deleted documents included: a record pointing at a withdrawn row
+   * still publishes an identifier for it rather than fall back to the
+   * document id.
+   *
+   * @param {string} modelName The global id of the model
+   * @param {Array} keys The document ids
+   * @returns {Promise<Map<string, string>>} externalId by document id
+   * @memberof Mongoose
+   */
+  async externalIdsOf(modelName, keys) {
+    const Model = this.models[modelName];
+    const found = new Map();
+
+    if (!Model || !Model.schema.path(EXTERNAL_ID) || keys.length === 0) {
+      return found;
+    }
+
+    const valid = keys.filter((key) =>
+      this.mongoose.Types.ObjectId.isValid(String(key))
+    );
+
+    if (valid.length === 0) {
+      return found;
+    }
+
+    const rows = await Model.collection
+      .find(
+        {
+          _id: {
+            $in: valid.map(
+              (key) => new this.mongoose.Types.ObjectId(String(key))
+            ),
+          },
+        },
+        { projection: { [EXTERNAL_ID]: 1 } }
+      )
+      .toArray();
+
+    for (const row of rows) {
+      if (typeof row[EXTERNAL_ID] === 'string') {
+        found.set(String(row._id), row[EXTERNAL_ID]);
+      }
+    }
+
+    return found;
   }
 
   /**
@@ -517,8 +640,15 @@ class Mongoose {
       return null;
     }
 
+    const Model = this.getUserModel();
+
     try {
-      return await this.getUserModel().findById(id);
+      // The subject of a session is a document id henri wrote itself, so
+      // this is a key lookup and never the strict `findById()` a url goes
+      // through; a token minted with the public identifier still works
+      return await (isUuid(id)
+        ? Model.findByExternalId(id)
+        : Model.findByKey(id));
     } catch (error) {
       if (error.name === 'CastError') {
         return null;

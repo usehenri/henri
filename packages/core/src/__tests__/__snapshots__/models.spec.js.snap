@@ -21,6 +21,10 @@ Model {
   "needs": [
     "config",
   ],
+  "referenceTable": {
+    "classes": Map {},
+    "models": {},
+  },
   "reload": [Function],
   "reloadable": true,
   "reset": [Function],

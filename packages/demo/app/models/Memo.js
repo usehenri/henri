@@ -10,8 +10,13 @@ module.exports = {
   },
   schema: {
     body: { personal: true, type: 'text' },
-    // Who wrote it: everything app/policies/memo.js decides comes from here
-    ownerId: { index: true, type: 'string' },
+    // Who wrote it: everything app/policies/memo.js decides comes from here.
+    // `ref` is what makes it a foreign key henri can see: without it this is
+    // a string column holding a document id, and a memo leaves the server
+    // carrying the internal id of its owner (see base/references.js). With
+    // it, the column still holds the document id and what leaves is the
+    // owner's externalId.
+    ownerId: { index: true, ref: 'User', type: 'string' },
     // Not marked: a mark is on the name, everywhere, and `title` is a column
     // half the models of an application have
     title: { type: 'string' },

@@ -135,6 +135,20 @@ const CHECKS = [
     what: '.env reached a commit',
   },
   {
+    asvs: 'V4.2.1',
+    check: 'externalIds.lookup-any',
+    level: 1,
+    owasp: 'A01',
+    what: '"externalIds": { "lookup": "any" }: a primary key resolves in a url again, so guessing a number reaches a record',
+  },
+  {
+    asvs: 'V4.2.1',
+    check: 'externalIds.references-disabled',
+    level: 1,
+    owasp: 'A01',
+    what: '"externalIds": { "references": false }: a foreign key is sent as the database holds it, so a record carries another row primary key',
+  },
+  {
     asvs: 'V13.4.2',
     check: 'graphql.exposed',
     level: 2,
@@ -660,6 +674,30 @@ const configFindings = (config, { hasUser }) => {
       'Remove "origin": false and name the origin that needs to post here instead: { "csrf": { "trustedOrigins": ["https://checkout.example.com"] } }',
       'V4.2.2'
     );
+  }
+
+  if (isObject(config.externalIds)) {
+    if (config.externalIds.lookup === 'any') {
+      add(
+        'medium',
+        'externalIds.lookup-any',
+        OWASP.A01,
+        'a primary key resolves in a url again: /records/4812 answers next to the uuid, so the public identifier buys nothing and the rows can be walked one number at a time',
+        'Remove "lookup": "any" and let findById() take the externalId alone; the server-side code that holds a real key calls findByKey()',
+        'V4.2.1'
+      );
+    }
+
+    if (config.externalIds.references === false) {
+      add(
+        'medium',
+        'externalIds.references-disabled',
+        OWASP.A01,
+        'a declared foreign key is sent as the database holds it, so a record hands out the primary key of the row it points at even though its own is hidden',
+        'Remove "references": false. henri resolves the keys in one statement per model on the way out, not one per record',
+        'V4.2.1'
+      );
+    }
   }
 
   if (config.cors === true) {

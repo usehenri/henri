@@ -7,7 +7,12 @@ const { BIND_IDENTITY, createModel } = require('./model');
 const { compileTable, normalizeSchema } = require('./schema');
 const { SESSION_FIELDS, createStore } = require('./session');
 const { ValidationError } = require('./validation');
-const { EXTERNAL_ID, uuidv7, wantsExternalId } = require('./external-id');
+const {
+  EXTERNAL_ID,
+  isUuid,
+  uuidv7,
+  wantsExternalId,
+} = require('./external-id');
 const { coded, fatal, normalizeEmail, redact, toRoles } = require('./utils');
 
 /**
@@ -26,6 +31,9 @@ const { coded, fatal, normalizeEmail, redact, toRoles } = require('./utils');
  *   never selected by default) and `roles` (only writable through
  *   `setRoles()` or with `{ unsafe: true }`).
  * @method getModels() All model classes by global id
+ * @method references() The declared foreign keys, by model
+ * @method async externalIdsOf(model, keys) The public identifiers of rows,
+ *   by primary key
  * @method async start() Connects, calls the `associate(models)` export of
  *   each model file, compiles the schema, then pushes it (development) or
  *   runs the migrations (production with `migrate: true`)
@@ -392,8 +400,13 @@ class Drizzle {
      * @param {(string|Array<string>)} roles The new roles
      * @returns {Promise<(object|null)>} The user, or null when not found
      */
-    Model.setRoles = (id, roles) =>
-      Model.findByIdAndUpdate(id, { roles: toRoles(roles) }, { unsafe: true });
+    Model.setRoles = async (id, roles) => {
+      const user = isUuid(id)
+        ? await Model.findByExternalId(id)
+        : await Model.findByKey(id);
+
+      return user ? user.setRoles(roles) : null;
+    };
   }
 
   /**
@@ -404,6 +417,101 @@ class Drizzle {
    */
   getModels() {
     return this.models || {};
+  }
+
+  /**
+   * What this store can state about its foreign keys, for core's exit gate
+   * (core's `base/references.js`).
+   *
+   * Two sources, both of them declarations: `Model.associations`, the
+   * `belongsTo()` entries a model file's `associate(models)` made, and
+   * `fields[name].references.model`, what a field declaring
+   * `references: { model: 'Event' }` made. Only the side holding the key is
+   * a reference; a `hasMany` puts no column on this table. A column that
+   * holds an id without declaring where it points is not here, and its name
+   * is never read to decide otherwise.
+   *
+   * @returns {object} `{ [globalId]: { externalId, references } }`
+   * @memberof Drizzle
+   */
+  references() {
+    const described = {};
+
+    for (const globalId of Object.keys(this.models)) {
+      const Model = this.models[globalId];
+      const references = {};
+
+      for (const association of Model.associations || []) {
+        if (
+          association.kind !== 'belongsTo' ||
+          !association.foreignKey ||
+          !this.models[association.target]
+        ) {
+          continue;
+        }
+
+        references[association.foreignKey] = {
+          as: association.as || null,
+          target: association.target,
+        };
+      }
+
+      for (const field of Object.keys(Model.fields || {})) {
+        const declared = (Model.fields[field] || {}).references;
+        const target = declared && declared.model;
+
+        if (target && this.models[target] && !references[field]) {
+          references[field] = { as: null, target };
+        }
+      }
+
+      described[globalId] = {
+        externalId: Boolean(Model.externalId),
+        references,
+      };
+    }
+
+    return described;
+  }
+
+  /**
+   * The public identifiers of rows named by their primary key: one
+   * statement for the whole set, which is what keeps a page of records from
+   * costing a query per foreign key.
+   *
+   * Soft deleted rows included: a proposal pointing at a withdrawn track
+   * still publishes an identifier for it rather than fall back to a number.
+   *
+   * @param {string} modelName The global id of the model
+   * @param {Array} keys The primary keys
+   * @returns {Promise<Map<string, string>>} externalId by primary key
+   * @memberof Drizzle
+   */
+  async externalIdsOf(modelName, keys) {
+    const Model = this.models[modelName];
+    const found = new Map();
+
+    if (!Model || !Model.externalId) {
+      return found;
+    }
+
+    const valid = keys.filter((key) => Model.isValidId(key));
+
+    if (valid.length === 0) {
+      return found;
+    }
+
+    const rows = await Model.query()
+      .where({ id: valid.map((key) => Model.castId(key)) })
+      .withDeleted()
+      .select('id', EXTERNAL_ID)
+      .toArray();
+
+    for (const row of rows) {
+      found.set(String(row.id), row[EXTERNAL_ID]);
+    }
+
+    return found;
   }
 
   /**
@@ -451,7 +559,12 @@ class Drizzle {
    * @memberof Drizzle
    */
   async findUserById(id) {
-    return this.getUserModel().findById(id);
+    const Model = this.getUserModel();
+
+    // The subject of a session is a primary key henri wrote itself, so this
+    // is a key lookup and never the strict `findById()` a url goes through;
+    // a token minted with the public identifier still works
+    return isUuid(id) ? Model.findByExternalId(id) : Model.findByKey(id);
   }
 
   /**

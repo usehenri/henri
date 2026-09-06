@@ -113,7 +113,7 @@ describe('disk database adapter', () => {
       expect(
         (await store.findUserByEmail('testing@usehenri.io')).password
       ).toBe('hashed:delectorskaya');
-      expect((await User.findById(user._id)).password).toBeUndefined();
+      expect((await User.findByKey(user._id)).password).toBeUndefined();
     });
 
     test('pings the local server', async () => {

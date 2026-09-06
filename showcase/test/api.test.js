@@ -10,6 +10,47 @@ const {
 } = require('./helpers');
 
 const HAL = 'application/hal+json';
+
+// The numbers this API is meant to carry: the paging counters, the year of
+// an edition, the score of a review and how many there are. Everything else
+// that is a number is a number nobody asked for, and a primary key that
+// leaked would be among them whatever key it hid under.
+const COUNTED = new Set([
+  'count',
+  'page',
+  'pages',
+  'perPage',
+  'reviews',
+  'score',
+  'total',
+  'year',
+]);
+
+/**
+ * Every number, and every string of digits, anywhere in a JSON answer,
+ * except the ones the API is documented to carry
+ *
+ * @param {*} value The answer
+ * @param {Array} [found=[]] The accumulator
+ * @returns {Array} The values
+ */
+const numbersIn = (value, found = []) => {
+  if (typeof value === 'number') {
+    found.push(value);
+  } else if (typeof value === 'string' && /^\d+$/u.test(value)) {
+    found.push(Number(value));
+  } else if (Array.isArray(value)) {
+    value.forEach((entry) => numbersIn(entry, found));
+  } else if (value && typeof value === 'object') {
+    for (const key of Object.keys(value)) {
+      if (!COUNTED.has(key)) {
+        numbersIn(value[key], found);
+      }
+    }
+  }
+
+  return found;
+};
 const ABSTRACT =
   'An abstract for the API tests, comfortably longer than the sixty characters the model insists on.';
 
@@ -137,11 +178,80 @@ describe('the JSON API', () => {
       });
       // The presenter drops it: an email never leaves the server this way
       expect(answer.body.speaker.email).toBeUndefined();
-      // The foreign keys are public ids too: the presenter resolves them,
-      // and the speaker one is dropped outright
+      // Every foreign key is the public identifier of the row it names.
+      // henri does this on the way out, from what the model declared: the
+      // controller neither deletes nor resolves anything
       expect(answer.body.eventId).toBe(event.externalId);
       expect(answer.body.trackId).toBe(track.externalId);
-      expect(answer.body.speakerId).toBeUndefined();
+      expect(answer.body.speakerId).toBe(speaker.externalId);
+    });
+
+    test("carries no sequential id of any row, its own or another's", async () => {
+      const answer = await request()
+        .get(`/proposals/${submitted.externalId}`)
+        .set('Accept', HAL);
+      const body = JSON.stringify(answer.body);
+      // Every primary key of every row this answer touches
+      const keys = [submitted.id, speaker.id, event.id, track.id];
+
+      expect(answer.status).toBe(200);
+
+      // Every primary key is a number this answer must not hold
+      expect(keys.every((key) => Number.isInteger(key) && key > 0)).toBe(true);
+      expect(numbersIn(answer.body)).toEqual([]);
+
+      for (const key of keys) {
+        expect(body).not.toContain(`:${key},`);
+        expect(body).not.toContain(`:"${key}"`);
+      }
+
+      expect(body).not.toMatch(/"(id|_id)":/u);
+    });
+
+    test('and neither does a whole page of them', async () => {
+      const answer = await request()
+        .get('/proposals?per_page=14')
+        .set('Accept', HAL);
+      const proposals = await Proposal.include('event', 'speaker', 'track')
+        .order('-submittedAt', '-id')
+        .limit(14);
+      const keys = new Set();
+
+      for (const proposal of proposals) {
+        keys.add(proposal.id);
+        keys.add(proposal.speakerId);
+        keys.add(proposal.eventId);
+        keys.add(proposal.trackId);
+      }
+
+      expect(answer.status).toBe(200);
+      expect(keys.size).toBeGreaterThan(1);
+
+      const seen = numbersIn(answer.body);
+
+      for (const key of keys) {
+        expect(seen).not.toContain(key);
+      }
+
+      // Nothing numeric at all is left in a page of proposals: the only
+      // identifiers it carries are uuids
+      expect(seen).toEqual([]);
+    });
+
+    test('a numeric id does not resolve, and says nothing when it fails', async () => {
+      const byKey = await request()
+        .get(`/proposals/${submitted.id}`)
+        .set('Accept', HAL);
+      const unknown = await request()
+        .get('/proposals/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11')
+        .set('Accept', HAL);
+
+      expect(byKey.status).toBe(404);
+      // The two failures are the same answer: nothing distinguishes "no
+      // such row" from "not that kind of identifier"
+      expect(byKey.status).toBe(unknown.status);
+      expect(byKey.body.error).toBe(unknown.body.error);
+      expect(byKey.body.statusCode).toBe(unknown.body.statusCode);
     });
 
     test('answers 404 for a record that is not there', async () => {
@@ -179,7 +289,7 @@ describe('the JSON API', () => {
         .get(`/proposals/${submitted.externalId}`)
         .set('Accept', 'application/json');
 
-      await Proposal.findByIdAndUpdate(submitted.id, {
+      await Proposal.findByIdAndUpdate(submitted.externalId, {
         title: 'A title that changed under the client',
       });
 

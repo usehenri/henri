@@ -13,7 +13,7 @@ const {
   resource,
   resourceLinks,
 } = require('./base/hateoas');
-const { stripInternalIds } = require('./base/external-id');
+const { publish } = require('./base/references');
 const { engine: graphqlEngine } = require('./base/graphql');
 const { jsonTypes, noStore, versionGuard } = require('./base/headers');
 const { idempotency } = require('./base/idempotency');
@@ -751,12 +751,14 @@ class Router extends BaseModule {
     const opts = {
       csrf: req.csrfToken || null,
       // The last gate on the way to a page: a record carrying a public
-      // identifier leaves its primary key here (see base/external-id.js),
-      // and a field marked `personal: { expose: false }` leaves the payload
-      // altogether unless this render asked for it (see base/privacy.js)
+      // identifier leaves its primary key here and the foreign keys that
+      // name another row leave as that row's public identifier (see
+      // base/references.js), and then a field marked
+      // `personal: { expose: false }` leaves the payload altogether unless
+      // this render asked for it (see base/privacy.js)
       data: this.henri.privacy
-        ? this.henri.privacy.strip(stripInternalIds(payload), include)
-        : stripInternalIds(payload),
+        ? this.henri.privacy.strip(await publish(this.henri, payload), include)
+        : await publish(this.henri, payload),
       // A handler that refused a form and redirected leaves its errors in the
       // flash (`req.flash('errors', { email: 'is required' })`), which is how
       // post/redirect/get reaches the page: they arrive where a rendered

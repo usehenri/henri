@@ -121,11 +121,11 @@ an app and is what core's tests boot.
   printed at boot with the `filterParameters` masked. Keys: `port`, `host`, `cors`,
   `renderer`, `inertia`, `experimental`, `stores`, `secret`, `url`, `user`
   (string or `{ model, public, loginPath, afterLogin, sessionMaxAge, signup,
-passwordReset, confirmation }`), `baseRole`, `policies`,
+passwordReset, confirmation }`), `baseRole`, `externalIds`, `policies`,
   `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `jobs`,
   `rateLimit`, `shared`, `cache`, `helmet`, `filterParameters`, `privacy`,
-  `bodyLimit`,
-  `uploads`, `requestTimeout`, `shutdown`, `errors`, `policies`.
+  `externalIds`, `bodyLimit`, `uploads`, `requestTimeout`, `shutdown`,
+  `errors`, `policies`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
@@ -226,7 +226,8 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   `packages/sequelize/index.js` and `packages/mongoose/index.js`):
   `new Adapter(name, config, henri)`, `addModel(model, userModelName)`,
   `getModels()`, `start()`, `stop()`, async `getSessionConnector(session)`,
-  `findUserByEmail()`, `findUserById()`, `userId()`, `toPlain()`, `ping()`,
+  `findUserByEmail()`, `findUserById()`, `userId()`, `toPlain()`,
+  `references()`, async `externalIdsOf(model, keys)`, `ping()`,
   `transaction()` and, on SQL, `query()`. Core loads them from the app cwd
   with `utils.resolveFrom('@usehenri/<adapter>')`. Model files use the henri
   schema format (`type: 'string'|'text'|'number'|'integer'|'float'|'boolean'|
@@ -240,6 +241,20 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   out), `paginate({ page, perPage })` answering
   `{ records, page, perPage, total, pages }` and, with `options.paranoid`,
   soft deletes (`deletedAt`, `withDeleted()`, `restore()`, `{ force: true }`).
+  Identifiers are two, and one of them is public (`base/references.js`):
+  `externalId` (a uuid v7) leaves the server, the primary key does not, and
+  neither does a _declared_ foreign key -- `belongsTo()`, `references: {
+model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
+  `res.collection()` and `henri.model.publish()` replace with the
+  `externalId` of the row it names, batched one statement per target model.
+  henri reads no field name, so an undeclared column, a `refPath` and a
+  plain object that carries no model are left alone and the guide says so.
+  `Model.findById()` takes the public identifier and nothing else (a primary
+  key answers the same `null` an unknown uuid answers, which is a 404 and
+  not an oracle); `findByKey()` is the primary key lookup the framework's
+  own session and token reads use, and `findByExternalId()` the explicit
+  other half. `config.externalIds` (`lookup`, `references`) restores either
+  behaviour and `henri audit` reports it.
   `henri.model.errors(error)` (`base/model-errors.js`) normalizes the three
   ORMs' validation failures to `{ field: message }`, `null` for anything else.
   `henri db:seed` runs `db/seeds.js` on any adapter.

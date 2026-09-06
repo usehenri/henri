@@ -43,6 +43,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.            |
 | `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                      |
 | `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                                |
+| `externalIds`      |               | What henri does with the internal identifier of a record: which one a lookup takes, and what a foreign key serializes as, below.                |
 | `policies`         |               | Record-level authorization: what a refusal answers and whether an unasked policy is reported, see below. See [Policies](/guides/policies/).     |
 | `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.           |
 | `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf); an object configures the origin check, below.                                      |
@@ -62,6 +63,33 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                   |
 | `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                       |
 | `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                          |
+
+## The `externalIds` object
+
+Every record carries an `externalId` -- a UUID v7 -- and the numeric primary
+key stays on the server. This key holds the two decisions that follow from
+that, and both defaults are the safe ones.
+
+| Key          | Default      | Description                                                                                                                                                                                                                     |
+| ------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lookup`     | `'external'` | Which identifier `Model.findById()` resolves. The default takes the `externalId` and nothing else, so `GET /proposals/4812` answers the same 404 an unknown uuid answers. `'any'` restores the primary key lookup of henri 1.2. |
+| `references` | `true`       | Replace a declared foreign key with the `externalId` of the row it names, on the way out. `false` sends the number the database holds, so a record carries another row's primary key.                                           |
+
+```json
+{
+  "externalIds": { "lookup": "external", "references": true }
+}
+```
+
+`findByKey()` always takes the primary key, whatever `lookup` says: it is
+the lookup for server-side code that legitimately holds one (the subject of
+a session, a row you just joined), and `findById()` is the one that takes
+what arrived from outside. A model that opted out with
+`options: { externalId: false }` is unaffected by either key.
+
+Turning either of them off is reported by [`henri audit`](/guides/security/).
+See [Models](/guides/models/#public-identifiers) for what a foreign key has
+to declare before henri can translate it.
 
 ## The `policies` object
 

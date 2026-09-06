@@ -1,11 +1,46 @@
 ---
 title: Upgrading
-description: From henri 0.37 to 1.x and from 1.1 to 1.2, what breaks and what to change.
+description: From henri 0.37 to 1.x, from 1.1 to 1.2 and from 1.2 to 1.3, what breaks and what to change.
 sidebar:
   order: 3
 ---
 
-henri 1.0 (2026) moved the framework to a current toolchain and 1.1 hardened it. Both break an application written for 0.37. The 1.1 to 1.2 changes come first; everything after them is the 0.37 to 1.x list, in the order you will meet it. The per-package details are in the [changelogs](https://github.com/usehenri/henri/releases).
+henri 1.0 (2026) moved the framework to a current toolchain and 1.1 hardened it. Both break an application written for 0.37. The 1.2 to 1.3 changes come first, then 1.1 to 1.2; everything after them is the 0.37 to 1.x list, in the order you will meet it. The per-package details are in the [changelogs](https://github.com/usehenri/henri/releases).
+
+## From 1.2 to 1.3
+
+### The numeric id stops resolving, and stops travelling inside a foreign key
+
+1.2 gave every record a public uuid and took its own primary key out of what leaves the server. It left two holes, and 1.3 closes both. See [Identifiers](/guides/models/#identifiers).
+
+**A number in a url does not answer any more.** `Model.findById()` takes the `externalId` and nothing else; a primary key gets the same `null` an unknown uuid gets, which the controller you already wrote answers as a 404. In 1.2 `/tasks/42` still worked next to the uuid, so an attacker never had to type a uuid at all.
+
+What breaks: every call that hands `findById()` a value read from the database.
+
+```js
+// before
+const fresh = await Task.findById(task.id);
+// after
+const fresh = await Task.findByKey(task.id);
+```
+
+`findByKey()` is the primary key, and only the primary key. `findById()` is the one that takes what arrived from outside, so a controller doing `Model.findById(req.params.id)` needs no change at all -- that is the case this is for. `findByIdAndUpdate()` and `findByIdAndDelete()` refuse a primary key too. On the Sequelize adapters and on Drizzle, `findByPk()` is now an alias of `findByKey()` and no longer accepts a uuid; `findByExternalId()` is the explicit other half.
+
+henri's own session and token lookups were moved to the key lookup, so signing in, staying signed in and every account flow are unaffected.
+
+**A foreign key travels as the public identifier of the row it names.** A proposal that belongs to a speaker used to answer `speakerId: 4812`, which is another row's sequential id: hiding a record's own id and handing out its neighbour's is not hiding anything. henri now replaces every _declared_ foreign key on the way out.
+
+What breaks: a client reading a numeric `speakerId` reads a uuid. A form that posts one back posts the uuid, and `Model.findById()` on the target turns it into the key the column wants.
+
+henri only translates a relation the model declared -- `belongsTo()` in `associate(models)`, `references: { model }` on the field, `ref` on a Mongoose path -- and reads no field name to decide. A column holding an id and saying nothing is left as it is; declaring the relation is the one-line fix. A controller that presents its records builds a plain object, which carries no model: call `henri.model.publish()` first and present second. The full list of what henri will not guess is in [Foreign keys](/guides/models/#foreign-keys).
+
+Neither change touches the database: the columns, the joins and the indexes are what they were, and a model with `options: { externalId: false }` behaves exactly as it did. There is no migration.
+
+[`externalIds`](/configuration/#the-externalids-object) restores either behaviour for an application that cannot move yet, and `henri audit` reports it when it is:
+
+```json
+{ "externalIds": { "lookup": "any", "references": false } }
+```
 
 ## From 1.1 to 1.2
 
@@ -17,7 +52,7 @@ Every model now carries `externalId`, a uuid stored in an `external_id` column t
 
 What breaks:
 
-- **Urls**: `/tasks/42` becomes `/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11`. Old links keep working, because `Model.findById()` takes the primary key as well, but nothing hands one out any more. Bookmarks, sitemaps and anything holding an id of yours will need remapping.
+- **Urls**: `/tasks/42` becomes `/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11`. In 1.2 old links kept working, because `Model.findById()` took the primary key as well; in 1.3 they stop (above). Bookmarks, sitemaps and anything holding an id of yours will need remapping.
 - **Payloads**: a serialized record has `externalId` and no `id` (no `_id` on MongoDB). A client reading `body.id` reads `body.externalId` now.
 - **The public user**: `henri.user.publicUser(user)` and `req._henri.user` answer `{ externalId, email, roles }` instead of `{ id, email, roles }`.
 - **Your own code**: anything building a url or a key from `record.id` uses `record.externalId`. Server side, `record.id` is unchanged and still the right thing for a query, a join or a foreign key.

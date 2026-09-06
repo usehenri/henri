@@ -16,7 +16,7 @@ const {
   privacyConfig,
   stripPersonal,
 } = require('../base/privacy');
-const { sendable } = require('../base/hateoas');
+const { toPublic } = require('../base/hateoas');
 const {
   anonymousValue,
   digestOf,
@@ -622,11 +622,11 @@ describe('privacy (demo app, disk store)', () => {
     // options of res.render() (5.router.js) and the plain object of
     // res.resource() (base/hateoas.js)
     const record = await User.findOne({ email: 'page@usehenri.io' });
-    const sent = sendable(henri, record);
+    const sent = await toPublic(henri, record);
 
     expect(sent.name).toBe('Ada Lovelace');
     expect(sent.gender).toBeUndefined();
-    expect(sendable(henri, record, ['gender']).gender).toBe('f');
+    expect((await toPublic(henri, record, ['gender'])).gender).toBe('f');
 
     await henri.privacy.erase('page@usehenri.io');
   });

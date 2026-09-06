@@ -23,7 +23,7 @@
  * the per-account sign-in lockout in `base/lockout.js`.
  */
 const { stamp } = require('./errors');
-const { EXTERNAL_ID, hasExternalId } = require('./external-id');
+const { EXTERNAL_ID, hasExternalId, isUuid } = require('./external-id');
 const { lockoutConfig } = require('./lockout');
 const { passwordPolicy } = require('./password');
 
@@ -104,11 +104,47 @@ function userConfig(config, { isTest = false } = {}) {
 /**
  * Tells if a model looks like a Sequelize model (as opposed to Mongoose)
  *
+ * `findAndCountAll` is the tell, not `findByPk`: henri gives every adapter
+ * a key lookup now (`findByKey`, and `findByPk` where the ORM uses that
+ * name), so the name a Sequelize model shares with the others cannot be
+ * what tells them apart.
+ *
  * @param {object} model a model
  * @returns {boolean} sequelize or not
  */
 function isSequelizeModel(model) {
-  return Boolean(model) && typeof model.findByPk === 'function';
+  return Boolean(model) && typeof model.findAndCountAll === 'function';
+}
+
+/**
+ * A user by the identifier a session or a token carries, on an adapter that
+ * does not implement `findUserById()`.
+ *
+ * Either identifier resolves: the subject henri serializes is the primary
+ * key, and an application minting its own JWT may well put the public one
+ * in it. This is the framework reading its own token, not a url naming a
+ * row, so the key lookup is the right door -- `findById()` is the one that
+ * got strict (see base/references.js).
+ *
+ * @param {object} model the user model
+ * @param {*} id the subject
+ * @param {object} options the projection (per ORM)
+ * @returns {Promise<?object>} the user or null
+ */
+function lookupUser(model, id, options) {
+  if (isUuid(id) && typeof model.findByExternalId === 'function') {
+    return model.findByExternalId(id, options);
+  }
+
+  if (typeof model.findByKey === 'function') {
+    return model.findByKey(id, options);
+  }
+
+  if (typeof model.findByPk === 'function') {
+    return model.findByPk(id, options);
+  }
+
+  return model.findById(id, options);
 }
 
 /**
@@ -145,13 +181,11 @@ function userAdapter(store, model) {
         return null;
       }
       try {
-        if (sql) {
-          return await model.findByPk(id, {
-            attributes: { exclude: ['password'] },
-          });
-        }
-
-        return await model.findById(id, { password: 0 });
+        return await lookupUser(
+          model,
+          id,
+          sql ? { attributes: { exclude: ['password'] } } : { password: 0 }
+        );
       } catch (error) {
         // A malformed id (ex: a stale session) is not a user
         if (error && error.name === 'CastError') {

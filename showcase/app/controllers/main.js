@@ -1,7 +1,7 @@
 // The pages that are not a resource: the home page, the colophon and the
 // hypermedia explorer. Models are globals (Event, Proposal, ...) and `henri`
 // is the running instance.
-const { PUBLIC_STATES, present } = require('../helpers/proposals');
+const { PUBLIC_STATES, presented } = require('../helpers/proposals');
 
 /**
  * The edition the site is about: the most recent one that left `draft`
@@ -68,9 +68,9 @@ module.exports = {
           submitted,
           tracks,
         },
-        event: event.toJSON(),
+        event: await henri.model.publish(event),
         highlight,
-        lineup: lineup.map((proposal) => present(proposal)),
+        lineup: await presented(lineup),
       },
     });
   },

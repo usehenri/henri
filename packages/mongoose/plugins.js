@@ -1,8 +1,9 @@
-const { Model } = require('mongoose');
+const { Model, isValidObjectId } = require('mongoose');
 const {
   EXTERNAL_ID,
   isUuid,
   normalizeExternalId,
+  resolvesKeys,
   uuidv7,
 } = require('./external-id');
 
@@ -12,19 +13,83 @@ const {
  * soft deletes (Rails' `acts_as_paranoid`).
  */
 
+// A filter no document can match. `_id: null` is a legal ObjectId cast and
+// matches nothing, which is what a refused lookup answers: the same empty
+// result an unknown uuid gets, so the reply never says which it was.
+//
+// A function, not a constant: the object is handed to mongoose as a query
+// filter, and a filter mongoose casts in place is a filter no two calls may
+// share.
+const NOTHING = () => ({ _id: null });
+
+// The henri instance behind a schema, so a static can read
+// `externalIds.lookup` without a global. Weak, so a reloaded schema is
+// collected with its entry.
+const owners = new WeakMap();
+
 /**
- * The filter of a lookup by id: the public identifier when the value is a
- * uuid and the model carries one, the document id otherwise. A 24 character
- * ObjectId never looks like a uuid, so the two can never be confused.
+ * Remembers which henri instance a schema belongs to
+ *
+ * @param {object} schema The Mongoose schema
+ * @param {object} henri The henri instance
+ * @returns {object} The schema
+ */
+const owned = (schema, henri) => {
+  owners.set(schema, henri);
+
+  return schema;
+};
+
+/**
+ * The filter of a lookup by document id, and only by document id.
+ *
+ * A value the `_id` path cannot hold answers `NOTHING` rather than throwing
+ * a CastError: a lookup that fails must look like a lookup that found no
+ * document, and a 500 where a 404 belongs is an answer of its own.
  *
  * @param {object} model The model (`this` in a static)
- * @param {*} value An external id or a document id
+ * @param {*} value A document id
  * @returns {object} The filter
  */
-const idFilter = (model, value) =>
-  model.schema.path(EXTERNAL_ID) && isUuid(value)
-    ? { [EXTERNAL_ID]: normalizeExternalId(value) }
-    : { _id: typeof value === 'undefined' ? null : value };
+const keyFilter = (model, value) => {
+  if (value === null || typeof value === 'undefined') {
+    return NOTHING();
+  }
+
+  const path = model && model.schema && model.schema.path('_id');
+
+  if (path && path.instance === 'ObjectId' && !isValidObjectId(value)) {
+    return NOTHING();
+  }
+
+  return { _id: value };
+};
+
+/**
+ * The filter of `findById()`: on a model carrying a public identifier it is
+ * the uuid and nothing else, so a document id from a url matches nothing.
+ * `externalIds.lookup: "any"` restores the document id.
+ *
+ * A model that opted out has no public identifier to prefer, so its
+ * document id stays the identifier and keeps resolving.
+ *
+ * @param {object} model The model (`this` in a static)
+ * @param {*} value An external id (or a document id, see above)
+ * @returns {object} The filter
+ */
+const idFilter = (model, value) => {
+  if (!model.schema.path(EXTERNAL_ID)) {
+    return keyFilter(model, value);
+  }
+
+  if (isUuid(value)) {
+    return { [EXTERNAL_ID]: normalizeExternalId(value) };
+  }
+
+  return resolvesKeys(owners.get(model.schema))
+    ? keyFilter(model, value)
+    : NOTHING();
+};
 
 // Queries that must not see soft deleted documents (Mongoose 9 has no
 // `count`, `findOneAndRemove` or `findByIdAndRemove` any more)
@@ -47,6 +112,55 @@ const DELETE_STATICS = [
   'findByIdAndDelete',
   'findOneAndDelete',
 ];
+
+/**
+ * The two lookups every model gets, whichever identifier it carries.
+ *
+ * `findByKey()` is the document id and only the document id: the door for
+ * the code that legitimately holds one (the subject of a session, a
+ * reload), which `findById()` stopped being. `findByExternalId()` is the
+ * public identifier and only that.
+ *
+ * @param {object} schema The Mongoose schema
+ * @returns {object} The schema
+ */
+const lookups = (schema) => {
+  /**
+   * A document by its document id
+   *
+   * @param {*} id A document id
+   * @param {*} [projection] The projection
+   * @param {object} [options] Query options
+   * @returns {object} A query
+   */
+  schema.statics.findByKey = function findByKey(id, projection, options) {
+    return this.findOne(keyFilter(this, id), projection, options);
+  };
+
+  /**
+   * A document by its public identifier
+   *
+   * @param {*} id An external id (a uuid)
+   * @param {*} [projection] The projection
+   * @param {object} [options] Query options
+   * @returns {object} A query
+   */
+  schema.statics.findByExternalId = function findByExternalId(
+    id,
+    projection,
+    options
+  ) {
+    return this.findOne(
+      isUuid(id) && this.schema.path(EXTERNAL_ID)
+        ? { [EXTERNAL_ID]: normalizeExternalId(id) }
+        : NOTHING(),
+      projection,
+      options
+    );
+  };
+
+  return schema;
+};
 
 /**
  * A positive integer, or a fallback
@@ -345,9 +459,13 @@ const externalId = (schema) => {
 
 module.exports = {
   DELETE_STATICS,
+  NOTHING,
   READ_HOOKS,
   externalId,
   idFilter,
+  keyFilter,
+  lookups,
+  owned,
   paginate,
   paranoid,
 };

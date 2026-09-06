@@ -17,7 +17,7 @@ const {
   identify,
   resourceLinks,
   collectionLinks,
-  toPlain,
+  toPublic,
 } = require('../base/hateoas');
 const {
   hasExternalId,
@@ -450,30 +450,38 @@ describe('hateoas helpers', () => {
     expect(fill('/tasks/:id', {})).toBe('/tasks/:id');
   });
 
-  test('toPlain serializes model instances and exposes an id', () => {
-    expect(toPlain({ _id: 42, title: 't' })).toEqual({
+  test('toPublic serializes model instances and exposes an id', async () => {
+    expect(await toPublic(null, { _id: 42, title: 't' })).toEqual({
       _id: 42,
       id: '42',
       title: 't',
     });
-    expect(toPlain({ id: 7, title: 't' })).toEqual({ id: 7, title: 't' });
+    expect(await toPublic(null, { id: 7, title: 't' })).toEqual({
+      id: 7,
+      title: 't',
+    });
     expect(
-      toPlain({ secret: 'hidden', toJSON: () => ({ _id: 'x', title: 't' }) })
+      await toPublic(null, {
+        secret: 'hidden',
+        toJSON: () => ({ _id: 'x', title: 't' }),
+      })
     ).toEqual({ _id: 'x', id: 'x', title: 't' });
     expect(identify({ _id: { toString: () => 'oid' } })).toBe('oid');
     expect(identify({})).toBeNull();
   });
 
-  test('toPlain drops the internal ids of a record that has a public one', () => {
+  test('toPublic drops the internal ids of a record that has a public one', async () => {
     const external = '0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11';
 
     // A `.lean()` document: no toJSON of its own to do the job
-    expect(toPlain({ _id: 42, externalId: external, title: 't' })).toEqual({
+    expect(
+      await toPublic(null, { _id: 42, externalId: external, title: 't' })
+    ).toEqual({
       externalId: external,
       title: 't',
     });
     expect(
-      toPlain({
+      await toPublic(null, {
         toJSON: () => ({
           author: { externalId: external, id: 9 },
           externalId: external,
@@ -485,6 +493,20 @@ describe('hateoas helpers', () => {
       externalId: external,
     });
     expect(identify({ externalId: external, id: 3 })).toBe(external);
+  });
+
+  test('toPublic publishes a whole list in one call', async () => {
+    const external = '0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11';
+
+    expect(
+      await toPublic(null, [
+        { _id: 1, externalId: external, title: 'one' },
+        { _id: 2, title: 'two' },
+      ])
+    ).toEqual([
+      { externalId: external, title: 'one' },
+      { _id: 2, id: '2', title: 'two' },
+    ]);
   });
 
   test('resourceLinks only contains the paths the user may follow', () => {

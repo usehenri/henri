@@ -398,6 +398,30 @@ declare namespace start {
   }
 
   /**
+   * `config.externalIds`: what henri does with the internal identifier of a
+   * record. Every model carries an `externalId` (a uuid v7) unless it opts
+   * out with `options: { externalId: false }`; the two keys here say
+   * whether the primary key may still be looked up, and whether a declared
+   * foreign key leaves as the public identifier of the row it names.
+   */
+  interface ExternalIdsConfig {
+    /**
+     * Which identifier `Model.findById()` resolves (`'external'`). The
+     * default takes the `externalId` and nothing else, so a primary key in
+     * a url answers the same `null` an unknown uuid answers; `'any'`
+     * restores the primary key lookup. `findByKey()` always takes the
+     * primary key, whatever this says.
+     */
+    lookup?: 'any' | 'external';
+    /**
+     * Replace a declared foreign key with the `externalId` of the row it
+     * names, on the way out (`true`). `false` sends the number the database
+     * holds, so a record carries another row's primary key.
+     */
+    references?: boolean;
+  }
+
+  /**
    * `config.policies`: what henri does with the answer of a policy in
    * `app/policies`. Writing the file is what turns policies on; this key
    * only holds the two decisions an application may differ on.
@@ -623,6 +647,8 @@ declare namespace start {
     user?: string | UserConfig;
     /** Role, or roles, given to every new user. */
     baseRole?: string | string[];
+    /** Which identifier a lookup takes, and what a foreign key serializes as. */
+    externalIds?: ExternalIdsConfig;
     /** What a refused policy answers, and whether an unasked one is reported. */
     policies?: PoliciesConfig;
     /** Express `trust proxy` (`true`). */
@@ -1435,6 +1461,26 @@ declare namespace start {
     findUserById(id: string): Promise<any>;
     userId(user: unknown): string;
     toPlain(user: unknown): Record<string, unknown>;
+    /**
+     * What the store can state about its foreign keys, and which models
+     * carry a public identifier. Read once, when the stores have started,
+     * by core's exit gate; nothing is guessed from a field name.
+     */
+    references?(): Record<
+      string,
+      {
+        externalId: boolean;
+        references: Record<string, { as: string | null; target: string }>;
+      }
+    >;
+    /**
+     * The `externalId` of the rows a set of primary keys names, keyed by
+     * the key as a string. One statement for the whole set.
+     */
+    externalIdsOf?(
+      modelName: string,
+      keys: unknown[]
+    ): Promise<Map<string, string>>;
     ping(): Promise<boolean>;
     transaction<T>(fn: (transaction: any) => Promise<T>): Promise<T>;
     /** SQL adapters only: a raw query with `?` or `:name` replacements. */
@@ -1884,6 +1930,17 @@ declare namespace start {
     /** The names of the model globals. */
     ids: string[];
     getStore(name: string): StoreAdapter;
+    /**
+     * The public form of a record, a list of records, or anything holding
+     * some: no internal id anywhere, and every declared foreign key
+     * replaced by the `externalId` of the row it names.
+     *
+     * `res.render()`, `res.resource()` and `res.collection()` do this on
+     * their way out. Call it yourself when a controller presents its
+     * records: a plain object carries no model, so publish first and
+     * present second.
+     */
+    publish<T = unknown>(value: T): Promise<T>;
     /**
      * Normalizes what any adapter throws on an invalid write into
      * `{ field: message }`, and answers `null` when the error is not a

@@ -4,7 +4,7 @@
 // object without answering renders its own page with it, so `index` renders
 // `/events` and `show` renders `/events/show`. A client asking for JSON gets
 // the same object with the `_links` of the route.
-const { present } = require('../helpers/proposals');
+const { presented } = require('../helpers/proposals');
 
 /**
  * Loads the edition of `:id` (a number or a slug), or answers a 404
@@ -33,9 +33,14 @@ module.exports = {
       events.map((event) => Proposal.count({ eventId: event.id }))
     );
 
+    // `henri.model.publish()` rather than `toJSON()`: the model is what
+    // tells henri which columns are foreign keys, and a plain object has
+    // lost it by the time res.render() sees it
+    const published = await henri.model.publish(events);
+
     return {
-      events: events.map((event, index) => ({
-        ...event.toJSON(),
+      events: published.map((event, index) => ({
+        ...event,
         proposals: counts[index],
       })),
     };
@@ -51,9 +56,11 @@ module.exports = {
     ]);
 
     return {
-      event: event.toJSON(),
-      lineup: accepted.map((proposal) => present(proposal)),
-      tracks: tracks.map((track) => track.toJSON()),
+      event: await henri.model.publish(event),
+      lineup: await presented(accepted),
+      // A track holds the primary key of its edition: published, it holds
+      // the edition's public identifier instead
+      tracks: await henri.model.publish(tracks),
     };
   },
 };

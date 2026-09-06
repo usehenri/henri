@@ -64,8 +64,17 @@ the map. Every store adds `createdAt`/`updatedAt`,
 `henri.model.errors(error)` -> `{ field: message }` (`null` otherwise) and `db/seeds.js`, run by `henri db:seed`.
 Every model also carries `externalId`, a uuid that is unique and not null in the
 database and the only identifier that leaves the server: routes, links and payloads
-carry it, the numeric id stays internal, `Model.findById()` takes either of the two, and `options: { externalId: false }` opts a model out.
-The global is the model of the `drizzle` store, and what the generators write: the drizzle model (`where`, `order`, `include`, `findById`, `create`, then `row.update()` and `row.destroy()`), rows carry `id`. Migrations live in `db/migrations`: `henri db:generate|migrate|push|status`, generate and commit one after a model change.
+carry it, and so does every declared foreign key -- `speakerId` leaves as the
+speaker's `externalId`, not as its primary key. `Model.findById()` takes the
+public identifier and nothing else (a primary key answers `null`, which the
+controller answers as its own 404); `Model.findByKey()` is the lookup for a
+primary key you already hold, which is what server-side code and the tests use.
+`options: { externalId: false }` opts a model out of all of it.
+A controller that presents its records publishes first --
+`await henri.model.publish(records)` -- because a plain object carries no model
+and henri cannot see the foreign keys in it; `app/helpers/proposals.js`
+(`presented()`) is the shape to copy.
+The global is the model of the `drizzle` store, and what the generators write: the drizzle model (`where`, `order`, `include`, `findById`, `findByKey`, `create`, then `row.update()` and `row.destroy()`), rows carry `id`. Migrations live in `db/migrations`: `henri db:generate|migrate|push|status`, generate and commit one after a model change.
 
 ## Controllers
 
@@ -144,7 +153,7 @@ no rule for the action and a rule that threw all mean no, and only the boolean
 `true` allows. A rule taking a record is never asked without one, so
 `index`/`new`/`create` are answered at the route. `paths` and `_links` lose
 what the policy refuses, and a controller that presents its records names what
-the rules should read with `res.resource(present(x), { subject: x })`.
+the rules should read with `res.resource(await presented(x), { subject: x })`.
 
 `config.user.signup`, `passwordReset` and `confirmation` mount the rest of
 the story: `POST /signup`, `POST /password/forgot`,

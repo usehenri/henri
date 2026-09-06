@@ -177,7 +177,7 @@ describe(`schema on ${target.name}`, () => {
       total: 42,
       when,
     });
-    const stored = await Thing.findById(thing.id);
+    const stored = await Thing.findByKey(thing.id);
 
     expect(stored.active).toBe(true);
     expect(stored.amount).toBe(12.5);

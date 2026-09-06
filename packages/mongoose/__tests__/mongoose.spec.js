@@ -512,7 +512,7 @@ describe('mongoose adapter', () => {
         { $push: { roles: 'admin' }, $set: { roles: ['admin'] } }
       );
 
-      const reloaded = await User.findById(user._id);
+      const reloaded = await User.findByKey(user._id);
 
       expect(reloaded.roles.toObject()).toEqual(['member']);
       expect(reloaded.name).toBe('query');
@@ -599,7 +599,7 @@ describe('mongoose adapter', () => {
       const user = await User.findOne({ email: 'roles@usehenri.io' });
 
       await user.setRoles(['admin', 'member']);
-      expect((await User.findById(user._id)).roles.toObject()).toEqual([
+      expect((await User.findByKey(user._id)).roles.toObject()).toEqual([
         'admin',
         'member',
       ]);
@@ -607,7 +607,7 @@ describe('mongoose adapter', () => {
       const updated = await User.setRoles(user._id, 'editor');
 
       expect(updated.roles.toObject()).toEqual(['editor']);
-      expect((await User.findById(user._id)).roles.toObject()).toEqual([
+      expect((await User.findByKey(user._id)).roles.toObject()).toEqual([
         'editor',
       ]);
       await expect(
@@ -619,7 +619,7 @@ describe('mongoose adapter', () => {
         { $set: { roles: ['query'] } },
         { unsafe: true }
       );
-      expect((await User.findById(user._id)).roles.toObject()).toEqual([
+      expect((await User.findByKey(user._id)).roles.toObject()).toEqual([
         'query',
       ]);
 
@@ -637,7 +637,9 @@ describe('mongoose adapter', () => {
       await doc.save();
 
       expect(created.roles.toObject()).toEqual(['root']);
-      expect((await User.findById(doc._id)).roles.toObject()).toEqual(['root']);
+      expect((await User.findByKey(doc._id)).roles.toObject()).toEqual([
+        'root',
+      ]);
     });
 
     test('checks roles with hasRole', async () => {
@@ -940,18 +942,18 @@ describe('mongoose adapter', () => {
 
       expect(result).toMatchObject({ deletedCount: 1 });
       expect(await Task.countDocuments()).toBe(0);
-      expect(await Task.findById(task._id)).toBeNull();
+      expect(await Task.findByKey(task._id)).toBeNull();
       expect(await Task.find()).toEqual([]);
       expect(await Task.withDeleted().countDocuments()).toBe(1);
     });
 
     test('findByIdAndDelete answers the document and stamps it', async () => {
       const task = await Task.create({ name: 'gone' });
-      const deleted = await Task.findByIdAndDelete(task._id);
+      const deleted = await Task.findByIdAndDelete(task.externalId);
 
       expect(deleted.name).toBe('gone');
       expect(await Task.countDocuments()).toBe(0);
-      expect(await Task.findByIdAndDelete(task._id)).toBeNull();
+      expect(await Task.findByIdAndDelete(task.externalId)).toBeNull();
 
       const stamped = await Task.withDeleted().findOne({ _id: task._id });
 

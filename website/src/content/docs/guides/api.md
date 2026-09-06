@@ -62,7 +62,7 @@ A resource looks like this:
 }
 ```
 
-The identifier is the record's `externalId`, the public one every model carries; the primary key stays on the server and is not in the payload. `res.resource()`, `res.collection()`, the `Location` header of a `201` and every href of `_links` are built from it. See [Identifiers](/guides/models/#identifiers).
+The identifier is the record's `externalId`, the public one every model carries; the primary key stays on the server and is not in the payload. `res.resource()`, `res.collection()`, the `Location` header of a `201` and every href of `_links` are built from it. So is every foreign key the model declared: a record that belongs to another answers with that record's `externalId`, not with its primary key, and the lookups behind a whole page are batched into one statement per model. A controller that presents its records before sending them calls `henri.model.publish()` first -- a plain object carries no model, so nothing downstream can tell a foreign key from any other number. See [Identifiers](/guides/models/#identifiers) and [Foreign keys](/guides/models/#foreign-keys).
 
 A collection embeds its items under `_embedded.<type>` and carries the paging links and counters, plus `Link` and `X-Total-Count` headers:
 

@@ -119,7 +119,7 @@ describe('policies', () => {
         .send({ title: 'Hijacked, obviously' });
 
       expect(answer.status).toBe(403);
-      expect((await Proposal.findById(submitted.id)).title).toBe(
+      expect((await Proposal.findByKey(submitted.id)).title).toBe(
         'A submitted proposal anybody may read'
       );
     });
@@ -138,7 +138,7 @@ describe('policies', () => {
         expect(answer.status).toBe(404);
       }
 
-      expect(await Proposal.findById(draft.id)).not.toBeNull();
+      expect(await Proposal.findByKey(draft.id)).not.toBeNull();
     });
   });
 

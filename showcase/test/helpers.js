@@ -110,9 +110,10 @@ const createUser = async (attributes = {}) => {
   });
 
   if (attributes.roles) {
-    await User.setRoles(user.id, attributes.roles);
+    await User.setRoles(user.externalId, attributes.roles);
 
-    return User.findById(user.id);
+    // The row it just wrote: a primary key, so the key lookup
+    return User.findByKey(user.id);
   }
 
   return user;

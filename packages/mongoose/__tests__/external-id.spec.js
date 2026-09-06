@@ -26,9 +26,12 @@ const noteModel = {
  *
  * @returns {object} fake henri
  */
-const fakeHenri = () => ({
+const fakeHenri = (settings = {}) => ({
   _user: null,
-  config: { get: () => undefined, has: () => false },
+  config: {
+    get: (key) => settings[key],
+    has: (key) => typeof settings[key] !== 'undefined',
+  },
   isTest: true,
   pen: { error() {}, fatal() {}, info() {}, warn() {} },
   user: { encrypt: async (password) => `hashed:${password}` },
@@ -85,20 +88,64 @@ describe('external id (mongoose)', () => {
     ).rejects.toThrow(/externalId/);
   });
 
-  test('findById takes the public id or the document id', async () => {
+  test('findById takes the public id and nothing else', async () => {
     const task = await Task.create({ name: 'lookup' });
 
     expect(String((await Task.findById(task.externalId))._id)).toBe(
       String(task._id)
     );
-    expect(String((await Task.findById(task._id))._id)).toBe(String(task._id));
-    expect(String((await Task.findById(String(task._id)))._id)).toBe(
-      String(task._id)
-    );
-    // An object id is 24 hex characters: it never looks like a uuid
+    // The document id does not name a document from outside any more: this
+    // is what stops GET /tasks/<objectid> from answering next to the uuid
+    expect(await Task.findById(task._id)).toBeNull();
+    expect(await Task.findById(String(task._id))).toBeNull();
+    // ... and the refusal is the same null an unknown uuid gets, so nothing
+    // in the answer says which of the two it was
     expect(isUuid(String(task._id))).toBe(false);
     expect(await Task.findById(uuidv7())).toBeNull();
     expect(await Task.findById('000000000000000000000000')).toBeNull();
+  });
+
+  test('findByKey takes the document id and nothing else', async () => {
+    const task = await Task.create({ name: 'server side' });
+
+    expect(String((await Task.findByKey(task._id))._id)).toBe(String(task._id));
+    expect(String((await Task.findByKey(String(task._id)))._id)).toBe(
+      String(task._id)
+    );
+    expect(await Task.findByKey(task.externalId)).toBeNull();
+  });
+
+  test('findByExternalId takes the public id', async () => {
+    const task = await Task.create({ name: 'public' });
+
+    expect(String((await Task.findByExternalId(task.externalId))._id)).toBe(
+      String(task._id)
+    );
+    expect(await Task.findByExternalId(uuidv7())).toBeNull();
+    expect(await Task.findByExternalId(String(task._id))).toBeNull();
+  });
+
+  test('externalIds.lookup "any" restores the document id', async () => {
+    const permissive = new Mongoose(
+      'default',
+      { url: mongod.getUri('lookup-any') },
+      fakeHenri({ externalIds: { lookup: 'any' } })
+    );
+    const Loose = permissive.addModel(
+      { globalId: 'Loose', identity: 'loose', schema: { name: 'string' } },
+      'user'
+    );
+
+    await permissive.start();
+
+    const row = await Loose.create({ name: 'permissive' });
+
+    expect(String((await Loose.findById(row._id))._id)).toBe(String(row._id));
+    expect(String((await Loose.findById(row.externalId))._id)).toBe(
+      String(row._id)
+    );
+
+    await permissive.stop();
   });
 
   test('findByIdAndUpdate and findByIdAndDelete take it too', async () => {
@@ -124,7 +171,7 @@ describe('external id (mongoose)', () => {
     await task.save();
     await Task.updateOne({ _id: task._id }, { externalId: uuidv7() });
 
-    expect((await Task.findById(task._id)).externalId).toBe(externalId);
+    expect((await Task.findByKey(task._id)).externalId).toBe(externalId);
   });
 
   test('the document id never leaves the server', async () => {
@@ -141,6 +188,8 @@ describe('external id (mongoose)', () => {
 
     expect(note.externalId).toBeUndefined();
     expect(json._id).toBe(String(note._id));
+    // A model that opted out keeps the lookup it always had
     expect(String((await Note.findById(note._id))._id)).toBe(String(note._id));
+    expect(String((await Note.findByKey(note._id))._id)).toBe(String(note._id));
   });
 });
