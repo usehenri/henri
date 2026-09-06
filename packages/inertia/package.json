@@ -14,10 +14,20 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "./src/index.mjs",
+  "types": "./src/index.d.mts",
   "exports": {
-    ".": "./src/index.mjs",
-    "./engine": "./engine/index.js",
-    "./vite": "./vite.mjs",
+    ".": {
+      "types": "./src/index.d.mts",
+      "default": "./src/index.mjs"
+    },
+    "./engine": {
+      "types": "./engine/index.d.ts",
+      "default": "./engine/index.js"
+    },
+    "./vite": {
+      "types": "./vite.d.mts",
+      "default": "./vite.mjs"
+    },
     "./package.json": "./package.json"
   },
   "engines": {
@@ -26,6 +36,7 @@
   "files": [
     "engine",
     "src",
+    "vite.d.mts",
     "vite.mjs"
   ],
   "dependencies": {
