@@ -162,6 +162,20 @@ const worker = ([name], ctx) => {
 };
 
 /**
+ * Removes a mailer and its views
+ *
+ * @param {string[]} [name] Mailer name
+ * @param {object} ctx Context
+ * @return {void}
+ */
+const mailer = ([name], ctx) => {
+  const lower = name.toLowerCase();
+
+  deleteOrBackup('mailer', path.join('app', 'mailers', `${lower}.js`), ctx);
+  deleteOrBackup('view', path.join('app', 'views', 'mailers', lower), ctx);
+};
+
+/**
  * Removes a test file
  *
  * @param {string[]} [name] Test name
@@ -300,6 +314,7 @@ const deleteOrBackup = (type, relative, ctx) => {
 const destroyers = {
   controller,
   crud,
+  mailer,
   model,
   route,
   scaffold,

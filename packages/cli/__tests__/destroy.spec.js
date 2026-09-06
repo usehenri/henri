@@ -14,6 +14,7 @@ const populate = (app) => {
     ['g', 'scaffold', 'Post', 'title:string'],
     ['g', 'controller', 'locations', 'index', 'gps'],
     ['g', 'worker', 'cleanup'],
+    ['g', 'mailer', 'welcome', 'confirm'],
     ['g', 'test', 'things'],
   ]) {
     const result = henri(args, { cwd: app });
@@ -118,6 +119,17 @@ describe('henri destroy without git', () => {
       expect(stdout).toContain(`backed up ${args[1]} @ ${file}`);
       expect(exists(app, file)).toBe(false);
     }
+  });
+
+  test('mailer removes the file and its views, keeping the layout', () => {
+    const { status, stdout } = henri(['d', 'mailer', 'welcome'], { cwd: app });
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('backed up mailer @ app/mailers/welcome.js');
+    expect(exists(app, 'app/mailers/welcome.js')).toBe(false);
+    expect(exists(app, 'app/views/mailers/welcome')).toBe(false);
+    // The layout is shared by every mailer
+    expect(exists(app, 'app/views/mailers/layouts/mailer.hbs')).toBe(true);
   });
 
   test('reports a missing file without failing', () => {

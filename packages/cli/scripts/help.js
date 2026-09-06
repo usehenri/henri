@@ -205,6 +205,11 @@ const COMMANDS = [
         name: 'view <folder>',
       },
       { description: 'delete app/workers/<name>.js', name: 'worker <name>' },
+      {
+        description:
+          'delete app/mailers/<name>.js and app/views/mailers/<name>',
+        name: 'mailer <name>',
+      },
       { description: 'delete test/<name>.test.js', name: 'test <name>' },
       { description: 'undo "generate crud"', name: 'crud <Name>' },
       { description: 'undo "generate scaffold"', name: 'scaffold <Name>' },
@@ -237,8 +242,9 @@ const COMMANDS = [
   {
     aliases: ['g'],
     description: [
-      'Writes models, controllers, routes, views, workers and tests in the',
-      'henri layout. Existing files are skipped; --force overwrites them.',
+      'Writes models, controllers, routes, views, mailers, workers and tests',
+      'in the henri layout. Existing files are skipped; --force overwrites',
+      'them.',
       `Field types: ${FIELD_TYPES} (default: string).`,
       'A trailing ! makes the field required.',
       'Scaffolded controllers answer HAL to JSON clients (Accept:',
@@ -268,6 +274,11 @@ const COMMANDS = [
         description: 'Creates app/workers/cleanup.js with start and stop',
       },
       {
+        command: 'henri g mailer welcome confirm',
+        description:
+          'Creates app/mailers/welcome.js and app/views/mailers/welcome/confirm.hbs; preview it on /_mailers',
+      },
+      {
         command: 'henri g test highscores',
         description: 'Creates test/highscores.test.js using @usehenri/testing',
       },
@@ -285,7 +296,8 @@ const COMMANDS = [
       },
     ],
     name: 'generate',
-    summary: 'write models, controllers, routes, views, workers and tests',
+    summary:
+      'write models, controllers, routes, views, mailers, workers and tests',
     targets: [
       {
         description: 'app/models/<Name>.js (singular, PascalCase)',
@@ -298,6 +310,11 @@ const COMMANDS = [
       {
         description: 'app/workers/<name>.js with start and stop',
         name: 'worker <name>',
+      },
+      {
+        description:
+          'app/mailers/<name>.js, a mail view per action and the layout',
+        name: 'mailer <name> [action ...]',
       },
       {
         description: 'test/<name>.test.js using @usehenri/testing',

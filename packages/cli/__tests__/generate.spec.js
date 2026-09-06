@@ -375,6 +375,49 @@ describe('henri generate', () => {
       expect(typeof worker.stop).toBe('function');
     });
 
+    test('writes a mailer, its views and the shared layout', () => {
+      const { status } = henri(['g', 'mailer', 'welcome', 'confirm', 'reset'], {
+        cwd: app,
+      });
+
+      expect(status).toBe(0);
+      expect(() => parseFile(app, 'app/mailers/welcome.js')).not.toThrow();
+
+      const mailer = require(path.join(app, 'app/mailers/welcome.js'));
+
+      expect(typeof mailer.confirm).toBe('function');
+      expect(typeof mailer.reset).toBe('function');
+      expect(mailer.defaults.from).toContain('@');
+      expect(mailer.previews.confirm()).toEqual([
+        { email: 'ada@example.com', name: 'Ada' },
+      ]);
+      expect(mailer.confirm({ email: 'a@b.c' })).toMatchObject({
+        subject: 'Confirm',
+        to: 'a@b.c',
+      });
+
+      for (const file of [
+        'app/views/mailers/welcome/confirm.hbs',
+        'app/views/mailers/welcome/reset.hbs',
+        'app/views/mailers/layouts/mailer.hbs',
+        'app/views/mailers/layouts/mailer.text.hbs',
+      ]) {
+        expect(exists(app, file)).toBe(true);
+      }
+
+      // The layout is where the signature and the footer live
+      expect(read(app, 'app/views/mailers/layouts/mailer.hbs')).toContain(
+        '{{{body}}}'
+      );
+    });
+
+    test('a mailer without actions still gets a view', () => {
+      const { status } = henri(['g', 'mailer', 'alerts'], { cwd: app });
+
+      expect(status).toBe(0);
+      expect(exists(app, 'app/views/mailers/alerts/notify.hbs')).toBe(true);
+    });
+
     test('writes a test using @usehenri/testing', () => {
       const { status } = henri(['g', 'test', 'things'], { cwd: app });
 
