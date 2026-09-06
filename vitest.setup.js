@@ -2,6 +2,16 @@ const dns = require('node:dns');
 const net = require('node:net');
 
 /**
+ * The environment configures a henri application (see `0.config.js`), and
+ * `DATABASE_URL` is the one variable this repository does not own: a
+ * developer machine or a CI job may export it for something else entirely.
+ * The suites boot applications whose stores are their own (the demo app runs
+ * on @usehenri/disk, the SQL suites on sqlite), so the variable is dropped
+ * here rather than left to repoint them.
+ */
+delete process.env.DATABASE_URL;
+
+/**
  * Every test server binds the loopback address.
  *
  * `supertest(app)` starts an http server with `app.listen(0)` for each

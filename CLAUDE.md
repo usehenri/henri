@@ -92,8 +92,12 @@ an app and is what core's tests boot.
   (`global.henri`, `global.Task`). Under `NODE_ENV=test` core does not set the
   global; `@usehenri/testing` does.
 - Configuration is `config/<NODE_ENV>.json` (`dev.json` when unset) falling
-  back to `default.json`, plus `.env` in the app (`HENRI_SECRET` provides
-  `secret`, `HENRI_HOST` the bind address). Keys: `port`, `host`, `cors`,
+  back to `default.json`, plus `.env` in the app. The environment is applied
+  over the file that loaded (`0.config.js`): `HENRI_SECRET` sets `secret`,
+  `HENRI_HOST` `host`, `DATABASE_URL` `stores.default.url`, and
+  `HENRI_CONFIG__<key>` (`HENRI_CONFIG_JSON__<key>` for JSON) any other key,
+  whose type comes from the file; every key the environment provided is
+  printed at boot with the `filterParameters` masked. Keys: `port`, `host`, `cors`,
   `renderer`, `inertia`, `experimental`, `stores`, `secret`, `user` (string or
   `{ model, public, loginPath, afterLogin, sessionMaxAge }`), `baseRole`,
   `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `rateLimit`, `helmet`,

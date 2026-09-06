@@ -65,9 +65,11 @@ module.exports = (pkg, args) => {
   let command = argv._.shift();
 
   // Rails style: `henri db:migrate` is `henri db migrate`
-  if (command && command.startsWith('db:')) {
-    argv._.unshift(command.slice(3));
-    command = 'db';
+  for (const group of ['credentials', 'db']) {
+    if (command && command.startsWith(`${group}:`)) {
+      argv._.unshift(command.slice(group.length + 1));
+      command = group;
+    }
   }
 
   if (!command) {

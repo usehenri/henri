@@ -1,19 +1,19 @@
 #!/bin/sh
 #
-# Writes showcase/config/production.json from the environment, then runs the
-# given command. @usehenri/core reads config/<NODE_ENV>.json and expands no
-# environment variable, so a container writes the file at start time.
+# Lineup in a container. Nothing is written at start time: config/production.json
+# is committed and henri applies the environment over it, so this script only
+# checks what the application cannot start without, maps the two names the
+# platform owns to henri's configuration keys, and runs the optional seed.
 #
-#   DATABASE_URL   PostgreSQL connection string (required)
+#   DATABASE_URL   PostgreSQL connection string (required, stores.default.url)
 #   HENRI_SECRET   session and token secret (required)
-#   PORT           listening port, 3000 by default
-#   HENRI_MIGRATE  "false" to stop the boot from applying db/migrations
-#   HENRI_SEED     "true" to run db/seeds.js before starting
+#   PORT           listening port, 3000 by default (HENRI_CONFIG__port)
+#   HENRI_MIGRATE  "false" stops the boot from applying db/migrations
+#   HENRI_SEED     "true" runs db/seeds.js before starting
+#
+# Every other key is reachable as HENRI_CONFIG__<key>, no shim needed:
+#   -e HENRI_CONFIG__api__perPage=25 -e HENRI_CONFIG_JSON__inertia='{"ssr":false}'
 set -eu
-
-: "${PORT:=3000}"
-: "${HENRI_MIGRATE:=true}"
-: "${HENRI_SEED:=false}"
 
 if [ -z "${DATABASE_URL:-}" ]; then
   echo "lineup: DATABASE_URL is not set" >&2
@@ -25,43 +25,17 @@ if [ -z "${HENRI_SECRET:-}" ]; then
   exit 1
 fi
 
-node - <<'EOF'
-const fs = require('fs');
-const env = process.env;
+if [ -n "${PORT:-}" ]; then
+  HENRI_CONFIG__port="$PORT"
+  export HENRI_CONFIG__port
+fi
 
-const config = {
-  api: { maxPerPage: 50, perPage: 12, strict: true },
-  baseRole: 'speaker',
-  host: '0.0.0.0',
-  inertia: { ssr: true },
-  port: Number(env.PORT),
-  renderer: 'inertia',
-  secret: env.HENRI_SECRET,
-  stores: {
-    default: {
-      adapter: 'drizzle',
-      dialect: 'postgres',
-      // The production boot applies db/migrations when this is true
-      migrate: env.HENRI_MIGRATE !== 'false',
-      url: env.DATABASE_URL,
-    },
-  },
-  user: {
-    afterLogin: '/proposals/mine',
-    loginPath: '/login',
-    model: 'user',
-    public: ['name', 'company'],
-  },
-};
+if [ "${HENRI_MIGRATE:-true}" = "false" ]; then
+  HENRI_CONFIG__stores__default__migrate=false
+  export HENRI_CONFIG__stores__default__migrate
+fi
 
-fs.mkdirSync('config', { recursive: true });
-fs.writeFileSync(
-  'config/production.json',
-  `${JSON.stringify(config, null, 2)}\n`
-);
-EOF
-
-if [ "$HENRI_SEED" = "true" ]; then
+if [ "${HENRI_SEED:-false}" = "true" ]; then
   echo "lineup: seeding"
   node_modules/.bin/henri db:seed --production
 fi

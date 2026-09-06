@@ -10,8 +10,11 @@
 # and replace the `henri new app --skip-install` step with `COPY . .` (keep
 # the .dockerignore next to it).
 #
-# Runtime configuration. @usehenri/core reads config/<NODE_ENV>.json and does
-# not expand environment variables, so entrypoint.sh writes
+# Runtime configuration. From @usehenri/core 1.2 the environment configures an
+# application on its own (`DATABASE_URL`, `HENRI_CONFIG__<key>`; see
+# showcase/Dockerfile in the repository, which needs no file written at start
+# time). This image installs `henri@latest` from npm and must keep working
+# with the versions that read no environment variable, so entrypoint.sh writes
 # config/production.json from these variables every time the container starts:
 #
 #   HENRI_STORE_URL      connection string of the default store, for example

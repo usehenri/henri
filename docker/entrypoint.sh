@@ -1,7 +1,9 @@
 #!/bin/sh
 #
 # Writes config/production.json from the environment (the variables are
-# documented in the Dockerfile), then runs the given command.
+# documented in the Dockerfile), then runs the given command. From
+# @usehenri/core 1.2 an application reads the environment itself and this file
+# is only needed by the images that install an older henri from npm.
 set -eu
 
 node - <<'EOF'
