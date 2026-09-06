@@ -1709,6 +1709,41 @@ Usually:
 
 **Fix.** Check uploads.storage: it needs an adapter, a bucket and a region, and credentials from the environment or from the block.
 
+### `HENRI_UPLOAD_URLS_DISABLED`
+
+A signed url was asked for and this application cannot make one.
+
+Usually:
+
+- uploads.urls is false, or absent, which is the default
+- the storage signs no url of its own and the application has no config.secret
+- a storage of the application's own whose url() answered null
+
+**Fix.** Turn them on with { "uploads": { "urls": { "expiresIn": 300 } } } and set HENRI_SECRET, or hand the file back from a controller with henri.uploads.send().
+
+### `HENRI_UPLOAD_URL_EXPIRED`
+
+A signed url henri really signed was followed after its expiry.
+
+Usually:
+
+- the link is older than the window it was signed for
+- a clock that moved between the signing process and this one
+
+**Fix.** Ask the application for another link. Widen uploads.urls.expiresIn if every link is expiring before it is followed.
+
+### `HENRI_UPLOAD_URL_INVALID`
+
+A signed url did not verify.
+
+Usually:
+
+- the url was edited: another key, a wider window, another disposition
+- config.secret was rotated, which invalidates every outstanding link
+- the object the link names is no longer in the storage
+
+**Fix.** Ask the application for the link again rather than building one by hand: everything a signed url carries is covered by its signature.
+
 ## user
 
 The user module: sessions, passwords, tokens and the CSRF protection.

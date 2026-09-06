@@ -79,7 +79,11 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const debug = require('debug')('henri:s3');
 
-const { LocalStorage, isKey } = require('@usehenri/uploads');
+const {
+  LocalStorage,
+  contentDisposition,
+  isKey,
+} = require('@usehenri/uploads');
 
 const { S3Client } = require('./client');
 const { coded } = require('./errors');
@@ -357,12 +361,14 @@ class S3Storage {
    * store refuses it once `X-Amz-Expires` seconds have passed since
    * `X-Amz-Date`.
    *
-   * `disposition` and `type` are signed too, as `response-content-*`
-   * overrides, which is what keeps a link to an uploaded file a download
-   * rather than a page.
+   * `disposition`, `filename` and `type` are signed too, as
+   * `response-content-*` overrides, which is what keeps a link to an
+   * uploaded file a download rather than a page: the store answers with the
+   * header the signature named, and a client that edits it has a url the
+   * store refuses.
    *
    * @param {string} key the key
-   * @param {object} [options={}] `{ expiresIn, disposition, type, now }`
+   * @param {object} [options={}] `{ expiresIn, disposition, filename, type, now }`
    * @returns {string} the url
    * @throws when the key is unsafe or the window is one S3 refuses
    * @memberof S3Storage
@@ -373,7 +379,10 @@ class S3Storage {
     const query = {};
 
     if (options.disposition) {
-      query['response-content-disposition'] = options.disposition;
+      query['response-content-disposition'] = contentDisposition(
+        options.filename || 'file',
+        options.disposition
+      );
     }
 
     if (options.type) {

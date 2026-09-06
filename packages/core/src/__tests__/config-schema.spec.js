@@ -213,6 +213,7 @@ describe('the configuration schema', () => {
           bucket: 'henri-uploads',
           region: 'us-east-1',
         },
+        urls: { expiresIn: 300, path: '/_uploads' },
       },
       user: {
         afterLogin: '/',
@@ -485,6 +486,10 @@ describe('the schema, the declarations and the documentation', () => {
     [
       'UploadStorageConfig',
       () => Object.keys(SCHEMA.uploads.oneOf[1].keys.storage.oneOf[1].keys),
+    ],
+    [
+      'UploadUrlsConfig',
+      () => Object.keys(SCHEMA.uploads.oneOf[1].keys.urls.oneOf[1].keys),
     ],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
     ['MailersConfig', () => Object.keys(SCHEMA.mailers.keys)],

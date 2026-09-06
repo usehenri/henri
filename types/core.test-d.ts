@@ -291,6 +291,14 @@ expectType<Promise<boolean>>(uploads.delete(await scan.store()));
 
 uploads.send(res, await scan.store(), { disposition: 'inline' });
 
+expectType<Promise<string>>(uploads.url(await scan.store()));
+expectType<Promise<string>>(
+  uploads.url('a-key', { disposition: 'inline', expiresIn: 60 })
+);
+
+// @ts-expect-error a signed url lasts a number of seconds
+uploads.url('a-key', { expiresIn: '5m' });
+
 // @ts-expect-error `henri.uploads` may be undefined: check it first
 henri.uploads.send(res, 'a-key');
 
@@ -299,6 +307,16 @@ uploads.send(res, 'a-key', { disposition: 'embed' });
 
 // @ts-expect-error `uploads` is not a configuration key of the file store
 const badUploads: Configuration = { uploads: { maxFileSize: true } };
+
+const signedUrls: Configuration = {
+  uploads: {
+    storage: { adapter: 's3', bucket: 'henri-uploads', region: 'us-east-1' },
+    urls: { cdn: 'https://files.example.com', expiresIn: 300 },
+  },
+};
+
+// @ts-expect-error a window is a number of seconds
+const badUrls: Configuration = { uploads: { urls: { expiresIn: '5m' } } };
 
 // --- request ----------------------------------------------------------------
 

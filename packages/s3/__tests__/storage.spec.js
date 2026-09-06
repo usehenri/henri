@@ -219,10 +219,16 @@ describe('a presigned url', () => {
     await storage.put(await part(storage), KEY, { type: 'image/png' });
 
     const url = storage.url(KEY, {
-      disposition: 'attachment; filename="ada.png"',
+      disposition: 'attachment',
       expiresIn: 60,
+      filename: 'Portrait of Ada.png',
       type: 'image/png',
     });
+
+    // The name is in the response override the signature covers, never in
+    // the key: an edited disposition is a url the store refuses
+    expect(decodeURIComponent(url)).toContain('Portrait of Ada.png');
+
     const answer = await fetch(url);
 
     expect(answer.status).toBe(200);

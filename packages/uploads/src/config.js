@@ -16,6 +16,7 @@
  * whichever encoding a form was posted with.
  */
 const { bytes } = require('./bytes');
+const { EXPIRES_IN, MAX_EXPIRES, PATH } = require('./signing');
 
 /** The defaults, and the table the documentation prints */
 const DEFAULTS = {
@@ -31,6 +32,7 @@ const DEFAULTS = {
   root: 'storage/uploads',
   sniff: true,
   storage: 'local',
+  urls: false,
 };
 
 /** The methods a body is read from; anything else never carries an upload */
@@ -128,6 +130,36 @@ const pathList = (value) => {
 };
 
 /**
+ * Signed urls: off, or the settings of the ones this application hands out.
+ *
+ * Off is the default, and it is fail-closed rather than shy. A signed url
+ * is a bearer capability -- whoever holds the link holds the file, until it
+ * expires -- and on the local disk it also mounts a route that serves bytes
+ * without asking the application anything. Neither is a thing to acquire by
+ * installing a package; both are one line of configuration.
+ *
+ * @param {*} value what the configuration holds under `urls`
+ * @returns {(false|object)} the settings, or false
+ */
+const urlsOf = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const seconds = Number(value.expiresIn);
+  const declared = typeof value.path === 'string' && value.path.startsWith('/');
+
+  return {
+    cdn: typeof value.cdn === 'string' ? value.cdn.replace(/\/+$/u, '') : '',
+    expiresIn:
+      Number.isInteger(seconds) && seconds > 0 && seconds <= MAX_EXPIRES
+        ? seconds
+        : EXPIRES_IN,
+    path: declared ? value.path.replace(/\/+$/u, '') || PATH : PATH,
+  };
+};
+
+/**
  * The settings of the uploads module
  *
  * @param {object} config henri's config module (anything with get/has)
@@ -169,6 +201,7 @@ function settings(config) {
     sniff: uploads.sniff !== false,
     storage: storage.name,
     storageOptions: storage.options,
+    urls: urlsOf(uploads.urls),
   };
 }
 
@@ -203,4 +236,5 @@ module.exports = {
   covers,
   settings,
   storageOf,
+  urlsOf,
 };

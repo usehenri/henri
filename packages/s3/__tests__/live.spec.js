@@ -159,12 +159,16 @@ describe.skipIf(!live)('a real object store', () => {
   test('a disposition the url asked for comes back on the answer', async () => {
     const answer = await fetch(
       storage.url(KEY, {
-        disposition: 'attachment; filename="ada.png"',
+        disposition: 'attachment',
         expiresIn: 60,
+        filename: 'Portrait of Ada.png',
       })
     );
 
     expect(answer.headers.get('content-disposition')).toContain('attachment');
+    expect(answer.headers.get('content-disposition')).toContain(
+      'Portrait of Ada.png'
+    );
   });
 
   test('an object that is not there is null rather than a throw', async () => {

@@ -1591,6 +1591,41 @@ const SCHEMA = {
               },
             ],
           },
+          urls: {
+            default: false,
+            describe:
+              'an object of signed url settings, or false to hand out none',
+            hint: 'A signed url hands a file to whoever holds the link, with no session and no policy, until it expires: it is off until this says otherwise',
+            oneOf: [
+              { const: false },
+              {
+                keys: {
+                  cdn: text({
+                    describe:
+                      "a base url henri's own signed urls are built against",
+                    hint: "The host is outside henri's signature, so a cache may sit in front of the route; a storage that signs its own names its public host in its own block instead",
+                  }),
+                  expiresIn: {
+                    default: 300,
+                    describe:
+                      'a whole number of seconds, from 1 to 604800 (a week)',
+                    integer: true,
+                    max: 604800,
+                    min: 1,
+                    type: 'number',
+                  },
+                  path: text({
+                    default: '/_uploads',
+                    describe:
+                      'a path, where the route verifying them is mounted',
+                    hint: 'Only used by a storage that signs no url of its own, which is the local disk',
+                    pattern: /^\//u,
+                  }),
+                },
+                type: 'object',
+              },
+            ],
+          },
         },
         type: 'object',
       },

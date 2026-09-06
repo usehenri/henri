@@ -3,11 +3,20 @@ const BaseModule = require('@usehenri/core/module');
 const debug = require('debug')('henri:uploads');
 
 const { DEFAULTS, settings: settingsOf } = require('./config');
-const { format } = require('./bytes');
+const { UploadedFile } = require('./file');
+const { UrlSigner } = require('./signing');
+const { coded } = require('./errors');
 const { contentDisposition } = require('./names');
 const { createStorage } = require('./storage');
+const { downloads } = require('./download');
+const { format } = require('./bytes');
 const { middleware } = require('./multipart');
-const { UploadedFile } = require('./file');
+
+/**
+ * A key of the shape henri generates that names no object, for asking a
+ * storage whether it signs its own urls without naming anybody's file
+ */
+const PROBE = `${'0'.repeat(32)}.bin`;
 
 /**
  * File uploads: the henri module this package ships.
@@ -94,11 +103,24 @@ const { UploadedFile } = require('./file');
  * `src/storage/local.js`) is to uploads what `HenriAdapter` is to the
  * stores: `start`, `stop`, `temp`, `put`, `get`, `stat`, `delete`, `url`.
  * The local disk is one implementation and ships; an object store is
- * another, named by module id in `config.uploads.storage` and resolved from
- * the application the way a rate limit store is. henri ships no S3 client.
+ * another, `@usehenri/s3`, which `config.uploads.storage` names and which
+ * the application installs -- so a signature implementation and an HTTP
+ * client are not in the install of everyone who accepts a file.
  * `temp()` is part of the contract because only the storage knows where a
  * part should land so that keeping it is cheap -- a rename on the same
  * filesystem, locally.
+ *
+ * **Signed urls.** `url()` used to be allowed to answer `null` forever, and
+ * on the local disk it did. That is a hole rather than a design: an
+ * application that wanted a link had to write a controller, a route and an
+ * authorization check for every file it showed, and the framework said
+ * nothing about how. `henri.uploads.url(record)` is now one call whatever
+ * the backend: an object store presigns it (the provider's own signature),
+ * and the local disk gets henri's own -- an HMAC over the key, the expiry,
+ * the disposition, the name and the type, verified by a route this module
+ * mounts (`src/signing.js`, `src/download.js`). Both are off until
+ * `config.uploads.urls` says otherwise, because a signed url is a bearer
+ * capability and that is a decision, not a default.
  *
  * **Nothing is kept by default.** A parsed file lives in the storage's
  * temporary area until a controller calls `store()`. Everything else is
@@ -156,6 +178,7 @@ class UploadsModule extends BaseModule {
     this.enabled = false;
     this.settings = null;
     this.storage = null;
+    this.signer = null;
 
     this._mounted = false;
 
@@ -163,6 +186,7 @@ class UploadsModule extends BaseModule {
     this.reload = this.reload.bind(this);
     this.stop = this.stop.bind(this);
     this.send = this.send.bind(this);
+    this.url = this.url.bind(this);
   }
 
   /**
@@ -192,6 +216,7 @@ class UploadsModule extends BaseModule {
     }
 
     this.storage = createStorage(this.henri, this.settings);
+    this.signer = this.signerOf();
 
     try {
       await this.storage.start();
@@ -214,6 +239,26 @@ class UploadsModule extends BaseModule {
 
     if (this.settings.allow) {
       pen.info('uploads', 'accepted types', this.settings.allow.join(', '));
+    }
+
+    if (this.settings.urls) {
+      pen.info(
+        'uploads',
+        'signed urls',
+        `${this.settings.urls.expiresIn}s, ${
+          this.signs()
+            ? `signed by ${this.storage.name}`
+            : `verified at ${this.settings.urls.path}`
+        }`
+      );
+
+      if (!this.signs() && !this.signer.usable) {
+        pen.warn(
+          'uploads',
+          'signed urls are on, but this application has no secret',
+          'henri.uploads.url() will refuse: set HENRI_SECRET'
+        );
+      }
     }
 
     if (!this.settings.sniff) {
@@ -241,10 +286,56 @@ class UploadsModule extends BaseModule {
     }
 
     server.app.use(middleware(this));
+    // After the parser, because the parser's position is what cannot move.
+    // Both are mounted whether or not anything is on: what a reload changes
+    // is what they do, never whether they are there
+    server.app.use(downloads(this));
 
     this._mounted = true;
 
     return true;
+  }
+
+  /**
+   * The signer of henri's own urls, built from `config.secret`
+   *
+   * @returns {UrlSigner} the signer
+   * @memberof UploadsModule
+   */
+  signerOf() {
+    const urls = this.settings.urls || {};
+
+    return new UrlSigner({
+      cdn: urls.cdn,
+      expiresIn: urls.expiresIn,
+      path: urls.path,
+      secret: this.henri.config.get('secret'),
+    });
+  }
+
+  /**
+   * Does the storage sign its own urls?
+   *
+   * Asked rather than declared: the contract's `url()` answers null when
+   * there is no such thing, so the answer is what it answers. The probe is a
+   * key of the shape henri generates that names no object, because both
+   * backends refuse anything else before they look at whether it is there.
+   *
+   * @returns {boolean} true when the storage has urls of its own
+   * @memberof UploadsModule
+   */
+  signs() {
+    if (!this.storage || typeof this.storage.url !== 'function') {
+      return false;
+    }
+
+    try {
+      return typeof this.storage.url(PROBE, { expiresIn: 60 }) === 'string';
+    } catch (error) {
+      debug('%s signs no url: %s', this.storage.name, error.message);
+
+      return false;
+    }
   }
 
   /**
@@ -258,6 +349,7 @@ class UploadsModule extends BaseModule {
     const previous = this.storage;
 
     this.settings = settingsOf(this.henri.config);
+    this.signer = this.signerOf();
     this.mount(this.henri.server);
 
     if (!this.settings.enabled) {
@@ -341,6 +433,77 @@ class UploadsModule extends BaseModule {
   }
 
   /**
+   * A time-limited url that hands a stored file to a client.
+   *
+   * One call, two implementations, the same semantics. On an object store it
+   * is the provider's own signature, which covers the method, the host, the
+   * key and every query parameter -- the expiry among them -- and the store
+   * refuses it once the window has passed; the bytes never reach this
+   * process. On the local disk it is henri's own (`src/signing.js`), covering
+   * the key, the expiry, the disposition, the download name and the type,
+   * verified by the route this module mounts.
+   *
+   * Neither can be edited to name another object and neither survives its
+   * expiry. What both **are**, until then, is a bearer capability: whoever
+   * holds the link holds the file, and no session is consulted. That is the
+   * point of a signed url and the reason they are off unless
+   * `config.uploads.urls` turns them on -- a file that must be checked per
+   * viewer is handed back by a controller and `send()` instead.
+   *
+   * @async
+   * @param {(object|string)} record what `store()` returned, or its key
+   * @param {object} [options={}] `{ expiresIn, disposition, filename, type }`
+   * @returns {Promise<string>} the url
+   * @throws when signed urls are off, unsignable, or the argument is not a record
+   * @memberof UploadsModule
+   */
+  async url(record, options = {}) {
+    const file = typeof record === 'string' ? { key: record } : record || {};
+    const storage = this.ready();
+
+    if (!file.key) {
+      throw new Error('henri.uploads.url() needs the record store() returned');
+    }
+
+    if (!this.settings.urls) {
+      throw coded(
+        'HENRI_UPLOAD_URLS_DISABLED',
+        'this application hands out no signed urls: add { "uploads": { "urls": { "expiresIn": 300 } } } to the configuration, or hand the file back from a controller with henri.uploads.send()',
+        { key: file.key }
+      );
+    }
+
+    const asked = {
+      disposition: options.disposition || 'attachment',
+      expiresIn:
+        options.expiresIn === undefined || options.expiresIn === null
+          ? this.settings.urls.expiresIn
+          : options.expiresIn,
+      filename: options.filename || file.name || null,
+      now: options.now,
+      type: options.type || file.type || null,
+    };
+    const own =
+      typeof storage.url === 'function'
+        ? await storage.url(file.key, asked)
+        : null;
+
+    if (typeof own === 'string') {
+      return own;
+    }
+
+    if (!this.signer.usable) {
+      throw coded(
+        'HENRI_UPLOAD_URLS_DISABLED',
+        `${storage.name} signs no url of its own, and this application has no secret for henri to sign one with: set HENRI_SECRET`,
+        { key: file.key }
+      );
+    }
+
+    return this.signer.sign(file.key, asked);
+  }
+
+  /**
    * A readable stream of a stored file
    *
    * @async
@@ -400,6 +563,7 @@ class UploadsModule extends BaseModule {
 
     await this.storage.stop();
     this.enabled = false;
+    this.signer = null;
 
     return this.name;
   }

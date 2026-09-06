@@ -64,6 +64,7 @@ describe('the settings', () => {
       sniff: true,
       storage: 'local',
       storageOptions: {},
+      urls: false,
     });
   });
 

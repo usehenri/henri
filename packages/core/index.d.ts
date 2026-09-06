@@ -1060,6 +1060,34 @@ declare namespace start {
      * an object naming one and carrying its settings.
      */
     storage?: string | UploadStorageConfig;
+    /**
+     * Signed urls: a time-limited link that hands a file to whoever holds
+     * it, with no session and no policy. `false` (the default) hands out
+     * none, and `henri.uploads.url()` refuses.
+     */
+    urls?: false | UploadUrlsConfig;
+  }
+
+  /**
+   * `config.uploads.urls`: what a signed url covers and how long it lasts.
+   * On an object store it is the provider's own signature; on the local
+   * disk it is henri's, verified by a route mounted at `path`.
+   */
+  interface UploadUrlsConfig {
+    /**
+     * A base url henri's own signed urls are built against. The host is
+     * outside henri's signature, so a cache may sit in front of the route;
+     * a storage that signs its own urls names its public host in its own
+     * block instead, because a provider's signature covers the host.
+     */
+    cdn?: string;
+    /** How long a url lasts, in seconds (`300`); a week at most. */
+    expiresIn?: number;
+    /**
+     * Where the route that verifies henri's own signed urls is mounted
+     * (`"/_uploads"`). Unused by a storage that signs its own.
+     */
+    path?: string;
   }
 
   /**
@@ -3592,6 +3620,23 @@ declare namespace start {
       record: StoredFile | string,
       options?: { disposition?: 'attachment' | 'inline'; maxAge?: number }
     ): Promise<unknown>;
+    /**
+     * A time-limited url that hands a stored file to a client without this
+     * process reading it: the provider's own signature on an object store,
+     * henri's own on the local disk. It is a bearer capability -- whoever
+     * holds the link holds the file until it expires -- so it needs
+     * `config.uploads.urls`, and refuses with `HENRI_UPLOAD_URLS_DISABLED`
+     * without it.
+     */
+    url(
+      record: StoredFile | string,
+      options?: {
+        expiresIn?: number;
+        disposition?: 'attachment' | 'inline';
+        filename?: string;
+        type?: string;
+      }
+    ): Promise<string>;
     /** A readable stream of a stored file. */
     get(record: StoredFile | string): Promise<NodeJS.ReadableStream>;
     /** Removes a stored file. */
