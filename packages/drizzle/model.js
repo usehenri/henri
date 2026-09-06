@@ -1303,6 +1303,12 @@ class Model {
    * @memberof Model
    */
   static async updateWhere(where, attrs, options = {}) {
+    // Both ways in end here: Model.update() checks and then builds a
+    // relation, and Model.where(...).update() builds one straight away. The
+    // funnel is where the check belongs, or the fluent spelling is the one
+    // place an unknown option is still dropped in silence
+    checkOptions(this, 'update', options);
+
     const values = await this.prepare(
       'update',
       attrs,
@@ -1337,6 +1343,8 @@ class Model {
    * @memberof Model
    */
   static async destroyWhere(where, options = {}) {
+    checkOptions(this, 'destroy', options);
+
     if (this.paranoid && !options.force) {
       return this.setWhere(where, { deletedAt: new Date() });
     }

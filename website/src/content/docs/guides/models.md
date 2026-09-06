@@ -16,7 +16,7 @@ The model ids are also written to `.henri/globals.json` on boot; the scaffolded 
 module.exports = {
   store: 'default', // a store name from your configuration (default: 'default')
   name: 'tasks', // collection or table name (optional, the ORM names it otherwise)
-  options: {}, // timestamps: false, paranoid: true, and the ORM's own options
+  options: {}, // timestamps: false, paranoid: true, externalId, personal, retention
   schema: {
     name: { type: 'string', required: true },
     category: {

@@ -103,6 +103,33 @@ describe('calls that would silently mean something else', () => {
     ).toBe('HENRI_MODEL_UNKNOWN_OPTION');
   });
 
+  test('the fluent spelling is checked too, not only the static one', async () => {
+    await Task.create({ category: 'high', name: 'fluent' });
+
+    // `Model.update(where, attrs, options)` checks and then builds this
+    // relation; `Model.where(...).update(attrs, options)` builds it
+    // straight away, and a write that thought it was inside a transaction
+    // is the same defect whichever way it was written
+    await expect(
+      Task.where({ name: 'fluent' }).update(
+        { category: 'low' },
+        { transaction: {} }
+      )
+    ).rejects.toMatchObject({
+      code: 'HENRI_MODEL_UNKNOWN_OPTION',
+      message: expect.stringContaining('store.transaction()'),
+    });
+
+    await expect(
+      Task.where({ name: 'fluent' }).destroy({ cascade: true })
+    ).rejects.toMatchObject({ code: 'HENRI_MODEL_UNKNOWN_OPTION' });
+
+    // Neither call touched the row
+    const [task] = await Task.find({ name: 'fluent' });
+
+    expect(task.category).toBe('high');
+  });
+
   test('a condition keyed by a symbol is refused rather than dropped', async () => {
     const Op = { like: Symbol('like') };
 
