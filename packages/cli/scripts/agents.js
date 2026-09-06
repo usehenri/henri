@@ -385,6 +385,30 @@ const routeLines = (routes) => {
 };
 
 /**
+ * What sits directly under `app/views/pages`: a directory is a resource
+ * (`tasks/`) and a file is a page (`index`). One level only -- the point is
+ * to say which pages exist, not to print the tree.
+ *
+ * @param {string} dir The pages directory
+ * @returns {Array<string>} The entries, sorted
+ */
+const pagesOf = (dir) => {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => !entry.name.startsWith('.'))
+      .map((entry) =>
+        entry.isDirectory()
+          ? `${entry.name}/`
+          : entry.name.replace(/\.\w+$/u, '')
+      )
+      .sort();
+  } catch {
+    return [];
+  }
+};
+
+/**
  * Everything the file says, read from the application and from nothing
  * else. One argument, one answer: that is what makes a scaffolded
  * application and a regenerated one agree.
@@ -474,7 +498,7 @@ const describe = (dir = process.cwd()) => {
     modules: listModules(inside('app', 'modules')),
     name: String(manifest.name || path.basename(path.resolve(dir))),
     packages: Object.keys(KNOWN).filter((name) => declared[name]),
-    pages: fs.existsSync(inside('app', 'views', 'pages')),
+    pages: pagesOf(inside('app', 'views', 'pages')),
     policies: listModules(inside('app', 'policies')),
     renderer: RENDERERS[renderer] ? renderer : DEFAULT_RENDERER,
     routes: { count: routes.length, lines: routeLines(routes) },
@@ -534,7 +558,7 @@ const layout = (facts) => {
     ],
     [
       '`app/views/pages/`',
-      `${engine} pages (\`.${ext}\`); \`pages/posts/index.${ext}\` answers \`/posts\`. Components in \`app/views/components/\`, the one stylesheet in \`app/views/styles/index.css\`.`,
+      `${engine} pages (\`.${ext}\`); \`pages/posts/index.${ext}\` answers \`/posts\`. Components in \`app/views/components/\`, the one stylesheet in \`app/views/styles/index.css\`. Here: ${listed(facts.pages)}.`,
     ],
     [
       '`config/routes.js`',
