@@ -16,6 +16,12 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # string-width is ESM only from 5. Core is CommonJS and requires it in
+      # the logger, so a major would break the boot. Revisit with an ESM core.
+      - dependency-name: string-width
+        update-types:
+          - version-update:semver-major
     commit-message:
       prefix: 'chore(deps)'
 
