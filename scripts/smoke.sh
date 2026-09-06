@@ -123,8 +123,10 @@ node -e "
   fs.writeFileSync(file, JSON.stringify(config, null, 2));
 "
 
+# `henri new` declares henri as a dependency; the override above points it at
+# the packed tarball, so nothing has to be added by hand
 log "pnpm install (henri from $henri_tarball)"
-pnpm add --save-dev "$henri_tarball"
+pnpm install
 pnpm ls --depth 0
 
 # ---------------------------------------------------------------------------
