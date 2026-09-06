@@ -123,8 +123,8 @@ an app and is what core's tests boot.
   (string or `{ model, public, loginPath, afterLogin, sessionMaxAge, signup,
 passwordReset, confirmation }`), `baseRole`, `policies`,
   `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `jobs`,
-  `rateLimit`, `helmet`, `filterParameters`, `bodyLimit`, `uploads`,
-  `requestTimeout`, `shutdown`, `errors`, `policies`.
+  `rateLimit`, `shared`, `cache`, `helmet`, `filterParameters`, `bodyLimit`,
+  `uploads`, `requestTimeout`, `shutdown`, `errors`, `policies`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
@@ -194,6 +194,25 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   uncounted), and the idempotency keys are always closed. `/readyz` pings it,
   `henri doctor` reports it unreachable, and the boot line of the rate limit
   says where the counting happens.
+- The cache is `henri.cache` (`3.cache.js`, `base/cache.js`), the fourth
+  thing that wants that backend and the one that follows neither answer of
+  `onError`: it takes the store through `SharedStore#unguarded` and a
+  backend that is down is a miss, because a cache holds no truth. Without
+  `config.shared` it is this process's memory, bounded twice
+  (`cache.maxEntries` 1000, `cache.maxSize` 32mb, least recently used out
+  first); `config.cache.store` still names a module of its own. `get`,
+  `set`, `delete`, `clear`, `scope(name)` and `fetch(key, [options], fn)`,
+  which keeps one promise per key while the function runs, so a hundred
+  concurrent misses in one process run it once (across processes the bound
+  is the number of processes, deliberately -- a lock needs a lease and a
+  lease needs a guess). A value is JSON plus `Date`, encoded to a string
+  (both backends keep the same thing, and no reader can mutate another's);
+  a model instance, `undefined`, `NaN`, a `Map`, a `Buffer` or anything
+  circular is refused (`HENRI_CACHE_VALUE_UNSUPPORTED`) rather than stored
+  to come back wrong, and a value past `cache.maxEntrySize` (256kb) is not
+  stored at all. Every entry has a TTL; henri invalidates nothing on its
+  own. Values never reach a log line and a key matching `filterParameters`
+  is masked there.
 - `SIGINT` and `SIGTERM` drain before they stop (`base/shutdown.js`,
   `2.server.js`): readiness turns 503, `config.shutdown.delay` passes, the
   listener closes and the idle keep-alives are hung up, the requests in

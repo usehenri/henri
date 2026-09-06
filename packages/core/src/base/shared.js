@@ -54,6 +54,13 @@ const debug = require('debug')('henri:shared');
  * Either way it is said out loud: every fallthrough is logged (at most once
  * every ten seconds per feature, so a long outage does not become the log).
  *
+ * The cache (`base/cache.js`) is the fourth thing that wants this backend
+ * and the one that follows neither answer: it takes the store through
+ * `unguarded()` and treats a backend that is down as a miss. A guard that
+ * cannot count is not a guard; a cache holds no truth, so refusing a
+ * request because a copy is unavailable would turn an optimization into an
+ * outage.
+ *
  * The session store is not part of this. It goes through the database
  * adapter (`base/session-store.js`), which is already shared by every
  * process, so it was never one of the counters this closes -- see the
@@ -494,6 +501,35 @@ class SharedStore {
     this.stores.push(guarded);
 
     return guarded;
+  }
+
+  /**
+   * The backend's own store for a feature, without the failure policy.
+   *
+   * The cache (`base/cache.js`) takes this one: a cache is not a guard, so
+   * a backend that does not answer is a miss rather than a 503, and it owns
+   * the reporting that goes with saying so. Everything that blocks a
+   * request goes through `keyValueStore()` instead, which is where
+   * `onError` lives.
+   *
+   * @param {string} feature what the keys are for (`cache`)
+   * @param {object} [options={}] passed to the backend (`{ raw: true }`
+   *   asks a backend that serializes for itself to leave the value alone)
+   * @returns {object} the backend's store
+   * @memberof SharedStore
+   */
+  unguarded(feature, options = {}) {
+    const store = this.backend.keyValueStore(feature, options);
+
+    if (!store.name) {
+      // Whoever takes it says in a boot line where it is; a store built for
+      // one feature does not have to know the name of its own adapter
+      store.name = this.name;
+    }
+
+    this.stores.push(store);
+
+    return store;
   }
 
   /**

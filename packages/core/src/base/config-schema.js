@@ -907,6 +907,50 @@ const SCHEMA = {
     unknown: 'near',
   },
 
+  cache: {
+    describe: 'an object of cache settings, or false to turn the cache off',
+    hint: "henri.cache is this process's memory unless config.shared names a backend, and then it is that one",
+    oneOf: [
+      { const: false },
+      {
+        keys: {
+          enabled: {
+            default: true,
+            describe: 'true or false',
+            hint: 'false keeps the block; every fetch then runs its function',
+            type: 'boolean',
+          },
+          maxEntries: {
+            default: 1000,
+            describe: 'a whole number of entries, above zero',
+            hint: 'The memory backend only: the least recently used goes first',
+            integer: true,
+            min: 1,
+            type: 'number',
+          },
+          maxEntrySize: size({
+            default: '256kb',
+            hint: 'What one value may weigh, encoded, on any backend: a bigger one is not cached',
+          }),
+          maxSize: size({
+            default: '32mb',
+            hint: 'Everything the memory backend holds',
+          }),
+          store: {
+            describe: 'the module id of a { get, set, delete } store',
+            hint: 'defaults to config.shared; without one the cache is this process',
+            oneOf: [{ const: null }, text()],
+          },
+          ttl: duration({
+            default: '5m',
+            hint: 'How long an entry lives when a call does not say',
+          }),
+        },
+        type: 'object',
+      },
+    ],
+  },
+
   helmet: {
     describe: 'an object of helmet options, or false to disable helmet',
     oneOf: [{ const: false }, { type: 'object', unknown: 'allow' }],

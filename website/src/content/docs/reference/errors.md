@@ -381,6 +381,53 @@ Usually:
 
 **Fix.** `await setup()` in `beforeAll`, or add `@usehenri/testing/setup-file` to the `setupFiles` of the vitest configuration.
 
+## cache
+
+The cache of `henri.cache`: the keys it is given, the values it is asked to keep and the backend they go to.
+
+### `HENRI_CACHE_KEY_INVALID`
+
+Something that cannot become a cache key was used as one.
+
+Usually:
+
+- a key built out of `null`, `undefined` or a class instance
+- an empty string, an empty array, or a key holding a control character
+
+**Fix.** Key on a string, a number, a Date, an array of them (`["user", id]`) or a plain object, or give the object a `cacheKey()` method.
+
+### `HENRI_CACHE_STORE_INCAPABLE`
+
+The cache backend cannot do what was asked of it.
+
+Usually:
+
+- `config.cache.store` names a store without a `clear(prefix)` method
+
+**Fix.** Delete the keys you know with `henri.cache.delete()`, or give the store a `clear(prefix)` method that removes every key of a prefix.
+
+### `HENRI_CACHE_TTL_INVALID`
+
+The lifetime given to a cache entry is not a duration.
+
+Usually:
+
+- a `ttl` that is not a duration
+- a `ttl` of `0`, or a negative one, meant as "forever"
+
+**Fix.** Use milliseconds or a duration: `'30s'`, `'5m'`, `'2h'`, `'1d'`. Every entry has one -- there is no forever -- and `config.cache.ttl` is the default when a call says nothing.
+
+### `HENRI_CACHE_VALUE_UNSUPPORTED`
+
+A value was refused because it would not come back the way it went in.
+
+Usually:
+
+- a model instance, or any other class instance, handed to `set()` or returned by a `fetch()` function
+- `undefined`, `NaN`, `Infinity`, a Map, a Set, a Buffer, a RegExp or a circular structure inside the value
+
+**Fix.** The cache keeps what JSON keeps, plus `Date`. Store the plain shape you want back: `record.toJSON()`, or `henri.model.stores.default.toPlain(record)`. Cache `null` where you meant "there is nothing".
+
 ## cli
 
 The henri command line: arguments, the project it runs in, the commands themselves.

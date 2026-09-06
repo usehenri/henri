@@ -36,7 +36,12 @@ describe('henri analyze', () => {
       expect(names).toContain('router');
       expect(names.indexOf('model')).toBeLessThan(names.indexOf('user'));
       expect(analysis.chart[0].modules).toEqual(['config']);
-      expect(analysis.chart[3].modules).toEqual(['model', 'policies', 'view']);
+      expect(analysis.chart[3].modules).toEqual([
+        'cache',
+        'model',
+        'policies',
+        'view',
+      ]);
     });
 
     test('says what every module waited on, and why', () => {

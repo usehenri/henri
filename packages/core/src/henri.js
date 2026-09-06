@@ -10,6 +10,7 @@ const Mailer = require('./1.mailer');
 const Controllers = require('./2.controllers');
 const Mailers = require('./2.mailers');
 const Server = require('./2.server');
+const Cache = require('./3.cache');
 const Model = require('./3.model');
 const Policies = require('./3.policies');
 const View = require('./3.view');
@@ -63,6 +64,7 @@ class Henri extends HenriBase {
    * @memberof Henri
    */
   async init() {
+    this.modules.add(new Cache());
     this.modules.add(new Config());
     this.modules.add(new Mailer());
     this.modules.add(new Controllers());

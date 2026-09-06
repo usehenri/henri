@@ -470,6 +470,39 @@ declare namespace start {
     [key: string]: unknown;
   }
 
+  /**
+   * `config.cache`: what `henri.cache` keeps, for how long, and how much of
+   * it. `false` turns the cache off, and every `fetch` then runs its
+   * function.
+   */
+  interface CacheConfig {
+    /** `false` keeps the block and turns the cache off (`true`). */
+    enabled?: boolean;
+    /**
+     * How long an entry lives when a call does not say (`"5m"`). Every
+     * entry has one: there is no way to keep a value forever.
+     */
+    ttl?: number | string;
+    /**
+     * Entries the memory backend may hold (`1000`); the least recently used
+     * goes first. Nothing to do with a shared backend, which has its own.
+     */
+    maxEntries?: number;
+    /** Everything the memory backend may hold, encoded (`"32mb"`). */
+    maxSize?: number | string;
+    /**
+     * What one value may weigh, encoded, on any backend (`"256kb"`). A
+     * bigger one is not cached: `set` answers `false` and says so once.
+     */
+    maxEntrySize?: number | string;
+    /**
+     * Module exporting a `{ get, set, delete }` store, or a factory.
+     * Without one the cache is the backend of `config.shared`, and without
+     * that this process's memory.
+     */
+    store?: string | null;
+  }
+
   /** `config.inertia`: the options of the Inertia renderer. */
   interface InertiaConfig {
     /** Server render the pages (`true`). */
@@ -608,6 +641,8 @@ declare namespace start {
     jobs?: JobsConfig;
     rateLimit?: boolean | RateLimitConfig;
     shared?: SharedConfig;
+    /** `henri.cache`: what it keeps and for how long; `false` turns it off. */
+    cache?: false | CacheConfig;
     /** Options merged over henri's helmet defaults; `false` disables it. */
     helmet?: false | Record<string, unknown>;
     /** Parameter names masked in the logs; `false` masks nothing. */
@@ -1949,12 +1984,110 @@ declare namespace start {
     ping(): Promise<boolean>;
     /** An express-rate-limit store, with the failure policy applied. */
     rateLimitStore(feature: string): unknown;
+    /**
+     * The backend's own store, without the failure policy: what the cache
+     * takes, since a cache that cannot answer is a miss and never a 503.
+     */
+    unguarded(feature: string, options?: { raw?: boolean }): unknown;
     /** A `{ get, set, add, delete }` store, always fail-closed. */
     keyValueStore(feature: string): {
       get(key: string): Promise<unknown>;
       set(key: string, value: unknown, ttl: number): Promise<void>;
       add(key: string, value: unknown, ttl: number): Promise<boolean>;
       delete(key: string): Promise<void>;
+    };
+  }
+
+  /**
+   * What a cache key may be built from. An array is its parts joined with
+   * `/`; a plain object is its keys sorted, so two callers writing them in
+   * a different order still meet; anything with a `cacheKey()` answers for
+   * itself. A key longer than 250 characters keeps its front and ends with
+   * a digest of the whole.
+   */
+  type CacheKey =
+    | string
+    | number
+    | boolean
+    | Date
+    | readonly CacheKey[]
+    | { cacheKey(): CacheKey }
+    | Record<string, unknown>;
+
+  /** What a `set` or a `fetch` may say about one entry. */
+  interface CacheOptions {
+    /** How long it lives: milliseconds, or `"30s"`, `"5m"`, `"2h"`, `"1d"`. */
+    ttl?: number | string;
+    /** `fetch` only: run the function and write, without reading first. */
+    force?: boolean;
+  }
+
+  /** What `henri.cache.stats()` answers. */
+  interface CacheStats {
+    /** The backend (`"memory"`, `"redis"`, whatever a store calls itself). */
+    backend: string;
+    hits: number;
+    misses: number;
+    writes: number;
+    /** Backend calls that failed, every one of them treated as a miss. */
+    errors: number;
+    /** Entries the memory backend dropped to stay in bounds. */
+    evictions: number;
+    /** Functions `fetch` is running right now, one per key at most. */
+    inflight: number;
+    /** The memory backend only; `null` on any other. */
+    entries: number | null;
+    /** The memory backend only; `null` on any other. */
+    bytes: number | null;
+  }
+
+  /**
+   * A cache: `henri.cache`, and every `scope()` of it.
+   *
+   * A value is JSON plus `Date`; a model instance, `undefined`, `NaN`, a
+   * `Map`, a `Buffer` or anything circular is refused rather than stored to
+   * come back wrong. A backend that does not answer is a miss, never a
+   * failed request. Nothing invalidates anything on its own.
+   */
+  interface Cache {
+    /**
+     * The cached value, or the one the function answers -- kept for next
+     * time, and computed once however many callers missed it at once.
+     */
+    fetch<T>(key: CacheKey, fn: () => T | Promise<T>): Promise<T>;
+    fetch<T>(
+      key: CacheKey,
+      options: CacheOptions,
+      fn: () => T | Promise<T>
+    ): Promise<T>;
+    /** The value, or `undefined` when there is none. */
+    get<T = unknown>(key: CacheKey): Promise<T | undefined>;
+    /** Whether it was written (`false` when it was too big, or refused). */
+    set(
+      key: CacheKey,
+      value: unknown,
+      options?: CacheOptions
+    ): Promise<boolean>;
+    /** Forgets a key. The only invalidation henri has. */
+    delete(key: CacheKey): Promise<boolean>;
+    /** Forgets everything of this cache, or of this scope. Not for a request. */
+    clear(): Promise<number>;
+    /** A cache whose keys all start with a name of their own. */
+    scope(name: string): Cache;
+    /** Hits, misses, writes, errors, and what the memory backend holds. */
+    stats(): CacheStats;
+  }
+
+  /** `henri.cache`: the module around the cache. */
+  interface CacheModule extends Cache {
+    /** The normalized `config.cache`. */
+    settings: {
+      enabled: boolean;
+      maxEntries: number;
+      maxEntrySize: number;
+      maxSize: number;
+      store: string | null;
+      ttl: number;
     };
   }
 
@@ -2014,6 +2147,12 @@ declare namespace start {
      * counter is then kept in this process.
      */
     shared: SharedStore | null;
+    /**
+     * The cache: `get`, `set`, `delete`, `clear`, `scope` and `fetch`. It is
+     * this process's memory, bounded, unless `config.shared` names a
+     * backend -- and then it is that one, with nothing else to configure.
+     */
+    cache: CacheModule;
     /** Registration, the password reset and the address confirmation. */
     accounts: AccountsService;
     /** The passport instance (also `henri.user.passport`). */
