@@ -299,15 +299,42 @@ class Queries extends BaseModule {
    * It is never called on a disabled seam: the adapters ask `enabled` first,
    * and an application that is not counting has its methods untouched.
    *
+   * ## Two kinds of target, and why the second one needs care
+   *
+   * A per-model class is the easy case: it belongs to one adapter, which
+   * belongs to one henri, and closing over this module is right.
+   *
+   * A **shared prototype** is not. `Relation.prototype` in the Drizzle
+   * adapter is one object for every model of every store in the process, and
+   * a test suite boots several henri instances into that process. A wrapper
+   * that closed over the first one would report a second instance's queries
+   * to the first instance's detector, which is a wrong answer rather than a
+   * missing one. So `context.queries` may be a **function of the receiver**
+   * that finds the right module at call time (`(self) =>
+   * self.Model.adapter.henri.queries`), and `context.once` is a key on the
+   * target that keeps a second instance from wrapping what the first already
+   * wrapped. A resolved module that is disabled calls straight through.
+   *
    * @param {object} target The object holding the methods (a class, a prototype)
    * @param {object} spec What each method means
-   * @param {object} context `{ adapter, dialect, store, model }`; `model` may
-   *   be a function of the receiver, for a prototype shared by every model
+   * @param {object} context `{ adapter, dialect, store, model, queries, once }`;
+   *   `model` and `queries` may be functions of the receiver, for a prototype
+   *   shared by every model
    * @returns {object} The same target
    * @memberof Queries
    */
   instrument(target, spec, context) {
-    const queries = this;
+    const owner = this;
+    const resolve =
+      typeof context.queries === 'function' ? context.queries : () => owner;
+
+    if (context.once) {
+      if (target[context.once]) {
+        return target;
+      }
+
+      Object.defineProperty(target, context.once, { value: true });
+    }
 
     for (const name of Object.keys(spec)) {
       const original = target[name];
@@ -327,9 +354,12 @@ class Queries extends BaseModule {
        * @returns {*} Whatever the method answers
        */
       function measured(...args) {
+        const queries = resolve(this);
+
         // A layer of a call already being measured: call through, add
-        // nothing. `Model.findById()` is one event, not three
-        if (nested()) {
+        // nothing. `Model.findById()` is one event, not three. A henri whose
+        // seam is off calls through for the same price
+        if (!queries || !queries.enabled || nested()) {
           return original.apply(this, args);
         }
 
@@ -337,10 +367,18 @@ class Queries extends BaseModule {
         // Allocated, never formatted: callsiteOf() reads .stack only when a
         // shape is actually reported
         const at = queries.callsites ? new Error('query') : null;
-        const model =
-          typeof context.model === 'function'
-            ? context.model(this)
-            : context.model;
+        // Everything that identifies the store may be a function of the
+        // receiver, because a shared prototype answers for several of them
+        const self = this;
+        /**
+         * One field of the context, read off the receiver when it varies
+         *
+         * @param {*} value What the adapter declared
+         * @returns {*} The value for this call
+         */
+        const of = (value) =>
+          typeof value === 'function' ? value(self) : value;
+        const model = of(context.model);
         /**
          * Reports the finished call
          *
@@ -349,9 +387,9 @@ class Queries extends BaseModule {
          */
         const done = (answer) => {
           queries.record({
-            adapter: context.adapter,
+            adapter: of(context.adapter),
             at,
-            dialect: context.dialect,
+            dialect: of(context.dialect),
             filter: entry.filter ? entry.filter(args) : null,
             method,
             model,
@@ -359,7 +397,7 @@ class Queries extends BaseModule {
             rows: entry.rows ? entry.rows(answer) : rowsOf(answer),
             source: context.source,
             started,
-            store: context.store,
+            store: of(context.store),
           });
         };
 

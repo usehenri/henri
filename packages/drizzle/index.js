@@ -5,6 +5,8 @@ const dialects = require('./dialects');
 const { Dump } = require('./dump');
 const { Migrations } = require('./migrations');
 const { BIND_IDENTITY, createModel } = require('./model');
+const { Relation } = require('./relation');
+const { instrument: instrumentQueries } = require('./queries');
 const { compileTable, encryptedFields, normalizeSchema } = require('./schema');
 const { decorateModel } = require('./encryption');
 const { decorateModel: decorateVersions } = require('./versions');
@@ -235,6 +237,10 @@ class Drizzle {
       this.henri._user = Model;
       this.userModelName = Model.modelName;
     }
+
+    // Last, so that what is wrapped is the model as every other decorator
+    // left it: an application that is not counting has an untouched class
+    instrumentQueries(this, Model, Relation);
 
     this.definitions[Model.modelName] = { model, user };
     this.models[Model.modelName] = Model;

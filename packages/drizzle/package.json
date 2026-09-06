@@ -21,6 +21,7 @@
     "external-id.js",
     "dump.js",
     "migrations.js",
+    "queries.js",
     "model.js",
     "relation.js",
     "schema.js",

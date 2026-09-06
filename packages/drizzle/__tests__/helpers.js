@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const Drizzle = require('../index');
 const Encryption = require('@usehenri/core/src/1.encryption');
+const Queries = require('@usehenri/core/src/0.queries');
 const { generateKey } = require('@usehenri/core/src/base/encryption');
 const target = require('./targets');
 
@@ -53,6 +54,19 @@ const fakeHenri = (settings = {}) => {
 
   encryption.henri = henri;
   henri.encryption = encryption;
+
+  // The same, and for the same reason: what is being tested is that this
+  // adapter reports the calls core's seam expects, so the seam is core's
+  const queries = new Queries();
+
+  queries.henri = henri;
+  queries.init();
+  henri.queries = queries;
+
+  // The seam says at boot that it is counting. That is the module's line and
+  // not the adapter's, and `calls` is what the suites read to see what the
+  // adapter said, so the harness's own setup is not left in it
+  calls.length = 0;
 
   return henri;
 };
