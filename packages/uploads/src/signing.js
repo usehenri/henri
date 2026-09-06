@@ -159,6 +159,28 @@ const typeOf = (value) =>
     : null;
 
 /**
+ * A base url without its trailing slashes.
+ *
+ * Walked rather than matched, for the reason `names.js` gives about the
+ * filename cleaner: `/\/+$/` is quadratic on a run of slashes, and while
+ * this value comes from the configuration rather than from a request, a
+ * reader should not have to work out which one it is to know it is safe.
+ *
+ * @param {*} value the configured base url
+ * @returns {string} the same, with no trailing slash
+ */
+function withoutTrailingSlashes(value) {
+  const text = String(value);
+  let end = text.length;
+
+  while (end > 0 && text[end - 1] === '/') {
+    end -= 1;
+  }
+
+  return text.slice(0, end);
+}
+
+/**
  * Signs urls, and verifies the ones it signed
  *
  * @class UrlSigner
@@ -174,7 +196,7 @@ class UrlSigner {
     this.key = keyOf(options.secret);
     this.expiresIn = options.expiresIn || EXPIRES_IN;
     this.path = options.path || PATH;
-    this.cdn = options.cdn ? String(options.cdn).replace(/\/+$/u, '') : '';
+    this.cdn = options.cdn ? withoutTrailingSlashes(options.cdn) : '';
   }
 
   /**
