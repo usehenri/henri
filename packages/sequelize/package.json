@@ -31,7 +31,8 @@
     "utils.js",
     "CHANGELOG.md",
     "encrypted.js",
-    "encryption.js"
+    "encryption.js",
+    "versions.js"
   ],
   "publishConfig": {
     "access": "public",
