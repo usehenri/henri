@@ -23,6 +23,13 @@
     "passwordReset": true,
     "confirmation": true
   },
+  "i18n": {
+    "locales": ["en", "fr"],
+    "default": "en",
+    "from": {
+      "user": "locale"
+    }
+  },
   "rateLimit": {
     "auth": {
       "max": 200

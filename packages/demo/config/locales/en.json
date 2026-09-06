@@ -1,0 +1,16 @@
+{
+  "greeting": "Hello, {name}!",
+  "html": "Read <strong>the guide</strong>",
+  "mailers": {
+    "welcome": "Welcome aboard, {name}"
+  },
+  "notes": {
+    "=0": "No notes yet",
+    "one": "{count} note",
+    "other": "{count} notes"
+  },
+  "only": {
+    "here": "English only"
+  },
+  "title": "Artworks"
+}

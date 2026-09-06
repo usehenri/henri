@@ -299,11 +299,21 @@ class MailViews {
       return htmlToText(html);
     }
 
-    const body = this.one(file, data, meta);
+    // The plain part is told it is the plain part, and `{{t}}` reads that:
+    // there is no markup in text/plain, so escaping a value into `&amp;`
+    // there would print the entity to the reader rather than hide a tag
+    // from a parser (see engines/template.js)
+    const plain =
+      meta && meta.i18n
+        ? Object.assign({}, meta, {
+            i18n: Object.assign({}, meta.i18n, { text: true }),
+          })
+        : meta;
+    const body = this.one(file, data, plain);
     const shell = this.layout(layout, '.text');
 
     return shell
-      ? this.one(shell, Object.assign({}, data, { body }), meta)
+      ? this.one(shell, Object.assign({}, data, { body }), plain)
       : body;
   }
 }

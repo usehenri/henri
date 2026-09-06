@@ -5,9 +5,12 @@ const { htmlToText } = require('./mail-text');
 /**
  * The keys of an envelope henri reads itself; everything else is handed to
  * nodemailer as is (from, to, cc, bcc, replyTo, subject, attachments,
- * headers, priority...)
+ * headers, priority...). `locale` and `for` are the two the language of
+ * the message is decided from (see `Message#locale`), and neither reaches
+ * the transport -- `for` in particular is a user record, which is exactly
+ * what a mail payload must not carry into a queue row.
  */
-const OWN = new Set(['data', 'layout', 'view']);
+const OWN = new Set(['data', 'for', 'layout', 'locale', 'view']);
 
 /**
  * One message, as returned by a mailer action
@@ -163,13 +166,64 @@ class Message {
    */
   meta() {
     const { server } = this.henri;
-
-    return {
+    const meta = {
       action: this.action,
       localUrl: (server && server.url) || null,
       mailer: this.mailer,
       subject: this.envelope.subject || null,
     };
+
+    // `{{t "..."}}` in a mail view reads this, the way a page reads the
+    // one `res.render()` put in the view options
+    this.henri.i18n &&
+      this.henri.i18n.enabled &&
+      (meta.i18n = { locale: this.locale, source: 'message' });
+
+    return meta;
+  }
+
+  /**
+   * The language this message is written in.
+   *
+   * **The locale of a mail is the recipient's, and it is never the
+   * request's.** A request is the wrong place to ask: an administrator
+   * acting on somebody else's account, a nightly digest and a job retrying
+   * a delivery an hour later all produce a mail whose reader is not
+   * whoever made the request, and two of those have no request at all. So
+   * a message carries its own, in this order:
+   *
+   * 1. `locale` in what the action returned;
+   * 2. `locale` in the mailer's `defaults`;
+   * 3. the recipient's own setting, when the action named them: `for` is a
+   *    user record and `henri.i18n.forUser()` reads the column
+   *    `i18n.from.user` names -- this is the one that works from a job,
+   *    because a record is something a job has;
+   * 4. `i18n.default`.
+   *
+   * The account flows are the one place henri passes a request's locale,
+   * and they may because there the recipient *is* the person who asked
+   * (see base/accounts.js).
+   *
+   * @readonly
+   * @returns {string} the locale
+   * @memberof Message
+   */
+  get locale() {
+    const { i18n } = this.henri;
+
+    if (!i18n || !i18n.enabled) {
+      return 'en';
+    }
+
+    const said = this.envelope.locale || this.defaults.locale || null;
+
+    if (i18n.supports(said)) {
+      return said;
+    }
+
+    const recipient = this.envelope.for || this.defaults.for || null;
+
+    return i18n.forUser(recipient) || i18n.fallback;
   }
 
   /**

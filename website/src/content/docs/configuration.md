@@ -52,6 +52,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint, or an object with its limits and access rules, below; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).                         |
 | `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                                                      |
 | `mailers`          |               | Defaults of the [mailers](/guides/mail/): `from`, `layout` and `previews`, see below.                                                                                   |
+| `i18n`             |               | The catalogues of `config/locales` and the locale of a request; `false` translates nothing. See [i18n](/guides/i18n/) and below.                                        |
 | `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                                             |
 | `jobs`             |               | Settings of the [job queue](/guides/jobs/), see below; needs `@usehenri/jobs`. The queue also loads when `app/jobs` holds a file.                                       |
 | `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                                                       |
@@ -135,6 +136,45 @@ Defaults for the mailers in `app/mailers`. Every key is optional.
   "mailers": {
     "from": "Acme <no-reply@acme.com>",
     "layout": "mailer"
+  }
+}
+```
+
+## The `i18n` object
+
+What henri does about locales, and nothing unless there is something to do: an application with no `config/locales` directory and no `i18n` block reads no catalogue, mounts no middleware, sets nothing on a request and prints no boot line. The guide is [i18n](/guides/i18n/).
+
+| Key          | Default            | Description                                                                                                                                                                                                                                                          |
+| ------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `path`       | `"config/locales"` | Where the catalogues live. `<locale>.json`, or `<locale>/<namespace>.json` for one file per area.                                                                                                                                                                    |
+| `locales`    | the files on disk  | The locales this application has. Naming them is how an unfinished translation is kept out of production.                                                                                                                                                            |
+| `default`    | `"en"`             | The locale everything falls back to. It has to be one of `locales`.                                                                                                                                                                                                  |
+| `fallback`   | `true`             | `true` falls back to `default`; `false` makes a key missing in one locale missing whatever the others hold; a locale, or a list of them, falls back to those. A regional locale always falls back to its language first (`fr-CA`, then `fr`).                        |
+| `from`       |                    | Where the locale of a request is read, see below.                                                                                                                                                                                                                    |
+| `missing`    | `"auto"`           | What a key nobody translated does: `warn` says it once and answers the key, `key` answers the key quietly, `throw` raises `HENRI_LOCALE_TRANSLATION_MISSING`, and `auto` is `warn` outside production and `key` in it. No mode ever guesses a sentence from the key. |
+| `client`     | `"auto"`           | How the catalogue reaches a browser: `auto` embeds it in a document and leaves it out of an XHR answer, `always` puts it in every answer, `false` keeps the strings on the server.                                                                                   |
+| `serverOnly` | `["mailers"]`      | Key prefixes that never leave the server. The strings of a mail are written for a recipient, not for a reader.                                                                                                                                                       |
+
+### The `from` object
+
+The order is fixed and is the order of this table, after an explicit `req.setLocale()`. Each key turns one step off (`false`) or renames what it reads. The step that answered is on the request, as `req.localeSource`.
+
+| Key      | Default          | Description                                                                                                        |
+| -------- | ---------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `user`   | `null`           | The column of the user model holding their locale. Also what a mail asks when it has the recipient and no request. |
+| `query`  | `"locale"`       | Query parameter (`?locale=fr`).                                                                                    |
+| `cookie` | `"henri.locale"` | A cookie henri **reads and never writes**: a language switcher is an action of the application.                    |
+| `header` | `true`           | `Accept-Language`, negotiated by q value, `fr-CA` matching a catalogue named `fr`.                                 |
+
+The path is not on that list, on purpose: `/fr/notes` is a routing decision, and henri's route table is what builds both the url and the helper that prints it. The guide says what to write instead.
+
+```json
+{
+  "i18n": {
+    "locales": ["en", "fr"],
+    "default": "en",
+    "from": { "user": "locale" },
+    "missing": "throw"
   }
 }
 ```

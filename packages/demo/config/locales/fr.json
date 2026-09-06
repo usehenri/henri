@@ -1,0 +1,13 @@
+{
+  "greeting": "Bonjour, {name} !",
+  "html": "Lisez <strong>le guide</strong>",
+  "mailers": {
+    "welcome": "Bienvenue, {name}"
+  },
+  "notes": {
+    "=0": "Aucune note",
+    "one": "{count} note",
+    "other": "{count} notes"
+  },
+  "title": "Œuvres"
+}

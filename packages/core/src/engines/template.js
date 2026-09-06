@@ -63,6 +63,8 @@ class TemplateEngine {
       return data.nonce || '';
     });
 
+    this.registerI18n();
+
     /** Kept for res.hbs, which renders through the instance */
     this.instance = {
       render: (req, res, route, opts) => this.renderPage(req, res, route, opts),
@@ -304,6 +306,96 @@ class TemplateEngine {
     this.cache.set(file, { compiled, mtimeMs });
 
     return compiled;
+  }
+
+  /**
+   * The three helpers a Handlebars page needs to speak a second language.
+   *
+   * **`{{t "key" name=value}}`** is the translation, and it is the one
+   * place in henri that escapes anything. A translation is a template a
+   * developer wrote and committed, so it goes out as written and may carry
+   * markup on purpose; the values interpolated into it are application
+   * data, so every one of them is escaped on the way in and the result is
+   * a `SafeString`. That is the whole rule: the sentence is trusted
+   * because a person wrote it, the values never are.
+   *
+   * **`{{number x}}`** and **`{{date x}}`** are `Intl.NumberFormat` and
+   * `Intl.DateTimeFormat` with the locale of the render, and henri invents
+   * no option for either: the hash *is* the options object, passed through
+   * unchanged. They exist because Handlebars has no expressions -- a
+   * `.jsx` page calls `Intl` itself and gets nothing from henri here --
+   * and not because henri has an opinion about formatting.
+   *
+   * @returns {boolean} whether they were registered
+   * @memberof TemplateEngine
+   */
+  registerI18n() {
+    /**
+     * The locale of the render being written, from the data frame
+     *
+     * @param {object} options the helper options
+     * @returns {?string} the locale, or null
+     */
+    const localeOf = (options) => {
+      const data = (options && options.data) || {};
+      const hash = (options && options.hash) || {};
+
+      return hash.locale || (data.i18n && data.i18n.locale) || null;
+    };
+
+    this.hbs.registerHelper('t', (key, options) => {
+      const { i18n } = this.henri;
+      const hash = Object.assign({}, (options && options.hash) || {});
+      const locale = localeOf(options);
+
+      delete hash.locale;
+
+      if (!i18n || !i18n.enabled) {
+        return typeof key === 'string' ? key : '';
+      }
+
+      const data = (options && options.data) || {};
+      // The plain part of a mail says so, and nothing is escaped into it:
+      // text/plain has no markup to hide a value in (see base/mail-view.js)
+      const plain = Boolean(data.i18n && data.i18n.text);
+
+      return new this.hbs.SafeString(
+        i18n.t(key, hash, {
+          escape: plain ? null : this.hbs.escapeExpression,
+          locale: i18n.supports(locale) ? locale : null,
+        })
+      );
+    });
+
+    this.hbs.registerHelper('number', (value, options) => {
+      const locale = localeOf(options) || undefined;
+      const given = Number(value);
+
+      if (!Number.isFinite(given)) {
+        return '';
+      }
+
+      return new Intl.NumberFormat(
+        locale,
+        (options && options.hash) || {}
+      ).format(given);
+    });
+
+    this.hbs.registerHelper('date', (value, options) => {
+      const locale = localeOf(options) || undefined;
+      const when = value instanceof Date ? value : new Date(value);
+
+      if (Number.isNaN(when.getTime())) {
+        return '';
+      }
+
+      return new Intl.DateTimeFormat(
+        locale,
+        (options && options.hash) || {}
+      ).format(when);
+    });
+
+    return true;
   }
 
   /**
