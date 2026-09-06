@@ -243,6 +243,15 @@ function fieldsFor(block, action) {
 }
 
 /**
+ * A type with its article, for the message a person reads
+ *
+ * @param {string} type the type
+ * @returns {string} `a string`, `an integer`
+ */
+const article = (type) =>
+  ['array', 'integer'].includes(type) ? `an ${type}` : `a ${type}`;
+
+/**
  * Refuses a type: one message, listing what there is
  *
  * @param {string} where the controller and action
@@ -321,8 +330,8 @@ function rule(written, where, field) {
     if (APPLIES[key] && !APPLIES[key].includes(type)) {
       throw invalid(
         where,
-        `declares "${field}" with "${key}", which a ${type} does not take: ` +
-          `${key} is for ${APPLIES[key].join(', ')}`
+        `declares "${field}" with "${key}", which ${article(type)} does not ` +
+          `take: ${key} is for ${APPLIES[key].join(', ')}`
       );
     }
 

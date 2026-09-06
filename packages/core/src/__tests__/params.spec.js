@@ -142,7 +142,7 @@ describe('declared parameters', () => {
       ).toMatch(/with "min", which a string does not take/u);
       expect(
         refused({ index: { year: { of: 'string', type: 'integer' } } }).message
-      ).toMatch(/with "of", which a integer does not take/u);
+      ).toMatch(/with "of", which an integer does not take/u);
     });
 
     test('refuses an unknown key, which is the typo this exists to catch', () => {
