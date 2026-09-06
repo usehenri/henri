@@ -1,16 +1,19 @@
 // Proposals: the resource this application is about.
 //
 // One controller serves a browser and an API client. `res.negotiate()` picks
-// the page or the HAL answer, `before` loads the record once and enforces
-// ownership, `req.permit()` decides what a request may set, and the two state
-// transitions a speaker may trigger are member routes rather than a
-// hand-written `state` field on the update form.
+// the page or the HAL answer, `before` loads the record once, `req.permit()`
+// decides what a request may set, and the two state transitions a speaker may
+// trigger are member routes rather than a hand-written `state` field on the
+// update form.
+//
+// Who may do any of it is not decided here: app/policies/proposal.js holds
+// the rules and `req.can()` asks them. `policy: true` in config/routes.js
+// answers the questions that need no record before the action runs, and the
+// hooks below answer the rest, once the proposal is loaded.
 const {
   FIELDS,
   INCLUDE,
   PUBLIC_STATES,
-  mayRead,
-  owns,
   present,
   resolveReferences,
 } = require('../helpers/proposals');
@@ -48,7 +51,7 @@ const loadProposal = async (req, res) => {
     include: INCLUDE,
   });
 
-  if (!proposal || !mayRead(req.user, proposal)) {
+  if (!proposal || !(await req.can('show', proposal))) {
     return res.boom.notFound(`No proposal ${req.params.id}`);
   }
 
@@ -58,14 +61,18 @@ const loadProposal = async (req, res) => {
 };
 
 /**
- * Refuses to let a speaker touch someone else's proposal
+ * Refuses to let a speaker touch someone else's proposal.
+ *
+ * It asks the policy about the action of this very route, so `edit`,
+ * `update`, `submit` and `withdraw` each answer for themselves; the proposal
+ * is readable by then, so the refusal is a 403 rather than the 404 above.
  *
  * @param {object} req Express request
  * @param {object} res Express response
- * @returns {object|undefined} The answer, or nothing when the proposal is theirs
+ * @returns {Promise<object|undefined>} The answer, or nothing when it is theirs
  */
-const mustOwnIt = (req, res) => {
-  if (owns(req.user, req.proposal)) {
+const mustOwnIt = async (req, res) => {
+  if (await req.can(res.locals.route.action, req.proposal)) {
     return undefined;
   }
 
@@ -155,7 +162,7 @@ module.exports = {
 
     return res.negotiate({
       html: () => res.redirect(`/proposals/${proposal.externalId}`),
-      json: () => res.resource(present(full), { status: 201 }),
+      json: () => res.resource(present(full), { status: 201, subject: full }),
     });
   },
 
@@ -210,12 +217,20 @@ module.exports = {
           },
         });
       },
-      json: () => res.collection(proposals, { page, perPage, total }),
+      json: () =>
+        res.collection(proposals, {
+          page,
+          perPage,
+          subject: records,
+          total,
+        }),
     });
   },
 
   mine: async (req, res) => {
-    const proposals = await Proposal.where({ speakerId: req.user.id })
+    // The policy says which proposals are this speaker's own, so the rule
+    // lives next to the one that says they may edit them
+    const proposals = await Proposal.where(await req.scope('proposal'))
       .include(...INCLUDE)
       .order('-updatedAt');
 
@@ -239,11 +254,17 @@ module.exports = {
     const proposal = present(req.proposal, { reviews });
 
     return res.negotiate({
-      html: () =>
+      html: async () =>
         res.render('/proposals/show', {
-          data: { editable: owns(req.user, req.proposal), proposal },
+          data: {
+            editable: await req.can('update', req.proposal),
+            proposal,
+          },
         }),
-      json: () => res.resource(proposal),
+      // The proposal leaves as a presentation of itself, which has no
+      // `speakerId` for the rules to read: `subject` names the record the
+      // policies are asked about, so the `_links` are still the owner's
+      json: () => res.resource(proposal, { subject: req.proposal }),
     });
   },
 
@@ -273,7 +294,7 @@ module.exports = {
 
     return res.negotiate({
       html: () => res.redirect(`/proposals/${proposal.externalId}`),
-      json: () => res.resource(present(proposal)),
+      json: () => res.resource(present(proposal), { subject: proposal }),
     });
   },
 
@@ -317,7 +338,7 @@ module.exports = {
 
     return res.negotiate({
       html: () => res.redirect(`/proposals/${proposal.externalId}`),
-      json: () => res.resource(present(proposal)),
+      json: () => res.resource(present(proposal), { subject: proposal }),
     });
   },
 

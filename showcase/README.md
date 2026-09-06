@@ -91,7 +91,9 @@ to a visitor.
 
 - `before` hooks in the Rails selector form (`app/controllers/proposals.js`):
   one refuses an anonymous write, one loads the record, one refuses somebody
-  else's proposal. A hook that answers ends the request.
+  else's proposal. A hook that answers ends the request. The rule behind the
+  last two is not in the controller: `app/policies/proposal.js` holds it and
+  `req.can()` asks it (see below).
 - `req.permit()` decides what a form may set: a proposal cannot choose its own
   speaker or state, a profile cannot grant itself a role.
 - `req.flash()` across a redirect, rendered by `components/layout.jsx`.
@@ -100,6 +102,18 @@ to a visitor.
   renders its page with it.
 - `res.negotiate({ html, json })` so one action serves a browser and an API
   client, and `henri.model.errors()` for a 422 with one message per field.
+
+### Policies
+
+`app/policies/proposal.js` and `app/policies/review.js` answer the question
+roles cannot: may **this** speaker edit **that** proposal. `policy: true` on
+the routes makes henri ask before the action runs (for `index`, `new`,
+`create` and `mine`, which need no record), the `before` hooks ask once the
+proposal is loaded, and the same file filters the `_links` of every HAL answer
+and the `paths` of every page -- an anonymous visitor is not given
+`new_proposals_path`, and a proposal that is not yours comes back without its
+`update` link. `scope` is the other half: `proposals#mine` reads the `where`
+from the policy rather than writing it again.
 
 ### Users and roles
 
@@ -204,6 +218,7 @@ showcase/
     controllers/          main, sessions, accounts, events, tracks,
                           proposals, reviews, admin/{dashboard,proposals,users}
     helpers/proposals.js  what the page and the API answers share
+    policies/             proposal, review: who may act on one record
     models/               User, Event, Track, Proposal, Review
     views/
       pages/              the Inertia pages, one per rendered route

@@ -14,6 +14,7 @@ guessing; `henri doctor` checks most of them, the `henri` MCP server answers the
 | `app/views/pages/tasks/`     | Inertia pages (`.jsx`, Vite + React)                                                                  |
 | `app/views/components/`      | Shared components (`import Nav from 'components/nav'`); `assets/` and `public/` next to it            |
 | `app/views/styles/index.css` | The Tailwind CSS v4 entry point, and the only stylesheet of the application                           |
+| `app/policies/task.js`       | One policy per model: `{ index, show, update, ... }` taking `(user, record)`, asked by `req.can()`    |
 | `app/workers/cleanup.js`     | `{ name, start(henri), stop(henri) }`, started with the server (`--skip-workers` to skip)             |
 | `config/default.json`        | Committed configuration: `stores`, `renderer`, `user`, `baseRole`, `port`, `graphql`, `mail`          |
 | `config/<NODE_ENV>.json`     | `dev.json`, `production.json` or `test.json` replaces `default.json` as a whole (keys are not merged) |
@@ -27,6 +28,7 @@ henri generate scaffold Post title:string! body:text  # model + controller + rou
 henri generate model Post title:string! body:text     # app/models/Post.js only
 henri generate controller locations index gps         # controller + one GET route per action
 henri generate crud Item name:string                  # model + JSON controller + crud routes
+henri generate policy Post authorId                    # app/policies/post.js + its test
 henri generate worker cleanup | test posts | agents   # app/workers, test/, AGENTS.md
 henri destroy scaffold Post                           # undo (model, controller, route, view, worker, test, crud too)
 ```
@@ -126,6 +128,19 @@ the store adds `email` (unique), `password` (hashed, never selected) and
 mass-assigned: use `user.setRoles([...])` or `User.setRoles(id, roles)`. The
 session secret is `HENRI_SECRET` in `.env` (written by `henri new`).
 
+## Policies
+
+`roles` says who may reach an endpoint; `app/policies/<model>.js` says who may
+act on one record. This application has two: `proposal` (a draft belongs to
+its speaker and to the committee; only its speaker writes it) and `review`.
+Ask with `req.can('update', proposal)` or `await req.authorize(...)`, and the
+routes declare `policy: true` so henri asks too. It fails closed: no policy,
+no rule for the action and a rule that threw all mean no, and only the boolean
+`true` allows. A rule taking a record is never asked without one, so
+`index`/`new`/`create` are answered at the route. `paths` and `_links` lose
+what the policy refuses, and a controller that presents its records names what
+the rules should read with `res.resource(present(x), { subject: x })`.
+
 `config.user.signup`, `passwordReset` and `confirmation` mount the rest of
 the story: `POST /signup`, `POST /password/forgot`,
 `GET /password/reset/:token`, `POST /password/reset`, `GET /confirm/:token`,
@@ -172,6 +187,7 @@ app (run from the root), 4 needs a terminal (pass the flag: `henri clean
 - Do not `require` a model or `henri`: they are globals.
 - Do not put `secret` or passwords in `config/*.json`; do not commit `.env`, `.henri/` or `.backup/`.
 - Do not set `roles` from request data; do not mass-assign `req.body`.
+- Do not write an ownership `if` in a controller: the rule goes in `app/policies` and `req.can()` / `req.authorize()` ask it, so the views and the links get the same answer.
 - Do not add `tailwind.config.js`, a CSS module or a second stylesheet: the theme lives in `app/views/styles/index.css`.
 - Keep the `resolvePage` resolver and `import.meta.glob('./pages/**/*.jsx')` in `app/views/main.jsx` and `ssr.jsx` (global styles and Inertia options go in `main.jsx`); do not rename generated files by hand (regenerate with `--force`, or `destroy` first).
 - Do not leave `henri server` running in a non-interactive session; verify with `henri test` and `henri doctor`.
