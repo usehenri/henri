@@ -59,6 +59,9 @@ const DIALECTS = ['mysql', 'postgres', 'sqlite'];
 /** What `privacy.onErase` accepts (the strategies of `base/erasure.js`) */
 const ON_ERASE = ['anonymize', 'delete', 'orphan', 'retain'];
 
+/** What `trail.reads` accepts (`base/trail.js`) */
+const READS = ['all', 'personal'];
+
 /** A string that is not empty */
 const text = (extra = {}) => ({ pattern: /\S/u, type: 'string', ...extra });
 
@@ -83,6 +86,23 @@ const duration = (extra = {}) => ({
   oneOf: [
     { min: 0, type: 'number' },
     { pattern: /^\s*\d+(?:\.\d+)?\s*(?:ms|[smhdw])?\s*$/iu, type: 'string' },
+  ],
+  ...extra,
+});
+
+/**
+ * A retention period: the durations of `base/retention.js`, which are the
+ * ones everywhere else in henri plus the two only this measures things in
+ */
+const keeps = (extra = {}) => ({
+  describe:
+    "a retention period: '90d', '18mo', '2y', or a number of milliseconds",
+  oneOf: [
+    { min: 0, type: 'number' },
+    {
+      pattern: /^\s*\d+(?:\.\d+)?\s*(?:ms|mo|[smhdwy])?\s*$/iu,
+      type: 'string',
+    },
   ],
   ...extra,
 });
@@ -1028,6 +1048,83 @@ const SCHEMA = {
     type: 'object',
   },
 
+  retention: {
+    describe: 'an object of retention settings',
+    hint: 'How long a model keeps its records is said in the model (options: { retention }); this is what runs the sweep and what it is allowed to do',
+    keys: {
+      approve: {
+        default: true,
+        describe: 'true or false',
+        hint: 'true means a rule writes nothing until its token is in retention.approved; false is the deployment being the review',
+        type: 'boolean',
+      },
+      approved: {
+        default: [],
+        describe: 'a list of rule tokens (Model:rule:digest)',
+        hint: '`henri retention` prints the token of every rule; a rule whose terms change gets a new one and has to be approved again',
+        of: text(),
+        type: 'array',
+      },
+      batch: {
+        default: 1000,
+        describe: 'a whole number above zero, or false for no bound',
+        hint: 'How many records one rule may take in one sweep; the rest is reported and taken by the next run',
+        oneOf: [{ const: false }, { above: 0, integer: true, type: 'number' }],
+      },
+      receipts: {
+        default: 'privacy',
+        describe: 'a directory, or false to keep no receipt',
+        hint: 'Where a sweep writes the proof that it ran; false leaves only what the command printed',
+        oneOf: [{ const: false }, text()],
+      },
+      schedule: {
+        default: false,
+        describe:
+          "a cron expression ('0 3 * * *') or an interval ('1d'), or false",
+        hint: 'Needs @usehenri/jobs: henri registers the recurring henri/retention job. Without it, run henri retention:sweep --yes from cron',
+        oneOf: [{ const: false }, text()],
+      },
+    },
+    type: 'object',
+  },
+
+  trail: {
+    default: false,
+    describe: 'an object of access trail settings, or false to keep none',
+    hint: 'The trail is a table henri owns and appends to; it is off until this says otherwise',
+    oneOf: [
+      { const: false },
+      {
+        keys: {
+          keep: keeps({
+            default: '1y',
+            hint: 'A trail of who touched personal data is personal data: false keeps it forever, which is a decision to make on purpose',
+            oneOf: [{ const: false }, ...keeps().oneOf],
+          }),
+          reads: {
+            default: false,
+            describe: `one of ${READS.join(', ')}, or false to record no read`,
+            hint: "'personal' records the answers carrying a model with a personal field; every read costs a round trip and an insert",
+            oneOf: [{ const: false }, { enum: READS, type: 'string' }],
+          },
+          store: text({
+            default: 'default',
+            describe: 'the name of a store',
+            hint: 'Which of config.stores the table lives in',
+          }),
+          table: {
+            default: 'henri_trail',
+            describe: 'a table name: letters, digits and underscores',
+            hint: 'henri creates it on boot and only ever INSERTs and SELECTs',
+            pattern: /^[A-Za-z_][A-Za-z0-9_]*$/u,
+            type: 'string',
+          },
+        },
+        type: 'object',
+      },
+    ],
+  },
+
   bodyLimit: {
     default: '1mb',
     describe: 'a size, as a string ("1mb") or a number of bytes',
@@ -1144,4 +1241,4 @@ const SCHEMA = {
   },
 };
 
-module.exports = { ADAPTERS, DIALECTS, RENDERERS, SCHEMA, STORE };
+module.exports = { ADAPTERS, DIALECTS, READS, RENDERERS, SCHEMA, STORE };

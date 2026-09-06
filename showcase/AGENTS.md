@@ -59,7 +59,14 @@ says a field is about a person (`User.name`, `bio`, `company`): henri masks it
 in the logs, exports it and erases it. `User.phone` is
 `personal: { expose: false }`, so it never leaves the server unless a render
 names it in `include` -- only `accounts#show` does. Run `henri privacy` for
-the map. Every store adds `createdAt`/`updatedAt`,
+the map. `options.retention` says how long a model keeps its records:
+`Proposal` has two rules (drafts after 180 days, decided proposals into the
+trash two years after `decidedAt`) and `Review` anonymizes its comments after
+two years. A rule writes nothing until its token is in
+`config.retention.approved`; `henri retention` prints them and
+`henri retention:sweep` (`--yes` to write) runs the sweep. Every privacy
+operation and every sweep is appended to the access trail, which
+`henri trail` and `henri trail:verify` read back. Every store adds `createdAt`/`updatedAt`,
 `Model.paginate({ page, perPage })` -> `{ records, page, perPage, total, pages }`,
 `henri.model.errors(error)` -> `{ field: message }` (`null` otherwise) and `db/seeds.js`, run by `henri db:seed`.
 Every model also carries `externalId`, a uuid that is unique and not null in the

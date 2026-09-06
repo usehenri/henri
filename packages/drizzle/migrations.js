@@ -19,6 +19,29 @@ const ORIGIN = '00000000-0000-0000-0000-000000000000';
  *
  * @class Migrations
  */
+/** A statement that takes data away, whatever else it does */
+const DESTRUCTIVE = /\bDROP\s+(?:TABLE|COLUMN)\b/iu;
+
+/**
+ * Does this statement drop one of the tables henri owns?
+ *
+ * The names are checked whole and quoted the way every dialect quotes them,
+ * so a table called `henri_trail_archive` is nobody's business but the
+ * application's.
+ *
+ * @param {string} statement A DDL statement
+ * @param {Set<string>} reserved The table names henri owns
+ * @returns {boolean} true when the statement would drop one of them
+ */
+const drops = (statement, reserved) => {
+  const match =
+    /^\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?[["`]?([A-Za-z0-9_]+)/iu.exec(
+      statement
+    );
+
+  return Boolean(match) && reserved.has(match[1]);
+};
+
 class Migrations {
   /**
    * Creates an instance of Migrations.
@@ -382,7 +405,10 @@ class Migrations {
    */
   async plan({ interactive = false } = {}) {
     const { adapter } = this;
-    const existing = await adapter.listTables();
+    const reserved = adapter.reservedTables();
+    const existing = (await adapter.listTables()).filter(
+      (table) => !reserved.has(table)
+    );
     const wanted = adapter.tableNames();
     const added = wanted.filter((table) => !existing.includes(table));
     const removed = existing.filter(
@@ -407,9 +433,26 @@ class Migrations {
         ? [imports, db, adapter.databaseName()]
         : [imports, db];
     const plan = await quiet(() => kit[adapter.dialect.kit.push](...args));
+    // A table henri owns is not drizzle's to drop. The queue and the access
+    // trail create their own through raw SQL (they have to work on a store
+    // that has no models at all), so drizzle-kit sees them as tables the
+    // schema no longer wants -- and a push that obeyed it would take an
+    // application's job history or its audit trail with it
+    const proposed = plan.statementsToExecute || [];
+    const statements = proposed.filter(
+      (statement) => !drops(statement, reserved)
+    );
     const result = {
-      hasDataLoss: Boolean(plan.hasDataLoss),
-      statements: plan.statementsToExecute || [],
+      // The data loss drizzle-kit reported is the data loss of the
+      // statements it proposed. Dropping one of henri's tables is exactly
+      // that, so once such a drop is filtered out the question has to be
+      // asked again of what is left -- otherwise every boot of an
+      // application with a queue would refuse to push anything
+      hasDataLoss:
+        statements.length === proposed.length
+          ? Boolean(plan.hasDataLoss)
+          : statements.some((statement) => DESTRUCTIVE.test(statement)),
+      statements,
       warnings: plan.warnings || [],
     };
 

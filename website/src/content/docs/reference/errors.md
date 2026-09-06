@@ -1016,6 +1016,47 @@ Usually:
 
 **Fix.** Name the person by email address, by external id or by primary key. An erased person no longer answers to their address: look their receipt up by digest instead.
 
+## retention
+
+How long the models say they keep their records, and the sweep that enforces it.
+
+### `HENRI_RETENTION_ADAPTER_UNSUPPORTED`
+
+A retention sweep reached a model whose adapter henri cannot drive.
+
+Usually:
+
+- the store adapter is not mongoose, sequelize or drizzle
+- the sweep was called on models that are not attached to a connection
+
+**Fix.** The sweep goes through the model API of the three adapters henri ships. Boot the application before sweeping, and use one of them for the models that declare a rule.
+
+### `HENRI_RETENTION_INVALID_RULE`
+
+A model declares a retention rule henri cannot carry out.
+
+Usually:
+
+- `options.retention` is not an object or a list of them
+- `after` cannot be read as a period, or is under a minute
+- `from` names a field that is not a date on that model
+- `action: 'soft-delete'` on a model that is not `paranoid`
+- `action: 'anonymize'` on a model that marks no field personal
+- two rules of one model share a name
+
+**Fix.** A rule is `{ after, action, from, where, name }`, where `after` is a period (`'90d'`, `'18mo'`, `'2y'`), `action` is `delete`, `soft-delete` or `anonymize`, and `from` is a date column of the model. The boot fails rather than sweeping under a rule henri cannot carry out.
+
+### `HENRI_RETENTION_RECEIPT_UNWRITABLE`
+
+A retention sweep ran and its receipt could not be written.
+
+Usually:
+
+- `config.retention.receipts` points at a directory this process may not write
+- the disk is full
+
+**Fix.** The sweep happened; only its receipt could not be written. Make the directory writable, point `config.retention.receipts` somewhere else, or set it to `false` and keep what the command printed.
+
 ## route
 
 Config/routes.js and the router.
@@ -1129,6 +1170,67 @@ Usually:
 - the credentials that hold the url could not be opened
 
 **Fix.** Set `stores.<name>.url`, or the `host`, `port`, `database`, `username` and `password` the adapter assembles one from. `DATABASE_URL` sets `stores.default.url`.
+
+## trail
+
+The append-only record of who read or changed personal data.
+
+### `HENRI_TRAIL_DISABLED`
+
+The access trail was read back and this application keeps none.
+
+Usually:
+
+- `config.trail` is absent or false
+- the trail could not be started
+
+**Fix.** Turn the trail on with `"trail": {}` in `config/<env>.json`; henri creates its table on the next boot. Recording is a no-op while it is off, but reading it back says so rather than answering with nothing.
+
+### `HENRI_TRAIL_INVALID_EVENT`
+
+A trail entry was appended without saying what happened.
+
+Usually:
+
+- `henri.trail.record()` was called without an action
+- the action is longer than 64 characters
+
+**Fix.** An entry needs an action: what happened, as one dotted name. An application's own are prefixed `app.` (`henri.trail.record({ action: 'app.exported' })`).
+
+### `HENRI_TRAIL_UNSUPPORTED_STORE`
+
+The access trail cannot be kept in the store it was pointed at.
+
+Usually:
+
+- `config.trail.store` names a store this application does not have
+- the store adapter has neither `query()` nor a MongoDB connection
+- the MongoDB store is not connected
+
+**Fix.** The trail owns a table in one of the application's stores. Point `config.trail.store` at a store backed by mongoose, sequelize or drizzle, or leave `config.trail` out to keep no trail at all.
+
+### `HENRI_TRAIL_UNWRITABLE`
+
+A trail entry could not be appended after every attempt to chain it.
+
+Usually:
+
+- another writer keeps winning the unique index on `seq`
+- the unique index on `seq` is missing, so the chain cannot be numbered
+
+**Fix.** The entry chains onto the head of the trail, so it re-reads the head when another process got there first. Check that the unique index on `seq` exists (henri creates it at boot) and that nothing else writes to the table.
+
+### `HENRI_TRAIL_VALUE_REFUSED`
+
+Something tried to record a value in the access trail.
+
+Usually:
+
+- a `meta` key is a field the models marked personal
+- a `meta` key is masked by `config.filterParameters`
+- a `meta` value is not a short scalar, or looks like an email address
+
+**Fix.** The trail holds field names, counts and public identifiers, never the values behind them: a record of who read personal data must not become a second copy of it. Record the name and the count, and name a person with `subject`, which henri digests.
 
 ## user
 

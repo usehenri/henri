@@ -842,6 +842,135 @@ const COMMANDS = [
   },
   {
     description: [
+      'How long this application keeps its records, and the sweep that',
+      'enforces it. A model says it in its options -- retention: { after,',
+      'action, from, where } -- and henri retention prints every rule with',
+      'the token that approves it.',
+      '',
+      'henri retention:sweep is a dry run unless it is given --yes: it',
+      'plans, counts and prints, and writes nothing. A rule whose token is',
+      'not in config.retention.approved never writes either, however the',
+      'sweep was run, so a new rule cannot delete anything until a person',
+      'has approved it in the configuration.',
+      '',
+      'With @usehenri/jobs installed and config.retention.schedule set,',
+      'the same sweep runs as the recurring henri/retention job. Without',
+      'the package this command is what a cron line runs. Both boot the',
+      'models only: no port is bound.',
+    ],
+    examples: [
+      {
+        command: 'henri retention',
+        description: 'The rules, and which of them are approved',
+      },
+      {
+        command: 'henri retention:sweep',
+        description: 'What a sweep would do, without doing it',
+      },
+      {
+        command: 'henri retention:sweep --yes --only=Proposal',
+        description: 'Sweep one model, for real',
+      },
+    ],
+    flags: [
+      {
+        description: 'sweep: only this model, or Model:rule',
+        flag: '--only=<name>',
+      },
+      {
+        alias: '-y',
+        description: 'sweep: write; without it nothing is written',
+        flag: '--yes',
+      },
+      JSON_FLAG,
+    ],
+    name: 'retention',
+    summary: 'how long the models keep their records, and the sweep',
+    targets: [
+      {
+        description: 'the retention rules, model by model (the default)',
+        name: 'map',
+      },
+      {
+        description: 'sweep every rule (a dry run without --yes)',
+        name: 'sweep',
+      },
+    ],
+    usage: [
+      'henri retention [--json]',
+      'henri retention:sweep [--only=<name>] [--yes] [--json]',
+    ],
+  },
+  {
+    description: [
+      'The append-only record of who read or changed personal data, read',
+      'back. It holds field names, counts and public identifiers, never a',
+      'value, and every entry is hash-chained onto the one before it.',
+      '',
+      'henri trail:about <who> answers "prove the erasure happened" from an',
+      'email address: the address is not in the table, its digest is, and',
+      'the digest is recomputed from what you were asked about.',
+      '',
+      'henri trail:verify walks the chain and says whether a row was edited',
+      'or removed, and where. The trail is off until config.trail says',
+      'otherwise; all three boot the models only.',
+    ],
+    examples: [
+      {
+        command: 'henri trail --action=privacy.erase',
+        description: 'Every erasure this application performed',
+      },
+      {
+        command: 'henri trail:about ada@example.com',
+        description: 'Everything recorded about one person',
+      },
+      {
+        command: 'henri trail:verify',
+        description: 'Whether anything was edited or removed',
+      },
+    ],
+    flags: [
+      {
+        description: 'only this action (privacy.erase)',
+        flag: '--action=<name>',
+      },
+      { description: 'only this model', flag: '--model=<name>' },
+      { description: 'only this actor, by external id', flag: '--actor=<id>' },
+      {
+        description: 'entries at or after this moment',
+        flag: '--since=<date>',
+      },
+      {
+        description: 'entries at or before this moment',
+        flag: '--until=<date>',
+      },
+      { description: 'how many entries to print (25)', flag: '--limit=<n>' },
+      JSON_FLAG,
+    ],
+    name: 'trail',
+    summary: 'who read or changed personal data, and whether the chain holds',
+    targets: [
+      {
+        description: 'the latest entries (the default)',
+        name: 'list',
+      },
+      {
+        description: 'everything recorded about one person',
+        name: 'about <who>',
+      },
+      {
+        description: 'walk the hash chain and report the first break',
+        name: 'verify',
+      },
+    ],
+    usage: [
+      'henri trail [--action=<name>] [--model=<name>] [--limit=<n>] [--json]',
+      'henri trail:about <who> [--json]',
+      'henri trail:verify [--json]',
+    ],
+  },
+  {
+    description: [
       'Starts the MCP server of @usehenri/mcp on stdio for the application',
       'in the current directory. Claude Code reads it from .mcp.json, Cursor',
       'from .cursor/mcp.json (both: { "command": "henri", "args": ["mcp"] }).',

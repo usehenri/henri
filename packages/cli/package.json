@@ -67,10 +67,12 @@
     "new",
     "openapi",
     "privacy",
+    "retention",
     "routes",
     "s",
     "server",
-    "test"
+    "test",
+    "trail"
   ],
   "devDependencies": {
     "@babel/parser": "^8.0.4",

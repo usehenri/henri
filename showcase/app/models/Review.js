@@ -33,6 +33,11 @@ module.exports = {
     // score stay; the comment is the reviewer's own words about a talk, so
     // it goes with them. `anonymize` is both of those at once.
     personal: { onErase: 'anonymize' },
+    // And the same answer on a clock rather than on a request: two years
+    // after it was written, the words go and the score stays, so the
+    // committee's history still counts and nobody's opinion of a talk is
+    // still on file with their name one join away.
+    retention: { action: 'anonymize', after: '2y' },
   },
 
   schema: {

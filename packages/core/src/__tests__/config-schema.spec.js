@@ -401,6 +401,8 @@ describe('the schema, the declarations and the documentation', () => {
     ['ExternalIdsConfig', () => Object.keys(SCHEMA.externalIds.keys)],
     ['PoliciesConfig', () => Object.keys(SCHEMA.policies.keys)],
     ['PrivacyConfig', () => Object.keys(SCHEMA.privacy.keys)],
+    ['RetentionConfig', () => Object.keys(SCHEMA.retention.keys)],
+    ['TrailConfig', () => Object.keys(SCHEMA.trail.oneOf[1].keys)],
     ['RateLimitConfig', rateLimitKeys],
     ['SharedConfig', () => Object.keys(SCHEMA.shared.keys)],
     ['CacheConfig', () => Object.keys(SCHEMA.cache.oneOf[1].keys)],

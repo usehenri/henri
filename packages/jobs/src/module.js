@@ -223,6 +223,22 @@ class JobsModule extends BaseModule {
   }
 
   /**
+   * Adds a recurring schedule a framework module asks for.
+   *
+   * `henri.retention` is the one that does: an application with the queue
+   * gets its retention sweep on a schedule with nothing to write, and an
+   * entry of its own under the same name still wins.
+   *
+   * @param {string} name The name of the schedule
+   * @param {object} entry `cron` or `every`, plus `job`, `args`, `queue`
+   * @returns {boolean} false when nothing was added
+   * @memberof JobsModule
+   */
+  recur(name, entry) {
+    return this.queue ? this.queue.recur(name, entry) : false;
+  }
+
+  /**
    * Enqueues a job
    *
    * @param {string} name The job name (its file under app/jobs)

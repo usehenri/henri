@@ -302,14 +302,57 @@ class Privacy extends BaseModule {
    *
    * @async
    * @param {(string|object)} who The person
+   * @param {object} [options={}] `source`, for the trail entry
    * @returns {Promise<object>} The export document
    * @memberof Privacy
    */
-  async export(who) {
+  async export(who, options = {}) {
     const context = this.context();
     const subject = await this.subject(who);
+    const document = await exportOf(context, subject);
 
-    return exportOf(context, subject);
+    await this.tell(subject, {
+      action: 'privacy.export',
+      meta: { models: Object.keys(document.records).length },
+      records: Object.values(document.counts).reduce(
+        (total, count) => total + count,
+        0
+      ),
+      source: options.source,
+    });
+
+    return document;
+  }
+
+  /**
+   * Records one operation in the access trail, when there is one.
+   *
+   * Every operation of this module goes through here, including the ones
+   * that were refused: an application asked to prove an erasure happened
+   * has to be able to show the attempts as well as the successes.
+   *
+   * @async
+   * @param {object} subject The person, as a plain object
+   * @param {object} event The entry
+   * @returns {Promise<?object>} The entry, or null
+   * @memberof Privacy
+   */
+  async tell(subject, event) {
+    const { trail } = this.henri;
+
+    if (!trail || !trail.enabled) {
+      return null;
+    }
+
+    const named = trail.identify(subject);
+
+    return trail.record({
+      model: this.subjectModel,
+      outcome: 'ok',
+      source: 'app',
+      ...named,
+      ...event,
+    });
   }
 
   /**
@@ -341,9 +384,43 @@ class Privacy extends BaseModule {
   async erase(who, options = {}) {
     const context = this.context();
     const subject = await this.subject(who);
-    const receipt = await eraseOf(context, subject, options);
+    let receipt;
+
+    try {
+      receipt = await eraseOf(context, subject, options);
+    } catch (error) {
+      // A refusal is written down too: "we were asked and we said no" is
+      // part of the record, and an entry that only ever appears on success
+      // is not evidence of anything
+      await this.tell(subject, {
+        action: 'privacy.erase',
+        meta: {
+          dryRun: options.dryRun === true,
+          reason: error.code || 'refused',
+        },
+        outcome: 'refused',
+        source: options.source,
+      });
+
+      throw error;
+    }
 
     receipt.file = options.dryRun ? null : this.record(receipt);
+
+    await this.tell(subject, {
+      action: 'privacy.erase',
+      ids: receipt.records.flatMap((entry) => entry.ids).filter(Boolean),
+      meta: {
+        dryRun: receipt.dryRun,
+        receipt: receipt.id,
+        strategy: options.strategy || this.settings.onErase,
+      },
+      records: receipt.records.reduce(
+        (total, entry) => total + entry.written,
+        0
+      ),
+      source: options.source,
+    });
 
     this.henri.pen.info(
       'privacy',

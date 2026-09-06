@@ -124,8 +124,8 @@ an app and is what core's tests boot.
 passwordReset, confirmation }`), `baseRole`, `externalIds`, `policies`,
   `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `jobs`,
   `rateLimit`, `shared`, `cache`, `helmet`, `filterParameters`, `privacy`,
-  `externalIds`, `bodyLimit`, `uploads`, `requestTimeout`, `shutdown`,
-  `errors`, `policies`.
+  `retention`, `trail`, `externalIds`, `bodyLimit`, `uploads`,
+  `requestTimeout`, `shutdown`, `errors`, `policies`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
@@ -345,6 +345,46 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   identity rather than the identity. `henri privacy` prints the map,
   `henri audit` reports an unmarked field about a person (`privacy.unmarked`),
   and the guide is `website/src/content/docs/guides/privacy.md`.
+- Retention is `4.retention.js` (`henri.retention`) and `base/retention.js`.
+  A model says how long it keeps its records in its options
+  (`retention: { action, after, from, where, name }`, or a list of those);
+  `after` is a period (`'90d'`, `'18mo'`, `'2y'`), `action` is one of the
+  three verbs henri already has -- `delete`, `soft-delete` (only on a
+  `paranoid` model) and `anonymize` (what `base/erasure.js` writes) -- and
+  `from` is the date column the clock starts on, which is rarely
+  `createdAt`. A record whose `from` is null never ages out and is counted
+  as `waiting`. A rule henri cannot carry out fails the boot
+  (`HENRI_RETENTION_INVALID_RULE`). `henri.retention.sweep()` needs nothing
+  installed: `henri retention:sweep --yes` is the cron line, and with
+  `@usehenri/jobs` `config.retention.schedule` registers the recurring
+  `henri/retention` job through `henri.jobs.recur()`; the boot line names
+  whichever it is, and says when it is neither. A rule writes nothing until
+  its token (`Model:rule:<digest of its terms>`, a plain digest so it means
+  the same in every environment) is in `config.retention.approved`, and
+  `config.retention.batch` (1000) bounds one run. Every sweep leaves a
+  receipt in `config.retention.receipts`, and the guide is
+  `guides/retention.md`.
+- The access trail is `4.trail.js` (`henri.trail`), `base/trail.js` and
+  `base/trail-store.js`, off unless `config.trail` says otherwise. It owns
+  a table (`henri_trail`) the way the queue owns its own -- raw SQL through
+  the adapter or a MongoDB collection, never a model -- and only ever
+  `INSERT`s and `SELECT`s into it. It records what core does itself to
+  personal data (`privacy.export`, `privacy.erase` including refusals,
+  `retention.sweep`) plus, with `config.trail.reads`, the answers henri
+  serializes (`res.resource`, `res.collection`, `res.render`);
+  `henri.trail.record()` is how an application adds its own, and the guide
+  says plainly that a model call in a controller is outside the boundary.
+  An entry holds field _names_, counts, public identifiers and digests: a
+  `meta` naming a personal field, a `filterParameters` match, a long string
+  or something shaped like an address is refused
+  (`HENRI_TRAIL_VALUE_REFUSED`). Every entry carries `seq` (one more than
+  the last, under a unique index, so two writers make one chain rather than
+  two) and `hash = HMAC(secret, prev + canonical(entry))`, so an edited or
+  removed row breaks the chain and `henri trail:verify` says where. Its own
+  retention is `config.trail.keep`, pruned by the retention sweep as a
+  prefix plus a `trail.pruned` checkpoint. `henri trail`,
+  `henri trail:about <who>` and `henri trail:verify` read it back, and the
+  guide is `guides/trail.md`.
 - The router (`5.router.js`) expands `config/routes.js` through
   `base/routes.js` (`root`, `resources`/`crud` with `only`/`except`/`omit`,
   `member`, `collection`, `namespace`, `nested`; `@usehenri/cli` requires the
@@ -389,7 +429,10 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   dialect (`FOR UPDATE SKIP LOCKED`, `UPDATE ... ORDER BY ... LIMIT`,
   `UPDLOCK, READPAST`, a subquery on sqlite, `findOneAndUpdate` on MongoDB)
   and the claimed rows are read back by the token it stamped, so two runners
-  never perform one job. `henri jobs` runs a worker (`--queue`,
+  never perform one job. `henri.jobs.recur(name, entry)` is the seam a
+  framework module uses to ask for a schedule the configuration did not
+  write (`henri.retention` is the one that does); an entry the application
+  declared under the same name wins. `henri jobs` runs a worker (`--queue`,
   `--concurrency`, `--once`), `henri jobs:install|status|list|dead|show|
 perform|retry|discard` drive it. The module also registers
   `henri.mailers.onDeliverLater()`, so `deliverLater()` enqueues the rendered
@@ -546,6 +589,13 @@ the LICENSE and a README into every public package at publish time
   on MSSQL neither it nor the DDL it would write is covered, and sqlite
   reports a column change without a statement because it has no
   `ALTER COLUMN`.
+- The tables henri owns in a drizzle store (`henri_jobs`,
+  `henri_jobs_schedules`, `henri_trail`) are created through raw SQL, so
+  drizzle-kit sees them as tables the schema no longer wants.
+  `Drizzle#reservedTables()` is what keeps a push from dropping them; a
+  table an application renames through `jobs.table` or `trail.table` is
+  read from the configuration, and anything else henri comes to own has to
+  be added there.
 - drizzle-kit does not alter a mysql table on a push: `henri db:push` and the
   development boot create the tables that are missing and report the ones
   whose columns drifted (`Migrations#completeMySQLPlan`); a mysql schema
@@ -573,6 +623,14 @@ the LICENSE and a README into every public package at publish time
   `@usehenri/redis` is exercised offline (the wiring, the option split, the
   fail-fast) and against a live server with `HENRI_TEST_REDIS_URL`
   (`pnpm test:redis`, the `Live Redis` job of the CI).
+- Retention and the access trail are covered on all three adapters:
+  mongoose through the demo application core's suite boots (the sweep, the
+  receipt, the MongoDB trail and its prune), and Sequelize and Drizzle by
+  `packages/{sequelize,drizzle}/__tests__/retention.spec.js`, which run on
+  sqlite offline and on the live PostgreSQL and MySQL of
+  `pnpm test:sql:live`. The showcase proves both on a real application
+  (`showcase/test/retention.test.js`). MSSQL has only its generated DDL
+  covered, like the rest of that adapter.
 - `@usehenri/jobs` is new in 1.1. Its claim is covered against sqlite,
   PostgreSQL, MySQL and MongoDB (`packages/jobs/__tests__/claim.spec.js`,
   `mongo.spec.js`; `pnpm test:sql:live` runs the SQL ones on real servers with

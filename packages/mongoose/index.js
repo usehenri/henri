@@ -139,8 +139,10 @@ class Mongoose {
     const {
       externalId: external,
       paranoid: soft = false,
-      // A mark for henri (base/privacy.js), not a Mongoose schema option
+      // Marks for henri (base/privacy.js, base/retention.js), not
+      // Mongoose schema options
       personal,
+      retention,
       ...options
     } = model.options || {};
     // Rails has timestamps on every table: `timestamps: false` opts out

@@ -15,6 +15,8 @@ const Model = require('./3.model');
 const Policies = require('./3.policies');
 const Privacy = require('./3.privacy');
 const View = require('./3.view');
+const Retention = require('./4.retention');
+const Trail = require('./4.trail');
 const User = require('./4.user');
 const Router = require('./5.router');
 const Workers = require('./5.workers');
@@ -74,7 +76,9 @@ class Henri extends HenriBase {
     this.modules.add(new Model());
     this.modules.add(new Policies());
     this.modules.add(new Privacy());
+    this.modules.add(new Retention());
     this.modules.add(new Router());
+    this.modules.add(new Trail());
     this.modules.add(new User());
     this.modules.add(new View());
     this.modules.add(new Workers());

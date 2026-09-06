@@ -32,5 +32,11 @@
   "env": "test",
   "privacy": {
     "receipts": ".tmp/privacy"
+  },
+  "retention": {
+    "receipts": ".tmp/privacy"
+  },
+  "trail": {
+    "keep": "1y"
   }
 }
