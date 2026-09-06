@@ -2,6 +2,7 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 const { relations, sql } = require('drizzle-orm');
 const debug = require('debug')('henri:drizzle');
 const dialects = require('./dialects');
+const { Dump } = require('./dump');
 const { Migrations } = require('./migrations');
 const { BIND_IDENTITY, createModel } = require('./model');
 const { compileTable, encryptedFields, normalizeSchema } = require('./schema');
@@ -167,6 +168,7 @@ class Drizzle {
     this.dirty = true;
     this.context = new AsyncLocalStorage();
     this.migrations = new Migrations(this);
+    this.dump = new Dump(this);
     this.timings = {};
 
     debug(

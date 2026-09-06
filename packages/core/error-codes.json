@@ -46,6 +46,10 @@
       "what": "the mail transport, the mailers of app/mailers and their views"
     },
     {
+      "area": "migration",
+      "what": "the migrations of db/migrations and the schema dump of a drizzle store"
+    },
+    {
       "area": "model",
       "what": "the model files of app/models and the schema the adapters normalize"
     },
@@ -475,8 +479,9 @@
     {
       "area": "cli",
       "causes": [
-        "`henri db:generate`, `db:migrate` or `db:push` on a store using a Sequelize adapter (mysql, postgresql, mssql)",
-        "`henri db:status` on a store whose adapter keeps no schema to read back (mongoose, disk)"
+        "`henri db:generate`, `db:migrate`, `db:rollback` or `db:push` on a store using a Sequelize adapter (mssql)",
+        "`henri db:status` on a store whose adapter keeps no schema to read back (mongoose, disk)",
+        "`henri db:schema:dump` or `db:schema:load` on a store whose adapter has no schema to write down (mongoose, disk)"
       ],
       "code": "HENRI_CLI_MIGRATIONS_UNSUPPORTED",
       "exit": 1,
@@ -979,6 +984,74 @@
       "code": "HENRI_MAIL_VIEW_MISSING",
       "fix": "Write app/views/mailers/<mailer>/<action>.hbs. A `<action>.text.hbs` next to it replaces the plain text part, which is otherwise derived from the html.",
       "what": "A mail has no view to render."
+    },
+    {
+      "area": "migration",
+      "causes": [
+        "`henri db:schema:load` into a database that already holds the application tables"
+      ],
+      "code": "HENRI_MIGRATION_DATABASE_NOT_EMPTY",
+      "fix": "A schema load starts from an empty database, because it creates every table the dump describes and will not decide on its own which of the existing ones to remove. Empty it first (`henri db:drop` then `henri db:create`, or `henri db:reset` for the whole cycle), or pass --force to load into what is there.",
+      "what": "A schema load was asked for on a database that is not empty."
+    },
+    {
+      "area": "migration",
+      "causes": [
+        "`henri db:rollback` whose inverse would drop a table holding rows, or a column holding values",
+        "`henri db:rollback` on a table henri could not count"
+      ],
+      "code": "HENRI_MIGRATION_DESTRUCTIVE",
+      "fix": "The rows are counted before anything runs, so this is data that exists rather than a statement that looks dangerous. Run it again with --force when losing them is what you meant; the same rollback on a table where nothing was written needs no flag.",
+      "what": "Rolling back would take rows away."
+    },
+    {
+      "area": "migration",
+      "causes": [
+        "`henri db:schema:load` with no db/schema.sql",
+        "a dump taken at a migration that is not in db/migrations, usually from another branch"
+      ],
+      "code": "HENRI_MIGRATION_DUMP_UNKNOWN",
+      "fix": "Write the dump with `henri db:schema:dump`, which needs a database it can reach. A dump naming a migration this checkout does not have is the wrong dump for this branch: take a new one, or check out the branch that has that migration.",
+      "what": "There is no schema dump to load, or it does not belong to this migration folder."
+    },
+    {
+      "area": "migration",
+      "causes": [
+        "the .sql of a migration was edited after it ran",
+        "a migration file replaced by one from another branch"
+      ],
+      "code": "HENRI_MIGRATION_EDITED",
+      "fix": "The database records the sha256 of the file it applied and it no longer matches, so henri does not know what ran and will not invert a guess. Put the file back the way it was, or roll the change forward with a new migration.",
+      "what": "A migration file is not the one the database applied."
+    },
+    {
+      "area": "migration",
+      "causes": [
+        "`henri db:rollback` on a migration that dropped a table or a column"
+      ],
+      "code": "HENRI_MIGRATION_IRREVERSIBLE",
+      "fix": "There is no flag for this one. The inverse would recreate the table or the column empty, which is not what was dropped, and undoing a destructive migration is a restore from a backup. Restore, or write a new migration that adds what you want back and fills it.",
+      "what": "The migration removed something a rollback cannot put back."
+    },
+    {
+      "area": "migration",
+      "causes": [
+        "`henri db:rollback` with nothing applied",
+        "`henri db:rollback --step=<n>` with fewer than n migrations applied"
+      ],
+      "code": "HENRI_MIGRATION_NOT_APPLIED",
+      "fix": "A rollback undoes migrations the database says it applied. `henri db:status` lists them; ask for no more than that.",
+      "what": "There is no applied migration to roll back, or not that many."
+    },
+    {
+      "area": "migration",
+      "causes": [
+        "meta/NNNN_snapshot.json deleted or never committed",
+        "a db/migrations folder assembled by hand"
+      ],
+      "code": "HENRI_MIGRATION_SNAPSHOT_MISSING",
+      "fix": "The snapshots next to the migrations are what a rollback reads to compute the inverse, and drizzle-kit needs them to generate the next migration too: they belong in the repository. Restore meta/ from version control.",
+      "what": "The snapshot a migration left the schema at is missing from meta/."
     },
     {
       "area": "model",

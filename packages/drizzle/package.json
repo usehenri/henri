@@ -18,6 +18,7 @@
     "index.js",
     "dialects.js",
     "external-id.js",
+    "dump.js",
     "migrations.js",
     "model.js",
     "relation.js",

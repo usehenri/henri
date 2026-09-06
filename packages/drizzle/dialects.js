@@ -127,6 +127,22 @@ const uniqueViolation = (error, details) =>
     henri: { columns: details.columns, key: details.key, kind: 'unique' },
   });
 
+/**
+ * Quotes an identifier with backticks (sqlite and mysql)
+ *
+ * @param {string} name A table, column or index name
+ * @returns {string} The quoted identifier
+ */
+const backtick = (name) => '`' + String(name).replace(/`/gu, '``') + '`';
+
+/**
+ * Quotes an identifier with double quotes (postgres)
+ *
+ * @param {string} name A table, column or index name
+ * @returns {string} The quoted identifier
+ */
+const quoted = (name) => '"' + String(name).replace(/"/gu, '""') + '"';
+
 const sqlite = {
   /**
    * How many rows a run() touched
@@ -254,6 +270,8 @@ const sqlite = {
   },
 
   placeholder: () => '?',
+
+  quote: backtick,
 
   /**
    * Runs a raw query
@@ -416,6 +434,8 @@ const postgres = {
 
   placeholder: (index) => `$${index}`,
 
+  quote: quoted,
+
   query: async (client, text, params = []) =>
     (await client.query(text, params)).rows,
 
@@ -553,6 +573,8 @@ const mysql = {
 
   placeholder: () => '?',
 
+  quote: backtick,
+
   query: async (client, text, params = []) =>
     (await client.query(text, params))[0],
 
@@ -652,4 +674,12 @@ const fromUrl = (url) => {
   return get(scheme);
 };
 
-module.exports = { DIALECTS, driverError, fromUrl, get, sqliteFile };
+module.exports = {
+  DIALECTS,
+  backtick,
+  driverError,
+  fromUrl,
+  get,
+  quoted,
+  sqliteFile,
+};
