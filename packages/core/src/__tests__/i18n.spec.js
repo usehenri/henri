@@ -832,6 +832,8 @@ describe('i18n (demo app, disk store)', () => {
     const answer = await request.get('/hello').set('Cookie', 'henri.locale=fr');
 
     expect(answer.text).toContain('<p id="lang">fr/cookie</p>');
+    // A shared cache that was not told would hand this to the next visitor
+    expect(answer.headers.vary).toContain('Cookie');
     expect(
       (answer.headers['set-cookie'] || []).filter((one) =>
         one.startsWith('henri.locale=')

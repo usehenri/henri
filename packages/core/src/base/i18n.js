@@ -1036,9 +1036,13 @@ const middleware = (henri) => {
     req.t = (key, values = {}, options = {}) =>
       i18n.t(key, values, Object.assign({ locale: req.locale }, options));
 
-    // What a cache has to key on, and what a client can read back
+    // What a cache has to key on, and what a client can read back. The
+    // header henri varies on is the one that decided: a shared cache that
+    // was not told would hand one visitor's language to the next
     res.setHeader('Content-Language', req.locale);
     decided.source === 'header' && res.vary('Accept-Language');
+    (decided.source === 'cookie' || decided.source === 'user') &&
+      res.vary('Cookie');
 
     return next();
   };
