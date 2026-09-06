@@ -103,6 +103,7 @@
  */
 const { singularize } = require('./routes');
 const { accountsConfig } = require('./accounts');
+const { identitiesConfig } = require('./identities');
 const { userConfig } = require('./auth');
 const { mapOf, privacyConfig } = require('./privacy');
 const { DEFAULTS: PAGE_DEFAULTS } = require('./pagination');
@@ -268,6 +269,7 @@ function settingsOf(config) {
   return {
     accounts: accountsConfig(stub),
     baseRole: read('baseRole', null),
+    identities: identitiesConfig(stub),
     csrf: read('csrf', true) !== false,
     graphql: read('graphql', false),
     host: read('host', null),
@@ -2301,6 +2303,177 @@ function builtins(context) {
       'x-henri': { answer: 'acknowledgement', known: true, source: 'built-in' },
     });
   }
+
+  return identityEndpoints(add, found, {
+    csrf,
+    errors,
+    json,
+    publicUser,
+    settings,
+  });
+}
+
+/**
+ * The three endpoints `config.user.identities` mounts.
+ *
+ * Described the way the account flows are, and the descriptions are the
+ * rules rather than a summary of them: a `GET` on the start endpoint is a
+ * `405` on purpose, a callback carries no request body because the provider
+ * chose the query, and every refusal is a `data.reason` -- the one thing a
+ * page has to switch on.
+ *
+ * @param {function} add pushes an endpoint
+ * @param {Array<object>} found the endpoints so far
+ * @param {object} context `{ csrf, errors, json, publicUser, settings }`
+ * @returns {Array<object>} the endpoints
+ */
+function identityEndpoints(add, found, context) {
+  const { csrf, errors, json, publicUser, settings } = context;
+  const { identities } = settings;
+
+  if (!identities.enabled) {
+    return healthEndpoints(add, found);
+  }
+
+  const base = identities.path;
+  const provider = {
+    name: 'provider',
+    in: 'path',
+    required: true,
+    description:
+      'The provider, as `config.user.identities.providers` names it.',
+    schema: { type: 'string', enum: Object.keys(identities.providers).sort() },
+  };
+  const identity = {
+    type: 'object',
+    description:
+      'What of an identity leaves the server. The subject the provider issued never does: it is the credential.',
+    properties: {
+      allows: { type: 'string', enum: ['signin', 'verify'] },
+      linkedAt: { type: 'string', format: 'date-time' },
+      provider: { type: 'string' },
+    },
+    required: ['provider', 'allows'],
+  };
+
+  add('post', `${base}/{provider}`, {
+    operationId: 'henri.identities.start',
+    summary: 'Start a sign-in with a provider',
+    description:
+      "Answers the url of the provider (a browser is redirected to it). It is a `POST` and not a `GET` so that it goes through the CSRF token and the origin check: a third-party page must not be able to start an authentication in somebody else's browser. `GET` answers `405`. With a session it starts a **link** instead, which is the only automatic link henri makes.",
+    parameters: [provider].concat(csrf),
+    requestBody: {
+      required: false,
+      content: {
+        [JSON_MEDIA]: {
+          schema: {
+            type: 'object',
+            properties: {
+              returnTo: {
+                type: 'string',
+                description:
+                  'A path of this application to come back to; anything else is dropped.',
+              },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      200: json(
+        {
+          type: 'object',
+          properties: { ok: { const: true }, url: { type: 'string' } },
+          required: ['ok', 'url'],
+        },
+        'Where to send the browser.'
+      ),
+      400: json(
+        { $ref: '#/components/schemas/Error' },
+        'No such provider, or it cannot open a session on its own; `data.reason`.'
+      ),
+      429: { $ref: '#/components/responses/TooManyRequests' },
+      default: errors,
+    },
+    'x-henri': { answer: 'acknowledgement', known: true, source: 'built-in' },
+  });
+
+  add('get', `${base}/{provider}/callback`, {
+    operationId: 'henri.identities.callback',
+    summary: 'Come back from a provider',
+    description:
+      'What a provider redirects the browser to. The `state` is the one henri minted for this session: it is single use, it expires, and it is what stands in for the CSRF token on a request that came from somewhere else. A callback whose **verified** address already belongs to an account is refused (`409`, `data.reason` is `exists`) unless `merge` says otherwise, and one whose address the provider did not verify is refused before the user table is read.',
+    parameters: [
+      provider,
+      {
+        name: 'code',
+        in: 'query',
+        required: false,
+        schema: { type: 'string' },
+      },
+      {
+        name: 'state',
+        in: 'query',
+        required: false,
+        schema: { type: 'string' },
+      },
+    ],
+    responses: {
+      200: json(
+        {
+          type: 'object',
+          properties: { identity, ok: { const: true }, user: publicUser },
+          required: ['ok', 'identity'],
+        },
+        'A session was opened, or the provider was linked to the session that was already there.'
+      ),
+      400: json(
+        { $ref: '#/components/schemas/Error' },
+        '`data.reason` says which rule: `state`, `denied`, `exchange`, `profile`, `unverified`, `signup-disabled`, `not-a-sign-in` or `unknown-provider`.'
+      ),
+      403: json(
+        { $ref: '#/components/schemas/Error' },
+        'The address has not been confirmed; `data.reason` is `unconfirmed`.'
+      ),
+      409: json(
+        { $ref: '#/components/schemas/Error' },
+        'The address already belongs to an account (`exists`), that provider account belongs to another one (`linked-elsewhere`), or this account already holds an identity at this provider (`already-linked`).'
+      ),
+      429: { $ref: '#/components/responses/TooManyRequests' },
+      default: errors,
+    },
+    'x-henri': { answer: 'session', known: true, source: 'built-in' },
+  });
+
+  add('post', `${base}/{provider}/unlink`, {
+    operationId: 'henri.identities.unlink',
+    summary: 'Unlink a provider',
+    description:
+      'Removes the identity of this account at that provider. It refuses (`409`, `data.reason` is `last-credential`) when that would leave the account with no way in at all, which is what an account henri opened from a callback and that never set a password would be left with.',
+    parameters: [provider].concat(csrf),
+    responses: {
+      200: json(
+        {
+          type: 'object',
+          properties: { ok: { const: true } },
+          required: ['ok'],
+        },
+        'The provider is no longer linked.'
+      ),
+      400: json(
+        { $ref: '#/components/schemas/Error' },
+        'No such provider, or no such link; `data.reason`.'
+      ),
+      401: { $ref: '#/components/responses/Unauthorized' },
+      409: json(
+        { $ref: '#/components/schemas/Error' },
+        'That is the only way into the account; `data.reason` is `last-credential`.'
+      ),
+      default: errors,
+    },
+    security: [{ session: [] }, { bearer: [] }],
+    'x-henri': { answer: 'acknowledgement', known: true, source: 'built-in' },
+  });
 
   return healthEndpoints(add, found);
 }

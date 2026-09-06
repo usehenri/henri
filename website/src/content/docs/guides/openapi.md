@@ -33,6 +33,7 @@ Everything below comes from the application, never from a convention henri hopes
 | `page` and `per_page`             | `config.api.perPage` and `config.api.maxPerPage`                                                                                                                          |
 | The security schemes              | The session cookie and the bearer token the [user module](/guides/users/) mounts, and the `X-CSRF-Token` a mutating request needs                                         |
 | `POST /login`, the account flows  | `config.user`: they are in the document only when henri actually mounts them                                                                                              |
+| The identity endpoints            | `config.user.identities`: the providers are the `enum` of the path parameter, and every refusal is described by the `data.reason` it carries                              |
 | `/livez`, `/readyz`, `/healthz`   | Always: every henri application answers them                                                                                                                              |
 
 Every operation also carries `x-henri.enforced`, a list naming what henri actually checks on that route — `_links` on the ones expanded from `resources` and `crud`, `params` on the ones whose action declared any, `answers` on the ones whose action declared what it sends — as opposed to what it expects.
