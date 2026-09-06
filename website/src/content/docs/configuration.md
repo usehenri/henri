@@ -24,7 +24,7 @@ Configuration is JSON in the `config` directory. henri loads `config/<NODE_ENV>.
 }
 ```
 
-The file is parsed on boot: a syntax error is reported with its line, and the boot stops when no file can be loaded. The loaded object is frozen.
+The file is parsed on boot: a syntax error is reported with its line, and the boot stops when no file can be loaded. The loaded object is frozen, then [checked against henri's schema](#validation) before any other module starts.
 
 Every key below is declared in `@usehenri/core`, so an editor completes them as you type. `henri.config.get()` and a hand-built configuration object take the same shape, `import('@usehenri/core').Configuration` — see [Types](/reference/types/).
 
@@ -35,22 +35,23 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `port`             | `3000`        | Port to listen on. In development a busy port is replaced by the next free one; under `NODE_ENV=test` the kernel assigns one.                  |
 | `host`             | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file. |
 | `cors`             | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                              |
-| `renderer`         | `template`    | View engine: `react`, `inertia` or `template` (Handlebars). `henri new` writes `react`. See [Views](/guides/views/).                           |
+| `renderer`         | `template`    | View engine: `react`, `inertia` or `template` (Handlebars), whatever the case. `henri new` writes `react`. See [Views](/guides/views/).        |
 | `inertia`          |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                            |
 | `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                           |
 | `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                    |
 | `secret`           |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                         |
 | `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                     |
 | `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                               |
-| `trustProxy`       | `true`        | Express `trust proxy` setting: `X-Forwarded-*` headers from a reverse proxy are honoured. Set `false` without one.                             |
+| `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.          |
 | `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf).                                                                                   |
 | `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                                                 |
 | `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                             |
 | `mailers`          |               | Defaults of the [mailers](/guides/mail/): `from`, `layout` and `previews`, see below.                                                          |
 | `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                    |
-| `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them.                                                         |
+| `jobs`             |               | Settings of the [job queue](/guides/jobs/), see below. The queue also loads when `app/jobs` holds a file.                                      |
+| `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                              |
 | `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                               |
-| `filterParameters` | see below     | Parameter names masked in the logs.                                                                                                            |
+| `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                     |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                           |
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                  |
 
@@ -84,6 +85,7 @@ Each entry of `stores` names an adapter and how to reach its database. The adapt
 | `host`, `port`, `database`, `username`, `password` | mongoose, SQL | Alternative to `url`. On mongoose, `host` may also be a full `mongodb://` url.                                                                                                                                           |
 | `opts`                                             | mongoose      | Options passed to `mongoose.connect()`; henri sets `connectTimeoutMS` and `serverSelectionTimeoutMS` to 10 seconds.                                                                                                      |
 | `session`                                          | mongoose, SQL | Options of the session store (connect-mongo, whose collection is `henriSessions`, or connect-session-sequelize).                                                                                                         |
+| `sessions`                                         | drizzle       | `true` creates the session table even when the application has no user model.                                                                                                                                            |
 | `path`, `dbName`, `port`                           | disk          | Data directory, relative to the application (`.henri/data`), database name (`henri`), and the port mongod listens on (one derived from the process id, between 20000 and 26999, so parallel boots never collide).        |
 | `logging`, `pool`, `dialectOptions`, ...           | SQL           | Every other key is forwarded to Sequelize. `logging` defaults to the `henri:sequelize` debug namespace.                                                                                                                  |
 | `dialect`                                          | drizzle       | `sqlite`, `postgres` or `mysql`; the app installs the driver (`better-sqlite3`, `pg` or `mysql2`).                                                                                                                       |
@@ -95,18 +97,30 @@ See [Models](/guides/models/#adapters) for each adapter.
 
 The keys of the [JSON API](/guides/api/), all optional:
 
-| Key                                   | Default                                            | Description                                                                                                                                                                                  |
-| ------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `api.perPage`, `api.maxPerPage`       | `25`, `100`                                        | Page size read by `req.pagination()` and its upper bound.                                                                                                                                    |
-| `api.strict`                          | `false`                                            | Refuse (500) a JSON answer without `_links` on a `resources`/`crud` route instead of logging it.                                                                                             |
-| `api.idempotency`                     | `{ "ttl": 86400000, "store": null }`               | How long answers are kept for `Idempotency-Key` replays and the module exporting a shared `{ get, set, delete }` store; `false` disables the feature.                                        |
-| `rateLimit.windowMs`, `rateLimit.max` | `60000`, `600`                                     | The global limit per user or ip, not enforced in development.                                                                                                                                |
-| `rateLimit.auth`                      | `{ "windowMs": 60000, "max": 10 }`                 | The limit on `POST` to the login and register-style paths (`paths` overrides the list); `false` disables it.                                                                                 |
-| `rateLimit.store`                     |                                                    | Module exporting an express-rate-limit `Store` (or a `(henri, { name }) => store` factory) shared between processes.                                                                         |
-| `helmet`                              |                                                    | Options merged over henri's defaults (a development CSP that allows hot reloading, no HSTS outside production, `upgrade-insecure-requests` only on https requests); `false` disables helmet. |
-| `filterParameters`                    | `["password", "token", "secret", "authorization"]` | Substrings of the parameter names masked in everything `henri.pen` prints.                                                                                                                   |
-| `bodyLimit`                           | `"1mb"`                                            | Passed to the JSON and urlencoded body parsers.                                                                                                                                              |
-| `requestTimeout`                      | `30000`                                            | Milliseconds before a `503`; `false` disables the timeout.                                                                                                                                   |
+| Key                             | Default                              | Description                                                                                                                                           |
+| ------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.perPage`, `api.maxPerPage` | `25`, `100`                          | Page size read by `req.pagination()` and its upper bound.                                                                                             |
+| `api.strict`                    | `false`                              | Refuse (500) a JSON answer without `_links` on a `resources`/`crud` route instead of logging it.                                                      |
+| `api.idempotency`               | `{ "ttl": 86400000, "store": null }` | How long answers are kept for `Idempotency-Key` replays and the module exporting a shared `{ get, set, delete }` store; `false` disables the feature. |
+
+## Rate limits
+
+`rateLimit` is `false` to lift every limit, `true` for the defaults, or an object. Nothing is enforced in development.
+
+| Key                                   | Default                            | Description                                                                                                          |
+| ------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `rateLimit.windowMs`, `rateLimit.max` | `60000`, `600`                     | The global limit per user or ip. `limit` is accepted as an alias of `max`, the name express-rate-limit 8 uses.       |
+| `rateLimit.auth`                      | `{ "windowMs": 60000, "max": 10 }` | The limit on `POST` to the login and register-style paths (`paths` overrides the list); `false` disables it.         |
+| `rateLimit.store`                     |                                    | Module exporting an express-rate-limit `Store` (or a `(henri, { name }) => store` factory) shared between processes. |
+
+## Headers, logs and limits
+
+| Key                | Default                                            | Description                                                                                                                                                                                  |
+| ------------------ | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `helmet`           |                                                    | Options merged over henri's defaults (a development CSP that allows hot reloading, no HSTS outside production, `upgrade-insecure-requests` only on https requests); `false` disables helmet. |
+| `filterParameters` | `["password", "token", "secret", "authorization"]` | Substrings of the parameter names masked in everything `henri.pen` prints; `false` masks nothing.                                                                                            |
+| `bodyLimit`        | `"1mb"`                                            | Passed to the JSON and urlencoded body parsers; a string (`"1mb"`) or a number of bytes.                                                                                                     |
+| `requestTimeout`   | `30000`                                            | Milliseconds before a `503`; `false` disables the timeout.                                                                                                                                   |
 
 ## Environment and `.env`
 
@@ -152,7 +166,7 @@ HENRI_CONFIG_JSON__rateLimit='{"windowMs":60000,"max":100}'
 
 The segments are the configuration keys **verbatim**, so their case matters: `HENRI_CONFIG__baseRole`, never `HENRI_CONFIG__BASEROLE`.
 
-**The type comes from the file, henri never guesses it.** When the configuration already has a value at that path, the variable is read as its type: a number for `port`, `true`/`false` for a boolean, JSON for an object. A path the file does not have is a string — a connection string stays a connection string even when it looks like a number. `HENRI_CONFIG_JSON__<key>` parses the value as JSON in every case, which is how you set a nested object, an array, or a key no file declares.
+**The type comes from the file, then from the schema; henri never guesses it.** When the configuration already has a value at that path, the variable is read as its type: a number for `port`, `true`/`false` for a boolean, JSON for an object. When it does not, the type is the one [the schema](#validation) declares for that key, so `HENRI_CONFIG__port=8080` is the number `8080` in an application whose file never names a port. A key henri does not own and the file does not have is a string — a connection string stays a connection string even when it looks like a number. `HENRI_CONFIG_JSON__<key>` parses the value as JSON in every case, which is how you set a nested object, an array, or a key no file declares.
 
 A value that does not fit its key fails the boot, naming the variable and the type it expected. A variable set to nothing fails too (`HENRI_CONFIG__port is set but empty: give it a value or unset it`): a missing variable is simply not an override and never becomes an empty string. The value itself is never part of an error message — it may be a secret.
 
@@ -233,6 +247,7 @@ Everything the [job queue](/guides/jobs/) reads, all of it optional. It only loa
 | Key             | Default      | Description                                                                                                                                  |
 | --------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `store`         | `default`    | Which store of `stores` holds the queue.                                                                                                     |
+| `priority`      | `0`          | Priority of a job that names none; the higher, the sooner it is claimed.                                                                     |
 | `table`         | `henri_jobs` | Table (or collection) name; the schedules live in `<table>_schedules`. Letters, digits and underscores only.                                 |
 | `queue`         | `default`    | Queue of a job that names none.                                                                                                              |
 | `queues`        | all          | Queues a runner takes from when `henri jobs` is given no `--queue`.                                                                          |
@@ -267,6 +282,47 @@ Every duration is a number of milliseconds or a string: `'250ms'`, `'30s'`, `'5m
 ```
 
 `public` lists the fields, besides `externalId`, `email` and `roles`, that views and JSON answers may see; `loginPath` is where browsers are sent when a route denies them; `afterLogin` where they land after a form login; `sessionMaxAge` the session lifetime in milliseconds (30 days). See [Users](/guides/users/).
+
+## Validation
+
+Every key above is declared in a schema (`@usehenri/core`, `src/base/config-schema.js`) with the type it accepts. On boot, once the file has loaded and the credentials and the environment have been applied over it, the whole configuration goes through that schema — **before any other module starts**, so a wrong value fails on the first line of the boot rather than three modules in, where the message would name the reader instead of the mistake.
+
+**Every problem is reported, not the first one.** Somebody fixing a configuration file should not discover its faults one boot at a time.
+
+**A value henri cannot use fails the boot**, naming the key, what was expected, what arrived, and where the value came from — the file, the credentials, or the variable:
+
+```
+config ✖ "port" must be a port number between 1 and 65535, but it is the string "eight thousand" => from config/production.json
+config ✖ "stores.default.adapter" must be one of disk, drizzle, mariadb, mongoose, mssql, mysql, postgresql, but it is the string "redis" => from HENRI_CONFIG__stores__default__adapter
+config ✖ "secret" must be a string, but it is a number => from the credentials (config/credentials/production.json.enc)
+```
+
+The source matters: `port must be a number` is unhelpful when the culprit is an environment variable three deployments away. A value the [filters](#headers-logs-and-limits) name, and anything the credentials provided, is printed as its type alone; the password of a connection string is always masked.
+
+`henri server` exits `1` and `henri server --json` prints the same thing as `{ "error": { "code": "CONFIG_INVALID", "message", "hint", "problems": [...] } }`, where each problem is `{ key, level, message, expected, received, source, hint }`.
+
+**An unknown key is a warning, never a failure.** An application may carry keys of its own — `henri.config.get()` is how it reads them — so henri says it ignores the key and boots:
+
+```
+config ⚠ "appName" is not a henri configuration key => from config/default.json
+```
+
+**Unless it is a near miss of one henri owns**, which is the mistake actually being made:
+
+```
+config ⚠ "renderers" is not a henri configuration key: did you mean "renderer"? => from config/default.json
+```
+
+Inside a store this is the only unknown-key warning there is: everything a store adapter does not declare is forwarded to the driver (`logging`, `pool`, `dialectOptions`), so only `adaptor` or `urls` are worth a word.
+
+**`henri doctor` runs the same schema over every `config/*.json`**, without booting and without a database, which is the fastest way to find a broken configuration — and the one a coding agent reaches for:
+
+```bash
+henri doctor
+henri doctor --json    # problems as { check, level, message, file, hint }
+```
+
+The checks are `config.invalid` (an error), `config.adapter` (an unknown store adapter) and `config.unknown` (a warning). Being a file check, it sees neither the environment nor the credentials; the boot does.
 
 ## Reading the configuration in your code
 

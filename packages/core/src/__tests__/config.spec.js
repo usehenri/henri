@@ -347,6 +347,84 @@ describe('config from the environment', () => {
     });
   });
 
+  describe('the schema gate', () => {
+    const { provenance } = require('../0.config');
+
+    test('names where a value came from, the longest path winning', () => {
+      const source = provenance(
+        'config/test.json',
+        {
+          applied: ['secret', 'mail.auth.pass'],
+          file: 'config/credentials/test.json.enc',
+        },
+        [
+          { key: 'rateLimit', variable: `${ENV_JSON_PREFIX}rateLimit` },
+          {
+            ignored: 'the configuration has no "stores.default"',
+            key: 'stores.default.url',
+            variable: 'DATABASE_URL',
+          },
+        ]
+      );
+
+      expect(source('rateLimit.auth.max')).toBe(`${ENV_JSON_PREFIX}rateLimit`);
+      expect(source('mail.auth.pass')).toBe(
+        'the credentials (config/credentials/test.json.enc)'
+      );
+      expect(source('mail.host')).toBe('config/test.json');
+      // A shorthand that was ignored never claims its key
+      expect(source('stores.default.url')).toBe('config/test.json');
+      expect(source('')).toBe('config/test.json');
+    });
+
+    test('a wrong value from the environment fails the boot by name', async () => {
+      process.env[`${ENV_PREFIX}port`] = 'nope';
+
+      const henri = new Henri({ runlevel: 0 });
+      let thrown = null;
+
+      try {
+        await henri.init();
+      } catch (error) {
+        thrown = error;
+      } finally {
+        delete process.env[`${ENV_PREFIX}port`];
+        await henri.stop();
+      }
+
+      expect(thrown).not.toBeNull();
+      expect(thrown.cause.code).toBe('CONFIG_INVALID');
+      expect(thrown.cause.problems).toHaveLength(1);
+      expect(thrown.cause.message).toBe(
+        'invalid configuration (1 problem): port'
+      );
+      expect(thrown.cause.problems[0]).toMatchObject({
+        key: 'port',
+        message:
+          '"port" must be a port number between 1 and 65535, but it is the string "nope"',
+        source: `${ENV_PREFIX}port`,
+      });
+    });
+
+    test('an unknown key is a warning, and the boot goes on', async () => {
+      const henri = new Henri({ runlevel: 0 });
+
+      await henri.init();
+
+      try {
+        // The demo application carries an `env` key of its own
+        expect(henri.config.get('env')).toBe('test');
+        expect(
+          henri.config
+            .check(() => 'config/test.json')
+            .map((problem) => problem.key)
+        ).toEqual(['env']);
+      } finally {
+        await henri.stop();
+      }
+    });
+  });
+
   test('a booted henri reads a key from the environment', async () => {
     process.env[`${ENV_PREFIX}baseRole`] = 'from-the-environment';
 

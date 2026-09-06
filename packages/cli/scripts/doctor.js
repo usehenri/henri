@@ -3,6 +3,7 @@ const path = require('path');
 
 const { APIS, packagesFor } = require('./adapters');
 const { CliError } = require('./errors');
+const { validate } = require('@usehenri/core/src/base/config-validate');
 const { controllerOf, expand } = require('./routing');
 const {
   detectPackageManager,
@@ -23,6 +24,24 @@ const MINIMUM_NODE = 22;
 
 /** The adapters core can load (scripts/adapters.js is the catalogue) */
 const ADAPTERS = Object.keys(APIS).sort();
+
+/**
+ * The check name a configuration problem is reported under. The schema is
+ * one thing; `henri doctor` has stable check names, so an unknown adapter
+ * keeps the one it has always had.
+ *
+ * @param {object} problem One problem of validate()
+ * @returns {string} The check name
+ */
+const checkFor = (problem) => {
+  if (problem.level === 'warning') {
+    return 'config.unknown';
+  }
+
+  return /^stores\.[^.]+\.adapter$/u.test(problem.key)
+    ? 'config.adapter'
+    : 'config.invalid';
+};
 
 /**
  * Packages the renderers need in the app's package.json. What a store
@@ -477,20 +496,24 @@ const check = (dir = process.cwd()) => {
       });
     }
 
-    for (const [name, store] of Object.entries(
-      (content && content.stores) || {}
-    )) {
-      if (!store || !ADAPTERS.includes(store.adapter)) {
-        problem(
-          'error',
-          'config.adapter',
-          `config/${file}: store "${name}" uses the unknown adapter "${store && store.adapter}"`,
-          {
-            file: `config/${file}`,
-            hint: `Adapters: ${ADAPTERS.join(', ')}`,
-          }
-        );
-      }
+    // The schema of @usehenri/core, the one the boot runs: an application
+    // never learns of a wrong key by booting when `henri doctor` can say it
+    for (const entry of validate(content, {
+      source: () => `config/${file}`,
+    }).problems) {
+      problem(
+        entry.level,
+        checkFor(entry),
+        `config/${file}: ${entry.message}`,
+        {
+          file: `config/${file}`,
+          hint:
+            entry.hint ||
+            (checkFor(entry) === 'config.adapter'
+              ? `Adapters: ${ADAPTERS.join(', ')}`
+              : null),
+        }
+      );
     }
   }
 

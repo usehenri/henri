@@ -171,8 +171,56 @@ describe('credentials', () => {
       expect(applyCredentials(file, dir, 'production', {})).toEqual({
         applied: [],
         config: file,
+        file: null,
         source: null,
       });
+    });
+
+    test('a wrong value fails the boot naming the file, never the value', async () => {
+      const Config = require('../0.config');
+
+      fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, 'config', 'production.json'),
+        JSON.stringify({ stores: { default: { adapter: 'disk' } } })
+      );
+      credentials.write(
+        dir,
+        'production',
+        { stores: { default: { adapter: SECRET } } },
+        key
+      );
+
+      const config = new Config();
+
+      config.henri = {
+        cwd: () => dir,
+        env: 'production',
+        pen: { error: () => {}, info: () => {}, warn: () => {} },
+      };
+
+      process.env.HENRI_CREDENTIALS_KEY = key.toString('hex');
+
+      let thrown = null;
+
+      try {
+        await config.init();
+      } catch (error) {
+        thrown = error;
+      } finally {
+        delete process.env.HENRI_CREDENTIALS_KEY;
+      }
+
+      expect(thrown.code).toBe('CONFIG_INVALID');
+      expect(thrown.problems).toHaveLength(1);
+      expect(thrown.problems[0].key).toBe('stores.default.adapter');
+      expect(thrown.problems[0].source).toBe(
+        'the credentials (config/credentials/production.json.enc)'
+      );
+      // Every value of that file is a secret: only its type is printed
+      expect(thrown.problems[0].received).toBe('a string');
+      expect(JSON.stringify(thrown.problems)).not.toContain(SECRET);
+      expect(thrown.message).not.toContain(SECRET);
     });
 
     test('the config module reads them, under the environment', async () => {

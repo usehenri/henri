@@ -80,7 +80,7 @@ henri doctor          # a report, exit 1 when something is wrong
 henri doctor --json   # the same as JSON
 ```
 
-It checks the Node version, `config/default.json` and its syntax, the secret and the `.env` that holds it, the git ignore rules, the store adapter, the routes file and every route's controller and action, controller naming and unused controllers, model naming and location, the page files a `resources` route needs, the test configuration, the dependencies declared in `package.json` and the ones actually installed, and the presence of `AGENTS.md`. Problems are reported as errors or warnings, each with a file and a hint.
+It checks the Node version, every `config/*.json` — its syntax, then the whole file against [henri's configuration schema](/configuration/#validation), so a wrong value or a misspelled key is found without booting — the secret and the `.env` that holds it, the git ignore rules, the routes file and every route's controller and action, controller naming and unused controllers, model naming and location, the page files a `resources` route needs, the test configuration, the dependencies declared in `package.json` and the ones actually installed, and the presence of `AGENTS.md`. Problems are reported as errors or warnings, each with a file and a hint.
 
 ## The `henri` MCP server
 

@@ -249,7 +249,7 @@ Without a command, `henri jobs` runs a worker: it claims jobs, performs up to `-
 henri doctor [--json]
 ```
 
-Checks the application against the conventions without starting it: no database, no views, nothing booted. Reports the Node version, the configuration and its syntax, the secret and the `.env` holding it, the git ignore rules, the credentials keys (not ignored, or already in the git index), the store adapter, the routes and each route's controller and action, controller and model naming, the page files a `resources` route needs, the test configuration, the declared and installed dependencies, and `AGENTS.md`. Exits with `1` when it finds an error. See [Coding agents](/guides/agents/).
+Checks the application against the conventions without starting it: no database, no views, nothing booted. Reports the Node version, the syntax of every `config/*.json` and each one run through [henri's configuration schema](/configuration/#validation) (`config.invalid`, `config.adapter` and `config.unknown`, the last one for a key henri does not own), the secret and the `.env` holding it, the git ignore rules, the credentials keys (not ignored, or already in the git index), the routes and each route's controller and action, controller and model naming, the page files a `resources` route needs, the test configuration, the declared and installed dependencies, and `AGENTS.md`. Exits with `1` when it finds an error. See [Coding agents](/guides/agents/).
 
 ## `mcp`
 
@@ -329,4 +329,4 @@ A boot that fails prints the same chart with the module that threw, what was sti
 | `3`  | `NOT_A_PROJECT` | Not a henri application: run the command from the root of the app.           |
 | `4`  | `NEEDS_TTY`     | An interactive prompt was needed but stdin is not a terminal: pass the flag. |
 
-With `--json` a failure prints `{ "error": { "command", "message", "hint", "code", "exitCode" } }` on stderr. See [Coding agents](/guides/agents/).
+With `--json` a failure prints `{ "error": { "command", "message", "hint", "code", "exitCode" } }` on stderr. The `code` is finer grained than the exit code: `CONFIG_INVALID` when henri refuses a configuration, and that object then also carries a `problems` array (`{ key, level, message, expected, received, source, hint }`). See [Coding agents](/guides/agents/).

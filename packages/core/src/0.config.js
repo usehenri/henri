@@ -4,6 +4,11 @@ const fs = require('fs');
 const path = require('path');
 const { syntax } = require('./utils');
 const { MASK, filterParameters, isFiltered, redact } = require('./base/redact');
+const {
+  ConfigurationError,
+  coercionFor,
+  validate,
+} = require('./base/config-validate');
 
 /**
  * Prefix of the generic environment overrides. The rest of the name is the
@@ -191,10 +196,26 @@ function tryJson(raw) {
 }
 
 /**
- * The value of an environment variable, as the type the configuration file
- * already uses at that path
+ * The type a value already has, as the schema names it
  *
- * A path the file does not have is a string: henri does not guess. Use
+ * @param {any} value the value
+ * @returns {string} `number`, `boolean`, `object` or `string`
+ */
+function kindOf(value) {
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return typeof value;
+  }
+
+  return value !== null && typeof value === 'object' ? 'object' : 'string';
+}
+
+/**
+ * The value of an environment variable, as the type that key already has
+ *
+ * The type comes from the configuration file when it has a value at that
+ * path, and from henri's schema when it does not (`port` is a number even
+ * in an application whose file never names it). A key henri does not own
+ * and the file does not have is a string: henri never guesses. Use
  * `HENRI_CONFIG_JSON__<path>` for anything else.
  *
  * @param {string} raw the value of the variable
@@ -205,35 +226,38 @@ function tryJson(raw) {
  */
 function coerce(raw, current, entry) {
   const { key, variable } = entry;
+  const known = typeof current !== 'undefined';
+  const kind = known ? kindOf(current) : coercionFor(key, raw);
+  const where = known ? 'in the configuration' : "in henri's schema";
 
-  if (typeof current === 'number') {
+  if (kind === 'number') {
     const value = Number(raw);
 
     if (!Number.isFinite(value)) {
       throw new Error(
-        `${variable} is not a number, and "${key}" is one in the configuration`
+        `${variable} is not a number, and "${key}" is one ${where}`
       );
     }
 
     return value;
   }
 
-  if (typeof current === 'boolean') {
+  if (kind === 'boolean') {
     if (/^(true|false)$/i.test(raw)) {
       return /^true$/i.test(raw);
     }
 
     throw new Error(
-      `${variable} is not true or false, and "${key}" is a boolean in the configuration`
+      `${variable} is not true or false, and "${key}" is a boolean ${where}`
     );
   }
 
-  if (current !== null && typeof current === 'object') {
+  if (kind === 'object') {
     const value = tryJson(raw);
 
     if (value === null || typeof value !== 'object') {
       throw new Error(
-        `${variable} is not a JSON object, and "${key}" is one in the configuration`
+        `${variable} is not a JSON object, and "${key}" is one ${where}`
       );
     }
 
@@ -364,16 +388,16 @@ function withEnv(config, env = process.env) {
  * @param {string} cwd the application directory
  * @param {string} env the environment
  * @param {object} [environment=process.env] the environment variables
- * @returns {{applied: Array<string>, config: object, source: ?string}} the
- *   configuration, the paths the credentials provided and where the key
- *   came from
+ * @returns {{applied: Array<string>, config: object, file: ?string, source: ?string}}
+ *   the configuration, the paths the credentials provided, the file they
+ *   came from and where the key came from
  * @throws {Error} when the file exists and cannot be opened
  */
 function applyCredentials(config, cwd, env, environment = process.env) {
   const secrets = credentials.read(cwd, env, environment);
 
   if (!secrets) {
-    return { applied: [], config, source: null };
+    return { applied: [], config, file: null, source: null };
   }
 
   return {
@@ -382,7 +406,53 @@ function applyCredentials(config, cwd, env, environment = process.env) {
       (current, entry) => setPath(current, entry.key, entry.value),
       config
     ),
+    file: path.relative(cwd, secrets.file),
     source: secrets.source,
+  };
+}
+
+/**
+ * Where every value of a configuration came from
+ *
+ * A source registered at a path answers for everything under it, so the
+ * `rateLimit` an environment variable set is also the source of
+ * `rateLimit.max`. Anything no source claims comes from the file.
+ *
+ * @param {string} file the configuration file that loaded
+ * @param {object} secrets what applyCredentials() returned
+ * @param {Array<object>} applied what applyEnv() applied
+ * @returns {function} `(key) => string`, the source of a key
+ */
+function provenance(file, secrets, applied) {
+  const owners = [];
+
+  for (const key of secrets.applied) {
+    owners.push([key, `the credentials (${secrets.file})`]);
+  }
+
+  for (const entry of applied) {
+    if (!entry.ignored) {
+      owners.push([entry.key, entry.variable]);
+    }
+  }
+
+  return (key) => {
+    let found = file;
+    let longest = -1;
+
+    for (const [owned, label] of owners) {
+      const covers =
+        key === owned ||
+        key.startsWith(`${owned}.`) ||
+        key.startsWith(`${owned}[`);
+
+      if (covers && owned.length > longest) {
+        found = label;
+        longest = owned.length;
+      }
+    }
+
+    return found;
   };
 }
 
@@ -461,6 +531,7 @@ class Config extends BaseModule {
 
     let hasErrors = false;
     let loaded = null;
+    let source = null;
 
     for (const file of [configPath, defaultPath]) {
       if (loaded) {
@@ -469,6 +540,7 @@ class Config extends BaseModule {
 
       try {
         loaded = require(file);
+        source = path.relative(this.henri.cwd(), file);
       } catch (error) {
         if (await syntax(file, null, this.henri)) {
           hasErrors = true;
@@ -489,6 +561,7 @@ class Config extends BaseModule {
 
       Object.freeze(this.config);
       this.report(applied, secrets);
+      this.check(provenance(source, secrets, applied));
 
       return this.name;
     }
@@ -544,6 +617,49 @@ class Config extends BaseModule {
         entry.variable
       );
     }
+  }
+
+  /**
+   * Runs the whole configuration through the schema, before any other
+   * module starts. `config` is the first module of runlevel 0 and every
+   * other one is above it, so nothing has read a wrong value yet.
+   *
+   * Every problem is reported, not the first: warnings are printed and the
+   * boot goes on, errors are printed and thrown together as one
+   * ConfigurationError naming the key, what was expected, what arrived and
+   * where it came from -- the file, the credentials or the variable.
+   *
+   * @param {function} source `(key) => string`, where a value came from
+   * @returns {Array<object>} the warnings
+   * @throws {ConfigurationError} when a value is not what henri accepts
+   * @memberof Config
+   */
+  check(source) {
+    const { pen } = this.henri;
+    const filters = filterParameters({
+      get: (key) => getPath(this.config, key),
+      has: (key) => hasPath(this.config, key),
+    });
+    const mask = (key) =>
+      isFiltered(segments(key).pop() || key, filters) ||
+      String(source(key)).startsWith('the credentials');
+    const { errors, warnings } = validate(this.config, { mask, source });
+
+    for (const problem of [...warnings, ...errors]) {
+      const write = problem.level === 'error' ? pen.error : pen.warn;
+
+      write.call(pen, 'config', problem.message, `from ${problem.source}`);
+
+      if (problem.hint) {
+        write.call(pen, 'config', problem.hint);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new ConfigurationError(errors);
+    }
+
+    return warnings;
   }
 
   /**
@@ -608,6 +724,7 @@ module.exports.ALIASES = ALIASES;
 module.exports.ENV_JSON_PREFIX = ENV_JSON_PREFIX;
 module.exports.ENV_PREFIX = ENV_PREFIX;
 module.exports.applyCredentials = applyCredentials;
+module.exports.provenance = provenance;
 module.exports.applyEnv = applyEnv;
 module.exports.loadDotEnv = loadDotEnv;
 module.exports.withEnv = withEnv;
