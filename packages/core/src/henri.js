@@ -7,6 +7,7 @@ const { fallback } = require('./base/errors');
 const validator = require('validator');
 
 const Config = require('./0.config');
+const Queries = require('./0.queries');
 const Telemetry = require('./0.telemetry');
 const Encryption = require('./1.encryption');
 const I18n = require('./1.i18n');
@@ -89,6 +90,7 @@ class Henri extends HenriBase {
     this.modules.add(new Model());
     this.modules.add(new Policies());
     this.modules.add(new Privacy());
+    this.modules.add(new Queries());
     this.modules.add(new Retention());
     this.modules.add(new Router());
     this.modules.add(new Telemetry());

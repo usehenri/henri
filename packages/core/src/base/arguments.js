@@ -1118,6 +1118,10 @@ const UNCHECKED = {
   'henri.policies.has': 'documented to answer false',
   'henri.policies.resolve': 'documented to answer null',
   'henri.policies.rule': 'documented to answer null',
+  'henri.queries.onQuery':
+    'says so and answers false, which is its documented contract, and the one it shares with henri.reporter.onError',
+  'henri.queries.stats':
+    'takes no argument: it reads counters back and there is nothing to get wrong',
   'henri.reporter.onError':
     'says so and answers false, which is its documented contract',
   'henri.reporter.report':

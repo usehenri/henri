@@ -316,48 +316,78 @@ class Model extends BaseModule {
   }
 
   /**
-   * Give the adapter's `query()` a span, when spans of stores are wanted
+   * Wrap the adapter's `query()`: a span for tracing, an event for the seam.
    *
    * `query()` is the one store call henri makes on its own behalf -- the
    * queue's claim, the trail's insert, a webhook lookup -- and the one
-   * boundary here that does not need anybody's driver opened up. A model
-   * call an application makes is *not* covered, deliberately: that belongs
-   * to the ORM's own instrumentation package, and `base/telemetry.js` says
-   * so.
+   * boundary here that does not need anybody's driver opened up. It is also
+   * the one call site the two instrumentations share, so what each is for is
+   * worth stating:
    *
-   * The wrapping **is** the instrumentation: an application that is not
-   * tracing gets the adapter's own method, untouched, with nothing to test
-   * per call.
+   * - **The span** is tracing, and tracing stops here. A model call an
+   *   application makes gets no span, deliberately: statements belong to the
+   *   ORM's own instrumentation package (`@opentelemetry/instrumentation-pg`
+   *   and friends), which composes with henri's because the context is
+   *   already active, and henri re-implementing it would double-count for
+   *   any application that installed one. `base/telemetry.js` says so and
+   *   still does.
+   * - **The event** is `henri.queries`, and it is not tracing. It reports
+   *   model calls so the N+1 detector can count them and so an application
+   *   can listen; the adapters install it themselves, and this is only the
+   *   raw path, which no adapter's model layer sees. Telemetry does not
+   *   consume that seam, so a call that gets both here is one span and one
+   *   event, not two of either.
    *
-   * The statement is never an attribute. It carries values.
+   * The wrapping **is** the instrumentation: an application doing neither
+   * gets the adapter's own method, untouched, with nothing to test per call.
+   *
+   * The statement is never an attribute and never a field. It carries
+   * values -- see the header of `base/queries.js` for the whole argument.
    *
    * @param {object} store the adapter henri just built
    * @returns {object} the same adapter
    * @memberof Model
    */
   instrument(store) {
-    const { telemetry } = this.henri;
+    const { queries, telemetry } = this.henri;
+    const traces = telemetry && telemetry.on('stores');
+    const events = queries && queries.enabled;
 
-    if (!telemetry || !telemetry.on('stores')) {
+    if ((!traces && !events) || typeof store.query !== 'function') {
       return store;
     }
 
-    if (typeof store.query !== 'function') {
-      return store;
+    if (traces) {
+      const query = store.query.bind(store);
+      const options = {
+        attributes: {
+          'db.system': store.dialect || store.adapterName || 'unknown',
+          'henri.store': store.name,
+        },
+        boundary: 'stores',
+        kind: 'client',
+      };
+
+      store.query = (...args) =>
+        telemetry.span('henri.store.query', options, () => query(...args));
     }
 
-    const query = store.query.bind(store);
-    const options = {
-      attributes: {
-        'db.system': store.dialect || store.adapterName || 'unknown',
-        'henri.store': store.name,
-      },
-      boundary: 'stores',
-      kind: 'client',
-    };
-
-    store.query = (...args) =>
-      telemetry.span('henri.store.query', options, () => query(...args));
+    if (events) {
+      // No model and no filter: a raw statement names its own tables and
+      // henri does not read it. What the event says is that the framework
+      // went to this store, how long it took and how much came back
+      queries.instrument(
+        store,
+        { query: { method: 'query', operation: 'raw' } },
+        {
+          adapter: store.adapterName,
+          dialect: store.dialect || null,
+          model: null,
+          source: 'henri',
+          store: store.name,
+        }
+      );
+    }
 
     return store;
   }

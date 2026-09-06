@@ -387,7 +387,8 @@ class Server extends BaseModule {
     ));
     const { settings } = api;
 
-    // Middleware order: request id, telemetry, the call log, timeout,
+    // Middleware order: request id, telemetry, the call log, the N+1
+    // detector, timeout,
     // secure headers,
     // compression, cors, body parsers, cookies, boom, api version,
     // pagination, the health endpoints, static files. The user module adds
@@ -415,6 +416,19 @@ class Server extends BaseModule {
 
     if (callsConfig(config).inbound) {
       app.use(inbound(this.henri));
+    }
+
+    // The N+1 detector, and only when something detects: it needs to be
+    // outside enough to set a header before the answer goes out, and it does
+    // no work on the way in -- the bucket is made by the first model call, on
+    // the request-id store that already exists
+    const queries =
+      this.henri.queries &&
+      this.henri.queries.enabled &&
+      this.henri.queries.middleware();
+
+    if (queries) {
+      app.use(queries);
     }
 
     if (settings.requestTimeout) {

@@ -68,6 +68,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `retention`        |               | What runs the retention sweep and what it may do, see below. How long a model keeps its records is said in the model. See [Retention](/guides/retention/).              |
 | `trail`            | off           | The append-only record of who read or changed personal data, see below. See [The access trail](/guides/trail/).                                                         |
 | `calls`            | off           | The calls the application answered and the calls it made, joined by the request id, see below. See [Call logs](/guides/calls/).                                         |
+| `queries`          | outside prod  | What the adapters report running, and the repeated model calls the detector counts, see below. `false` records nothing. See [N+1 detection](/guides/queries/).          |
 | `versions`         | `{}`          | Where the history of the models that say `versioned` is kept, and for how long. It turns nothing on: a model does. See [Model versions](/guides/versions/).             |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                                                    |
 | `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                                          |
@@ -487,6 +488,32 @@ turning it on.
 | `sweep`           | `5000`          | How many rows one pass of the delete path takes at a time.                                                                                                                                     |
 | `store`           | `"default"`     | Which of `stores` the table lives in.                                                                                                                                                          |
 | `table`           | `"henri_calls"` | The table henri creates at boot. Changing `partition` afterwards needs a migration of your own.                                                                                                |
+
+## The `queries` object
+
+What the adapters report running, and the N+1 detector on top of it. The seam
+emits one event per **model call** -- `Proposal.findById`, `Track.find`,
+`User.paginate` -- and the detector counts the ones that repeat inside a single
+request. It is on in development and in test and off in production, because a
+production request should not pay to tell a developer something the developer
+is not there to read.
+
+`false` records nothing anywhere: no hook is registered on any adapter, no
+middleware is mounted, and nothing is allocated per query.
+
+| Key                | Default       | Description                                                                                                                                                                 |
+| ------------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`          | outside prod  | Absent means on outside production. `true` is the production opt-in: every model call is timed and counted.                                                                 |
+| `callsites`        | with `detect` | Whether an event carries the line the model call was made on. It costs an `Error` allocation per call, so it follows the detector unless set.                               |
+| `detect`           | `{}`          | The detector; `false` keeps the events and reports nothing, so `henri.queries.onQuery()` still works.                                                                       |
+| `detect.threshold` | `5`           | How many times the same model call has to run in one request before it is reported. It counts **model calls, never statements**. At least `2`.                              |
+| `detect.log`       | `true`        | One warning per request naming the call, the count, the line and what to do instead.                                                                                        |
+| `detect.header`    | `true`        | `X-Henri-Queries` on the answer, in development only: counts and the names of the repeated calls, never a value.                                                            |
+| `detect.raise`     | `false`       | Throw `HENRI_QUERIES_N_PLUS_ONE` the moment the threshold is crossed, so the stack names the call. This is what makes a test suite fail on an N+1.                          |
+| `detect.ignore`    | `[]`          | Calls the detector never counts: `Model`, `Model.operation` or `*.operation`, where an operation is one of `count`, `delete`, `insert`, `other`, `raw`, `select`, `update`. |
+
+See [N+1 detection](/guides/queries/) for what an event carries, what it
+deliberately does not, and how it joins the request id.
 
 ## The `versions` object
 
