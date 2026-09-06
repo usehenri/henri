@@ -25,6 +25,7 @@ describe('userConfig', () => {
       password: {
         algorithm: 'auto',
         bcryptRounds: 12,
+        binding: { allowUnbound: true, enabled: true },
         maxBytes: 72,
         memoryCost: 19456,
         minLength: 12,

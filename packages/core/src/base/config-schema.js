@@ -339,6 +339,30 @@ const SCHEMA = {
                 min: 10,
                 type: 'number',
               },
+              binding: {
+                describe:
+                  'true, false, or an object ({ enabled, allowUnbound })',
+                hint: 'Binds a hash to the externalId of its row, so one copied onto another row stops verifying; allowUnbound keeps accepting the hashes written before it',
+                oneOf: [
+                  { type: 'boolean' },
+                  {
+                    keys: {
+                      allowUnbound: {
+                        default: true,
+                        describe: 'true or false',
+                        hint: 'false refuses every hash that is not yet bound, which locks out whoever has not signed in since',
+                        type: 'boolean',
+                      },
+                      enabled: {
+                        default: true,
+                        describe: 'true or false',
+                        type: 'boolean',
+                      },
+                    },
+                    type: 'object',
+                  },
+                ],
+              },
               maxBytes: {
                 default: 72,
                 describe: 'a length in bytes, at least 8',

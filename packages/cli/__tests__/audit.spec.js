@@ -323,6 +323,50 @@ describe('henri audit', () => {
     );
   });
 
+  test('reports password hashes that are not bound to their row', () => {
+    // An application that turned the binding off is telling anyone who can
+    // write its database that a hash copied onto another row still works
+    const off = withConfig(app, 'config/production.json', {
+      user: { model: 'User', password: { binding: false } },
+    });
+
+    expect(off.names).toContain('password.binding-disabled');
+    expect(off.findings).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V2.4.1',
+        check: 'password.binding-disabled',
+        file: 'config/production.json',
+        // `low` without a user model in the application, `medium` with one,
+        // the way the lockout finding is weighed
+        severity: 'low',
+      })
+    );
+
+    // The object form says the same thing
+    expect(
+      withConfig(app, 'config/production.json', {
+        user: { model: 'User', password: { binding: { enabled: false } } },
+      }).names
+    ).toContain('password.binding-disabled');
+
+    // Ending the migration is tightening, not loosening: not a finding
+    expect(
+      withConfig(app, 'config/production.json', {
+        user: {
+          model: 'User',
+          password: { binding: { allowUnbound: false } },
+        },
+      }).names
+    ).not.toContain('password.binding-disabled');
+
+    // And saying nothing at all is the default, which is on
+    expect(
+      withConfig(app, 'config/production.json', {
+        user: { model: 'User', password: { minLength: 16 } },
+      }).names
+    ).not.toContain('password.binding-disabled');
+  });
+
   test('reports a finding of config/test.json one severity lower', () => {
     const { findings: found, ok } = withConfig(app, 'config/test.json', {
       csrf: false,

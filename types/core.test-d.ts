@@ -60,6 +60,19 @@ if (publicUser) {
   expectType<string>(publicUser.email);
 }
 expectType<Promise<string>>(henri.user.encrypt('a-password', 12));
+// A hash bound to the record it belongs to
+expectType<Promise<string>>(
+  henri.user.encrypt('a-password', { identity: req.user })
+);
+expectType<Promise<string>>(
+  henri.user.encrypt('a-password', { identity: 'a-uuid', rounds: 12 })
+);
+expectType<string | null>(henri.user.identityOf(req.user));
+expectType<boolean>(henri.user.bindsPasswords());
+
+// @ts-expect-error the second argument is the options, not the identity itself
+henri.user.encrypt('a-password', 'a-uuid');
+
 expectType<Record<string, string> | null>(henri.model.errors(new Error('x')));
 expectType<string>(henri.gql`{ tasks { id } }`);
 
@@ -222,6 +235,8 @@ res.collection([{ id: '1' }], { page: 1, perPage: 25, total: 1 });
 res.collection([], { links: { search: '/tasks/search' } });
 res.negotiate({ html: () => res.render('/tasks'), json: () => res.json([]) });
 expectType<Promise<true>>(henri.user.compare('a-password', 'a-hash'));
+// A bound hash needs the record it belongs to, so the user is what it wants
+expectType<Promise<true>>(henri.user.compare('a-password', { id: 1 }));
 
 // express is still there
 res.status(204).json({ ok: true });

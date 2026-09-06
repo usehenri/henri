@@ -392,7 +392,65 @@ class Sql {
   decorateUser(Model) {
     const supportsJson = Boolean(this.connector.dialect.supports.JSON);
     const baseRoles = toRoles(Model.rawAttributes.roles.defaultValue);
-    const encrypt = (password) => this.henri.user.encrypt(password);
+    const encrypt = (password, identity) =>
+      this.henri.user.encrypt(password, { identity });
+
+    /**
+     * Are new hashes bound to the row they belong to? Asked per call: the
+     * configuration is read at boot but a suite may swap it underneath. An
+     * older core (or a stand-in that only implements `encrypt`) answers no,
+     * which is the behaviour it had.
+     *
+     * @returns {boolean} true when a password write must name its row
+     */
+    const binds = () =>
+      typeof this.henri.user.bindsPasswords === 'function' &&
+      this.henri.user.bindsPasswords();
+
+    /**
+     * The error to throw when a password write cannot name its row
+     *
+     * @param {string} detail What the caller was doing
+     * @returns {Error} The error
+     */
+    const unresolved = (detail) =>
+      typeof this.henri.user.unresolvedPassword === 'function'
+        ? this.henri.user.unresolvedPassword(detail)
+        : new Error(`cannot hash a password from ${detail}`);
+
+    /**
+     * The `externalId` of the single row a mass update targets.
+     *
+     * A bound hash belongs to one record, so a `Model.update()` writing a
+     * password has to prove it is writing to exactly one. Two or more and
+     * there is no honest answer, so it refuses. None and the update writes to
+     * nothing, but a row could still appear in the race, so the hash is bound
+     * to a uuid that belongs to nobody: it lands unusable rather than usable
+     * by anyone.
+     *
+     * @param {object} options The beforeBulkUpdate options
+     * @returns {Promise<string>} The uuid to bind to
+     * @throws {Error} when more than one row matches
+     */
+    const identityOfUpdate = async (options) => {
+      const rows = await Model.unscoped().findAll({
+        attributes: [EXTERNAL_ID],
+        limit: 2,
+        // Whatever the update itself will see: on a paranoid model a soft
+        // deleted row is not one of the rows being written, so counting it
+        // would refuse an update that touches exactly one
+        paranoid: options.paranoid,
+        raw: true,
+        transaction: options.transaction,
+        where: options.where || {},
+      });
+
+      if (rows.length > 1) {
+        throw unresolved(`${Model.name}.update() over more than one row`);
+      }
+
+      return rows.length === 1 ? rows[0][EXTERNAL_ID] : uuidv7();
+    };
 
     /**
      * Drops the roles given on a create
@@ -420,7 +478,9 @@ class Sql {
         resetRoles(record);
       }
       if (!options.passwordsHashed && typeof record.password === 'string') {
-        record.password = await encrypt(record.password);
+        // The uuid default is applied when the instance is built, so it is
+        // already here, before the insert
+        record.password = await encrypt(record.password, record[EXTERNAL_ID]);
       }
     });
 
@@ -429,7 +489,7 @@ class Sql {
         revertRoles(record);
       }
       if (!options.passwordsHashed && record.changed('password')) {
-        record.password = await encrypt(record.password);
+        record.password = await encrypt(record.password, record[EXTERNAL_ID]);
       }
     });
 
@@ -441,8 +501,14 @@ class Sql {
           if (!options.unsafe) {
             resetRoles(record);
           }
-          if (typeof record.password === 'string') {
-            record.password = await encrypt(record.password);
+          // A bulk create still has every row in hand, so each hash is bound
+          // to its own. `passwordsHashed` is honoured here too: without it,
+          // bulkCreate(rows, { passwordsHashed: true }) hashed the hashes.
+          if (!options.passwordsHashed && typeof record.password === 'string') {
+            record.password = await encrypt(
+              record.password,
+              record[EXTERNAL_ID]
+            );
           }
         }
         options.passwordsHashed = true;
@@ -461,8 +527,11 @@ class Sql {
         values.roles = JSON.stringify(values.roles);
       }
 
-      if (typeof values.password === 'string') {
-        values.password = await encrypt(values.password);
+      if (typeof values.password === 'string' && !options.passwordsHashed) {
+        values.password = await encrypt(
+          values.password,
+          binds() ? await identityOfUpdate(options) : undefined
+        );
         options.passwordsHashed = true;
       }
     });

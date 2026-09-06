@@ -3,7 +3,7 @@ const { relations, sql } = require('drizzle-orm');
 const debug = require('debug')('henri:drizzle');
 const dialects = require('./dialects');
 const { Migrations } = require('./migrations');
-const { createModel } = require('./model');
+const { BIND_IDENTITY, createModel } = require('./model');
 const { compileTable, normalizeSchema } = require('./schema');
 const { SESSION_FIELDS, createStore } = require('./session');
 const { ValidationError } = require('./validation');
@@ -264,31 +264,98 @@ class Drizzle {
    */
   decorateUser(Model) {
     const { baseRoles } = Model.definition;
-    const encrypt = (password) => this.henri.user.encrypt(password);
+    const encrypt = (password, identity) =>
+      this.henri.user.encrypt(password, { identity });
+
+    /**
+     * Are new hashes bound to the row they belong to? An older core (or a
+     * stand-in that only implements `encrypt`) answers no, which is the
+     * behaviour it had.
+     *
+     * @returns {boolean} true when a password write must name its row
+     */
+    const binds = () =>
+      typeof this.henri.user.bindsPasswords === 'function' &&
+      this.henri.user.bindsPasswords();
+
+    /**
+     * The error to throw when a password write cannot name its row
+     *
+     * @param {string} detail What the caller was doing
+     * @returns {Error} The error
+     */
+    const unresolved = (detail) =>
+      typeof this.henri.user.unresolvedPassword === 'function'
+        ? this.henri.user.unresolvedPassword(detail)
+        : new Error(`cannot hash a password from ${detail}`);
+
+    /**
+     * The `externalId` a hash written by an update belongs to.
+     *
+     * The instance knows it when there is one. Without one the update path
+     * left a lookup behind (`Model.bindable()`): one row is an answer, two is
+     * not, and none means the update writes to nothing -- but a row could
+     * still appear in the race, so the hash is bound to a uuid nobody has and
+     * lands unusable rather than usable by whoever landed there.
+     *
+     * @param {object} options The update options
+     * @param {?object} instance The instance being saved, when there is one
+     * @returns {Promise<(string|undefined)>} The uuid to bind to
+     * @throws {Error} when more than one row matches
+     */
+    const identityOfUpdate = async (options, instance) => {
+      if (instance && instance[EXTERNAL_ID]) {
+        return instance[EXTERNAL_ID];
+      }
+
+      if (!binds()) {
+        return undefined;
+      }
+
+      const resolve = options[BIND_IDENTITY];
+
+      if (typeof resolve !== 'function') {
+        throw unresolved('an update that names no row');
+      }
+
+      const found = await resolve();
+
+      if (found.length > 1) {
+        throw unresolved(`${Model.modelName}.update() over more than one row`);
+      }
+
+      return found.length === 1 ? found[0] : uuidv7();
+    };
 
     Model.internalHooks.beforeCreate.push(async (values, options = {}) => {
       values.roles = options.unsafe ? toRoles(values.roles) : [...baseRoles];
 
       if (typeof values.password === 'string' && !options.passwordsHashed) {
-        values.password = await encrypt(values.password);
+        // The uuid default is applied by validate(), before this hook
+        values.password = await encrypt(values.password, values[EXTERNAL_ID]);
       }
 
       return values;
     });
 
-    Model.internalHooks.beforeUpdate.push(async (values, options = {}) => {
-      if (!options.unsafe) {
-        delete values.roles;
-      } else if ('roles' in values) {
-        values.roles = toRoles(values.roles);
-      }
+    Model.internalHooks.beforeUpdate.push(
+      async (values, options = {}, instance = null) => {
+        if (!options.unsafe) {
+          delete values.roles;
+        } else if ('roles' in values) {
+          values.roles = toRoles(values.roles);
+        }
 
-      if (typeof values.password === 'string' && !options.passwordsHashed) {
-        values.password = await encrypt(values.password);
-      }
+        if (typeof values.password === 'string' && !options.passwordsHashed) {
+          values.password = await encrypt(
+            values.password,
+            await identityOfUpdate(options, instance)
+          );
+        }
 
-      return values;
-    });
+        return values;
+      }
+    );
 
     Model.internalHooks.afterLoad.push((row) => {
       row.roles = toRoles(row.roles);

@@ -1183,9 +1183,13 @@ function router(henri) {
           let ok = false;
 
           try {
+            // The account, not its hash: a bound hash cannot be checked
+            // without the record it belongs to, and the catch below would
+            // turn that into "is not your current password" for a password
+            // that is right
             ok = Boolean(
               hash &&
-              (await henri.user.compare(String(params.password || ''), hash))
+              (await henri.user.compare(String(params.password || ''), account))
             );
           } catch (error) {
             ok = false;

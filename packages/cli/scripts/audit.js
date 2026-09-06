@@ -205,6 +205,13 @@ const CHECKS = [
     what: '{ unsafe: true } turns off the guard that keeps roles out of a write',
   },
   {
+    asvs: 'V2.4.1',
+    check: 'password.binding-disabled',
+    level: 1,
+    owasp: 'A02',
+    what: '"binding": false: a hash copied onto another row still signs that row in',
+  },
+  {
     asvs: 'V2.2.1',
     check: 'rate-limit.auth-disabled',
     level: 1,
@@ -777,6 +784,19 @@ const configFindings = (config, { hasUser }) => {
         'the per-account lockout is off: the address limiter still bounds one caller, so a guessing attempt spread over many addresses is unbounded',
         'Remove "lockout": false and widen the window instead: { "user": { "lockout": { "max": 25 } } }',
         'V2.2.1'
+      );
+    }
+
+    const binding = (config.user.password || {}).binding;
+
+    if (binding === false || (binding && binding.enabled === false)) {
+      add(
+        hasUser ? 'medium' : 'low',
+        'password.binding-disabled',
+        OWASP.A02,
+        'password hashes are not bound to their row: someone who can write the database can copy a hash whose password they know onto another account and sign in as it',
+        'Remove "binding": false; if a mass password update forced it, give each account its own password instead',
+        'V2.4.1'
       );
     }
 

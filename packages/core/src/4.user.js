@@ -11,13 +11,16 @@ const { loadStore } = require('./base/api');
 const { publicUser, respond, userAdapter, userConfig } = require('./base/auth');
 const { params, permitMiddleware } = require('./base/params');
 const {
+  PasswordBindingError,
   PasswordPolicyError,
   algorithmFor,
+  bindingIdentity,
   hashPassword,
   needsRehash,
   validatePassword,
   verifyPassword,
 } = require('./base/password');
+const { EXTERNAL_ID } = require('./base/external-id');
 const Lockout = require('./base/lockout');
 const accounts = require('./base/accounts');
 const csrf = require('./base/csrf');
@@ -89,6 +92,13 @@ class User extends BaseModule {
     this.passport = null;
     this.sessionStore = null;
     this.dummyHash = null;
+    /**
+     * The identity `dummyHash` is bound to. A random uuid that belongs to no
+     * row: checking an unknown email against it has to cost exactly what
+     * checking a real bound hash costs, or the timing would say which emails
+     * have accounts.
+     */
+    this.dummyIdentity = null;
     /** Per-account sign-in lockout (base/lockout.js), null when disabled */
     this.lockout = null;
 
@@ -101,6 +111,7 @@ class User extends BaseModule {
     this.findByEmail = this.findByEmail.bind(this);
     this.findById = this.findById.bind(this);
     this.publicUser = this.publicUser.bind(this);
+    this.identityOf = this.identityOf.bind(this);
     this.login = this.login.bind(this);
     this.locked = this.locked.bind(this);
     this.logout = this.logout.bind(this);
@@ -140,32 +151,144 @@ class User extends BaseModule {
   }
 
   /**
+   * Does the user model carry the public identifier a bound hash needs?
+   *
+   * Asked of the three ORMs in their own words, because there is no common
+   * way to ask. An answer of `false` means binding is configured but can
+   * never happen, which the operator has to hear at boot rather than infer
+   * from a table of unbound hashes months later.
+   *
+   * @returns {boolean} true when the model has an externalId
+   * @memberof User
+   */
+  userHasExternalId() {
+    const model = this.henri._user;
+
+    if (!model) {
+      return false;
+    }
+
+    // Sequelize
+    if (model.rawAttributes) {
+      return Boolean(model.rawAttributes[EXTERNAL_ID]);
+    }
+
+    // Mongoose
+    if (model.schema && typeof model.schema.path === 'function') {
+      return Boolean(model.schema.path(EXTERNAL_ID));
+    }
+
+    // Drizzle sets the flag on the model class itself
+    return Boolean(model[EXTERNAL_ID]);
+  }
+
+  /**
+   * Will a hash written now be bound to its record?
+   *
+   * The adapters ask before they hash: a `true` means a password write has to
+   * name the row it is for, and a mass update that cannot must refuse rather
+   * than quietly write a hash that verifies anywhere.
+   *
+   * @returns {boolean} true when new hashes are bound
+   * @memberof User
+   */
+  bindsPasswords() {
+    return Boolean(
+      this.passwordPolicy.binding &&
+      this.passwordPolicy.binding.enabled &&
+      this.userHasExternalId()
+    );
+  }
+
+  /**
+   * The error an adapter throws when it is asked to hash a password for an
+   * unknown number of rows. Returns it rather than throwing, the way
+   * `pen.fatal()` does, so the call site reads as the throw it is.
+   *
+   * @param {string} detail what the caller was doing (`User.update()`)
+   * @returns {PasswordBindingError} the error to throw
+   * @memberof User
+   */
+  unresolvedPassword(detail) {
+    return new PasswordBindingError(detail);
+  }
+
+  /**
+   * The `externalId` a hash written for this record should be bound to.
+   *
+   * Takes a model instance, a plain row or the uuid itself, so the adapters
+   * can hand over whatever they have in the hook. Null for a model that opted
+   * out of the public identifier, which is what makes binding degrade to the
+   * old unbound hash instead of failing.
+   *
+   * @param {*} user a user instance, a plain object, or an externalId
+   * @returns {?string} the uuid, or null
+   * @memberof User
+   */
+  identityOf(user) {
+    if (!user) {
+      return null;
+    }
+
+    if (typeof user === 'string') {
+      return bindingIdentity(user);
+    }
+
+    if (typeof user !== 'object') {
+      return null;
+    }
+
+    // The instance answers first: toPlain() on a Mongoose document runs the
+    // schema's transforms, and a lean row has the field directly
+    const direct = bindingIdentity(user[EXTERNAL_ID]);
+
+    if (direct) {
+      return direct;
+    }
+
+    const plain = this.adapter().toPlain(user) || {};
+
+    return bindingIdentity(plain[EXTERNAL_ID]);
+  }
+
+  /**
    * Hashes a password, after checking it against the policy.
    *
    * argon2id when `@node-rs/argon2` is installed (it is an optional
    * dependency of `@usehenri/core`), bcrypt otherwise.
    *
+   * `identity` is the `externalId` of the record the hash is being written
+   * for. With it (and `config.user.password.binding.enabled`, the default)
+   * the hash is bound to that record and stops verifying anywhere else; the
+   * adapters pass it from their create and update hooks. Without it the hash
+   * is written the way it always was.
+   *
    * @async
    * @param {any} password The password
-   * @param {number} [rounds] Deprecated: overrides `password.bcryptRounds`,
-   *   ignored when the hash is argon2id
+   * @param {(number|object)} [options] `{ identity, rounds }`, or a number for
+   *   the deprecated `rounds` argument (overrides `password.bcryptRounds`,
+   *   ignored when the hash is argon2id)
    * @returns {Promise<string>} The hash
    * @throws {PasswordPolicyError} when the password does not meet the policy
    * @memberof User
    */
-  async encrypt(password, rounds = undefined) {
+  async encrypt(password, options = undefined) {
     const verdict = this.validatePassword(password);
 
     if (!verdict.valid) {
       throw new PasswordPolicyError(verdict);
     }
 
+    // `encrypt(password, 12)` is the shape this had before binding existed
+    const settings =
+      typeof options === 'number' ? { rounds: options } : options || {};
+    const { identity, rounds } = settings;
     const policy =
       typeof rounds === 'undefined'
         ? this.passwordPolicy
         : Object.assign({}, this.passwordPolicy, { bcryptRounds: rounds });
 
-    return hashPassword(password, policy);
+    return hashPassword(password, policy, this.identityOf(identity));
   }
 
   /**
@@ -175,15 +298,26 @@ class User extends BaseModule {
    * and applies no policy: an existing password is never refused for being
    * shorter than the current minimum.
    *
+   * Pass the **user**, not its hash: a bound hash cannot be checked without
+   * the record it belongs to, and this throws rather than answering "wrong
+   * password" to a password that is right. A bare hash still works for as
+   * long as it is unbound.
+   *
    * @async
    * @param {string} password A password
-   * @param {string} hash A hash
+   * @param {(string|object)} user The user, or a hash on its own
    * @returns {Promise<true>} true, or throws
-   * @throws {Error} on a mismatch
+   * @throws {Error} on a mismatch, or when a bound hash arrives alone
    * @memberof User
    */
-  async compare(password, hash) {
-    const { ok } = await verifyPassword(password, hash, this.passwordPolicy);
+  async compare(password, user) {
+    const given = typeof user === 'string' ? { hash: user } : this.hashOf(user);
+    const { ok } = await verifyPassword(
+      password,
+      given.hash,
+      this.passwordPolicy,
+      given.identity
+    );
 
     if (!ok) {
       throw new Error('Invalid credentials');
@@ -193,10 +327,25 @@ class User extends BaseModule {
   }
 
   /**
+   * The stored hash of a user and the identity to check it against
+   *
+   * @param {*} user a user instance or a plain row
+   * @returns {{hash: *, identity: ?string}} the pair
+   * @memberof User
+   */
+  hashOf(user) {
+    if (!user || typeof user !== 'object') {
+      return { hash: null, identity: null };
+    }
+
+    return { hash: user.password, identity: this.identityOf(user) };
+  }
+
+  /**
    * Writes a stored hash again with the current parameters, after its owner
    * proved the password. This is how an application moves off bcrypt, or off
-   * a lower cost, without a migration and without asking anyone to reset
-   * anything.
+   * a lower cost, or onto a hash bound to its row, without a migration and
+   * without asking anyone to reset anything.
    *
    * The policy is deliberately not applied: the password already verified.
    * A failure here never fails the sign-in.
@@ -214,10 +363,22 @@ class User extends BaseModule {
     }
 
     try {
-      user.password = await hashPassword(password, this.passwordPolicy);
+      // The identity is read before the write: this is the moment an unbound
+      // hash becomes bound to the row it was already sitting in
+      const identity = this.identityOf(user);
+
+      user.password = await hashPassword(
+        password,
+        this.passwordPolicy,
+        identity
+      );
       // Every adapter's user hooks honour `passwordsHashed`
       await user.save({ passwordsHashed: true });
-      debug('upgraded a stored hash to %s', algorithmFor(this.passwordPolicy));
+      debug(
+        'upgraded a stored hash to %s%s',
+        algorithmFor(this.passwordPolicy),
+        identity ? ', bound to its record' : ''
+      );
 
       return true;
     } catch (error) {
@@ -366,11 +527,21 @@ class User extends BaseModule {
       );
     }
 
+    if (this.settings.password.binding.enabled && !this.userHasExternalId()) {
+      pen.warn(
+        'user',
+        `the user model has no ${EXTERNAL_ID}, so password hashes cannot be bound to their row; remove "options: { externalId: false }" from the model, or set config.user.password.binding.enabled to false to stop asking`
+      );
+    }
+
     // Unknown emails are checked against this hash so the response time does
-    // not tell whether an account exists
+    // not tell whether an account exists. It is bound like a real one, to a
+    // uuid no row has, so the work is the same on both paths.
+    this.dummyIdentity = crypto.randomUUID();
     this.dummyHash = await hashPassword(
       crypto.randomBytes(24).toString('hex'),
-      this.settings.password
+      this.settings.password,
+      this.dummyIdentity
     );
 
     this.passport = new Passport();
@@ -601,12 +772,21 @@ class User extends BaseModule {
   async checkLocal(email, password, done) {
     try {
       const user = await this.findByEmail(email);
-      const hash =
-        user && typeof user.password === 'string' && user.password.length > 0
-          ? user.password
-          : this.dummyHash;
+      const real =
+        user && typeof user.password === 'string' && user.password.length > 0;
+      const hash = real ? user.password : this.dummyHash;
+      // A real row is checked against its own identity, an unknown email
+      // against the dummy's, so the two cost the same. `identityOf` answers
+      // null for a user model without an externalId, and a hash written for
+      // such a model is never bound, so the pair always agrees.
+      const identity = real ? this.identityOf(user) : this.dummyIdentity;
       const policy = this.passwordPolicy;
-      const { ok, stale } = await verifyPassword(password, hash, policy);
+      const { ok, stale } = await verifyPassword(
+        password,
+        hash,
+        policy,
+        identity
+      );
 
       if (!user || !ok) {
         return done(null, false, { message: 'Invalid credentials' });
@@ -614,8 +794,8 @@ class User extends BaseModule {
 
       // The password just proved itself: this is the moment to write it
       // again with the current parameters, which is how an application
-      // leaves bcrypt (or a lower cost, or an older pepper) behind without a
-      // migration
+      // leaves bcrypt (or a lower cost, or an older pepper, or a hash that
+      // is not yet bound to its row) behind without a migration
       if (stale || needsRehash(hash, policy)) {
         await this.rehash(user, password);
       }
