@@ -140,7 +140,8 @@ has to be named per record or per process. An application's own suite keeps
   printed at boot with the `filterParameters` masked. Keys, in the order of
   the schema: `port`, `host`, `cors`, `renderer`, `inertia`, `experimental`,
   `stores`, `secret`, `url`, `user` (string or `{ model, public, loginPath,
-afterLogin, sessionMaxAge, signup, passwordReset, confirmation }`),
+afterLogin, sessionMaxAge, signup, passwordReset, confirmation,
+identities }`),
   `baseRole`, `externalIds`, `policies`, `trustProxy`, `csrf`, `graphql`,
   `mail`, `mailers`, `api`, `jobs`, `webhooks`, `rateLimit`, `shared`,
   `cache`, `helmet`, `csp`, `filterParameters`, `logs`, `telemetry`,
@@ -450,6 +451,40 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   (`core/src/mailers/`), whose views sit behind `app/views/mailers`, and go
   through `deliverLater()`. `henri generate authentication` writes the pages,
   the controller, the mailer, the routes and the tests into an application.
+- Signing in with somebody else's identity provider is `base/identities.js`
+  and `base/identity-store.js`, mounted by the same user module when
+  `config.user.identities` names a provider. henri ships **no provider list
+  and no provider secrets**: an application points each provider at its own
+  `authorizationUrl`, `tokenUrl` and `userinfoUrl`, and the client secret
+  belongs in the credentials (`henri audit` reports one in a `config/*.json`,
+  the way it does an encryption key). No `id_token` is ever parsed -- the
+  profile is what `userinfoUrl` answers to a request henri makes with the
+  access token -- and henri is a client, never an OAuth _provider_.
+  `henri_identities` is a table henri owns like the trail's, raw SQL or a
+  MongoDB collection and never a model, because **a row is a credential** and
+  a model would put `provider` and `subject` behind an application's own mass
+  assignment; `(provider, subject)` and `(user_id, provider)` are both unique.
+  A row carries what it is allowed to imply (`allows`: `signin` or `verify`,
+  read from the row rather than the configuration) and how it came to be
+  (`origin`: `signup`, `session`, `verified`). The routes are inside the
+  machinery rather than beside it: `POST <path>/:provider` behind the CSRF
+  token and the origin check (`GET` is 405), `GET <path>/:provider/callback`
+  whose `state` is minted per attempt, kept in the session, single use and
+  expiring, with PKCE S256, `req.session.regenerate()` before `req.logIn()`,
+  the lockout of `POST /login` checked and cleared but never counted, and the
+  auth rate limit over the whole prefix. **The merge rule refuses**: a
+  callback whose verified address already belongs to an account answers
+  `exists` and says to sign in and link, because auto-linking on
+  `email_verified` lets a stranger add a credential to somebody else's
+  account. Linking happens only from a session that already belongs to that
+  user, which is the flow and not a setting; `identities.merge: "verified"`
+  is the audited opt-out and needs the provider `trusted: true`. An
+  unverified address decides nothing and is refused **before the user table
+  is read**, so a known and an unknown address are one answer at one price.
+  `henri generate authentication` writes the buttons and the connections
+  page, the export lists the providers without the subject, and the erasure
+  deletes the rows rather than masking them. The guide is
+  `guides/users.md`.
 - Record-level authorization lives in `3.policies.js` (`henri.policies`) and
   `base/policies.js`. `app/policies/<model>.js` is loaded the way `app/models`
   is, one file per model, every exported function the rule of the action of
@@ -1185,6 +1220,23 @@ the LICENSE and a README into every public package at publish time
   suites on purpose. Receiving webhooks, a UI, a subscription policy richer
   than `invoice.*`, `Retry-After` and ordering guarantees are out of scope
   and the guide says why.
+- Identity providers are new. The suite runs against a fake provider that is
+  strict about henri's half -- it refuses a token request whose
+  `redirect_uri`, client credentials or PKCE verifier are wrong, a code is
+  single use, and a token opens one profile -- so what it asserts about the
+  state, the merge rule, the lockout, the session and the table is real. It
+  proves **nothing about a real provider**: which client authentication
+  Google, GitHub, Okta or Entra accept, whether they refuse parameters they
+  do not know, what their userinfo answers and how (or whether) they spell
+  `email_verified` are covered by the configuration and by nothing in the
+  suite. The fake is plain http on the loopback, which is what
+  `identities.allowHttp` exists for and what a production configuration
+  refuses, so nothing exercises TLS, a redirect or a rate limit of a
+  provider's. There is no OIDC discovery (the three endpoints are written
+  down), no `id_token` parsing on purpose, no refresh token stored, and a
+  provider that reuses a subject for a second person would hand that person
+  the first one's account -- a stable, never-reused subject is a promise of
+  the provider's that the table takes on trust.
 - The idempotency and rate-limit stores are in memory unless the app plugs a
   shared store (`config.api.idempotency.store`, `config.rateLimit.store`).
 - The rate limit, lockout and idempotency counters are in the process memory
