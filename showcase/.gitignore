@@ -3,12 +3,9 @@
 .env
 
 # Local configuration overrides. henri reads config/dev.json before
-# config/default.json when NODE_ENV is unset, which is the place to point the
-# store at a PostgreSQL that is not on 127.0.0.1:5432.
+# config/default.json when NODE_ENV is unset. DATABASE_URL in .env is the
+# lighter way to point the store somewhere else; this stays for the rest.
 config/dev.json
-
-# Written by docker/entrypoint.sh inside the image
-config/production.json
 
 # Vite builds and the model globals henri records on boot
 app/views/dist

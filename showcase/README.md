@@ -36,11 +36,19 @@ Sign in with any of the seeded accounts; the password is always `showcase`.
 see `/admin`; `bruno@lineup.dev` and the twenty-one others are speakers.
 
 If your PostgreSQL is not on `127.0.0.1:5432` — `pnpm db:up` takes
-`HENRI_POSTGRES_PORT` when something else already listens there — copy
-`config/default.json` to `config/dev.json` and change `stores.default.url`.
-henri reads `config/dev.json` before `config/default.json` when `NODE_ENV` is
-unset, and that file is git-ignored. The test database is
-`config/test.json`.
+`HENRI_POSTGRES_PORT` when something else already listens there —
+`DATABASE_URL` points the store at it, with no file to copy:
+
+```bash
+export DATABASE_URL=postgres://henri:henri@127.0.0.1:55433/henri_showcase
+pnpm db:setup && pnpm start
+```
+
+henri applies it over `stores.default.url` and prints the key it took from the
+environment on boot. It applies to every environment, the test suite included,
+so unset it (or point it at `henri_showcase_test`) before `pnpm test`; copying
+`config/default.json` to the git-ignored `config/dev.json` is still the way to
+make the split permanent.
 
 `HENRI_SECRET` signs the sessions. It lives in `.env`, which is git-ignored,
 so `henri doctor` stays green and no secret is ever committed; a variable
@@ -150,12 +158,20 @@ docker run --rm -p 3000:3000 \
   lineup
 ```
 
-`docker-entrypoint.sh` writes `config/production.json` from the environment on
-every start (henri expands no environment variable in its configuration) and
-the boot applies `db/migrations`. `HENRI_SEED=true` runs `db/seeds.js` first,
-`HENRI_MIGRATE=false` leaves the schema alone, `PORT` moves the port. The
-container refuses to start without `DATABASE_URL` and `HENRI_SECRET`, and
-`GET /_henri/health` is its healthcheck.
+Nothing is written at start time. `config/production.json` is committed and
+carries what the application is; the environment carries what changes between
+deployments, and henri applies it over the file (see
+[Configuration](https://usehenri.io/configuration/)): `DATABASE_URL` is
+`stores.default.url`, `HENRI_SECRET` the secret, and any other key is
+`HENRI_CONFIG__<key>`, for instance
+`-e HENRI_CONFIG__api__perPage=25`. The boot prints every key it took from the
+environment, with the secrets masked.
+
+`docker-entrypoint.sh` only checks the two variables the application cannot
+start without, maps `PORT` to `HENRI_CONFIG__port` and `HENRI_MIGRATE=false` to
+`HENRI_CONFIG__stores__default__migrate`, and runs `db/seeds.js` first when
+`HENRI_SEED=true`. The boot applies `db/migrations`, and
+`GET /_henri/health` is the healthcheck.
 
 ## Layout
 

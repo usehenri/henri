@@ -129,3 +129,239 @@ describe('config environment', () => {
     }
   });
 });
+
+describe('config from the environment', () => {
+  const {
+    ENV_JSON_PREFIX,
+    ENV_PREFIX,
+    applyEnv,
+    withEnv,
+  } = require('../0.config');
+
+  const file = () => ({
+    baseRole: 'guest',
+    filterParameters: ['password', 'token', 'secret', 'authorization'],
+    inertia: { ssr: false },
+    port: 3000,
+    secret: 'from-the-file',
+    stores: { default: { adapter: 'drizzle', url: 'postgres://file/db' } },
+    trustProxy: true,
+  });
+
+  test('a missing variable changes nothing', () => {
+    const { applied, config } = applyEnv(file(), {});
+
+    expect(applied).toEqual([]);
+    expect(config).toEqual(file());
+    expect(config.secret).toBe('from-the-file');
+    expect(Object.keys(config)).not.toContain('host');
+  });
+
+  test('the environment wins over the file, the generic form over an alias', () => {
+    const { config } = applyEnv(file(), {
+      DATABASE_URL: 'postgres://alias/db',
+      HENRI_SECRET: 'from-the-alias',
+      [`${ENV_PREFIX}secret`]: 'from-the-key',
+    });
+
+    expect(config.secret).toBe('from-the-key');
+    expect(config.stores.default.url).toBe('postgres://alias/db');
+    expect(config.stores.default.adapter).toBe('drizzle');
+  });
+
+  test('DATABASE_URL reaches the default store, HENRI_CONFIG__ a named one', () => {
+    const { config } = applyEnv(file(), {
+      DATABASE_URL: 'postgres://env/db',
+      [`${ENV_PREFIX}stores__reporting__adapter`]: 'drizzle',
+      [`${ENV_PREFIX}stores__reporting__url`]: 'postgres://env/reporting',
+    });
+
+    expect(config.stores.default.url).toBe('postgres://env/db');
+    expect(config.stores.reporting).toEqual({
+      adapter: 'drizzle',
+      url: 'postgres://env/reporting',
+    });
+  });
+
+  test('DATABASE_URL without a default store is reported, not applied', () => {
+    const { applied, config } = applyEnv(
+      { port: 3000 },
+      { DATABASE_URL: 'postgres://env/db' }
+    );
+
+    expect(config.stores).toBeUndefined();
+    expect(applied[0].ignored).toMatch(/no "stores.default"/);
+  });
+
+  test('the file gives the type: a number, a boolean, an object', () => {
+    const { config } = applyEnv(file(), {
+      [`${ENV_JSON_PREFIX}inertia`]: '{"ssr":true,"id":"app"}',
+      [`${ENV_PREFIX}port`]: '8080',
+      [`${ENV_PREFIX}trustProxy`]: 'false',
+    });
+
+    expect(config.port).toBe(8080);
+    expect(config.trustProxy).toBe(false);
+    expect(config.inertia).toEqual({ id: 'app', ssr: true });
+  });
+
+  test('a value the file types as a string stays one', () => {
+    const { config } = applyEnv(file(), {
+      [`${ENV_PREFIX}stores__default__url`]: '5432',
+    });
+
+    expect(config.stores.default.url).toBe('5432');
+  });
+
+  test('a key the file does not have is a string, unless it is JSON', () => {
+    const { config } = applyEnv(file(), {
+      [`${ENV_JSON_PREFIX}rateLimit`]: '{"max":10}',
+      [`${ENV_PREFIX}mail__host`]: 'smtp.example.com',
+    });
+
+    expect(config.mail).toEqual({ host: 'smtp.example.com' });
+    expect(config.rateLimit).toEqual({ max: 10 });
+  });
+
+  test('a value that does not fit its key fails the boot', () => {
+    expect(() => applyEnv(file(), { [`${ENV_PREFIX}port`]: 'nope' })).toThrow(
+      /HENRI_CONFIG__port is not a number/
+    );
+    expect(() =>
+      applyEnv(file(), { [`${ENV_PREFIX}trustProxy`]: 'yes' })
+    ).toThrow(/is not true or false/);
+    expect(() => applyEnv(file(), { [`${ENV_PREFIX}inertia`]: 'ssr' })).toThrow(
+      /is not a JSON object/
+    );
+  });
+
+  test('invalid JSON fails without quoting the value', () => {
+    let thrown = null;
+
+    try {
+      applyEnv(file(), { [`${ENV_JSON_PREFIX}secret`]: 'hunter2' });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown.message).toBe('HENRI_CONFIG_JSON__secret is not valid JSON');
+    expect(thrown.message).not.toContain('hunter2');
+  });
+
+  test('an empty variable is never a silent empty string', () => {
+    expect(() => applyEnv(file(), { [`${ENV_PREFIX}baseRole`]: '' })).toThrow(
+      /is set but empty/
+    );
+
+    // The shorthands keep their truthiness: an empty one is unset, not empty
+    const { applied, config } = applyEnv(file(), {
+      DATABASE_URL: '',
+      HENRI_SECRET: '',
+    });
+
+    expect(applied).toEqual([]);
+    expect(config.secret).toBe('from-the-file');
+  });
+
+  test('a variable naming no key is refused', () => {
+    expect(() => applyEnv(file(), { [ENV_PREFIX]: 'x' })).toThrow(
+      /names no configuration key/
+    );
+  });
+
+  test('the configuration file object is never modified', () => {
+    const original = file();
+
+    applyEnv(original, {
+      [`${ENV_PREFIX}stores__default__url`]: 'postgres://env/db',
+    });
+
+    expect(original.stores.default.url).toBe('postgres://file/db');
+  });
+
+  test('withEnv keeps its signature', () => {
+    expect(withEnv({ secret: 'file' }, {})).toEqual({ secret: 'file' });
+    expect(withEnv({ port: 3000 }, { HENRI_SECRET: 'env' })).toEqual({
+      port: 3000,
+      secret: 'env',
+    });
+  });
+
+  describe('the boot report', () => {
+    const report = (config, applied) => {
+      const lines = [];
+      const write = (name, ...args) => lines.push(args.join(' => '));
+      const instance = new Config();
+
+      instance.henri = { pen: { info: write, warn: write } };
+      instance.config = config;
+      instance.report(applied);
+
+      return lines;
+    };
+
+    test('prints the key and the variable, masking the secrets', () => {
+      const { applied, config } = applyEnv(file(), {
+        DATABASE_URL: 'postgres://henri:hunter2@db.internal:5432/app',
+        HENRI_SECRET: 'super-secret-value',
+        [`${ENV_PREFIX}port`]: '8080',
+      });
+      const lines = report(config, applied);
+
+      expect(lines).toEqual([
+        'from the environment => secret = [FILTERED] => HENRI_SECRET',
+        'from the environment => stores.default.url = postgres://henri:[FILTERED]@db.internal:5432/app => DATABASE_URL',
+        'from the environment => port = 8080 => HENRI_CONFIG__port',
+      ]);
+      expect(lines.join('\n')).not.toContain('super-secret-value');
+      expect(lines.join('\n')).not.toContain('hunter2');
+    });
+
+    test('masks what config.filterParameters names, and nothing else', () => {
+      const { applied, config } = applyEnv(
+        { filterParameters: ['apiKey'] },
+        {
+          [`${ENV_JSON_PREFIX}mail`]: '{"host":"smtp","auth":{"pass":"pw"}}',
+          [`${ENV_PREFIX}apiKey`]: 'ak-1',
+          [`${ENV_PREFIX}baseRole`]: 'guest',
+        }
+      );
+      const lines = report(config, applied).join('\n');
+
+      expect(lines).toContain('apiKey = [FILTERED]');
+      expect(lines).toContain('baseRole = guest');
+      expect(lines).not.toContain('ak-1');
+      // `pass` is not one of the names this configuration filters
+      expect(lines).toContain('{"host":"smtp","auth":{"pass":"pw"}}');
+    });
+
+    test('says when a variable was ignored', () => {
+      const { applied, config } = applyEnv(
+        { port: 3000 },
+        { DATABASE_URL: 'postgres://env/db' }
+      );
+
+      expect(report(config, applied)).toEqual([
+        'DATABASE_URL => ignored: the configuration has no "stores.default"',
+      ]);
+    });
+  });
+
+  test('a booted henri reads a key from the environment', async () => {
+    process.env[`${ENV_PREFIX}baseRole`] = 'from-the-environment';
+
+    const henri = new Henri({ runlevel: 0 });
+
+    await henri.init();
+
+    try {
+      expect(henri.config.get('baseRole')).toBe('from-the-environment');
+      expect(henri.config.fromEnv).toEqual([
+        { key: 'baseRole', variable: `${ENV_PREFIX}baseRole` },
+      ]);
+    } finally {
+      delete process.env[`${ENV_PREFIX}baseRole`];
+      await henri.stop();
+    }
+  });
+});

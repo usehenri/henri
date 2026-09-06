@@ -11,8 +11,10 @@
 #     -e HENRI_SECRET=$(openssl rand -hex 32) \
 #     lineup
 #
-# The container writes config/production.json from the environment on every
-# start (see docker-entrypoint.sh) and applies db/migrations on boot.
+# Nothing is written at start time: config/production.json is committed and
+# henri applies the environment over it (DATABASE_URL, HENRI_SECRET and any
+# HENRI_CONFIG__<key>). The boot applies db/migrations; see
+# docker-entrypoint.sh for the handful of names it maps.
 
 ARG NODE_IMAGE=node:24-bookworm-slim
 ARG PNPM_VERSION=11.25.0

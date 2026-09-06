@@ -110,15 +110,62 @@ The keys of the [JSON API](/guides/api/), all optional:
 
 ## Environment and `.env`
 
-On boot henri reads `.env` in the application directory (`KEY=value` lines, optional `export`, quotes stripped, `#` comments; variables already set in the environment win) and applies these overrides:
+On boot henri reads `.env` in the application directory (`KEY=value` lines, optional `export`, quotes stripped, `#` comments; variables already set in the environment win), then applies what the environment says over the file it loaded. Every key is reachable, so a container image needs no configuration file written at start time: the committed `config/production.json` describes the application and the environment carries what changes between deployments.
 
-| Variable       | Effect                                                                 |
-| -------------- | ---------------------------------------------------------------------- |
-| `HENRI_SECRET` | Provides or replaces `secret`, so the secret can stay out of `config`. |
-| `HENRI_HOST`   | Replaces `host` (what `henri server --host` sets).                     |
-| `NODE_ENV`     | Selects the configuration file. `henri server --production` sets it.   |
+### Precedence
 
-Nothing else in the configuration is expanded from the environment: for a container, write `config/production.json` at start time (the repository's `docker/entrypoint.sh` does exactly that).
+Lowest first, one story for every variable:
+
+1. the configuration file: `config/<NODE_ENV>.json`, or `config/default.json` when it does not exist (the two are never merged);
+2. the named shorthands, in the table below;
+3. `HENRI_CONFIG__<key>`, which names the key it sets and wins over everything.
+
+Nothing is applied twice and nothing is merged into a value: the last writer of a key replaces it.
+
+### The shorthands
+
+| Variable       | Sets                                                                 |
+| -------------- | -------------------------------------------------------------------- |
+| `HENRI_SECRET` | `secret`, so the secret stays out of `config`.                       |
+| `HENRI_HOST`   | `host` (what `henri server --host` sets).                            |
+| `DATABASE_URL` | `stores.default.url`, the connection string of the default store.    |
+| `NODE_ENV`     | Selects the configuration file. `henri server --production` sets it. |
+
+`DATABASE_URL` carries no `HENRI_` prefix on purpose: it is the name Heroku, Render, Fly, Railway, Neon and Supabase already set for you, and the one Rails has read for a decade. A prefixed alias would mean writing `HENRI_DATABASE_URL=$DATABASE_URL` in every deployment, which is the papercut this removes. There is one name, not both.
+
+It applies only when the configuration already declares a `stores.default`: a url does not say which adapter to load, so the file stays the place where the store is declared. When it does not, the boot prints `DATABASE_URL => ignored: the configuration has no "stores.default"` and moves on. A store other than the default is reached by its path, below.
+
+An empty shorthand (`DATABASE_URL=`) is treated as unset.
+
+### Any other key
+
+`HENRI_CONFIG__<key>` sets one configuration key. `__` separates the path segments, since a shell variable name cannot hold a dot:
+
+```bash
+HENRI_CONFIG__port=8080
+HENRI_CONFIG__baseRole=member
+HENRI_CONFIG__stores__reporting__url=postgres://user:pw@warehouse/reports
+HENRI_CONFIG__user__afterLogin=/dashboard
+HENRI_CONFIG_JSON__rateLimit='{"windowMs":60000,"max":100}'
+```
+
+The segments are the configuration keys **verbatim**, so their case matters: `HENRI_CONFIG__baseRole`, never `HENRI_CONFIG__BASEROLE`.
+
+**The type comes from the file, henri never guesses it.** When the configuration already has a value at that path, the variable is read as its type: a number for `port`, `true`/`false` for a boolean, JSON for an object. A path the file does not have is a string — a connection string stays a connection string even when it looks like a number. `HENRI_CONFIG_JSON__<key>` parses the value as JSON in every case, which is how you set a nested object, an array, or a key no file declares.
+
+A value that does not fit its key fails the boot, naming the variable and the type it expected. A variable set to nothing fails too (`HENRI_CONFIG__port is set but empty: give it a value or unset it`): a missing variable is simply not an override and never becomes an empty string. The value itself is never part of an error message — it may be a secret.
+
+### What the boot prints
+
+Every key the environment provided is printed, so nobody debugs a value they cannot see:
+
+```
+config ✏ from the environment => secret = [FILTERED] => HENRI_SECRET
+config ✏ from the environment => stores.default.url = postgres://henri:[FILTERED]@db:5432/app => DATABASE_URL
+config ✏ from the environment => port = 8080 => HENRI_CONFIG__port
+```
+
+A key whose name matches `filterParameters` (`password`, `token`, `secret`, `authorization` by default) is masked, and so is the password of a connection string, which no filter list would ever name. `henri.config.fromEnv` holds the same list as `{ key, variable }` pairs — the paths and the variable names, never the values.
 
 ## The `user` object
 
