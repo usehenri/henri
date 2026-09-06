@@ -89,7 +89,7 @@ jobs:
       HENRI_SECRET: a-secret-for-the-baseline-scan-of-this-run-0000000000
       # Opens the columns app/models/User.js marks `encrypted`; not the
       # secret above, and rotated on its own schedule
-      HENRI_ENCRYPTION_KEYS: 0000000000000000000000000000000000000000000000000000000000000001
+      HENRI_ENCRYPTION_KEYS: '0000000000000000000000000000000000000000000000000000000000000001'
     steps:
       - uses: actions/checkout@v7
 

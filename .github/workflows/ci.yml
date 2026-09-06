@@ -249,7 +249,7 @@ jobs:
       - run: pnpm test:showcase
         env:
           HENRI_SECRET: a-secret-for-the-showcase-tests-of-this-run
-          HENRI_ENCRYPTION_KEYS: 0000000000000000000000000000000000000000000000000000000000000001
+          HENRI_ENCRYPTION_KEYS: '0000000000000000000000000000000000000000000000000000000000000001'
 
       - run: pnpm --filter @usehenri/showcase build
 
