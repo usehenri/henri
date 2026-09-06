@@ -52,7 +52,9 @@ const everything = file('Thing', {
     key: { type: 'uuid' },
     okay: { type: 'boolean' },
     price: { type: 'float' },
+    reference: { type: 'bigint' },
     size: { type: 'number' },
+    total: { scale: 2, type: 'decimal' },
     state: { enum: ['draft', 'published'], type: 'string' },
     title: { required: true, type: 'string' },
   },
@@ -72,15 +74,20 @@ describe('the graphql definition derived from a model', () => {
         key: 'String',
         okay: 'Boolean',
         price: 'Float',
+        // Exact, so String: a Float would undo the column in the answer
+        reference: 'String',
         size: 'Float',
         title: 'String',
+        total: 'String',
       });
     });
 
     test('is the whole table, so nothing is mapped twice', () => {
       expect(Object.keys(TYPES).sort()).toEqual([
+        'bigint',
         'boolean',
         'date',
+        'decimal',
         'float',
         'integer',
         'number',

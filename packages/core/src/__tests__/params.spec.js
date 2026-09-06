@@ -393,6 +393,109 @@ describe('declared parameters', () => {
     });
   });
 
+  describe('an exact type: decimal and bigint', () => {
+    test('a textual source keeps the digits rather than parsing a number', async () => {
+      const res = await app({
+        count: 'bigint',
+        price: 'decimal',
+      }).get('/it?price=19.99&count=9223372036854775807');
+
+      expect(res.status).toBe(200);
+      // Strings, both of them: `Number('9223372036854775807')` is
+      // 9223372036854776000, which is the loss the type exists to avoid
+      expect(res.body.accepted).toEqual({
+        count: '9223372036854775807',
+        price: '19.99',
+      });
+    });
+
+    test('a json body sends them as strings, and says so when it does not', async () => {
+      const ok = await app({ price: 'decimal' }, { verb: 'post' })
+        .post('/it')
+        .send({ price: '19.99' });
+      const wrong = await app({ price: 'decimal' }, { verb: 'post' })
+        .post('/it')
+        .send({ price: 19.99 });
+
+      expect(ok.body.accepted).toEqual({ price: '19.99' });
+      expect(wrong.status).toBe(422);
+      expect(wrong.body.data.errors.price).toBe(
+        'must be a number, written out: a json number is a double (json sent a number)'
+      );
+    });
+
+    test('a bigint is whole, whichever source it came from', async () => {
+      const dotted = await app({ count: 'bigint' }).get('/it?count=1.0');
+      const body = await app({ count: 'bigint' }, { verb: 'post' })
+        .post('/it')
+        .send({ count: '12.5' });
+
+      expect(dotted.status).toBe(422);
+      expect(dotted.body.data.errors.count).toBe(
+        'must be a whole number, written out'
+      );
+      expect(body.status).toBe(422);
+    });
+
+    test('refuses what is not a number at all', async () => {
+      for (const value of ['banana', '0x10', 'Infinity', '2n', '']) {
+        const res = await app({
+          price: { required: true, type: 'decimal' },
+        }).get(`/it?price=${value}`);
+
+        expect(res.status).toBe(422);
+      }
+    });
+
+    test('a bound is compared by value, not letter by letter', async () => {
+      const rule = { min: 10, type: 'decimal' };
+      const below = await app({ price: rule }).get('/it?price=9.99');
+      const above = await app({ price: rule }).get('/it?price=100.50');
+
+      // `'9.99' > '10'` as text, which is the answer this must not give
+      expect(below.status).toBe(422);
+      expect(below.body.data.errors.price).toBe('must be at least 10');
+      expect(above.status).toBe(200);
+    });
+
+    test('a bound may be written out, so it can be past what a double holds', async () => {
+      const rule = { max: '9223372036854775806', type: 'bigint' };
+      const under = await app({ count: rule }).get(
+        '/it?count=9223372036854775806'
+      );
+      const over = await app({ count: rule }).get(
+        '/it?count=9223372036854775807'
+      );
+
+      expect(under.status).toBe(200);
+      expect(over.status).toBe(422);
+    });
+
+    test('an enum is matched by value, so 10 and 10.00 are the same', async () => {
+      const rule = { enum: ['10.00', '20.00'], type: 'decimal' };
+      const res = await app({ price: rule }).get('/it?price=10');
+      const nope = await app({ price: rule }).get('/it?price=15');
+
+      expect(res.status).toBe(200);
+      expect(nope.status).toBe(422);
+    });
+
+    test('a length is not a bound a number has', () => {
+      expect(
+        refused({ index: { price: { maxLength: 4, type: 'decimal' } } })
+      ).toHaveProperty(
+        'message',
+        expect.stringContaining('which a decimal does not take')
+      );
+    });
+
+    test('a rule may be the type on its own', async () => {
+      const res = await app({ total: 'decimal' }).get('/it?total=.5');
+
+      expect(res.body.accepted).toEqual({ total: '0.5' });
+    });
+  });
+
   describe('a typed source: a JSON body', () => {
     /**
      * Posts a JSON body against a declaration

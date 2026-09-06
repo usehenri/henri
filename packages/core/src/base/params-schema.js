@@ -32,10 +32,10 @@
  * bounds a request genuinely needs. A rule is an object, or the type itself
  * (`year: 'integer'` is `year: { type: 'integer' }`):
  *
- * - `type`: `string`, `text`, `number`, `integer`, `float`, `boolean`,
- *   `date`, `json`, `uuid` -- the henri schema types -- and `array`, which a
- *   query string produces on its own (`?tag=a&tag=b`) and nothing else could
- *   express.
+ * - `type`: `string`, `text`, `number`, `integer`, `float`, `decimal`,
+ *   `bigint`, `boolean`, `date`, `json`, `uuid` -- the henri schema types --
+ *   and `array`, which a query string produces on its own (`?tag=a&tag=b`)
+ *   and nothing else could express.
  * - `required`: the field has to be there.
  * - `default`: what an absent field is worth. A function is called per
  *   request, so `default: () => new Date()` is a value and not a shared one.
@@ -62,9 +62,17 @@
  *   Date. There is no other way for a client to say 2 there.
  * - **A typed source** -- a JSON body -- is *checked*, never parsed:
  *   `{"page": "2"}` is a caller sending a string where the action declared a
- *   number, and it is refused. JSON can say 2; it said "2". The two types
- *   JSON cannot express are the exception and are read from a string there
- *   as well: a `date` is an ISO-8601 string and a `uuid` is a string.
+ *   number, and it is refused. JSON can say 2; it said "2". The types JSON
+ *   cannot express are the exception and are read from a string there as
+ *   well: a `date` is an ISO-8601 string, a `uuid` is a string, and so are
+ *   a `decimal` and a `bigint` -- a JSON number *is* a double, so
+ *   `{"price": 19.99}` is already the value those two exist to avoid, and
+ *   it is refused with that as the reason.
+ *
+ * An exact value stays the string it arrived as, whichever source it came
+ * from, because that is what it is everywhere else (`base/exact.js`). A
+ * rule says nothing about a precision or a scale: it describes a request,
+ * and the model is what says which values fit the column.
  *
  * The rest follows from those two: an empty string from a textual source is
  * an absent field (a browser sends one for every input nobody touched)
@@ -114,6 +122,7 @@
  */
 
 const { fail } = require('./errors');
+const { compare, isExact, literalOf } = require('./exact');
 const { isUuid } = require('./external-id');
 const { page } = require('./http');
 const { respond } = require('./auth');
@@ -130,8 +139,10 @@ const MESSAGE = 'the parameters are invalid';
 /** The types a rule may declare */
 const TYPES = [
   'array',
+  'bigint',
   'boolean',
   'date',
+  'decimal',
   'float',
   'integer',
   'json',
@@ -144,8 +155,10 @@ const TYPES = [
 /** What each type is, in words, for the message a person reads */
 const WORDS = {
   array: 'must be a list',
+  bigint: 'must be a whole number, written out',
   boolean: 'must be true or false',
   date: 'must be a date',
+  decimal: 'must be a number, written out',
   float: 'must be a number',
   integer: 'must be a whole number',
   json: 'must be json',
@@ -157,10 +170,19 @@ const WORDS = {
 
 /** The types a constraint applies to; every other key is in BASE */
 const APPLIES = {
-  enum: ['float', 'integer', 'number', 'string', 'text', 'uuid'],
-  max: ['float', 'integer', 'number'],
+  enum: [
+    'bigint',
+    'decimal',
+    'float',
+    'integer',
+    'number',
+    'string',
+    'text',
+    'uuid',
+  ],
+  max: ['bigint', 'decimal', 'float', 'integer', 'number'],
   maxLength: ['array', 'string', 'text'],
-  min: ['float', 'integer', 'number'],
+  min: ['bigint', 'decimal', 'float', 'integer', 'number'],
   minLength: ['array', 'string', 'text'],
   of: ['array'],
   pattern: ['string', 'text'],
@@ -374,8 +396,21 @@ function finish(compiled, where, field) {
     throw invalid(where, `declares "${field}" with ${what}`);
   };
 
+  const exact = isExact(compiled.type);
+
   for (const key of ['max', 'maxLength', 'min', 'minLength']) {
-    if (key in compiled && typeof compiled[key] !== 'number') {
+    if (!(key in compiled)) {
+      continue;
+    }
+
+    // The bound of an exact rule may be written out, the way its values
+    // are, so a limit past what a double carries can be declared at all
+    const written =
+      exact &&
+      (key === 'max' || key === 'min') &&
+      literalOf(compiled[key]) !== null;
+
+    if (!written && typeof compiled[key] !== 'number') {
       bad(`a "${key}" that is not a number`);
     }
   }
@@ -514,6 +549,17 @@ function typed(compiled, given, strict = false) {
     return isUuid(given) ? null : WORDS.uuid;
   }
 
+  // The third kind JSON cannot carry, and the one where it looks like it
+  // can: a JSON number *is* a double, so `{"price": 19.99}` is already the
+  // value the exact types exist to avoid. It has to be written out
+  if (isExact(type)) {
+    if (typeof given !== 'string') {
+      return `${WORDS[type]}: a json number is a double`;
+    }
+
+    return exactly(type, given) === null ? WORDS[type] : null;
+  }
+
   if (type === 'boolean') {
     return typeof given === 'boolean' ? null : WORDS.boolean;
   }
@@ -528,6 +574,28 @@ function typed(compiled, given, strict = false) {
 
   return type === 'integer' && !Number.isInteger(given) ? WORDS.integer : null;
 }
+
+/**
+ * One exact value, written out, or null when it is not one.
+ *
+ * A rule says nothing about a precision or a scale -- it describes a
+ * request, not a column, and the model is what says which values fit -- so
+ * the only thing settled here is the shape: the digits, with any exponent
+ * written out, so an action never has to read `1e3` or `.5`.
+ *
+ * @param {string} type `decimal` or `bigint`
+ * @param {*} given the value
+ * @returns {?string} the digits, or null
+ */
+const exactly = (type, given) => {
+  const literal = literalOf(given);
+
+  if (literal === null) {
+    return null;
+  }
+
+  return type === 'decimal' || !literal.includes('.') ? literal : null;
+};
 
 /**
  * Is this a date? A Date, or -- since JSON has no other way of carrying one
@@ -558,6 +626,23 @@ function constrain(compiled, given) {
   const { enum: allowed, max, maxLength, min, minLength, pattern } = compiled;
   const sized = typeof given === 'string' || Array.isArray(given);
   const unit = Array.isArray(given) ? 'items' : 'characters';
+  // An exact value is a string, so `<` would compare it letter by letter
+  // and answer that 9.99 is more than 10
+  const exact = isExact(compiled.type);
+
+  if (exact) {
+    if (typeof min !== 'undefined' && compare(given, min) < 0) {
+      return `must be at least ${min}`;
+    }
+
+    if (typeof max !== 'undefined' && compare(given, max) > 0) {
+      return `must be at most ${max}`;
+    }
+
+    return allowed && !allowed.some((entry) => compare(given, entry) === 0)
+      ? `must be one of ${allowed.join(', ')}`
+      : null;
+  }
 
   if (typeof min === 'number' && given < min) {
     return `must be at least ${min}`;
@@ -621,6 +706,12 @@ function keep(compiled, given, nested) {
 
   if (compiled.type === 'date') {
     return { value: given instanceof Date ? given : new Date(given) };
+  }
+
+  // The digits, with any exponent written out: the same value an action
+  // gets from a query string, so the source stops mattering
+  if (isExact(compiled.type)) {
+    return { value: exactly(compiled.type, given) };
   }
 
   if (compiled.type === 'array') {
@@ -693,6 +784,14 @@ function scalar(type, given) {
     return Number.isNaN(time)
       ? { error: WORDS.date }
       : { value: new Date(time) };
+  }
+
+  // An exact value stays a string: turning it into a number here is
+  // exactly the loss the type was declared to avoid
+  if (isExact(type)) {
+    const digits = exactly(type, given.trim());
+
+    return digits === null ? { error: WORDS[type] } : { value: digits };
   }
 
   const number = DECIMAL.test(given.trim()) ? Number(given.trim()) : NaN;

@@ -373,6 +373,12 @@ function anonymousValue(field, mark, token) {
     return 0;
   }
 
+  // Zero, written out: an exact value is a string everywhere else, and the
+  // adapter is what pads it to the scale of its column (base/exact.js)
+  if (['bigint', 'decimal'].includes(mark.type)) {
+    return '0';
+  }
+
   if (mark.type === 'boolean') {
     return false;
   }

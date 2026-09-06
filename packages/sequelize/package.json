@@ -24,6 +24,7 @@
   "files": [
     "index.js",
     "drift.js",
+    "exact.js",
     "external-id.js",
     "plugins.js",
     "schema.js",

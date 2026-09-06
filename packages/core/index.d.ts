@@ -1902,8 +1902,10 @@ declare namespace start {
 
   /** The field types every adapter understands. */
   type FieldType =
+    | 'bigint'
     | 'boolean'
     | 'date'
+    | 'decimal'
     | 'float'
     | 'integer'
     | 'json'
@@ -1911,6 +1913,17 @@ declare namespace start {
     | 'string'
     | 'text'
     | 'uuid';
+
+  /**
+   * The two whose value a JavaScript `number` cannot carry, and which are
+   * therefore exact decimal **strings** on every adapter: `'19.99'`,
+   * `'9223372036854775807'`. Reading one into a number would undo the
+   * column, which is the reason the types exist.
+   */
+  type ExactFieldType = 'bigint' | 'decimal';
+
+  /** A value of an exact field: the digits, written out. */
+  type ExactValue = string;
 
   /**
    * One field of a model schema.
@@ -1931,6 +1944,18 @@ declare namespace start {
     enum?: unknown[];
     unique?: boolean;
     index?: boolean;
+    /**
+     * Total digits of a `decimal`, defaulting to 19 and capped at 38 --
+     * the most every dialect henri writes carries. Only a `decimal` takes
+     * one; anywhere else it is a boot failure.
+     */
+    precision?: number;
+    /**
+     * Digits after the point of a `decimal`, defaulting to 4. A value with
+     * more of them is refused rather than rounded into the column: money
+     * is the application's to round.
+     */
+    scale?: number;
     /**
      * This field is about a person: masked in the logs, included in the
      * export, erased by an erasure. `{ expose: false }` also keeps it out

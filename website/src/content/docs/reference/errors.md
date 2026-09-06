@@ -1364,6 +1364,17 @@ Usually:
 
 **Fix.** Configure `stores.default`, or give the model a `store` naming one of the stores that exist.
 
+### `HENRI_MODEL_TYPE_UNSUPPORTED`
+
+A model field asks for a type this store cannot carry without changing the value.
+
+Usually:
+
+- a `decimal` or a `bigint` on a sqlite store served by `@usehenri/sequelize`, whose driver reads both through a JavaScript number
+- a Sequelize `DECIMAL` with no precision, which MySQL makes `DECIMAL(10, 0)` -- whole units, so money loses its cents
+
+**Fix.** The message names the model and the field. On sqlite, use `@usehenri/drizzle`, which stores both exactly, or put the store on postgres, mysql or mssql. For a bare `DECIMAL`, write `{ type: 'decimal', precision: 12, scale: 2 }` and henri writes the same column on every dialect.
+
 ### `HENRI_MODEL_UNKNOWN_OPTION`
 
 A model call, or the `options` of a model file, holds a key the adapter does not read.
@@ -1395,7 +1406,7 @@ Usually:
 - a type of the underlying ORM rather than henri's (`STRING`, `varchar`, `ObjectId`)
 - a typo in the type name
 
-**Fix.** henri's types are `string`, `text`, `number`, `integer`, `float`, `boolean`, `date`, `json` and `uuid`. The adapter maps them to the ORM's own.
+**Fix.** henri's types are `string`, `text`, `number`, `integer`, `float`, `decimal`, `bigint`, `boolean`, `date`, `json` and `uuid`. The adapter maps them to the ORM's own.
 
 ## params
 

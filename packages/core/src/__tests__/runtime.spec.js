@@ -213,6 +213,7 @@ describe('runtime endpoints (demo app, disk store)', () => {
     });
     expect(res.body.models.map((model) => model.name).sort()).toEqual([
       'Artwork',
+      'Invoice',
       'Memo',
       'User',
     ]);

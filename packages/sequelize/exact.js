@@ -132,6 +132,27 @@ function expand(text) {
 }
 
 /**
+ * The one spelling of a literal: no exponent, no `+`, no leading zeros, a
+ * digit before the point, and no sign on a zero. The digits after the point
+ * are left alone -- they are what the writer said the value was worth to.
+ *
+ * @param {string} literal a literal, already written out
+ * @returns {?string} the same value, spelled once
+ */
+function plain(literal) {
+  const parts = split(literal);
+
+  if (!parts) {
+    return null;
+  }
+
+  const whole = parts.whole.replace(/^0+(?=\d)/u, '');
+  const sign = parts.negative && !isZero(parts) ? '-' : '';
+
+  return `${sign}${whole}${parts.fraction === '' ? '' : `.${parts.fraction}`}`;
+}
+
+/**
  * A value as a decimal literal written out, or null when it is not a number
  *
  * @param {*} value a string, a number or a BigInt
@@ -143,7 +164,7 @@ function literalOf(value) {
   }
 
   if (typeof value === 'number') {
-    return Number.isFinite(value) ? expand(String(value)) : null;
+    return Number.isFinite(value) ? plain(expand(String(value))) : null;
   }
 
   if (typeof value !== 'string') {
@@ -152,7 +173,7 @@ function literalOf(value) {
 
   const text = value.trim();
 
-  return LITERAL.test(text) ? expand(text) : null;
+  return LITERAL.test(text) ? plain(expand(text)) : null;
 }
 
 /**
