@@ -61,10 +61,10 @@
  * `plan`, `erase`), `henri.retention` (`plan`, `sweep`), `henri.trail`
  * (`list`, `count`, `about`, `prune`), `henri.encryption` (`markOf`,
  * `encrypt`, `decrypt`, `candidates`, `tolerate`, `rotate`),
- * `henri.model.getStore`, `henri.mail.send`, `henri.reporter.report`,
- * `deliverLater`, and what a request gets: `res.resource`, `res.collection`,
- * `res.negotiate`, `res.render`, `res.hbs`, `res.boom.*`, `req.pagination`,
- * `req.permit`, `req.flash`.
+ * `henri.model.getStore`, `henri.mail.send`, `deliverLater`, and what a
+ * request gets: `res.resource`, `res.collection`, `res.negotiate`,
+ * `res.render`, `res.hbs`, `res.boom.*`, `req.pagination`, `req.permit`,
+ * `req.flash`.
  *
  * **Already refusing well, and left alone.** The cache's keys and values
  * (`HENRI_CACHE_KEY_INVALID`, `HENRI_CACHE_VALUE_UNSUPPORTED`,
@@ -83,18 +83,26 @@
  * `henri.encryption.isEnvelope`/`keyIdIn` (total functions of `unknown`),
  * and `henri.pen.*` (a logger that throws is worse than a wrong log line).
  *
+ * **Deliberately lenient**, which is a third answer and there is one of it:
+ * `henri.reporter.report()` runs on a failure path, so refusing a wrong
+ * call there would lose the failure it was called about. A wrong `source`
+ * is coerced and a wrong `options` is read as none, on purpose.
+ *
  * ## Where the check goes, and what it costs
  *
  * **Never inside a loop of henri's own.** `res.collection(records)` checks
  * that `records` is a list and stops there; the rows are the serializer's
  * business, and one assertion per row to catch a mistake the call itself
  * announces is the wrong trade. `henri.model.publish()` walks a tree and
- * checks nothing on the way down. The rule is about henri's loops, not the
- * application's: `encryption.encrypt()` is called once per row by the
- * adapters, and it is checked, because a check is bounded by the cost of
- * what it guards -- a `typeof` in front of an AES-GCM seal is free, and the
- * mistake it catches (`context` missing) writes ciphertext that will never
- * open again.
+ * checks nothing on the way down.
+ *
+ * Two entry points sit on such a loop without being henri's: the three
+ * adapters call `encryption.encrypt()` and `decrypt()` once per row per
+ * encrypted column. They are still checked -- the mistake they catch, a
+ * missing `context`, writes ciphertext whose AAD no read path will ever
+ * match again -- but by hand, in `1.encryption.js`, with three `typeof`s
+ * and no allocation, and they are in `UNCHECKED` saying so. That is the
+ * shape for anything else that lands there.
  *
  * **The checks always run, in production too.** Compiling them out would
  * need a build step core does not have -- the source is what ships -- and
@@ -106,14 +114,20 @@
  * been measurable is `henri.config.get`, called in tight loops, and it is
  * in `UNCHECKED` because it already refuses everything that is not a key.
  *
- * **A method henri also calls internally is checked once, here, at the
- * method the application names.** `henri.can()` and `req.can()` both funnel
- * into `henri.policies.can()`, so that is the one that checks; the wrappers
- * pass through it. Where henri calls a checked method itself -- `res.render`
- * calls `model.publish`, `privacy.export` calls `privacy.subject` -- the
- * check runs on a value henri produced, which is affordable only because
- * every one of them is O(1). None of them needed splitting into a checked
- * outer and an unchecked inner, and the day one does, that is the shape.
+ * **A method henri also calls internally is checked once, at the method the
+ * application names.** `henri.can()` and `req.can()` both funnel into
+ * `henri.policies.can()`, so that is the one that checks and the wrappers
+ * pass through it. Where henri then calls a checked method itself --
+ * `res.render` calls `model.publish`, `privacy.export` calls
+ * `privacy.subject` -- the check runs again on a value henri produced,
+ * which is affordable because every one of them is O(1).
+ *
+ * One method needed splitting, and it is the shape for the next:
+ * `policies.can()` checks and then calls `policies.answer()`, the body they
+ * share, because `links()` and `paths()` ask the same question once per
+ * link with an action they read out of a route helper. Checking a value
+ * henri produced, inside a loop henri wrote, is the trade the rule above
+ * says not to make.
  *
  * ## Deliberately not here
  *
@@ -658,13 +672,15 @@ const UNCHECKED = {
   'henri.utils': 'node resolution answers for itself',
   'req.authorize': 'the one implementation is henri.policies.authorize',
   'req.can': 'the one implementation is henri.policies.can',
-  'req.file': 'answers null for anything that is not a field name',
+  'req.file':
+    '@usehenri/uploads ships it, and it answers null for anything that is not a field it holds',
   'req.logIn': "passport's, not henri's",
   'req.logOut': "passport's, not henri's",
   'req.logout': "passport's, not henri's",
-  'req.permitFiles': 'the same list req.permit takes, checked there',
+  'req.permitFiles':
+    '@usehenri/uploads ships it, and a package checks its own surface',
   'req.scope': 'the one implementation is henri.policies.scope',
-  'res.hbs': 'the same arguments as res.render, checked there',
+  'res.hbs': "checked against res.render's signature, under its own name",
 };
 
 // ---------------------------------------------------------------------------

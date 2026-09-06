@@ -1139,6 +1139,9 @@ class Router extends BaseModule {
       };
 
       res.hbs = async (route, extras = {}) => {
+        // The same arguments as res.render, and a body of its own
+        check('res.render', [route, extras], 'res.hbs');
+
         const { data = {}, graphql = null } = extras;
         const opts = await this.viewOptions(req, res, { data, graphql });
 
