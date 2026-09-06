@@ -1,3 +1,4 @@
+const { fail } = require('./base/errors');
 const BaseModule = require('./base/module');
 
 const crypto = require('crypto');
@@ -507,13 +508,17 @@ class User extends BaseModule {
     }
 
     if (!config.has('secret')) {
-      throw new Error(
+      throw fail(
+        'HENRI_USER_SECRET_MISSING',
         'You should provide a secret in your configuration file.'
       );
     }
 
     if (!server || !server.app) {
-      throw new Error('the user module needs the server module');
+      throw fail(
+        'HENRI_USER_SERVER_MISSING',
+        'the user module needs the server module'
+      );
     }
 
     const secret = config.get('secret');

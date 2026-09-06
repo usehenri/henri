@@ -4,7 +4,15 @@
  *
  * `res.boom.notFound('No such thing', { id })` sends
  * `{ statusCode: 404, error: 'Not Found', message: 'No such thing', data: { id } }`
+ *
+ * A failure henri raises on its own behalf names itself: a third argument,
+ * one of the codes of `error-codes.json`, adds `code` to that body. It is the
+ * same envelope the 404 and 500 handlers answer with (`base/http.js`), so a
+ * client reads one shape whether the answer came from a controller or from
+ * henri.
  */
+const { isCode } = require('./errors');
+
 const STATUSES = {
   badData: [422, 'Unprocessable Entity'],
   badGateway: [502, 'Bad Gateway'],
@@ -30,8 +38,12 @@ function boom() {
     res.boom = {};
 
     for (const [name, [statusCode, error]] of Object.entries(STATUSES)) {
-      res.boom[name] = (message = error, data = undefined) => {
+      res.boom[name] = (message = error, data = undefined, code = null) => {
         const body = { error, message, statusCode };
+
+        if (isCode(code)) {
+          body.code = code;
+        }
 
         if (typeof data !== 'undefined') {
           body.data = data;

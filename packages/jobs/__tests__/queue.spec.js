@@ -53,7 +53,7 @@ describe(`queue (${target.name})`, () => {
     test('says which jobs there are when the name is wrong', async () => {
       const error = await jobs.perform('nope').catch((thrown) => thrown);
 
-      expect(error.code).toBe('UNKNOWN_JOB');
+      expect(error.code).toBe('HENRI_JOB_UNKNOWN');
       expect(error.hint).toContain('boom');
     });
   });

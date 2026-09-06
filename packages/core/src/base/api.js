@@ -1,3 +1,4 @@
+const { fail } = require('./errors');
 const path = require('path');
 const { DAY, MemoryStore } = require('./idempotency');
 const { AUTH_DEFAULTS, DEFAULTS: RATE_DEFAULTS } = require('./rate-limit');
@@ -135,9 +136,11 @@ function loadStore(henri, id, context = {}) {
 
     return typeof mod === 'function' && !mod.get ? mod(henri, context) : mod;
   } catch (error) {
-    throw new Error(`unable to load the store '${id}': ${error.message}`, {
-      cause: error,
-    });
+    throw fail(
+      'HENRI_STORE_UNUSABLE',
+      `unable to load the store '${id}': ${error.message}`,
+      { cause: error }
+    );
   }
 }
 

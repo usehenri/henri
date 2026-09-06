@@ -564,7 +564,18 @@ declare namespace start {
     /** Milliseconds before a running request is answered 503. */
     requestTimeout?: number | false;
     shutdown?: ShutdownConfig;
+    errors?: ErrorsConfig;
     [key: string]: unknown;
+  }
+
+  /** `config.errors`: what henri does with the code of a failure. */
+  interface ErrorsConfig {
+    /**
+     * Where a code is explained, as a template holding `{code}`
+     * (`"https://example.com/e/{code}"`). Unset by default: nothing prints a
+     * link. See [Error codes](https://usehenri.io/reference/errors/).
+     */
+    url?: string;
   }
 
   /** `config.shutdown`: what a SIGTERM does before the modules stop. */
@@ -1183,12 +1194,17 @@ declare namespace start {
     /**
      * Prints the error with its stack and returns an Error to throw:
      * `throw henri.pen.fatal('view', 'unknown renderer')`.
+     *
+     * `code` is one of henri's error codes: it is printed before the summary
+     * and stamped on the Error that comes back. See
+     * [Error codes](https://usehenri.io/reference/errors/).
      */
     fatal(
       name?: string,
       summary?: string | Error,
       full?: string | null,
-      obj?: object | null
+      obj?: object | null,
+      code?: string | null
     ): Error;
     /** Prints blank lines. */
     line(times?: number): void;

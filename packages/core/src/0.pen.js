@@ -4,6 +4,7 @@ const stringWidth = require('string-width');
 const util = require('util');
 const { getColor, stack } = require('./utils');
 const { currentRequestId } = require('./base/request-id');
+const { stamp, url: codeUrl } = require('./base/errors');
 const { filterParameters, redact } = require('./base/redact');
 const { recorder } = require('./base/runtime');
 
@@ -109,16 +110,30 @@ class Pen extends BaseModule {
    * Logs the error (with its stack) and returns an Error the caller should
    * throw: `throw pen.fatal('view', 'unknown renderer')`.
    *
+   * A failure henri raises on its own behalf names itself: the last argument
+   * is one of the codes of `error-codes.json`, printed before the summary and
+   * stamped on the Error that comes back (see base/errors.js).
+   *
    * @param {!string} [name='fatal'] name of the module
    * @param {(!string|!Error)} [summary='unknown error']  snall summary
    * @param {?string} [full=null]  long description (multi-line)
    * @param {?object} [obj=null]  object to be displayed nicely
+   * @param {?string} [code=null]  the henri error code of this failure
    * @returns {Error} the error to throw
    * @memberof Pen
    */
-  fatal(name = 'fatal', summary = 'unknown error', full = null, obj = null) {
+  fatal(
+    name = 'fatal',
+    summary = 'unknown error',
+    full = null,
+    obj = null,
+    code = null
+  ) {
+    const link = code ? codeUrl(code, this.henri || global.henri) : null;
+
     this.line(2);
-    this.error(name, summary);
+    this.error(name, ...(code ? [chalk.bold(code)] : []), summary);
+    link && this.error(name, chalk.grey(link));
     this.line(1);
     if (summary instanceof Error) {
       (summary.stack || '').split('\n').forEach((line, index) => {
@@ -170,7 +185,7 @@ class Pen extends BaseModule {
     this.line(2);
 
     if (summary instanceof Error) {
-      return summary;
+      return code ? stamp(summary, code) : summary;
     }
 
     const message = full ? `${summary}\n${full}` : String(summary);
@@ -178,7 +193,7 @@ class Pen extends BaseModule {
 
     error.module = name;
 
-    return error;
+    return code ? stamp(error, code) : error;
   }
 
   /**

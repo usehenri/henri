@@ -1,3 +1,4 @@
+const { fail, stamp } = require('./errors');
 const session = require('express-session');
 const debug = require('debug')('henri:session');
 
@@ -30,8 +31,11 @@ class SessionStoreProxy extends session.Store {
     super();
 
     if (typeof owner !== 'function' || typeof create !== 'function') {
-      throw new TypeError(
-        'SessionStoreProxy needs owner() and create(adapter) functions'
+      throw stamp(
+        new TypeError(
+          'SessionStoreProxy needs owner() and create(adapter) functions'
+        ),
+        'HENRI_STORE_SESSION_UNAVAILABLE'
       );
     }
 
@@ -50,13 +54,17 @@ class SessionStoreProxy extends session.Store {
    */
   async resolve() {
     if (this.closed) {
-      throw new Error('the session store is closed');
+      throw fail(
+        'HENRI_STORE_SESSION_UNAVAILABLE',
+        'the session store is closed'
+      );
     }
 
     const owner = this.owner();
 
     if (!owner) {
-      throw new Error(
+      throw fail(
+        'HENRI_STORE_SESSION_UNAVAILABLE',
         'no session store available: the models are not loaded (reloading?)'
       );
     }
@@ -76,7 +84,10 @@ class SessionStoreProxy extends session.Store {
       .then(
         (store) => {
           if (!store || typeof store.get !== 'function') {
-            throw new Error('the adapter did not return a session store');
+            throw fail(
+              'HENRI_STORE_SESSION_UNAVAILABLE',
+              'the adapter did not return a session store'
+            );
           }
           this.current = { owner, store };
           if (this.pending && this.pending.promise === promise) {

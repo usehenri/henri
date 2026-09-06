@@ -65,6 +65,9 @@ describe('sequelize adapter', () => {
         'fatal',
         'sequelize',
         'Missing url (or host and database) in store broken',
+        null,
+        null,
+        'HENRI_STORE_URL_MISSING',
       ]);
     });
 

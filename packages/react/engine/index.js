@@ -16,6 +16,18 @@
  *   `require('@usehenri/react/engine').build({ cwd: process.cwd(), config })`.
  * - `createNextConfig(cwd)`: the next.js configuration henri uses.
  */
+/**
+ * An Error carrying one of henri's error codes
+ *
+ * A code is a string and nothing more (`@usehenri/core/error-codes.json` is
+ * the catalogue), so a failure names itself without importing anything.
+ *
+ * @param {string} code The henri error code (HENRI_JOB_UNKNOWN, ...)
+ * @param {string} message What went wrong
+ * @returns {Error} The error to throw
+ */
+const coded = (code, message) => Object.assign(new Error(message), { code });
+
 const path = require('path');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
@@ -205,7 +217,8 @@ async function build({
   const target = distDir || distDirOf(dir, createNextConfig(cwd));
 
   if (!fs.existsSync(path.join(dir, 'pages'))) {
-    throw new Error(
+    throw coded(
+      'HENRI_VIEW_PAGES_MISSING',
       `app/views/pages is missing in ${cwd}: nothing to build (run 'henri new' or 'henri init')`
     );
   }
@@ -231,7 +244,10 @@ async function build({
 
   if (result.status !== 0) {
     pen.error('view', 'unable to generate a production build');
-    throw new Error(`next build exited with status ${result.status}`);
+    throw coded(
+      'HENRI_VIEW_BUILD_FAILED',
+      `next build exited with status ${result.status}`
+    );
   }
 
   const buildIdFile = path.join(target, 'BUILD_ID');
@@ -321,8 +337,9 @@ class ReactEngine {
       const message =
         "app/views/pages is missing: the react renderer needs its pages there (run 'henri new' or 'henri init')";
 
-      pen.fatal('view', message);
-      throw new Error(message);
+      pen.fatal('view', message, null, null, 'HENRI_VIEW_PAGES_MISSING');
+
+      throw coded('HENRI_VIEW_PAGES_MISSING', message);
     }
 
     if (fs.existsSync(path.join(this.dir, 'app'))) {

@@ -162,6 +162,7 @@
  * and the binding means write access is not enough to move one. Neither is a
  * substitute for the database not being writable by strangers.
  */
+const { fail, stamp } = require('./errors');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const debug = require('debug')('henri:password');
@@ -318,14 +319,20 @@ function pepperConfig(raw) {
   }
 
   if (typeof value !== 'object' || Array.isArray(value)) {
-    throw new TypeError(
-      'config.user.password.pepper must be a string or an object ({ current, previous, allowUnpeppered })'
+    throw stamp(
+      new TypeError(
+        'config.user.password.pepper must be a string or an object ({ current, previous, allowUnpeppered })'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
   if (typeof value.current !== 'string' || value.current.length === 0) {
-    throw new TypeError(
-      'config.user.password.pepper.current must be a non-empty string'
+    throw stamp(
+      new TypeError(
+        'config.user.password.pepper.current must be a non-empty string'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
@@ -363,8 +370,11 @@ function bindingConfig(raw) {
   }
 
   if (typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new TypeError(
-      'config.user.password.binding must be a boolean or an object ({ enabled, allowUnbound })'
+    throw stamp(
+      new TypeError(
+        'config.user.password.binding must be a boolean or an object ({ enabled, allowUnbound })'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
@@ -401,8 +411,11 @@ function bindingIdentity(value) {
  */
 function passwordPolicy(raw = {}, { isTest = false } = {}) {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new TypeError(
-      'config.user.password must be an object ({ algorithm, minLength, maxBytes, bcryptRounds, memoryCost, timeCost, parallelism })'
+    throw stamp(
+      new TypeError(
+        'config.user.password must be an object ({ algorithm, minLength, maxBytes, bcryptRounds, memoryCost, timeCost, parallelism })'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
@@ -410,14 +423,20 @@ function passwordPolicy(raw = {}, { isTest = false } = {}) {
     typeof raw.algorithm === 'string' ? raw.algorithm.toLowerCase() : 'auto';
 
   if (!ALGORITHMS.includes(algorithm)) {
-    throw new TypeError(
-      `config.user.password.algorithm must be one of ${ALGORITHMS.join(', ')}`
+    throw stamp(
+      new TypeError(
+        `config.user.password.algorithm must be one of ${ALGORITHMS.join(', ')}`
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
   if (algorithm === 'argon2id' && !argon2Available()) {
-    throw new TypeError(
-      'config.user.password.algorithm is "argon2id" but @node-rs/argon2 is not installed; install it or use "auto"'
+    throw stamp(
+      new TypeError(
+        'config.user.password.algorithm is "argon2id" but @node-rs/argon2 is not installed; install it or use "auto"'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
@@ -445,8 +464,9 @@ function passwordPolicy(raw = {}, { isTest = false } = {}) {
   };
 
   if (policy.maxBytes < policy.minLength) {
-    throw new TypeError(
-      'config.user.password.maxBytes must be at least minLength'
+    throw stamp(
+      new TypeError('config.user.password.maxBytes must be at least minLength'),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
@@ -747,7 +767,8 @@ async function verifyWith(password, hash, key, identity = null) {
     const argon = argon2();
 
     if (!argon) {
-      throw new Error(
+      throw fail(
+        'HENRI_USER_PASSWORD_UNVERIFIABLE',
         'this password was hashed with argon2id but @node-rs/argon2 is not installed here; install it to verify existing hashes'
       );
     }
@@ -821,7 +842,8 @@ async function verifyPassword(password, hash, policy = {}, identity = null) {
   if (bound && !who) {
     // Silently answering "wrong password" here would be a mystery lockout:
     // the caller has a hash it cannot check and needs to be told so.
-    throw new Error(
+    throw fail(
+      'HENRI_USER_PASSWORD_UNVERIFIABLE',
       'this password hash is bound to the record it belongs to and cannot be verified on its own; pass the user (henri.user.compare(password, user)) rather than the hash alone'
     );
   }

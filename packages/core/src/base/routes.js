@@ -22,6 +22,7 @@
  * `@usehenri/cli` uses the same code so that `henri routes`, `henri doctor`
  * and the generators read the table without booting the server.
  */
+const { fail } = require('./errors');
 const posix = require('path').posix;
 
 /** The http verbs a route key may use */
@@ -239,7 +240,8 @@ function assertName(controller, name, action, route) {
   const quoted = JSON.stringify(controller);
 
   if (!NAME.test(name)) {
-    throw new Error(
+    throw fail(
+      'HENRI_ROUTE_INVALID_CONTROLLER',
       `route "${route}" points at ${quoted}, which is not a controller name: ` +
         'use letters, digits, dashes and underscores, with "/" for a ' +
         'directory. A stray space is the usual cause.'
@@ -247,7 +249,8 @@ function assertName(controller, name, action, route) {
   }
 
   if (typeof action === 'string' && !ACTION.test(action)) {
-    throw new Error(
+    throw fail(
+      'HENRI_ROUTE_INVALID_ACTION',
       `route "${route}" points at ${quoted}, which is not an action name: ` +
         'use letters, digits and underscores after the "#".'
     );

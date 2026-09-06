@@ -6,6 +6,18 @@
 const crypto = require('crypto');
 
 /**
+ * An Error carrying one of henri's error codes
+ *
+ * A code is a string and nothing more (`@usehenri/core/error-codes.json` is
+ * the catalogue), so a failure names itself without importing anything.
+ *
+ * @param {string} code The henri error code (HENRI_JOB_UNKNOWN, ...)
+ * @param {string} message What went wrong
+ * @returns {Error} The error to throw
+ */
+const coded = (code, message) => Object.assign(new Error(message), { code });
+
+/**
  * Short content hash (used as the Inertia asset version)
  *
  * @param {(string|Buffer)} content the content
@@ -104,7 +116,8 @@ function assetTags(manifest, entry, base = '/') {
   const chunk = manifest && manifest[entry];
 
   if (!chunk) {
-    throw new Error(
+    throw coded(
+      'HENRI_VIEW_BUILD_FAILED',
       `inertia: '${entry}' is not in the vite manifest, run the build again`
     );
   }
@@ -174,6 +187,7 @@ function inject(template, { head = '', body = '' } = {}) {
 module.exports = {
   assetTags,
   clientBody,
+  coded,
   devTags,
   escapeHtml,
   hash,

@@ -1,3 +1,4 @@
+const { fail } = require('./base/errors');
 const BaseModule = require('./base/module');
 
 const fs = require('fs');
@@ -68,7 +69,8 @@ class Mailer extends BaseModule {
     if (!this.config || typeof this.config !== 'object') {
       pen.error('mail', 'invalid mail configuration', String(this.config));
 
-      throw new Error(
+      throw fail(
+        'HENRI_MAIL_TRANSPORT_INVALID',
         'The mail configuration must be a nodemailer transport object or "test"'
       );
     }
@@ -131,7 +133,10 @@ class Mailer extends BaseModule {
     if (!this.transporter) {
       this.henri.pen.error('mail', 'transport not initialized');
 
-      throw new Error('Trying to send an email without proper transport');
+      throw fail(
+        'HENRI_MAIL_NO_TRANSPORT',
+        'Trying to send an email without proper transport'
+      );
     }
 
     const info = await this.transporter.sendMail(opts);

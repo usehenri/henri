@@ -1,4 +1,5 @@
 const { next, parse } = require('./cron');
+const { coded } = require('./errors');
 const { duration } = require('./duration');
 
 /**
@@ -58,13 +59,15 @@ const recurring = (name, entry) => {
   const job = value.job || value.name || name;
 
   if (!value.cron && !value.every) {
-    throw new Error(
+    throw coded(
+      'HENRI_JOB_INVALID_SCHEDULE',
       `@usehenri/jobs: the recurring schedule "${name}" needs a "cron" or an "every"`
     );
   }
 
   if (value.cron && value.every) {
-    throw new Error(
+    throw coded(
+      'HENRI_JOB_INVALID_SCHEDULE',
       `@usehenri/jobs: the recurring schedule "${name}" has both a "cron" and an "every": pick one`
     );
   }
@@ -78,15 +81,19 @@ const recurring = (name, entry) => {
         throw new Error(`"${value.cron}" can never come round`);
       }
     } catch (error) {
-      throw new Error(
-        `@usehenri/jobs: the recurring schedule "${name}" is invalid: ${error.message}`,
-        { cause: error }
+      throw Object.assign(
+        new Error(
+          `@usehenri/jobs: the recurring schedule "${name}" is invalid: ${error.message}`,
+          { cause: error }
+        ),
+        { code: 'HENRI_JOB_INVALID_SCHEDULE' }
       );
     }
   }
 
   if (value.every && duration(value.every) < 1000) {
-    throw new Error(
+    throw coded(
+      'HENRI_JOB_INVALID_SCHEDULE',
       `@usehenri/jobs: the recurring schedule "${name}" runs every ${value.every}, which is under a second`
     );
   }
@@ -117,7 +124,8 @@ const recurring = (name, entry) => {
  */
 const table = (value) => {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
-    throw new Error(
+    throw coded(
+      'HENRI_CONFIG_INVALID',
       `@usehenri/jobs: invalid table name "${value}": letters, digits and underscores only`
     );
   }

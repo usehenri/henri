@@ -24,6 +24,8 @@
  * @module base/graph
  */
 
+const { fail } = require('./errors');
+
 /** The lowest slot a module can pin itself to */
 const MIN_RUNLEVEL = 0;
 
@@ -104,10 +106,11 @@ function chartOf(nodes) {
  *
  * @param {string} message what is wrong
  * @param {Array<string>} modules the modules it is about
- * @returns {Error} the error, with `modules` and `module` set
+ * @param {string} code the henri error code of this failure
+ * @returns {Error} the error, with `modules`, `module` and `code` set
  */
-function graphError(message, modules) {
-  const error = new Error(`modules => ${message}`);
+function graphError(message, modules, code) {
+  const error = fail(code, `modules => ${message}`);
 
   error.module = 'modules';
   error.modules = modules;
@@ -257,7 +260,8 @@ function missingDependency(node, name, { ceiling, cut, loaded }) {
       `"${node.name}" needs "${name}", which this boot leaves out: ` +
         `"${name}" sits at level ${cut.get(name)} and the boot stops at ` +
         `level ${ceiling}.`,
-      [node.name, name]
+      [node.name, name],
+      'HENRI_BOOT_DEPENDENCY_ABOVE_CEILING'
     );
   }
 
@@ -271,7 +275,8 @@ function missingDependency(node, name, { ceiling, cut, loaded }) {
   return graphError(
     `"${node.name}" needs "${name}", which no module provides.
   Loaded modules: ${loaded.join(', ')}${hint}`,
-    [node.name, name]
+    [node.name, name],
+    'HENRI_BOOT_MISSING_DEPENDENCY'
   );
 }
 
@@ -336,7 +341,8 @@ function cycleError(kept, left, nodes) {
 
   return graphError(
     `circular dependency: ${path.join(' -> ')}\n${why.join('\n')}`,
-    cycle
+    cycle,
+    'HENRI_BOOT_CIRCULAR_DEPENDENCY'
   );
 }
 

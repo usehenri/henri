@@ -537,7 +537,7 @@ describe('henri mcp', () => {
 
     expect(result.isError).toBe(true);
     expect(result.structuredContent.error).toMatchObject({
-      code: 'USAGE',
+      code: 'HENRI_CLI_USAGE',
       command: 'generate',
       exitCode: 2,
     });
@@ -610,7 +610,9 @@ describe('henri mcp', () => {
       const result = await call(client, 'guide', { page });
 
       expect(result.isError).toBe(true);
-      expect(result.structuredContent.error.code).toBe('UNKNOWN_PAGE');
+      expect(result.structuredContent.error.code).toBe(
+        'HENRI_AGENT_UNKNOWN_PAGE'
+      );
     }
   });
 
@@ -630,7 +632,9 @@ describe('henri mcp', () => {
         isError: true,
         tool,
       });
-      expect(result.structuredContent.error.code).toBe('NOT_INSTALLED');
+      expect(result.structuredContent.error.code).toBe(
+        'HENRI_AGENT_NOT_INSTALLED'
+      );
       expect(result.structuredContent.error.hint).toMatch(/install/i);
     }
   }, 60000);
@@ -642,7 +646,7 @@ describe('henri mcp', () => {
       const { isError, structuredContent } = await call(quiet, 'errors');
 
       expect(isError).toBe(true);
-      expect(structuredContent.error.code).toBe('NO_SERVER');
+      expect(structuredContent.error.code).toBe('HENRI_AGENT_NO_SERVER');
       expect(structuredContent.error.hint).toContain('henri server');
     } finally {
       await quiet.close();
@@ -658,7 +662,7 @@ describe('henri mcp', () => {
       });
 
       expect(isError).toBe(true);
-      expect(structuredContent.error.code).toBe('PRODUCTION');
+      expect(structuredContent.error.code).toBe('HENRI_AGENT_PRODUCTION');
       expect(structuredContent.error.message).toContain('production');
     } finally {
       await live.close();

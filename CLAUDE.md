@@ -121,19 +121,38 @@ an app and is what core's tests boot.
   (string or `{ model, public, loginPath, afterLogin, sessionMaxAge, signup,
 passwordReset, confirmation }`), `baseRole`,
   `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `jobs`,
-  `rateLimit`, `helmet`, `filterParameters`, `bodyLimit`, `requestTimeout`.
+  `rateLimit`, `helmet`, `filterParameters`, `bodyLimit`, `requestTimeout`,
+  `errors`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
   value is a `ConfigurationError` listing every problem at once with the key,
   what was expected, what arrived and where the value came from -- the file,
   the credentials file or the environment variable -- and it reaches the
-  command line as `CONFIG_INVALID`. An unknown key is a warning, with the
+  command line as `HENRI_CONFIG_INVALID`. An unknown key is a warning, with the
   closest declared name when it is a near miss. `henri doctor` runs the same
   schema over every `config/*.json` without booting. The schema, the
   `Configuration` interface of `index.d.ts` and the table of
   `website/src/content/docs/configuration.md` are compared key by key by
   `src/__tests__/config-schema.spec.js`: a new key goes in all three.
+- Every failure henri raises on its own behalf carries a code:
+  `HENRI_<AREA>_<REASON>` (`HENRI_MODEL_UNKNOWN_TYPE`,
+  `HENRI_BOOT_CIRCULAR_DEPENDENCY`), one namespace across core, the
+  adapters, the jobs queue, the view engines, the command line and
+  `henri mcp`. The catalogue is `packages/core/error-codes.json` -- data,
+  one entry per code with what it means, what usually causes it and how to
+  fix it -- and `base/errors.js` reads it (`stamp`, `fail`, `fallback`,
+  `coded`, `exitOf`, `url`). A code is a string, so a package that cannot
+  depend on core raises one with a three line `coded()` helper of its own.
+  It reaches a person through `pen.fatal(name, summary, full, obj, code)`,
+  through the JSON error body (`base/boom.js`, `base/http.js` gained a
+  `code`), through `henri <command> --json` and its text output, and through
+  the MCP server. `config.errors.url` is the seam for turning a code into a
+  page: a template holding `{code}`, unset by default, and henri ships no
+  address. `src/__tests__/error-codes.spec.js` compares the catalogue, the
+  source and `website/src/content/docs/reference/errors.md`: a new code goes
+  in the catalogue, gets raised somewhere, and the page is regenerated with
+  `node scripts/error-codes-page.mjs`.
 - `henri audit` (`packages/cli/scripts/audit.js`) checks an application
   against the checkable ASVS 4.0.3 requirements from its files only: the
   `CHECKS` catalogue is the mapping (requirement, level, Top 10 category) and

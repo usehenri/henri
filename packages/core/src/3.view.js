@@ -89,7 +89,9 @@ class View extends BaseModule {
       Experimental (enable with "experimental": { "<name>": true }): ${Object.keys(
         experimental
       ).join(' ')}
-      `
+      `,
+        null,
+        'HENRI_VIEW_UNKNOWN_RENDERER'
       );
     }
 

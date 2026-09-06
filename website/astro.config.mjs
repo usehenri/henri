@@ -56,6 +56,7 @@ export default defineConfig({
           items: [
             'reference/cli',
             'reference/api',
+            'reference/errors',
             'reference/types',
             'reference/under-the-hood',
           ],

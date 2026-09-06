@@ -3,7 +3,7 @@ const debug = require('debug')('henri:mongoose');
 const { externalId, paginate, paranoid } = require('./plugins');
 const { normalizeSchema } = require('./schema');
 const { EXTERNAL_ID, uuidv7, wantsExternalId } = require('./external-id');
-const { buildUrl, fatal, normalizeEmail, redact } = require('./utils');
+const { buildUrl, coded, fatal, normalizeEmail, redact } = require('./utils');
 
 /**
  * Store adapter contract, shared by @usehenri/mongoose (and @usehenri/disk
@@ -108,7 +108,8 @@ class Mongoose {
       throw fatal(
         thisHenri,
         'mongoose',
-        `Missing url or host in store ${name}`
+        `Missing url or host in store ${name}`,
+        'HENRI_STORE_URL_MISSING'
       );
     }
 
@@ -599,7 +600,8 @@ class Mongoose {
     }
 
     if (this.mongoose.connection.readyState !== 1) {
-      throw new Error(
+      throw coded(
+        'HENRI_STORE_NOT_STARTED',
         `${this.adapterName}: getSessionConnector() called before start()`
       );
     }
@@ -629,7 +631,10 @@ class Mongoose {
     const { db } = this.mongoose.connection;
 
     if (!db) {
-      throw new Error(`${this.adapterName}: store ${this.name} is not started`);
+      throw coded(
+        'HENRI_STORE_NOT_STARTED',
+        `${this.adapterName}: store ${this.name} is not started`
+      );
     }
 
     await db.admin().ping();

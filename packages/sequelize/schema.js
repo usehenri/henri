@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const TYPES = require('./types');
+const { coded } = require('./utils');
 
 // Dialects with a native ENUM column type
 const ENUM_DIALECTS = new Set(['mariadb', 'mysql', 'postgres']);
@@ -109,7 +110,8 @@ const resolveType = (type, field) => {
       return DataTypes[type];
     }
 
-    throw new Error(
+    throw coded(
+      'HENRI_MODEL_UNKNOWN_TYPE',
       `Unknown type '${type}' for field '${field}'; use one of ${Object.keys(
         TYPES
       ).join(', ')} or a Sequelize data type`
@@ -125,7 +127,10 @@ const resolveType = (type, field) => {
     return TYPES.json;
   }
 
-  throw new Error(`Unsupported type ${describe(type)} for field '${field}'`);
+  throw coded(
+    'HENRI_MODEL_UNKNOWN_TYPE',
+    `Unsupported type ${describe(type)} for field '${field}'`
+  );
 };
 
 /**
@@ -147,7 +152,10 @@ const normalizeField = (field, definition, dialect, indexes) => {
     const option = Object.keys(definition).find((key) => KNOWN_KEYS.has(key));
 
     if (option) {
-      throw new Error(`Field '${field}' has '${option}' but no type`);
+      throw coded(
+        'HENRI_MODEL_FIELD_INCOMPLETE',
+        `Field '${field}' has '${option}' but no type`
+      );
     }
 
     // A nested document (`address: { street: String }` or `{}`)
@@ -170,7 +178,8 @@ const normalizeField = (field, definition, dialect, indexes) => {
     } else if (KNOWN_KEYS.has(key)) {
       attribute[key] = value;
     } else {
-      throw new Error(
+      throw coded(
+        'HENRI_MODEL_INVALID_FIELD',
         `Unknown key '${key}' on field '${field}'; supported keys are ${[
           ...KNOWN_KEYS,
         ].join(', ')}`

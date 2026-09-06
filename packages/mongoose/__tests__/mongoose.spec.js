@@ -127,7 +127,14 @@ describe('mongoose adapter', () => {
         'Missing url or host in store broken'
       );
       expect(henri.calls).toEqual([
-        ['fatal', 'mongoose', 'Missing url or host in store broken'],
+        [
+          'fatal',
+          'mongoose',
+          'Missing url or host in store broken',
+          null,
+          null,
+          'HENRI_STORE_URL_MISSING',
+        ],
       ]);
     });
 

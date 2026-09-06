@@ -50,19 +50,35 @@ const normalizeEmail = (email) =>
   typeof email === 'string' ? email.trim().toLowerCase() : email;
 
 /**
+ * An Error carrying one of henri's error codes
+ *
+ * A code is a string and nothing more (`@usehenri/core/error-codes.json` is
+ * the catalogue), so an adapter names its failures without depending on core.
+ *
+ * @param {string} code The henri error code (HENRI_MODEL_UNKNOWN_TYPE, ...)
+ * @param {string} message What went wrong
+ * @returns {Error} The error to throw
+ */
+const coded = (code, message) => Object.assign(new Error(message), { code });
+
+/**
  * Logs a fatal error through henri's pen and returns the Error to throw
  *
  * @param {Henri} thisHenri Current henri instance
  * @param {string} name Adapter name
  * @param {string} message The error message
+ * @param {?string} [code=null] The henri error code of this failure
  * @returns {Error} The error to throw
  */
-const fatal = (thisHenri, name, message) => {
+const fatal = (thisHenri, name, message, code = null) => {
   const pen = thisHenri && thisHenri.pen;
+  const args = code ? [name, message, null, null, code] : [name, message];
   const logged =
-    pen && typeof pen.fatal === 'function' ? pen.fatal(name, message) : null;
+    pen && typeof pen.fatal === 'function' ? pen.fatal(...args) : null;
 
-  return logged instanceof Error ? logged : new Error(message);
+  return logged instanceof Error
+    ? logged
+    : (code && coded(code, message)) || new Error(message);
 };
 
 /**
@@ -100,4 +116,11 @@ const buildUrl = (config = {}) => {
   return `mongodb://${auth}${host}${port ? `:${port}` : ''}/${database || ''}`;
 };
 
-module.exports = { buildUrl, fatal, normalizeEmail, redact, redactUrl };
+module.exports = {
+  buildUrl,
+  coded,
+  fatal,
+  normalizeEmail,
+  redact,
+  redactUrl,
+};

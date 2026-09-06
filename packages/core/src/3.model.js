@@ -1,3 +1,4 @@
+const { fail, stamp } = require('./base/errors');
 const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
@@ -171,7 +172,10 @@ class Model extends BaseModule {
         'models',
         `
       Unable to load database adapter '${store.adapter}'. Seems like you 
-      should install it using: npm install @usehenri/${store.adapter}`
+      should install it using: npm install @usehenri/${store.adapter}`,
+        null,
+        null,
+        'HENRI_STORE_ADAPTER_NOT_INSTALLED'
       );
     }
   }
@@ -206,7 +210,10 @@ class Model extends BaseModule {
     if (typeof valid[store.adapter] === 'undefined') {
       throw pen.fatal(
         'models',
-        `Adapter '${store.adapter}' is not valid. Check your configuration file.`
+        `Adapter '${store.adapter}' is not valid. Check your configuration file.`,
+        null,
+        null,
+        'HENRI_STORE_UNKNOWN_ADAPTER'
       );
     }
 
@@ -256,8 +263,15 @@ class Model extends BaseModule {
         await this.stores[store].start();
       }
     } catch (error) {
-      this.henri.pen.fatal('model', 'failed to start a store', null, error);
-      throw error;
+      this.henri.pen.fatal(
+        'model',
+        'failed to start a store',
+        null,
+        error,
+        'HENRI_STORE_START_FAILED'
+      );
+
+      throw stamp(error, 'HENRI_STORE_START_FAILED');
     }
     if (this.ids.length > 0) {
       this.addToEslintRc();
@@ -389,7 +403,8 @@ class Model extends BaseModule {
     const store = this.stores && this.stores[name];
 
     if (!store || typeof store.getSessionConnector !== 'function') {
-      throw new Error(
+      throw fail(
+        'HENRI_STORE_SESSION_UNAVAILABLE',
         `unable to create a session store: store '${name}' is not loaded`
       );
     }
@@ -449,13 +464,15 @@ class Model extends BaseModule {
     const { config } = this.henri;
 
     if (!model.store && !config.has('stores.default')) {
-      throw new Error(
+      throw fail(
+        'HENRI_MODEL_NO_STORE',
         `There is no default store and ${model.identity} is missing one`
       );
     }
 
     if (model.store && !config.has(`stores.${model.store}`)) {
-      throw new Error(
+      throw fail(
+        'HENRI_MODEL_UNKNOWN_STORE',
         `It seems like ${model.store} is not configured. ${model.identity} is using it.`
       );
     }

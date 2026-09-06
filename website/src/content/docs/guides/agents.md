@@ -55,11 +55,17 @@ A command that fails prints one object on stderr and exits with a stable code:
     "command": "generate",
     "message": "app/models/Post.js already exists",
     "hint": "Pass --force to overwrite it",
-    "code": "EXISTS",
+    "code": "HENRI_CLI_EXISTS",
     "exitCode": 1
   }
 }
 ```
+
+The `code` is one of [henri's error codes](/reference/errors/): a stable name
+that never changes meaning between versions, carried by every failure the
+framework raises — in the boot log, in the JSON error body of the API, in
+`--json` and in the answers of `henri mcp`. Look the code up rather than
+matching the message, which may be reworded.
 
 | Exit code | Name            | Meaning                                                                      |
 | --------- | --------------- | ---------------------------------------------------------------------------- |

@@ -25,6 +25,8 @@
   "types": "index.d.ts",
   "files": [
     "module.js",
+    "errors.js",
+    "error-codes.json",
     "src",
     "!src/__tests__",
     "index.d.ts",

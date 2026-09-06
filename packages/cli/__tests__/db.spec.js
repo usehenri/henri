@@ -64,7 +64,7 @@ describe('henri db', () => {
 
       expect(status).toBe(2);
       expect(error).toMatchObject({
-        code: 'USAGE',
+        code: 'HENRI_CLI_USAGE',
         command: 'db',
         exitCode: 2,
         message: 'Missing db command',
@@ -88,7 +88,7 @@ describe('henri db', () => {
       const { error } = JSON.parse(stderr);
 
       expect(status).toBe(2);
-      expect(error.code).toBe('USAGE');
+      expect(error.code).toBe('HENRI_CLI_USAGE');
       expect(error.message).toBe('No seed file at db/seeds.js');
       expect(error.hint).toContain('db/seeds.js');
     });
@@ -149,7 +149,7 @@ describe('henri db', () => {
       const error = await sow({}, file).catch((thrown) => thrown);
 
       expect(error).toBeInstanceOf(CliError);
-      expect(error.code).toBe('FAILED');
+      expect(error.code).toBe('HENRI_CLI_FAILED');
       expect(error.exitCode).toBe(1);
       expect(error.message).toBe('Seeding failed: duplicate key');
       expect(error.hint).toContain('idempotent');
@@ -160,7 +160,7 @@ describe('henri db', () => {
       const error = await sow({}, file).catch((thrown) => thrown);
 
       expect(error).toBeInstanceOf(CliError);
-      expect(error.code).toBe('FAILED');
+      expect(error.code).toBe('HENRI_CLI_FAILED');
       expect(error.hint).toContain('seed file');
     });
 
@@ -170,7 +170,7 @@ describe('henri db', () => {
       );
 
       expect(error).toBeInstanceOf(CliError);
-      expect(error.code).toBe('USAGE');
+      expect(error.code).toBe('HENRI_CLI_USAGE');
       expect(error.message).toBe('No seed file at db/nowhere.js');
     });
   });

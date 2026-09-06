@@ -1,5 +1,18 @@
 const supertest = require('supertest');
 
+/**
+ * Put one of henri's error codes on an error
+ *
+ * A code is a string and nothing more (`@usehenri/core/error-codes.json` is
+ * the catalogue), so a failure names itself without importing anything --
+ * which matters here, where core is resolved from the application.
+ *
+ * @param {Error} error The error
+ * @param {string} code The henri error code
+ * @returns {Error} The same error
+ */
+const stamp = (error, code) => Object.assign(error, { code });
+
 const state = {
   instance: null,
   starting: null,
@@ -25,9 +38,12 @@ const loadHenri = () => {
   try {
     return require(resolveFromApp('@usehenri/core/src/henri'));
   } catch (error) {
-    throw new Error(
-      `@usehenri/testing: unable to load @usehenri/core from ${process.cwd()} (${error.message})`,
-      { cause: error }
+    throw stamp(
+      new Error(
+        `@usehenri/testing: unable to load @usehenri/core from ${process.cwd()} (${error.message})`,
+        { cause: error }
+      ),
+      'HENRI_BOOT_TESTING_CORE_MISSING'
     );
   }
 };
@@ -152,8 +168,11 @@ const target = (instance) => {
     return process.env.HENRI_TEST_URL.replace(/\/$/, '');
   }
 
-  throw new Error(
-    'henri is not running: `await setup()` in beforeAll, or add "@usehenri/testing/setup-file" to vitest setupFiles'
+  throw stamp(
+    new Error(
+      'henri is not running: `await setup()` in beforeAll, or add "@usehenri/testing/setup-file" to vitest setupFiles'
+    ),
+    'HENRI_BOOT_TESTING_NOT_RUNNING'
   );
 };
 

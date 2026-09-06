@@ -170,6 +170,8 @@ res.boom.notFound('No such task', { id: req.params.id });
 | `badGateway`        | 502    |
 | `serverUnavailable` | 503    |
 
+A third argument names the failure: `res.boom.notFound('No such task', null, 'HENRI_MODEL_UNKNOWN_STORE')` adds a `code` to the body. It is the same envelope the 404 and 500 handlers answer with, and a failure henri raises itself already carries its own — see [Error codes](/reference/errors/).
+
 The React `Form` reads `data.errors` of a `422` and shows each message under its field, and the `RequestError` thrown by `fetch()` exposes `message`, `statusCode` and `data`.
 
 ## `res.resource(record, options)` and `res.collection(records, options)`

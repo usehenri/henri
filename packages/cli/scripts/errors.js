@@ -3,7 +3,15 @@
  * and coding agents can tell what went wrong without parsing the message.
  * `henri <command> --json` prints them as
  * `{ "error": { "command", "message", "hint", "code", "exitCode" } }`.
+ *
+ * The `code` is one of henri's own, from the catalogue of
+ * `@usehenri/core/error-codes.json`: the same names the framework raises at
+ * runtime, so a boot failure keeps its code all the way to the shell instead
+ * of collapsing into `FAILED`. The exit status is the coarse one, five
+ * numbers a shell can branch on.
  */
+
+const { catalogue, exitOf, isCode } = require('@usehenri/core/errors');
 
 /**
  * Exit codes of the henri command line (see `henri help`)
@@ -36,17 +44,38 @@ const EXIT_CODES = [
 ];
 
 /**
- * Error codes: more specific than the exit codes, each mapped to one
+ * The short names the command line used before the codes had a namespace.
+ * `new CliError('USAGE', ...)` still reads as it did at a call site; the
+ * error carries the catalogue's name.
  */
-const CODES = {
-  CHECKS_FAILED: 1,
-  CONFIG_INVALID: 1,
-  EXISTS: 1,
-  FAILED: 1,
-  NEEDS_TTY: 4,
-  NOT_A_PROJECT: 3,
-  NOT_INSTALLED: 1,
-  USAGE: 2,
+const ALIASES = {
+  CHECKS_FAILED: 'HENRI_CLI_CHECKS_FAILED',
+  CONFIG_INVALID: 'HENRI_CONFIG_INVALID',
+  EXISTS: 'HENRI_CLI_EXISTS',
+  FAILED: 'HENRI_CLI_FAILED',
+  NEEDS_TTY: 'HENRI_CLI_NEEDS_TTY',
+  NOT_A_PROJECT: 'HENRI_CLI_NOT_A_PROJECT',
+  NOT_INSTALLED: 'HENRI_CLI_NOT_INSTALLED',
+  USAGE: 'HENRI_CLI_USAGE',
+};
+
+/**
+ * Every henri error code, with the exit status it leaves the shell with
+ */
+const CODES = Object.fromEntries(
+  catalogue.codes.map((entry) => [entry.code, exitOf(entry.code)])
+);
+
+/**
+ * The catalogue name of a code, whatever a call site called it
+ *
+ * @param {*} code a code, or one of the legacy short names
+ * @returns {string} the henri code (HENRI_CLI_FAILED for anything unknown)
+ */
+const nameOf = (code) => {
+  const named = ALIASES[code] || code;
+
+  return isCode(named) ? named : 'HENRI_CLI_FAILED';
 };
 
 /**
@@ -57,7 +86,7 @@ const CODES = {
  */
 class CliError extends Error {
   /**
-   * @param {string} code One of CODES (unknown codes exit with 1)
+   * @param {string} code A henri error code, or one of ALIASES
    * @param {string} message What went wrong
    * @param {object} [options] Options
    * @param {string} [options.hint] What to do about it
@@ -66,14 +95,14 @@ class CliError extends Error {
   constructor(code, message, { hint = null, cause = undefined } = {}) {
     super(message, cause ? { cause } : undefined);
     this.name = 'CliError';
-    this.code = CODES[code] ? code : 'FAILED';
-    this.exitCode = CODES[this.code];
+    this.code = nameOf(code);
+    this.exitCode = exitOf(this.code);
     this.hint = hint;
   }
 }
 
 /**
- * The first error of a `cause` chain that already carries one of CODES
+ * The first error of a `cause` chain that already carries a henri code
  *
  * A boot failure reaches the command line wrapped ("henri - unable to
  * execute init(): ..."), so the error that knows what went wrong -- the
@@ -89,7 +118,7 @@ const coded = (error) => {
   while (current && typeof current === 'object' && !seen.has(current)) {
     seen.add(current);
 
-    if (typeof current.code === 'string' && CODES[current.code]) {
+    if (isCode(current.code)) {
       return current;
     }
 
@@ -102,8 +131,8 @@ const coded = (error) => {
 /**
  * Coerce anything thrown into a CliError
  *
- * An error that already names one of CODES keeps it, along with its hint
- * and its message, wherever it sits in the `cause` chain.
+ * An error that already names one of the catalogue's codes keeps it, along
+ * with its hint and its message, wherever it sits in the `cause` chain.
  *
  * @param {*} error What was thrown
  * @returns {CliError} The same error, or a wrapper around it
@@ -134,4 +163,4 @@ const toCliError = (error) => {
   });
 };
 
-module.exports = { CODES, CliError, EXIT_CODES, toCliError };
+module.exports = { ALIASES, CODES, CliError, EXIT_CODES, toCliError };

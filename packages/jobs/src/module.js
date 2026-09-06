@@ -212,7 +212,10 @@ class JobsModule extends BaseModule {
         'jobs',
         `
       This application has no job queue: it has neither app/jobs nor a jobs
-      block in its configuration. Write a job with: henri generate job <name>`
+      block in its configuration. Write a job with: henri generate job <name>`,
+        null,
+        null,
+        'HENRI_JOB_QUEUE_UNAVAILABLE'
       );
     }
 

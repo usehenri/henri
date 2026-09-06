@@ -1,0 +1,980 @@
+{
+  "$comment": "The catalogue of henri error codes. Data, not code: base/errors.js reads it, the command line maps every code to an exit status through it, src/__tests__/error-codes.spec.js checks that what the source raises and what this file declares are the same set, and website/src/content/docs/reference/errors.md is generated from it. A code is forever: rename nothing, retire an entry rather than reusing it. See CONTRIBUTING and the reference page for the shape.",
+  "areas": [
+    {
+      "area": "agent",
+      "what": "the MCP server of `henri mcp` and the running application it reads"
+    },
+    {
+      "area": "api",
+      "what": "the JSON API layer: HAL answers, the health endpoint and the optional GraphQL engine"
+    },
+    {
+      "area": "boot",
+      "what": "the module graph and the boot sequence: registration, ordering, dependencies"
+    },
+    {
+      "area": "cli",
+      "what": "the henri command line: arguments, the project it runs in, the commands themselves"
+    },
+    {
+      "area": "config",
+      "what": "config/<env>.json, the environment overrides and the credentials file"
+    },
+    {
+      "area": "job",
+      "what": "the background job queue of @usehenri/jobs"
+    },
+    {
+      "area": "mail",
+      "what": "the mail transport, the mailers of app/mailers and their views"
+    },
+    {
+      "area": "model",
+      "what": "the model files of app/models and the schema the adapters normalize"
+    },
+    {
+      "area": "route",
+      "what": "config/routes.js and the router"
+    },
+    {
+      "area": "store",
+      "what": "the store adapters: loading them, starting them, talking to them"
+    },
+    {
+      "area": "user",
+      "what": "the user module: sessions, passwords, tokens and the CSRF protection"
+    },
+    {
+      "area": "view",
+      "what": "the view engines, their pages and their builds"
+    }
+  ],
+  "codes": [
+    {
+      "area": "agent",
+      "causes": ["node_modules is missing in the application directory"],
+      "code": "HENRI_AGENT_NOT_INSTALLED",
+      "fix": "Install the dependencies of the application, then ask again.",
+      "what": "The application cannot be started because its dependencies are not installed."
+    },
+    {
+      "area": "agent",
+      "causes": [
+        "the documentation was not shipped with this build of the server",
+        "a partial or corrupted install"
+      ],
+      "code": "HENRI_AGENT_NO_DOCS",
+      "fix": "Reinstall @usehenri/mcp.",
+      "what": "The MCP server has no documentation to serve."
+    },
+    {
+      "area": "agent",
+      "causes": [
+        "the application answering is older than the runtime endpoints of core"
+      ],
+      "code": "HENRI_AGENT_NO_RUNTIME",
+      "fix": "Upgrade @usehenri/core in the application. Until then, the file-reading tools work and the running-application ones do not.",
+      "what": "Something henri-shaped is answering on the port and has no runtime endpoint."
+    },
+    {
+      "area": "agent",
+      "causes": [
+        "no `henri server` is running and `HENRI_MCP_AUTOSTART=0` forbids starting one"
+      ],
+      "code": "HENRI_AGENT_NO_SERVER",
+      "fix": "Start the development server (`henri server`), or unset HENRI_MCP_AUTOSTART.",
+      "what": "A tool needs a running application and none answers."
+    },
+    {
+      "area": "agent",
+      "causes": [
+        "NODE_ENV is production",
+        "the application answering on the port runs in production"
+      ],
+      "code": "HENRI_AGENT_PRODUCTION",
+      "fix": "Run the application in development (NODE_ENV unset or \"dev\"). henri mounts no runtime endpoint in production, and the MCP server will not start one to work around it.",
+      "what": "The MCP server refuses to read a production application."
+    },
+    {
+      "area": "agent",
+      "causes": [
+        "the boot failed",
+        "the application did not answer within the time the server waits"
+      ],
+      "code": "HENRI_AGENT_START_FAILED",
+      "fix": "Run `henri server` yourself to see what it says, or `henri doctor`.",
+      "what": "The MCP server started the application and it never came up."
+    },
+    {
+      "area": "agent",
+      "causes": [
+        "a command that boots the application on a machine that is busy",
+        "a test suite or a build that takes longer than the server waits"
+      ],
+      "code": "HENRI_AGENT_TIMEOUT",
+      "fix": "Run the command in a terminal instead: the MCP server bounds how long it waits, a terminal does not.",
+      "what": "A command the MCP server ran did not finish in time."
+    },
+    {
+      "area": "agent",
+      "causes": ["a typo in the page name", "a page of another henri version"],
+      "code": "HENRI_AGENT_UNKNOWN_PAGE",
+      "fix": "Call the guide tool without a page to list the ones this server ships.",
+      "what": "There is no documentation page by that name."
+    },
+    {
+      "area": "agent",
+      "causes": [
+        "the application stopped while the tool was talking to it",
+        "it is listening somewhere else",
+        "a request that took longer than the server waits"
+      ],
+      "code": "HENRI_AGENT_UNREACHABLE",
+      "fix": "Check that the development server is still running, and read its output: a boot that failed halfway leaves the port closed.",
+      "what": "The running application did not answer."
+    },
+    {
+      "area": "api",
+      "causes": [
+        "a model declares `graphql` types and resolvers",
+        "a route or a render asks for a `graphql` query",
+        "the package was removed but the configuration or a model still reaches for it"
+      ],
+      "code": "HENRI_API_GRAPHQL_UNAVAILABLE",
+      "fix": "Install the engine in the application (`npm install @usehenri/graphql`), or remove the `graphql` key from the model, the route or the render that asks for it.",
+      "what": "Something asked for the GraphQL engine, which @usehenri/graphql carries, and the application does not have it."
+    },
+    {
+      "area": "api",
+      "causes": [
+        "`res.collection()` was given something that is not an array",
+        "it was called outside a route and no `type` was passed"
+      ],
+      "code": "HENRI_API_INVALID_COLLECTION",
+      "fix": "Pass an array of records, and outside a `resources` route name the type: `res.collection(records, { type: 'tasks' })`.",
+      "what": "res.collection() was called with something it cannot turn into a HAL collection."
+    },
+    {
+      "area": "api",
+      "causes": [
+        "`res.resource()` was given an array, a scalar or nothing",
+        "it was called outside a route and no `type` was passed"
+      ],
+      "code": "HENRI_API_INVALID_RESOURCE",
+      "fix": "Pass one record (a model instance or a plain object) and use `res.collection()` for lists; outside a `resources` route name the type: `res.resource(record, { type: 'tasks' })`.",
+      "what": "res.resource() was called with something it cannot turn into a HAL resource."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "two modules of the boot graph name each other in `needs`, `after` or `before`",
+        "a longer chain of the same, through an application module"
+      ],
+      "code": "HENRI_BOOT_CIRCULAR_DEPENDENCY",
+      "fix": "The message names the cycle and the declaration behind every edge of it. Drop one of those declarations, or replace a `needs` that is only about ordering with an `after`.",
+      "what": "The modules of the boot graph wait on each other in a circle, so nothing can start."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "a module the boot ceiling leaves out is named in a `needs`",
+        "a command that boots to a lower level (`henri jobs`, `henri console`) reached a module that needs a higher one"
+      ],
+      "code": "HENRI_BOOT_DEPENDENCY_ABOVE_CEILING",
+      "fix": "Lower the runlevel of the module that is needed, or run the command that boots the whole application. `henri analyze` prints the order and the level of every module.",
+      "what": "A module needs another one that this boot does not go far enough to load."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "two files in app/models, app/controllers, app/mailers or app/jobs declare the same `identity`",
+        "a file was copied and its `identity` was not changed",
+        "two files of different directories collide because `identity` defaults to the file name"
+      ],
+      "code": "HENRI_BOOT_DUPLICATE_IDENTITY",
+      "fix": "Rename one of the two files, or give it an `identity` of its own. The message names the directory and the file that collided.",
+      "what": "Two files of an application directory answer to the same name."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "an application module and a core module share a name",
+        "the same module is registered twice, from config/modules.js and from a package"
+      ],
+      "code": "HENRI_BOOT_DUPLICATE_MODULE",
+      "fix": "Rename one of them: a module's name is how it is reached (`henri.<name>`), so it has to be unique. The message names both files.",
+      "what": "Two modules claim the same name."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "a store cannot be reached, a view engine cannot start, a model is invalid",
+        "an application module of app/modules threw in its `init()`"
+      ],
+      "code": "HENRI_BOOT_FAILED",
+      "fix": "Read the error underneath, which carries its own code: this one only says the boot stopped. The diagnostics name what failed, what was still running and what never started.",
+      "what": "A module's init() failed, so the boot stopped."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "a module object with no `init()`, no `name` or no `runlevel`",
+        "`needs`, `after` or `before` given something that is not a name or a list of them",
+        "`reloadable` without a `reload()`, or a `release` that is not a function",
+        "a class that does not extend the base module"
+      ],
+      "code": "HENRI_BOOT_INVALID_MODULE",
+      "fix": "A module extends `@usehenri/core/module`, sets a unique `name`, says where it goes (`needs`/`after`/`before` or `runlevel`) and implements `init()`. See the Modules guide.",
+      "what": "Something registered as a module is not shaped like one."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "a `needs` naming a module no package and no file provides",
+        "the module that provides it is not installed, or not registered",
+        "a typo in the name"
+      ],
+      "code": "HENRI_BOOT_MISSING_DEPENDENCY",
+      "fix": "Register the module that provides the name, or fix the name. The message lists every module that did load and suggests the closest one.",
+      "what": "A module needs another one that nothing provides."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "the file exports an object, a string or nothing",
+        "a function was exported that resolves to something other than an array"
+      ],
+      "code": "HENRI_BOOT_MODULES_FILE_INVALID",
+      "fix": "Export an array of modules -- names, classes or instances -- or a function returning one: `module.exports = ['@acme/module', new Mine()]`.",
+      "what": "config/modules.js did not export an array of modules."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "a syntax error in the file",
+        "something the file requires is missing or throws"
+      ],
+      "code": "HENRI_BOOT_MODULES_FILE_UNREADABLE",
+      "fix": "The message carries the loader's own error. Fix the file, or delete it: an application without one boots with the core modules alone.",
+      "what": "config/modules.js exists but could not be loaded."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "the package was never installed",
+        "it is a devDependency and the boot runs without them",
+        "the name is misspelled"
+      ],
+      "code": "HENRI_BOOT_MODULE_NOT_INSTALLED",
+      "fix": "Install the package in the application, or remove the entry from config/modules.js.",
+      "what": "config/modules.js names a package that cannot be resolved from the application."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "the command was run from a subdirectory",
+        "the folder was never scaffolded"
+      ],
+      "code": "HENRI_BOOT_NOT_AN_APPLICATION",
+      "fix": "Run henri from the root of the application, or create one with `henri new <name>`.",
+      "what": "The working directory has no package.json, so it is not a henri application."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "the boot ceiling (`new Henri({ runlevel })`) is below every module",
+        "`init()` was called before anything was registered"
+      ],
+      "code": "HENRI_BOOT_NO_MODULES",
+      "fix": "Register the modules before calling `init()`, or raise the ceiling. `henri analyze` prints the level of every module.",
+      "what": "The boot reached init() with no module to start."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "the renderer's peer dependencies were never installed",
+        "an install was interrupted, or node_modules was pruned"
+      ],
+      "code": "HENRI_BOOT_PACKAGES_MISSING",
+      "fix": "Run the install command the message prints. Applications carry the packages of their own renderer and adapter: henri resolves them from the application, never from itself.",
+      "what": "Packages the application needs are not installed."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "a module pins itself with `runlevel: 9`",
+        "a negative runlevel"
+      ],
+      "code": "HENRI_BOOT_RUNLEVEL_OUT_OF_RANGE",
+      "fix": "The levels go from 0 to 6. Prefer naming what the module needs (`needs`, `after`, `before`) over a numeric pin.",
+      "what": "A module pinned itself to a level that does not exist."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "@usehenri/core is not a dependency of the application",
+        "the tests run from a directory that is not the application"
+      ],
+      "code": "HENRI_BOOT_TESTING_CORE_MISSING",
+      "fix": "Install @usehenri/core in the application, and run the tests from its root (`henri test` does).",
+      "what": "@usehenri/testing could not load @usehenri/core from the application."
+    },
+    {
+      "area": "boot",
+      "causes": [
+        "`setup()` was never awaited",
+        "`@usehenri/testing/setup-file` is missing from the vitest `setupFiles`",
+        "a test ran after `teardown()`"
+      ],
+      "code": "HENRI_BOOT_TESTING_NOT_RUNNING",
+      "fix": "`await setup()` in `beforeAll`, or add `@usehenri/testing/setup-file` to the `setupFiles` of the vitest configuration.",
+      "what": "A test helper was used before the application was booted."
+    },
+    {
+      "area": "cli",
+      "causes": [
+        "`henri doctor` found a problem",
+        "`henri audit` found a finding at or above `--fail-on`"
+      ],
+      "code": "HENRI_CLI_CHECKS_FAILED",
+      "exit": 1,
+      "fix": "Read the report: every check names the file and what to do. `henri audit --checks` prints the whole catalogue of checks.",
+      "what": "A command that checks an application found something."
+    },
+    {
+      "area": "cli",
+      "causes": [
+        "the target of `henri new` or a generator is already there",
+        "the file would be overwritten"
+      ],
+      "code": "HENRI_CLI_EXISTS",
+      "fix": "Pick another name, delete what is there, or pass `--force` where the command takes it.",
+      "what": "The command would write over something that already exists."
+    },
+    {
+      "area": "cli",
+      "causes": [
+        "a command failed for a reason henri has no finer code for",
+        "an underlying tool exited non-zero"
+      ],
+      "code": "HENRI_CLI_FAILED",
+      "exit": 1,
+      "fix": "Read the message. Run the command again with `--debug=henri:*` for the details, and with `--json` for the whole error object.",
+      "what": "The command failed."
+    },
+    {
+      "area": "cli",
+      "causes": [
+        "a command that asks a question was run from a script or from CI",
+        "stdin is a pipe"
+      ],
+      "code": "HENRI_CLI_NEEDS_TTY",
+      "exit": 4,
+      "fix": "Pass the flag that answers the question (`--yes`, `--force`, `--renderer`, ...), which the hint names.",
+      "what": "The command needed an answer and stdin is not a terminal."
+    },
+    {
+      "area": "cli",
+      "causes": [
+        "the command was run from a subdirectory of the application",
+        "the folder was never scaffolded"
+      ],
+      "code": "HENRI_CLI_NOT_A_PROJECT",
+      "exit": 3,
+      "fix": "Run the command from the root of the application, or create one with `henri new <name>`.",
+      "what": "The directory is not a henri application."
+    },
+    {
+      "area": "cli",
+      "causes": [
+        "the renderer, the adapter or the test runner is missing from the application",
+        "`node_modules` is stale"
+      ],
+      "code": "HENRI_CLI_NOT_INSTALLED",
+      "fix": "Run the install command the message prints, then run the command again.",
+      "what": "The command needs a package the application does not have."
+    },
+    {
+      "area": "cli",
+      "causes": [
+        "an unknown command or generator",
+        "a missing or invalid argument",
+        "a flag given a value it does not accept"
+      ],
+      "code": "HENRI_CLI_USAGE",
+      "exit": 2,
+      "fix": "`henri help <command>` prints what the command takes. The hint of the error usually lists the accepted values.",
+      "what": "The command was called wrongly."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "the file is not a henri credentials file",
+        "what it holds decrypts to something that is not a JSON object"
+      ],
+      "code": "HENRI_CONFIG_CREDENTIALS_INVALID",
+      "fix": "Edit it with `henri credentials:edit`, which writes the envelope henri reads. Never edit the encrypted file by hand.",
+      "what": "The credentials file is not shaped like one."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "the key does not match the file (a key from another environment, or from another machine)",
+        "the encrypted file was edited, truncated or merged by hand"
+      ],
+      "code": "HENRI_CONFIG_CREDENTIALS_KEY_INVALID",
+      "fix": "Use the key the file was written with (`HENRI_CREDENTIALS_KEY`, or config/credentials/<env>.key), or write the credentials again with `henri credentials:edit`.",
+      "what": "The credentials could not be decrypted: the key is wrong, or the file was modified."
+    },
+    {
+      "area": "config",
+      "causes": ["a truncated key", "a key with a stray newline or quotes"],
+      "code": "HENRI_CONFIG_CREDENTIALS_KEY_MALFORMED",
+      "fix": "A credentials key is 64 hexadecimal characters, which is what `henri credentials:init` writes. Copy the whole of it.",
+      "what": "The credentials key is not 64 hexadecimal characters."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "the key file is gitignored and was never copied to this machine",
+        "`HENRI_CREDENTIALS_KEY` is not set in the deployment"
+      ],
+      "code": "HENRI_CONFIG_CREDENTIALS_KEY_MISSING",
+      "fix": "Set `HENRI_CREDENTIALS_KEY`, or put config/credentials/<env>.key back. The key never belongs in a commit.",
+      "what": "There is a credentials file for this environment and no key to open it."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "`HENRI_CONFIG__port=` with nothing after the equals sign",
+        "a deployment that sets a variable it does not have a value for"
+      ],
+      "code": "HENRI_CONFIG_ENV_EMPTY",
+      "fix": "Give the variable a value, or unset it: an empty override is never what was meant.",
+      "what": "An environment override is set but empty."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "a trailing comma, a single quote, or an unquoted key",
+        "a shell that ate the quotes of the value"
+      ],
+      "code": "HENRI_CONFIG_ENV_NOT_JSON",
+      "fix": "The value of a `HENRI_CONFIG_JSON__<key>` variable is parsed as JSON. Quote it whole in the shell. The value is never echoed back: it may be a secret.",
+      "what": "A HENRI_CONFIG_JSON__ override is not valid JSON."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "`HENRI_CONFIG__` or `HENRI_CONFIG_JSON__` with nothing after the separator"
+      ],
+      "code": "HENRI_CONFIG_ENV_NO_KEY",
+      "fix": "Name the key after the prefix, `__` for every level: `HENRI_CONFIG__stores__default__url`.",
+      "what": "An environment override names no configuration key."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "a number given something that is not one",
+        "a boolean given anything but `true` or `false`",
+        "an object given something that is not a JSON object"
+      ],
+      "code": "HENRI_CONFIG_ENV_TYPE",
+      "fix": "The type comes from the configuration file, and from henri's schema when the file has no value at that key. Give the variable a value of that type, or use `HENRI_CONFIG_JSON__<key>` for an object.",
+      "what": "An environment override does not fit the type of the key it overrides."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "a value of the wrong type, or outside what the key accepts",
+        "a key given a shape it does not take",
+        "an environment variable or a credential overriding a key with something invalid"
+      ],
+      "code": "HENRI_CONFIG_INVALID",
+      "exit": 1,
+      "fix": "Every problem is listed at once with the key, what was expected, what arrived and where the value came from. `henri doctor` runs the same schema over every config/*.json without booting. See the Configuration reference.",
+      "what": "The configuration holds a value henri refuses."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "a typo in the key",
+        "a key that only exists in another environment's file",
+        "reading a key before the module that sets it has run"
+      ],
+      "code": "HENRI_CONFIG_UNKNOWN_KEY",
+      "fix": "Use `config.has(key)` first, or `config.get(key, true)`, which answers `false` instead of throwing.",
+      "what": "config.get() was asked for a key the configuration does not hold."
+    },
+    {
+      "area": "config",
+      "causes": [
+        "no config/<NODE_ENV>.json and no config/default.json",
+        "the file is not valid JSON",
+        "the process cannot read it"
+      ],
+      "code": "HENRI_CONFIG_UNREADABLE",
+      "fix": "The boot prints every path it tried. Create config/default.json, or fix the JSON of the file that is there.",
+      "what": "No configuration file could be loaded."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "an argument that is a function, a class, a bigint or a cycle",
+        "a model instance passed whole instead of its id"
+      ],
+      "code": "HENRI_JOB_INVALID_ARGUMENTS",
+      "fix": "The arguments of a job are stored as JSON: pass ids and plain values, and look the records up inside `perform()`.",
+      "what": "The arguments of a job cannot be stored."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "a step that is not a whole number",
+        "a field outside its range, or a name the parser does not know",
+        "an expression that has not five fields"
+      ],
+      "code": "HENRI_JOB_INVALID_CRON",
+      "fix": "Five fields, `minute hour day month weekday`, each a number, a name, a list, a range, a step or `*`. The message names the field that is wrong.",
+      "what": "A recurring job has a cron expression henri cannot read."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "a file of app/jobs that exports nothing",
+        "a file that exports an object without a `perform`"
+      ],
+      "code": "HENRI_JOB_INVALID_DEFINITION",
+      "fix": "A job is `app/jobs/<name>.js` exporting `perform(args, context)`, plus the optional `queue`, `priority`, `maxAttempts`, `timeout` and `backoff`.",
+      "what": "A file of app/jobs is not a job."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "a string that is not a duration (`5 minutes`, `2h`, `30s`)",
+        "a date that is not a date",
+        "a negative or infinite number"
+      ],
+      "code": "HENRI_JOB_INVALID_DURATION",
+      "fix": "`performIn()` takes milliseconds or a duration string; `performAt()` takes a Date or something Date can parse.",
+      "what": "A delay or a date given to the queue could not be read."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "a schedule with neither `cron` nor `every`",
+        "a job name no file in app/jobs answers to",
+        "arguments that are not a plain object",
+        "a cron expression that can never come round (February 30th)"
+      ],
+      "code": "HENRI_JOB_INVALID_SCHEDULE",
+      "fix": "A schedule is `{ job, cron | every, args?, queue? }` and its `job` is the name of a file in app/jobs. The message names the entry that is wrong.",
+      "what": "A recurring job of the configuration is not shaped like a schedule."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "the queue was used before the boot reached it",
+        "`jobs.start()` was never awaited outside henri"
+      ],
+      "code": "HENRI_JOB_QUEUE_NOT_STARTED",
+      "fix": "henri starts the queue at runlevel 4; outside henri, `await jobs.start()` first.",
+      "what": "The job queue was used before it was started."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "the application has neither app/jobs nor a `jobs` block in its configuration",
+        "@usehenri/jobs is not installed",
+        "the boot did not go far enough to start the queue"
+      ],
+      "code": "HENRI_JOB_QUEUE_UNAVAILABLE",
+      "fix": "Install the queue (`npm install @usehenri/jobs`) and write a job with `henri generate job <name>`, or stop calling `deliverLater()`/`perform()`.",
+      "what": "Something asked for the job queue and the application has none."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "a retry or a discard aimed at a job a runner is performing right now",
+        "a runner that died holding the job and has not been recovered from yet"
+      ],
+      "code": "HENRI_JOB_RUNNING",
+      "fix": "Wait for it to finish, or for `jobs.stuckAfter` to pass so the queue takes it back.",
+      "what": "The job is being performed and cannot be changed."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "a typo in `jobs.store`",
+        "a store that only exists in another environment"
+      ],
+      "code": "HENRI_JOB_STORE_MISSING",
+      "fix": "Set `jobs.store` to one of the names of the `stores` block, or leave it out to use the default store.",
+      "what": "The queue names a store the configuration does not hold."
+    },
+    {
+      "area": "job",
+      "causes": ["a job whose `perform()` never returned in time"],
+      "code": "HENRI_JOB_TIMEOUT",
+      "fix": "Raise the job’s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
+      "what": "An attempt ran past the job’s timeout."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "the job was renamed or deleted while rows for it were still in the queue",
+        "a typo in the name given to `perform()`"
+      ],
+      "code": "HENRI_JOB_UNKNOWN",
+      "fix": "`henri jobs list` shows what is queued and `app/jobs` holds the names. Discard the rows of a job that is gone with `henri jobs:discard`.",
+      "what": "The queue was asked to perform a job no file in app/jobs answers to."
+    },
+    {
+      "area": "job",
+      "causes": ["a typo in the state given to `henri jobs list --state`"],
+      "code": "HENRI_JOB_UNKNOWN_STATE",
+      "fix": "The message lists the states a job can be in.",
+      "what": "The queue was asked for a state that does not exist."
+    },
+    {
+      "area": "job",
+      "causes": [
+        "a store whose adapter the queue has no statements for",
+        "an adapter that reports a dialect the queue does not know"
+      ],
+      "code": "HENRI_JOB_UNSUPPORTED_STORE",
+      "fix": "The queue runs on sqlite, PostgreSQL, MySQL, MSSQL and MongoDB. Point `jobs.store` at a store on one of them.",
+      "what": "The store the queue was given cannot back it."
+    },
+    {
+      "area": "mail",
+      "causes": [
+        "the message returned by the mailer action is not an object",
+        "an action that returns nothing"
+      ],
+      "code": "HENRI_MAIL_INVALID_MESSAGE",
+      "fix": "A mailer action returns the message it wants sent: `return { to, subject, data }`. Everything else it holds is passed to nodemailer.",
+      "what": "A mailer action did not return a message."
+    },
+    {
+      "area": "mail",
+      "causes": [
+        "`mail` is missing from the configuration",
+        "the mail module never started, or its transport failed to verify"
+      ],
+      "code": "HENRI_MAIL_NO_TRANSPORT",
+      "fix": "Set `mail` in the configuration -- nodemailer transport options, or `\"test\"` for an Ethereal account. See the Mail guide.",
+      "what": "A message was sent and no transport was ever built."
+    },
+    {
+      "area": "mail",
+      "causes": [
+        "`mail` set to a string other than `\"test\"`",
+        "`mail` set to a number, an array or `true`"
+      ],
+      "code": "HENRI_MAIL_TRANSPORT_INVALID",
+      "fix": "`mail` takes the options object nodemailer's `createTransport()` takes, or the string `\"test\"`.",
+      "what": "The mail configuration is not a nodemailer transport."
+    },
+    {
+      "area": "mail",
+      "causes": [
+        "a typo in the action name",
+        "a function the mailer does not export (`defaults` and `previews` are not actions)"
+      ],
+      "code": "HENRI_MAIL_UNKNOWN_ACTION",
+      "fix": "Every exported function of app/mailers/<name>.js is an action. The message lists the ones this mailer has.",
+      "what": "A mailer has no such action."
+    },
+    {
+      "area": "mail",
+      "causes": [
+        "a typo in the mailer name",
+        "the file is not in app/mailers",
+        "the file throws when it loads, so the mailer never registered"
+      ],
+      "code": "HENRI_MAIL_UNKNOWN_MAILER",
+      "fix": "Mailers are the files of app/mailers, reached as `henri.mailers.<name>.<action>()`. The message lists the ones that loaded.",
+      "what": "There is no such mailer in app/mailers."
+    },
+    {
+      "area": "mail",
+      "causes": [
+        "the view was never written",
+        "it sits somewhere other than app/views/mailers",
+        "its name does not match the action"
+      ],
+      "code": "HENRI_MAIL_VIEW_MISSING",
+      "fix": "Write app/views/mailers/<mailer>/<action>.hbs. A `<action>.text.hbs` next to it replaces the plain text part, which is otherwise derived from the html.",
+      "what": "A mail has no view to render."
+    },
+    {
+      "area": "model",
+      "causes": [
+        "a field with `required`, `default` or `unique` and no `type`",
+        "a field written as `{ required: true }` instead of `{ type: 'string', required: true }`"
+      ],
+      "code": "HENRI_MODEL_FIELD_INCOMPLETE",
+      "fix": "Every field of a henri schema names its type: `title: { type: 'string', required: true }`, or the short form `title: 'string'`.",
+      "what": "A model field carries options but no type."
+    },
+    {
+      "area": "model",
+      "causes": [
+        "`enum` given something that is not an array",
+        "an option the adapter does not know",
+        "a relation pointing at a model that does not exist"
+      ],
+      "code": "HENRI_MODEL_INVALID_FIELD",
+      "fix": "The message names the field and what it holds. See the Models guide for the keys a field takes: `type`, `required`, `default`, `enum`, `unique`, `index`.",
+      "what": "A model field holds something the adapter refuses."
+    },
+    {
+      "area": "model",
+      "causes": [
+        "no `stores.default` in the configuration",
+        "the model was written before the store was configured"
+      ],
+      "code": "HENRI_MODEL_NO_STORE",
+      "fix": "Configure `stores.default`, or give the model a `store` naming one of the stores that exist.",
+      "what": "A model has no store and there is no default one."
+    },
+    {
+      "area": "model",
+      "causes": [
+        "a typo in the model's `store`",
+        "a store that only exists in another environment's configuration"
+      ],
+      "code": "HENRI_MODEL_UNKNOWN_STORE",
+      "fix": "Add the store to `stores` in the configuration of this environment, or point the model at one that is there.",
+      "what": "A model names a store the configuration does not hold."
+    },
+    {
+      "area": "model",
+      "causes": [
+        "a type of the underlying ORM rather than henri's (`STRING`, `varchar`, `ObjectId`)",
+        "a typo in the type name"
+      ],
+      "code": "HENRI_MODEL_UNKNOWN_TYPE",
+      "fix": "henri's types are `string`, `text`, `number`, `integer`, `float`, `boolean`, `date`, `json` and `uuid`. The adapter maps them to the ORM's own.",
+      "what": "A model field asks for a type henri does not have."
+    },
+    {
+      "area": "route",
+      "causes": [
+        "a stray space in the route (`'tasks #index'`)",
+        "a character that is not a letter, a digit, a dash or an underscore",
+        "a `/` meant as a separator rather than a directory"
+      ],
+      "code": "HENRI_ROUTE_INVALID_ACTION",
+      "fix": "An action name is letters, digits and underscores after the `#`: `'/tasks': 'tasks#index'`.",
+      "what": "A route points at something that is not an action name."
+    },
+    {
+      "area": "route",
+      "causes": [
+        "a stray space in the route (`' tasks#index'`)",
+        "a character that is not a letter, a digit, a dash or an underscore"
+      ],
+      "code": "HENRI_ROUTE_INVALID_CONTROLLER",
+      "fix": "A controller name is letters, digits, dashes and underscores, with `/` for a directory: `'admin/tasks#index'`.",
+      "what": "A route points at something that is not a controller name."
+    },
+    {
+      "area": "store",
+      "causes": [
+        "the adapter package is not installed",
+        "an install was interrupted, or node_modules is stale",
+        "the package throws when it loads"
+      ],
+      "code": "HENRI_STORE_ADAPTER_NOT_INSTALLED",
+      "fix": "Install the adapter in the application (`npm install @usehenri/<adapter>`): henri resolves it from the application, never from itself.",
+      "what": "The adapter a store asks for cannot be loaded."
+    },
+    {
+      "area": "store",
+      "causes": [
+        "the store was never started, or it was stopped",
+        "a query that outlived `henri.stop()`",
+        "a model used before the boot reached the models"
+      ],
+      "code": "HENRI_STORE_NOT_STARTED",
+      "fix": "Let the boot finish before querying. In tests, `await setup()` first; the helper boots the application inside the worker.",
+      "what": "A store was used before it was started, or after it was stopped."
+    },
+    {
+      "area": "store",
+      "causes": [
+        "the store's adapter has no session store",
+        "the store is not loaded",
+        "the adapter's session store failed to build its table"
+      ],
+      "code": "HENRI_STORE_SESSION_UNAVAILABLE",
+      "fix": "Point the sessions at a store whose adapter has one (mongoose, disk, or a SQL store). Without one, sessions fall back to an in-memory store that is lost on every restart.",
+      "what": "No session store could be built for the user module."
+    },
+    {
+      "area": "store",
+      "causes": [
+        "the server is not running, or not reachable from here",
+        "the credentials are wrong",
+        "the database does not exist",
+        "the driver of the dialect is not installed"
+      ],
+      "code": "HENRI_STORE_START_FAILED",
+      "fix": "The adapter's own error is underneath. Check the url of the store, that the server is up (`pnpm db:up` in development) and that the driver is installed.",
+      "what": "A store could not be started."
+    },
+    {
+      "area": "store",
+      "causes": [
+        "a typo in `stores.<name>.adapter`",
+        "an adapter name that is not one henri knows"
+      ],
+      "code": "HENRI_STORE_UNKNOWN_ADAPTER",
+      "fix": "The adapters are `disk`, `mongoose`, `mysql`, `mariadb`, `postgresql`, `mssql` and `drizzle`.",
+      "what": "A store names an adapter henri does not have."
+    },
+    {
+      "area": "store",
+      "causes": [
+        "the store is named in `api.idempotency.store` or `rateLimit.store` and the module cannot be loaded",
+        "the module does not export the shape the feature expects"
+      ],
+      "code": "HENRI_STORE_UNUSABLE",
+      "fix": "A shared store is a module the application resolves, exporting `{ get, set, delete }`. Without one, the feature keeps its state in memory, which is wrong behind more than one process.",
+      "what": "A store the configuration points at could not be used."
+    },
+    {
+      "area": "store",
+      "causes": [
+        "neither `url` nor `host` is set on the store",
+        "DATABASE_URL is not set in this environment",
+        "the credentials that hold the url could not be opened"
+      ],
+      "code": "HENRI_STORE_URL_MISSING",
+      "fix": "Set `stores.<name>.url`, or the `host`, `port`, `database`, `username` and `password` the adapter assembles one from. `DATABASE_URL` sets `stores.default.url`.",
+      "what": "A store has nothing to connect to."
+    },
+    {
+      "area": "user",
+      "causes": [
+        "a hash made with argon2id on a machine that has @node-rs/argon2, verified on one that does not",
+        "a hash bound to its record passed to compare() on its own"
+      ],
+      "code": "HENRI_USER_PASSWORD_UNVERIFIABLE",
+      "fix": "Install @node-rs/argon2 wherever the hashes are verified, and pass the user rather than the hash (`henri.user.compare(password, user)`) when password binding is on.",
+      "what": "A password hash cannot be checked here."
+    },
+    {
+      "area": "user",
+      "causes": [
+        "no `secret` in the configuration and no `HENRI_SECRET` in the environment",
+        "a deployment that never got the variable"
+      ],
+      "code": "HENRI_USER_SECRET_MISSING",
+      "fix": "Set `HENRI_SECRET`, or `secret` in the configuration, or put it in the credentials (`henri credentials:edit`). It signs the sessions and the tokens: a new one logs everybody out.",
+      "what": "There is a user model and no secret to sign its sessions with."
+    },
+    {
+      "area": "user",
+      "causes": [
+        "the user module ended up in a boot that has no server",
+        "a module ordering that puts the user module before the express app"
+      ],
+      "code": "HENRI_USER_SERVER_MISSING",
+      "fix": "Do not pin the user module below the server. A boot that stops before the server (`henri jobs`, `henri console`) does not mount sessions at all.",
+      "what": "The user module needs the express app and there is none."
+    },
+    {
+      "area": "user",
+      "causes": [
+        "a token asked for without a secret, a purpose or a subject",
+        "the application signs its own tokens and left one of the three out"
+      ],
+      "code": "HENRI_USER_TOKEN_INVALID",
+      "fix": "A henri token is signed with the configuration's `secret` and carries a purpose and a subject; all three are required.",
+      "what": "A token could not be signed."
+    },
+    {
+      "area": "view",
+      "causes": [
+        "the renderer's own build failed (a page that does not compile, a missing import)",
+        "the build ran without the packages the renderer needs"
+      ],
+      "code": "HENRI_VIEW_BUILD_FAILED",
+      "fix": "The bundler's own output is above the error. Run `henri build` again after fixing it; the development server prints the same errors as it reloads.",
+      "what": "The view engine's build did not finish."
+    },
+    {
+      "area": "view",
+      "causes": [
+        "@usehenri/inertia, @inertiajs/react, react, react-dom or vite is not installed",
+        "the package throws when it loads"
+      ],
+      "code": "HENRI_VIEW_INERTIA_UNAVAILABLE",
+      "fix": "Install the renderer in the application: `npm install @usehenri/inertia @inertiajs/react react react-dom vite @vitejs/plugin-react`.",
+      "what": "The configuration asks for the inertia renderer and the application does not have it."
+    },
+    {
+      "area": "view",
+      "causes": [
+        "a renderer that is not a henri view engine",
+        "a version of the engine older than the core running it"
+      ],
+      "code": "HENRI_VIEW_NO_BUILD",
+      "fix": "`henri build` calls `build({ cwd, config })` on the engine. A view engine implements `init`, `prepare`, `fallback`, `render` and, to be buildable, `build`.",
+      "what": "The view engine has no build() to call."
+    },
+    {
+      "area": "view",
+      "causes": [
+        "the application was never scaffolded, or its views were moved",
+        "a build run from somewhere other than the root of the application"
+      ],
+      "code": "HENRI_VIEW_PAGES_MISSING",
+      "fix": "The renderer reads its pages from app/views/pages. Run the command from the root of the application, or scaffold one with `henri new`.",
+      "what": "The renderer has no pages directory to render or to build."
+    },
+    {
+      "area": "view",
+      "causes": [
+        "@usehenri/react, next, react or react-dom is not installed",
+        "the package throws when it loads"
+      ],
+      "code": "HENRI_VIEW_REACT_UNAVAILABLE",
+      "fix": "Install the renderer in the application: `npm install @usehenri/react next react react-dom`. New applications get the inertia renderer instead.",
+      "what": "The configuration asks for the react renderer and the application does not have it."
+    },
+    {
+      "area": "view",
+      "causes": [
+        "the server bundle was not built (`henri build` before serving with ssr on)",
+        "the bundle does not export `render()`",
+        "a page that throws when it renders on the server"
+      ],
+      "code": "HENRI_VIEW_SSR_FAILED",
+      "fix": "Build the server bundle, or turn server-side rendering off (`inertia.ssr: false`) while the page is fixed.",
+      "what": "Server-side rendering failed."
+    },
+    {
+      "area": "view",
+      "causes": [
+        "a typo in `renderer`",
+        "a renderer that is experimental and not enabled"
+      ],
+      "code": "HENRI_VIEW_UNKNOWN_RENDERER",
+      "fix": "`renderer` takes `inertia`, `react` or `template`. An experimental one is enabled with `\"experimental\": { \"<name>\": true }`.",
+      "what": "The configuration asks for a renderer henri does not have."
+    },
+    {
+      "area": "view",
+      "causes": ["`renderer: \"vue\"` without the experimental flag"],
+      "code": "HENRI_VIEW_VUE_DISABLED",
+      "fix": "Enable it with `\"experimental\": { \"vue\": true }`. It was written for Nuxt 2 and has not been exercised since 2020: prefer `inertia`.",
+      "what": "The vue renderer is experimental and was not enabled."
+    }
+  ],
+  "version": 1
+}

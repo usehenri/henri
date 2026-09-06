@@ -4,6 +4,7 @@ const { pathToFileURL } = require('url');
 const debug = require('debug')('henri:inertia');
 const shell = require('./shell');
 const { VIEW_FILES } = require('./files');
+const { coded } = require('./shell');
 
 /**
  * `inertia` key of the application configuration
@@ -370,14 +371,17 @@ class InertiaEngine {
       );
 
       if (missing.length > 0) {
-        throw new Error(`Unable to load ${missing
-          .map((name) => `'${name}'`)
-          .join(' and ')} from the current project.
+        throw coded(
+          'HENRI_BOOT_PACKAGES_MISSING',
+          `Unable to load ${missing
+            .map((name) => `'${name}'`)
+            .join(' and ')} from the current project.
 
       Try installing ${missing.length > 1 ? 'them' : 'it'}:
 
         # pnpm add ${missing.join(' ')}
-      `);
+      `
+        );
       }
     } catch (error) {
       // Core may swallow the rejection: make sure the reason is visible
@@ -693,7 +697,8 @@ class InertiaEngine {
       const bundle = InertiaEngine.ssrBundle(this.dir, this.options.ssrEntry);
 
       if (!bundle) {
-        throw new Error(
+        throw coded(
+          'HENRI_VIEW_SSR_FAILED',
           `inertia: server bundle not found in ${path.join(this.dist, 'ssr')}`
         );
       }
@@ -702,7 +707,10 @@ class InertiaEngine {
       const render = mod.render || (mod.default && mod.default.render);
 
       if (typeof render !== 'function') {
-        throw new Error(`inertia: ${bundle} does not export render()`);
+        throw coded(
+          'HENRI_VIEW_SSR_FAILED',
+          `inertia: ${bundle} does not export render()`
+        );
       }
 
       this.ssr = render;

@@ -21,6 +21,7 @@
  * Nothing here ever puts a decrypted value, or the value of a key, in an
  * error message.
  */
+const { fail } = require('./errors');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -75,7 +76,8 @@ function parseKey(raw, source) {
   const text = String(raw === undefined || raw === null ? '' : raw).trim();
 
   if (!/^[0-9a-f]{64}$/i.test(text)) {
-    throw new Error(
+    throw fail(
+      'HENRI_CONFIG_CREDENTIALS_KEY_MALFORMED',
       `The credentials key in ${source} is not 64 hexadecimal characters`
     );
   }
@@ -152,7 +154,10 @@ function decrypt(content, key, env, label = 'the credentials') {
   const parts = String(content).trim().split(':');
 
   if (parts.length !== 5 || parts[0] !== PREFIX || parts[1] !== VERSION) {
-    throw new Error(`${label} is not a henri credentials file`);
+    throw fail(
+      'HENRI_CONFIG_CREDENTIALS_INVALID',
+      `${label} is not a henri credentials file`
+    );
   }
 
   const [, , iv, tag, body] = parts;
@@ -175,7 +180,8 @@ function decrypt(content, key, env, label = 'the credentials') {
   } catch {
     // The cipher fails the same way for a wrong key and for a modified
     // file, and its message says nothing useful: neither is echoed
-    throw new Error(
+    throw fail(
+      'HENRI_CONFIG_CREDENTIALS_KEY_INVALID',
       `${label} could not be decrypted: wrong key, or the file was modified`
     );
   }
@@ -190,7 +196,10 @@ function decrypt(content, key, env, label = 'the credentials') {
     return values;
   } catch {
     // The parser quotes what it choked on, and that is a decrypted secret
-    throw new Error(`${label} does not hold a JSON object`);
+    throw fail(
+      'HENRI_CONFIG_CREDENTIALS_INVALID',
+      `${label} does not hold a JSON object`
+    );
   }
 }
 
@@ -248,7 +257,8 @@ function read(cwd, env, environment = process.env) {
   const found = readKey(cwd, env, environment);
 
   if (!found) {
-    throw new Error(
+    throw fail(
+      'HENRI_CONFIG_CREDENTIALS_KEY_MISSING',
       `${label} needs a key: set ${KEY_VARIABLE}, or put it back in ${path.relative(cwd, keyFileFor(cwd, env))}`
     );
   }

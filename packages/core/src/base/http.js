@@ -3,6 +3,7 @@ const { redactUrl } = require('./redact');
 const { isLoopback } = require('../utils');
 const { recorder } = require('./runtime');
 const { STATUSES } = require('./boom');
+const { coded } = require('./errors');
 
 /**
  * Escape a string for html
@@ -18,16 +19,17 @@ const escape = (value) => escapeHtml(String(value));
  * @param {number} status http status
  * @param {string} title the reason phrase
  * @param {string} [details=''] preformatted details (dev only)
+ * @param {?string} [code=null] the henri error code of the failure
  * @returns {string} html
  */
-const page = (status, title, details = '') => `<!doctype html>
+const page = (status, title, details = '', code = null) => `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>${status} ${escape(title)}</title>
-<style>body{font-family:system-ui,sans-serif;margin:2em;color:#222}pre{white-space:pre-wrap;background:#f6f6f6;padding:1em;overflow:auto}</style>
+<style>body{font-family:system-ui,sans-serif;margin:2em;color:#222}code{color:#666}pre{white-space:pre-wrap;background:#f6f6f6;padding:1em;overflow:auto}</style>
 </head>
 <body><h1>${status} ${escape(title)}</h1>${
-  details ? `<pre>${escape(details)}</pre>` : ''
-}</body>
+  code ? `<p><code>${escape(code)}</code></p>` : ''
+}${details ? `<pre>${escape(details)}</pre>` : ''}</body>
 </html>
 `;
 
@@ -52,11 +54,23 @@ const reason = (status) => {
  * @param {string} message the message
  * @param {object} [extra={}] extra json data (dev only details)
  * @param {string} [details=''] preformatted html details (dev only)
+ * @param {?string} [code=null] the henri error code of the failure
  * @returns {void}
  */
-function negotiate(res, status, message, extra = {}, details = '') {
+function negotiate(
+  res,
+  status,
+  message,
+  extra = {},
+  details = '',
+  code = null
+) {
   const title = reason(status);
   const body = { error: title, message, statusCode: status };
+
+  if (code) {
+    body.code = code;
+  }
 
   if (Object.keys(extra).length > 0) {
     body.data = extra;
@@ -65,12 +79,16 @@ function negotiate(res, status, message, extra = {}, details = '') {
   res.status(status);
 
   return res.format({
-    html: () => res.type('html').send(page(status, title, details)),
+    html: () => res.type('html').send(page(status, title, details, code)),
     json: () => res.json(body),
     // Escaped as well: static analyzers treat every send() as an html sink
     // eslint-disable-next-line sort-keys
     default: () =>
-      res.type('txt').send(escape(`${status} ${title}\n${message}\n`)),
+      res
+        .type('txt')
+        .send(
+          escape(`${status} ${title}\n${code ? `${code}\n` : ''}${message}\n`)
+        ),
   });
 }
 
@@ -127,7 +145,7 @@ function errorHandler(henri) {
     const extra = henri.isDev || henri.isTest ? { stack: err.stack } : {};
     const details = henri.isDev || henri.isTest ? err.stack || err.message : '';
 
-    return negotiate(res, status, message, extra, details);
+    return negotiate(res, status, message, extra, details, coded(err));
   };
 }
 

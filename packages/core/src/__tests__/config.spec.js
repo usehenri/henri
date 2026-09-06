@@ -393,7 +393,7 @@ describe('config from the environment', () => {
       }
 
       expect(thrown).not.toBeNull();
-      expect(thrown.cause.code).toBe('CONFIG_INVALID');
+      expect(thrown.cause.code).toBe('HENRI_CONFIG_INVALID');
       expect(thrown.cause.problems).toHaveLength(1);
       expect(thrown.cause.message).toBe(
         'invalid configuration (1 problem): port'

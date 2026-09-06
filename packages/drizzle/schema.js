@@ -1,5 +1,5 @@
 const TYPES = require('./types');
-const { isPlainObject, snakeCase } = require('./utils');
+const { coded, isPlainObject, snakeCase } = require('./utils');
 
 // Keys of the henri model format understood by this adapter
 const KNOWN_KEYS = new Set([
@@ -84,7 +84,8 @@ const resolveType = (type, field) => {
       return SEQUELIZE_TYPES[type];
     }
 
-    throw new Error(
+    throw coded(
+      'HENRI_MODEL_UNKNOWN_TYPE',
       `Unknown type '${type}' for field '${field}'; use one of ${Object.keys(
         TYPES
       ).join(', ')}`
@@ -100,7 +101,10 @@ const resolveType = (type, field) => {
     return 'json';
   }
 
-  throw new Error(`Unsupported type ${describe(type)} for field '${field}'`);
+  throw coded(
+    'HENRI_MODEL_UNKNOWN_TYPE',
+    `Unsupported type ${describe(type)} for field '${field}'`
+  );
 };
 
 /**
@@ -120,7 +124,10 @@ const normalizeField = (field, definition) => {
     const option = Object.keys(definition).find((key) => KNOWN_KEYS.has(key));
 
     if (option) {
-      throw new Error(`Field '${field}' has '${option}' but no type`);
+      throw coded(
+        'HENRI_MODEL_FIELD_INCOMPLETE',
+        `Field '${field}' has '${option}' but no type`
+      );
     }
 
     // A nested document (`address: { street: String }` or `{}`)
@@ -142,7 +149,8 @@ const normalizeField = (field, definition) => {
     } else if (KNOWN_KEYS.has(key)) {
       normalized[key] = value;
     } else {
-      throw new Error(
+      throw coded(
+        'HENRI_MODEL_INVALID_FIELD',
         `Unknown key '${key}' on field '${field}'; supported keys are ${[
           ...KNOWN_KEYS,
         ].join(', ')}`
@@ -151,7 +159,10 @@ const normalizeField = (field, definition) => {
   }
 
   if ('enum' in normalized && !Array.isArray(normalized.enum)) {
-    throw new Error(`Field '${field}': 'enum' must be an array`);
+    throw coded(
+      'HENRI_MODEL_INVALID_FIELD',
+      `Field '${field}': 'enum' must be an array`
+    );
   }
 
   return normalized;

@@ -48,6 +48,15 @@ expectType<boolean>(henri.config.has('baseRole'));
 
 // pen.fatal() returns an error to throw, it does not throw one
 expectType<Error>(henri.pen.fatal('view', 'unknown renderer'));
+expectType<Error>(
+  henri.pen.fatal(
+    'view',
+    'unknown renderer',
+    null,
+    null,
+    'HENRI_VIEW_UNKNOWN_RENDERER'
+  )
+);
 henri.pen.info('boot', 'ready', 42);
 
 expectType<PublicUser | null>(henri.user.publicUser(req.user));

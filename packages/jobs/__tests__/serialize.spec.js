@@ -78,7 +78,7 @@ describe('serialize', () => {
       thrown = error;
     }
 
-    expect(thrown.code).toBe('BAD_ARGUMENTS');
+    expect(thrown.code).toBe('HENRI_JOB_INVALID_ARGUMENTS');
     expect(thrown.path).toBe('args.user.save');
   });
 

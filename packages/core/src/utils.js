@@ -1,3 +1,4 @@
+const { fail } = require('./base/errors');
 const path = require('path');
 const fs = require('fs');
 const vm = require('vm');
@@ -155,7 +156,7 @@ async function checkPackages(packages = [], inst = global.henri) {
     inst.pen.error('packages', `run: ${command}`);
   }
 
-  throw new Error(message);
+  throw fail('HENRI_BOOT_PACKAGES_MISSING', message);
 }
 
 /**
@@ -296,7 +297,8 @@ function loadModules(location, { keepDirectoryPath = false } = {}) {
     mod.identity = String(mod.identity).toLowerCase();
 
     if (Object.prototype.hasOwnProperty.call(modules, mod.identity)) {
-      throw new Error(
+      throw fail(
+        'HENRI_BOOT_DUPLICATE_IDENTITY',
         `Duplicate module '${mod.identity}' while loading ${dirname} (${file})`
       );
     }

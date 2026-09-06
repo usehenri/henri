@@ -2,7 +2,9 @@
  * The errors `@usehenri/jobs` throws.
  *
  * Every one of them carries a `code`, so an application (or a test) can
- * branch on the reason instead of matching the message.
+ * branch on the reason instead of matching the message. The codes are
+ * henri's own, from the catalogue of `@usehenri/core/error-codes.json`: a
+ * code is a string, so nothing is imported to raise one.
  */
 
 /**
@@ -15,7 +17,7 @@ class JobError extends Error {
   /**
    * Creates an instance of JobError.
    *
-   * @param {string} code A stable code (ex: UNKNOWN_JOB)
+   * @param {string} code A henri error code (ex: HENRI_JOB_UNKNOWN)
    * @param {string} message What went wrong
    * @param {object} [options={}] `cause` and any extra property to carry
    * @memberof JobError
@@ -46,7 +48,7 @@ class JobArgumentError extends JobError {
    * @memberof JobArgumentError
    */
   constructor(message, options = {}) {
-    super('BAD_ARGUMENTS', message, options);
+    super('HENRI_JOB_INVALID_ARGUMENTS', message, options);
     this.name = 'JobArgumentError';
   }
 }
@@ -66,7 +68,7 @@ class JobTimeoutError extends JobError {
    * @memberof JobTimeoutError
    */
   constructor(name, timeout) {
-    super('TIMEOUT', `${name} timed out after ${timeout}ms`);
+    super('HENRI_JOB_TIMEOUT', `${name} timed out after ${timeout}ms`);
     this.name = 'JobTimeoutError';
     this.timeout = timeout;
   }
@@ -87,14 +89,27 @@ class JobStoreError extends JobError {
    * @memberof JobStoreError
    */
   constructor(message, options = {}) {
-    super('UNSUPPORTED_STORE', message, options);
+    super('HENRI_JOB_UNSUPPORTED_STORE', message, options);
     this.name = 'JobStoreError';
   }
 }
+
+/**
+ * An Error carrying one of henri's error codes
+ *
+ * A code is a string and nothing more (`@usehenri/core/error-codes.json` is
+ * the catalogue), so a failure names itself without importing anything.
+ *
+ * @param {string} code The henri error code (HENRI_JOB_UNKNOWN, ...)
+ * @param {string} message What went wrong
+ * @returns {Error} The error to throw
+ */
+const coded = (code, message) => Object.assign(new Error(message), { code });
 
 module.exports = {
   JobArgumentError,
   JobError,
   JobStoreError,
   JobTimeoutError,
+  coded,
 };

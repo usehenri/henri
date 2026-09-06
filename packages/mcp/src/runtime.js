@@ -287,7 +287,7 @@ class Runtime {
 
     if (other && other.production) {
       return {
-        code: 'PRODUCTION',
+        code: 'HENRI_AGENT_PRODUCTION',
         hint: 'Run the application in development (NODE_ENV unset or "dev") to let an agent read it',
         message: `a henri application is answering on port ${other.port} in production: henri mounts no runtime endpoint there, and this server will not start a second application to work around it`,
       };
@@ -295,7 +295,7 @@ class Runtime {
 
     if (other) {
       return {
-        code: 'NO_RUNTIME',
+        code: 'HENRI_AGENT_NO_RUNTIME',
         hint: 'Upgrade @usehenri/core in the application',
         message: `something henri-shaped answers on port ${other.port} but has no ${MOUNT}: it is older than the runtime endpoints`,
       };
@@ -303,7 +303,7 @@ class Runtime {
 
     if (process.env.NODE_ENV === 'production') {
       return {
-        code: 'PRODUCTION',
+        code: 'HENRI_AGENT_PRODUCTION',
         hint: 'Unset NODE_ENV, or set it to dev, and try again',
         message:
           'NODE_ENV is production: this server will not boot a production application to read its database and its logs',
@@ -312,7 +312,7 @@ class Runtime {
 
     if (!this.autostart) {
       return {
-        code: 'NO_SERVER',
+        code: 'HENRI_AGENT_NO_SERVER',
         hint: 'Start it with `henri server`, or unset HENRI_MCP_AUTOSTART',
         message: `no henri development server of ${this.cwd} answers, and HENRI_MCP_AUTOSTART=0 forbids starting one`,
       };
@@ -320,7 +320,7 @@ class Runtime {
 
     if (!fs.existsSync(path.join(this.cwd, 'node_modules'))) {
       return {
-        code: 'NOT_INSTALLED',
+        code: 'HENRI_AGENT_NOT_INSTALLED',
         hint: `Install them: ${this.app.cli.utils.detectPackageManager(this.cwd)} install`,
         message: `the dependencies of ${this.cwd} are not installed, so no application can be started`,
       };
@@ -385,7 +385,7 @@ class Runtime {
 
     return {
       error: {
-        code: 'START_FAILED',
+        code: 'HENRI_AGENT_START_FAILED',
         hint: 'Run `henri server` yourself to see what it says, or `henri doctor`',
         message:
           exited === null
@@ -487,7 +487,7 @@ class Runtime {
     } catch (error) {
       return {
         error: {
-          code: 'UNREACHABLE',
+          code: 'HENRI_AGENT_UNREACHABLE',
           message: `${url} did not answer: ${error.message}`,
         },
         ok: false,
@@ -535,7 +535,7 @@ class Runtime {
     } catch (error) {
       return Object.assign(this.answer(), {
         error: {
-          code: 'UNREACHABLE',
+          code: 'HENRI_AGENT_UNREACHABLE',
           message: `${method} ${url} did not answer: ${error.message}`,
         },
         ok: false,

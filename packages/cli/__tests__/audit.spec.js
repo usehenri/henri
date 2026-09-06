@@ -656,7 +656,7 @@ describe('henri audit', () => {
     expect(failed.stderr).toContain('1 finding at medium or above');
     expect(relaxed.status).toBe(0);
     expect(JSON.parse(json.stderr).error).toMatchObject({
-      code: 'CHECKS_FAILED',
+      code: 'HENRI_CLI_CHECKS_FAILED',
       command: 'audit',
       exitCode: 1,
     });
@@ -667,9 +667,11 @@ describe('henri audit', () => {
     const outside = henri(['audit', '--json'], { cwd: dir });
 
     expect(wrong.status).toBe(2);
-    expect(JSON.parse(wrong.stderr).error.code).toBe('USAGE');
+    expect(JSON.parse(wrong.stderr).error.code).toBe('HENRI_CLI_USAGE');
     expect(outside.status).toBe(3);
-    expect(JSON.parse(outside.stderr).error.code).toBe('NOT_A_PROJECT');
+    expect(JSON.parse(outside.stderr).error.code).toBe(
+      'HENRI_CLI_NOT_A_PROJECT'
+    );
   });
 
   test('says so when the advisories cannot be checked', () => {
