@@ -673,6 +673,114 @@ describe('henri audit', () => {
     );
   });
 
+  test('reports the automatic merge of an identity provider', () => {
+    // The one setting that lets a provider's word about an address be
+    // enough to be handed the account that already holds it
+    const providers = {
+      acme: {
+        authorizationUrl: 'https://acme.test/authorize',
+        clientId: 'a-client',
+        tokenUrl: 'https://acme.test/token',
+        trusted: true,
+        userinfoUrl: 'https://acme.test/userinfo',
+      },
+    };
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      { user: { identities: { merge: 'verified', providers }, model: 'user' } }
+    );
+
+    expect(names).toContain('identities.merge-verified');
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        check: 'identities.merge-verified',
+        file: 'config/production.json',
+        message: expect.stringContaining('acme'),
+        owasp: 'A07:2021 Identification and Authentication Failures',
+        severity: 'high',
+      })
+    );
+
+    // The default refuses, and says nothing
+    expect(
+      withConfig(app, 'config/production.json', {
+        user: { identities: { providers }, model: 'user' },
+      }).names
+    ).not.toContain('identities.merge-verified');
+
+    // ... and a development configuration is where a provider is tried out
+    expect(
+      withConfig(app, 'config/dev.json', {
+        user: { identities: { merge: 'verified', providers }, model: 'user' },
+      }).names
+    ).not.toContain('identities.merge-verified');
+  });
+
+  test('reports a provider client secret written in a configuration file', () => {
+    // The same thing an encryption key in a committed file is: whoever
+    // reads the repository can complete a sign-in as this application
+    const { findings: found, names } = withConfig(app, 'config/default.json', {
+      user: {
+        identities: {
+          allowHttp: true,
+          providers: {
+            acme: {
+              authorizationUrl: 'https://acme.test/authorize',
+              clientId: 'a-client',
+              clientSecret: 'the-secret-itself',
+              tokenUrl: 'https://acme.test/token',
+              userinfoUrl: 'https://acme.test/userinfo',
+            },
+          },
+        },
+        model: 'user',
+      },
+    });
+
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'identities.http-allowed',
+        'secret.identity-client',
+      ])
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V2.10.4',
+        check: 'secret.identity-client',
+        message: expect.stringContaining('acme'),
+        severity: 'high',
+      })
+    );
+    // The finding names the provider, never the secret
+    expect(JSON.stringify(found)).not.toContain('the-secret-itself');
+
+    // A provider whose secret comes from the credentials or the
+    // environment says nothing at all
+    expect(
+      withConfig(app, 'config/default.json', {
+        user: {
+          identities: {
+            providers: {
+              acme: {
+                authorizationUrl: 'https://acme.test/authorize',
+                clientId: 'a-client',
+                tokenUrl: 'https://acme.test/token',
+                userinfoUrl: 'https://acme.test/userinfo',
+              },
+            },
+          },
+          model: 'user',
+        },
+      }).names
+    ).not.toEqual(
+      expect.arrayContaining([
+        'identities.http-allowed',
+        'secret.identity-client',
+      ])
+    );
+  });
+
   test('reports a call log nothing ever sweeps, and only in production', () => {
     // A call log holds what users sent. Its retention is part of the
     // feature, and `keep: false` is the one spelling that takes it away
