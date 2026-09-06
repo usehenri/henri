@@ -26,6 +26,7 @@ const Lockout = require('./base/lockout');
 const accounts = require('./base/accounts');
 const csrf = require('./base/csrf');
 const { csrfConfig } = csrf;
+const { unavailable } = require('./base/shared');
 const SessionStoreProxy = require('./base/session-store');
 
 const SESSION_COOKIE = 'henri.sid';
@@ -663,10 +664,10 @@ class User extends BaseModule {
    * The store the lockout counts in.
    *
    * `config.user.lockout.store` when the application named one, otherwise
-   * whatever `config.rateLimit.store` uses: an application that plugged a
-   * shared store for its rate limits gets a lockout that holds across
-   * processes without saying so twice. Without either, the memory store,
-   * which is per process.
+   * whatever the rate limit counts in -- `config.rateLimit.store`, else the
+   * shared backend of `config.shared` -- so an application that named one
+   * gets a lockout that holds across processes without saying so twice.
+   * Without any of them, the memory store, which is per process.
    *
    * @returns {?object} an express-rate-limit store, or null
    * @memberof User
@@ -859,6 +860,13 @@ class User extends BaseModule {
       try {
         locked = await this.lockout.check(account);
       } catch (error) {
+        // A shared store that could not answer has already decided what
+        // that means (`config.shared.onError`): fail-closed reaches here as
+        // a 503, fail-open never throws at all
+        if (unavailable(error)) {
+          return next(error);
+        }
+
         pen.warn('user', 'lockout store unavailable', error);
       }
 

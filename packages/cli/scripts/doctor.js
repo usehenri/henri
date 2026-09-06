@@ -74,6 +74,60 @@ const PAGE_EXTENSIONS = ['.js', '.jsx'];
 /** Where the credentials of an environment and its key live */
 const CREDENTIALS = path.join('config', 'credentials');
 
+/** How long the shared store gets to answer before it is called unreachable */
+const REACH_TIMEOUT = 3000;
+
+/**
+ * The package `config.shared` needs installed, when it names one.
+ *
+ * A bare adapter name is `@usehenri/<name>`, like a database store; a module
+ * id or a path is the application's own business and nothing to report.
+ *
+ * @param {*} shared The `shared` block of the configuration
+ * @returns {?string} The package name, or null
+ */
+const packageForShared = (shared) => {
+  if (!shared || typeof shared !== 'object' || shared.enabled === false) {
+    return null;
+  }
+
+  const adapter = typeof shared.adapter === 'string' ? shared.adapter : '';
+
+  return /^[a-z][a-z0-9-]*$/.test(adapter) ? `@usehenri/${adapter}` : null;
+};
+
+/**
+ * The backend constructor of a shared store adapter, resolved from the
+ * application the way core resolves it (`base/shared.js`): a bare name is
+ * `@usehenri/<name>` first and itself second, a dotted one is a path.
+ *
+ * @param {string} adapter The `config.shared.adapter` value
+ * @param {string} dir The application directory
+ * @returns {?Function} The constructor, or null when nothing resolves
+ */
+const loadShared = (adapter, dir) => {
+  const ids = /^[a-z][a-z0-9-]*$/.test(adapter)
+    ? [`@usehenri/${adapter}`, adapter]
+    : [adapter.startsWith('.') ? path.resolve(dir, adapter) : adapter];
+
+  for (const id of ids) {
+    try {
+      const loaded = require(
+        require.resolve(id, { paths: [path.resolve(dir)] })
+      );
+      const backend = loaded && loaded.default ? loaded.default : loaded;
+
+      if (typeof backend === 'function') {
+        return backend;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+};
+
 /**
  * The credentials keys of an application, as posix paths relative to it
  *
@@ -657,6 +711,14 @@ const check = (dir = process.cwd()) => {
     needed.add('@usehenri/uploads');
   }
 
+  // And so is the shared store: `config.shared` names an adapter the way a
+  // database store does, and `redis` means `@usehenri/redis`
+  const sharedPackage = packageForShared(config.shared);
+
+  if (sharedPackage) {
+    needed.add(sharedPackage);
+  }
+
   const undeclared = [...needed].filter((name) => !declared[name]);
 
   if (undeclared.length > 0) {
@@ -774,6 +836,70 @@ const print = ({ problems, summary }) => {
 };
 
 /**
+ * Ask the shared store whether it is there.
+ *
+ * The rest of `henri doctor` reads files and starts nothing, and this is the
+ * one exception, on purpose: an application that names `config.shared` has
+ * said its counters live somewhere else, and whether that somewhere answers
+ * is exactly the kind of thing this command is asked. It is one connection
+ * with a three second bound, and `--no-reach` skips it.
+ *
+ * The application is not booted: the adapter is constructed from the block
+ * alone, the way core would, and closed again.
+ *
+ * @param {string} dir The application directory
+ * @param {object} report The report from check()
+ * @returns {Promise<object>} The report, with what it found appended
+ */
+const reach = async (dir, report) => {
+  const shared = (readConfig(dir, undefined) || {}).shared;
+
+  if (!shared || typeof shared !== 'object' || shared.enabled === false) {
+    return report;
+  }
+
+  const adapter = typeof shared.adapter === 'string' ? shared.adapter : '';
+
+  if (adapter === '') {
+    return report;
+  }
+
+  const Backend = loadShared(adapter, dir);
+
+  // Not installed is `deps.declared`, which has already said so: reporting
+  // it twice, in two vocabularies, helps nobody
+  if (!Backend) {
+    return report;
+  }
+
+  let backend = null;
+
+  try {
+    backend = new Backend(
+      Object.assign({ connectTimeout: REACH_TIMEOUT }, shared),
+      null
+    );
+    await backend.start();
+    await backend.ping();
+  } catch (error) {
+    report.problems.push({
+      check: 'shared.unreachable',
+      file: 'config',
+      hint: 'Start it, or fix config.shared. Until it answers, the rate limit, the sign-in lockout and the idempotency keys follow config.shared.onError -- "closed" refuses every guarded request',
+      level: 'warning',
+      message: `the shared store (${adapter}) did not answer: ${error.message}`,
+    });
+    report.summary.warnings = (report.summary.warnings || 0) + 1;
+  } finally {
+    backend &&
+      typeof backend.stop === 'function' &&
+      (await Promise.resolve(backend.stop()).catch(() => false));
+  }
+
+  return report;
+};
+
+/**
  * Check the application in the current directory
  *
  * @param {object} [args] CLI arguments (--json prints the report as JSON)
@@ -784,6 +910,10 @@ const main = async (args = {}) => {
   validInstall({ fatal: true });
 
   const report = check(process.cwd());
+
+  if (args.reach !== false) {
+    await reach(process.cwd(), report);
+  }
 
   if (args.json) {
     console.log(JSON.stringify(report, null, 2));
@@ -802,6 +932,8 @@ const main = async (args = {}) => {
 
 module.exports = main;
 module.exports.check = check;
+module.exports.packageForShared = packageForShared;
+module.exports.reach = reach;
 module.exports.definesAction = definesAction;
 module.exports.definesGraphql = definesGraphql;
 module.exports.ignores = ignores;

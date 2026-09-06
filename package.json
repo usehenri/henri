@@ -24,6 +24,7 @@
     "test:sql:mysql": "HENRI_TEST_SQL_DIALECT=mysql HENRI_TEST_MYSQL_URL=mysql://root:henri@127.0.0.1:${HENRI_MYSQL_PORT:-3306}/henri_test vitest run --project sequelize --project mysql --project postgresql --project mssql --project drizzle --project jobs",
     "test:sql:postgres": "HENRI_TEST_SQL_DIALECT=postgres HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:${HENRI_POSTGRES_PORT:-5432}/henri_test vitest run --project sequelize --project mysql --project postgresql --project mssql --project drizzle --project jobs",
     "test:sql:live": "pnpm test:sql:postgres && pnpm test:sql:mysql",
+    "test:redis": "HENRI_TEST_REDIS_URL=redis://127.0.0.1:${HENRI_REDIS_PORT:-6379} vitest run --project redis",
     "test:showcase": "pnpm --filter @usehenri/showcase test",
     "changeset": "changeset",
     "changeset:version": "changeset version",

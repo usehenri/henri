@@ -31,6 +31,11 @@ const { filterParameters } = require('./redact');
  * `api.idempotency`, `rateLimit`, `rateLimit.auth` and `requestTimeout`
  * accept `false`. The `store` keys name a module (resolved from the
  * application) exporting a store or a `(henri, { name }) => store` factory.
+ *
+ * Without one, the stores come from `henri.shared` when `config.shared`
+ * names a shared backend (`base/shared.js`), and from this process's memory
+ * when it does not -- which is one set of counters per process. A `store`
+ * key still wins over the shared backend, key by key.
  */
 
 /**
@@ -161,29 +166,43 @@ function createApi(henri, user = {}) {
     warned: new Set(),
   };
 
-  api.idempotencyStore =
-    config.idempotency && config.idempotency.store
-      ? loadStore(henri, config.idempotency.store, { name: 'idempotency' })
+  const shared = henri.shared || null;
+
+  /** The shared backend the three counters share, null without one */
+  api.shared = shared;
+
+  if (config.idempotency && config.idempotency.store) {
+    api.idempotencyStore = loadStore(henri, config.idempotency.store, {
+      name: 'idempotency',
+    });
+  } else {
+    api.idempotencyStore = shared
+      ? shared.keyValueStore('idempotency')
       : new MemoryStore();
+  }
 
   /**
-   * An express-rate-limit store for a limiter (`config.rateLimit.store`),
-   * or undefined for the library's memory store
+   * An express-rate-limit store for a limiter: the one
+   * `config.rateLimit.store` names, else the shared backend's, else
+   * undefined for the library's memory store (this process only)
    *
    * @param {string} name the limiter name
    * @returns {?object} a store
    */
-  api.rateLimitStore = (name) =>
-    config.rateLimit && config.rateLimit.store
-      ? loadStore(henri, config.rateLimit.store, { name })
-      : undefined;
+  api.rateLimitStore = (name) => {
+    if (config.rateLimit && config.rateLimit.store) {
+      return loadStore(henri, config.rateLimit.store, { name });
+    }
+
+    return shared ? shared.rateLimitStore(name) : undefined;
+  };
 
   /**
    * Releases the stores and timers
    *
-   * @returns {void}
+   * @returns {Promise<void>} done
    */
-  api.stop = () => {
+  api.stop = async () => {
     const { shutdown } = require('./rate-limit');
 
     api.limiters.splice(0).forEach(shutdown);
@@ -193,7 +212,12 @@ function createApi(henri, user = {}) {
       api.idempotencyStore &&
       typeof api.idempotencyStore.shutdown === 'function'
     ) {
-      api.idempotencyStore.shutdown();
+      await api.idempotencyStore.shutdown();
+    }
+
+    if (shared) {
+      await shared.stop();
+      henri.shared = null;
     }
   };
 

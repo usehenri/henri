@@ -52,6 +52,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                     |
 | `jobs`             |               | Settings of the [job queue](/guides/jobs/), see below; needs `@usehenri/jobs`. The queue also loads when `app/jobs` holds a file.               |
 | `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                               |
+| `shared`           |               | The backend the rate limit, the sign-in lockout and the idempotency keys count in, so two processes share one set, see below.                   |
 | `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                |
 | `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                      |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                            |
@@ -135,6 +136,52 @@ The keys of the [JSON API](/guides/api/), all optional:
 | `rateLimit.windowMs`, `rateLimit.max` | `60000`, `600`                     | The global limit per user or ip. `limit` is accepted as an alias of `max`, the name express-rate-limit 8 uses.       |
 | `rateLimit.auth`                      | `{ "windowMs": 60000, "max": 10 }` | The limit on `POST` to the login and register-style paths (`paths` overrides the list); `false` disables it.         |
 | `rateLimit.store`                     |                                    | Module exporting an express-rate-limit `Store` (or a `(henri, { name }) => store` factory) shared between processes. |
+
+## The `shared` object
+
+Three guards keep a number per key: the rate limit, the [sign-in lockout](#userlockout) and the [idempotency keys](/guides/api/#idempotent-requests). Each accepts a store of its own, and each of them is kept in the process's memory when nothing names one — so an application running two processes silently gets two of everything: a rate limit that is twice what it says, a lockout an attacker escapes by being routed elsewhere, and an idempotency key that stops being idempotent.
+
+`shared` is the one place to say where they are counted instead:
+
+```json
+{
+  "shared": {
+    "adapter": "redis",
+    "url": "redis://127.0.0.1:6379",
+    "prefix": "lineup:",
+    "onError": "closed"
+  }
+}
+```
+
+```bash
+pnpm add @usehenri/redis
+```
+
+| Key       | Default    | Description                                                                                                                                                                   |
+| --------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `adapter` |            | Required. An adapter name — `redis` resolves `@usehenri/redis` from the application — or the module id of a backend of your own.                                              |
+| `url`     |            | Connection string (`redis://`, `rediss://` for TLS). Set it with `HENRI_CONFIG__shared__url`, not in `config/`: it carries a password.                                        |
+| `prefix`  | `"henri:"` | What every key is prefixed with. Two applications sharing one server need one prefix each.                                                                                    |
+| `onError` | `"closed"` | What a guarded request does when the backend does not answer: `closed` refuses it with a `503` and a `Retry-After`, `open` serves it uncounted. The keys are always `closed`. |
+| `enabled` | `true`     | `false` keeps the block and counts in this process again, which is what `HENRI_CONFIG__shared__enabled=false` is for.                                                         |
+
+Anything else in the block reaches the driver, so `db`, `tls`, `password`, `sentinels` and the rest of [ioredis](https://github.com/redis/ioredis)' options work.
+
+The three per-feature keys still work and still win, key by key: `rateLimit.store`, `user.lockout.store` and `api.idempotency.store` name a module of their own for whoever wants one backend for the limiter and another for the keys.
+
+### When the backend is down
+
+It will be, at some point, and the right answer is not the same for all three:
+
+- **the limiter and the lockout follow `onError`.** `closed` is the default: a guard that cannot count is not a guard, so the request is refused with a `503` and a `Retry-After: 1`. A deployment that would rather stay up than stay counted says `open`, which serves the request uncounted.
+- **the idempotency keys are always closed**, whatever `onError` says. Serving a mutating request whose first answer cannot be read is the one thing `Idempotency-Key` exists to prevent, so there is no second answer to offer and no switch pretending there is.
+
+Either way it is said out loud: every fallthrough is logged, at most once every ten seconds per feature so that a long outage does not become the log. A backend that is unreachable at boot does not fail the boot — the driver keeps reconnecting, `GET /readyz` answers `503` with `"shared": { "ok": false }` so the process leaves the load balancer, and the requests meanwhile follow `onError`.
+
+### Sessions stay in the database
+
+`shared` does not touch the sessions. They go through the store adapter (`connect-mongo`, `connect-session-sequelize`, or the drizzle session table), which every process already reads and writes, so they were never one of the counters this closes. Moving them would trade a store that is durable for one that is faster and empties on a restart, and would make signing in depend on Redis being up — a real trade, and one a deployment makes for itself with `express-session`, not one henri makes for it.
 
 ## Headers, logs and limits
 

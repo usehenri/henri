@@ -18,6 +18,7 @@ const { apiVersion, secureHeaders } = require('./base/headers');
 const { paginationMiddleware } = require('./base/pagination');
 const { authLimiter, limiter } = require('./base/rate-limit');
 const { requestId } = require('./base/request-id');
+const { createShared, manyProcesses } = require('./base/shared');
 const requestTimeout = require('./base/timeout');
 const { drain, settings: stopSettings } = require('./base/shutdown');
 const debug = require('debug')('henri:server');
@@ -361,6 +362,23 @@ class Server extends BaseModule {
       config.get('host', true) ||
       (this.henri.isProduction ? '0.0.0.0' : '127.0.0.1');
 
+    // `henri.shared`: the backend the rate limit, the lockout and the
+    // idempotency keys count in, when `config.shared` names one. It is built
+    // before `henri.api`, which hands its stores to all three.
+    this.henri.shared = createShared(this.henri);
+
+    if (this.henri.shared) {
+      const { name, onError } = this.henri.shared;
+      const reached = await this.henri.shared.start();
+
+      this.henri.pen.info(
+        'shared',
+        name,
+        this.henri.shared.describe(),
+        `rate limit, lockout and idempotency${reached ? '' : ' (not reachable yet)'}, fail ${onError}`
+      );
+    }
+
     // `henri.api`: settings of the JSON api and the stores it uses
     const api = (this.henri.api = createApi(
       this.henri,
@@ -509,6 +527,65 @@ class Server extends BaseModule {
   }
 
   /**
+   * Where the counters are kept, for the rate limit line of the boot.
+   *
+   * The boot says it on every application, shared or not, because "counted
+   * in this process" is the whole of the gap `config.shared` closes and a
+   * line that only appears when something is wrong is a line nobody reads.
+   *
+   * @returns {string} `in redis (fail closed)`, or `in this process`
+   * @memberof Server
+   */
+  countedIn() {
+    const { api, shared } = this.henri;
+    const named = api && api.settings.rateLimit && api.settings.rateLimit.store;
+
+    if (named) {
+      return `in ${named}`;
+    }
+
+    return shared
+      ? `in ${shared.name} (fail ${shared.onError})`
+      : 'in this process';
+  }
+
+  /**
+   * Warns when the counters are per process and the environment says this
+   * process is one of several.
+   *
+   * Not on every production boot: a single process is a perfectly good
+   * deployment and a warning that fires on all of them is one people learn
+   * to skip. It fires when something in the environment actually says there
+   * is more than one process -- a cluster worker, a numbered pm2 instance,
+   * `WEB_CONCURRENCY`, a Heroku dyno past the first -- and names it.
+   *
+   * @returns {boolean} whether it warned
+   * @memberof Server
+   */
+  warnUnsharedCounters() {
+    const { api, pen, shared } = this.henri;
+    const named = api && api.settings.rateLimit && api.settings.rateLimit.store;
+
+    if (shared || named) {
+      return false;
+    }
+
+    const evidence = manyProcesses();
+
+    if (!evidence) {
+      return false;
+    }
+
+    pen.warn(
+      'api',
+      `${evidence}, and the rate limit, lockout and idempotency counters are in this process only`,
+      'name a shared backend once with config.shared ({ "adapter": "redis", "url": "..." })'
+    );
+
+    return true;
+  }
+
+  /**
    * Mounts the rate limits (`config.rateLimit`): the authentication
    * endpoints first (10 per minute per ip), then the global limit, counted
    * per user or ip. The global limit is not enforced in development, where
@@ -555,8 +632,10 @@ class Server extends BaseModule {
       'rate limit',
       `${settings.max} requests per ${settings.windowMs / 1000}s per user or ip${
         henri.isDev ? ' (not enforced in development)' : ''
-      }`
+      }, counted ${this.countedIn()}`
     );
+
+    this.warnUnsharedCounters();
 
     if (henri.isProduction && app.get('trust proxy') === true) {
       pen.warn(
@@ -795,7 +874,7 @@ class Server extends BaseModule {
     }
 
     if (this.henri.api && typeof this.henri.api.stop === 'function') {
-      this.henri.api.stop();
+      await this.henri.api.stop();
     }
 
     if (this.httpServer && this.httpServer.listening) {

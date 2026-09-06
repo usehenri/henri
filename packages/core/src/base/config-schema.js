@@ -323,7 +323,7 @@ const SCHEMA = {
                   store: {
                     describe:
                       'the module id of an express-rate-limit store, or of a (henri, { name }) => store factory',
-                    hint: 'defaults to rateLimit.store; without one the count is per process',
+                    hint: 'defaults to rateLimit.store, then to config.shared; without any the count is per process',
                     oneOf: [{ const: null }, text()],
                   },
                   windowMs: positive({
@@ -689,6 +689,7 @@ const SCHEMA = {
               store: {
                 describe:
                   'the module id of a shared { get, set, delete } store',
+                hint: 'defaults to config.shared; without one the keys are per process',
                 oneOf: [{ const: null }, text()],
               },
               ttl: positive({
@@ -859,6 +860,7 @@ const SCHEMA = {
           store: {
             describe:
               'the module id of an express-rate-limit store, or of a (henri, { name }) => store factory',
+            hint: 'defaults to config.shared; without one the count is per process',
             oneOf: [{ const: null }, text()],
           },
           windowMs: positive({ default: 60000 }),
@@ -866,6 +868,43 @@ const SCHEMA = {
         type: 'object',
       },
     ],
+  },
+
+  shared: {
+    describe:
+      'an object naming the backend the counters share ({ adapter, url, prefix, onError })',
+    hint: 'The rate limit, the lockout and the idempotency keys count there instead of in this process',
+    keys: {
+      adapter: {
+        describe: "an adapter name ('redis'), or the module id of a backend",
+        hint: 'A name resolves @usehenri/<name> from the application: pnpm add @usehenri/redis',
+        required: true,
+        type: 'string',
+      },
+      enabled: {
+        default: true,
+        describe: 'true or false',
+        hint: 'false keeps the block and counts in this process again',
+        type: 'boolean',
+      },
+      onError: {
+        default: 'closed',
+        describe: 'one of closed, open',
+        enum: ['closed', 'open'],
+        hint: 'closed refuses a guarded request the backend cannot count (503); open serves it uncounted. The idempotency keys are always closed',
+        type: 'string',
+      },
+      prefix: text({
+        default: 'henri:',
+        describe: 'a key prefix',
+        hint: 'Two applications sharing one server need one prefix each',
+      }),
+      url: text({ describe: 'a connection string (redis://, rediss://)' }),
+    },
+    // Everything else reaches the driver (ioredis takes `tls`, `db`,
+    // `password`, `sentinels`, ...), so only a misspelling is worth a word
+    type: 'object',
+    unknown: 'near',
   },
 
   helmet: {

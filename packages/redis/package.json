@@ -1,0 +1,50 @@
+{
+  "name": "@usehenri/redis",
+  "version": "1.1.0",
+  "description": "henri shared store: the rate limit, the sign-in lockout and the idempotency keys counted in Redis instead of one process",
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/redis"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "keywords": [
+    "henri",
+    "redis",
+    "rate-limit",
+    "idempotency",
+    "lockout",
+    "shared"
+  ],
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "src",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "debug": "^4.4.3",
+    "rate-limit-redis": "^6.0.1",
+    "redis": "^6.2.1"
+  },
+  "peerDependencies": {
+    "@usehenri/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@usehenri/core": "workspace:^",
+    "express": "^5.2.1",
+    "supertest": "^7.2.2"
+  }
+}

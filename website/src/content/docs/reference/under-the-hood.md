@@ -180,6 +180,8 @@ and somebody else use it. The module file does not have to be in the package's
 package must let `require.resolve` reach its `package.json`, which is the
 default.
 
+Not every package is a module. A store adapter (`@usehenri/disk`, `@usehenri/drizzle`), a view engine (`@usehenri/inertia`) and the shared store of [`config.shared`](/configuration/#the-shared-object) (`@usehenri/redis`) are named by the configuration and resolved from the application with `utils.resolveFrom` instead, because a module has one slot in the graph and these have to be there before the module that uses them: the counters of `config.shared` are needed by the server at runlevel 2 and by the sign-in lockout at 4.
+
 ### Where it goes: anything else
 
 `config/modules.js` adds modules the two conventions above do not cover: one

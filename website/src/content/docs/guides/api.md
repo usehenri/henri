@@ -109,7 +109,11 @@ Clients retrying a `POST`, `PUT`, `PATCH` or `DELETE` send an `Idempotency-Key` 
 | Same key, different method, path or body        | `422`                                                  |
 | First answer was a `5xx` or the request aborted | Nothing stored, the client may retry                   |
 
-Keys are scoped to the user, the session or the ip, so two users may use the same key. Every mutating route from `config/routes.js` honours the header; `idempotent: false` on a route opts it out, and core's `/login` and `/logout` are never covered. The answers live in memory by default: give `config.api.idempotency.store` the name of a module exporting `{ get, set, delete }` (or a `(henri, { name }) => store` factory) to share them between processes, or set `henri.api.idempotencyStore` from a custom module. `config.api.idempotency: false` turns the feature off.
+Keys are scoped to the user, the session or the ip, so two users may use the same key. Every mutating route from `config/routes.js` honours the header; `idempotent: false` on a route opts it out, and core's `/login` and `/logout` are never covered. `config.api.idempotency: false` turns the feature off.
+
+The answers live in this process's memory unless the application says otherwise, which stops being idempotent the moment it runs two processes: [`config.shared`](/configuration/#the-shared-object) names one backend for these keys, the rate limit and the sign-in lockout at once. `config.api.idempotency.store` still names a module of its own (exporting `{ get, set, delete }`, or a `(henri, { name }) => store` factory) and still wins over it, and `henri.api.idempotencyStore` can be replaced after the boot.
+
+A shared store that does not answer is the one case where the request is always refused — `503` with a `Retry-After`, whatever `shared.onError` says. Serving a mutating request whose first answer cannot be read is what the header exists to prevent.
 
 ## Rate limiting
 
@@ -119,7 +123,16 @@ Requests are limited with [express-rate-limit](https://github.com/express-rate-l
 - Authentication: `config.rateLimit.auth`, 10 `POST` per minute per ip on the login path and on `/register`, `/signup`, `/password`, `/forgot-password` and `/reset-password` (`paths` overrides the list).
 - Per route: `rateLimit: { windowMs, max }` in `config/routes.js`, always enforced.
 
-`config.rateLimit: false` disables everything, `auth: false` only the authentication limiter. `config.rateLimit.store` names a module exporting an express-rate-limit `Store` (Redis, Memcached, ...) for several processes; in production a warning is logged when `trust proxy` is `true`, because a spoofed `X-Forwarded-For` then chooses the bucket.
+`config.rateLimit: false` disables everything, `auth: false` only the authentication limiter. In production a warning is logged when `trust proxy` is `true`, because a spoofed `X-Forwarded-For` then chooses the bucket.
+
+The counters are kept in this process unless the application says where else, which means a limit of 600 is really 600 per process: [`config.shared`](/configuration/#the-shared-object) names one backend for the limiter, the sign-in lockout and the idempotency keys at once (`pnpm add @usehenri/redis`), and `config.rateLimit.store` still names an express-rate-limit `Store` of its own and still wins over it. The boot line says which it is:
+
+```text
+info  api  rate limit  600 requests per 60s per user or ip, counted in redis (fail closed)
+info  api  rate limit  600 requests per 60s per user or ip, counted in this process
+```
+
+When the shared store does not answer, `shared.onError` decides: `closed` (the default) refuses the request with a `503` and a `Retry-After`, `open` serves it uncounted. Either way it is logged, at most once every ten seconds.
 
 ## Request ids, headers and logs
 
@@ -159,11 +172,14 @@ Liveness and readiness are different questions with opposite consequences — a 
 {
   "status": "ok",
   "stores": { "default": { "adapter": "disk", "ok": true, "latency": 2 } },
+  "shared": { "adapter": "redis", "ok": true, "latency": 1 },
   "uptime": 42
 }
 ```
 
-A `503` says `"status": "unavailable"` and a `reason` (`starting`, `shutting down`, `a store did not answer`); a store that failed is `{ "adapter": "disk", "ok": false, "error": "timeout" }` — `timeout` or `unreachable`, never the driver's own message, which carries the connection string it could not reach. The message is in the log.
+A `503` says `"status": "unavailable"` and a `reason` (`starting`, `shutting down`, `a store did not answer`, `the shared store did not answer`); a store that failed is `{ "adapter": "disk", "ok": false, "error": "timeout" }` — `timeout` or `unreachable`, never the driver's own message, which carries the connection string it could not reach. The message is in the log.
+
+`shared` only appears when [`config.shared`](/configuration/#the-shared-object) names one. A process whose counters cannot be counted is not ready either: with the default `onError: "closed"` it refuses every rate limited or idempotent request, so it should leave the load balancer until the store is back.
 
 All four run before the session and the limiters — and before the router, so an application route on one of those paths never sees the request — unauthenticated, so a load balancer can call them freely: it has no credentials.
 

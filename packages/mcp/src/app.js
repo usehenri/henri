@@ -489,6 +489,11 @@ class App {
   async doctor() {
     const { utils } = this.cli;
     const report = this.cli.doctor.check(this.cwd);
+
+    // The one check that opens a connection: whether the shared store of
+    // `config.shared` answers. `henri doctor` runs it too.
+    await this.cli.doctor.reach(this.cwd, report);
+
     const config = utils.readConfig(this.cwd, undefined);
     const core = utils.resolvePackageJson('@usehenri/core', this.cwd);
     const port = Number(config.port) || 3000;

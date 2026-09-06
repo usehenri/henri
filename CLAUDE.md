@@ -74,6 +74,7 @@ an app and is what core's tests boot.
 | `packages/jobs`                         | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1; ships its own module, left core in 1.2                                      |
 | `packages/graphql`                      | `@usehenri/graphql`   | GraphQL: the models' types and resolvers merged and served by Apollo Server; left core in 1.2                                                                                                         |
 | `packages/uploads`                      | `@usehenri/uploads`   | File uploads: bounded multipart parsing (busboy), files typed by their bytes and a storage seam; ships its own module, new in 1.2                                                                     |
+| `packages/redis`                        | `@usehenri/redis`     | The shared store of `config.shared`: the rate limit, the sign-in lockout and the idempotency keys counted in Redis instead of one process                                                             |
 | `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                                                     |
 | `packages/mcp`                          | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                                                  |
 | `packages/websocket`                    | private               | Not published, never wired into core                                                                                                                                                                  |
@@ -180,6 +181,19 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   that it can serve -- the stores answered, the boot is done and no shutdown
   has started. `resources`/`crud` routes answering JSON without `_links`
   are reported (refused with `config.api.strict`).
+- The three counters that only worked with one process -- the rate limit, the
+  sign-in lockout (`base/lockout.js`) and the idempotency keys -- share one
+  backend through `config.shared` (`base/shared.js`, `henri.shared`). The
+  adapter is resolved from the application like a store adapter
+  (`redis` -> `@usehenri/redis`), `2.server.js` builds it before
+  `createApi()` hands its stores to all three, and `config.rateLimit.store`,
+  `config.user.lockout.store` and `config.api.idempotency.store` still win
+  key by key. `SharedStore` is where the failure policy lives:
+  `shared.onError` is `closed` (a `SharedStoreError` carrying a 503 and a
+  `Retry-After`, answered by `base/http.js`) or `open` (the request is served
+  uncounted), and the idempotency keys are always closed. `/readyz` pings it,
+  `henri doctor` reports it unreachable, and the boot line of the rate limit
+  says where the counting happens.
 - `SIGINT` and `SIGTERM` drain before they stop (`base/shutdown.js`,
   `2.server.js`): readiness turns 503, `config.shutdown.delay` passes, the
   listener closes and the idle keep-alives are hung up, the requests in
@@ -462,6 +476,15 @@ the LICENSE and a README into every public package at publish time
   and the guide says why. No S3 storage ships, only the local disk.
 - The idempotency and rate-limit stores are in memory unless the app plugs a
   shared store (`config.api.idempotency.store`, `config.rateLimit.store`).
+- The rate limit, lockout and idempotency counters are in the process memory
+  unless the application names a backend: `config.shared` names one for all
+  three (`@usehenri/redis`), and `config.rateLimit.store`,
+  `config.user.lockout.store` and `config.api.idempotency.store` still name
+  one each. henri cannot tell how many processes run, so the boot says which
+  it is and only warns when the environment says there is more than one.
+  `@usehenri/redis` is exercised offline (the wiring, the option split, the
+  fail-fast) and against a live server with `HENRI_TEST_REDIS_URL`
+  (`pnpm test:redis`, the `Live Redis` job of the CI).
 - `@usehenri/jobs` is new in 1.1. Its claim is covered against sqlite,
   PostgreSQL, MySQL and MongoDB (`packages/jobs/__tests__/claim.spec.js`,
   `mongo.spec.js`; `pnpm test:sql:live` runs the SQL ones on real servers with
