@@ -5,7 +5,7 @@ sidebar:
   order: 7
 ---
 
-Add a `graphql` key to a model and its types and resolvers are loaded, merged with every other model's and served by Apollo Server at `/_henri/gql` (change the path with the `graphql` configuration key). Introspection is on outside production.
+Add a `graphql` key to a model and its types and resolvers are loaded, merged with every other model's and served by Apollo Server at `/_henri/gql` (change the path with the `graphql` configuration key). Introspection is on outside production. No model declaring `graphql` means no endpoint at all: this is opt-in.
 
 ## Definition
 
@@ -93,3 +93,47 @@ module.exports = {
 ```
 
 The query result becomes the `data` prop of the page and `errors` holds the GraphQL errors, if any. The page also receives `graphql.endpoint` and `graphql.query`, so the client can rerun the same query later.
+
+## Bounding the endpoint
+
+A rate limit caps how many requests arrive. It says nothing about what one request costs, and one GraphQL request can cost arbitrarily much: a hundred aliases of the same expensive field, a fragment spread a thousand times, or a walk down a cycle your schema happens to contain. Four bounds are enforced before a single resolver runs, and a query past any of them is refused as a validation error.
+
+| Key             | Default | Refuses                                                                                               |
+| --------------- | ------- | ----------------------------------------------------------------------------------------------------- |
+| `maxAliases`    | `15`    | Alias amplification. This is the universal one: it needs no cycle and no deep schema.                 |
+| `maxComplexity` | `1000`  | Queries selecting more fields than this in total, fragments expanded — what a fragment bomb inflates. |
+| `maxDepth`      | `10`    | Nesting. Only reachable when your own schema offers somewhere deep to go.                             |
+| `maxTokens`     | `5000`  | Documents this large, before they are parsed.                                                         |
+
+Set any of them to `false` to lift it. The endpoint also has Apollo's own CSRF prevention on, so a `POST` must be `application/json` or carry `apollo-require-preflight`: a plain form on another site cannot reach it.
+
+graphql 16 cannot cancel an execution that has started, so henri does the next best thing: every field checks first, and a query whose client disconnected or whose request already timed out (`config.requestTimeout`) stops at the next field instead of running to completion for nobody.
+
+## Guarding the endpoint
+
+The endpoint is open to anyone who can reach it unless you say otherwise. Your resolvers receive `{ req, res }` and can check `req.user` themselves, which is the right place for per-field rules; `config.graphql` guards the whole endpoint:
+
+```json
+{
+  "graphql": {
+    "endpoint": "/_henri/gql",
+    "authenticated": true,
+    "roles": ["admin"],
+    "loopbackOnly": false,
+    "introspection": false,
+    "maxDepth": 10,
+    "maxAliases": 15,
+    "maxComplexity": 1000,
+    "maxTokens": 5000
+  }
+}
+```
+
+- `authenticated`: anonymous requests get `401`.
+- `roles`: a signed-in user missing any of them gets `403`. Asking for a role implies `authenticated`.
+- `loopbackOnly`: anything but the loopback interface gets `404`, the way `/_routes` and `/_mailers` behave. Useful when the endpoint is a development tool rather than an API.
+- `introspection`: on outside production by default.
+
+`"graphql": "/path"` still means what it always did: the endpoint path, with every default above.
+
+Queries run from a controller with `res.render({ graphql })` or `henri.graphql.run()` go through the same limits, and past no guard — they are your code, not a request.

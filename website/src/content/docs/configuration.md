@@ -43,8 +43,8 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                     |
 | `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                               |
 | `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.          |
-| `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf).                                                                                   |
-| `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                                                 |
+| `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf); an object configures the origin check, below.                                     |
+| `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint, or an object with its limits and access rules, below. See [GraphQL](/guides/graphql/).                           |
 | `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                             |
 | `mailers`          |               | Defaults of the [mailers](/guides/mail/): `from`, `layout` and `previews`, see below.                                                          |
 | `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                    |
@@ -276,12 +276,64 @@ Every duration is a number of milliseconds or a string: `'250ms'`, `'30s'`, `'5m
     "public": ["name", "avatar"],
     "loginPath": "/login",
     "afterLogin": "/",
-    "sessionMaxAge": 2592000000
+    "sessionMaxAge": 2592000000,
+    "password": { "minLength": 12 },
+    "lockout": { "max": 10, "windowMs": 900000 }
   }
 }
 ```
 
 `public` lists the fields, besides `externalId`, `email` and `roles`, that views and JSON answers may see; `loginPath` is where browsers are sent when a route denies them; `afterLogin` where they land after a form login; `sessionMaxAge` the session lifetime in milliseconds (30 days). See [Users](/guides/users/).
+
+### `user.password`
+
+How passwords are checked and hashed. See [Passwords](/guides/users/#passwords).
+
+| Key                     | Default | Description                                                                                                                                                |
+| ----------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `password.minLength`    | `12`    | Shortest password accepted. Never below `8`. Checked when a password is set, never when one is verified.                                                   |
+| `password.maxBytes`     | `72`    | Longest, in bytes: bcrypt ignores everything past 72 and henri will not truncate silently.                                                                 |
+| `password.algorithm`    | `auto`  | `auto` (argon2id when `@node-rs/argon2` resolves, bcrypt otherwise), `argon2id` (fails the boot when it does not) or `bcrypt`.                             |
+| `password.bcryptRounds` | `12`    | bcrypt work factor. Never below `10`.                                                                                                                      |
+| `password.memoryCost`   | `19456` | argon2id memory in kibibytes.                                                                                                                              |
+| `password.timeCost`     | `2`     | argon2id iterations.                                                                                                                                       |
+| `password.parallelism`  | `1`     | argon2id lanes.                                                                                                                                            |
+| `password.pepper`       | off     | A server-side key mixed into every hash, its own, never `config.secret`. `HENRI_PASSWORD_PEPPER` sets it. **Losing it makes every password unverifiable.** |
+
+### `user.lockout`
+
+The per-account sign-in lockout; `false` turns it off. See [Sign-in lockout](/guides/users/#sign-in-lockout).
+
+| Key                | Default  | Description                                                                                 |
+| ------------------ | -------- | ------------------------------------------------------------------------------------------- |
+| `lockout.max`      | `10`     | Failed attempts one account may receive per window, whoever sends them.                     |
+| `lockout.windowMs` | `900000` | The window, 15 minutes.                                                                     |
+| `lockout.store`    | memory   | An express-rate-limit store shared between processes; in memory and per process by default. |
+
+## The `csrf` object
+
+`csrf` is `true`, `false` (no protection at all) or an object. See [CSRF](/guides/users/#csrf).
+
+| Key                   | Default              | Description                                                                                                                            |
+| --------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `csrf.origin`         | `true`               | Verify `Sec-Fetch-Site` and `Origin` alongside the token. `false` keeps the token check alone.                                         |
+| `csrf.trustedOrigins` | `config.cors.origin` | Other origins allowed to send an unsafe request with a session cookie. Whatever `cors` already allows is trusted without repeating it. |
+
+## The `graphql` object
+
+`graphql` is the endpoint path, or an object. See [GraphQL](/guides/graphql/#guarding-the-endpoint).
+
+| Key                     | Default       | Description                                                                    |
+| ----------------------- | ------------- | ------------------------------------------------------------------------------ |
+| `graphql.endpoint`      | `/_henri/gql` | Path of the endpoint.                                                          |
+| `graphql.authenticated` | `false`       | Anonymous requests get `401`.                                                  |
+| `graphql.roles`         | `[]`          | Roles required; missing one is `403`. Implies `authenticated`.                 |
+| `graphql.loopbackOnly`  | `false`       | Anything but the loopback interface gets `404`.                                |
+| `graphql.introspection` | outside prod  | Schema introspection.                                                          |
+| `graphql.maxAliases`    | `15`          | Most aliases one query may use; `false` lifts the limit.                       |
+| `graphql.maxComplexity` | `1000`        | Most fields one query may select, fragments expanded; `false` lifts the limit. |
+| `graphql.maxDepth`      | `10`          | Deepest query accepted; `false` lifts the limit.                               |
+| `graphql.maxTokens`     | `5000`        | Most tokens one document may hold; `false` lifts the limit.                    |
 
 ## Validation
 
