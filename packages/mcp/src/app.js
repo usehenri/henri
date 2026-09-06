@@ -246,6 +246,7 @@ class App {
       audit: require(path.join(this.cliDir, 'scripts', 'audit')),
       doctor: require(path.join(this.cliDir, 'scripts', 'doctor')),
       help: require(path.join(this.cliDir, 'scripts', 'help')),
+      openapi: require(path.join(this.cliDir, 'scripts', 'openapi')),
       routing: require(path.join(this.cliDir, 'scripts', 'routing')),
       utils: require(path.join(this.cliDir, 'scripts', 'utils')),
       version: require(path.join(this.cliDir, 'package.json')).version,
@@ -335,6 +336,16 @@ class App {
    */
   routes() {
     return this.cli.routing.expand(this.cli.utils.readRoutes(this.cwd));
+  }
+
+  /**
+   * The OpenAPI 3.1 description of what the application exposes, built from
+   * the routes, the models and the configuration without starting anything
+   *
+   * @returns {object} The document
+   */
+  openapi() {
+    return this.cli.openapi.describe(this.cwd);
   }
 
   /**

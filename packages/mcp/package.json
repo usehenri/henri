@@ -43,5 +43,8 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@usehenri/cli": "workspace:^",
     "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@seriousme/openapi-schema-validator": "^2.9.1"
   }
 }

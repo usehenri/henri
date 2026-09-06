@@ -7,7 +7,7 @@
     },
     {
       "area": "api",
-      "what": "the JSON API layer: HAL answers, the health endpoint and the optional GraphQL engine"
+      "what": "the JSON API layer: HAL answers, the health endpoints, the OpenAPI description of what an application exposes and the optional GraphQL engine"
     },
     {
       "area": "boot",
@@ -141,6 +141,17 @@
       "code": "HENRI_AGENT_UNREACHABLE",
       "fix": "Check that the development server is still running, and read its output: a boot that failed halfway leaves the port closed.",
       "what": "The running application did not answer."
+    },
+    {
+      "area": "api",
+      "causes": [
+        "the directory of `--out` does not exist and could not be created",
+        "the file or its directory is not writable",
+        "the path names a directory"
+      ],
+      "code": "HENRI_API_DESCRIPTION_UNWRITABLE",
+      "fix": "Check the path and the permissions of the directory, or print the document to stdout instead: `henri openapi > openapi.json`.",
+      "what": "The OpenAPI description of the application could not be written where `henri openapi --out` was told to put it."
     },
     {
       "area": "api",

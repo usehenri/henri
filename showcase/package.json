@@ -40,7 +40,10 @@
     "vite": "^8.2.2"
   },
   "devDependencies": {
+    "@seriousme/openapi-schema-validator": "^2.9.1",
     "@usehenri/testing": "workspace:^",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "vitest": "^5.0.0"
   }
 }

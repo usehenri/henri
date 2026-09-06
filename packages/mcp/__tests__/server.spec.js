@@ -287,6 +287,7 @@ describe('henri mcp', () => {
       'lint',
       'logs',
       'models',
+      'openapi',
       'query',
       'records',
       'request',
@@ -311,6 +312,25 @@ describe('henri mcp', () => {
       'henri://routes',
       'henri://runtime',
     ]);
+  });
+
+  test('openapi: a valid 3.1 description of what the application exposes', async () => {
+    const { isError, structuredContent } = await call(client, 'openapi');
+    const { Validator } = await import('@seriousme/openapi-schema-validator');
+
+    expect(isError).toBe(false);
+    expect(structuredContent.openapi).toBe('3.1.0');
+    expect(await new Validator().validate(structuredContent)).toEqual({
+      valid: true,
+    });
+    expect(structuredContent.paths['/tasks'].get['x-henri']).toMatchObject({
+      answer: 'collection',
+      controller: 'tasks',
+      known: true,
+      model: 'Task',
+    });
+    // The scaffold has no user model, so henri mounts no session endpoints
+    expect(structuredContent.paths['/livez'].get).toBeDefined();
   });
 
   test('routes: the expanded table of config/routes.js', async () => {

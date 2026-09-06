@@ -65,6 +65,7 @@
     "jobs",
     "mcp",
     "new",
+    "openapi",
     "privacy",
     "routes",
     "s",
@@ -72,6 +73,7 @@
     "test"
   ],
   "devDependencies": {
-    "@babel/parser": "^8.0.4"
+    "@babel/parser": "^8.0.4",
+    "@seriousme/openapi-schema-validator": "^2.9.1"
   }
 }
