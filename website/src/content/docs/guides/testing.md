@@ -28,9 +28,11 @@ module.exports = defineConfig({
 
 Booting through the setup file also binds every server the suite starts to `127.0.0.1`. Without that, a server started with a port but no host takes the IPv6 wildcard, another process can hold the same port on the loopback address, and a request is answered by whichever of the two the kernel prefers. The symptoms look like anything but a port problem: a `404` on a route that exists, a missing header, an empty body, a hung socket. Booting henri another way, apply it yourself with `setupFiles: ['@usehenri/testing/loopback']`.
 
-The setup file boots henri before each test file and stops it after, so `henri` and the models are globals in your tests exactly like in the application, and `request()` hits the in-process server. Each file gets a fresh boot: with the disk adapter that is an empty in-memory database. `fileParallelism: false` keeps one server and one database at a time; `globals: true` gives you `describe`, `test`, `expect` and `vi` without imports.
+The setup file boots henri before each test file and stops it after, so `henri` and the models are globals in your tests exactly like in the application, and `request()` hits the in-process server. Each file gets a fresh boot, and with it a fresh database: an empty `:memory:` one on the sqlite store `henri new` writes, an empty in-process MongoDB on the disk adapter. `fileParallelism: false` keeps one server and one database at a time; `globals: true` gives you `describe`, `test`, `expect` and `vi` without imports.
 
 Under `NODE_ENV=test`, henri loads `config/test.json` (falling back to `default.json`), lets the kernel assign it a port (`config.port` is ignored, so two suites never fight over one), skips the workers, keeps the disk adapter in memory, uses nodemailer's JSON transport and stays quiet in the console.
+
+`henri new` writes that `config/test.json` when the store needs a database of its own: the same configuration as `config/default.json`, pointed somewhere else. On the default drizzle store on sqlite that is `":memory:"` instead of the file under `.henri/`, so a run starts from an empty schema and never touches the development data; on a server it is `<name>_test`, which you create once. The disk adapter gets no such file, because every boot already starts a MongoDB of its own.
 
 ## Writing tests
 

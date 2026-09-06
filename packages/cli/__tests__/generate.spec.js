@@ -98,7 +98,10 @@ const fakeReq = (body = {}, params = {}) => ({
 });
 
 /**
- * A fake model with the mongoose methods the controllers use
+ * A fake model with the drizzle methods the controllers use, the store a
+ * scaffolded application has. `findById()` answers null for an id the
+ * store cannot hold, so there is no cast error to guard here; the mongoose
+ * and sequelize flavours are exercised in adapters.spec.js.
  *
  * @returns {object} The model and the calls it received
  */
@@ -112,45 +115,33 @@ const fakeModel = () => {
 
     return error;
   };
-  const cast = () => {
-    const error = new Error('Cast to ObjectId failed');
 
-    error.name = 'CastError';
-
-    return error;
-  };
-
-  // A document with the mongoose methods the controllers call on it; the
-  // methods are hidden so the document still compares to its attributes
-  const document = (attributes) => {
-    const doc = { ...attributes };
+  // A row with the model methods the controllers call on it; the methods
+  // are hidden so the row still compares to its attributes
+  const record = (attributes) => {
+    const row = { ...attributes };
     const hidden = {
-      deleteOne: async () => {
-        calls.deleted = doc.id;
+      destroy: async () => {
+        calls.deleted = row.id;
 
-        return { deletedCount: 1 };
+        return row;
       },
-      save: async () => {
-        if (!doc.title && !doc.name) {
+      update: async (data) => {
+        if (data.title === '' || data.name === '') {
           throw validation();
         }
-        calls.saved = doc.id;
-
-        return doc;
-      },
-      set: (data) => {
         calls.update = data;
-        Object.assign(doc, data);
+        Object.assign(row, data);
 
-        return doc;
+        return row;
       },
     };
 
     for (const [name, value] of Object.entries(hidden)) {
-      Object.defineProperty(doc, name, { enumerable: false, value });
+      Object.defineProperty(row, name, { enumerable: false, value });
     }
 
-    return doc;
+    return row;
   };
 
   const rows = [{ id: '1', title: 'one' }];
@@ -166,13 +157,8 @@ const fakeModel = () => {
 
         return { id: '2', ...data };
       },
-      findById: async (id) => {
-        if (id === 'bad') {
-          throw cast();
-        }
-
-        return id === '1' ? document({ id: '1', title: 'one' }) : null;
-      },
+      findById: async (id) =>
+        id === '1' ? record({ id: '1', title: 'one' }) : null,
       // The same shape on every adapter, whatever req.pagination() holds
       paginate: async (options) => {
         calls.paginate = options;
@@ -828,8 +814,8 @@ describe('henri generate', () => {
           res
         );
 
+        // One call: the drizzle row updates itself
         expect(fake.calls.update).toEqual({ title: 'new' });
-        expect(fake.calls.saved).toBe('1');
         expect(res.calls).toEqual([
           ['resource', 200, { id: '1', title: 'new' }],
         ]);

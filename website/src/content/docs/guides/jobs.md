@@ -297,7 +297,7 @@ henri jobs:install         # creates the tables and the indexes; idempotent
 
 The tables are also created when the application boots with a queue, so development needs nothing. In production, where the application may not be allowed to create tables, run `henri jobs:install` once as part of the deploy and set `"install": false` so the boot stops trying.
 
-Every adapter is supported: `postgresql`, `mysql`, `mssql`, `drizzle` (sqlite, postgres, mysql), `mongoose` and `disk`. MongoDB claims one document at a time with `findOneAndUpdate`, which is atomic on a standalone `mongod` as much as on a replica set, so the guarantee holds there too — at the cost of one round trip per job instead of one per batch.
+Every adapter is supported: `drizzle` (sqlite, postgres, mysql), `postgresql`, `mysql`, `mariadb`, `mssql`, `mongoose` and `disk`. MongoDB claims one document at a time with `findOneAndUpdate`, which is atomic on a standalone `mongod` as much as on a replica set, so the guarantee holds there too — at the cost of one round trip per job instead of one per batch.
 
 ## Jobs or workers?
 

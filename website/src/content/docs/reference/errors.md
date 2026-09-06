@@ -1071,6 +1071,19 @@ Usually:
 
 **Fix.** The message names the field and what it holds. See the Models guide for the keys a field takes: `type`, `required`, `default`, `enum`, `unique`, `index`.
 
+### `HENRI_MODEL_INVALID_QUERY`
+
+A model call means something other than what it was written to mean, so henri refuses it instead of running it.
+
+Usually:
+
+- a call written for another ORM: `Model.update(values, { where })`, whose arguments are the other way around here
+- a condition keyed by Sequelize's `Op` symbols, which this adapter cannot read
+- an empty condition object under a field, which would match every row
+- `instance.get({ plain: true })`, which reads as an attribute named by an object
+
+**Fix.** The message names what the call reads as and what to write instead. `Model.update()` takes the condition first and the attributes second; the operators are the ones the Models guide lists (`like`, `in`, `gt`, ...); `toObject()` is the whole record as a plain object.
+
 ### `HENRI_MODEL_NO_STORE`
 
 A model has no store and there is no default one.
@@ -1081,6 +1094,17 @@ Usually:
 - the model was written before the store was configured
 
 **Fix.** Configure `stores.default`, or give the model a `store` naming one of the stores that exist.
+
+### `HENRI_MODEL_UNKNOWN_OPTION`
+
+A model call, or the `options` of a model file, holds a key the adapter does not read.
+
+Usually:
+
+- an option another ORM had: `attributes`, `fields`, `raw`, `transaction`, `individualHooks`
+- a model file declaring `options: { indexes }`, `scopes`, `hooks`, `tableName` or `underscored` on a drizzle store
+
+**Fix.** The message names the option, what this call (or this adapter) does take, and what to write instead. An option henri drops is a query that does not do what it says, so it is refused rather than ignored.
 
 ### `HENRI_MODEL_UNKNOWN_STORE`
 

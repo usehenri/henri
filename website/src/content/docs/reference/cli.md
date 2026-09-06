@@ -60,20 +60,22 @@ The probe comes last on purpose: a version manager shim (mise, asdf) answers non
 
 ### `--adapter`
 
-| Value        | Store written in `config/default.json`                                       | Dependencies added                    |
-| ------------ | ---------------------------------------------------------------------------- | ------------------------------------- |
-| `disk`       | `{ "adapter": "disk" }` (default): a local MongoDB, nothing to install       | `@usehenri/disk`                      |
-| `drizzle`    | `{ "adapter": "drizzle", "dialect": "sqlite", "url": "file:.henri/app.db" }` | `@usehenri/drizzle`, `better-sqlite3` |
-| `mongoose`   | `mongodb://127.0.0.1:27017/<app>`                                            | `@usehenri/mongoose`                  |
-| `mysql`      | `mysql://root@127.0.0.1:3306/<app>`                                          | `@usehenri/mysql`                     |
-| `postgresql` | `postgres://postgres@127.0.0.1:5432/<app>`                                   | `@usehenri/postgresql`                |
-| `mssql`      | `mssql://sa@127.0.0.1:1433/<app>`                                            | `@usehenri/mssql`                     |
+| Value        | Store written in `config/default.json`                                                 | Dependencies added                    |
+| ------------ | -------------------------------------------------------------------------------------- | ------------------------------------- |
+| `drizzle`    | `{ "adapter": "drizzle", "dialect": "sqlite", "url": "file:.henri/app.db" }` (default) | `@usehenri/drizzle`, `better-sqlite3` |
+| `postgresql` | `postgres://postgres@127.0.0.1:5432/<app>`                                             | `@usehenri/postgresql`                |
+| `mysql`      | `mysql://root@127.0.0.1:3306/<app>`                                                    | `@usehenri/mysql`                     |
+| `mssql`      | `mssql://sa@127.0.0.1:1433/<app>`                                                      | `@usehenri/mssql`                     |
+| `mongoose`   | `mongodb://127.0.0.1:27017/<app>`                                                      | `@usehenri/mongoose`                  |
+| `disk`       | `{ "adapter": "disk" }`: a local MongoDB, nothing to install                           | `@usehenri/disk`                      |
 
-Every adapter but `disk` also gets a `config/test.json` on its own database (`<app>_test`, or `:memory:` for drizzle on sqlite), because `config/<NODE_ENV>.json` replaces `config/default.json` as a whole. The generated controllers use the model API of the adapter: Mongoose on `disk` and `mongoose`, Sequelize on `mysql`, `postgresql` and `mssql`, the [Drizzle](/guides/models/#drizzle) model on `drizzle`. `henri generate scaffold|crud` reads the adapter back from the configuration, so later generators match too.
+Every adapter but `disk` also gets a `config/test.json` on its own database (`<app>_test`, or `:memory:` for drizzle on sqlite), because `config/<NODE_ENV>.json` replaces `config/default.json` as a whole.
+
+`postgresql` and `mysql` are `@usehenri/drizzle` with the dialect and the driver chosen, so they add one package and no driver of their own, and the store they write has no `dialect` key. The generated controllers use the model API of the adapter: the [Drizzle](/guides/models/#drizzle) model on `drizzle`, `postgresql` and `mysql`, Mongoose on `disk` and `mongoose`, Sequelize on `mssql`. `henri generate scaffold|crud` reads the adapter back from the configuration, so later generators match too.
 
 ### `--dialect`
 
-Only with `--adapter drizzle`: `sqlite` (the default, `better-sqlite3`, `file:.henri/app.db`), `postgres` (`pg`) or `mysql` (`mysql2`). A drizzle application has migrations, so the README it gets mentions `henri db:generate`, `henri db:migrate`, `henri db:push` and `henri db:status` (see [`db`](#db)). Any other value, or `--dialect` without `--adapter drizzle`, exits with `2`.
+Only with `--adapter drizzle`, which is the default, so it works on its own: `sqlite` (the default, `better-sqlite3`, `file:.henri/app.db`), `postgres` (`pg`) or `mysql` (`mysql2`). Every drizzle store has migrations, so the README the application gets mentions `henri db:generate`, `henri db:migrate`, `henri db:push` and `henri db:status` (see [`db`](#db)). Any other value, or `--dialect` next to an adapter that fixes its own (`postgresql`, `mysql`, `mssql`, `mongoose`, `disk`), exits with `2`.
 
 See [Getting started](/getting-started/) for the resulting tree.
 
@@ -187,7 +189,7 @@ henri g authentication
 
 `authentication` and `agents` take no name. `authentication` is the one generator that edits `config/*.json`: it adds the three account blocks to `user` in every configuration file that does not have them, and reports the files it changed (`updated` in the `--json` summary). It writes nothing that reimplements a token, a hash or a session — the endpoints are the ones the user module mounts (see [Users](/guides/users/#the-account-flows)) — and its pages take the same renderer fork as the scaffolded ones.
 
-The scaffolded controllers follow the adapter of the default store: the Mongoose API on `disk` and `mongoose`, Sequelize on `mysql`, `postgresql` and `mssql`, the Drizzle model API on `drizzle` (see [Models](/guides/models/)). What they load a record with differs; their `index` is [`Model.paginate(req.pagination())`](/guides/models/#pagination) and their 422 is [`henri.model.errors(error)`](/guides/models/#validation-errors) on all three, because both answer the same shape on every adapter.
+The scaffolded controllers follow the adapter of the default store: the Drizzle model API on `drizzle`, `postgresql` and `mysql`, the Mongoose API on `disk` and `mongoose`, Sequelize on `mssql` (see [Models](/guides/models/)). What they load a record with differs; their `index` is [`Model.paginate(req.pagination())`](/guides/models/#pagination) and their 422 is [`henri.model.errors(error)`](/guides/models/#validation-errors) on all three, because both answer the same shape on every adapter.
 
 The pages follow the `renderer` of the application, read back from `config/default.json`: Inertia `.jsx` pages using `useHenri()` and `<Form>`, or Next.js `.js` pages using `withHenri` and `@usehenri/react/forms`. The renderer is also what a failed write answers a browser with: the Inertia controllers call `res.inertia.errors()` and render the form again, the React ones answer the `422` their forms read. API clients get the same `422` either way, and `henri generate test` writes the matching test (the Inertia page object plus the HAL answers, or the HAL answers alone).
 
@@ -246,7 +248,7 @@ The database, its schema and its seeds, in the Rails `db:` style (`henri db seed
 
 `db:drop` removes it, and `db:reset` is drop, create, the schema (from `db/migrations` when the application has migrations, from the models when it does not) and `db/seeds.js` when it exists. Both refuse to act when `NODE_ENV` is `production` unless `--force` is passed. The environment is `NODE_ENV`, as everywhere else, so the test database is `NODE_ENV=test henri db:create`.
 
-The other four drive the migrations of a [Drizzle](/guides/models/#drizzle) store: `status` lists the applied and pending migrations of `db/migrations`, `generate` writes a migration from the schema changes, `migrate` applies the pending ones, and `push` makes the database match the models without a migration. `push` refuses statements that lose data and exits with `1` unless `--force` is passed. `--store=<name>` picks the store; stores on another adapter exit with `1`.
+The other four drive the migrations of a [Drizzle](/guides/models/#drizzle) store: `status` lists the applied and pending migrations of `db/migrations`, `generate` writes a migration from the schema changes, `migrate` applies the pending ones, and `push` makes the database match the models without a migration. `push` refuses statements that lose data and exits with `1` unless `--force` is passed. `--store=<name>` picks the store; an `mssql` store, the one without migrations, exits with `1` and `HENRI_CLI_MIGRATIONS_UNSUPPORTED`, and `status` answers there too (it reads the database back and reports the drift instead).
 
 ## `credentials`
 

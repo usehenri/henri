@@ -484,7 +484,7 @@ describe('henri mcp', () => {
     });
     expect(structuredContent.stores).toEqual([
       expect.objectContaining({
-        adapter: 'disk',
+        adapter: 'drizzle',
         name: 'default',
         reachable: expect.objectContaining({ status: 'skipped' }),
       }),

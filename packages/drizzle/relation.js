@@ -22,7 +22,7 @@ const {
   or,
   sql,
 } = require('drizzle-orm');
-const { isPlainObject } = require('./utils');
+const { coded, isPlainObject } = require('./utils');
 const { checkOrder, comparison, markOf } = require('./encryption');
 
 /**
@@ -121,12 +121,36 @@ const compileWhere = (Model, condition) => {
     } else if (is(value, SQL)) {
       parts.push(eq(column, value));
     } else if (isPlainObject(value)) {
+      // An object with nothing this can read narrows nothing, so the row
+      // would drop out of the condition and the query would answer more
+      // than it was asked for. Sequelize's `Op` keys are symbols, which is
+      // exactly how a condition arrives empty without a typo in sight.
+      if (Object.keys(value).length === 0) {
+        const symbols = Object.getOwnPropertySymbols(value);
+
+        throw coded(
+          'HENRI_MODEL_INVALID_QUERY',
+          symbols.length > 0
+            ? `The condition on ${Model.modelName}.${key} is keyed by ${symbols
+                .map((symbol) => String(symbol))
+                .join(
+                  ', '
+                )}, which this adapter does not read: Sequelize's Op has no equivalent here. Write { ${key}: { like: '%x%' } } with the operators ${Object.keys(
+                OPERATORS
+              ).join(', ')}`
+            : `The condition on ${Model.modelName}.${key} is an empty object, which would match every row. Give it an operator (${Object.keys(
+                OPERATORS
+              ).join(', ')}) or a value`
+        );
+      }
+
       for (const name of Object.keys(value)) {
         const shorthand = name.replace(/^[$]/u, '');
         const operator = OPERATORS[shorthand];
 
         if (!operator) {
-          throw new Error(
+          throw coded(
+            'HENRI_MODEL_INVALID_QUERY',
             `Unknown operator '${name}' on ${Model.modelName}.${key}; use ${Object.keys(
               OPERATORS
             ).join(', ')}`

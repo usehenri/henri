@@ -14,8 +14,10 @@ const { Sequelize } = require('sequelize');
  * files, which vitest runs in parallel, never share a table. They are
  * dropped when the file is done (`cleanup()`, called by the helpers).
  *
- * The dialect packages (`@usehenri/mysql`, `@usehenri/postgresql`) read it
- * through `@usehenri/sequelize/__tests__/targets`.
+ * Only `@usehenri/mssql` reaches Sequelize now, and no CI job runs a SQL
+ * Server. The PostgreSQL and MySQL servers are what is available to
+ * exercise the base class that adapter rides on, which is why these suites
+ * still run against them.
  */
 
 const ENV = {

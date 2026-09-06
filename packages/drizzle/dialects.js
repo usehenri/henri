@@ -25,17 +25,20 @@ const ALIASES = {
 };
 
 /**
- * Requires a driver from the application first (an app installs the driver
- * it needs), then from this package (tests)
+ * Requires a driver from the dialect package that brought it (`paths`,
+ * how `@usehenri/postgresql` ships `pg`), then from the application (an
+ * app on `@usehenri/drizzle` installs the driver itself), then from this
+ * package (tests)
  *
  * @param {string} name Module name
+ * @param {Array<string>} [paths=[]] Directories to look in first
  * @returns {*} The module
  * @throws {Error} When the driver is not installed
  */
-const requireDriver = (name) => {
+const requireDriver = (name, paths = []) => {
   try {
     return require(
-      require.resolve(name, { paths: [process.cwd(), __dirname] })
+      require.resolve(name, { paths: [...paths, process.cwd(), __dirname] })
     );
   } catch (error) {
     throw new Error(
@@ -147,10 +150,11 @@ const sqlite = {
    * Opens the database (the directory of a file database is created)
    *
    * @param {object} config Store configuration
+   * @param {Array<string>} [paths] Where to look for the driver first
    * @returns {Promise<object>} The better-sqlite3 database
    */
-  connect: async (config) => {
-    const Database = requireDriver('better-sqlite3');
+  connect: async (config, paths) => {
+    const Database = requireDriver('better-sqlite3', paths);
     const file = sqliteFile(config);
 
     if (file !== ':memory:') {
@@ -352,10 +356,11 @@ const postgres = {
    * Opens a connection pool (nothing connects before the first query)
    *
    * @param {object} config Store configuration
+   * @param {Array<string>} [paths] Where to look for the driver first
    * @returns {Promise<object>} A pg Pool
    */
-  connect: async (config) => {
-    const { Pool } = requireDriver('pg');
+  connect: async (config, paths) => {
+    const { Pool } = requireDriver('pg', paths);
     const options = credentials(config);
 
     if (config.url) {
@@ -489,10 +494,11 @@ const mysql = {
    * Opens a connection pool; `mariadb://` urls are served by mysql2
    *
    * @param {object} config Store configuration
+   * @param {Array<string>} [paths] Where to look for the driver first
    * @returns {Promise<object>} A mysql2 pool
    */
-  connect: async (config) => {
-    const driver = requireDriver('mysql2/promise');
+  connect: async (config, paths) => {
+    const driver = requireDriver('mysql2/promise', paths);
     const options = credentials(config);
 
     if (config.url) {

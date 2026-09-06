@@ -1,12 +1,18 @@
-const Sql = require('@usehenri/sequelize');
+const Drizzle = require('@usehenri/drizzle');
 
 /**
- * MySQL / MariaDB database adapter (mysql2 driver)
+ * MySQL / MariaDB database adapter
+ *
+ * `@usehenri/drizzle` with the dialect already chosen and the `mysql2`
+ * driver in the dependencies rather than left to the application. It is
+ * what `"adapter": "mysql"` and `"adapter": "mariadb"` resolve to: henri's
+ * MySQL adapter is Drizzle, so the models, the query API and the
+ * migrations of `db/migrations` are Drizzle's.
  *
  * @class MySQL
- * @extends {Sql}
+ * @extends {Drizzle}
  */
-class MySQL extends Sql {
+class MySQL extends Drizzle {
   /**
    * Creates an instance of MySQL.
    *
@@ -19,8 +25,8 @@ class MySQL extends Sql {
     super(name, config, thisHenri, {
       adapterName: 'mysql',
       dialect: 'mysql',
-      driver: require.resolve('mysql2'),
-      mariadbRewrite: true,
+      // The mysql2 driver is a dependency of this package, not of the app
+      driverPaths: [__dirname],
     });
   }
 }

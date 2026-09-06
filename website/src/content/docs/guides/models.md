@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-Models live in `app/models`. Every `.js` file there (subdirectories included) is loaded on boot, registered with its store adapter and exposed as a global named after the file: `app/models/Task.js` is `Task` everywhere in the application, like in Rails. Two files with the same name, whatever the case, stop the boot. The global is the ORM model itself, so you query it with the [Mongoose](https://mongoosejs.com/) API on MongoDB, the [Sequelize](https://sequelize.org/) API on SQL databases, or the adapter's own Rails-like API on the [Drizzle](#drizzle) adapter.
+Models live in `app/models`. Every `.js` file there (subdirectories included) is loaded on boot, registered with its store adapter and exposed as a global named after the file: `app/models/Task.js` is `Task` everywhere in the application, like in Rails. Two files with the same name, whatever the case, stop the boot. The global is the ORM model itself, so you query it with the [Drizzle](#drizzle) adapter's own Rails-like API on sqlite, PostgreSQL and MySQL, the [Mongoose](https://mongoosejs.com/) API on MongoDB, and the [Sequelize](https://sequelize.org/) API on SQL Server.
 
 The model ids are also written to `.henri/globals.json` on boot; the scaffolded `eslint.config.js` reads that file so the linter knows the globals.
 
@@ -34,7 +34,7 @@ module.exports = {
 | `schema`            | The fields, in the format below.                                                                                                         |
 | `options`           | `timestamps`, `paranoid` and `personal` (below), plus anything the ORM takes: handed to `new mongoose.Schema()` or `sequelize.define()`. |
 | `store`             | The store to use, `default` when omitted. The boot fails when the store is not configured.                                               |
-| `name`              | Collection name (Mongoose) or `tableName` (Sequelize).                                                                                   |
+| `name`              | Collection name (Mongoose), table name (Drizzle) or `tableName` (Sequelize).                                                             |
 | `graphql`           | `{ types, resolvers }` merged into the application schema; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).                   |
 | `associate(models)` | Called once every model of the store exists, with the models keyed by global name. Declare relations there.                              |
 
@@ -43,7 +43,7 @@ module.exports = {
 module.exports = {
   schema: { body: { type: 'text', required: true } },
   associate(models) {
-    // Sequelize: models.Comment.belongsTo(models.Post)
+    // Drizzle and Sequelize: models.Comment.belongsTo(models.Post)
     // Mongoose: nothing to do, use { type: 'ObjectId', ref: 'Post' } in the schema
   },
 };
@@ -71,7 +71,7 @@ A field is `{ type, ...keys }` or a bare type. The type names and the keys below
 
 | Key         | Description                                                                                                                                                                                              |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `required`  | `required: true` (Mongoose) or `allowNull: false` (Sequelize).                                                                                                                                           |
+| `required`  | `required: true` (Mongoose) or `allowNull: false` (Drizzle, Sequelize).                                                                                                                                  |
 | `default`   | Default value. `Date.now` becomes `NOW` on SQL.                                                                                                                                                          |
 | `enum`      | Allowed values. An `ENUM` column on MySQL, MariaDB and PostgreSQL, an `isIn` validation elsewhere.                                                                                                       |
 | `unique`    | Unique index or constraint.                                                                                                                                                                              |
@@ -82,7 +82,7 @@ A field is `{ type, ...keys }` or a bare type. The type names and the keys below
 What the adapters do with anything else differs:
 
 - **Mongoose** passes every other key and type through, so `{ type: 'ObjectId', ref: 'Post' }`, `[String]`, nested objects, `lowercase`, `trim`, `match`, `select`, `validate` and the JavaScript constructors (`String`, `Number`, `Date`) all work. It also understands the Sequelize spellings `allowNull: false` and `defaultValue`.
-- **Sequelize** accepts its own attribute options (`allowNull`, `defaultValue`, `validate`, `field`, `primaryKey`, `autoIncrement`, `references`, `onDelete`, `onUpdate`, `comment`, `get`, `set`, `values`, ...), its data types (`type: DataTypes.STRING(50)` or the uppercase name as a string, `'STRING'`), the JavaScript constructors (`Object` and `Array` become `JSON`, `Buffer` a `BLOB`), and stores nested objects and arrays as `JSON`. Any other key throws at boot with the list of supported keys, so a typo never becomes a silently ignored option. A field with a known key but no `type` is an error too.
+- **Sequelize** (`mssql` only) accepts its own attribute options (`allowNull`, `defaultValue`, `validate`, `field`, `primaryKey`, `autoIncrement`, `references`, `onDelete`, `onUpdate`, `comment`, `get`, `set`, `values`, ...), its data types (`type: DataTypes.STRING(50)` or the uppercase name as a string, `'STRING'`), the JavaScript constructors (`Object` and `Array` become `JSON`, `Buffer` a `BLOB`), and stores nested objects and arrays as `JSON`. Any other key throws at boot with the list of supported keys, so a typo never becomes a silently ignored option. A field with a known key but no `type` is an error too.
 
 `@usehenri/mongoose/types` and `@usehenri/sequelize/types` export the map above if you need the ORM types themselves.
 
@@ -97,7 +97,7 @@ module.exports = {
 };
 ```
 
-This changed in henri 1.2: before it, only `options: { timestamps: true }` added them on the Mongoose and Drizzle adapters (Sequelize already added them by default). See [Upgrading](/upgrading/#timestamps-are-on-by-default).
+This changed in henri 1.2: before it, only `options: { timestamps: true }` added them on the Mongoose and Drizzle adapters (the mssql one already added them by default). See [Upgrading](/upgrading/#timestamps-are-on-by-default).
 
 ## Identifiers
 
@@ -138,7 +138,7 @@ const task = await Task.findByKey(created.id); // the row you just wrote
 await Task.findByKey('0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11'); // null
 ```
 
-`findByExternalId()` is the other half, explicitly. On the Sequelize adapters and on Drizzle, `findByPk()` is an alias of `findByKey()`.
+`findByExternalId()` is the other half, explicitly. On every SQL adapter, `findByPk()` is an alias of `findByKey()`.
 
 The two identifiers can never be confused: a uuid is 36 characters with four dashes, and neither a number nor a 24 character `ObjectId` can look like one.
 
@@ -242,7 +242,7 @@ await Task.findById(task.externalId); // null
 
 The spelling of the rest follows the adapter, because the API is the adapter's own:
 
-| Operation                | Mongoose (`disk`, `mongoose`)                                           | Sequelize (`mysql`, `postgresql`, `mssql`)                     | Drizzle                                        |
+| Operation                | Mongoose (`disk`, `mongoose`)                                           | Sequelize (`mssql`)                                            | Drizzle (`drizzle`, `postgresql`, `mysql`)     |
 | ------------------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- |
 | Soft delete              | `deleteOne()`, `deleteMany()`, `findByIdAndDelete()`, `doc.deleteOne()` | `destroy()`                                                    | `destroy()`, `Model.destroy(where)`            |
 | Include the deleted ones | `Model.withDeleted()`, `{ withDeleted: true }`                          | `{ paranoid: false }`                                          | `Model.withDeleted()`, `{ withDeleted: true }` |
@@ -255,7 +255,7 @@ The spelling of the rest follows the adapter, because the API is the adapter's o
 await Task.withDeleted().countDocuments();
 await Task.findByIdAndDelete(id, { force: true });
 
-// Sequelize
+// Sequelize (mssql)
 await Task.findAll({ paranoid: false });
 await task.destroy({ force: true });
 
@@ -266,7 +266,7 @@ await Task.destroy({ id }, { force: true });
 
 Three things to know before turning it on: a soft deleted row still holds its `unique` values, so creating a record with the same email as a deleted one fails; eager loaded associations are not filtered, so a `populate()` or an `include()` can still surface a deleted record through its parent; and on Mongoose an aggregation pipeline sees everything, because it does not go through the query middleware.
 
-On Mongoose the behaviour is a schema plugin: it adds the `deletedAt` path, a query middleware that adds `deletedAt: null` to reads and updates, and replacements for `deleteOne`, `deleteMany`, `findOneAndDelete`, `findByIdAndDelete` and `doc.deleteOne()`. On Sequelize it is Sequelize's own `paranoid`, which needs `timestamps` (on by default). On Drizzle it is part of the model layer, so relations, `count()`, `update()` and `paginate()` all honour it.
+On Mongoose the behaviour is a schema plugin: it adds the `deletedAt` path, a query middleware that adds `deletedAt: null` to reads and updates, and replacements for `deleteOne`, `deleteMany`, `findOneAndDelete`, `findByIdAndDelete` and `doc.deleteOne()`. On the mssql store it is Sequelize's own `paranoid`, which needs `timestamps` (on by default). On Drizzle it is part of the model layer, so relations, `count()`, `update()` and `paginate()` all honour it.
 
 ## Generating a model
 
@@ -286,12 +286,12 @@ await Task.find({ done: false }).sort({ createdAt: -1 });
 await Task.findById(id);
 await Task.create(req.permit('name', 'category'));
 
-// Sequelize (mysql, postgresql, mssql)
+// Sequelize (mssql)
 await Task.findAll({ where: { done: false } });
 await Task.findByPk(id);
 await Task.create(req.permit('name', 'category'));
 
-// Drizzle (drizzle), which also answers to the two sets of names above
+// Drizzle (drizzle, postgresql, mysql), which answers to some of the names above
 await Task.where({ done: false }).order('createdAt desc');
 await Task.findById(id);
 await Task.create(req.permit('name', 'category'));
@@ -329,7 +329,7 @@ await Task.paginate({
   where: { done: false },
 });
 
-// Sequelize: any findAndCountAll option
+// Sequelize (mssql): any findAndCountAll option
 await Task.paginate({
   include: ['owner'],
   order: [['createdAt', 'DESC']],
@@ -418,15 +418,135 @@ Server side, `henri.user.findByEmail(email)` (lowercases its argument and return
 
 ## Adapters
 
-Each adapter is a package to install in the application; the name in `stores.<name>.adapter` selects it. `henri new <folder> --adapter disk|drizzle|mongoose|mysql|postgresql|mssql` (`--dialect sqlite|postgres|mysql` with `drizzle`) writes the store block, the dependencies and the driver of a new application; `disk` is the default. All of them implement the same contract, documented in the [API reference](/reference/api/#store-adapters), and expose a few helpers on the store object, `henri.model.stores.<name>`:
+Each adapter is a package to install in the application; the name in `stores.<name>.adapter` selects it. `henri new <folder> --adapter drizzle|disk|mongoose|postgresql|mysql|mssql` (`--dialect sqlite|postgres|mysql` with `drizzle`) writes the store block, the dependencies and the driver of a new application; `drizzle` on sqlite is the default. All of them implement the same contract, documented in the [API reference](/reference/api/#store-adapters), and expose a few helpers on the store object, `henri.model.stores.<name>`:
 
 ```js
 await henri.model.stores.default.ping(); // true when the database answers
-await henri.model.stores.default.transaction(async (t) => { ... }); // Sequelize transaction, or Mongoose session (needs a replica set)
+await henri.model.stores.default.transaction(async (t) => { ... }); // SQL transaction, or Mongoose session (needs a replica set)
 await henri.model.stores.default.query('SELECT 1 + ?', [1]); // SQL adapters only
 ```
 
-Sessions are stored in the database of the user model's store: a `henriSessions` collection on MongoDB, a table created by connect-session-sequelize on SQL (the `session` key of the store configures either).
+Sessions are stored in the database of the user model's store: a `henriSessions` collection on MongoDB, a `henri_sessions` table on a drizzle store, a table created by connect-session-sequelize on an mssql one (the `session` key of the store configures any of them).
+
+**Which one.** Two of the four SQL databases henri reaches are the same package under two names, so the choice is smaller than the list looks:
+
+| The database   | The adapter                                                 | The ORM   |
+| -------------- | ----------------------------------------------------------- | --------- |
+| sqlite         | `drizzle` with `"dialect": "sqlite"`                        | Drizzle   |
+| PostgreSQL     | `postgresql`, or `drizzle` with `"dialect": "postgres"`     | Drizzle   |
+| MySQL, MariaDB | `mysql` / `mariadb`, or `drizzle` with `"dialect": "mysql"` | Drizzle   |
+| SQL Server     | `mssql`                                                     | Sequelize |
+| MongoDB        | `mongoose`, or `disk` for a local one                       | Mongoose  |
+
+Drizzle is henri's SQL data layer: it has the migrations, and `@usehenri/postgresql` and `@usehenri/mysql` are that adapter with the dialect and the driver already chosen. Sequelize is behind `mssql` alone, and the reason is narrow: Drizzle has no SQL Server dialect (drizzle-orm 0.45 ships pg, mysql, sqlite, singlestore and gel; drizzle-kit 0.31 generates for postgresql, mysql, sqlite, turso, singlestore and gel), so it is how henri reaches one. Everything an mssql store does differently from the rest -- no migrations, `henri db:status` instead -- follows from that.
+
+### Drizzle
+
+henri's SQL data layer: [Drizzle ORM](https://orm.drizzle.team/) with generated, versioned migrations, on sqlite, PostgreSQL and MySQL. `henri new my-app` scaffolds an application on it, sqlite by default -- nothing to start, a file under `.henri/`, and a database that deploys as it is. `--dialect postgres` or `--dialect mysql` picks another one, and `--adapter postgresql` and `--adapter mysql` are the same adapter with the dialect and the driver chosen for you ([below](#postgresql)).
+
+To add it to an existing application, install it with the driver of your dialect:
+
+```bash
+pnpm add @usehenri/drizzle better-sqlite3   # or pg, or mysql2
+```
+
+`better-sqlite3` ships the compiled addon in its own tarball, for darwin, linux, linuxmusl and win32 on arm64 and x64, so there is nothing to build and no toolchain to install. It still carries a `binding.gyp`, which pnpm 11 refuses to meet without an answer, so a pnpm application lists `better-sqlite3: false` under `allowBuilds` in `pnpm-workspace.yaml` — skip the build, use the binary (`henri new` writes it). A platform with no prebuild flips it to `true` and builds, which needs python3, make and a C++ compiler.
+
+```json
+{
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "sqlite",
+      "url": "file:.henri/app.db"
+    }
+  }
+}
+```
+
+`dialect` is `sqlite`, `postgres` or `mysql`; `url` is a file path for sqlite and a connection string otherwise. The model format above compiles to Drizzle tables: plural snake_case tables, snake_case columns, an `id` primary key, `createdAt`/`updatedAt` with `options.timestamps`. On top of the shared keys, fields accept `select: false`, `min`, `max`, `minLength`, `maxLength`, `match`, `validate`, `lowercase`, `trim` and `references`.
+
+The global is not a Mongoose or Sequelize model but the adapter's own, with one API that also answers to some of the Mongoose and Sequelize names:
+
+```js
+const task = await Task.create({ title: 'Ship it' });
+const open = await Task.where({ done: false })
+  .order('createdAt desc')
+  .limit(20);
+const withOwner = await Task.where({ id }).include('owner').first();
+await task.update({ done: true });
+await Task.destroy({ done: true });
+await henri.model.stores.default.transaction(async () => {
+  /* every query in here joins the transaction */
+});
+```
+
+#### What it refuses
+
+It answers to the Mongoose and Sequelize names where they mean the same thing, and refuses them where they do not, rather than running something else.
+
+- **`Model.update(values, { where })`** is Sequelize's argument order and the opposite of this one. Read as written it means "update every row matching `values`, and set a column called `where`": the wrong rows, no error, and a count that says it worked. It is refused with `HENRI_MODEL_INVALID_QUERY`. This adapter takes `update(where, attrs)`.
+- **An option this adapter does not read** -- `attributes`, `fields`, `raw`, `transaction`, `individualHooks`, `plain`, `lock` -- is refused with `HENRI_MODEL_UNKNOWN_OPTION` rather than dropped. A dropped `fields` is a mass assignment somebody thought they had bounded; a dropped `transaction` is a write outside the transaction it was written into.
+- **A condition keyed by Sequelize's `Op` symbols** narrows nothing here, because `Object.keys()` does not see a symbol. It would answer every row, so it is refused. So is an empty condition object under a field (`{ name: {} }`), for the same reason. The operators this adapter reads are `eq`, `ne`, `not`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `notIn`, `like`, `notLike`, `ilike` and `between`.
+- **`instance.get({ plain: true })`** reads as an attribute named by an object. `toObject()` is the whole record as a plain object.
+- **A model file's `options`** takes `timestamps`, `paranoid`, `externalId`, `personal` and `retention`. One declaring `indexes`, `scopes`, `defaultScope`, `hooks`, `tableName`, `underscored` or `freezeTableName` fails the boot naming the key and what to write instead -- a model whose author believes it has an index it does not have is worse than one that will not start. (`hooks` and the table name are top level keys of the model file, not options.)
+
+Validation failures throw a `ValidationError` whose `errors[field].message` is what the generated controllers read, unique violations included. Models can export `beforeValidate`, `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDestroy` and `afterDestroy` hooks, and `associate(models)` declares `belongsTo`, `hasMany` and `hasOne` associations that `include()` loads eagerly. The user model gets the same email, password, roles, `confirmedAt` and `passwordChangedAt` behaviour as the other adapters, and sessions are stored in a `henri_sessions` table.
+
+Migrations live in `db/migrations` in the drizzle-kit layout, and `henri db` drives them like `rails db`:
+
+```bash
+henri db:status                          # applied and pending migrations
+henri db:generate --name=add-priority    # writes db/migrations/0001_add_priority.sql from the models
+henri db:migrate                         # applies the pending migrations
+henri db:push                            # makes the database match the models, no migration (development)
+```
+
+In development the boot pushes the schema unless the store sets `"sync": false`; in production the boot applies the pending migrations when the store sets `"migrate": true` and warns about them otherwise. `henri db:push` refuses statements that lose data unless `--force` is passed; every command accepts `--store=<name>` and `--json`. `henri db:seed` is the exception: it runs [`db/seeds.js`](#seeds) on any adapter.
+
+On MySQL a push only creates the tables that do not exist yet: drizzle-kit does not alter a MySQL table on a push, so a table whose columns no longer match the model is reported (`the columns of the database and of the schema differ`) and left alone rather than altered or truncated. Change a MySQL schema with `henri db:generate` and `henri db:migrate`, which work on every dialect. sqlite and PostgreSQL push the whole diff.
+
+### PostgreSQL
+
+`@usehenri/drizzle` with the dialect and the `pg` driver chosen, so an application installs one package and declares no driver, and the store needs no `dialect` key.
+
+```bash
+pnpm add @usehenri/postgresql
+```
+
+```json
+{
+  "stores": {
+    "default": {
+      "adapter": "postgresql",
+      "url": "postgres://user:password@localhost:5432/myapp"
+    }
+  }
+}
+```
+
+Everything under [Drizzle](#drizzle) is true of it: the model API, the schema format, `db/migrations` and the `henri db:` commands. `henri new my-app --adapter postgresql` scaffolds it.
+
+### MySQL and MariaDB
+
+`@usehenri/drizzle` with the dialect and the `mysql2` driver chosen, the same way `@usehenri/postgresql` is.
+
+```bash
+pnpm add @usehenri/mysql
+```
+
+```json
+{
+  "stores": {
+    "default": {
+      "adapter": "mysql",
+      "url": "mysql://user:password@localhost:3306/myapp"
+    }
+  }
+}
+```
+
+Use `"adapter": "mariadb"` with a `mariadb://` url for MariaDB; the same package handles both. Everything under [Drizzle](#drizzle) is true of it, including [what drizzle-kit will not alter on a MySQL push](#drizzle).
 
 ### Disk
 
@@ -470,43 +590,9 @@ pnpm add @usehenri/mongoose
 
 `host`, `port`, `database`, `username` and `password` are accepted instead of `url`. `opts` is passed to `mongoose.connect()`; `serverSelectionTimeoutMS` and `connectTimeoutMS` default to 10 seconds, so a wrong url fails the boot quickly. A store without `url` or `host` fails the boot.
 
-### MySQL and MariaDB
-
-```bash
-pnpm add @usehenri/mysql
-```
-
-```json
-{
-  "stores": {
-    "default": {
-      "adapter": "mysql",
-      "url": "mysql://user:password@localhost:3306/myapp"
-    }
-  }
-}
-```
-
-Use `"adapter": "mariadb"` with a `mariadb://` url for MariaDB; the same package (mysql2 driver) handles both.
-
-### PostgreSQL
-
-```bash
-pnpm add @usehenri/postgresql
-```
-
-```json
-{
-  "stores": {
-    "default": {
-      "adapter": "postgresql",
-      "url": "postgres://user:password@localhost:5432/myapp"
-    }
-  }
-}
-```
-
 ### MSSQL
+
+The one adapter on [Sequelize](https://sequelize.org/), and the only way henri reaches SQL Server: Drizzle has no SQL Server dialect. drizzle-orm 0.45 ships pg, mysql, sqlite, singlestore and gel cores, and drizzle-kit 0.31 generates migrations for postgresql, mysql, sqlite, turso, singlestore and gel -- there is no mssql in either. That is the whole reason `@usehenri/sequelize` is still here, and it is not going anywhere while it stays true.
 
 ```bash
 pnpm add @usehenri/mssql
@@ -523,73 +609,19 @@ pnpm add @usehenri/mssql
 }
 ```
 
-### Drizzle
+`host`, `port`, `database`, `username` and `password` are accepted instead of `url`; a store with none of them fails the boot. Every other key of the store (`pool`, `dialectOptions`, `logging`, ...) is forwarded to Sequelize. `logging` defaults to the `henri:sequelize` debug namespace (`henri server --debug=henri:sequelize` prints the queries) and credentials are redacted from that output.
 
-An SQL adapter on [Drizzle ORM](https://orm.drizzle.team/) with migrations, for sqlite, PostgreSQL and MySQL. It is the adapter henri intends to make the SQL default; the Sequelize-based ones stay supported. `henri new my-app --adapter drizzle` scaffolds an application on it (sqlite by default, `--dialect postgres` or `--dialect mysql` for the others), or install it in an existing one with the driver of your dialect:
+The global is a real Sequelize model, so `findAll`, `findByPk`, `Model.scope()`, `Op` in a where, `options: { indexes, scopes, hooks }` and the rest of that documentation apply, and `options: { paranoid: true }` is Sequelize's own, so `restore()`, `{ paranoid: false }` and `{ force: true }` behave exactly as it describes. None of that is true of the other SQL adapters, which are Drizzle.
 
-```bash
-pnpm add @usehenri/drizzle better-sqlite3   # or pg, or mysql2
-```
+#### The schema of an mssql store
 
-`better-sqlite3` compiles a native addon, so a pnpm application also needs `better-sqlite3: true` under `allowBuilds` in `pnpm-workspace.yaml` (`henri new` writes it).
+This adapter has no migrations, and henri does not pretend otherwise: `sequelize.sync()` creates the tables that are **missing** and never alters a table that already exists. That is enough in development and it is not a way to change a live database, so henri is explicit about where each half applies.
 
-```json
-{
-  "stores": {
-    "default": {
-      "adapter": "drizzle",
-      "dialect": "sqlite",
-      "url": "file:.henri/app.db"
-    }
-  }
-}
-```
-
-`dialect` is `sqlite`, `postgres` or `mysql`; `url` is a file path for sqlite and a connection string otherwise. The model format above compiles to Drizzle tables: plural snake_case tables, snake_case columns, an `id` primary key, `createdAt`/`updatedAt` with `options.timestamps`. On top of the shared keys, fields accept `select: false`, `min`, `max`, `minLength`, `maxLength`, `match`, `validate`, `lowercase`, `trim` and `references`.
-
-The global is not a Mongoose or Sequelize model but the adapter's own, with one API that also answers to the Mongoose and Sequelize names:
-
-```js
-const task = await Task.create({ title: 'Ship it' });
-const open = await Task.where({ done: false })
-  .order('createdAt desc')
-  .limit(20);
-const withOwner = await Task.where({ id }).include('owner').first();
-await task.update({ done: true });
-await Task.destroy({ done: true });
-await henri.model.stores.default.transaction(async () => {
-  /* every query in here joins the transaction */
-});
-```
-
-Validation failures throw a `ValidationError` whose `errors[field].message` is what the generated controllers read, unique violations included. Models can export `beforeValidate`, `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDestroy` and `afterDestroy` hooks, and `associate(models)` declares `belongsTo`, `hasMany` and `hasOne` associations that `include()` loads eagerly. The user model gets the same email, password, roles, `confirmedAt` and `passwordChangedAt` behaviour as the other adapters, and sessions are stored in a `henri_sessions` table.
-
-Migrations live in `db/migrations` in the drizzle-kit layout, and `henri db` drives them like `rails db`:
-
-```bash
-henri db:status                          # applied and pending migrations
-henri db:generate --name=add-priority    # writes db/migrations/0001_add_priority.sql from the models
-henri db:migrate                         # applies the pending migrations
-henri db:push                            # makes the database match the models, no migration (development)
-```
-
-In development the boot pushes the schema unless the store sets `"sync": false`; in production the boot applies the pending migrations when the store sets `"migrate": true` and warns about them otherwise. `henri db:push` refuses statements that lose data unless `--force` is passed; every command accepts `--store=<name>` and `--json`. `henri db:seed` is the exception: it runs [`db/seeds.js`](#seeds) on any adapter.
-
-On MySQL a push only creates the tables that do not exist yet: drizzle-kit does not alter a MySQL table on a push, so a table whose columns no longer match the model is reported (`the columns of the database and of the schema differ`) and left alone rather than altered or truncated. Change a MySQL schema with `henri db:generate` and `henri db:migrate`, which work on every dialect. sqlite and PostgreSQL push the whole diff.
-
-### SQL adapters
-
-The three SQL packages are thin dialects over `@usehenri/sequelize`. `host`, `port`, `database`, `username` and `password` are accepted instead of `url`; a store with none of them fails the boot. Every other key of the store (`pool`, `dialectOptions`, `logging`, ...) is forwarded to Sequelize. `logging` defaults to the `henri:sequelize` debug namespace (`henri server --debug=henri:sequelize` prints the queries) and credentials are redacted from that output.
-
-#### The schema of a Sequelize store
-
-These adapters have no migrations, and henri does not pretend otherwise: `sequelize.sync()` creates the tables that are **missing** and never alters a table that already exists. That is enough in development and it is not a way to change a live database, so henri is explicit about where each half applies.
-
-**In development** the boot syncs, as it always has, unless the store sets `"sync": false`.
+**In development** the boot syncs, unless the store sets `"sync": false`.
 
 **In production** the boot changes nothing. It reads the database back instead, compares it with the models and warns about every difference it finds. A store that really wants the old behaviour asks for it with `"sync": true`, and `henri audit` reports that as [`schema.autosync`](/guides/security/): it is DDL applied at boot, from whatever the models happen to say, with nobody reviewing it.
 
-**`henri db:status`** is the same comparison on demand, and the one command of the `db:` family a Sequelize store answers:
+**`henri db:status`** is the same comparison on demand, and the one command of the `db:` family this store answers:
 
 ```bash
 henri db:status              # what the database and the models disagree about
@@ -600,19 +632,15 @@ henri db:status --json       # `clean: false` and the differences, for CI
 It reports a missing table, a missing column, a column whose type or nullability differs, a missing index, and a column that is in the database and in no model. It never writes a `DROP`: a column henri does not recognize may hold the only copy of something, and only you can know. Everything it writes is DDL for **you** to read and run; henri applies none of it.
 
 ```
-  Store default (postgres), compared with the models
+  Store default (mssql), compared with the models
 
   3 difference(s):
     tasks.priority: the column is missing
     tasks.name: the database has TEXT instead of VARCHAR(255)
     tasks.legacy_note: the column is in the database and in no model
 
-  henri does not change a Sequelize schema for you: run it again
-  with --sql for the DDL that would close the difference.
+  henri does not change this schema for you: run it again with --sql
+  for the DDL that would close the difference.
 ```
 
-On sqlite a column change is reported and no statement is written, because sqlite has no `ALTER COLUMN` and the table has to be rebuilt. `henri db:generate`, `db:migrate` and `db:push` answer `HENRI_CLI_MIGRATIONS_UNSUPPORTED` on these stores and point here.
-
-If you want generated, reviewable, versioned migrations on SQL, that is the [drizzle adapter](#drizzle), and [Upgrading](/upgrading/#moving-a-sequelize-store-to-drizzle) is the path from one to the other.
-
-`options: { paranoid: true }` is Sequelize's own, so `restore()`, `{ paranoid: false }` and `{ force: true }` behave exactly as its documentation describes.
+`henri db:generate`, `db:migrate` and `db:push` answer `HENRI_CLI_MIGRATIONS_UNSUPPORTED` on this store and point at the [drizzle adapter](#drizzle), which is where generated, reviewable, versioned migrations live.

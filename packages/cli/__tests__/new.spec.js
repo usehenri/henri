@@ -75,8 +75,13 @@ describe('henri new', () => {
     // Readiness, not liveness: an unreachable database is not a restart
     expect(file).toContain('/readyz');
     expect(file).not.toContain('/livez');
-    // The zero-config store cannot be what an image runs on
-    expect(file).toContain('point the application at a real database');
+    // The default store is a sqlite file: it deploys, but the file is
+    // inside the container unless a volume is mounted over it
+    expect(file).toContain('Mount a volume over it');
+    // Its driver ships the compiled addon in its own tarball, so the image
+    // needs no C++ toolchain at all
+    expect(file).not.toContain('compiles on install');
+    expect(file).not.toContain('python3 make g++');
 
     const ignored = read(app, '.dockerignore');
 
@@ -85,21 +90,20 @@ describe('henri new', () => {
     }
   });
 
-  test('the Dockerfile of a sqlite app builds its native driver', () => {
-    const { app: sqlite, dir: elsewhere } = scaffold([
+  test('the Dockerfile of a zero-config app says it is not one', () => {
+    const { app: zero, dir: elsewhere } = scaffold([
       '--no-git',
       '--adapter',
-      'drizzle',
+      'disk',
     ]);
 
     try {
-      const file = read(sqlite, 'Dockerfile');
+      const file = read(zero, 'Dockerfile');
 
-      // The better-sqlite3 driver has no prebuilt binary for every node and platform
-      // pair, so the build stage -- and only it -- needs a toolchain
-      expect(file).toContain('better-sqlite3 compiles on install');
-      expect(file).toContain('python3 make g++');
-      expect(file).not.toContain('point the application at a real database');
+      // The zero-config store cannot be what an image runs on
+      expect(file).toContain('point the application at a real database');
+      // And it compiles nothing
+      expect(file).not.toContain('python3 make g++');
     } finally {
       cleanup(elsewhere);
     }
@@ -137,7 +141,13 @@ describe('henri new', () => {
     expect(config).toEqual({
       baseRole: 'guest',
       renderer: 'inertia',
-      stores: { default: { adapter: 'disk' } },
+      stores: {
+        default: {
+          adapter: 'drizzle',
+          dialect: 'sqlite',
+          url: 'file:.henri/app.db',
+        },
+      },
       user: 'user',
     });
     expect(config.secret).toBeUndefined();

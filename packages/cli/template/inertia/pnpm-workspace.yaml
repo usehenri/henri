@@ -1,8 +1,9 @@
 # pnpm 10+ only runs dependency build scripts that are allow-listed, and pnpm 11
 # fails the install when it meets one that is not listed. Allow the ones an
-# henri app needs (sass file watching, local MongoDB binary) and warn about the
-# rest instead of failing. npm and yarn ignore this file, so henri new always
-# writes it: a pnpm install later works without an ERR_PNPM_IGNORED_BUILDS.
+# henri app needs (the sqlite driver's native addon, file watching, the local
+# MongoDB binary) and warn about the rest instead of failing. npm and yarn
+# ignore this file, so henri new always writes it: a pnpm install later works
+# without an ERR_PNPM_IGNORED_BUILDS.
 strictDepBuilds: false
 allowBuilds:
   '@apollo/protobufjs': false

@@ -171,13 +171,13 @@ Liveness and readiness are different questions with opposite consequences — a 
 ```json
 {
   "status": "ok",
-  "stores": { "default": { "adapter": "disk", "ok": true, "latency": 2 } },
+  "stores": { "default": { "adapter": "drizzle", "ok": true, "latency": 2 } },
   "shared": { "adapter": "redis", "ok": true, "latency": 1 },
   "uptime": 42
 }
 ```
 
-A `503` says `"status": "unavailable"` and a `reason` (`starting`, `shutting down`, `a store did not answer`, `the shared store did not answer`); a store that failed is `{ "adapter": "disk", "ok": false, "error": "timeout" }` — `timeout` or `unreachable`, never the driver's own message, which carries the connection string it could not reach. The message is in the log.
+A `503` says `"status": "unavailable"` and a `reason` (`starting`, `shutting down`, `a store did not answer`, `the shared store did not answer`); a store that failed is `{ "adapter": "drizzle", "ok": false, "error": "timeout" }` — `timeout` or `unreachable`, never the driver's own message, which carries the connection string it could not reach. The message is in the log.
 
 `shared` only appears when [`config.shared`](/configuration/#the-shared-object) names one. A process whose counters cannot be counted is not ready either: with the default `onError: "closed"` it refuses every rate limited or idempotent request, so it should leave the load balancer until the store is back.
 

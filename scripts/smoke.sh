@@ -8,10 +8,17 @@
 #   scripts/smoke.sh                        # inertia, work dir .tmp/smoke, port 3000
 #   SMOKE_PORT=3100 scripts/smoke.sh
 #   SMOKE_RENDERER=react scripts/smoke.sh   # the frozen Next.js engine
+#   SMOKE_ADAPTER=disk scripts/smoke.sh     # the zero-config MongoDB store
 #
+# The default store of `henri new` is drizzle on sqlite, whose driver
+# (better-sqlite3) is a native addon: this is where the install of that
+# driver, the schema push at boot and a sqlite file under .henri/ are
+# exercised end to end. SMOKE_ADAPTER runs the same test on another store;
+# only the ones that need no server are worth running here.
 set -euo pipefail
 
 renderer=${SMOKE_RENDERER:-inertia}
+adapter=${SMOKE_ADAPTER:-drizzle}
 
 case "$renderer" in
 inertia | react) ;;
@@ -21,8 +28,16 @@ inertia | react) ;;
   ;;
 esac
 
+case "$adapter" in
+drizzle | disk) ;;
+*)
+  echo "SMOKE_ADAPTER must be drizzle or disk (got '$adapter'): the others need a server" >&2
+  exit 1
+  ;;
+esac
+
 root=$(cd "$(dirname "$0")/.." && pwd)
-work=${SMOKE_DIR:-$root/.tmp/smoke-$renderer}
+work=${SMOKE_DIR:-$root/.tmp/smoke-$renderer-$adapter}
 port=${SMOKE_PORT:-3000}
 app=$work/smoke
 tarballs=$work/tarballs
@@ -49,6 +64,7 @@ log() {
 # outlive both: stop it by its data path (never anything else running on the
 # machine).
 stop_mongod() {
+  [ "$adapter" = disk ] || return 0
   local hash
   hash=$(node -e "process.stdout.write(require('crypto').createHash('md5').update(process.argv[1]).digest('hex'))" "$app")
   pkill -f "henri-mongo-$hash" 2>/dev/null || true
@@ -95,8 +111,8 @@ printf '%s' "$overrides"
 # ---------------------------------------------------------------------------
 # 2. Scaffold with the workspace CLI, then install from the tarballs
 # ---------------------------------------------------------------------------
-log "henri new smoke --skip-install --renderer $renderer"
-(cd "$work" && node "$root/packages/henri/bin/henri.js" new smoke --skip-install --renderer "$renderer")
+log "henri new smoke --skip-install --renderer $renderer --adapter $adapter"
+(cd "$work" && node "$root/packages/henri/bin/henri.js" new smoke --skip-install --renderer "$renderer" --adapter "$adapter")
 
 # The scaffold is the sample of the renderer: `henri new` writes its pages
 for page in index new edit show _form; do
@@ -169,6 +185,24 @@ log "henri build"
 pnpm exec henri build
 stop_mongod
 
+# A drizzle store brings its schema up with migrations, and a production
+# boot applies nothing it was not asked to: a deploy writes the first
+# migration and runs it. That is what the README and the Dockerfile of the
+# scaffold tell a person to do, so it is what this does -- and it is the
+# only place the whole chain (generate from the models, apply, read back)
+# runs against a real install rather than a test fixture.
+if [ "$adapter" = drizzle ]; then
+  log "henri db:generate --name=init && henri db:migrate"
+  pnpm exec henri db:generate --name=init
+  pnpm exec henri db:migrate
+  pnpm exec henri db:status
+
+  [ -f "$app/db/migrations/0000_init.sql" ] || {
+    echo "henri db:generate wrote no migration" >&2
+    exit 1
+  }
+fi
+
 if [ ! -e "$app/$build_marker" ]; then
   echo "henri build did not write $build_marker" >&2
   exit 1
@@ -204,6 +238,15 @@ if grep -q "failed to connect" "$server_log"; then
 fi
 
 log "GET / -> 200"
+
+# The store is a file, with no server anywhere: the migration above made it
+if [ "$adapter" = drizzle ]; then
+  [ -f "$app/.henri/app.db" ] || {
+    echo "the sqlite store did not create .henri/app.db" >&2
+    exit 1
+  }
+  log "the sqlite store is a file: .henri/app.db"
+fi
 
 # ---------------------------------------------------------------------------
 # 4. The document is rendered on the server, by the engine, with the data the

@@ -24,7 +24,7 @@ const { coded, fatal, normalizeEmail, redact, toRoles } = require('./utils');
  * every model file with `addModel()`, then calls `start()`.
  *
  * @interface HenriAdapter
- * @property {string} adapterName drizzle
+ * @property {string} adapterName drizzle, postgresql or mysql
  * @property {string} name The store name from the configuration
  * @method addModel(model, userModelName) Registers a model file; returns the
  *   model class. The model matching `userModelName` is overloaded with
@@ -53,6 +53,42 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SESSIONS_KEY = 'HenriSession';
 
 /**
+ * The keys a model file's `options` may hold on a drizzle store:
+ * `timestamps` and `paranoid` are read by the model class, `externalId` by
+ * `external-id.js`, and `personal` and `retention` are marks core reads
+ * (`base/privacy.js`, `base/retention.js`) and this adapter only carries.
+ */
+const MODEL_OPTIONS = new Set([
+  'externalId',
+  'paranoid',
+  'personal',
+  'retention',
+  'timestamps',
+]);
+
+/**
+ * Model options another ORM had and this one does not, with what to write
+ * instead. Refused rather than dropped: a model that declares an index and
+ * gets none is a model whose author believes something false about their
+ * database, and nothing would ever say otherwise.
+ */
+const MODEL_OPTIONS_ELSEWHERE = {
+  defaultScope:
+    'no equivalent: a scope is a function on the model or a where in the controller',
+  freezeTableName:
+    'name the table with the top level `name` key of the model file',
+  hooks:
+    'the hooks are the top level `hooks` key of the model file, or exported one by one',
+  indexes:
+    'declare `index: true` or `unique: true` on the field; a composite index belongs in a migration (henri db:generate)',
+  scopes:
+    'no equivalent: a scope is a function on the model or a where in the controller',
+  tableName: 'name the table with the top level `name` key of the model file',
+  underscored:
+    'a column is named as the field is declared; rename the field, or the column in a migration',
+};
+
+/**
  * Drizzle ORM adapter: sqlite (better-sqlite3), postgres (pg) and mysql
  * (mysql2) behind one Rails-like model API, with migrations in
  * `db/migrations`
@@ -62,6 +98,10 @@ const SESSIONS_KEY = 'HenriSession';
  * `pool` (driver options), `session` (store options), `sync` (false to
  * skip the development push), `migrate` (true to run the migrations in
  * production), `migrationsFolder` (default `db/migrations`).
+ *
+ * `@usehenri/postgresql` and `@usehenri/mysql` are this class with the
+ * dialect and the driver already chosen (`options`), which is what
+ * `"adapter": "postgresql"` resolves to.
  *
  * @class Drizzle
  * @implements {HenriAdapter}
@@ -73,16 +113,24 @@ class Drizzle {
    * @param {string} name Store name
    * @param {object} config Store configuration
    * @param {Henri} thisHenri Current henri instance
+   * @param {object} [options={}] What a dialect package fixes:
+   *   `adapterName` (the name in the logs and the errors), `dialect`, which
+   *   wins over the store configuration -- `@usehenri/postgresql` is
+   *   postgres and there is nothing to configure about that -- and
+   *   `driverPaths`, where its driver is looked for before the application
    * @throws {Error} After `pen.fatal` when the configuration is unusable
    * @memberof Drizzle
    */
-  constructor(name, config, thisHenri) {
+  constructor(name, config, thisHenri, options = {}) {
     this.name = name;
     this.config = config || {};
     this.henri = thisHenri;
-    this.adapterName = 'drizzle';
+    this.adapterName = options.adapterName || 'drizzle';
+    this.driverPaths = options.driverPaths || [];
     this.dialect =
-      dialects.get(this.config.dialect) || dialects.fromUrl(this.config.url);
+      dialects.get(options.dialect) ||
+      dialects.get(this.config.dialect) ||
+      dialects.fromUrl(this.config.url);
 
     if (!this.dialect) {
       throw fatal(
@@ -141,6 +189,9 @@ class Drizzle {
    */
   addModel(model, user) {
     const isUser = model.identity === user;
+
+    this.checkModelOptions(model);
+
     const definition = {
       ...model,
       options: { ...(model.options || {}) },
@@ -180,6 +231,48 @@ class Drizzle {
     this.dirty = true;
 
     return Model;
+  }
+
+  /**
+   * Refuses a model option this adapter does not read
+   *
+   * The Sequelize adapter handed its `options` to Sequelize, which knew
+   * `indexes`, `scopes`, `hooks`, `tableName` and `underscored`. This one
+   * reads five keys and would drop the rest in silence, so it says so at
+   * boot instead, naming the model and the key.
+   *
+   * @param {object} model The model file
+   * @returns {void}
+   * @throws {Error} HENRI_MODEL_UNKNOWN_OPTION on an option it cannot honour
+   * @memberof Drizzle
+   */
+  checkModelOptions(model) {
+    const options = (model && model.options) || {};
+    const unknown = Object.keys(options).filter(
+      (key) => !MODEL_OPTIONS.has(key)
+    );
+
+    if (unknown.length === 0) {
+      return;
+    }
+
+    const name = (model && (model.globalId || model.identity)) || 'model';
+    const named = unknown
+      .map((key) =>
+        MODEL_OPTIONS_ELSEWHERE[key]
+          ? `'${key}' (${MODEL_OPTIONS_ELSEWHERE[key]})`
+          : `'${key}'`
+      )
+      .join(', ');
+
+    throw coded(
+      'HENRI_MODEL_UNKNOWN_OPTION',
+      `Unknown option ${named} in the options of ${name}; a drizzle store reads ${[
+        ...MODEL_OPTIONS,
+      ]
+        .sort()
+        .join(', ')}`
+    );
   }
 
   /**
@@ -988,7 +1081,7 @@ class Drizzle {
       this.compile();
     }
 
-    this.client = await this.dialect.connect(this.config);
+    this.client = await this.dialect.connect(this.config, this.driverPaths);
     this.db = this.dialect.drizzle(this.client, this.schema);
 
     try {

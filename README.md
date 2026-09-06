@@ -15,10 +15,10 @@ controllers and models behind it and no API layer to write. Controllers hand
 their data straight to the pages, and the same route answers JSON when a
 client asks for it.
 
-Models backed by real ORMs (MongoDB through Mongoose, SQL through Sequelize or
-Drizzle, or a zero-config local store), declarative routes with roles and
-CRUD, users with sessions and roles, GraphQL, mail, background jobs, workers,
-tests on Vitest and hot reload, all driven by one CLI.
+Models backed by real ORMs (SQL through Drizzle, with migrations; MongoDB
+through Mongoose; SQL Server through Sequelize), declarative routes with
+roles and CRUD, users with sessions and roles, GraphQL, mail, background
+jobs, workers, tests on Vitest and hot reload, all driven by one CLI.
 
 ## Install
 
@@ -30,6 +30,10 @@ henri new my-app
 cd my-app
 henri server
 ```
+
+A new application is a Drizzle store on sqlite (`.henri/app.db`): no database
+server to start, and migrations from the first day. `henri new --adapter
+postgresql|mysql|mongoose|disk|mssql` picks another one.
 
 ## Documentation
 

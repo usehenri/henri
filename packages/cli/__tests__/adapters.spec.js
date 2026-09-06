@@ -94,13 +94,28 @@ describe('henri new --adapter', () => {
     cleanup(dir);
   });
 
-  test('disk stays the default', () => {
+  test('drizzle on sqlite is the default', () => {
     const { app } = scaffoldWith(dir, 'plain');
+
+    expect(storeOf(app)).toEqual({
+      adapter: 'drizzle',
+      dialect: 'sqlite',
+      url: 'file:.henri/app.db',
+    });
+    expect(storeOf(app, 'test').url).toBe(':memory:');
+    expect(depsOf(app)['@usehenri/drizzle']).toBe(`^${version}`);
+    expect(depsOf(app)['better-sqlite3']).toMatch(/^\^\d+\./);
+    expect(depsOf(app)['@usehenri/disk']).toBeUndefined();
+  });
+
+  test('disk is still one flag away, and installs nothing', () => {
+    const { app } = scaffoldWith(dir, 'zero', ['--adapter', 'disk']);
 
     expect(storeOf(app)).toEqual({ adapter: 'disk' });
     expect(exists(app, 'config/test.json')).toBe(false);
     expect(depsOf(app)['@usehenri/disk']).toBe(`^${version}`);
     expect(depsOf(app)['@usehenri/drizzle']).toBeUndefined();
+    expect(depsOf(app)['better-sqlite3']).toBeUndefined();
   });
 
   test('drizzle writes a sqlite store, its driver and a test database', () => {
@@ -126,12 +141,8 @@ describe('henri new --adapter', () => {
   });
 
   test('drizzle --dialect postgres and mysql pick the driver and the url', () => {
-    const postgres = scaffoldWith(dir, 'dzpg', [
-      '--adapter',
-      'drizzle',
-      '--dialect',
-      'postgres',
-    ]).app;
+    // --dialect alone means the default adapter, which is drizzle
+    const postgres = scaffoldWith(dir, 'dzpg', ['--dialect', 'postgres']).app;
 
     expect(storeOf(postgres)).toEqual({
       adapter: 'drizzle',
@@ -158,12 +169,6 @@ describe('henri new --adapter', () => {
 
   test.each([
     ['mongoose', '@usehenri/mongoose', 'mongodb://127.0.0.1:27017/'],
-    ['mysql', '@usehenri/mysql', 'mysql://root@127.0.0.1:3306/'],
-    [
-      'postgresql',
-      '@usehenri/postgresql',
-      'postgres://postgres@127.0.0.1:5432/',
-    ],
     ['mssql', '@usehenri/mssql', 'mssql://sa@127.0.0.1:1433/'],
   ])(
     '%s writes its store, its package and a test database',
@@ -187,7 +192,7 @@ describe('henri new --adapter', () => {
 
     expect(unknown.status).toBe(2);
     expect(unknown.stderr).toContain("Unknown adapter 'redis'");
-    expect(unknown.stderr).toContain('disk, drizzle, mongoose');
+    expect(unknown.stderr).toContain('disk, drizzle, mongoose, mssql');
     expect(fs.existsSync(path.join(dir, 'nope', 'package.json'))).toBe(false);
 
     const dialect = henri(
@@ -215,7 +220,7 @@ describe('henri new --adapter', () => {
         '--skip-install',
         '--no-git',
         '--adapter',
-        'mysql',
+        'mongoose',
         '--dialect',
         'sqlite',
       ],
@@ -225,6 +230,38 @@ describe('henri new --adapter', () => {
     expect(misplaced.status).toBe(2);
     expect(misplaced.stderr).toContain('--dialect only applies to');
   });
+
+  // `@usehenri/postgresql` and `@usehenri/mysql` are `@usehenri/drizzle`
+  // with the dialect and the driver chosen, so these adapters write a
+  // store with no `dialect` key and no driver of the application's own
+  test.each([
+    ['postgresql', '@usehenri/postgresql', 'pg', 'postgres://postgres@'],
+    ['mysql', '@usehenri/mysql', 'mysql2', 'mysql://root@'],
+  ])(
+    '%s is drizzle with the dialect and the driver chosen',
+    (adapter, dependency, driver, prefix) => {
+      const name = `sql-${adapter}`;
+      const { app } = scaffoldWith(dir, name, ['--adapter', adapter]);
+      const deps = depsOf(app);
+
+      expect(storeOf(app)).toEqual({
+        adapter,
+        url: expect.stringContaining(`${prefix}`),
+      });
+      expect(storeOf(app, 'test').url).toContain(`${name}_test`);
+      expect(deps[dependency]).toBe(`^${version}`);
+      // The driver comes with the adapter package
+      expect(deps[driver]).toBeUndefined();
+      expect(deps['@usehenri/drizzle']).toBeUndefined();
+      // The migrations of a drizzle store, on a store that never names it
+      expect(read(app, 'README.md')).toContain('henri db:generate');
+      expect(doctor(app).summary.errors).toBe(0);
+
+      // ... and the generators write drizzle controllers for it
+      expect(read(app, 'app/controllers/tasks.js')).not.toContain('CastError');
+      expect(read(app, 'app/controllers/main.js')).toContain('Task.find()');
+    }
+  );
 
   test('henri init takes the same flags and allows the driver build for pnpm', () => {
     const app = path.join(dir, 'initialized');
@@ -243,11 +280,14 @@ describe('henri new --adapter', () => {
     expect(status).toBe(0);
     expect(storeOf(app).dialect).toBe('sqlite');
 
-    // The better-sqlite3 native addon compiles: pnpm 11 fails the install
-    // when the build script is not allow-listed
+    // The better-sqlite3 tarball carries a binding.gyp, so pnpm 11 fails
+    // an install that meets it and finds no answer in allowBuilds. The
+    // answer is `false`: it ships the compiled addon for every platform
+    // henri runs on, and building it needs a toolchain and produces
+    // nothing that gets loaded.
     const workspace = read(app, 'pnpm-workspace.yaml');
 
-    expect(workspace).toMatch(/^ {2}better-sqlite3: true$/m);
+    expect(workspace).toMatch(/^ {2}better-sqlite3: false$/m);
     expect(workspace.indexOf('better-sqlite3')).toBeLessThan(
       workspace.indexOf('esbuild')
     );
@@ -281,7 +321,8 @@ describe('the scaffolded resource follows the adapter', () => {
   });
 
   test('sequelize: findById and instance updates', () => {
-    const { app } = scaffoldWith(dir, 'pg', ['--adapter', 'postgresql']);
+    // The mssql store is the sequelize scaffold `henri new` still writes
+    const { app } = scaffoldWith(dir, 'ms', ['--adapter', 'mssql']);
     const controller = read(app, 'app/controllers/tasks.js');
 
     // The lookup is `findById()`, henri's name on every store, and it takes
@@ -689,10 +730,7 @@ describe('the generated controllers run on their adapter', () => {
     };
 
     beforeAll(() => {
-      const scaffolded = scaffoldWith(dir, 'sqlrunner', [
-        '--adapter',
-        'postgresql',
-      ]);
+      const scaffolded = scaffoldWith(dir, 'sqlrunner', ['--adapter', 'mssql']);
 
       sql = path.join(scaffolded.app, 'app/controllers/tasks.js');
     });

@@ -278,14 +278,24 @@ jobs:
       - run: pnpm --filter @usehenri/website build
 
   scaffold:
-    name: Scaffold (${{ matrix.renderer }})
+    name: Scaffold (${{ matrix.renderer }}, ${{ matrix.adapter }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         # The default renderer, and the frozen Next.js one: a scaffold that
-        # quietly stopped building is what this job is for
-        renderer: [inertia, react]
+        # quietly stopped building is what this job is for. The default
+        # store rides on the default renderer; `disk` gets one run of its
+        # own, because the zero-config store is the other thing a person
+        # reaches for on the first day and it installs a MongoDB binary
+        # rather than compiling a native addon.
+        include:
+          - renderer: inertia
+            adapter: drizzle
+          - renderer: react
+            adapter: drizzle
+          - renderer: inertia
+            adapter: disk
     steps:
       - uses: actions/checkout@v7
 
@@ -318,4 +328,5 @@ jobs:
       # henri build, henri server --production, GET / must answer 200
       - run: scripts/smoke.sh
         env:
+          SMOKE_ADAPTER: ${{ matrix.adapter }}
           SMOKE_RENDERER: ${{ matrix.renderer }}

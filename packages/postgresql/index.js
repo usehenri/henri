@@ -1,12 +1,18 @@
-const Sql = require('@usehenri/sequelize');
+const Drizzle = require('@usehenri/drizzle');
 
 /**
- * PostgreSQL database adapter (pg driver)
+ * PostgreSQL database adapter
+ *
+ * `@usehenri/drizzle` with the dialect already chosen and the `pg` driver
+ * in the dependencies rather than left to the application. It is what
+ * `"adapter": "postgresql"` resolves to: henri's PostgreSQL adapter is
+ * Drizzle, so the models, the query API and the migrations of
+ * `db/migrations` are Drizzle's.
  *
  * @class Postgresql
- * @extends {Sql}
+ * @extends {Drizzle}
  */
-class Postgresql extends Sql {
+class Postgresql extends Drizzle {
   /**
    * Creates an instance of Postgresql.
    *
@@ -19,7 +25,8 @@ class Postgresql extends Sql {
     super(name, config, thisHenri, {
       adapterName: 'postgresql',
       dialect: 'postgres',
-      driver: require.resolve('pg'),
+      // The pg driver is a dependency of this package, not of the app
+      driverPaths: [__dirname],
     });
   }
 }
