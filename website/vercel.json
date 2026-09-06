@@ -4,9 +4,11 @@
   "installCommand": "pnpm install --filter @usehenri/website",
   "buildCommand": "pnpm build",
   "outputDirectory": "dist",
+  "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != master ]",
   "git": {
     "deploymentEnabled": {
       "*": false,
+      "*/*": false,
       "master": true
     }
   }
