@@ -1,6 +1,7 @@
 const express = require('express');
 const supertest = require('supertest');
 
+const Controllers = require('../2.controllers');
 const Henri = require('../henri');
 const boom = require('../base/boom');
 const flash = require('../base/flash');
@@ -332,6 +333,15 @@ describe('declared parameters', () => {
 
       expect(res.status).toBe(422);
       expect(res.body.data.errors).toEqual({ id: 'must be a uuid' });
+
+      const coerced = await app(
+        { id: 'integer' },
+        {
+          action: (req, res_) => res_.json({ id: req.params.id }),
+        }
+      ).get('/it/42');
+
+      expect(coerced.body).toEqual({ id: 42 });
     });
 
     test('the bounds of a number, of a length and of an enum', async () => {
@@ -619,6 +629,46 @@ describe('declared parameters', () => {
         errors: { id: 'must be a uuid' },
         origin: { page: null },
         values: { page: 1 },
+      });
+    });
+  });
+
+  describe('the controllers module', () => {
+    test('compiles the declarations when the controllers load', async () => {
+      const controllers = new Controllers();
+
+      await controllers.configure({
+        tasks: {
+          create: () => {},
+          index: () => {},
+          params: { create: { title: { required: true, type: 'string' } } },
+        },
+      });
+
+      expect(controllers.accepts('tasks#create')).toEqual({
+        title: { required: true, type: 'string' },
+      });
+      expect(controllers.accepts('tasks#index')).toBeNull();
+      expect(controllers.checks('tasks#create')).toHaveLength(1);
+      expect(controllers.checks('tasks#index')).toEqual([]);
+      // `params` describes the controller; it is never routable
+      expect(controllers.get('tasks#params')).toBeUndefined();
+    });
+
+    test('a declaration henri cannot carry out fails the boot', async () => {
+      const controllers = new Controllers();
+      const loading = controllers.configure({
+        'admin/tasks': {
+          create: () => {},
+          params: { create: { title: { maxLenght: 2, type: 'string' } } },
+        },
+      });
+
+      await expect(loading).rejects.toThrow(
+        'admin/tasks#create declares "title" with the unknown key "maxLenght"'
+      );
+      await expect(loading).rejects.toMatchObject({
+        code: 'HENRI_PARAMS_DECLARATION_INVALID',
       });
     });
   });
