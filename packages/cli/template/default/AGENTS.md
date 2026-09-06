@@ -57,8 +57,9 @@ module.exports = {
 };
 ```
 
-Field keys: `type`, `required`, `default`, `enum`, `unique`, `index` and
-`personal` (this field is about a person: masked in the logs, in `henri privacy:export`, erased by `henri privacy:erase`; `personal: { expose: false }` never leaves the server);
+Field keys: `type`, `required`, `default`, `enum`, `unique`, `index`,
+`personal` (this field is about a person: masked in the logs, in `henri privacy:export`, erased by `henri privacy:erase`; `personal: { expose: false }` never leaves the server)
+and `encrypted` (the column holds ciphertext and the model the string: `true` is randomised and cannot be queried, `{ deterministic: true }` keeps an equality and a `unique`; the key is `config.encryption.keys`, never `config.secret`, and `henri encryption:rotate` moves the rows when it changes);
 any other key is handed to the adapter as is. Every store adds `createdAt`/`updatedAt`,
 `Model.paginate({ page, perPage })` -> `{ records, page, perPage, total, pages }`,
 `henri.model.errors(error)` -> `{ field: message }` (`null` otherwise) and `db/seeds.js`, run by `henri db:seed`.

@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const TYPES = require('./types');
+const { DETERMINISTIC_LENGTH, encryptionOf } = require('./encrypted');
 const { coded } = require('./utils');
 
 // Dialects with a native ENUM column type
@@ -8,6 +9,9 @@ const ENUM_DIALECTS = new Set(['mariadb', 'mysql', 'postgres']);
 // Keys of the henri model format (Mongoose style) and their Sequelize meaning
 const HENRI_KEYS = {
   default: 'defaultValue',
+  // The column type, and the hooks of index.js; the attribute never
+  // carries the mark itself
+  encrypted: 'henri.encryption',
   enum: 'DataTypes.ENUM or validate.isIn',
   index: 'options.indexes',
   // Metadata, not a column: henri reads it back through the model file
@@ -143,10 +147,18 @@ const resolveType = (type, field) => {
  * @param {*} definition The definition from the model file
  * @param {string} dialect The Sequelize dialect (for ENUM support)
  * @param {Array<object>} indexes Collector for `index: true` fields
+ * @param {object} [context] `{ encrypted, isUser, model }`, the collector
+ *   of the fields marked `encrypted` and what the messages name them by
  * @returns {object} A Sequelize attribute
- * @throws {Error} On unknown keys or types
+ * @throws {Error} On unknown keys, types or marks
  */
-const normalizeField = (field, definition, dialect, indexes) => {
+const normalizeField = (
+  field,
+  definition,
+  dialect,
+  indexes,
+  context = { encrypted: {} }
+) => {
   if (!isPlainObject(definition)) {
     return { type: resolveType(definition, field) };
   }
@@ -178,8 +190,9 @@ const normalizeField = (field, definition, dialect, indexes) => {
       attribute.defaultValue = value === Date.now ? DataTypes.NOW : value;
     } else if (key === 'enum' || key === 'index') {
       // Handled below, they depend on the resolved type
-    } else if (key === 'personal') {
-      // A mark for henri, and nothing Sequelize has to know about
+    } else if (key === 'personal' || key === 'encrypted') {
+      // Marks for henri, and nothing Sequelize has to know about: the
+      // second one is applied below, once the type has resolved
     } else if (KNOWN_KEYS.has(key)) {
       attribute[key] = value;
     } else {
@@ -207,6 +220,18 @@ const normalizeField = (field, definition, dialect, indexes) => {
     indexes.push({ fields: [field] });
   }
 
+  // The column of an encrypted field is the ciphertext's, not the
+  // plaintext's: a `string` no longer fits in a varchar(255) once it
+  // carries an iv, a tag and base64url. See ./encrypted.js
+  const encrypted = encryptionOf(field, definition, context);
+
+  if (encrypted) {
+    attribute.type = encrypted.deterministic
+      ? DataTypes.STRING(DETERMINISTIC_LENGTH)
+      : DataTypes.TEXT;
+    context.encrypted[field] = encrypted;
+  }
+
   return attribute;
 };
 
@@ -221,19 +246,30 @@ const normalizeField = (field, definition, dialect, indexes) => {
  * @param {object} [schema={}] The model schema
  * @param {object} [options={}] Options
  * @param {string} [options.dialect] The Sequelize dialect (ENUM support)
- * @returns {{ attributes: object, indexes: Array<object> }} Sequelize
- * attributes and the indexes requested with `index: true`
- * @throws {Error} On unknown keys or types
+ * @param {boolean} [options.isUser] Is this the user model? (reserved fields)
+ * @param {string} [options.model] The global id, for the error messages
+ * @returns {{ attributes: object, encrypted: object, indexes: Array<object> }}
+ *   Sequelize attributes, the fields marked `encrypted` and the indexes
+ *   requested with `index: true`
+ * @throws {Error} On unknown keys, types or marks
  */
-const normalizeSchema = (schema = {}, { dialect } = {}) => {
+const normalizeSchema = (schema = {}, options = {}) => {
+  const { dialect, isUser = false, model = 'model' } = options;
   const indexes = [];
   const attributes = {};
+  const context = { encrypted: {}, isUser, model };
 
   for (const field of Object.keys(schema)) {
-    attributes[field] = normalizeField(field, schema[field], dialect, indexes);
+    attributes[field] = normalizeField(
+      field,
+      schema[field],
+      dialect,
+      indexes,
+      context
+    );
   }
 
-  return { attributes, indexes };
+  return { attributes, encrypted: context.encrypted, indexes };
 };
 
 module.exports = { isDataType, normalizeField, normalizeSchema, resolveType };

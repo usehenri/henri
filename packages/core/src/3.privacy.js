@@ -308,8 +308,17 @@ class Privacy extends BaseModule {
    */
   async export(who, options = {}) {
     const context = this.context();
-    const subject = await this.subject(who);
-    const document = await exportOf(context, subject);
+    let subject;
+    // Tolerant, because a person asking for their data is entitled to an
+    // answer even when a key is gone, and recorded, because an application
+    // asked to prove the export happened has to be able to show it. The
+    // lookup is inside the scope too: the person's own row is the first
+    // thing that has to open, and it holds encrypted fields like any other
+    const document = await this.tolerantly(async () => {
+      subject = await this.subject(who);
+
+      return exportOf(context, subject);
+    });
 
     await this.tell(subject, {
       action: 'privacy.export',
@@ -356,6 +365,51 @@ class Privacy extends BaseModule {
   }
 
   /**
+   * Runs a walk that must not fail on a field that will not decrypt.
+   *
+   * A person asking for their data is entitled to an answer, and "one of
+   * the keys is gone" is an answer -- a stack trace is not. The same goes,
+   * more so, for the person asking to be removed: an erasure that refuses
+   * because it could not *read* what it was about to write over would be
+   * the worst possible reading of the word.
+   *
+   * So the export, the plan and the erasure run inside
+   * `henri.encryption.tolerate()`: an encrypted value that cannot be
+   * opened reads as `null`, and the document says which fields those
+   * were, with the code and the key id that names the reason. The receipt
+   * carries the same list, so an erasure that ran over a column nobody
+   * could read is written down rather than assumed.
+   *
+   * Nothing else in henri reads this way, and an application never gets it
+   * by configuration: a silent null on an encrypted column is how a
+   * missing key turns into an overwrite.
+   *
+   * @async
+   * @param {function} work What to run
+   * @returns {Promise<object>} What it answered, plus `unreadable`
+   * @memberof Privacy
+   */
+  async tolerantly(work) {
+    const { encryption } = this.henri;
+
+    if (!encryption || typeof encryption.tolerate !== 'function') {
+      return { ...(await work()), unreadable: [] };
+    }
+
+    const { failures, value } = await encryption.tolerate(work);
+
+    if (failures.length > 0) {
+      this.henri.pen.warn(
+        'privacy',
+        `${failures.length} encrypted field(s) could not be read`,
+        failures.map((failure) => failure.context).join(', ')
+      );
+    }
+
+    return { ...value, unreadable: failures };
+  }
+
+  /**
    * What an erasure would do, without doing it
    *
    * @async
@@ -366,9 +420,10 @@ class Privacy extends BaseModule {
    */
   async plan(who, options = {}) {
     const context = this.context();
-    const subject = await this.subject(who);
 
-    return planOf(context, subject, options);
+    return this.tolerantly(async () =>
+      planOf(context, await this.subject(who), options)
+    );
   }
 
   /**
@@ -383,15 +438,27 @@ class Privacy extends BaseModule {
    */
   async erase(who, options = {}) {
     const context = this.context();
-    const subject = await this.subject(who);
     let receipt;
+    let subject;
 
     try {
-      receipt = await eraseOf(context, subject, options);
+      // Tolerant for the same reason the export is: an erasure that refused
+      // because it could not read what it was about to write over would be
+      // the worst possible reading of the word
+      receipt = await this.tolerantly(async () => {
+        subject = await this.subject(who);
+
+        return eraseOf(context, subject, options);
+      });
     } catch (error) {
       // A refusal is written down too: "we were asked and we said no" is
       // part of the record, and an entry that only ever appears on success
-      // is not evidence of anything
+      // is not evidence of anything. Nobody to name means the lookup itself
+      // is what failed, and the trail records what henri did to a person
+      if (!subject) {
+        throw error;
+      }
+
       await this.tell(subject, {
         action: 'privacy.erase',
         meta: {

@@ -5,6 +5,12 @@
     }
   },
   "secret": "nfiwuef9we8f9",
+  "encryption": {
+    "keys": [
+      "1a4f8fbb2ac0463f1cbbb4dd7f00d59f8b3a17c8e1e0d7b7f5f9d9e6a3c21b04",
+      "7c9e2d1b6a4f83c05e7d19b2f4a86c3d5e0f7a9b1c2d3e4f5061728394a5b6c7"
+    ]
+  },
   "graphql": "/_henri/graph",
   "baseRole": "member",
   "url": "https://demo.usehenri.io",

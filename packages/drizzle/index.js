@@ -4,7 +4,8 @@ const debug = require('debug')('henri:drizzle');
 const dialects = require('./dialects');
 const { Migrations } = require('./migrations');
 const { BIND_IDENTITY, createModel } = require('./model');
-const { compileTable, normalizeSchema } = require('./schema');
+const { compileTable, encryptedFields, normalizeSchema } = require('./schema');
+const { decorateModel } = require('./encryption');
 const { SESSION_FIELDS, createStore } = require('./session');
 const { ValidationError } = require('./validation');
 const {
@@ -154,8 +155,19 @@ class Drizzle {
       this.overload(definition);
     }
 
-    const fields = normalizeSchema(definition.schema);
+    const fields = normalizeSchema(definition.schema, {
+      isUser,
+      model: model.globalId,
+    });
+    const encrypted = encryptedFields(fields);
     const Model = createModel(this, definition, fields);
+
+    // `register()` is what refuses the boot when a field says `encrypted`
+    // and the application has no key
+    if (Object.keys(encrypted).length > 0) {
+      this.henri.encryption.register(Model.modelName, encrypted);
+      decorateModel(Model);
+    }
 
     if (isUser) {
       this.decorateUser(Model);

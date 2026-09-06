@@ -23,6 +23,7 @@ const {
   sql,
 } = require('drizzle-orm');
 const { isPlainObject } = require('./utils');
+const { checkOrder, comparison, markOf } = require('./encryption');
 
 /**
  * Operators accepted inside a where value: `{ age: { gt: 18 } }` (the `$`
@@ -107,16 +108,22 @@ const compileWhere = (Model, condition) => {
     }
 
     const column = Model.column(key);
+    // An encrypted column holds an envelope, so a comparison has to be
+    // against every envelope the value could be stored as -- one per
+    // configured key. Anything but an equality is refused there rather
+    // than matching nothing here (see ./encryption.js)
+    const encrypted = markOf(Model, key);
 
     if (value === null) {
       parts.push(isNull(column));
     } else if (Array.isArray(value)) {
-      parts.push(OPERATORS.in(column, value));
+      parts.push(OPERATORS.in(column, comparison(Model, key, value).value));
     } else if (is(value, SQL)) {
       parts.push(eq(column, value));
     } else if (isPlainObject(value)) {
       for (const name of Object.keys(value)) {
-        const operator = OPERATORS[name.replace(/^\$/, '')];
+        const shorthand = name.replace(/^[$]/u, '');
+        const operator = OPERATORS[shorthand];
 
         if (!operator) {
           throw new Error(
@@ -126,8 +133,25 @@ const compileWhere = (Model, condition) => {
           );
         }
 
-        parts.push(operator(column, value[name], Model.adapter.dialect.name));
+        const { list, value: compared } = comparison(
+          Model,
+          key,
+          value[name],
+          shorthand
+        );
+
+        if (list && (shorthand === 'eq' || shorthand === 'in')) {
+          parts.push(OPERATORS.in(column, list));
+        } else if (list) {
+          parts.push(OPERATORS.nin(column, list));
+        } else {
+          parts.push(operator(column, compared, Model.adapter.dialect.name));
+        }
       }
+    } else if (encrypted) {
+      const { list, value: compared } = comparison(Model, key, value);
+
+      parts.push(list ? OPERATORS.in(column, list) : eq(column, compared));
     } else {
       parts.push(eq(column, value));
     }
@@ -163,8 +187,12 @@ const compileOrder = (Model, order) => {
     const [field, direction = 'asc'] = order.trim().split(/\s+/);
 
     if (field.startsWith('-')) {
+      checkOrder(Model, field.slice(1));
+
       return [desc(Model.column(field.slice(1)))];
     }
+
+    checkOrder(Model, field);
 
     return [
       direction.toLowerCase() === 'desc'
@@ -186,12 +214,14 @@ const compileOrder = (Model, order) => {
   }
 
   if (isPlainObject(order)) {
-    return Object.keys(order).map((field) =>
-      String(order[field]).toLowerCase() === 'desc' ||
-      Number(order[field]) === -1
+    return Object.keys(order).map((field) => {
+      checkOrder(Model, field);
+
+      return String(order[field]).toLowerCase() === 'desc' ||
+        Number(order[field]) === -1
         ? desc(Model.column(field))
-        : asc(Model.column(field))
-    );
+        : asc(Model.column(field));
+    });
   }
 
   throw new Error(

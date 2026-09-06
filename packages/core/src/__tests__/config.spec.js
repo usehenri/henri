@@ -71,6 +71,7 @@ describe('config environment', () => {
   let dir;
 
   const clean = () => {
+    delete process.env.HENRI_ENCRYPTION_KEYS;
     delete process.env.HENRI_SECRET;
     delete process.env.HENRI_TEST_DOTENV;
     delete process.env.HENRI_TEST_QUOTED;
@@ -113,6 +114,33 @@ describe('config environment', () => {
 
     expect(withEnv({ port: 3000 })).toEqual({ port: 3000, secret: 'env' });
     expect(withEnv({ secret: 'file' })).toEqual({ secret: 'env' });
+  });
+
+  test('HENRI_ENCRYPTION_KEYS is a list, primary first', () => {
+    const one = 'a'.repeat(64);
+    const two = 'b'.repeat(64);
+
+    expect(withEnv({ port: 3000 }).encryption).toBeUndefined();
+
+    process.env.HENRI_ENCRYPTION_KEYS = `${one}, ${two}`;
+
+    try {
+      // A rotation needs two keys at once and a shell variable holds one
+      // string, so the shorthand splits on commas
+      expect(withEnv({ port: 3000 })).toEqual({
+        encryption: { keys: [one, two] },
+        port: 3000,
+      });
+      // And it replaces whatever a file put there, like every other alias
+      expect(withEnv({ encryption: { keys: ['c'.repeat(64)] } })).toEqual({
+        encryption: { keys: [one, two] },
+      });
+
+      process.env.HENRI_ENCRYPTION_KEYS = `${one},,  `;
+      expect(withEnv({}).encryption.keys).toEqual([one]);
+    } finally {
+      delete process.env.HENRI_ENCRYPTION_KEYS;
+    }
   });
 
   test('a booted henri reads the secret from the environment', async () => {

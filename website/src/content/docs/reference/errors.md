@@ -661,6 +661,116 @@ Usually:
 
 **Fix.** The boot prints every path it tried. Create config/default.json, or fix the JSON of the file that is there.
 
+## encryption
+
+The fields marked `encrypted` in the models, the keys that open them and the rotation that moves them.
+
+### `HENRI_ENCRYPTION_INVALID_MARK`
+
+A model marks a field encrypted in a way henri does not understand.
+
+Usually:
+
+- `encrypted` given something other than `true`, `false` or an object
+- `encrypted.deterministic` given something that is not a boolean
+- a key of the object form henri does not know
+
+**Fix.** A field is marked `encrypted: true` (randomised) or `encrypted: { deterministic: true }` (queryable by equality). Nothing else is accepted, because a mark henri half understands is a column that quietly stays in the clear.
+
+### `HENRI_ENCRYPTION_KEY_MALFORMED`
+
+An encryption key is not a key, or two of them are the same.
+
+Usually:
+
+- a key that is not 64 hexadecimal characters
+- a key with a newline or a quote left around it
+- the same key configured twice
+
+**Fix.** An encryption key is 32 bytes as 64 hexadecimal characters, what `openssl rand -hex 32` prints. Put it in the credentials (`henri credentials:edit`) under `encryption.keys`, primary first. The value that arrived is never repeated in the message: it may be a key.
+
+### `HENRI_ENCRYPTION_KEY_UNKNOWN`
+
+A stored value was encrypted with a key this application does not hold.
+
+Usually:
+
+- an old key was dropped from config.encryption.keys before the rotation had finished
+- the database was restored from a dump older than the last rotation
+- the application is pointed at the database of another environment
+
+**Fix.** The envelope names the key that wrote it, and this application does not hold it. Put that key back in `config.encryption.keys` -- it decrypts, it does not have to be the primary. `henri encryption:status` counts the rows under each key id, and it is what says when an old key may be dropped.
+
+### `HENRI_ENCRYPTION_NOT_QUERYABLE`
+
+An encrypted field was used in a query that cannot work on ciphertext.
+
+Usually:
+
+- a where clause naming a randomised encrypted field
+- `unique` or `index` on a randomised encrypted field
+- an order, a like or a range on an encrypted field
+
+**Fix.** A randomised ciphertext is different every time, so an equality never matches and an index is an index over noise. Mark the field `encrypted: { deterministic: true }` if it has to be looked up by value, and accept what that leaks: equal plaintexts have equal ciphertexts. Anything other than an equality is out of reach either way.
+
+### `HENRI_ENCRYPTION_NO_KEY`
+
+A model has an encrypted field and this application has no encryption key.
+
+Usually:
+
+- a model marks a field `encrypted` and `config.encryption.keys` is unset
+- the credentials file holding the key did not open
+- a key was configured for another environment only
+
+**Fix.** Generate one with `openssl rand -hex 32` and put it in the credentials of the environment: `henri credentials:edit`, then `{ "encryption": { "keys": ["..."] } }`. henri refuses to boot rather than write the column in the clear.
+
+### `HENRI_ENCRYPTION_PLAINTEXT`
+
+A column declared encrypted holds a value that is not encrypted.
+
+Usually:
+
+- the column was filled before the field was marked `encrypted`
+- `henri encryption:rotate` has not run yet, or did not finish
+- a row was written by something that is not this application
+
+**Fix.** Set `{ "encryption": { "readPlaintext": true } }` for the length of the migration, run `henri encryption:rotate` until `henri encryption:status` reports no plaintext left, then take it out again. Reading the clear out of a column that is supposed to be encrypted is a state to leave, not a setting to keep.
+
+### `HENRI_ENCRYPTION_TOO_LONG`
+
+A deterministic encrypted value is longer than its column can hold.
+
+Usually:
+
+- a deterministic field given more than 480 bytes of text
+- a long field marked deterministic when it never had to be queried
+
+**Fix.** A deterministic field lives in a varchar(700) so it can carry a unique index on every dialect, which leaves 480 bytes of plaintext. Mark it `encrypted: true` instead: a randomised field is stored as `text`, has no ceiling, and is not queryable anyway.
+
+### `HENRI_ENCRYPTION_UNREADABLE`
+
+A stored value did not verify under the key that wrote it.
+
+Usually:
+
+- the stored bytes were modified
+- a ciphertext copied from another model, another field or another scheme
+- a column narrower than the ciphertext it was given, so the value was truncated
+
+**Fix.** The key is here and the value did not verify, so this is not a lost key: the bytes changed. The tag covers the model, the field and the scheme, so a value moved between two columns fails here too. Restore the row, or write it again from wherever it came from. Nothing was decoded and nothing was written.
+
+### `HENRI_ENCRYPTION_UNSUPPORTED_TYPE`
+
+A field marked encrypted has a type henri does not encrypt.
+
+Usually:
+
+- `encrypted` on a number, a date, a boolean or a json field
+- `encrypted` on a field with no type
+
+**Fix.** henri encrypts `string` and `text` and nothing else: a ciphertext is a string, and a column that has to keep its type in the database keeps it. Store the value as text and encrypt that, or leave the column in the clear.
+
 ## factory
 
 The test factories of `@usehenri/testing`: `test/factories`, the records they make and the traits they apply.

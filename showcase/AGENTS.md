@@ -67,6 +67,21 @@ two years. A rule writes nothing until its token is in
 `henri retention:sweep` (`--yes` to write) runs the sweep. Every privacy
 operation and every sweep is appended to the access trail, which
 `henri trail` and `henri trail:verify` read back. Every store adds `createdAt`/`updatedAt`,
+`personal`, `encrypted`; any other key is handed to the adapter as is.
+`personal: true` says a field is about a person (`User.name`, `bio`,
+`company`): henri masks it in the logs, exports it and erases it.
+`User.phone` is `personal: { expose: false }`, so it never leaves the server
+unless a render names it in `include` -- only `accounts#show` does. Run
+`henri privacy` for the map.
+
+`User.phone` is also `encrypted: true`, so PostgreSQL holds an envelope
+(`henri:v1:r:...`) and the model hands back the number. Randomised, because
+nothing looks a speaker up by telephone: an equality on it is refused rather
+than silently matching nothing. The key is `HENRI_ENCRYPTION_KEYS` (see
+`.env.example`), never `config.secret` and never a `config/*.json`. Run
+`henri encryption` for the map, `henri encryption:status` before dropping a
+key and `henri encryption:rotate` to move the rows. Nothing else here is
+encrypted: `bio`, `company` and `name` are the published programme. Every store adds `createdAt`/`updatedAt`,
 `Model.paginate({ page, perPage })` -> `{ records, page, perPage, total, pages }`,
 `henri.model.errors(error)` -> `{ field: message }` (`null` otherwise) and `db/seeds.js`, run by `henri db:seed`.
 Every model also carries `externalId`, a uuid that is unique and not null in the

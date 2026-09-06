@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 const debug = require('debug')('henri:mongoose');
 const { externalId, lookups, owned, paginate, paranoid } = require('./plugins');
-const { normalizeSchema } = require('./schema');
+const { normalizeModel } = require('./schema');
+const { encryption } = require('./encryption');
 const {
   EXTERNAL_ID,
   isUuid,
@@ -145,20 +146,28 @@ class Mongoose {
       retention,
       ...options
     } = model.options || {};
+    const { definition, encrypted } = normalizeModel(model.schema || {}, {
+      isUser,
+      model: model.globalId,
+    });
     // Rails has timestamps on every table: `timestamps: false` opts out
-    const schema = new this.mongoose.Schema(
-      normalizeSchema(model.schema || {}),
-      {
-        timestamps: true,
-        ...options,
-      }
-    );
+    const schema = new this.mongoose.Schema(definition, {
+      timestamps: true,
+      ...options,
+    });
 
     debug('adding model %s', model.globalId);
 
     owned(schema, this.henri);
     paginate(schema);
     lookups(schema);
+
+    // Before the model is compiled: `register()` is what refuses the boot
+    // when a field says `encrypted` and the application has no key
+    if (Object.keys(encrypted).length > 0) {
+      this.henri.encryption.register(model.globalId, encrypted);
+      encryption(schema, encrypted, this.henri, model.globalId);
+    }
 
     // Every model carries a public identifier; the document id is internal
     if (wantsExternalId({ options: { externalId: external } })) {

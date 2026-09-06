@@ -38,6 +38,7 @@ const model = (globalId, schema, options = {}) => ({
 describe('the mark (no application)', () => {
   test('a field says it is personal, and henri fills in the rest', () => {
     expect(markOf('User', 'name', { personal: true, type: 'string' })).toEqual({
+      encrypted: false,
       erase: 'clear',
       export: true,
       expose: true,
@@ -471,15 +472,24 @@ describe('privacy (demo app, disk store)', () => {
       'Memo',
       'User',
     ]);
+    // `nationalId` and `phone` are marked `encrypted` and nothing else:
+    // an encrypted field is personal unless the model says otherwise
     expect([...henri.privacy.keys].sort()).toEqual([
       'age',
       'body',
       'email',
       'gender',
       'name',
+      'nationalId',
       'password',
+      'phone',
     ]);
-    expect([...henri.privacy.private].sort()).toEqual(['gender', 'password']);
+    expect([...henri.privacy.private].sort()).toEqual([
+      'gender',
+      'nationalId',
+      'password',
+      'phone',
+    ]);
     expect(
       described.models.find((entry) => entry.model === 'Memo')
     ).toMatchObject({

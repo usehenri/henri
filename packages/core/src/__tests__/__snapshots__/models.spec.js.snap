@@ -20,6 +20,7 @@ Model {
   "name": "model",
   "needs": [
     "config",
+    "encryption",
   ],
   "referenceTable": {
     "classes": Map {},

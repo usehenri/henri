@@ -41,7 +41,41 @@ const ALIASES = [
     requires: 'stores.default',
     variable: 'DATABASE_URL',
   },
+  // Comma separated, primary first, because a rotation needs two of them
+  // at once and a shell variable holds one string
+  { key: 'encryption.keys', split: true, variable: 'HENRI_ENCRYPTION_KEYS' },
 ];
+
+/**
+ * Configuration paths whose value is a secret whatever `filterParameters`
+ * says, because their *name* does not read like one.
+ *
+ * `encryption.keys` is the whole point of the list: a key that reaches a
+ * log line, a boot report or a validation message is a key that has to be
+ * rotated. A path here is masked wherever it is printed, and so is
+ * everything under it.
+ */
+const ALWAYS_MASKED = ['encryption.keys'];
+
+/**
+ * Is this configuration path one that is never printed?
+ *
+ * The index form matters as much as the dotted one: a list of keys is
+ * validated item by item, so the path that reaches a message is
+ * `encryption.keys[0]`, and a *nearly* correct key -- one with a newline
+ * around it, or 63 characters instead of 64 -- is the value a validation
+ * message would otherwise quote.
+ *
+ * @param {string} key a configuration path
+ * @returns {boolean} true when it, or a path above it, is always masked
+ */
+const isSecretPath = (key) =>
+  ALWAYS_MASKED.some(
+    (owned) =>
+      key === owned ||
+      String(key).startsWith(`${owned}.`) ||
+      String(key).startsWith(`${owned}[`)
+  );
 
 /**
  * Load the KEY=value lines of <cwd>/.env into process.env
@@ -343,7 +377,12 @@ function applyEnv(config, env = process.env) {
       continue;
     }
 
-    const value = coerce(raw, getPath(result, alias.key), alias);
+    const value = alias.split
+      ? raw
+          .split(',')
+          .map((part) => part.trim())
+          .filter((part) => part !== '')
+      : coerce(raw, getPath(result, alias.key), alias);
 
     result = setPath(result, alias.key, value);
     applied.push({ key: alias.key, value, variable: alias.variable });
@@ -477,7 +516,11 @@ function display(entry, filters) {
   const { key, value, variable } = entry;
   const last = segments(key).pop();
 
-  if (isFiltered(last, filters) || isFiltered(variable, filters)) {
+  if (
+    isSecretPath(key) ||
+    isFiltered(last, filters) ||
+    isFiltered(variable, filters)
+  ) {
     return MASK;
   }
 
@@ -512,8 +555,11 @@ class Config extends BaseModule {
     this.henri = null;
     this.fromEnv = [];
     this.fromCredentials = [];
+    /** `(key) => where the value came from`, set once the file has loaded */
+    this.provenance = null;
 
     this.get = this.get.bind(this);
+    this.sourceOf = this.sourceOf.bind(this);
     this.has = this.has.bind(this);
     this.reload = this.reload.bind(this);
     this.init = this.init.bind(this);
@@ -563,10 +609,11 @@ class Config extends BaseModule {
       this.config = config;
       this.fromEnv = applied.map(({ key, variable }) => ({ key, variable }));
       this.fromCredentials = secrets.applied;
+      this.provenance = provenance(source, secrets, applied);
 
       Object.freeze(this.config);
       this.report(applied, secrets);
-      this.check(provenance(source, secrets, applied));
+      this.check(this.provenance);
 
       return this.name;
     }
@@ -646,6 +693,7 @@ class Config extends BaseModule {
       has: (key) => hasPath(this.config, key),
     });
     const mask = (key) =>
+      isSecretPath(key) ||
       isFiltered(segments(key).pop() || key, filters) ||
       String(source(key)).startsWith('the credentials');
     const { errors, warnings } = validate(this.config, { mask, source });
@@ -665,6 +713,22 @@ class Config extends BaseModule {
     }
 
     return warnings;
+  }
+
+  /**
+   * Where a value came from: the configuration file, the credentials or
+   * the environment variable that set it.
+   *
+   * It is a name, never a value, so it is safe to put in an error message
+   * about a key nobody may print -- which is what `henri.encryption` does
+   * when it says where it read its keys.
+   *
+   * @param {string} key Configuration key
+   * @returns {string} What set it
+   * @memberof Config
+   */
+  sourceOf(key) {
+    return this.provenance ? this.provenance(key) : `config.${key}`;
   }
 
   /**
@@ -731,7 +795,10 @@ module.exports = Config;
 module.exports.ALIASES = ALIASES;
 module.exports.ENV_JSON_PREFIX = ENV_JSON_PREFIX;
 module.exports.ENV_PREFIX = ENV_PREFIX;
+module.exports.ALWAYS_MASKED = ALWAYS_MASKED;
 module.exports.applyCredentials = applyCredentials;
+module.exports.display = display;
+module.exports.isSecretPath = isSecretPath;
 module.exports.provenance = provenance;
 module.exports.applyEnv = applyEnv;
 module.exports.loadDotEnv = loadDotEnv;

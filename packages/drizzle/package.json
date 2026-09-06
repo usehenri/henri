@@ -25,7 +25,9 @@
     "session.js",
     "types.js",
     "utils.js",
-    "validation.js"
+    "validation.js",
+    "encrypted.js",
+    "encryption.js"
   ],
   "dependencies": {
     "debug": "^4.4.3",
@@ -53,6 +55,7 @@
     }
   },
   "devDependencies": {
+    "@usehenri/core": "workspace:^",
     "better-sqlite3": "^13.0.3",
     "express-session": "^1.19.0",
     "mysql2": "^3.24.3",

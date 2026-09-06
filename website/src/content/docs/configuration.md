@@ -58,6 +58,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                           |
 | `csp`              | off           | Content Security Policy settings henri owns beside `helmet`: `nonce`, see below. See [Security](/guides/security/#content-security-policy).                |
 | `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                                 |
+| `encryption`       |               | The keys that open the fields the models marked `encrypted`, see below. See [Encrypted attributes](/guides/encryption/).                                   |
 | `privacy`          |               | What henri does with the fields the models marked `personal`, see below. See [Personal data](/guides/privacy/).                                            |
 | `retention`        |               | What runs the retention sweep and what it may do, see below. How long a model keeps its records is said in the model. See [Retention](/guides/retention/). |
 | `trail`            | off           | The append-only record of who read or changed personal data, see below. See [The access trail](/guides/trail/).                                            |
@@ -257,6 +258,36 @@ A cache is a correctness hazard, not only a speed feature, so two things are sai
 | `filterParameters` | `["password", "token", "secret", "authorization"]` | Substrings of the parameter names masked in everything `henri.pen` prints; `false` masks nothing.                                                                                                                                                                 |
 | `bodyLimit`        | `"1mb"`                                            | Passed to the JSON and urlencoded body parsers; a string (`"1mb"`) or a number of bytes.                                                                                                                                                                          |
 | `requestTimeout`   | `30000`                                            | Milliseconds before a `503`; `false` disables the timeout.                                                                                                                                                                                                        |
+
+## The `encryption` object
+
+The keys that open the fields the models marked `encrypted`. Which fields
+those are is said in the models themselves; see
+[Encrypted attributes](/guides/encryption/).
+
+The keys are secrets, and this is the one configuration object that must
+never be written in `config/*.json`, which is committed. Their home is the
+encrypted credentials of the environment (`henri credentials:edit`), whose
+values are merged into the configuration key by key, or
+`HENRI_ENCRYPTION_KEYS` -- comma separated, primary first. `henri audit`
+reports a key found in a configuration file.
+
+```json
+{
+  "encryption": {
+    "keys": [
+      "a2f1...64 hex characters",
+      "the previous key, until it is rotated out"
+    ],
+    "readPlaintext": false
+  }
+}
+```
+
+| Key             | Default | Description                                                                                                                                                                                                            |
+| --------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keys`          |         | The key, or the keys with the one that writes first, each 64 hexadecimal characters (`openssl rand -hex 32`). Every key decrypts, only the first encrypts: that is what makes a rotation a deploy and not a migration. |
+| `readPlaintext` | `false` | Whether a column declared encrypted may answer with a value that is not encrypted. `true` is what makes a backfill possible on a table that is already full; take it out once `henri encryption:status` is clean.      |
 
 ## The `privacy` object
 

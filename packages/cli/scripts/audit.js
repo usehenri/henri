@@ -138,6 +138,20 @@ const CHECKS = [
   },
   {
     asvs: 'V2.10.4',
+    check: 'encryption.key-in-config',
+    level: 2,
+    owasp: 'A02',
+    what: 'an encryption key is written in a configuration file, which is committed',
+  },
+  {
+    asvs: 'V6.1.1',
+    check: 'encryption.read-plaintext',
+    level: 2,
+    owasp: 'A02',
+    what: '"encryption": { "readPlaintext": true }: a column declared encrypted still answers with whatever it holds',
+  },
+  {
+    asvs: 'V2.10.4',
     check: 'env.committed',
     level: 2,
     owasp: 'A02',
@@ -661,6 +675,33 @@ const configFindings = (config, { file, hasUser }) => {
       'Move it to HENRI_SECRET in .env, or to the encrypted credentials (henri credentials:edit), and rotate it: the one in git is burnt',
       'V2.10.4'
     );
+  }
+
+  // A key in a committed file is not a key: whoever reads the repository
+  // reads every encrypted column, which is the one thing the feature
+  // exists to prevent
+  if (isObject(config.encryption)) {
+    if (typeof config.encryption.keys !== 'undefined') {
+      add(
+        'high',
+        'encryption.key-in-config',
+        OWASP.A02,
+        'an encryption key is written in a configuration file, which is committed: the encrypted columns are readable by anyone who can read this repository',
+        'Move it to the encrypted credentials (henri credentials:edit, then { "encryption": { "keys": [...] } }) or to HENRI_ENCRYPTION_KEYS, then rotate: generate a key, put it in front of this one, run henri encryption:rotate, and drop this one once henri encryption:status is clean',
+        'V2.10.4'
+      );
+    }
+
+    if (config.encryption.readPlaintext === true) {
+      add(
+        'medium',
+        'encryption.read-plaintext',
+        OWASP.A02,
+        'a column declared encrypted may still answer with a value that is not encrypted, so a row that was never backfilled reads as if nothing were wrong',
+        'This is the migration setting. Run henri encryption:rotate until henri encryption:status reports no plaintext left, then remove "readPlaintext": true',
+        'V6.1.1'
+      );
+    }
   }
 
   for (const [name, store] of Object.entries(config.stores || {})) {
