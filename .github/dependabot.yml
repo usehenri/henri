@@ -22,6 +22,12 @@ updates:
       - dependency-name: string-width
         update-types:
           - version-update:semver-major
+      # @apollo/server 5 declares `graphql: ^16.11.0` as its peer, up to and
+      # including 5.4, so graphql 17 has nowhere to go in @usehenri/graphql.
+      # Drop this when Apollo widens the range.
+      - dependency-name: graphql
+        update-types:
+          - version-update:semver-major
     commit-message:
       prefix: 'chore(deps)'
 
