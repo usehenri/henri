@@ -346,13 +346,14 @@ reach the loopback, the private network or the metadata service) and
 `webhooks.allowHttp: true` (`webhooks.http-allowed`, which sends the payload
 and the signature that authenticates it in the clear).
 
-**Schema changes nobody reviewed** — a Sequelize store (`mysql`,
-`postgresql`, `mssql`) with `"sync": true` in `config/default.json` or
-`config/production.json`, which makes a production boot run DDL of its own
-from whatever the models happen to say (`schema.autosync`). henri stopped
-doing that by default in 1.3: a production boot compares the database with
-the models and warns, and `henri db:status` is the same comparison on demand.
-The drizzle adapter never pushes in production, so it is not reported.
+**Schema changes nobody reviewed** — an `mssql` store with `"sync": true`
+in `config/default.json` or `config/production.json`, which makes a
+production boot run DDL of its own from whatever the models happen to say
+(`schema.autosync`). henri stopped doing that by default in 1.3: a production
+boot compares the database with the models and warns, and `henri db:status`
+is the same comparison on demand. `mssql` is the only store the finding
+reaches, because it is the only one left on Sequelize; every other SQL store
+is Drizzle, which never pushes in production.
 
 **Settings that open a door** — a `script-src` (or, without one, a
 `default-src`) written by the application that allows `'unsafe-inline'` with no
@@ -433,9 +434,10 @@ on purpose:
 - **Whether the in-memory rate limit store matters.** It matters with more than
   one process, and how many processes run is not in the repository.
 - **A field of a model that should not be selected by default.** `select:
-false` is honoured by Mongoose and Drizzle; the Sequelize adapter refuses
-  unknown schema keys, so the fix a finding would name does not exist on every
-  adapter. Making it portable is a change to the model schema, not a check.
+false` is honoured by Mongoose and Drizzle; the Sequelize adapter behind an
+  `mssql` store refuses unknown schema keys, so the fix a finding would name
+  does not exist on every adapter. Making it portable is a change to the model
+  schema, not a check.
 - **Personal data in job arguments or mail bodies.** True, worth knowing, and
   not something a regular expression can tell from a variable name without
   inventing findings.

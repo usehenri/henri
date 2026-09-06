@@ -6,34 +6,43 @@ const { readConfig } = require('./utils');
  * the model API each one exposes.
  *
  * `api` is the flavour of the controllers `henri generate scaffold|crud`
- * writes: `mongoose` (disk and mongoose stores), `sequelize` (mysql,
- * postgresql, mssql, mariadb) or `drizzle`. It is read back from
- * `config/default.json`, so a generator always writes code the configured
- * store can run.
+ * writes: `mongoose` (disk and mongoose stores), `drizzle` (drizzle, and
+ * the postgresql, mysql and mariadb adapters, which are that adapter with
+ * a dialect chosen) or `sequelize`, which is now only mssql. It is read
+ * back from `config/default.json`, so a generator always writes code the
+ * configured store can run.
  *
- * `henri new --adapter <name>` scaffolds the ones with a `scaffold` entry:
- * the store block of `config/default.json`, the packages to install and
- * the pnpm build allowances the driver needs.
+ * `henri new --adapter <name>` scaffolds the ones in `SCAFFOLDS`: the store
+ * block of `config/default.json`, the packages to install and the pnpm
+ * build allowances the driver needs.
+ *
+ * Drizzle is henri's SQL data layer. `--adapter postgresql` and
+ * `--adapter drizzle --dialect postgres` both reach it: the first through
+ * `@usehenri/postgresql`, which brings the `pg` driver with it, the second
+ * through `@usehenri/drizzle`, where the application installs the driver.
+ * `@usehenri/sequelize` is behind `mssql` alone, because Drizzle has no
+ * SQL Server dialect.
  */
 
 /** The adapter `henri new` uses when `--adapter` is not given */
-const DEFAULT_ADAPTER = 'disk';
+const DEFAULT_ADAPTER = 'drizzle';
 
 /** The drizzle dialect `henri new --adapter drizzle` uses by default */
 const DEFAULT_DIALECT = 'sqlite';
 
 /**
- * The model API of every adapter core can load. `mariadb` is a dialect of
- * `@usehenri/mysql` and has no scaffold of its own.
+ * The model API of every adapter core can load. `mariadb` is served by
+ * `@usehenri/mysql` and has no scaffold of its own; `mssql` is the one
+ * adapter left on Sequelize.
  */
 const APIS = {
   disk: 'mongoose',
   drizzle: 'drizzle',
-  mariadb: 'sequelize',
+  mariadb: 'drizzle',
   mongoose: 'mongoose',
   mssql: 'sequelize',
-  mysql: 'sequelize',
-  postgresql: 'sequelize',
+  mysql: 'drizzle',
+  postgresql: 'drizzle',
 };
 
 /** The henri package that provides each adapter */
@@ -45,6 +54,22 @@ const PACKAGES = {
   mssql: '@usehenri/mssql',
   mysql: '@usehenri/mysql',
   postgresql: '@usehenri/postgresql',
+};
+
+/**
+ * The drizzle dialect each adapter name fixes. These are the packages that
+ * are `@usehenri/drizzle` with the choice already made, so a store that
+ * names one needs no `dialect` key and installs no driver of its own.
+ *
+ * `mssql` is not in here: Drizzle has no SQL Server dialect (drizzle-orm
+ * 0.45 ships pg, mysql, sqlite, singlestore and gel; drizzle-kit 0.31
+ * generates for postgresql, mysql, sqlite, turso, singlestore and gel), so
+ * `@usehenri/mssql` is on `@usehenri/sequelize` and stays there.
+ */
+const PRESET_DIALECTS = {
+  mariadb: 'mysql',
+  mysql: 'mysql',
+  postgresql: 'postgres',
 };
 
 /**
@@ -64,7 +89,14 @@ const DIALECTS = {
     url: (name) => `postgres://postgres@127.0.0.1:5432/${name}`,
   },
   sqlite: {
-    builds: { 'better-sqlite3': true },
+    // `false`, not `true`: better-sqlite3 13 ships the compiled addon in
+    // its tarball, for darwin, linux, linuxmusl and win32 on arm64 and
+    // x64, and that is what loads. pnpm would otherwise run `node-gyp
+    // rebuild` on it anyway (a package carrying a binding.gyp gets a
+    // default install script), which needs a C++ toolchain the machine may
+    // not have, doubles the install and produces nothing that gets used.
+    // A platform with no prebuild flips this to `true` and builds.
+    builds: { 'better-sqlite3': false },
     driver: { 'better-sqlite3': '^13.0.3' },
     // Sqlite keeps the test database in memory, like the disk adapter
     testUrl: () => ':memory:',
@@ -75,12 +107,13 @@ const DIALECTS = {
 /**
  * What `henri new --adapter <name>` writes. `store` builds the block of
  * `config/default.json` (`test` gives the one of `config/test.json`, which
- * is only written when it differs), `summary` shows up in the help.
+ * is only written when it differs), `summary` says what it is -- the same
+ * set `henri new --help` lists.
  */
 const SCAFFOLDS = {
   disk: {
     store: () => ({ adapter: 'disk' }),
-    summary: 'local MongoDB, nothing to install (default)',
+    summary: 'local MongoDB, nothing to install',
   },
   drizzle: {
     store: (name, dialect, test) => ({
@@ -88,7 +121,7 @@ const SCAFFOLDS = {
       dialect,
       url: url(DIALECTS[dialect], name, test),
     }),
-    summary: 'Drizzle ORM with migrations: sqlite (default), postgres, mysql',
+    summary: 'Drizzle ORM with migrations: sqlite, postgres, mysql (default)',
   },
   mongoose: {
     store: (name, dialect, test) => ({
@@ -102,21 +135,21 @@ const SCAFFOLDS = {
       adapter: 'mssql',
       url: `mssql://sa@127.0.0.1:1433/${database(name, test)}`,
     }),
-    summary: 'Microsoft SQL Server (sequelize)',
+    summary: 'Microsoft SQL Server (sequelize; drizzle has no mssql dialect)',
   },
   mysql: {
     store: (name, dialect, test) => ({
       adapter: 'mysql',
-      url: `mysql://root@127.0.0.1:3306/${database(name, test)}`,
+      url: DIALECTS.mysql.url(database(name, test)),
     }),
-    summary: 'MySQL or MariaDB (sequelize)',
+    summary: 'MySQL or MariaDB (drizzle, mysql2 included)',
   },
   postgresql: {
     store: (name, dialect, test) => ({
       adapter: 'postgresql',
-      url: `postgres://postgres@127.0.0.1:5432/${database(name, test)}`,
+      url: DIALECTS.postgres.url(database(name, test)),
     }),
-    summary: 'PostgreSQL (sequelize)',
+    summary: 'PostgreSQL (drizzle, pg included)',
   },
 };
 
@@ -149,13 +182,20 @@ const list = () => Object.keys(SCAFFOLDS).sort();
 const dialects = () => Object.keys(DIALECTS).sort();
 
 /**
- * The dialect of a drizzle store: the configured one, or the one its url
- * points at, `sqlite` otherwise
+ * The drizzle dialect of a store: the one its adapter fixes
+ * (`@usehenri/postgresql` is postgres), else the configured one, else the
+ * one its url points at, `sqlite` otherwise
  *
  * @param {object} [store={}] A store block of config/default.json
  * @returns {string} sqlite, postgres or mysql
  */
 const dialectOf = (store = {}) => {
+  const preset = PRESET_DIALECTS[String((store && store.adapter) || '')];
+
+  if (preset) {
+    return preset;
+  }
+
   const wanted = String((store && store.dialect) || '').toLowerCase();
   const aliases = {
     'better-sqlite3': 'sqlite',
@@ -199,6 +239,8 @@ const packagesFor = (store) => {
 
   const needed = [PACKAGES[adapter]];
 
+  // A preset adapter brings its driver; `@usehenri/drizzle` leaves it to
+  // the application, which is why the driver is an optional peer there
   if (adapter === 'drizzle') {
     needed.push(...Object.keys(DIALECTS[dialectOf(store)].driver));
   }
@@ -211,7 +253,7 @@ const packagesFor = (store) => {
  * writes controllers the store can run
  *
  * @param {string} [dir=process.cwd()] The application directory
- * @returns {string} mongoose (the default), sequelize or drizzle
+ * @returns {string} drizzle (the default), mongoose or sequelize
  */
 const apiOf = (dir = process.cwd()) => APIS[adapterOf(dir)] || 'mongoose';
 
@@ -219,7 +261,7 @@ const apiOf = (dir = process.cwd()) => APIS[adapterOf(dir)] || 'mongoose';
  * The adapter of the default store of an application
  *
  * @param {string} [dir=process.cwd()] The application directory
- * @returns {string} An adapter name, `disk` when there is nothing to read
+ * @returns {string} An adapter name, the default when there is nothing to read
  */
 const adapterOf = (dir = process.cwd()) => {
   let config = {};
@@ -282,7 +324,8 @@ const select = (args = {}) => {
  */
 const describe = ({ adapter, dialect = DEFAULT_DIALECT, name }) => {
   const scaffold = SCAFFOLDS[adapter];
-  const flavour = adapter === 'drizzle' ? dialect : null;
+  const preset = PRESET_DIALECTS[adapter];
+  const flavour = preset || (adapter === 'drizzle' ? dialect : null);
   const store = scaffold.store(name, dialect, false);
   const test = scaffold.store(name, dialect, true);
 
@@ -291,7 +334,9 @@ const describe = ({ adapter, dialect = DEFAULT_DIALECT, name }) => {
     api: APIS[adapter],
     builds: flavour ? DIALECTS[flavour].builds : {},
     dialect: flavour,
-    drivers: flavour ? DIALECTS[flavour].driver : {},
+    // A preset adapter carries its own driver, so the application declares
+    // one only when it depends on @usehenri/drizzle directly
+    drivers: preset || !flavour ? {} : DIALECTS[flavour].driver,
     package: PACKAGES[adapter],
     store,
     // Only useful when config/test.json says something new
@@ -305,6 +350,7 @@ module.exports = {
   DEFAULT_DIALECT,
   DIALECTS,
   PACKAGES,
+  PRESET_DIALECTS,
   SCAFFOLDS,
   adapterOf,
   apiOf,

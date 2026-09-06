@@ -158,7 +158,13 @@ annotation when a helper builds part of it:
 /** @type {import('@usehenri/core').Configuration} */
 const config = {
   renderer: 'inertia',
-  stores: { default: { adapter: 'disk' } },
+  stores: {
+    default: {
+      adapter: 'drizzle',
+      dialect: 'sqlite',
+      url: 'file:.henri/app.db',
+    },
+  },
 };
 ```
 
@@ -170,8 +176,8 @@ all three.
 
 ## What is not typed
 
-- **The models.** `Task` is a Mongoose `Model`, a Sequelize `ModelStatic` or a
-  Drizzle model class depending on the store, and its fields come from your
+- **The models.** `Task` is a Drizzle model class, a Mongoose `Model` or a
+  Sequelize `ModelStatic` depending on the store, and its fields come from your
   schema. henri does not pretend otherwise: the globals are `any` unless you
   declare them. What every adapter adds is documented on
   [`Page`](/guides/models/#pagination) — `paginate()` answers the same

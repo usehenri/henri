@@ -20,7 +20,7 @@
     "@inertiajs/react": "^3.7.0",
     "@tailwindcss/vite": "^4.3.3",
     "@usehenri/core": "^1.0.0",
-    "@usehenri/disk": "^1.0.0",
+    "@usehenri/drizzle": "^1.0.0",
     "@usehenri/inertia": "^1.0.0",
     "@vitejs/plugin-react": "^6.1.1",
     "react": "^19.0.0",

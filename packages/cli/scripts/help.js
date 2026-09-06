@@ -270,16 +270,17 @@ const COMMANDS = [
   {
     description: [
       'Boots the models only (no views, no workers) and drives the database.',
-      'seed runs db/seeds.js on any adapter; the migration commands need the',
-      'drizzle adapter and its db/migrations folder (drizzle-kit layout). In',
-      'development the server pushes the schema at boot unless the store sets',
-      '"sync": false; in production it applies the migrations when the store',
-      'sets "migrate": true.',
+      'seed runs db/seeds.js on any adapter; the migration commands need a',
+      'drizzle store -- drizzle, postgresql, mysql, mariadb -- and its',
+      'db/migrations folder (drizzle-kit layout). In development the server',
+      'pushes the schema at boot unless the store sets "sync": false; in',
+      'production it applies the migrations when the store sets',
+      '"migrate": true.',
       '',
-      'status answers on a Sequelize store too (mysql, postgresql, mssql),',
-      'which has no migrations: it reads the database back and reports what',
-      'it and the models disagree about. --sql writes the DDL that would',
-      'close it, for you to review; henri applies none of it.',
+      'status answers on the mssql store too, the one adapter left on',
+      'Sequelize, which has no migrations: it reads the database back and',
+      'reports what it and the models disagree about. --sql writes the DDL',
+      'that would close it, for you to review; henri applies none of it.',
       '',
       'create and drop are the database itself, which every other command',
       'assumes exists: they read the configuration without connecting to the',
@@ -712,11 +713,12 @@ const COMMANDS = [
       },
       {
         description:
-          'store adapter: disk (default), drizzle, mongoose, mysql, postgresql, mssql',
+          'store adapter: drizzle (default), disk, mongoose, postgresql, mysql, mssql',
         flag: '--adapter <name>',
       },
       {
-        description: 'drizzle dialect: sqlite (default), postgres or mysql',
+        description:
+          'dialect of --adapter drizzle: sqlite (default), postgres or mysql',
         flag: '--dialect <name>',
       },
       {
@@ -1078,11 +1080,12 @@ const COMMANDS = [
       },
       {
         description:
-          'store adapter: disk (default), drizzle, mongoose, mysql, postgresql, mssql',
+          'store adapter: drizzle (default), disk, mongoose, postgresql, mysql, mssql',
         flag: '--adapter <name>',
       },
       {
-        description: 'drizzle dialect: sqlite (default), postgres or mysql',
+        description:
+          'dialect of --adapter drizzle: sqlite (default), postgres or mysql',
         flag: '--dialect <name>',
       },
       {

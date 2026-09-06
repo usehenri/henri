@@ -265,14 +265,16 @@ describe('henri audit', () => {
     );
   });
 
+  // `mssql` is the one adapter still on Sequelize, and the one store that
+  // can still be told to run DDL of its own on every boot
   test('reports a Sequelize store that changes the schema at boot', () => {
     const sequelize = (file, sync) =>
       withConfig(app, file, {
         stores: {
           default: {
-            adapter: 'postgresql',
+            adapter: 'mssql',
             sync,
-            url: 'postgres://db.example.test/app',
+            url: 'mssql://db.example.test/app',
           },
         },
       });

@@ -68,8 +68,9 @@ const templateDir = () =>
 // --- store selection --------------------------------------------------------
 // `henri new <app> --adapter drizzle --dialect postgres` writes the store of
 // that adapter in config/default.json, depends on its package and driver and
-// generates the sample resource against its model API. The default stays the
-// zero-config `disk` adapter (see scripts/adapters.js).
+// generates the sample resource against its model API. The default is
+// `drizzle` on sqlite: a file under .henri/, migrations, and a store that
+// deploys as it is (see scripts/adapters.js).
 let adapter = adapters.DEFAULT_ADAPTER;
 let dialect = adapters.DEFAULT_DIALECT;
 
@@ -303,28 +304,45 @@ const dockerfile = (pm, store) => {
   // laptop and wrong in an image: the download does not belong in a boot and
   // the data would live in the container. Say so here rather than let the
   // image fail at run time with a download error.
-  const preamble =
-    store.adapter === 'disk'
-      ? `#
+  const preambles = {
+    disk: `#
 # This application uses the zero-config store (@usehenri/disk), which runs a
 # MongoDB inside the process and keeps its data in .henri/. It is for trying
 # things out, not for an image: point the application at a real database
 # before deploying it.
 #
-#   henri new my-app --adapter postgresql   # or mysql, mssql, mongoose
-#   henri new my-app --adapter drizzle      # sqlite, postgres or mysql
+#   henri new my-app                        # drizzle on sqlite
+#   henri new my-app --adapter drizzle --dialect postgres
+#   henri new my-app --adapter mongoose     # a MongoDB server
 #
 # then set DATABASE_URL on the container.
-#`
-      : '#';
+#`,
+    sqlite: `#
+# The store of this application is sqlite, in a file under .henri/. That
+# deploys -- sqlite is a real database -- but the file lives inside the
+# container, so it is gone when the container is. Mount a volume over it:
+#
+#   docker run -v my-app-data:/srv/.henri ...
+#
+# To move to a server instead, change the store (both keys: the configured
+# dialect wins over the url) and install its driver:
+#
+#   -e DATABASE_URL=postgres://user:password@host:5432/my_app \\
+#   -e HENRI_CONFIG__stores__default__dialect=postgres
+#`,
+  };
+  const preamble = preambles[store.dialect || store.adapter] || '#';
 
-  // A driver with a native addon (better-sqlite3) has no prebuilt binary for
-  // every node and platform pair, so it compiles on install, and the slim
-  // image carries no toolchain. Only the build stage needs one: what ends up
-  // in the image is the compiled addon.
+  // A driver that actually compiles on install needs a toolchain the slim
+  // image does not carry. Only the build stage needs one: what ends up in
+  // the image is the compiled addon. A driver whose build is allow-listed
+  // as `false` ships its own binary and needs nothing.
+  const compiled = Object.entries(store.builds || {})
+    .filter(([, allowed]) => allowed)
+    .map(([name]) => name);
   const native =
-    Object.keys(store.builds || {}).length > 0
-      ? `# ${Object.keys(store.builds).join(', ')} compiles on install
+    compiled.length > 0
+      ? `# ${compiled.join(', ')} compiles on install
 RUN apt-get update \\
   && apt-get install --yes --no-install-recommends python3 make g++ \\
   && rm -rf /var/lib/apt/lists/*
@@ -492,9 +510,9 @@ henri destroy scaffold Post   # undo a generator`;
     ? 'React pages rendered by next.js                  '
     : 'Inertia (React) pages, built by vite            ';
   const migrations =
-    store.adapter === 'drizzle'
+    store.api === 'drizzle'
       ? `
-The \`drizzle\` store has migrations (drizzle-kit, \`db/migrations\`):
+The \`${store.adapter}\` store has migrations (drizzle-kit, \`db/migrations\`):
 
 \`\`\`bash
 henri db:status                        # applied and pending migrations
@@ -512,7 +530,7 @@ and remove \`tailwindcss\`, \`@tailwindcss/postcss\` and
 and remove \`tailwindcss\`, \`@tailwindcss/vite\` and the plugin it adds in
 \`app/views/vite.config.mjs\`.`;
   const database = store.store.url
-    ? `The default store is \`${store.adapter}\`${store.dialect ? ` (\`${store.dialect}\`)` : ''} at
+    ? `The default store is \`${store.adapter}\`${store.adapter === 'drizzle' ? ` (\`${store.dialect}\`)` : ''} at
 \`${store.store.url}\`${store.test ? `, and \`${store.test.url}\` under \`NODE_ENV=test\`` : ''}. Change it in \`config/default.json\`.`
     : `The default store is \`${store.adapter}\`: a local MongoDB started with the
 application, no server to install. Change it in \`config/default.json\`.`;
@@ -686,8 +704,11 @@ HENRI_SECRET=${secret}
 };
 
 /**
- * Adds the dependency build scripts the driver of the store needs to
- * pnpm-workspace.yaml (better-sqlite3 compiles a native addon).
+ * Lists the driver of the store under `allowBuilds` in pnpm-workspace.yaml,
+ * with the answer pnpm should give it: `true` to run its build script,
+ * `false` to skip it. pnpm 11 fails an install that meets a build script
+ * the file does not name either way, so a driver carrying one is listed
+ * whichever answer it gets.
  *
  * @param {object} store The selected store (see scripts/adapters.js)
  * @returns {void}
@@ -727,7 +748,7 @@ const allowBuilds = (store) => {
   }
 
   console.log(
-    ` - Allowing the ${Object.keys(store.builds).join(', ')} build in pnpm-workspace.yaml...`
+    ` - Listing ${Object.keys(store.builds).join(', ')} under allowBuilds in pnpm-workspace.yaml...`
   );
   fs.writeFileSync(file, lines.join('\n'));
 };
@@ -767,15 +788,24 @@ const portSample = async (store) => {
  */
 const storeNotice = (store) => {
   const url = store.store.url || '';
+  const file = url.startsWith('file:');
   const server =
-    store.adapter !== 'disk' && url !== '' && !url.startsWith('file:')
+    store.adapter !== 'disk' && url !== '' && !file
       ? `
     The "${store.adapter}" store expects a database at ${url}
     (config/default.json${store.test ? ', config/test.json for henri test' : ''}). Create it, then start the server.
 `
       : '';
+  // The default: nothing to install and nothing to start. Say where the
+  // database is, because it is a file this time and not a server.
+  const local = file
+    ? `
+    The store is sqlite at ${url.replace('file:', '')} -- no server to
+    start, and the file is gitignored (henri test runs on :memory:).
+`
+    : '';
   const migrations =
-    store.adapter === 'drizzle'
+    store.api === 'drizzle'
       ? `
     Development pushes the schema on boot. For production, write the first
     migration and apply it: henri db:generate --name=init && henri db:migrate
@@ -783,7 +813,7 @@ const storeNotice = (store) => {
 `
       : '';
 
-  return `${server}${migrations}`;
+  return `${server}${local}${migrations}`;
 };
 
 /**

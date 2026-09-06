@@ -394,24 +394,21 @@ importers:
 
   packages/mysql:
     dependencies:
-      '@usehenri/sequelize':
+      '@usehenri/drizzle':
         specifier: workspace:^
-        version: link:../sequelize
+        version: link:../drizzle
       mysql2:
         specifier: ^3.24.3
         version: 3.24.3(@types/node@26.4.1)
 
   packages/postgresql:
     dependencies:
-      '@usehenri/sequelize':
+      '@usehenri/drizzle':
         specifier: workspace:^
-        version: link:../sequelize
+        version: link:../drizzle
       pg:
         specifier: ^8.23.0
         version: 8.23.0
-      pg-hstore:
-        specifier: ^2.3.4
-        version: 2.3.4
 
   packages/react:
     dependencies:

@@ -1,7 +1,7 @@
 {
   "name": "@usehenri/mysql",
   "version": "1.1.0",
-  "description": "henri mariadb/mysql database connector",
+  "description": "henri mysql/mariadb database adapter: @usehenri/drizzle with the dialect and the mysql2 driver chosen",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
   "homepage": "https://usehenri.io",
@@ -19,7 +19,7 @@
     "adapter",
     "mysql",
     "mariadb",
-    "sequelize"
+    "drizzle"
   ],
   "main": "index.js",
   "files": [
@@ -34,7 +34,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@usehenri/sequelize": "workspace:^",
+    "@usehenri/drizzle": "workspace:^",
     "mysql2": "^3.24.3"
   }
 }

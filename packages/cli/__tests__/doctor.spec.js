@@ -28,6 +28,38 @@ const run = (app) => {
   };
 };
 
+/**
+ * Rewrite every config/*.json of the application, and answer what restores
+ * them
+ *
+ * `henri doctor` schema-checks every configuration file but reads one for
+ * everything else: `config/<NODE_ENV>.json`, falling back to
+ * `config/default.json`. These tests run under `NODE_ENV=test`, and a
+ * scaffolded application has a `config/test.json` of its own, so a change
+ * written to `default.json` alone would not be the one the check reads.
+ *
+ * @param {string} app The application directory
+ * @param {Function} mutate Receives the parsed configuration and changes it
+ * @returns {Function} Puts the files back
+ */
+const patchConfig = (app, mutate) => {
+  const dir = path.join(app, 'config');
+  const files = fs
+    .readdirSync(dir)
+    .filter((entry) => entry.endsWith('.json'))
+    .map((entry) => path.join(dir, entry));
+  const originals = files.map((file) => fs.readFileSync(file, 'utf8'));
+
+  for (const file of files) {
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+
+    fs.writeFileSync(file, JSON.stringify(mutate(config) || config, null, 2));
+  }
+
+  return () =>
+    files.forEach((file, at) => fs.writeFileSync(file, originals[at]));
+};
+
 describe('doctor helpers', () => {
   test('tells plural looking names', () => {
     expect(looksPlural('Tasks')).toBe(true);
@@ -195,20 +227,16 @@ describe('henri doctor', () => {
   });
 
   test('reports an unknown adapter and a missing dependency', () => {
-    const file = path.join(app, 'config/default.json');
-    const original = fs.readFileSync(file, 'utf8');
-
-    fs.writeFileSync(
-      file,
-      JSON.stringify({
-        ...JSON.parse(original),
-        stores: { default: { adapter: 'redis' }, sql: { adapter: 'mysql' } },
-      })
-    );
+    const restore = patchConfig(app, (config) => {
+      config.stores = {
+        default: { adapter: 'redis' },
+        sql: { adapter: 'mysql' },
+      };
+    });
 
     const { names, problems } = run(app);
 
-    fs.writeFileSync(file, original);
+    restore();
 
     expect(names).toContain('config.adapter');
     expect(problems).toContainEqual(
@@ -309,18 +337,13 @@ describe('henri doctor', () => {
   // An `uploads` block says an application means to accept a file, and
   // without the package nothing parses a multipart body at all
   test('asks for @usehenri/uploads when the configuration accepts files', () => {
-    const file = path.join(app, 'config/default.json');
-    const original = fs.readFileSync(file, 'utf8');
-    const config = JSON.parse(original);
-
-    fs.writeFileSync(
-      file,
-      JSON.stringify({ ...config, uploads: { maxFileSize: '5mb' } }, null, 2)
-    );
+    const restore = patchConfig(app, (config) => {
+      config.uploads = { maxFileSize: '5mb' };
+    });
 
     const { problems } = run(app);
 
-    fs.writeFileSync(file, original);
+    restore();
 
     expect(problems).toContainEqual(
       expect.objectContaining({
@@ -336,16 +359,13 @@ describe('henri doctor', () => {
   // `config.shared` names the backend the rate limit, the sign-in lockout
   // and the idempotency keys count in, the way a store names its adapter
   test('asks for @usehenri/redis when config.shared names it', () => {
-    const file = path.join(app, 'config/default.json');
-    const original = fs.readFileSync(file, 'utf8');
-    const config = JSON.parse(original);
-
-    config.shared = { adapter: 'redis', url: 'redis://127.0.0.1:6399' };
-    fs.writeFileSync(file, JSON.stringify(config, null, 2));
+    const restore = patchConfig(app, (config) => {
+      config.shared = { adapter: 'redis', url: 'redis://127.0.0.1:6399' };
+    });
 
     const { problems } = run(app);
 
-    fs.writeFileSync(file, original);
+    restore();
 
     expect(problems).toContainEqual(
       expect.objectContaining({
@@ -361,10 +381,8 @@ describe('henri doctor', () => {
   // The one check that opens a connection: an application that says its
   // counters live somewhere else gets told when that somewhere is not there
   test('reports a shared store that does not answer', async () => {
-    const file = path.join(app, 'config/default.json');
-    const original = fs.readFileSync(file, 'utf8');
-    const config = JSON.parse(original);
     const backend = path.join(app, 'lib');
+    let restore;
 
     fs.mkdirSync(backend, { recursive: true });
     fs.writeFileSync(
@@ -378,8 +396,9 @@ describe('henri doctor', () => {
       };\n`
     );
 
-    config.shared = { adapter: './lib/shared' };
-    fs.writeFileSync(file, JSON.stringify(config, null, 2));
+    restore = patchConfig(app, (config) => {
+      config.shared = { adapter: './lib/shared' };
+    });
 
     const down = await reach(app, { problems: [], summary: { warnings: 0 } });
 
@@ -411,21 +430,25 @@ describe('henri doctor', () => {
       path.join(backend, 'up.js'),
       fs.readFileSync(path.join(backend, 'shared.js'), 'utf8')
     );
-    config.shared = { adapter: './lib/up' };
-    fs.writeFileSync(file, JSON.stringify(config, null, 2));
+    restore();
+    restore = patchConfig(app, (config) => {
+      config.shared = { adapter: './lib/up' };
+    });
 
     await reach(app, fresh);
 
     expect(fresh.problems).toEqual([]);
 
     // An adapter that is not installed is `deps.declared`, not this
-    config.shared = { adapter: 'nowhere' };
-    fs.writeFileSync(file, JSON.stringify(config, null, 2));
+    restore();
+    restore = patchConfig(app, (config) => {
+      config.shared = { adapter: 'nowhere' };
+    });
 
     const absent = { problems: [], summary: { warnings: 0 } };
 
     await reach(app, absent);
-    fs.writeFileSync(file, original);
+    restore();
     fs.rmSync(backend, { force: true, recursive: true });
 
     expect(absent.problems).toEqual([]);
@@ -549,19 +572,16 @@ describe('henri doctor', () => {
   });
 
   test('reports migrations a Sequelize store can never apply', () => {
-    const config = path.join(app, 'config/default.json');
-    const original = fs.readFileSync(config, 'utf8');
     const folder = path.join(app, 'db/migrations');
+    let restore;
 
     fs.mkdirSync(folder, { recursive: true });
     fs.writeFileSync(path.join(folder, '0000_init.sql'), 'CREATE TABLE a(b);');
-    fs.writeFileSync(
-      config,
-      JSON.stringify({
-        ...JSON.parse(original),
-        stores: { default: { adapter: 'postgresql', url: 'postgres://x/y' } },
-      })
-    );
+    restore = patchConfig(app, (configuration) => {
+      configuration.stores = {
+        default: { adapter: 'mssql', url: 'mssql://x/y' },
+      };
+    });
 
     const { names, problems } = run(app);
 
@@ -576,13 +596,12 @@ describe('henri doctor', () => {
 
     // The same folder with the drizzle adapter is fine, but nothing applies
     // it on a production boot until the store says so
-    fs.writeFileSync(
-      config,
-      JSON.stringify({
-        ...JSON.parse(original),
-        stores: { default: { adapter: 'drizzle', url: 'postgres://x/y' } },
-      })
-    );
+    restore();
+    restore = patchConfig(app, (configuration) => {
+      configuration.stores = {
+        default: { adapter: 'drizzle', url: 'postgres://x/y' },
+      };
+    });
 
     const drizzle = run(app);
 
@@ -608,7 +627,7 @@ describe('henri doctor', () => {
 
     fs.unlinkSync(production);
     fs.rmSync(folder, { recursive: true });
-    fs.writeFileSync(config, original);
+    restore();
   });
 
   test('refuses to run outside of a project', () => {

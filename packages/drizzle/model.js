@@ -10,6 +10,7 @@ const {
 const { normalizeField } = require('./schema');
 const { ValidationError, failure, validate } = require('./validation');
 const {
+  coded,
   isPlainObject,
   lowerFirst,
   pluralize,
@@ -57,6 +58,83 @@ const OPTION_KEYS = new Set([
   'withDeleted',
   'withHidden',
 ]);
+
+/**
+ * The options each kind of call accepts. Anything else is refused rather
+ * than dropped: an option this adapter does not read is a caller believing
+ * something about a query that is not true, and a dropped `fields` or
+ * `attributes` is the difference between what was written and what runs.
+ */
+const ALLOWED = {
+  // `passwordsHashed` writes a password straight through on the user model
+  // (a migrated hash); `unsafe` allows the roles through mass assignment
+  create: new Set(['passwordsHashed', 'unsafe']),
+  destroy: new Set(['force']),
+  read: OPTION_KEYS,
+  // Mongoose's `new` and `runValidators` are accepted and always on
+  update: new Set(['new', 'passwordsHashed', 'runValidators', 'unsafe']),
+};
+
+/**
+ * Options another ORM spells and this one does not, with what to write
+ * instead. The message is the whole point: `fields` silently ignored is a
+ * mass assignment the caller thought they had bounded.
+ */
+const ELSEWHERE = {
+  attributes: "use 'select' (the columns of the answer)",
+  fields: "use 'select' on a read; a write is bounded by req.permit()",
+  group: 'no equivalent: write the query with Model.query() or store.query()',
+  individualHooks:
+    'a mass update runs the hooks once; loop over the rows for one call each',
+  lock: 'no equivalent: take the lock in store.transaction() with raw SQL',
+  nest: 'rows are model instances already',
+  paranoid: "use 'withDeleted' to include the soft deleted rows",
+  plain: 'a read answers instances; call toObject() on one',
+  raw: 'rows are model instances; call toObject() on one',
+  returning: 'a write answers the row it wrote',
+  subQuery: 'no equivalent',
+  transaction:
+    'a call inside store.transaction() joins it by itself; there is nothing to pass',
+  truncate: 'no equivalent: run the statement with store.query()',
+  validate: 'the validators always run',
+};
+
+/**
+ * Refuses an option this adapter does not read
+ *
+ * @param {function} Model The model
+ * @param {string} kind A key of ALLOWED
+ * @param {object} [options={}] What the caller passed
+ * @returns {object} The same options
+ * @throws {Error} HENRI_MODEL_UNKNOWN_OPTION on anything unknown
+ */
+const checkOptions = (Model, kind, options = {}) => {
+  if (!isPlainObject(options)) {
+    return options;
+  }
+
+  const allowed = ALLOWED[kind];
+  const unknown = Object.keys(options).filter((key) => !allowed.has(key));
+
+  if (unknown.length === 0) {
+    return options;
+  }
+
+  const named = unknown
+    .map((key) =>
+      ELSEWHERE[key] ? `'${key}' (${ELSEWHERE[key]})` : `'${key}'`
+    )
+    .join(', ');
+
+  throw coded(
+    'HENRI_MODEL_UNKNOWN_OPTION',
+    `Unknown option ${named} on ${Model.modelName}; this call takes ${[
+      ...allowed,
+    ]
+      .sort()
+      .join(', ')}`
+  );
+};
 
 /**
  * Deep equality for dirty tracking (dates, arrays and JSON values)
@@ -233,6 +311,9 @@ class Model {
    */
   static relation(where, options = {}) {
     const split = splitArguments(this, where, options);
+
+    checkOptions(this, 'read', split.options);
+
     let relation = this.query().where(split.where);
 
     if (split.options.order) {
@@ -534,6 +615,8 @@ class Model {
    * @memberof Model
    */
   static async create(attrs, options = {}) {
+    checkOptions(this, 'create', options);
+
     if (Array.isArray(attrs)) {
       const created = [];
 
@@ -565,7 +648,21 @@ class Model {
    * @memberof Model
    */
   static update(where, attrs, options = {}) {
+    // `Model.update(values, { where })` is Sequelize's order and the
+    // opposite of this one. Read as written it means "update the rows
+    // matching `values` with `{ where }`": the wrong rows, no error, and a
+    // count that says it worked. A `where` key in the second argument can
+    // only be that mistake, unless the model has such a column.
+    if (isPlainObject(attrs) && 'where' in attrs && !this.fields.where) {
+      throw coded(
+        'HENRI_MODEL_INVALID_QUERY',
+        `${this.modelName}.update() takes the condition first and the attributes second: update(where, attrs). The second argument holds a 'where' key, which reads as a column to write`
+      );
+    }
+
     const split = splitArguments(this, where);
+
+    checkOptions(this, 'update', options);
 
     return this.query().where(split.where).update(attrs, options);
   }
@@ -594,6 +691,8 @@ class Model {
    */
   static destroy(where, options = {}) {
     const split = splitArguments(this, where);
+
+    checkOptions(this, 'destroy', options);
 
     return this.query().where(split.where).destroy(options);
   }
@@ -1204,6 +1303,12 @@ class Model {
    * @memberof Model
    */
   static async updateWhere(where, attrs, options = {}) {
+    // Both ways in end here: Model.update() checks and then builds a
+    // relation, and Model.where(...).update() builds one straight away. The
+    // funnel is where the check belongs, or the fluent spelling is the one
+    // place an unknown option is still dropped in silence
+    checkOptions(this, 'update', options);
+
     const values = await this.prepare(
       'update',
       attrs,
@@ -1238,6 +1343,8 @@ class Model {
    * @memberof Model
    */
   static async destroyWhere(where, options = {}) {
+    checkOptions(this, 'destroy', options);
+
     if (this.paranoid && !options.force) {
       return this.setWhere(where, { deletedAt: new Date() });
     }
@@ -1367,9 +1474,18 @@ class Model {
    *
    * @param {string} field The field
    * @returns {*} The value
+   * @throws {Error} On Sequelize's `get({ plain: true })`, which reads as
+   *   an attribute named by an object and would answer undefined
    * @memberof Model
    */
   get(field) {
+    if (typeof field !== 'string') {
+      throw coded(
+        'HENRI_MODEL_INVALID_QUERY',
+        `${this.Model.modelName}.get() reads one attribute by name: get('title'). For the whole record as a plain object, call toObject()`
+      );
+    }
+
     return this[field];
   }
 
@@ -1412,6 +1528,8 @@ class Model {
    */
   async save(options = {}) {
     const { Model: Klass } = this;
+
+    checkOptions(Klass, this.isNew ? 'create' : 'update', options);
 
     if (this.isNew) {
       const attrs = this.dirtyAttributes();
@@ -1472,6 +1590,8 @@ class Model {
   async destroy(options = {}) {
     const { Model: Klass } = this;
     const where = eq(Klass.column('id'), this.id);
+
+    checkOptions(Klass, 'destroy', options);
 
     await Klass.runHooks('beforeDestroy', this, options);
 

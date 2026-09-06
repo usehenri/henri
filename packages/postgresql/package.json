@@ -1,7 +1,7 @@
 {
   "name": "@usehenri/postgresql",
   "version": "1.1.0",
-  "description": "henri postgresql database connector",
+  "description": "henri postgresql database adapter: @usehenri/drizzle with the dialect and the pg driver chosen",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
   "homepage": "https://usehenri.io",
@@ -19,7 +19,7 @@
     "adapter",
     "postgresql",
     "postgres",
-    "sequelize"
+    "drizzle"
   ],
   "main": "index.js",
   "files": [
@@ -34,8 +34,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@usehenri/sequelize": "workspace:^",
-    "pg": "^8.23.0",
-    "pg-hstore": "^2.3.4"
+    "@usehenri/drizzle": "workspace:^",
+    "pg": "^8.23.0"
   }
 }
