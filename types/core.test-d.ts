@@ -11,6 +11,7 @@ import type {
   Boom,
   Cache,
   CacheStats,
+  CallRecord,
   Configuration,
   Controller,
   Henri,
@@ -386,6 +387,23 @@ henri.privacy.erase('someone@example.test', { strategy: 'nuke' });
 
 // @ts-expect-error `henri.trail.list()` filters by what an entry holds
 henri.trail.list({ actin: 'privacy.export' });
+
+// The call log: the join, and the seam an application's own client goes
+// through. `track()` answers the finisher rather than the row
+expectType<Promise<CallRecord[]>>(henri.calls.about(req.id));
+const finishCall = henri.calls.track({
+  method: 'POST',
+  service: 'billing',
+  url: 'https://api.billing.test/v1/charges',
+});
+
+finishCall({ body: { id: 'ch_1' }, status: 201 });
+
+// @ts-expect-error a call goes in one of the two directions henri records
+henri.calls.list({ direction: 'sideways' });
+
+// @ts-expect-error a call log is read back by request id, never by address
+henri.calls.about({ email: 'someone@example.test' });
 
 // --- controllers ------------------------------------------------------------
 
