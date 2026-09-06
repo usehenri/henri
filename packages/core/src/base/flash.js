@@ -176,8 +176,26 @@ function flashMiddleware() {
   };
 }
 
+/**
+ * The object a handler flashed, out of the queue it landed in.
+ *
+ * `req.flash('errors', { email: 'is required' })` queues one message like any
+ * other, so it comes back as a list; a page wants the bag itself.
+ *
+ * @param {*} queue what a flash type holds
+ * @returns {?object} the first message when it is a plain object, else null
+ */
+function bag(queue) {
+  const [first] = [].concat(queue || []);
+
+  return first && typeof first === 'object' && !Array.isArray(first)
+    ? first
+    : null;
+}
+
 module.exports = flashMiddleware;
 module.exports.KEY = KEY;
+module.exports.bag = bag;
 module.exports.consume = consume;
 module.exports.expose = expose;
 module.exports.pending = pending;

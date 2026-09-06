@@ -106,6 +106,13 @@ for page in index new edit show _form; do
 done
 
 cd "$app"
+
+# The account flows: `henri generate authentication` turns them on in the
+# configuration and writes the pages, the controller, the mailer, the user
+# model and the tests. Everything below (lint, build, boot) then covers them.
+log "henri generate authentication"
+node "$root/packages/henri/bin/henri.js" generate authentication
+
 printf '\n# Resolve the henri packages from the tarballs packed above\noverrides:\n%s' "$overrides" >>pnpm-workspace.yaml
 node -e "
   const fs = require('fs');
@@ -246,3 +253,39 @@ for class in 'overflow-x-auto' 'whitespace-nowrap'; do
 done
 
 log "GET $css -> compiled tailwind, the scaffolded classes included"
+
+# ---------------------------------------------------------------------------
+# 5. The account flows the generator wired: the signup page renders, an
+#    account can be created, and a reset request answers the same for an
+#    address that exists and one that does not.
+# ---------------------------------------------------------------------------
+signup_status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/signup")
+
+if [ "$signup_status" != "200" ]; then
+  echo "GET /signup answered $signup_status" >&2
+  exit 1
+fi
+
+created=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"ada@example.com","name":"Ada","password":"a-long-enough-password"}' \
+  "http://127.0.0.1:$port/signup")
+
+if [ "$created" != "201" ]; then
+  echo "POST /signup answered $created, expected 201" >&2
+  exit 1
+fi
+
+known=$(curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"email":"ada@example.com"}' "http://127.0.0.1:$port/password/forgot")
+unknown=$(curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"email":"nobody@example.com"}' "http://127.0.0.1:$port/password/forgot")
+
+if [ "$known" != "$unknown" ]; then
+  echo "a reset request tells a known address from an unknown one:" >&2
+  echo "  known:   $known" >&2
+  echo "  unknown: $unknown" >&2
+  exit 1
+fi
+
+log "the account flows answer: /signup, and a reset request that says nothing"
