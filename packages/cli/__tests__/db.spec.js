@@ -2,7 +2,15 @@ const fs = require('fs');
 const path = require('path');
 
 const { CliError } = require('../scripts/errors');
-const { migrations, seed, sow, status } = require('../scripts/db');
+const {
+  dumps,
+  migrations,
+  run,
+  schema,
+  seed,
+  sow,
+  status,
+} = require('../scripts/db');
 const {
   cleanup,
   exists,
@@ -68,6 +76,26 @@ describe('henri db', () => {
       );
     });
 
+    test('lists rollback and the schema commands', () => {
+      const { stderr } = henri(['db', '--json'], { cwd: app });
+      const { error } = JSON.parse(stderr);
+
+      expect(error.hint).toContain('rollback');
+      expect(error.hint).toContain('schema:dump');
+      expect(error.hint).toContain('schema:load');
+    });
+
+    test('refuses "schema" without dump or load', () => {
+      const { status, stderr } = henri(['db', 'schema', '--json'], {
+        cwd: app,
+      });
+
+      expect(status).toBe(2);
+      expect(JSON.parse(stderr).error.message).toBe(
+        'Unknown db command "schema"'
+      );
+    });
+
     test('says where the seed file should be, without booting', () => {
       fs.rmSync(path.join(app, 'db/seeds.js'));
 
@@ -91,6 +119,171 @@ describe('henri db', () => {
     const booted = (store) => ({
       model: { stores: { default: store } },
       stop: async () => undefined,
+    });
+
+    test('db:rollback reports what it undid', async () => {
+      const calls = [];
+      const store = {
+        adapterName: 'drizzle',
+        dialect: { name: 'sqlite' },
+        migrations: {
+          rollback: async (options) => {
+            calls.push(options);
+
+            return {
+              applied: true,
+              plan: [
+                {
+                  removes: [
+                    {
+                      column: 'priority',
+                      kind: 'column',
+                      rows: 0,
+                      table: 'tasks',
+                    },
+                  ],
+                  statements: ['ALTER TABLE `tasks` DROP COLUMN `priority`;'],
+                  tag: '0001_priority',
+                  when: 1,
+                },
+              ],
+              rolledBack: ['0001_priority'],
+            };
+          },
+        },
+        name: 'default',
+      };
+
+      expect(await run('rollback', store, { step: 2 })).toMatchObject({
+        command: 'rollback',
+        ok: true,
+        rolledBack: ['0001_priority'],
+      });
+      expect(calls).toEqual([{ force: false, steps: 2 }]);
+
+      // A step that is not a number falls back to one
+      await run('rollback', store, { step: 'lots' });
+      expect(calls[1]).toEqual({ force: false, steps: 1 });
+    });
+
+    test('db:rollback that refuses is not ok', async () => {
+      const store = {
+        adapterName: 'drizzle',
+        dialect: { name: 'sqlite' },
+        migrations: {
+          rollback: async () => ({
+            applied: false,
+            plan: [
+              {
+                removes: [
+                  { column: null, kind: 'table', rows: 12, table: 'tasks' },
+                ],
+                statements: ['DROP TABLE `tasks`;'],
+                tag: '0000_init',
+                when: 1,
+              },
+            ],
+            rolledBack: [],
+          }),
+        },
+        name: 'default',
+      };
+
+      expect(await run('rollback', store, {})).toMatchObject({
+        ok: false,
+        rolledBack: [],
+      });
+    });
+
+    test('db:schema:dump and db:schema:load describe what they did', async () => {
+      const loads = [];
+      const store = {
+        adapterName: 'drizzle',
+        config: {},
+        dialect: { name: 'sqlite' },
+        dump: {
+          load: async () => {
+            loads.push(true);
+
+            return {
+              at: '0000_init',
+              file: '/app/db/schema.sql',
+              recorded: ['0000_init'],
+              statements: 3,
+            };
+          },
+          write: async () => ({
+            at: '0000_init',
+            file: '/app/db/schema.sql',
+            statements: 3,
+            tables: ['tasks'],
+          }),
+        },
+        name: 'default',
+      };
+
+      expect(await schema('schema:dump', store, {})).toEqual({
+        at: '0000_init',
+        command: 'schema:dump',
+        dialect: 'sqlite',
+        file: '/app/db/schema.sql',
+        ok: true,
+        statements: 3,
+        store: 'default',
+        tables: ['tasks'],
+      });
+
+      expect(await schema('schema:load', store, {})).toEqual({
+        at: '0000_init',
+        command: 'schema:load',
+        dialect: 'sqlite',
+        file: '/app/db/schema.sql',
+        ok: true,
+        recorded: ['0000_init'],
+        statements: 3,
+        store: 'default',
+      });
+      expect(loads).toHaveLength(1);
+    });
+
+    test('--file moves the dump for this run', async () => {
+      const store = {
+        adapterName: 'drizzle',
+        config: {},
+        dialect: { name: 'sqlite' },
+        dump: {
+          write: async () => ({
+            at: null,
+            file: '/elsewhere.sql',
+            statements: 0,
+            tables: [],
+          }),
+        },
+        name: 'default',
+      };
+
+      await schema('schema:dump', store, { file: '/elsewhere.sql' });
+      expect(store.config.schemaFile).toBe('/elsewhere.sql');
+    });
+
+    test('a store without a dump says so, and points somewhere', async () => {
+      const sequelize = booted({
+        adapterName: 'mssql',
+        drift: async () => ({}),
+        name: 'default',
+      });
+
+      await expect(dumps(sequelize, 'default')).rejects.toMatchObject({
+        code: 'HENRI_CLI_MIGRATIONS_UNSUPPORTED',
+        exitCode: 1,
+      });
+
+      const mongo = booted({ adapterName: 'mongoose', name: 'default' });
+      const refused = await dumps(mongo, 'default').catch((error) => error);
+
+      expect(refused.code).toBe('HENRI_CLI_MIGRATIONS_UNSUPPORTED');
+      expect(refused.message).toContain('no schema to dump');
+      expect(refused.hint).toContain('MongoDB has no schema');
     });
 
     test('db:status reports the migrations of a drizzle store', async () => {
@@ -356,4 +549,168 @@ module.exports = async () => {
       expect(JSON.parse(fs.readFileSync(report, 'utf8')).count).toBe(1);
     });
   }, 180000);
+
+  // The whole migration story through the binary: the JSON shape and the
+  // exit codes are the contract, so they are exercised where a person or a
+  // script would see them
+  describe('the migration story, end to end', () => {
+    let dir;
+    let app;
+    let store;
+
+    /**
+     * Runs the binary in the copied fixture, on its own sqlite file
+     *
+     * @param {Array<string>} args The command
+     * @returns {object} The spawn result
+     */
+    const cli = (args) =>
+      henri(args, {
+        cwd: app,
+        env: {
+          ...process.env,
+          HENRI_CONFIG__stores__default__url: store,
+          NODE_ENV: 'dev',
+        },
+        timeout: 120000,
+      });
+
+    /**
+     * The last JSON object of an output, whatever the boot logged before it
+     * and whatever it printed in between (a refused command prints its
+     * result and then its error)
+     *
+     * @param {string} output stdout or stderr
+     * @returns {object} The object
+     */
+    const json = (output) => {
+      // A top-level `{` is the only one at column zero: the pretty printed
+      // result indents everything inside it
+      const at = output.lastIndexOf('\n{');
+
+      return JSON.parse(output.slice(at < 0 ? output.indexOf('{') : at + 1));
+    };
+
+    beforeAll(() => {
+      dir = tmpdir('henri-db-story-');
+      app = path.join(dir, 'app');
+      store = `file:${path.join(dir, 'app.db')}`;
+      fs.cpSync(fixture, app, { recursive: true });
+      // Outside the workspace the fixture resolves nothing on its own: its
+      // app module requires @usehenri/core/module
+      linkAdapter(app, 'core', 'drizzle');
+    });
+
+    afterAll(() => {
+      cleanup(dir);
+    });
+
+    test('generate, migrate, dump, rollback, load', () => {
+      expect(
+        json(cli(['db:generate', '--name=init', '--json']).stdout)
+      ).toMatchObject({
+        command: 'generate',
+        ok: true,
+      });
+      expect(json(cli(['db:migrate', '--json']).stdout)).toMatchObject({
+        applied: ['0000_init'],
+        command: 'migrate',
+      });
+
+      const dumped = json(cli(['db:schema:dump', '--json']).stdout);
+
+      expect(dumped).toMatchObject({
+        at: '0000_init',
+        command: 'schema:dump',
+        ok: true,
+      });
+      // The command is handed a real path, and /var is a link to /private
+      expect(dumped.file.endsWith(path.join('app', 'db', 'schema.sql'))).toBe(
+        true
+      );
+      expect(dumped.tables).toContain('tasks');
+
+      const text = fs.readFileSync(dumped.file, 'utf8');
+
+      expect(text).toContain('-- migration: 0000_init');
+      // Written the same way twice
+      cli(['db:schema:dump']);
+      expect(fs.readFileSync(dumped.file, 'utf8')).toBe(text);
+
+      // Nothing was written, so undoing the migration loses nothing
+      const rolled = cli(['db:rollback', '--json']);
+
+      expect(rolled.status).toBe(0);
+      expect(json(rolled.stdout)).toMatchObject({
+        command: 'rollback',
+        ok: true,
+        rolledBack: ['0000_init'],
+      });
+      expect(json(cli(['db:status', '--json']).stdout)).toMatchObject({
+        applied: [],
+        pending: ['0000_init'],
+      });
+
+      // And the dump puts it all back, migration history included
+      const loaded = cli(['db:schema:load', '--json']);
+
+      expect(loaded.status).toBe(0);
+      expect(json(loaded.stdout)).toMatchObject({
+        at: '0000_init',
+        command: 'schema:load',
+        ok: true,
+        recorded: ['0000_init'],
+      });
+      expect(json(cli(['db:status', '--json']).stdout)).toMatchObject({
+        applied: ['0000_init'],
+        pending: [],
+      });
+    }, 180000);
+
+    test('a rollback that would lose rows exits 1 with its code', () => {
+      cli(['db:seed']);
+
+      const refused = cli(['db:rollback', '--json']);
+
+      expect(refused.status).toBe(1);
+      expect(json(refused.stderr).error).toMatchObject({
+        code: 'HENRI_MIGRATION_DESTRUCTIVE',
+        command: 'db',
+        exitCode: 1,
+      });
+      // Nothing ran
+      expect(json(cli(['db:status', '--json']).stdout)).toMatchObject({
+        applied: ['0000_init'],
+      });
+
+      const forced = cli(['db:rollback', '--force', '--json']);
+
+      expect(forced.status).toBe(0);
+      expect(json(forced.stdout).rolledBack).toEqual(['0000_init']);
+    }, 180000);
+
+    test('a schema load onto its own tables exits 1 with its code', () => {
+      cli(['db:schema:load']);
+
+      const refused = cli(['db:schema:load', '--json']);
+
+      expect(refused.status).toBe(1);
+      expect(json(refused.stderr).error).toMatchObject({
+        code: 'HENRI_MIGRATION_DATABASE_NOT_EMPTY',
+        exitCode: 1,
+      });
+    }, 180000);
+
+    test('the text output says what happened', () => {
+      const { status, stdout } = cli(['db:rollback', '--force']);
+
+      expect(status).toBe(0);
+      expect(stdout).toContain('0000_init');
+      expect(stdout).toContain('pending again');
+
+      const dumped = cli(['db:schema:dump']);
+
+      expect(dumped.stdout).toContain('Taken at no migration');
+    }, 180000);
+  });
 });

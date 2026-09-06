@@ -133,7 +133,7 @@ const uniqueViolation = (error, details) =>
  * @param {string} name A table, column or index name
  * @returns {string} The quoted identifier
  */
-const backtick = (name) => '`' + String(name).replace(/`/gu, '``') + '`';
+const backtick = (name) => `\`${String(name).replace(/`/gu, '``')}\``;
 
 /**
  * Quotes an identifier with double quotes (postgres)
@@ -141,7 +141,7 @@ const backtick = (name) => '`' + String(name).replace(/`/gu, '``') + '`';
  * @param {string} name A table, column or index name
  * @returns {string} The quoted identifier
  */
-const quoted = (name) => '"' + String(name).replace(/"/gu, '""') + '"';
+const quoted = (name) => `"${String(name).replace(/"/gu, '""')}"`;
 
 const sqlite = {
   /**
@@ -271,8 +271,6 @@ const sqlite = {
 
   placeholder: () => '?',
 
-  quote: backtick,
-
   /**
    * Runs a raw query
    *
@@ -287,6 +285,8 @@ const sqlite = {
 
     return statement.reader ? statement.all(...args) : statement.run(...args);
   },
+
+  quote: backtick,
 
   returning: true,
 
@@ -434,10 +434,10 @@ const postgres = {
 
   placeholder: (index) => `$${index}`,
 
-  quote: quoted,
-
   query: async (client, text, params = []) =>
     (await client.query(text, params)).rows,
+
+  quote: quoted,
 
   returning: true,
   synchronous: false,
@@ -573,10 +573,10 @@ const mysql = {
 
   placeholder: () => '?',
 
-  quote: backtick,
-
   query: async (client, text, params = []) =>
     (await client.query(text, params))[0],
+
+  quote: backtick,
 
   returning: false,
   synchronous: false,

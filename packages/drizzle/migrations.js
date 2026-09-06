@@ -247,7 +247,8 @@ class Migrations {
     if (!fs.existsSync(file)) {
       throw coded(
         'HENRI_MIGRATION_SNAPSHOT_MISSING',
-        `drizzle: ${path.join('meta', name)} is missing from ${this.folder}`
+        `drizzle: ${path.join('meta', name)} is missing from ${this.folder}`,
+        'The snapshots next to the migrations belong in version control: restore meta/ from it'
       );
     }
 
@@ -543,7 +544,8 @@ class Migrations {
         'HENRI_MIGRATION_NOT_APPLIED',
         entries.length === 0
           ? `drizzle: store ${this.adapter.name} has no applied migration to roll back`
-          : `drizzle: store ${this.adapter.name} has ${entries.length} applied migration(s), ${count} were asked for`
+          : `drizzle: store ${this.adapter.name} has ${entries.length} applied migration(s), ${count} were asked for`,
+        'Run "henri db:status" for what is applied and what is pending'
       );
     }
 
@@ -573,7 +575,8 @@ class Migrations {
     if (recorded && recorded.hash !== this.digestOf(entry.tag)) {
       throw coded(
         'HENRI_MIGRATION_EDITED',
-        `drizzle: ${entry.tag}.sql is not the file the database applied`
+        `drizzle: ${entry.tag}.sql is not the file the database applied`,
+        'Put the file back the way it was, or roll the change forward with a new migration'
       );
     }
 
@@ -591,7 +594,8 @@ class Migrations {
 
       throw coded(
         'HENRI_MIGRATION_IRREVERSIBLE',
-        `drizzle: ${entry.tag} removed ${named}; rolling it back would put them back empty`
+        `drizzle: ${entry.tag} removed ${named}; rolling it back would put them back empty`,
+        'There is no --force for this: undoing a destructive migration is a restore from a backup'
       );
     }
 
