@@ -946,19 +946,9 @@ class Webhooks {
       timestamp: new Date().toISOString(),
       type: event,
     });
-    // The request that caused the emit is over by the time the delivery
-    // goes out, so the id has to travel with the job: without it the call
-    // log would hold the outbound call and nothing to join it to
-    const { calls } = this.henri || {};
     const job = await this.queue().perform(
       DELIVERY_JOB,
-      {
-        body,
-        endpoint: id,
-        event,
-        id: delivery,
-        requestId: (calls && calls.requestId()) || null,
-      },
+      { body, endpoint: id, event, id: delivery },
       {
         at: options.at,
         queue: this.config.queue,
@@ -1003,6 +993,58 @@ class Webhooks {
       }),
     };
 
+    const telemetry = this.henri && this.henri.telemetry;
+    const attempt = (context.job && context.job.attempt) || 1;
+    const send = () => this.send(row, args, headers, attempt);
+
+    if (!telemetry || typeof telemetry.span !== 'function') {
+      return send();
+    }
+
+    // The endpoint is named by its id, never by its url: a url is registered
+    // by a tenant and may carry a token in its path, and the id is what
+    // `henri webhooks:show` takes anyway (see base/telemetry.js in core)
+    return telemetry.span(
+      'henri.webhook.deliver',
+      {
+        attributes: {
+          'henri.webhook.attempt': attempt,
+          'henri.webhook.endpoint': row.id,
+          'henri.webhook.event': args.event,
+        },
+        boundary: 'webhooks',
+        kind: 'client',
+      },
+      send
+    );
+  }
+
+  /**
+   * The request itself, inside whatever span wraps it
+   *
+   * Split out so `traceparent` is written *inside* the span: what a receiver
+   * reads then names this delivery attempt, which is the only useful parent
+   * it could have. `inject()` writes nothing when henri is not tracing or
+   * when `telemetry.propagate` is false.
+   *
+   * @param {object} row The endpoint
+   * @param {object} args `{ body, endpoint, event, id }`
+   * @param {object} headers The headers, signature included
+   * @param {number} attempt Which attempt this is
+   * @returns {Promise<object>} What happened
+   * @throws {Error} Whatever the delivery failed with, `retryable` set
+   * @memberof Webhooks
+   */
+  async send(row, args, headers, attempt) {
+    const telemetry = this.henri && this.henri.telemetry;
+
+    if (telemetry && typeof telemetry.inject === 'function') {
+      telemetry.inject(headers);
+    }
+
+    // The outbound call log records the same attempt the span times, and
+    // records it here rather than in `perform` so that `traceparent` is
+    // already in the headers it holds
     const finish = this.tracked(row.url, args, headers);
 
     try {
@@ -1016,11 +1058,7 @@ class Webhooks {
       });
 
       finish({
-        meta: {
-          attempt: (context.job && context.job.attempt) || 1,
-          endpoint: row.id,
-          event: args.event,
-        },
+        meta: { attempt, endpoint: row.id, event: args.event },
         status: answer.status,
       });
 
@@ -1033,7 +1071,7 @@ class Webhooks {
 
       return {
         address: answer.address,
-        attempt: (context.job && context.job.attempt) || 1,
+        attempt,
         duration: answer.duration,
         endpoint: row.id,
         event: args.event,
@@ -1043,11 +1081,7 @@ class Webhooks {
     } catch (error) {
       finish({
         error: error.code || error.name,
-        meta: {
-          attempt: (context.job && context.job.attempt) || 1,
-          endpoint: row.id,
-          event: args.event,
-        },
+        meta: { attempt, endpoint: row.id, event: args.event },
         status: error.status || null,
       });
 
@@ -1059,45 +1093,6 @@ class Webhooks {
 
       throw error;
     }
-  }
-
-  /**
-   * Starts timing one delivery, when the application keeps a call log.
-   *
-   * The body is the envelope this package built, parsed back into the
-   * object it was: the call log stores a body it can walk and redact, and
-   * a JSON string is not one. What the receiver answered is deliberately
-   * *not* recorded -- it is untrusted text nothing can redact, and the
-   * queue's own job row already holds the excerpt an operator reads.
-   *
-   * @param {string} url Where the delivery goes
-   * @param {object} args The job arguments
-   * @param {object} sent The headers of the request
-   * @returns {Function} The finisher (a no-op without a call log)
-   * @memberof Webhooks
-   */
-  tracked(url, args, sent) {
-    const { calls } = this.henri || {};
-
-    if (!calls || !calls.enabled) {
-      return () => null;
-    }
-
-    let body;
-
-    try {
-      body = JSON.parse(args.body);
-    } catch (error) {
-      body = null;
-    }
-
-    return calls.track({
-      method: 'POST',
-      request: { body, headers: sent },
-      requestId: args.requestId || null,
-      service: 'webhooks',
-      url,
-    });
   }
 
   /**

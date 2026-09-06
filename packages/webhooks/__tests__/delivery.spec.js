@@ -126,6 +126,96 @@ describe('a delivery, end to end', () => {
     await webhooks.remove(endpoint.id);
   });
 
+  test('a delivery carries the trace, and the span names no url', async () => {
+    const spans = [];
+
+    // What `henri.telemetry` is when core is tracing, reduced to the two
+    // calls this package makes of it
+    henri.telemetry = {
+      /**
+       * Write the current context into the outgoing headers
+       *
+       * @param {object} carrier the headers
+       * @returns {object} the same headers
+       */
+      inject: (carrier) => {
+        carrier.traceparent =
+          '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+
+        return carrier;
+      },
+      /**
+       * Run the delivery inside a span
+       *
+       * @param {string} name the span name
+       * @param {object} options its attributes
+       * @param {Function} fn the delivery
+       * @returns {*} whatever it answered
+       */
+      span: (name, options, fn) => {
+        spans.push({ name, ...options });
+
+        return fn();
+      },
+    };
+
+    const server = await serve();
+    const endpoint = await webhooks.register({
+      events: ['invoice.refunded'],
+      url: `${server.url}/hooks/a-secret-path`,
+    });
+
+    await webhooks.emit('invoice.refunded', { total: 1 });
+
+    let performed;
+
+    try {
+      performed = await work();
+    } finally {
+      delete henri.telemetry;
+    }
+
+    expect(performed).toMatchObject({ failed: 0, performed: 1 });
+
+    const [got] = server.received;
+
+    expect(got.headers.traceparent).toBe(
+      '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+    );
+
+    // The queue spans the job, and the package spans the request inside it
+    expect(spans.map((span) => span.name)).toEqual([
+      'henri.job henri/webhook',
+      'henri.webhook.deliver',
+    ]);
+
+    const [job, delivery] = spans;
+
+    expect(delivery.boundary).toBe('webhooks');
+    expect(delivery.attributes).toEqual({
+      'henri.webhook.attempt': 1,
+      'henri.webhook.endpoint': endpoint.id,
+      'henri.webhook.event': 'invoice.refunded',
+    });
+    expect(job.boundary).toBe('jobs');
+    expect(Object.keys(job.attributes).sort()).toEqual([
+      'henri.job.attempt',
+      'henri.job.id',
+      'henri.job.name',
+      'henri.job.queue',
+    ]);
+
+    // The url is a tenant's, a path is where a token hides, and the job's
+    // arguments are the body that was signed
+    const written = JSON.stringify(spans);
+
+    expect(written).not.toContain('a-secret-path');
+    expect(written).not.toContain(server.url);
+    expect(written).not.toContain('total');
+
+    await webhooks.remove(endpoint.id);
+  });
+
   test('a receiver that keeps failing lands in the dead letter queue', async () => {
     const server = await serve(() => ({ body: 'boom', status: 500 }));
     const endpoint = await webhooks.register({
