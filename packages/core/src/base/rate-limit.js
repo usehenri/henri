@@ -129,6 +129,9 @@ function limiter(henri, options = {}) {
  * @param {number} [options.windowMs=60000] the window (ms)
  * @param {Array<string>} [options.paths] paths to protect (defaults to
  *   `config.user.loginPath` and the register-style paths)
+ * @param {Array<string>} [options.prefixes] prefixes under which *every*
+ *   request is counted, whatever its method: the identity endpoints, whose
+ *   callback is a `GET` that makes henri dial a provider
  * @param {string} [options.loginPath='/login'] the login path
  * @param {object} [options.store] an express-rate-limit store
  * @returns {function} the middleware
@@ -139,11 +142,32 @@ function authLimiter(henri, options = {}) {
       ? options.paths
       : [options.loginPath || '/login', ...AUTH_PATHS]
   );
+  const prefixes = (
+    Array.isArray(options.prefixes) ? options.prefixes : []
+  ).filter((prefix) => typeof prefix === 'string' && prefix.length > 0);
+
+  /**
+   * Is this request one of the authentication endpoints?
+   *
+   * A prefix is compared with `startsWith` rather than a pattern: the path
+   * comes from the request, and a value that reaches a regular expression
+   * from a request is walked, not matched.
+   *
+   * @param {Express.Request} req the request
+   * @returns {boolean} counted or not
+   */
+  const counted = (req) => {
+    if (req.method === 'POST' && paths.has(req.path)) {
+      return true;
+    }
+
+    return prefixes.some((prefix) => req.path.startsWith(prefix));
+  };
 
   return limiter(henri, {
     max: typeof options.max === 'undefined' ? AUTH_DEFAULTS.max : options.max,
     name: 'auth',
-    skip: (req) => req.method !== 'POST' || !paths.has(req.path),
+    skip: (req) => !counted(req),
     store: options.store,
     windowMs:
       typeof options.windowMs === 'undefined'

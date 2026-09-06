@@ -981,6 +981,34 @@ Usually:
 
 **Fix.** Declare the trait in the `traits` of the factory, or pass an override object instead. The message lists the traits it does have.
 
+## identity
+
+Signing in with somebody else's identity provider: the providers an application configures, the table the identities live in and the callback that binds one to an account.
+
+### `HENRI_IDENTITY_PROVIDER_INVALID`
+
+A provider named in user.identities.providers cannot be used as it is configured, so the boot stopped rather than mounting a button that would fail.
+
+Usually:
+
+- a provider has no clientId or no clientSecret, so the token exchange could never be made
+- an authorizationUrl, tokenUrl or userinfoUrl is missing, is not a url, carries credentials, or is plain http rather than https without user.identities.allowHttp
+- user.identities.merge is "verified" and a provider is not marked trusted: true
+
+**Fix.** The message names every provider and every problem at once. Put the client secret in the encrypted credentials (henri credentials:edit) or in the environment, give the three endpoints their https urls, and mark a provider "trusted": true only when it really is the authority on who owns an address in this application.
+
+### `HENRI_IDENTITY_UNSUPPORTED_STORE`
+
+The identities cannot be kept in the store the user model lives in.
+
+Usually:
+
+- the store owning the user model is an adapter with neither query() nor a MongoDB connection
+- the MongoDB store is not connected yet
+- the user model lives in a store henri has no dialect for
+
+**Fix.** The identities live in the store the user model lives in. Point the user model at a store henri can write raw SQL to, or at a MongoDB one, the way the job queue and the access trail need.
+
 ## job
 
 The background job queue of @usehenri/jobs.

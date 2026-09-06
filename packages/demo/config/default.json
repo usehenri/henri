@@ -20,7 +20,28 @@
       "fields": ["name"]
     },
     "passwordReset": true,
-    "confirmation": true
+    "confirmation": true,
+    "identities": {
+      "allowHttp": true,
+      "providers": {
+        "acme": {
+          "authorizationUrl": "http://127.0.0.1:1/authorize",
+          "tokenUrl": "http://127.0.0.1:1/token",
+          "userinfoUrl": "http://127.0.0.1:1/userinfo",
+          "clientId": "henri-demo",
+          "clientSecret": "acme-secret",
+          "scope": ["openid", "email"]
+        },
+        "other": {
+          "authorizationUrl": "http://127.0.0.1:1/authorize",
+          "tokenUrl": "http://127.0.0.1:1/token",
+          "userinfoUrl": "http://127.0.0.1:1/userinfo",
+          "clientId": "henri-demo-other",
+          "clientSecret": "other-secret",
+          "auth": "post"
+        }
+      }
+    }
   },
   "i18n": {
     "locales": ["en", "fr"],

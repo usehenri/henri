@@ -101,6 +101,9 @@ describe('api settings', () => {
           loginPath: '/login',
           max: 10,
           paths: undefined,
+          // No identity provider is configured, so the auth limiter counts
+          // the POSTs of the login and register paths and nothing else
+          prefixes: [],
           windowMs: 60000,
         },
         max: 600,

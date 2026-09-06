@@ -63,6 +63,7 @@ const {
 const { EXTERNAL_ID } = require('./base/external-id');
 const Lockout = require('./base/lockout');
 const accounts = require('./base/accounts');
+const identities = require('./base/identities');
 const csrf = require('./base/csrf');
 const { csrfConfig } = csrf;
 const { unavailable } = require('./base/shared');
@@ -607,9 +608,10 @@ class User extends BaseModule {
 
     this.settings = userConfig(config, { isTest: this.henri.isTest });
     this.henri.params = params;
-    // The service exists whether or not this application has a user model;
-    // only its endpoints are conditional (see below)
+    // The services exist whether or not this application has a user model;
+    // only their endpoints are conditional (see below)
     this.henri.accounts = accounts(this.henri);
+    this.henri.identities = identities(this.henri);
 
     if (server && server.app) {
       server.app.set(
@@ -767,6 +769,8 @@ class User extends BaseModule {
       app.use(accounts.router(this.henri));
     });
 
+    await this.mountIdentities();
+
     this.henri.addMiddleware('logout', (app) => {
       app.post('/logout', this.logout);
       app.get('/logout', this.deprecatedLogout);
@@ -775,6 +779,54 @@ class User extends BaseModule {
     this.henri.passport = this.passport;
 
     return this.name;
+  }
+
+  /**
+   * Mounts the identity endpoints, when `config.user.identities` names a
+   * provider.
+   *
+   * Three things happen here and the order matters. The providers are
+   * checked first, so a missing client secret or an `http://` token
+   * endpoint fails the boot rather than a button; the table is created
+   * next, the way the queue and the trail create theirs; and only then are
+   * the routes registered -- *after* the session, passport and the CSRF
+   * middleware above, so `POST /auth/:provider` is a request henri already
+   * knows how to refuse.
+   *
+   * @async
+   * @returns {Promise<boolean>} whether anything was mounted
+   * @memberof User
+   */
+  async mountIdentities() {
+    const { identities: service, pen } = this.henri;
+
+    if (!service || !service.enabled) {
+      return false;
+    }
+
+    const problems = service.problems();
+
+    if (problems.length > 0) {
+      throw identities.invalid(problems);
+    }
+
+    const { merge, path, providers } = service.settings;
+
+    await service.install();
+
+    this.henri.addMiddleware('identities', (app) => {
+      app.use(identities.router(this.henri));
+    });
+
+    pen.info(
+      'identities',
+      `${Object.keys(providers).sort().join(', ')} at ${path}`,
+      merge === 'verified'
+        ? 'a callback for an address that already has an account LINKS it (user.identities.merge: "verified")'
+        : 'a callback for an address that already has an account is refused'
+    );
+
+    return true;
   }
 
   /**

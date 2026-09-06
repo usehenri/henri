@@ -283,6 +283,23 @@ const ADDRESS = {
   type: 'string',
 };
 
+/**
+ * The name of an identity provider.
+ *
+ * An application chose it (`config.user.identities.providers`), so a wrong
+ * one is the caller's mistake and is refused. The characters are the ones
+ * `base/identities.js` accepts in a url segment, and nothing that arrives
+ * *from* a url is checked here: `providerName()` walks that one, and a name
+ * nobody configured answers `unknown-provider` to a visitor rather than
+ * throwing at them.
+ */
+const PROVIDER = {
+  describe: 'the name of an identity provider',
+  hint: 'henri.identities.providers() answers the ones this application has',
+  pattern: /^[A-Za-z0-9_-]+$/u,
+  type: 'string',
+};
+
 /** A path inside the application, which is what an absolute url is built on */
 const PATH = {
   describe: 'a path beginning with "/"',
@@ -723,6 +740,19 @@ const SIGNATURES = {
 
   'henri.i18n.url': [{ name: 'locale', ...LOCALE }],
 
+  'henri.identities.forPerson': [{ name: 'who', ...NAME }],
+
+  'henri.identities.forUser': [{ name: 'user', ...USER }],
+
+  'henri.identities.forget': [{ name: 'who', ...NAME }],
+
+  'henri.identities.redirectUri': [{ name: 'provider', ...PROVIDER }],
+
+  'henri.identities.unlink': [
+    { name: 'user', ...USER },
+    { name: 'provider', ...PROVIDER },
+  ],
+
   'henri.mail.send': [{ name: 'message', ...bag({}, { unknown: 'allow' }) }],
 
   'henri.model.getStore': [{ name: 'name', optional: true, ...NAME }],
@@ -1105,6 +1135,10 @@ const UNCHECKED = {
     'guarded by hand with one typeof, because a page calls it once per string and walking a schema per string is a cost nobody asked for: HENRI_LOCALE_KEY_INVALID and HENRI_LOCALE_UNKNOWN are what it raises',
   'henri.i18n.view':
     'the router is the one caller and what it passes is what decide() answered; anything else answers null rather than failing a render for the sake of a locale',
+  'henri.identities.complete':
+    'both of its arguments belong to whoever followed the link back from a provider: the query is attacker controlled by construction and every branch of it answers a reason a page shows, which is what an expired state, a replayed callback and a refused merge all answer',
+  'henri.identities.providerOf':
+    'answers null for anything that is not one of the providers this application configured, which is what a router asking about a name out of a url should get',
   'henri.mailers.onDeliverLater':
     'says so and answers false, which is its documented contract',
   'henri.model.errors':

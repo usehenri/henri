@@ -3,6 +3,7 @@ const path = require('path');
 const { DAY, MemoryStore } = require('./idempotency');
 const { AUTH_DEFAULTS, DEFAULTS: RATE_DEFAULTS } = require('./rate-limit');
 const { DEFAULTS: PAGE_DEFAULTS } = require('./pagination');
+const { identitiesConfig } = require('./identities');
 const { filterParameters } = require('./redact');
 
 /**
@@ -76,6 +77,10 @@ function settings(config, user = {}) {
   const rateLimit = objectOf(rate === true ? {} : rate);
   const auth = objectOf(rateLimit.auth);
   const timeout = get('requestTimeout', 30000);
+  // The identity endpoints are authentication endpoints, and the callback
+  // is a GET that makes henri dial a provider, so the whole prefix is
+  // counted rather than the POSTs of it (see base/identities.js)
+  const identities = identitiesConfig(config);
 
   return {
     bodyLimit:
@@ -106,6 +111,7 @@ function settings(config, user = {}) {
                     loginPath: user.loginPath || '/login',
                     max: positive(auth.max, AUTH_DEFAULTS.max),
                     paths: Array.isArray(auth.paths) ? auth.paths : undefined,
+                    prefixes: identities.enabled ? [`${identities.path}/`] : [],
                     windowMs: positive(auth.windowMs, AUTH_DEFAULTS.windowMs),
                   },
             max: positive(
