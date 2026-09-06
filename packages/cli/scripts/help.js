@@ -275,8 +275,27 @@ const COMMANDS = [
       'development the server pushes the schema at boot unless the store sets',
       '"sync": false; in production it applies the migrations when the store',
       'sets "migrate": true.',
+      '',
+      'create and drop are the database itself, which every other command',
+      'assumes exists: they read the configuration without connecting to the',
+      'store, then talk to the server with the driver the application',
+      'installed. PostgreSQL and MySQL are created on their maintenance',
+      'connection, a SQLite database is a file, and MongoDB makes one on its',
+      'first write. reset drops, creates, brings the schema up (from the',
+      'migrations, or from the models when there are none) and runs the',
+      'seeds. Both refuse to act against NODE_ENV=production without --force.',
+      'The environment is NODE_ENV, as everywhere else: NODE_ENV=test henri',
+      'db:create is the test database.',
     ],
     examples: [
+      {
+        command: 'henri db:create',
+        description: 'Creates the database the default store points at',
+      },
+      {
+        command: 'NODE_ENV=test henri db:reset',
+        description: 'Drops, creates, migrates and seeds the test database',
+      },
       {
         command: 'henri db:seed',
         description: 'Runs db/seeds.js with the models loaded',
@@ -305,14 +324,28 @@ const COMMANDS = [
         flag: '--file=<path>',
       },
       {
-        description: 'push: apply statements that lose data',
+        description:
+          'push: apply statements that lose data; drop and reset: act in production',
         flag: '--force',
       },
       { description: 'print the result as JSON', flag: '--json' },
     ],
     name: 'db',
-    summary: 'seeds and migrations of a store',
+    summary: 'the database of a store: create, migrate, seed',
     targets: [
+      {
+        description: 'create the database the store points at',
+        name: 'create',
+      },
+      {
+        description: 'drop it (--force in production)',
+        name: 'drop',
+      },
+      {
+        description:
+          'drop, create, bring the schema up and seed (--force in production)',
+        name: 'reset',
+      },
       {
         description:
           'run db/seeds.js with the models loaded (--file=<path> for another file)',

@@ -200,13 +200,18 @@ Runs the Vitest installed in the project (`vitest run`, or `vitest` in watch mod
 ## `db`
 
 ```bash
+henri db:create | db:drop [--force] | db:reset [--force]                          [--store=<name>] [--json]
 henri db:seed [--file=<path>]
 henri db:status | db:generate [--name=<label>] | db:migrate | db:push [--force]   [--store=<name>] [--json]
 ```
 
-Seeds and migrations, in the Rails `db:` style (`henri db seed` works too). Every command boots without the views, the router or the workers, so they run anywhere the database is reachable, and every one of them accepts `--json`. The migration commands stop at the models; `db:seed` also loads the user module, so a seed file can create users (their passwords are hashed by `henri.user.encrypt()`).
+The database, its schema and its seeds, in the Rails `db:` style (`henri db seed` works too). Every command boots without the views, the router or the workers, so they run anywhere the database is reachable, and every one of them accepts `--json`. The migration commands stop at the models; `db:seed` also loads the user module, so a seed file can create users (their passwords are hashed by `henri.user.encrypt()`).
 
 `db:seed` is Rails' `rails db:seed`: it requires `db/seeds.js` and awaits what it exports, with the models and the henri instance available (a function is called with the instance). `--file=<path>` runs another file. A missing seed file is a usage error (exit code `2`) reported before anything boots. It works on every adapter; write the seeds idempotently, `find` then `create`, because they run again on every machine. See [Seeds](/guides/models/#seeds).
+
+`db:create` makes the database the store points at, which every other command assumes exists. It reads `config/<env>.json`, the environment, `DATABASE_URL` and the credentials the way henri does and stops there — a store cannot connect to a database that is not there yet — then talks to the server with the driver the application already installed. PostgreSQL and MySQL are created on the server's maintenance connection, a SQLite database is its file, and MongoDB makes one on its first write, which it says rather than pretending to act. Running it twice is not an error.
+
+`db:drop` removes it, and `db:reset` is drop, create, the schema (from `db/migrations` when the application has migrations, from the models when it does not) and `db/seeds.js` when it exists. Both refuse to act when `NODE_ENV` is `production` unless `--force` is passed. The environment is `NODE_ENV`, as everywhere else, so the test database is `NODE_ENV=test henri db:create`.
 
 The other four drive the migrations of a [Drizzle](/guides/models/#drizzle) store: `status` lists the applied and pending migrations of `db/migrations`, `generate` writes a migration from the schema changes, `migrate` applies the pending ones, and `push` makes the database match the models without a migration. `push` refuses statements that lose data and exits with `1` unless `--force` is passed. `--store=<name>` picks the store; stores on another adapter exit with `1`.
 

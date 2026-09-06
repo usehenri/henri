@@ -14,13 +14,13 @@
     "console": "henri console",
     "routes": "henri routes",
     "doctor": "henri doctor",
-    "db:create": "node db/create.js",
+    "db:create": "henri db:create",
     "db:migrate": "henri db:migrate",
     "db:generate": "henri db:generate",
     "db:status": "henri db:status",
     "db:seed": "henri db:seed",
-    "db:setup": "node db/create.js && henri db:migrate && henri db:seed",
-    "test": "node db/create.js --env=test && henri test"
+    "db:setup": "henri db:create && henri db:migrate && henri db:seed",
+    "test": "NODE_ENV=test henri db:create && henri test"
   },
   "engines": {
     "node": ">=22"
