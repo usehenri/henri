@@ -543,8 +543,13 @@ class Telemetry {
       return run();
     }
 
+    // The masking is built per call, the way `report()`'s is: what is
+    // filtered and which fields the models marked personal are both read
+    // live. A span with no attributes of its own never builds one
     const span = this.begin(name, {
-      attributes: attributesOf(redactor(this.henri)(given.attributes)),
+      attributes: given.attributes
+        ? attributesOf(redactor(this.henri)(given.attributes))
+        : undefined,
       kind: KINDS[given.kind] || KINDS.internal,
     });
 

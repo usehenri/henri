@@ -332,17 +332,23 @@ const ENCRYPTION_OPTIONS = bag({
  * one is its own, and `base/telemetry.js` masks it and drops what a span
  * cannot carry rather than refusing the call. `boundary` is henri's own
  * list, so a typo there means "always spanned" and is worth refusing.
+ *
+ * None of the three takes `null`, by the rule of `maybe()` above: each one
+ * absent has a meaning of its own -- no attributes, no boundary, an
+ * internal span -- so `null` is a mistake rather than "not given". It is
+ * also the one bag on a path that can run per store call, and a `oneOf`
+ * per key is what a walk of it costs.
  */
 const SPAN_OPTIONS = bag({
-  attributes: maybe(OBJECT),
-  boundary: maybe({
+  attributes: OBJECT,
+  boundary: {
     enum: ['boot', 'http', 'jobs', 'mail', 'stores', 'views', 'webhooks'],
     type: 'string',
-  }),
-  kind: maybe({
+  },
+  kind: {
     enum: ['client', 'consumer', 'internal', 'producer', 'server'],
     type: 'string',
-  }),
+  },
 });
 
 /** The fields marked `expose: false` an answer is allowed to carry */
