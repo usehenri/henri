@@ -35,6 +35,13 @@ Sign in with any of the seeded accounts; the password is always `lineup-showcase
 `ada@lineup.dev` and `grace@lineup.dev` are on the program committee, so they
 see `/admin`; `bruno@lineup.dev` and the twenty-one others are speakers.
 
+Registration, the password reset and the address confirmation are henri's
+(`config.user.signup`, `passwordReset` and `confirmation`); `/signup`,
+`/password/forgot` and `/confirm` are the pages this application puts in
+front of them. In development the mails go nowhere: `config.mail` uses
+nodemailer's json transport, and `/_mailers` renders every one of them, links
+included.
+
 If your PostgreSQL is not on `127.0.0.1:5432` — `pnpm db:up` takes
 `HENRI_POSTGRES_PORT` when something else already listens there —
 `DATABASE_URL` points the store at it, with no file to copy:

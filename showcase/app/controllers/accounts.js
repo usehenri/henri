@@ -1,87 +1,47 @@
-// Registration and the speaker profile. henri has no registration endpoint
-// on purpose: creating a user is application code, and `req.permit()` is what
-// keeps a form from granting itself a role (`roles` is dropped from a mass
-// assignment whatever the adapter).
-
-/** Attributes a signup form may set */
-const SIGNUP = ['bio', 'company', 'email', 'name', 'password'];
+// The pages of the account flows, and the speaker profile.
+//
+// Registration, the password reset and the address confirmation are henri's:
+// `config.user.signup`, `passwordReset` and `confirmation` mount POST
+// /signup, POST /password/forgot, GET /password/reset/:token, POST
+// /password/reset, GET /confirm/:token, POST /confirm and POST
+// /account/email. This application writes none of that: the tokens, the
+// enumeration-safe answers and the session invalidation are the framework's
+// job, and getting them wrong by hand is the whole reason they moved there.
+//
+// What is left here is what an application owns: which fields a signup form
+// may set (`config.user.signup.fields`, which is `req.permit()` on the other
+// side), and what the pages look like.
 
 /** Attributes the profile form may set (not the email, not the password) */
 const PROFILE = ['bio', 'company', 'name'];
 
-/**
- * Logs a user in, the way POST /login does (passport's req.logIn)
- *
- * @param {object} req Express request
- * @param {object} user The user instance
- * @returns {Promise<void>} Resolves once the session holds the user
- */
-const logIn = (req, user) =>
-  new Promise((resolve, reject) => {
-    req.logIn(user, (error) => (error ? reject(error) : resolve()));
-  });
-
 module.exports = {
-  create: async (req, res) => {
-    const attributes = req.permit(...SIGNUP);
-    const errors = {};
+  confirm: (req, res) =>
+    res.render('/confirm', {
+      data: { email: (req.user && req.user.email) || null },
+    }),
 
-    if (!attributes.email) {
-      errors.email = 'is required';
-    }
+  forgot: (req, res) => res.render('/password/forgot', { data: {} }),
 
-    if (!attributes.password) {
-      errors.password = 'is required';
-    }
-
-    if (
-      attributes.email &&
-      (await henri.user.findByEmail(String(attributes.email)))
-    ) {
-      errors.email = 'is already registered';
-    }
-
-    if (Object.keys(errors).length === 0) {
-      try {
-        const user = await User.create(attributes);
-
-        await logIn(req, user);
-        req.flash('notice', `Welcome, ${user.name}.`);
-
-        return res.negotiate({
-          html: () => res.redirect('/proposals/mine'),
-          json: () =>
-            res.status(201).json({ user: henri.user.publicUser(user) }),
-        });
-      } catch (error) {
-        const failures = henri.model.errors(error);
-
-        if (!failures) {
-          throw error;
-        }
-
-        Object.assign(errors, failures);
-      }
-    }
-
-    return res.negotiate({
-      html: () => {
-        res.inertia.errors(errors);
-
-        return res.render('/signup', { data: { values: attributes } });
-      },
-      json: () =>
-        res.boom.badData('the account could not be created', { errors }),
-    });
-  },
-
+  // The values a refused signup left in the flash come back through
+  // `flash.values`; the messages per field arrive as `errors`
   new: (req, res) => {
     if (req.user) {
       return res.redirect('/account');
     }
 
-    return res.render('/signup', { data: { values: {} } });
+    return res.render('/signup', {
+      data: {
+        fields: henri.accounts.settings.signup.fields,
+        minLength: henri.accounts.policy().minLength,
+      },
+    });
   },
+
+  reset: (req, res) =>
+    res.render('/password/reset', {
+      data: { minLength: henri.accounts.policy().minLength },
+    }),
 
   show: async (req, res) => {
     const [proposals, reviews] = await Promise.all([
@@ -94,6 +54,7 @@ module.exports = {
         account: {
           bio: req.user.bio,
           company: req.user.company,
+          confirmed: Boolean(req.user.confirmedAt),
           email: req.user.email,
           externalId: req.user.externalId,
           name: req.user.name,

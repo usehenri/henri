@@ -487,7 +487,9 @@ const test = () => `// The account flows. henri owns the endpoints, so what is w
 // is what a mistake in the configuration would break: that a form cannot
 // grant itself a role, that a reset link works once, and that the answer to a
 // reset request is the same for an address that exists and one that does not.
-const { setup, teardown, request, henri } = require('@usehenri/testing');
+// \`henri\` is a global once setup() booted the application, like in any
+// henri process
+const { setup, teardown, request } = require('@usehenri/testing');
 
 /** Every message the flows handed to the delivery handler */
 const mails = [];
@@ -514,7 +516,7 @@ const address = () => {
  * @returns {Promise<string>} The token
  */
 const lastToken = async () => {
-  await henri().accounts.drain();
+  await henri.accounts.drain();
 
   const last = mails[mails.length - 1];
 
@@ -524,7 +526,7 @@ const lastToken = async () => {
 beforeAll(async () => {
   await setup();
   // The mails are read here instead of being delivered
-  henri().mailers.onDeliverLater((message) => mails.push(message));
+  henri.mailers.onDeliverLater((message) => mails.push(message));
 }, 60000);
 
 afterAll(async () => {

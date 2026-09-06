@@ -74,7 +74,7 @@ describe('the routes table', () => {
   const route = (verb, path) => henri.router.routes[`${verb} ${path}`];
 
   test('config/routes.js expands to what the application answers', () => {
-    expect(Object.keys(henri.router.routes)).toHaveLength(31);
+    expect(Object.keys(henri.router.routes)).toHaveLength(33);
   });
 
   test('root maps GET / to an action', () => {

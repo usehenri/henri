@@ -126,6 +126,15 @@ the store adds `email` (unique), `password` (hashed, never selected) and
 mass-assigned: use `user.setRoles([...])` or `User.setRoles(id, roles)`. The
 session secret is `HENRI_SECRET` in `.env` (written by `henri new`).
 
+`config.user.signup`, `passwordReset` and `confirmation` mount the rest of
+the story: `POST /signup`, `POST /password/forgot`,
+`GET /password/reset/:token`, `POST /password/reset`, `GET /confirm/:token`,
+`POST /confirm` and `POST /account/email`. This application writes none of
+that -- `app/controllers/accounts.js` only renders the pages those forms live
+on, and `config.user.signup.fields` says which attributes a signup form may
+set. Never hand-roll a token, a reset or a confirmation here: call
+`henri.accounts.*` if you need one from your own controller.
+
 ## Tests
 
 `henri test` runs Vitest (`vitest.config.js`, `test/**/*.test.js`) with henri

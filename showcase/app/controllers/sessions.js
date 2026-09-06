@@ -11,7 +11,12 @@ module.exports = {
     }
 
     return res.render('/login', {
-      data: { failed: req.query.error === 'invalid' },
+      data: {
+        failed: req.query.error === 'invalid',
+        // With config.user.confirmation.required, an unconfirmed account
+        // lands here instead of opening a session
+        unconfirmed: req.query.error === 'unconfirmed',
+      },
     });
   },
 };

@@ -1,13 +1,25 @@
 {
   "port": 3000,
   "renderer": "inertia",
-  "inertia": { "ssr": true },
+  "inertia": {
+    "ssr": true
+  },
   "baseRole": "speaker",
   "user": {
     "model": "user",
     "public": ["name", "company"],
     "loginPath": "/login",
-    "afterLogin": "/proposals/mine"
+    "afterLogin": "/proposals/mine",
+    "signup": {
+      "after": "/proposals/mine",
+      "fields": ["bio", "company", "name"]
+    },
+    "passwordReset": {
+      "after": "/proposals/mine"
+    },
+    "confirmation": {
+      "after": "/account"
+    }
   },
   "api": {
     "perPage": 12,

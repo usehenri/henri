@@ -1,11 +1,16 @@
-// Registration through Inertia's <Form>: the controller answers with a
-// redirect on success, or renders this page again after
-// `res.inertia.errors()`, and the messages arrive in the render prop.
+// Registration. The form posts to `POST /signup`, which henri mounts because
+// config.user.signup says so: nothing in this application creates the user,
+// hashes the password or opens the session.
 //
-// The <Form> of @usehenri/inertia adds the hidden `_csrf` field for you.
+// A refused signup redirects back here with the messages per field in
+// `errors` and what was typed in `flash.values`, so the page fills itself in
+// again. The <Form> of @usehenri/inertia adds the hidden `_csrf` field.
 import { Form, Link, useHenri } from '@usehenri/inertia';
 import Layout from 'components/layout';
 import { card, field, label, primary } from 'components/ui';
+
+/** The label of a field the configuration permits */
+const TITLES = { bio: 'Bio', company: 'Company (optional)', name: 'Name' };
 
 /**
  * One labelled input, with the server's error under it
@@ -34,8 +39,9 @@ function Field({ name, title, errors, ...rest }) {
 }
 
 export default function Signup() {
-  const { data, getRoute, pathFor } = useHenri();
-  const values = data.values || {};
+  const { data, errors, flash, getRoute } = useHenri();
+  const values = (flash.values && flash.values[0]) || {};
+  const sent = errors || {};
 
   return (
     <Layout>
@@ -46,27 +52,27 @@ export default function Signup() {
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           Speakers write proposals; the committee reviews them. New accounts get
           the <code className="font-mono">speaker</code> role, which is what{' '}
-          <code className="font-mono">config.baseRole</code> says.
+          <code className="font-mono">config.baseRole</code> says, and a form
+          can never ask for another one.
         </p>
 
-        <Form
-          action={pathFor('create_accounts_path')}
-          className={`${card} mt-6 grid gap-4 p-6`}
-        >
-          {({ errors, processing }) => (
+        <Form action="/signup" className={`${card} mt-6 grid gap-4 p-6`}>
+          {({ processing }) => (
             <>
-              <Field
-                autoComplete="name"
-                defaultValue={values.name || ''}
-                errors={errors}
-                name="name"
-                required
-                title="Name"
-              />
+              {(data.fields || []).map((name) => (
+                <Field
+                  defaultValue={values[name] || ''}
+                  errors={sent}
+                  key={name}
+                  name={name}
+                  required={name === 'name'}
+                  title={TITLES[name] || name}
+                />
+              ))}
               <Field
                 autoComplete="email"
                 defaultValue={values.email || ''}
-                errors={errors}
+                errors={sent}
                 name="email"
                 required
                 title="Email"
@@ -74,17 +80,12 @@ export default function Signup() {
               />
               <Field
                 autoComplete="new-password"
-                errors={errors}
+                errors={sent}
+                minLength={data.minLength}
                 name="password"
                 required
-                title="Password (six characters or more)"
+                title={`Password (${data.minLength} characters or more)`}
                 type="password"
-              />
-              <Field
-                defaultValue={values.company || ''}
-                errors={errors}
-                name="company"
-                title="Company (optional)"
               />
 
               <button className={primary} disabled={processing} type="submit">
