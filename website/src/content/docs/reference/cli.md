@@ -24,6 +24,7 @@ henri <command> [options]
 | `test [files ...]`            | Run the tests with Vitest.                                                   |
 | `clean`                       | Remove build artifacts and caches.                                           |
 | `about`                       | Print the versions of Node, henri and the packages installed in the project. |
+| `audit`                       | Check the application against the ASVS and the OWASP Top 10.                 |
 | `analyze [module]`            | Boot the application and print the boot chart of its modules.                |
 | `help [command]`              | Print the help.                                                              |
 
@@ -253,13 +254,35 @@ henri doctor [--json]
 
 Checks the application against the conventions without starting it: no database, no views, nothing booted. Reports the Node version, the syntax of every `config/*.json` and each one run through [henri's configuration schema](/configuration/#validation) (`config.invalid`, `config.adapter` and `config.unknown`, the last one for a key henri does not own), the secret and the `.env` holding it, the git ignore rules, the credentials keys (not ignored, or already in the git index), the routes and each route's controller and action, controller and model naming, the page files a `resources` route needs, the test configuration, the declared and installed dependencies, and `AGENTS.md`. Exits with `1` when it finds an error. See [Coding agents](/guides/agents/).
 
+It also runs the static checks of [`audit`](#audit) and, when they find something, adds one `security.findings` warning naming the count and the worst severity, instead of repeating them.
+
+## `audit`
+
+```bash
+henri audit [--fail-on=<severity>] [--no-deps] [--json]
+henri audit --checks [--json]
+```
+
+Checks the application against the checkable requirements of the [OWASP Application Security Verification Standard](/guides/security/) 4.0.3, without starting it. Every finding carries a severity (`high`, `medium`, `low`), a stable check name, the ASVS requirement and level it maps to, the Top 10 (2021) category, the file and, in a source file, the line.
+
+It reports what the application says, never henri's own defaults, which are secure: a protection turned off in `config/*.json`, a secret or a credentials key that reached a commit, a model write that takes the whole request body, a resource action left without a role where its siblings have one, a raw query built by interpolation, unescaped output in a view, a record answered as the ORM returned it, and the known advisories of the production dependencies.
+
+| Flag                   | Effect                                                                                                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `--fail-on=<severity>` | Exit `1` on this severity or above: `high`, `medium` (the default), `low`, or `none` to never fail.        |
+| `--no-deps`            | Skip the dependency advisories, which is the only step that reaches the network.                           |
+| `--checks`             | Print the catalogue instead of running it: every check, its requirement, its level and what it determines. |
+| `--json`               | `{ ok, findings: [{ severity, check, owasp, asvs, level, file, line, message, hint }], summary }`.         |
+
+A finding in `config/test.json` is reported one severity lower. The dependency step asks the package manager about the **production** dependencies at **high and critical** only, and says so as a `low` finding rather than failing when it cannot run at all. What is checked, what is deliberately not, and the table of what henri does for every application are on the [Security](/guides/security/) page.
+
 ## `mcp`
 
 ```bash
 henri mcp
 ```
 
-Starts the [Model Context Protocol](https://modelcontextprotocol.io/) server for the application over stdio, exposing the tools `routes`, `models`, `controllers`, `config`, `doctor`, `generate`, `destroy`, `test` and `lint`, plus the `AGENTS.md`, conventions, routes and help resources. `henri new` writes a `.mcp.json` that starts it. See [Coding agents](/guides/agents/).
+Starts the [Model Context Protocol](https://modelcontextprotocol.io/) server for the application over stdio, exposing the tools `routes`, `models`, `controllers`, `config`, `doctor`, `audit`, `generate`, `destroy`, `test` and `lint`, plus the `AGENTS.md`, conventions, routes and help resources. `henri new` writes a `.mcp.json` that starts it. See [Coding agents](/guides/agents/).
 
 ## `clean`
 

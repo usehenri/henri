@@ -82,6 +82,18 @@ henri doctor --json   # the same as JSON
 
 It checks the Node version, every `config/*.json` — its syntax, then the whole file against [henri's configuration schema](/configuration/#validation), so a wrong value or a misspelled key is found without booting — the secret and the `.env` that holds it, the git ignore rules, the routes file and every route's controller and action, controller naming and unused controllers, model naming and location, the page files a `resources` route needs, the test configuration, the dependencies declared in `package.json` and the ones actually installed, and the presence of `AGENTS.md`. Problems are reported as errors or warnings, each with a file and a hint.
 
+## `henri audit`
+
+`henri audit` answers the other half: whether the application does the things a web application is judged on. Same shape as `doctor` — files only, nothing booted, a stable check name and a stable exit code — mapped to the [ASVS](/guides/security/) requirement and the OWASP Top 10 category each finding falls under.
+
+```bash
+henri audit                # exit 1 on a medium or high finding
+henri audit --json         # { ok, findings: [...], summary }
+henri audit --checks       # what it can determine, and against what
+```
+
+An agent should read `--checks` before it reads the findings: it says what the audit covers, which is the difference between "nothing was found" and "nothing was looked for". The [Security](/guides/security/) page carries the other half of that answer, the table of what henri does for every application, so an agent does not spend a turn adding a protection the framework already has.
+
 ## The `henri` MCP server
 
 `henri mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io/) server over stdio for the application in the current directory. `henri new` writes a `.mcp.json` that starts it, so an MCP-aware editor or agent picks it up with no configuration.
@@ -95,6 +107,7 @@ Tools:
 | `controllers` | The controllers and their actions.                                                  |
 | `config`      | The configuration of the app, including which adapter and renderer it uses.         |
 | `doctor`      | The `henri doctor` report.                                                          |
+| `audit`       | The `henri audit` report: the security findings, with their category and level.     |
 | `generate`    | Runs a generator and returns the files written, the files skipped and routes added. |
 | `destroy`     | Undoes a generator.                                                                 |
 | `test`        | Runs the app's tests and returns the result.                                        |
