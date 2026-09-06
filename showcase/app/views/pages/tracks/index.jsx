@@ -12,7 +12,7 @@ export default function TracksIndex() {
     <Layout>
       <Link
         className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-        href={getRoute('show_events_path', String(event.id))}
+        href={getRoute('show_events_path', event.externalId)}
       >
         &larr; {event.name}
       </Link>
@@ -20,7 +20,7 @@ export default function TracksIndex() {
       <div className="mt-3">
         <PageHeader
           title="Tracks"
-          subtitle={`GET /events/${event.id}/tracks — a resource nested under one edition.`}
+          subtitle={`GET /events/${event.externalId}/tracks — a resource nested under one edition.`}
         />
       </div>
 
@@ -31,7 +31,7 @@ export default function TracksIndex() {
       ) : (
         <ul className="mt-8 grid gap-4 sm:grid-cols-2">
           {tracks.map((track) => (
-            <li key={track.id} className={`${card} p-6`}>
+            <li key={track.externalId} className={`${card} p-6`}>
               <h2 className="font-medium">{track.name}</h2>
               <p className={`${mono} mt-1 text-zinc-500 dark:text-zinc-400`}>
                 {track.slug}

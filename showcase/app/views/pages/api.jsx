@@ -23,7 +23,8 @@ const SHOWN = [
 /**
  * The requests the explorer can make
  *
- * @param {object} sample Ids of records that exist (`{ proposal, event }`)
+ * @param {object} sample The public ids of records that exist
+ *   (`{ proposal, event }`, uuids)
  * @returns {Array<object>} The request descriptors
  */
 const requests = (sample) => [
@@ -45,14 +46,14 @@ const requests = (sample) => [
     accept: 'application/hal+json',
     id: 'resource',
     note: 'One resource. _links is built from the route helpers of this controller and filtered by the roles of the current user. There is no destroy link because config/routes.js says except: [destroy]: withdrawing is a member route that soft deletes instead.',
-    path: `/proposals/${sample.proposal || 1}`,
+    path: `/proposals/${sample.proposal || 'unknown'}`,
     title: 'One proposal',
   },
   {
     accept: 'application/json',
     id: 'conditional',
     note: 'Every JSON answer carries a weak ETag. The second request sends it back as If-None-Match and the server answers 304 with no body.',
-    path: `/proposals/${sample.proposal || 1}`,
+    path: `/proposals/${sample.proposal || 'unknown'}`,
     revalidate: true,
     title: 'ETag and 304',
   },
@@ -74,7 +75,7 @@ const requests = (sample) => [
     accept: 'application/json',
     id: 'guarded',
     note: 'The reviews of a proposal are nested under it and carry roles: [admin]. Signed out, this is a 401; signed in as a speaker, a 403. A browser asking for HTML would be redirected to the login page instead.',
-    path: `/proposals/${sample.proposal || 1}/reviews`,
+    path: `/proposals/${sample.proposal || 'unknown'}/reviews`,
     title: 'A route behind a role',
   },
   {

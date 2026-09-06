@@ -7,6 +7,13 @@
       "tag": "0000_initial_schema",
       "version": "7",
       "when": 1788651338666
+    },
+    {
+      "breakpoints": true,
+      "idx": 1,
+      "tag": "0001_external_id",
+      "version": "7",
+      "when": 1788659021825
     }
   ],
   "version": "7"

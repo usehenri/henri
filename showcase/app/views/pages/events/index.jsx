@@ -27,11 +27,11 @@ export default function EventsIndex() {
       ) : (
         <ul className="mt-8 grid gap-4">
           {events.map((event) => (
-            <li key={event.id} className={`${card} p-6`}>
+            <li key={event.externalId} className={`${card} p-6`}>
               <div className="flex flex-wrap items-baseline justify-between gap-3">
                 <Link
                   className="text-lg font-medium hover:underline"
-                  href={getRoute('show_events_path', String(event.id))}
+                  href={getRoute('show_events_path', event.externalId)}
                 >
                   {event.name}
                 </Link>

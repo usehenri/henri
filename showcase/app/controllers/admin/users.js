@@ -30,7 +30,7 @@ module.exports = {
         users: records.map((user, index) => ({
           company: user.company,
           email: user.email,
-          id: user.id,
+          externalId: user.externalId,
           name: user.name,
           proposals: counts[index],
           reviews: reviews[index],

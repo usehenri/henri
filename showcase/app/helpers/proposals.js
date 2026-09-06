@@ -17,13 +17,61 @@ const INCLUDE = ['event', 'speaker', 'track'];
 const PUBLIC_STATES = ['accepted', 'submitted'];
 
 /**
- * The public half of a user: never the email, never the roles
+ * The public half of a user: never the email, never the roles, and the
+ * public identifier rather than the primary key
  *
  * @param {?object} user A User instance, or undefined when not loaded
- * @returns {?object} `{ id, name, company }` or null
+ * @returns {?object} `{ externalId, name, company }` or null
  */
 const speakerOf = (user) =>
-  user ? { company: user.company || null, id: user.id, name: user.name } : null;
+  user
+    ? {
+        company: user.company || null,
+        externalId: user.externalId,
+        name: user.name,
+      }
+    : null;
+
+/**
+ * Turns the public identifiers a form posts for `eventId` and `trackId`
+ * into the primary keys those columns hold.
+ *
+ * The foreign keys of the database are internal ids and stay that way; what
+ * a page shows and posts back is the external id of the record, so nothing
+ * outside ever sees a sequential number.
+ *
+ * @param {object} attributes The permitted attributes of a request
+ * @returns {Promise<object>} The attributes, with the references resolved
+ */
+const resolveReferences = async (attributes) => {
+  const resolved = { ...attributes };
+  const references = [
+    ['eventId', Event],
+    ['trackId', Track],
+  ];
+
+  for (const [name, Model] of references) {
+    if (!Object.prototype.hasOwnProperty.call(resolved, name)) {
+      continue;
+    }
+
+    const given = resolved[name];
+
+    if (given === '' || given === null || typeof given === 'undefined') {
+      resolved[name] = null;
+
+      continue;
+    }
+
+    const record = await Model.findById(given);
+
+    // An unknown reference stays a validation failure of the model rather
+    // than a silent write on the wrong row
+    resolved[name] = record ? record.id : 0;
+  }
+
+  return resolved;
+};
 
 /**
  * The average of a list of reviews, rounded to one decimal
@@ -58,23 +106,37 @@ const averageScore = (reviews = []) => {
 const present = (proposal, { reviews = null } = {}) => {
   const plain = proposal.toJSON();
 
+  // `toJSON()` already dropped the primary key; the foreign keys are internal
+  // too, and the form posts the public id of the edition and of the track
   delete plain.speakerId;
+  delete plain.eventId;
+  delete plain.trackId;
 
   return {
     ...plain,
     event: plain.event
-      ? { id: plain.event.id, name: plain.event.name, slug: plain.event.slug }
+      ? {
+          externalId: plain.event.externalId,
+          name: plain.event.name,
+          slug: plain.event.slug,
+        }
       : null,
+    eventId: plain.event ? plain.event.externalId : null,
     speaker: speakerOf(proposal.speaker),
     track: plain.track
-      ? { id: plain.track.id, name: plain.track.name, slug: plain.track.slug }
+      ? {
+          externalId: plain.track.externalId,
+          name: plain.track.name,
+          slug: plain.track.slug,
+        }
       : null,
+    trackId: plain.track ? plain.track.externalId : null,
     ...(reviews
       ? {
           reviews: reviews.map((review) => ({
             comment: review.comment,
             createdAt: review.createdAt,
-            id: review.id,
+            externalId: review.externalId,
             reviewer: speakerOf(review.reviewer),
             score: review.score,
           })),
@@ -121,5 +183,6 @@ module.exports = {
   mayRead,
   owns,
   present,
+  resolveReferences,
   speakerOf,
 };

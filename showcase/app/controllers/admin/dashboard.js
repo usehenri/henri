@@ -28,7 +28,7 @@ module.exports = {
     );
     const queue = undecided
       .map((proposal, index) => ({
-        id: proposal.id,
+        externalId: proposal.externalId,
         reviews: scores[index].length,
         score: averageScore(scores[index]),
         speaker: proposal.speaker ? proposal.speaker.name : null,
@@ -43,7 +43,7 @@ module.exports = {
         STATES.map((state, index) => [state, counts[index]])
       ),
       events: events.map((event) => ({
-        id: event.id,
+        externalId: event.externalId,
         name: event.name,
         state: event.state,
         year: event.year,
@@ -51,9 +51,12 @@ module.exports = {
       queue,
       reviews: reviews.map((review) => ({
         comment: review.comment,
-        id: review.id,
+        externalId: review.externalId,
         proposal: review.proposal
-          ? { id: review.proposal.id, title: review.proposal.title }
+          ? {
+              externalId: review.proposal.externalId,
+              title: review.proposal.title,
+            }
           : null,
         reviewer: review.reviewer ? review.reviewer.name : null,
         score: review.score,

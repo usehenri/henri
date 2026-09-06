@@ -41,11 +41,11 @@ export default function AdminUsers() {
         <ul className="mt-8 grid gap-3">
           {users.map((person) => {
             const isAdmin = (person.roles || []).includes('admin');
-            const self = user && String(user.id) === String(person.id);
+            const self = user && user.externalId === person.externalId;
 
             return (
               <li
-                key={person.id}
+                key={person.externalId}
                 className={`${card} flex flex-wrap items-center justify-between gap-4 px-5 py-4`}
               >
                 <div className="min-w-0">
@@ -77,7 +77,7 @@ export default function AdminUsers() {
                   {!self && (
                     <Form
                       action={pathFor('role_admin/users_path', {
-                        id: String(person.id),
+                        id: person.externalId,
                       })}
                     >
                       {({ processing }) => (

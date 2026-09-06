@@ -125,10 +125,10 @@ export default function Home() {
         ) : (
           <ul className="mt-4 grid gap-4 sm:grid-cols-2">
             {lineup.map((proposal) => (
-              <li key={proposal.id} className={`${card} p-5`}>
+              <li key={proposal.externalId} className={`${card} p-5`}>
                 <Link
                   className="font-medium hover:underline"
-                  href={getRoute('show_proposals_path', String(proposal.id))}
+                  href={getRoute('show_proposals_path', proposal.externalId)}
                 >
                   {proposal.title}
                 </Link>
