@@ -44,12 +44,32 @@ The file is parsed on boot: a syntax error is reported with its line, and the bo
 | `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf).                                                                                   |
 | `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint. See [GraphQL](/guides/graphql/).                                                                                 |
 | `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                             |
+| `mailers`          |               | Defaults of the [mailers](/guides/mail/): `from`, `layout` and `previews`, see below.                                                          |
 | `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                    |
 | `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them.                                                         |
 | `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                               |
 | `filterParameters` | see below     | Parameter names masked in the logs.                                                                                                            |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                           |
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                  |
+
+## The `mailers` object
+
+Defaults for the mailers in `app/mailers`. Every key is optional.
+
+| Key        | Default    | Description                                                                                                                                                                                                                    |
+| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `from`     |            | Sender used by every message that does not set one (the mailer's own `defaults.from` wins over it).                                                                                                                            |
+| `layout`   | `"mailer"` | Name of the layout in `app/views/mailers/layouts`. `false` renders the views without a layout.                                                                                                                                 |
+| `previews` | `true`     | `false` turns the development preview routes off. Nothing turns them on outside development: they only exist when `NODE_ENV` is neither `production` nor `test`, and only answer requests from the machine running the server. |
+
+```json
+{
+  "mailers": {
+    "from": "Acme <no-reply@acme.com>",
+    "layout": "mailer"
+  }
+}
+```
 
 ## Stores
 

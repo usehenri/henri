@@ -79,7 +79,7 @@ an app and is what core's tests boot.
 
 - `Henri` (`packages/core/src/henri.js`) registers modules, each a class extending
   `base/module.js` with a unique `name`, a `runlevel` (0 config, 1 mail and
-  graphql, 2 controllers and the Express app, 3 models and the view engine,
+  graphql, 2 controllers, mailers and the Express app, 3 models and the view engine,
   4 users, 5 router and workers, 6 app modules) and `init()`. Modules on the
   same level start concurrently; a failing `init()` fails the boot
   (`henri.init()` rejects with an Error whose `cause` is the module error).
@@ -95,7 +95,7 @@ an app and is what core's tests boot.
   `secret`, `HENRI_HOST` the bind address). Keys: `port`, `host`, `cors`,
   `renderer`, `inertia`, `experimental`, `stores`, `secret`, `user` (string or
   `{ model, public, loginPath, afterLogin, sessionMaxAge }`), `baseRole`,
-  `trustProxy`, `csrf`, `graphql`, `mail`, `api`, `rateLimit`, `helmet`,
+  `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `rateLimit`, `helmet`,
   `filterParameters`, `bodyLimit`, `requestTimeout`.
 - The JSON API layer lives in `base/{api,hateoas,idempotency,rate-limit,
 request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
@@ -151,6 +151,23 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   `/<controller>/<action>` (`/<controller>` for `index`) with what it
   returned. `req.flash()` (`base/flash.js`) keeps one-shot messages in the
   express session and the views read them once through `flash`.
+- Mailers (`2.mailers.js`) are `app/mailers/*.js` loaded like controllers:
+  every exported function is an action returning the message it wants sent
+  (`to`, `subject`, `data`, and anything else nodemailer takes), `defaults`
+  applies to all of them and `previews` holds the sample data. They are
+  reachable as `henri.mailers.<name>.<action>(...)`, which builds a `Message`
+  (`base/mail-message.js`) answering `render()`, `deliver()` (through
+  `henri.mail`) and `deliverLater()` (through the handler registered with
+  `henri.mailers.onDeliverLater(fn)`, which receives the rendered nodemailer
+  payload; without one henri sends out of band and `drain()` waits). Views
+  live in `app/views/mailers` and are rendered by `base/mail-view.js` with
+  henri's handlebars environment unless the view engine implements
+  `renderMail({ view, layout, data, meta })`; `layouts/<name>.hbs` wraps them
+  around `{{{body}}}`, and the plain text part is derived from the html
+  (`base/mail-text.js`) unless a `<action>.text.hbs` sits next to the view.
+  `base/mail-preview.js` is the `/_mailers` preview router, mounted by
+  `5.router.js` in development behind `loopbackOnly()`. Configuration:
+  `mailers: { from, layout, previews }`.
 - View engines implement `init()`, `prepare()`, `fallback(router)`,
   `render(req, res, route, opts)` and optionally `reload()` and `close()`. The
   Handlebars engine lives in `core/src/engines/template.js`; `react` resolves

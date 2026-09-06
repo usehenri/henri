@@ -345,6 +345,8 @@ The object passed as `data` to `res.render()` is the template context. The other
 
 A route resolves to exactly one file: `/artwork` is `pages/artwork.{hbs,html,htm}`, then `pages/artwork/index.{hbs,html,htm}`, and `/` is `pages/index.*`. A route without a page is a `404`; a template that fails while rendering is a `500` with the stack logged (and shown in development). Templates are compiled once, recompiled when the file changes and dropped on reload; a partial that does not compile is reported and skipped.
 
+This engine exists in every application whatever the `renderer`: `res.hbs()` renders a Handlebars page from a React or Inertia application, and the [mail views](/guides/mail/#the-views) under `app/views/mailers` are rendered with it, with the same partials. A renderer that wants to render mail itself implements `renderMail({ view, layout, data, meta })` on its engine and answers `{ html, text }` or a string; neither the React nor the Inertia engine does today.
+
 ## Vue
 
 The `vue` renderer drives [Nuxt](https://nuxt.com/) the same way the React renderer drives Next.js: pages under `app/views`, data injected by controllers.
