@@ -561,7 +561,9 @@ describe('privacy (demo app, disk store)', () => {
     // The memos are gone, the person is a row that is nobody
     expect(await Memo.find({ ownerId: owner })).toHaveLength(0);
 
-    const erased = await User.findById(user._id).select('+password');
+    // A primary key read back from the database goes through findByKey(),
+    // because findById() takes the public identifier (see base/references.js)
+    const erased = await User.findByKey(user._id).select('+password');
 
     expect(erased).toBeTruthy();
     expect(erased.email).toMatch(/^erased-[0-9a-f]+@erased\.invalid$/u);

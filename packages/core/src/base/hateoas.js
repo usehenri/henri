@@ -108,7 +108,10 @@ async function toPublic(henri, records, include = []) {
   // Privacy has the last word: publishing resolves a foreign key into the
   // public identifier of the row it names, and a field the model marked
   // `personal: { expose: false }` must not leave whatever it resolved to
-  const kept = henri.privacy ? henri.privacy.strip(published, include) : published;
+  const kept =
+    henri && henri.privacy
+      ? henri.privacy.strip(published, include)
+      : published;
 
   if (Array.isArray(kept)) {
     return kept.map((entry) =>
@@ -700,6 +703,5 @@ module.exports = {
   resource,
   resourceLinks,
   routeType,
-  toPlain,
   toPublic,
 };
