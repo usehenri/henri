@@ -44,6 +44,14 @@ expectType<Error>(henri.pen.fatal('view', 'unknown renderer'));
 henri.pen.info('boot', 'ready', 42);
 
 expectType<PublicUser | null>(henri.user.publicUser(req.user));
+
+// The public projection carries the uuid, not the primary key
+const publicUser = henri.user.publicUser(req.user);
+
+if (publicUser) {
+  expectType<string | undefined>(publicUser.externalId);
+  expectType<string>(publicUser.email);
+}
 expectType<Promise<string>>(henri.user.encrypt('a-password', 12));
 expectType<Record<string, string> | null>(henri.model.errors(new Error('x')));
 expectType<string>(henri.gql`{ tasks { id } }`);
