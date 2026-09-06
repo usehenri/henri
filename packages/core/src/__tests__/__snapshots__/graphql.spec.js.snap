@@ -30,6 +30,8 @@ Graphql {
   "_handler": null,
   "_middlewareRegistered": false,
   "active": false,
+  "after": [],
+  "before": [],
   "consoleOnly": false,
   "createServer": [Function],
   "endpoint": "/_henri/gql",
@@ -40,6 +42,9 @@ Graphql {
   "key": null,
   "merge": [Function],
   "name": "graphql",
+  "needs": [
+    "config",
+  ],
   "ready": null,
   "reload": [Function],
   "reloadable": true,

@@ -62,6 +62,7 @@ class User extends BaseModule {
   constructor() {
     super();
     this.reloadable = false;
+    this.needs = ['config', 'model', 'server'];
     this.runlevel = 4;
     this.name = 'user';
     this.henri = null;

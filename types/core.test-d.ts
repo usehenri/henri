@@ -5,10 +5,12 @@
 // calls here are as much a test as the right ones.
 
 import type {
+  BootAnalysis,
   Boom,
   Configuration,
   Controller,
   Henri,
+  HenriModule,
   Job,
   JobDefinition,
   JobStats,
@@ -58,6 +60,54 @@ if (publicUser) {
 expectType<Promise<string>>(henri.user.encrypt('a-password', 12));
 expectType<Record<string, string> | null>(henri.model.errors(new Error('x')));
 expectType<string>(henri.gql`{ tasks { id } }`);
+
+// --- the module system ------------------------------------------------------
+
+// A module of an application: it says where it goes by name, not by number
+const metrics: HenriModule = {
+  name: 'metrics',
+  needs: ['server'],
+  before: ['router'],
+  runlevel: 5,
+  async init() {
+    return 'metrics';
+  },
+  async release() {
+    return true;
+  },
+};
+
+expectType<boolean>(henri.modules.add(metrics));
+expectType<Promise<string[]>>(henri.modules.discover());
+expectType<HenriModule[]>(henri.modules.stopOrder);
+expectType<BootAnalysis | null>(henri.analyze());
+expectType<BootAnalysis | null>(henri.modules.analyze('router'));
+
+const analysis = henri.analyze();
+
+if (analysis) {
+  expectType<boolean>(analysis.ok);
+  expectType<number>(analysis.ceiling);
+  expectType<string>(analysis.modules[0].name);
+  expectType<'name' | 'runlevel'>(analysis.modules[0].pin);
+  expectType<string>(analysis.modules[0].waitsOn[0].why);
+  expectType<string[]>(analysis.chart[0].modules);
+  expectType<string | null>(analysis.failed);
+}
+
+const badModule: HenriModule = {
+  name: 'broken',
+  // @ts-expect-error `needs` holds module names, not modules
+  needs: [metrics],
+  init() {
+    return true;
+  },
+};
+
+// @ts-expect-error a module has to implement init()
+const noInit: HenriModule = {
+  name: 'silent',
+};
 
 // @ts-expect-error `henri.pen.fatal` needs a name, not an object
 henri.pen.fatal({ name: 'view' });
@@ -288,6 +338,8 @@ const badStore: Configuration = {
 
 export {
   badConfig,
+  badModule,
+  noInit,
   badHook,
   badModel,
   badNamespace,

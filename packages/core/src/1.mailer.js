@@ -20,6 +20,7 @@ class Mailer extends BaseModule {
     super();
 
     this.reloadable = false;
+    this.needs = ['config'];
     this.runlevel = 1;
     this.name = 'mail';
     this.henri = undefined;

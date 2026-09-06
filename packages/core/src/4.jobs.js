@@ -18,8 +18,10 @@ const MAIL_JOB = 'henri/mail';
  * configuration keeps this module inert -- `henri.jobs.enabled` is false and
  * every call says what to install.
  *
- * The runlevel is 4, not 5: `henri jobs` boots to that level so a runner
- * never binds an HTTP port, and the models (level 3) are up by then.
+ * It needs the models: the queue reaches its own tables through the store
+ * adapter. It runs after the mailers when there are any, so
+ * `deliverLater()` goes through the queue. Its slot is 4, not 5: `henri
+ * jobs` boots to that level so a runner never binds an HTTP port.
  *
  * @class Jobs
  * @extends {BaseModule}
@@ -33,6 +35,8 @@ class Jobs extends BaseModule {
     super();
 
     this.reloadable = true;
+    this.needs = ['config', 'model'];
+    this.after = ['mailers'];
     this.runlevel = 4;
     this.name = 'jobs';
     this.henri = null;

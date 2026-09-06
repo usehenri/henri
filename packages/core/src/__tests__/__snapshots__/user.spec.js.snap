@@ -3,6 +3,8 @@
 exports[`user > basic > should match snapshot 1`] = `
 User {
   "adapter": [Function],
+  "after": [],
+  "before": [],
   "compare": [Function],
   "consoleOnly": false,
   "deprecatedLogout": [Function],
@@ -16,6 +18,11 @@ User {
   "login": [Function],
   "logout": [Function],
   "name": "user",
+  "needs": [
+    "config",
+    "model",
+    "server",
+  ],
   "passport": null,
   "publicUser": [Function],
   "reloadable": false,

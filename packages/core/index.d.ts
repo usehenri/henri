@@ -1138,7 +1138,6 @@ declare namespace start {
     isProduction: boolean;
     isDev: boolean;
     isTest: boolean;
-    isTesting: boolean;
     /** The core version. */
     release: string;
     runlevel: number;
@@ -1152,11 +1151,126 @@ declare namespace start {
     /** Resolves with the errors of the modules that failed to stop. */
     stop(): Promise<Error[]>;
     /**
+     * What the boot did: the order, the timings, what every module waited on
+     * and the chain that decided the total. `null` before `init()`. Same as
+     * `henri.modules.analyze()`, and what `henri analyze --json` prints.
+     */
+    analyze(name?: string): BootAnalysis | null;
+    /**
      * Registers a middleware run before the routes are mounted. Call it
      * before the router starts (a `db/seeds.js`-style boot file, or a module).
      */
     addMiddleware(name: string, fn: (router: ExpressRouter) => void): boolean;
-    modules: { add(module: unknown): unknown; [key: string]: unknown };
+    modules: ModulesRegistry;
+  }
+
+  // ---------------------------------------------------------------------------
+  // The module system
+  // ---------------------------------------------------------------------------
+
+  /**
+   * What a module declares. Extend `@usehenri/core/src/base/module` and set
+   * `name`, then say where you go: `needs` (the modules you cannot work
+   * without), `after` and `before` (ordering only, ignored when the module is
+   * not registered), or `runlevel` alone (the slot: after every lower level,
+   * before every higher one). Naming replaces the number.
+   */
+  interface HenriModule {
+    /** Unique: the module is exposed as `henri.<name>`. */
+    name: string;
+    /** Set by henri when the module is registered. */
+    henri?: Henri;
+    /** Registered and finished before this one starts. */
+    needs?: string | string[];
+    /** Ordering only: they go first when they are registered. */
+    after?: string | string[];
+    /** Ordering only: they wait for this one when they are registered. */
+    before?: string | string[];
+    /** The slot (0 to 6). The boot ceiling and numeric pins use it. */
+    runlevel?: number;
+    /** Implements `reload()`, called on every reload. */
+    reloadable?: boolean;
+    /** Skipped under `henri console`. */
+    consoleOnly?: boolean;
+    init(): unknown | Promise<unknown>;
+    /** Called in graph order on a reload, when `reloadable`. */
+    reload?(): unknown | Promise<unknown>;
+    /** Called backwards before anything reloads, to let go of what it holds. */
+    release?(): unknown | Promise<unknown>;
+    /** Called backwards on shutdown. */
+    stop?(): unknown | Promise<unknown>;
+  }
+
+  /** `henri.modules`: the registry and the boot graph. */
+  interface ModulesRegistry {
+    /** Registers a module. Throws when the name is taken or the module is invalid. */
+    add(module: HenriModule): boolean;
+    /**
+     * Registers what `config/modules.js` asks for (module instances, module
+     * classes, or the name of a package exporting one). Called by `init()`.
+     */
+    discover(file?: string): Promise<string[]>;
+    /** Same as `henri.analyze()`. */
+    analyze(name?: string): BootAnalysis | null;
+    /** The modules, last started first: the order `stop()` goes in. */
+    readonly stopOrder: HenriModule[];
+    initialized: boolean;
+    [key: string]: unknown;
+  }
+
+  /** One module in the boot chart. */
+  interface BootModule {
+    name: string;
+    runlevel: number;
+    /** `name` when the module declared its neighbours, `runlevel` otherwise. */
+    pin: 'name' | 'runlevel';
+    state: 'waiting' | 'running' | 'done' | 'failed';
+    /** Milliseconds since the start of the boot, `null` when it never ran. */
+    startedAt: number | null;
+    duration: number | null;
+    /** How long its `release()` took on the last reload. */
+    releaseDuration: number | null;
+    error: string | null;
+    /** What it waited on, and what put the edge there. */
+    waitsOn: Array<{ name: string; why: string }>;
+    /** What waits on it. */
+    blocks: string[];
+    /** The dependency that finished last: the one that held it up. */
+    blockedBy: string | null;
+  }
+
+  /** What `henri.analyze()` answers. */
+  interface BootAnalysis {
+    ok: boolean;
+    /** The level the boot stopped at. */
+    ceiling: number;
+    startedAt: string;
+    duration: number | null;
+    modules: BootModule[];
+    /** The chain that decided how long the boot took, first started first. */
+    criticalPath: Array<{
+      name: string;
+      startedAt: number | null;
+      duration: number | null;
+    }>;
+    /** What each level is for, and the modules that sit in it. */
+    chart: Array<{ level: number; purpose: string; modules: string[] }>;
+    /** The modules the boot ceiling left out. */
+    skipped: Array<{ name: string; runlevel: number }>;
+    /** The module whose `init()` threw, when the boot failed. */
+    failed: string | null;
+    /** The last reload, `null` until one happens. */
+    reload: {
+      startedAt: string;
+      duration: number | null;
+      released: string[];
+      modules: BootModule[];
+      criticalPath: Array<{
+        name: string;
+        startedAt: number | null;
+        duration: number | null;
+      }>;
+    } | null;
   }
 }
 

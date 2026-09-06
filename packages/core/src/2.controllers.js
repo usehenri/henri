@@ -15,6 +15,7 @@ class Controllers extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
+    this.needs = ['config'];
     this.runlevel = 2;
     this.name = 'controllers';
     this.henri = null;

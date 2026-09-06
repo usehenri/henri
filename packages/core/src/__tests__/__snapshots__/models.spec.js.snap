@@ -3,6 +3,8 @@
 exports[`models > should match snapshot 1`] = `
 Model {
   "addToEslintRc": [Function],
+  "after": [],
+  "before": [],
   "checkStoreOrDie": [Function],
   "configure": [Function],
   "consoleOnly": false,
@@ -14,6 +16,10 @@ Model {
   "loadStore": [Function],
   "models": [],
   "name": "model",
+  "needs": [
+    "config",
+    "graphql",
+  ],
   "reload": [Function],
   "reloadable": true,
   "reset": [Function],

@@ -2,6 +2,8 @@
 
 exports[`config > in test > should match snapshot 1`] = `
 Config {
+  "after": [],
+  "before": [],
   "config": null,
   "consoleOnly": false,
   "fromCredentials": [],
@@ -12,6 +14,7 @@ Config {
   "init": [Function],
   "key": null,
   "name": "config",
+  "needs": [],
   "reload": [Function],
   "reloadable": true,
   "runlevel": 0,

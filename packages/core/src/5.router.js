@@ -56,6 +56,8 @@ class Router extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
+    this.needs = ['config', 'controllers', 'server', 'user'];
+    this.after = ['mailers', 'view'];
     this.runlevel = 5;
     this.name = 'router';
     this.henri = null;

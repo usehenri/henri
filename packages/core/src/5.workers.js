@@ -18,6 +18,8 @@ class Workers extends BaseModule {
     super();
 
     this.reloadable = true;
+    this.needs = ['config', 'model'];
+    this.after = ['user'];
     this.runlevel = 5;
     this.name = 'workers';
     this.henri = undefined;
