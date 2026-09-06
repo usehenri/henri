@@ -522,8 +522,6 @@ function describeModel(model, context) {
       continue;
     }
 
-    const argument = { name: field, type: shape.type };
-
     if (NOT_WRITABLE.has(field)) {
       // A column henri writes itself is never an argument, and saying so
       // once in the guide is better than saying it per model
@@ -539,7 +537,7 @@ function describeModel(model, context) {
     } else if (encrypted && !encrypted.deterministic) {
       refuse(field, 'filter', 'not-queryable');
     } else {
-      description.filters.push(argument);
+      description.filters.push({ name: field, type: shape.type });
     }
   }
 
