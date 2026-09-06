@@ -62,7 +62,7 @@ an app and is what core's tests boot.
 | Path                                    | Package               | Role                                                                                                                                                                         |
 | --------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/henri`                        | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                                                  |
-| `packages/cli`                          | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `generate`, `destroy`, `build`, `test`, `db`, `jobs`, `doctor`, `audit`, `mcp`, `clean`, `about`, `analyze`; the app templates |
+| `packages/cli`                          | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `generate` (incl. `authentication`), `destroy`, `build`, `test`, `db`, `jobs`, `doctor`, `audit`, `mcp`, `clean`, `about`, `analyze`; the app templates |
 | `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, mail                                                                                                           |
 | `packages/mongoose`                     | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                                                 |
 | `packages/disk`                         | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                                         |
@@ -117,8 +117,9 @@ an app and is what core's tests boot.
   whose type comes from the file and, when the file has no value there, from
   the schema; every key the environment provided is
   printed at boot with the `filterParameters` masked. Keys: `port`, `host`, `cors`,
-  `renderer`, `inertia`, `experimental`, `stores`, `secret`, `user` (string or
-  `{ model, public, loginPath, afterLogin, sessionMaxAge }`), `baseRole`,
+  `renderer`, `inertia`, `experimental`, `stores`, `secret`, `url`, `user`
+  (string or `{ model, public, loginPath, afterLogin, sessionMaxAge, signup,
+passwordReset, confirmation }`), `baseRole`,
   `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `jobs`,
   `rateLimit`, `helmet`, `filterParameters`, `bodyLimit`, `requestTimeout`.
 - The configuration is validated at boot, before any other module starts:
@@ -167,8 +168,9 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
 'date'|'json'|'uuid'`, `required`, `default`, `enum`, `unique`, `index`),
   normalized by `schema.js` in each adapter (Sequelize throws on unknown keys,
   Mongoose passes them through). The user model gets `email` (unique,
-  lowercased), `password` (hashed, not selected by default) and `roles`
-  (stripped from mass assignment; `setRoles()` or `{ unsafe: true }`).
+  lowercased), `password` (hashed, not selected by default), `roles`
+  (stripped from mass assignment; `setRoles()` or `{ unsafe: true }`) and the
+  two dates the account flows write, `confirmedAt` and `passwordChangedAt`.
   Every model gets `createdAt`/`updatedAt` (`options.timestamps: false` opts
   out), `paginate({ page, perPage })` answering
   `{ records, page, perPage, total, pages }` and, with `options.paranoid`,
@@ -182,6 +184,22 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   cookie `henri.csrf`, header `X-CSRF-Token` or body `_csrf`) and
   `req.permit()` (`base/params.js`). Views and JSON only ever get
   `publicUser()` (`{ id, email, roles }` + `config.user.public`).
+- The account flows (`base/accounts.js`, exposed as `henri.accounts`) are
+  mounted by the same module when `config.user.signup`, `passwordReset` or
+  `confirmation` ask for them: `POST /signup`, `POST /password/forgot`,
+  `GET /password/reset/:token`, `POST /password/reset`, `GET /confirm/:token`,
+  `POST /confirm` and `POST /account/email`. The links carry HMAC-signed
+  tokens (`base/tokens.js`), never stored: the purpose, the expiry and a seed
+  taken from the state the action changes (the password hash for a reset, the
+  address and `confirmedAt` for a confirmation) are all inside one signature,
+  which is what makes a link single use and expiring. A reset stamps
+  `passwordChangedAt` and `deserializeUser` refuses the sessions opened before
+  it. A reset request and a confirmation resend answer before they look
+  anything up, so a known and an unknown address are indistinguishable in
+  body, status and timing. The mails come from the built-in `auth` mailer
+  (`core/src/mailers/`), whose views sit behind `app/views/mailers`, and go
+  through `deliverLater()`. `henri generate authentication` writes the pages,
+  the controller, the mailer, the routes and the tests into an application.
 - The router (`5.router.js`) expands `config/routes.js` through
   `base/routes.js` (`root`, `resources`/`crud` with `only`/`except`/`omit`,
   `member`, `collection`, `namespace`, `nested`; `@usehenri/cli` requires the

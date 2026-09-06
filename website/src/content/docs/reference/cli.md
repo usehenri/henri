@@ -135,6 +135,8 @@ henri g <what> <name> [options] [--force]
 | `test <name>`                      | `test/<name>.test.js` requesting `GET /<name>` with `@usehenri/testing`.                                                                                                                                                                                   |
 | `crud <Name> [field:type ...]`     | The model, `app/controllers/<names>.js` with JSON `index`, `create`, `update` and `destroy`, and the `crud <names>` route.                                                                                                                                 |
 | `scaffold <Name> [field:type ...]` | The model, `app/controllers/<names>.js` with the seven `resources` actions answering HTML or JSON, the `resources <names>` route and the pages `app/views/pages/<names>/{index,new,edit,show,_form}` (`.jsx` with the Inertia renderer, `.js` with React). |
+| `authentication`                   | The account flows: turns `config.user.signup`, `passwordReset` and `confirmation` on, and writes the user model (when there is none), `app/controllers/accounts.js`, the five pages, `app/mailers/auth.js` with its views, the routes and the tests. |
+| `agents`                           | `AGENTS.md`, `CLAUDE.md` and `.mcp.json` in an existing application. See [Coding agents](/guides/agents/).                                                                                                                                          |
 
 Model and resource names are given in the singular with a capital: `Post` gives the model `Post`, the controller `posts.js`, the route `resources posts` and the pages under `posts/` (`category` gives `categories`, `person` `people`). Existing files are skipped and reported; `--force` overwrites them. Routes are added to `config/routes.js`, which is rewritten (formatted with prettier) with the new keys.
 
@@ -148,7 +150,10 @@ henri g job welcome
 henri g worker cleanup
 henri g mailer welcome confirm reset
 henri g test highscores
+henri g authentication
 ```
+
+`authentication` and `agents` take no name. `authentication` is the one generator that edits `config/*.json`: it adds the three account blocks to `user` in every configuration file that does not have them, and reports the files it changed (`updated` in the `--json` summary). It writes nothing that reimplements a token, a hash or a session — the endpoints are the ones the user module mounts (see [Users](/guides/users/#the-account-flows)) — and its pages take the same renderer fork as the scaffolded ones.
 
 The scaffolded controllers follow the adapter of the default store: the Mongoose API on `disk` and `mongoose`, Sequelize on `mysql`, `postgresql` and `mssql`, the Drizzle model API on `drizzle` (see [Models](/guides/models/)). What they load a record with differs; their `index` is [`Model.paginate(req.pagination())`](/guides/models/#pagination) and their 422 is [`henri.model.errors(error)`](/guides/models/#validation-errors) on all three, because both answer the same shape on every adapter.
 

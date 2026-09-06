@@ -5,6 +5,8 @@
 // calls here are as much a test as the right ones.
 
 import type {
+  AccountResult,
+  AccountSettings,
   BootAnalysis,
   Boom,
   Configuration,
@@ -343,6 +345,36 @@ const config: Configuration = {
 
 expectType<Configuration>(config);
 
+// The account flows: the configuration, and the service behind the endpoints
+const accounts: Configuration = {
+  url: 'https://example.com',
+  user: {
+    model: 'user',
+    signup: { after: '/', fields: ['name'] },
+    passwordReset: { expiresIn: '1h' },
+    confirmation: { required: true },
+  },
+};
+
+expectType<Configuration>(accounts);
+expectType<AccountSettings>(henri.accounts.settings);
+expectType<number>(henri.accounts.settings.passwordReset.expiresIn);
+expectType<Promise<AccountResult>>(
+  henri.accounts.register({ email: 'ada@example.com', password: 'a-password' })
+);
+expectType<Promise<AccountResult>>(
+  henri.accounts.resetPassword('h1.a.b', 'another-password')
+);
+expectType<Promise<void>>(henri.accounts.requestPasswordReset('ada@x.co'));
+expectType<Promise<AccountResult>>(henri.accounts.confirm('h1.a.b'));
+expectType<boolean>(henri.accounts.allowed(req.user));
+expectType<Promise<boolean>>(henri.accounts.drain());
+
+const badFlow: Configuration = {
+  // @ts-expect-error a flow is a boolean or its settings, never a string
+  user: { model: 'user', signup: 'yes' },
+};
+
 const badConfig: Configuration = {
   // @ts-expect-error `vue2` is not a renderer
   renderer: 'vue2',
@@ -355,6 +387,7 @@ const badStore: Configuration = {
 
 export {
   badConfig,
+  badFlow,
   badModule,
   noInit,
   badHook,

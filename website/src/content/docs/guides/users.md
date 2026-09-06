@@ -1,11 +1,11 @@
 ---
 title: Users
-description: The user model, login and logout, sessions, CSRF, roles and what a browser may see.
+description: The user model, registration, login, the password reset, the email confirmation, sessions, CSRF, roles and what a browser may see.
 sidebar:
   order: 5
 ---
 
-Add a model named after the `user` configuration key (`user` by default, so `app/models/User.js`) and henri turns authentication on: the [model](/guides/models/#the-user-model) gets `email`, `password` and `roles`, the server gets a session, `POST /login`, `POST /logout` and a CSRF token. None of this loads without a user model; with one, the configuration must provide a `secret` (`HENRI_SECRET` in `.env`).
+Add a model named after the `user` configuration key (`user` by default, so `app/models/User.js`) and henri turns authentication on: the [model](/guides/models/#the-user-model) gets `email`, `password`, `roles`, `confirmedAt` and `passwordChangedAt`, the server gets a session, `POST /login`, `POST /logout` and a CSRF token. None of this loads without a user model; with one, the configuration must provide a `secret` (`HENRI_SECRET` in `.env`).
 
 ```js
 // app/models/User.js
@@ -17,30 +17,141 @@ module.exports = {
 };
 ```
 
-## Registering a user
+Registration, the password reset and the address confirmation are three more endpoints, mounted when `config.user` asks for them. The fastest way to all of it:
 
-There is no registration endpoint: create the user from a controller. `req.permit()` keeps `roles` (or anything else) out of the record, the adapter hashes the password, and `publicUser()` is what may go back to the browser.
+```bash
+henri generate authentication
+```
+
+That writes the user model (when there is none), the pages, the controller rendering them, an overridable copy of the mail templates and a test suite, and turns the three blocks below on. The rest of this page is what it wired.
+
+## The account flows
+
+```json
+{
+  "user": {
+    "model": "user",
+    "signup": { "fields": ["name"] },
+    "passwordReset": true,
+    "confirmation": { "required": true }
+  }
+}
+```
+
+Each block is `true` for the defaults, `false` (or absent) to leave the endpoints unmounted, or an object of settings. The endpoints they mount:
+
+| Endpoint                     | Block           | What it does                                         |
+| ---------------------------- | --------------- | ---------------------------------------------------- |
+| `POST /signup`               | `signup`        | Creates an account and opens a session               |
+| `POST /password/forgot`      | `passwordReset` | Mails a reset link; says nothing about the address   |
+| `GET /password/reset/:token` | `passwordReset` | Checks the link and moves the token into the session |
+| `POST /password/reset`       | `passwordReset` | Changes the password and retires the other sessions  |
+| `GET /confirm/:token`        | `confirmation`  | Confirms an address, or applies an address change    |
+| `POST /confirm`              | `confirmation`  | Mails the confirmation again; says nothing either    |
+| `POST /account/email`        | `confirmation`  | Asks to change the address of the signed-in account  |
+
+Each one answers JSON to API clients and redirects browsers, the way `POST /login` does. They run ahead of your routes, so nothing in `config/routes.js` has to declare them; the pages the forms live on are yours.
+
+Everything they do is also a method on `henri.accounts`, so a controller that wants to own the answers can call the same code instead of reimplementing it:
 
 ```js
-// app/controllers/users.js
-module.exports = {
-  create: async (req, res) => {
-    const data = req.permit('email', 'password', 'name');
+const created = await henri.accounts.register(
+  req.permit('email', 'password', 'name')
+);
 
-    if (!data.email || !data.password) {
-      return res.boom.badRequest('email and password are required');
-    }
-
-    if (await henri.user.findByEmail(data.email)) {
-      return res.boom.conflict('this email is already registered');
-    }
-
-    const user = await User.create(data);
-
-    return res.status(201).json({ user: henri.user.publicUser(user) });
-  },
-};
+if (!created.ok) {
+  return res.boom.badData('the account could not be created', {
+    errors: created.errors,
+  });
+}
 ```
+
+## Registration
+
+`POST /signup` takes `email`, `password` and the attributes `config.user.signup.fields` lists. Nothing else is read: `roles`, `confirmedAt` and `passwordChangedAt` are never assignable, whatever a form sends, and the store hashes the password on the way in.
+
+- API clients get `201` and `{ user }`, the public user.
+- Browsers are redirected to `signup.after` (`/` by default), signed in.
+- A refused signup answers `422` with `{ data: { errors } }`, or redirects a browser back to `signup.path` with the messages in the flash. They reach the next page as `errors`, keyed by field, and what was typed (minus the password) as `flash.values[0]`.
+
+```json
+{
+  "signup": {
+    "path": "/signup",
+    "fields": ["name"],
+    "after": "/",
+    "login": true
+  }
+}
+```
+
+The password goes through the [policy](#passwords), the same one a reset applies. Read its minimum from `henri.accounts.policy().minLength` (or `henri.user.passwordPolicy`) rather than hard-coding a number, so a page and its tests follow the configuration.
+
+Registration is the one flow that says whether an address is registered, because a signup form has to. The other two never do.
+
+## The password reset
+
+Three endpoints, and two pages of yours: the one asking for an address, and the one asking for a new password.
+
+1. `POST /password/forgot` takes `email` and answers `202` with the same sentence whether or not the address has an account. henri writes that answer **before** it looks anything up: the lookup, the token and the mail happen afterwards, so nothing a client can time says whether the account exists either. Only a syntactically invalid address is refused, with `422`.
+2. The mail carries `GET /password/reset/:token`. Following it checks the link, puts the token in the session and redirects to `<path>/reset` — so the token leaves the url on the first hop and cannot leak through a `Referer` or the browser history. The response carries `Referrer-Policy: no-referrer` and `Cache-Control: no-store`. An expired or spent link redirects to `<path>/forgot` with a flash, or answers `400` to an API client.
+3. `POST /password/reset` takes the new password (and the token, when the caller is not a browser holding the session). It changes the password, signs the account in, and **every other session of that account stops working** — which matters, because the usual reason someone resets a password is believing that somebody else has it.
+
+```json
+{
+  "passwordReset": {
+    "path": "/password",
+    "expiresIn": "1h",
+    "after": "/",
+    "login": true
+  }
+}
+```
+
+## Email confirmation
+
+`confirmation` gives a new account a link to prove it can read its address, and gives an existing one a way to change that address.
+
+- Registering mails `GET /confirm/:token`; following it stamps `confirmedAt`. `POST /confirm` mails it again, with the same indistinguishable answer as a reset request.
+- `POST /account/email` asks for a change: it takes the new address and, unless `requirePassword` is `false`, the current password. **Nothing is written.** A link goes to the new address, and the account keeps the address it has until that link is followed — an address nobody proved they can read never becomes the address of an account.
+- `required: true` keeps an unconfirmed account out of a session: `POST /login` answers `403` with `{ data: { reason: 'unconfirmed' } }`, or redirects a browser to `<loginPath>?error=unconfirmed`.
+
+```json
+{
+  "confirmation": {
+    "path": "/confirm",
+    "emailPath": "/account/email",
+    "expiresIn": "3d",
+    "after": "/",
+    "required": false,
+    "requirePassword": true
+  }
+}
+```
+
+Turning `required` on in an application that already has users locks them out until they confirm: `confirmedAt` is null on every row written before the column existed. Backfill it (`UPDATE users SET confirmed_at = now()`) before flipping the switch.
+
+## The tokens
+
+Nothing token-shaped is stored. A link carries a signed token holding three things, all covered by one HMAC over the application `secret`:
+
+- its **purpose**, so a confirmation link can never be replayed as a password reset;
+- its **expiry**, so an old link stops working on its own and nothing has to expire it;
+- a **seed**, the fingerprint of the state the action is about to change: the password hash for a reset, the address and its confirmation date for a confirmation. Performing the action moves the seed, and every token minted against the old one stops verifying.
+
+That is what makes a link single use, and what makes a successful reset invalidate the links that were still in flight. A database leak hands over no working link, because forging one needs the secret, which is in the environment or in the [encrypted credentials](/configuration/#credentials) rather than in the database.
+
+The other side of that coin: **rotating `secret` invalidates every outstanding link**. Anyone who asked for a reset before the rotation has to ask again. Sessions go with it (they are signed with the same secret), so it is rarely a surprise, but it is worth knowing before rotating one in production.
+
+## The mails
+
+They come from the `auth` mailer, which ships with henri, so a fresh application can reset a password before anyone has written a template. Override as little or as much as you like:
+
+- write `app/views/mailers/auth/reset.hbs` (and `reset.text.hbs`) to change one view;
+- write `app/mailers/auth.js` to change the subjects, the sender or the data — an action you leave out keeps henri's;
+- `henri generate authentication` writes both, which is the usual way in.
+
+Each action receives the public user and the absolute url of the link. That url is built from `config.url` when there is one and from the running server's own address otherwise, which is right in development and wrong behind a proxy: production applications set `url`. The messages are previewable on `/_mailers` in development like any other mailer, and delivery goes through [`deliverLater()`](/guides/mail/), so the [job queue](/guides/jobs/) takes them when the application has one and an SMTP timeout never blocks a request.
 
 ## Passwords
 
@@ -131,15 +242,23 @@ Failures are counted for whatever email was submitted, real or not, so `429 Too 
 - API clients (anything accepting JSON or `*/*`) get `{ user }` back, the public user. On failure: `401` with `{ statusCode, error, message }`, or `400` when a field is missing.
 - Browsers asking for HTML are redirected to `config.user.afterLogin` (`/` by default); on failure to `<loginPath>?error=invalid` (`/login?error=invalid` by default).
 
+With `config.user.confirmation.required`, an account whose address is not confirmed is refused here even with the right password: `403` and `{ data: { reason: 'unconfirmed' } }`, or a redirect to `<loginPath>?error=unconfirmed`. The lockout counter is cleared first, so trying a correct password while unconfirmed cannot lock an account out.
+
 `POST /logout` destroys the session and answers `{ ok: true }`, or redirects browsers to `/`. `GET /logout` is deprecated and answers `405`.
 
-Both are mounted before your routes, on every renderer. henri ships no login page: write one at `loginPath` (`app/views/pages/login.js` with the React renderer) that posts to `/login`. A plain HTML form works because a browser that has no session yet needs no CSRF token; from React, `fetch({ route: '/login', method: 'post' }, { email, password })` followed by `hydrate()` does the same without leaving the page.
+Both are mounted before your routes, on every renderer. henri ships no login page: write one at `loginPath` (`app/views/pages/login.js` with the React renderer) that posts to `/login`, or let `henri generate authentication` write it. A plain HTML form works because a browser that has no session yet needs no CSRF token; from React, `fetch({ route: '/login', method: 'post' }, { email, password })` followed by `hydrate()` does the same without leaving the page.
 
 In a controller, `req.user` is the user instance (without its password) and `req.isAuthenticated()` tells whether someone is logged in. Views get the public user, see below.
 
 ## Sessions
 
 The session cookie, `henri.sid`, is `httpOnly`, `SameSite=Lax`, `Secure` in production, lives 30 days (`config.user.sessionMaxAge`, in milliseconds) and is only written once something is stored in it. Sessions are kept in the database of the user model's store and survive model reloads.
+
+The session remembers when it was opened. A password reset stamps `passwordChangedAt` on the account, and every session older than that stamp stops resolving to a user on its next request — that is how a reset signs the other devices out, with no scan of the session store and no extra read per request. An application that changes a password itself should do the same:
+
+```js
+await user.update({ password, passwordChangedAt: new Date() });
+```
 
 ## CSRF
 
