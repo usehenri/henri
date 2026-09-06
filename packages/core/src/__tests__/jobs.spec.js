@@ -118,13 +118,7 @@ describe('jobs', () => {
 
   // `henri.mailers` renders a message and hands the rendered payload to the
   // handler this module registers (see Jobs#deliverMail)
-  test('should take the deliveries of henri.mailers', async (ctx) => {
-    if (!henri.mailers || typeof henri.mailers.enqueue !== 'function') {
-      ctx.skip('the mailers module is not in this build');
-
-      return;
-    }
-
+  test('should take the deliveries of henri.mailers', async () => {
     const message = { subject: 'Hello', to: 'ada@example.com' };
     const job = await henri.mailers.enqueue(message, { wait: '5m' });
 

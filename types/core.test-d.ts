@@ -9,6 +9,9 @@ import type {
   Configuration,
   Controller,
   Henri,
+  Job,
+  JobDefinition,
+  JobStats,
   ModelFile,
   Page,
   Pagination,
@@ -64,6 +67,40 @@ henri.logger.info('boot');
 
 // @ts-expect-error `addMiddleware` takes a name and a function, in that order
 henri.addMiddleware((router: unknown) => router, 'metrics');
+
+// --- jobs -------------------------------------------------------------------
+
+expectType<Promise<Job>>(henri.jobs.perform('welcome', { userId: 1 }));
+expectType<Promise<Job>>(
+  henri.jobs.perform('report', null, { priority: -10, queue: 'reports' })
+);
+expectType<Promise<Job>>(henri.jobs.performIn('5m', 'welcome', { userId: 1 }));
+expectType<Promise<Job>>(henri.jobs.performAt(new Date(), 'welcome', null));
+expectType<Promise<Job[]>>(henri.jobs.list({ state: 'pending' }));
+expectType<Promise<JobStats>>(henri.jobs.stats());
+expectType<Promise<Job | null>>(henri.jobs.dead.retry('an-id'));
+expectType<Promise<number>>(henri.jobs.dead.discardAll({ queue: 'mailers' }));
+
+const welcome: JobDefinition = {
+  maxAttempts: 5,
+  queue: 'mailers',
+  timeout: '30s',
+
+  perform: async (args, context) => {
+    context.henri.pen.info('welcome', context.job.id, context.job.attempt);
+    context.signal.throwIfAborted();
+
+    return args;
+  },
+};
+
+expectType<JobDefinition>(welcome);
+
+// @ts-expect-error `pending` is a state, not a queue
+henri.jobs.list({ state: 'sleeping' });
+
+// @ts-expect-error a job file has to export a perform()
+const broken: JobDefinition = { queue: 'default' };
 
 // --- request ----------------------------------------------------------------
 

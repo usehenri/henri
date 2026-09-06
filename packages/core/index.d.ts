@@ -911,6 +911,165 @@ declare namespace start {
     toApolloError(error: Error, code?: string): Error;
   }
 
+  /** One job of the queue, as `henri.jobs` hands it out. */
+  interface Job {
+    id: string;
+    name: string;
+    queue: string;
+    state: 'pending' | 'running' | 'done' | 'dead';
+    args: unknown;
+    priority: number;
+    attempts: number;
+    maxAttempts: number;
+    /** The timeout of one attempt, in milliseconds. */
+    timeout: number | null;
+    /** How long the last attempt took, in milliseconds. */
+    duration: number | null;
+    /** Moments are ISO strings. */
+    runAt: string | null;
+    createdAt: string | null;
+    updatedAt: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+    claimedAt: string | null;
+    claimedBy: string | null;
+    error: { message: string; stack: string | null } | null;
+    history: Array<{
+      attempt: number;
+      at: string;
+      duration: number;
+      message: string;
+      runner: string | null;
+    }>;
+    uniqueKey: string | null;
+  }
+
+  /** The options of an enqueue. */
+  interface JobOptions {
+    /** Run it that much later: milliseconds, or `'5m'`. */
+    wait?: number | string;
+    /** Run it at that moment. */
+    at?: Date | string | number;
+    queue?: string;
+    /** Lower goes first. */
+    priority?: number;
+    maxAttempts?: number;
+    timeout?: number | string;
+    /** A key no other job of the queue may hold. */
+    unique?: string;
+  }
+
+  /** What a job's `perform(args, context)` receives as its context. */
+  interface JobContext {
+    henri: Henri;
+    job: {
+      id: string;
+      name: string;
+      queue: string;
+      args: unknown;
+      attempt: number;
+      maxAttempts: number;
+      enqueuedAt: string | null;
+      runner: string | null;
+      inline?: boolean;
+    };
+    /** Aborted when the attempt runs past its timeout. */
+    signal: AbortSignal;
+  }
+
+  /** A file of `app/jobs`. */
+  interface JobDefinition {
+    perform(args: any, context: JobContext): unknown | Promise<unknown>;
+    queue?: string;
+    priority?: number;
+    maxAttempts?: number;
+    timeout?: number | string;
+    backoff?: {
+      base?: number | string;
+      factor?: number;
+      max?: number | string;
+      jitter?: number;
+    };
+  }
+
+  /** What the queue holds, by queue and state. */
+  interface JobStats {
+    totals: { pending: number; running: number; done: number; dead: number };
+    queues: Array<{
+      queue: string;
+      pending: number;
+      running: number;
+      done: number;
+      dead: number;
+      /** How long the oldest job that is due has waited, in milliseconds. */
+      waiting: number;
+    }>;
+    timings: Array<{
+      queue: string;
+      runs: number;
+      shortest: number;
+      longest: number;
+      average: number;
+    }>;
+    /** The job names of the application. */
+    jobs: string[];
+  }
+
+  /** A filter of `henri.jobs.list()`. */
+  interface JobFilter {
+    state?: 'pending' | 'running' | 'done' | 'dead';
+    queue?: string;
+    name?: string;
+    limit?: number;
+    offset?: number;
+  }
+
+  /**
+   * `henri.jobs`: the background job queue of `@usehenri/jobs`. Every method
+   * throws when the application has none (`henri.jobs.enabled` is false).
+   */
+  interface JobsModule {
+    name: 'jobs';
+    /** Whether the application has a queue. */
+    enabled: boolean;
+    /** Enqueues a job; nothing runs in this process. */
+    perform(name: string, args?: unknown, options?: JobOptions): Promise<Job>;
+    /** The name `henri.mailers.onDeliverLater()` expects. */
+    enqueue(name: string, args?: unknown, options?: JobOptions): Promise<Job>;
+    /** Enqueues a job to run later (`'5m'`, or milliseconds). */
+    performIn(
+      wait: number | string,
+      name: string,
+      args?: unknown,
+      options?: JobOptions
+    ): Promise<Job>;
+    /** Enqueues a job to run at a given moment. */
+    performAt(
+      when: Date | string | number,
+      name: string,
+      args?: unknown,
+      options?: JobOptions
+    ): Promise<Job>;
+    /** Performs a job here and now, without the queue (tests, console). */
+    performNow(name: string, args?: unknown): Promise<unknown>;
+    get(id: string): Promise<Job | null>;
+    list(filter?: JobFilter): Promise<Job[]>;
+    stats(): Promise<JobStats>;
+    /** The job names of the application. */
+    names(): string[];
+    /** The dead letter queue. */
+    dead: {
+      count(): Promise<number>;
+      list(filter?: JobFilter): Promise<Job[]>;
+      get(id: string): Promise<Job | null>;
+      /** Puts a job back in its queue; its attempts start over. */
+      retry(id: string, options?: JobOptions): Promise<Job | null>;
+      retryAll(filter?: JobFilter, options?: JobOptions): Promise<number>;
+      discard(id: string): Promise<boolean>;
+      discardAll(filter?: JobFilter): Promise<number>;
+    };
+  }
+
   /** `henri.workers`. */
   interface WorkersModule {
     name: 'workers';
@@ -959,6 +1118,7 @@ declare namespace start {
     view: ViewModule;
     user: UserModule;
     router: RouterModule;
+    jobs: JobsModule;
     workers: WorkersModule;
     api: ApiNamespace;
     /** The passport instance (also `henri.user.passport`). */

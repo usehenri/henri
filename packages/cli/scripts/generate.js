@@ -305,6 +305,7 @@ const job = async (name, rest = [], opts = {}) => {
 //
 // \`args\` is stored as JSON: strings, numbers, booleans, null, plain objects
 // and arrays only. Pass an id, never a model instance.
+/** @type {import('@usehenri/core').JobDefinition} */
 module.exports = {
   // The queue a runner picks this job up from
   queue: 'default',

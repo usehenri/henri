@@ -127,7 +127,7 @@ henri g <what> <name> [options] [--force]
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `model <Name> [field:type ...]`    | `app/models/<Name>.js` with the fields (timestamps are on by default).                                                                                                                                                                               |
 | `controller <name> [action ...]`   | `app/controllers/<name>.js` with one `res.boom.notImplemented()` handler per action, and a `get /<name>/<action>` route for each in `config/routes.js`.                                                                                              |
-| `job <name>`                       | `app/jobs/<name>.js` with `perform(args, context)`, a queue and a retry policy. |
+| `job <name>`                       | `app/jobs/<name>.js` with `perform(args, context)`, a queue and a retry policy.                                                                                                                                                                      |
 | `worker <name>`                    | `app/workers/<name>.js` with `start()` and `stop()`.                                                                                                                                                                                                 |
 | `mailer <name> [action ...]`       | `app/mailers/<name>.js` with one action per name (`notify` when none is given), `app/views/mailers/<name>/<action>.hbs` for each, and `app/views/mailers/layouts/mailer.hbs` and `mailer.text.hbs` when they are missing. See [Mail](/guides/mail/). |
 | `test <name>`                      | `test/<name>.test.js` requesting `GET /<name>` with `@usehenri/testing`.                                                                                                                                                                             |
@@ -163,7 +163,7 @@ henri d <what> <name>
 | `controller <name>` | `app/controllers/<name>.js` and every route pointing to it                       |
 | `route <key>`       | one key of `config/routes.js`: `henri destroy route "get /about"`                |
 | `view <folder>`     | `app/views/pages/<folder>`                                                       |
-| `job <name>`        | `app/jobs/<name>.js` |
+| `job <name>`        | `app/jobs/<name>.js`                                                             |
 | `worker <name>`     | `app/workers/<name>.js`                                                          |
 | `mailer <name>`     | `app/mailers/<name>.js` and `app/views/mailers/<name>` (the shared layout stays) |
 | `test <name>`       | `test/<name>.test.js`                                                            |
