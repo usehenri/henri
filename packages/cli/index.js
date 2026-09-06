@@ -74,6 +74,7 @@ module.exports = (pkg, args) => {
 
   // Rails style: `henri db:migrate` is `henri db migrate`
   for (const group of [
+    'calls',
     'credentials',
     'db',
     'encryption',

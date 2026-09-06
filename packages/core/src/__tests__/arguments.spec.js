@@ -41,6 +41,7 @@ const ROOT = path.resolve(__dirname, '..');
  */
 const INTERFACES = {
   Cache: 'henri.cache',
+  CallsModule: 'henri.calls',
   ConfigModule: 'henri.config',
   EncryptionModule: 'henri.encryption',
   Henri: 'henri',

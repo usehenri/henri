@@ -59,7 +59,8 @@
  * `paths`), `henri.cache` (`get`, `set`, `delete`, `clear`, `scope`,
  * `fetch`), `henri.privacy` (`fields`, `strip`, `subject`, `export`,
  * `plan`, `erase`), `henri.retention` (`plan`, `sweep`), `henri.trail`
- * (`list`, `count`, `about`, `prune`), `henri.encryption` (`markOf`,
+ * (`list`, `count`, `about`, `prune`), `henri.calls` (`list`, `count`,
+ * `about`, `prune`, `outbound`, `track`), `henri.encryption` (`markOf`,
  * `encrypt`, `decrypt`, `candidates`, `tolerate`, `rotate`),
  * `henri.model.getStore`, `henri.mail.send`, `deliverLater`, and what a
  * request gets: `res.resource`, `res.collection`, `res.negotiate`,
@@ -341,6 +342,58 @@ const STATUS = {
   type: 'number',
 };
 
+/** What the call log is read back with */
+const CALL_FILTER = bag({
+  actor: maybe(NAME),
+  direction: maybe({ enum: ['in', 'out'], type: 'string' }),
+  limit: maybe(COUNT),
+  offset: maybe({ integer: true, min: 0, type: 'number' }),
+  outcome: maybe({ enum: ['aborted', 'failed', 'ok'], type: 'string' }),
+  requestId: maybe(NAME),
+  service: maybe(NAME),
+  since: maybe(WHEN),
+  status: maybe(STATUS),
+  until: maybe(WHEN),
+});
+
+/**
+ * One half of a call: the headers and the body of a request or an answer.
+ *
+ * The body is `ANY` on purpose -- an outbound call carries whatever the
+ * service takes -- and what it is *allowed to become* is not this module's
+ * question: `base/calls.js` stores a body it can walk and redact, and
+ * records the shape of anything else instead of the thing itself.
+ */
+const CALL_SIDE = maybe(bag({ body: ANY, headers: maybe(OBJECT) }));
+
+/** What an outbound call records */
+const CALL = bag({
+  actor: maybe(NAME),
+  at: maybe({ min: 0, type: 'number' }),
+  duration: maybe({ min: 0, type: 'number' }),
+  error: maybe(NAME),
+  meta: maybe(OBJECT),
+  method: maybe(NAME),
+  outcome: maybe({ enum: ['aborted', 'failed', 'ok'], type: 'string' }),
+  request: CALL_SIDE,
+  requestId: maybe(NAME),
+  response: CALL_SIDE,
+  route: maybe(NAME),
+  service: maybe(NAME),
+  status: maybe(STATUS),
+  url: maybe(NAME),
+});
+
+/** ... and what starts timing one */
+const CALL_TRACK = bag({
+  meta: maybe(OBJECT),
+  method: maybe(NAME),
+  request: CALL_SIDE,
+  requestId: maybe(NAME),
+  service: maybe(NAME),
+  url: maybe(NAME),
+});
+
 /** What `res.resource()` takes */
 const RESOURCE_OPTIONS = bag({
   include: INCLUDE,
@@ -398,6 +451,27 @@ const SIGNATURES = {
     { by: 'HENRI_CACHE_VALUE_UNSUPPORTED', name: 'value' },
     { name: 'options', optional: true, ...CACHE_OPTIONS },
   ],
+
+  'henri.calls.about': [
+    { name: 'requestId', ...NAME },
+    { name: 'filter', optional: true, ...CALL_FILTER },
+  ],
+
+  'henri.calls.count': [{ name: 'filter', optional: true, ...CALL_FILTER }],
+
+  'henri.calls.list': [{ name: 'filter', optional: true, ...CALL_FILTER }],
+
+  'henri.calls.outbound': [{ name: 'call', ...CALL }],
+
+  'henri.calls.prune': [
+    {
+      name: 'options',
+      optional: true,
+      ...bag({ now: maybe({ min: 0, type: 'number' }) }),
+    },
+  ],
+
+  'henri.calls.track': [{ name: 'details', ...CALL_TRACK }],
 
   'henri.encryption.candidates': [
     {

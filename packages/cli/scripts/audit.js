@@ -74,6 +74,13 @@ const STANDARDS = { asvs: '4.0.3', owasp: 'Top 10:2021' };
  */
 const CHECKS = [
   {
+    asvs: 'V7.1.1',
+    check: 'calls.kept-forever',
+    level: 1,
+    owasp: 'A09',
+    what: '"calls": { "keep": false }: a table of request and response values that nothing ever sweeps',
+  },
+  {
     asvs: 'V14.5.3',
     check: 'cors.permissive',
     level: 1,
@@ -1013,6 +1020,27 @@ const configFindings = (config, { file, hasUser }) => {
         'V12.4.1'
       );
     }
+  }
+
+  // A call log holds values -- the body that came in, the body that went
+  // out -- which is what it is for and what makes its retention part of the
+  // feature rather than a setting. `keep: false` is the one spelling that
+  // takes it away, and only a file a production boot reads is worth the
+  // word: a developer's laptop keeping its own requests forever is nobody's
+  // problem.
+  if (
+    isObject(config.calls) &&
+    config.calls.keep === false &&
+    PRODUCTION_CONFIGS.includes(file)
+  ) {
+    add(
+      'medium',
+      'calls.kept-forever',
+      OWASP.A09,
+      'calls.keep is false, so the call log keeps every request and response body it captured for as long as the database lasts: it is a copy of what users sent, growing without a sweep',
+      `Give it a period in ${file} ("calls": { "keep": "30d" }), which the retention sweep enforces`,
+      'V7.1.1'
+    );
   }
 
   // The two escape hatches of the outbound webhooks are what a development

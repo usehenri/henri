@@ -1108,26 +1108,41 @@ class Drizzle {
   }
 
   /**
-   * The tables that live in this database and are not drizzle's.
+   * The `config` blocks that name a table henri owns
    *
-   * `@usehenri/jobs` and the access trail of core own tables of their own
-   * and create them through raw SQL, because both have to work on a store
-   * that has no models at all. drizzle-kit compares the schema to the
-   * database and would offer to drop them; a push that did would take an
-   * application's job history, or its audit trail, with it.
-   *
-   * @returns {Set<string>} The table names a push must leave alone
+   * @returns {object} `{ calls, jobs, trail, webhooks }`
    * @memberof Drizzle
    */
-  reservedTables() {
+  reservedBlocks() {
     const config = (this.henri && this.henri.config) || null;
     const read = (key) =>
       config && config.has && config.has(key) ? config.get(key) : null;
     const block = (value) =>
       value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    const jobs = block(read('jobs'));
-    const trail = block(read('trail'));
-    const webhooks = block(read('webhooks'));
+
+    return {
+      calls: block(read('calls')),
+      jobs: block(read('jobs')),
+      trail: block(read('trail')),
+      webhooks: block(read('webhooks')),
+    };
+  }
+
+  /**
+   * The tables that live in this database and are not drizzle's.
+   *
+   * `@usehenri/jobs`, the access trail and the call log of core own tables
+   * of their own and create them through raw SQL, because all of them have
+   * to work on a store that has no models at all. drizzle-kit compares the
+   * schema to the database and would offer to drop them; a push that did
+   * would take an application's job history, its audit trail, or its call
+   * log with it.
+   *
+   * @returns {Set<string>} The table names a push must leave alone
+   * @memberof Drizzle
+   */
+  reservedTables() {
+    const { calls, jobs, trail, webhooks } = this.reservedBlocks();
     const name = (value, fallback) =>
       typeof value === 'string' && value !== '' ? value : fallback;
     const queue = name(jobs.table, 'henri_jobs');
@@ -1135,9 +1150,37 @@ class Drizzle {
     return new Set([
       queue,
       `${queue}_schedules`,
+      name(calls.table, 'henri_calls'),
       name(trail.table, 'henri_trail'),
       name(webhooks.table, 'henri_webhooks'),
     ]);
+  }
+
+  /**
+   * The prefixes of the tables henri owns whose names it cannot know in
+   * advance.
+   *
+   * There is one: a partitioned call log (`config.calls.partition`). Every
+   * partition is a table of its own in PostgreSQL, named after the period
+   * it covers (`henri_calls_p20260906`), so the set of names changes every
+   * day and a push has to be told about the shape rather than the names.
+   *
+   * @returns {Array<string>} The prefixes a push must leave alone
+   * @memberof Drizzle
+   */
+  reservedPrefixes() {
+    const { calls } = this.reservedBlocks();
+
+    if (!calls.partition) {
+      return [];
+    }
+
+    const table =
+      typeof calls.table === 'string' && calls.table !== ''
+        ? calls.table
+        : 'henri_calls';
+
+    return [`${table}_p`];
   }
 
   /**

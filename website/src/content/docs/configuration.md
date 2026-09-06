@@ -65,6 +65,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `privacy`          |               | What henri does with the fields the models marked `personal`, see below. See [Personal data](/guides/privacy/).                                            |
 | `retention`        |               | What runs the retention sweep and what it may do, see below. How long a model keeps its records is said in the model. See [Retention](/guides/retention/). |
 | `trail`            | off           | The append-only record of who read or changed personal data, see below. See [The access trail](/guides/trail/).                                            |
+| `calls`            | off           | The calls the application answered and the calls it made, joined by the request id, see below. See [Call logs](/guides/calls/).                            |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                                       |
 | `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                             |
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                              |
@@ -366,6 +367,50 @@ is issued. See [The access trail](/guides/trail/).
 | `reads` | off             | `"personal"` records the answers carrying a model with a personal field, `"all"` every answer henri serializes, `false` none. Every recorded read costs a round trip and an insert.       |
 | `store` | `"default"`     | Which of `stores` the table lives in.                                                                                                                                                     |
 | `table` | `"henri_trail"` | The table henri creates at boot and only ever `INSERT`s into and `SELECT`s from.                                                                                                          |
+
+## The `calls` object
+
+The calls the application answered and the calls it made, joined by the
+request id. It is off until this key says otherwise, and off means no table
+is created and no middleware is mounted. It holds **values**, which the
+access trail deliberately does not: read [Call logs](/guides/calls/) before
+turning it on.
+
+```json
+{
+  "calls": {
+    "keep": "30d",
+    "sample": 0.05,
+    "maxPerSecond": 100,
+    "maxBody": "8kb",
+    "partition": "day",
+    "always": ["error"],
+    "ignore": ["/assets"],
+    "store": "default",
+    "table": "henri_calls"
+  }
+}
+```
+
+| Key               | Default         | Description                                                                                                                                                                                    |
+| ----------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keep`            | `"30d"`         | How long a row is kept. The retention sweep prunes them; `false` keeps them forever, which on this table is a decision to make on purpose.                                                     |
+| `sample`          | `1`             | The share of requests recorded, from `0` to `1`. The decision is a hash of the request id seeded with `secret`, so the inbound call and every outbound call it caused agree, in every process. |
+| `maxPerSecond`    | `100`           | The absolute per-process ceiling on rows a second, or `false` for none. Sampling is proportional and a burst is not, so this is what a spike runs into.                                        |
+| `always`          | `["error"]`     | The outcomes sampling never drops: `"error"`, `"client-error"`, `"aborted"`. They are recorded without their bodies.                                                                           |
+| `maxBody`         | `"8kb"`         | How much of a body is stored before it is cut and marked truncated. `false` stores no body.                                                                                                    |
+| `bodies`          | `true`          | `false` keeps the timings, the statuses and the headers and captures no body at all.                                                                                                           |
+| `partition`       | off             | `"day"` or `"month"` on PostgreSQL and MySQL: the sweep then drops a partition instead of deleting rows. Anything else fails the boot with `HENRI_CALLS_PARTITION_UNSUPPORTED`.                |
+| `partitionsAhead` | `7`             | How many periods are kept ready in front of the clock.                                                                                                                                         |
+| `inbound`         | `true`          | `false` stops henri mounting the middleware at all.                                                                                                                                            |
+| `outbound`        | `true`          | `false` makes `henri.calls.track()` and `henri.calls.outbound()` no-ops.                                                                                                                       |
+| `ignore`          | `[]`            | Path prefixes that are never recorded. The health probes never are, whatever this says.                                                                                                        |
+| `buffer`          | `1000`          | How many rows may wait to be written. Past it a row is dropped and counted rather than queued forever.                                                                                         |
+| `batch`           | `500`           | How many buffered rows trigger a flush before the timer does.                                                                                                                                  |
+| `flush`           | `1000`          | How often the buffer is written, in milliseconds.                                                                                                                                              |
+| `sweep`           | `5000`          | How many rows one pass of the delete path takes at a time.                                                                                                                                     |
+| `store`           | `"default"`     | Which of `stores` the table lives in.                                                                                                                                                          |
+| `table`           | `"henri_calls"` | The table henri creates at boot. Changing `partition` afterwards needs a migration of your own.                                                                                                |
 
 ## Uploads
 

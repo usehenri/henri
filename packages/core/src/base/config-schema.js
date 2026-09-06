@@ -61,6 +61,12 @@ const ON_ERASE = ['anonymize', 'delete', 'orphan', 'retain'];
 
 /** What `trail.reads` accepts (`base/trail.js`) */
 const READS = ['all', 'personal'];
+
+/** What `calls.always` accepts (`base/calls.js`) */
+const ALWAYS = ['aborted', 'client-error', 'error'];
+
+/** What `calls.partition` accepts (`base/call-store.js`) */
+const PARTITIONS = ['day', 'month'];
 /**
  * One `encryption.keys` entry: 32 bytes as 64 hexadecimal characters.
  *
@@ -1247,6 +1253,136 @@ const SCHEMA = {
     ],
   },
 
+  calls: {
+    default: false,
+    describe: 'an object of call log settings, or false to keep none',
+    hint: 'The call log holds request and response values; it is off until this says otherwise, and it is not the access trail (see the guide)',
+    oneOf: [
+      { const: false },
+      {
+        keys: {
+          always: {
+            default: ['error'],
+            describe: `a list of ${ALWAYS.join(', ')}, or an empty list`,
+            hint: 'The outcomes sampling never drops. They are recorded without their bodies: the decision not to capture one was made before the status was known',
+            of: { enum: ALWAYS, type: 'string' },
+            type: 'array',
+          },
+          batch: {
+            default: 500,
+            describe: 'a whole number above zero',
+            hint: 'How many buffered rows trigger a flush before the timer does',
+            above: 0,
+            integer: true,
+            type: 'number',
+          },
+          bodies: {
+            default: true,
+            describe: 'true or false',
+            hint: 'false keeps the timings, the statuses and the headers and captures no body at all',
+            type: 'boolean',
+          },
+          buffer: {
+            default: 1000,
+            describe: 'a whole number above zero',
+            hint: 'How many rows may wait to be written; past it a row is dropped and counted rather than queued forever',
+            above: 0,
+            integer: true,
+            type: 'number',
+          },
+          flush: {
+            default: 1000,
+            describe: 'a number of milliseconds above zero',
+            hint: 'How often the buffer is written',
+            above: 0,
+            integer: true,
+            type: 'number',
+          },
+          ignore: {
+            default: [],
+            describe: 'a list of path prefixes',
+            hint: 'Paths that are never recorded. The health probes never are, whatever this says',
+            of: text(),
+            type: 'array',
+          },
+          inbound: {
+            default: true,
+            describe: 'true or false',
+            hint: 'false stops henri mounting the middleware at all',
+            type: 'boolean',
+          },
+          keep: keeps({
+            default: '30d',
+            hint: 'A call log holds values, so keeping it forever is a decision to make on purpose; the retention sweep prunes it',
+            oneOf: [{ const: false }, ...keeps().oneOf],
+          }),
+          maxBody: sizeLimit({
+            default: '8kb',
+            hint: 'How much of a body is stored before it is cut and marked truncated',
+          }),
+          maxPerSecond: {
+            default: 100,
+            describe: 'a whole number above zero, or false for no ceiling',
+            hint: 'The absolute per-process ceiling: sampling is proportional and a burst is not, so this is what a spike runs into',
+            oneOf: [
+              { const: false },
+              { above: 0, integer: true, type: 'number' },
+            ],
+          },
+          outbound: {
+            default: true,
+            describe: 'true or false',
+            hint: 'false makes henri.calls.track() and outbound() no-ops',
+            type: 'boolean',
+          },
+          partition: {
+            default: false,
+            describe: `one of ${PARTITIONS.join(', ')}, or false`,
+            hint: 'PostgreSQL and MySQL only: the sweep then drops a partition instead of deleting rows. Anything else fails the boot',
+            oneOf: [{ const: false }, { enum: PARTITIONS, type: 'string' }],
+          },
+          partitionsAhead: {
+            default: 7,
+            describe: 'a whole number above zero',
+            hint: 'How many periods are kept ready in front of the clock',
+            above: 0,
+            integer: true,
+            type: 'number',
+          },
+          sample: {
+            default: 1,
+            describe: 'a fraction between 0 and 1',
+            hint: 'The share of requests recorded, decided by a hash of the request id seeded with config.secret so the inbound call and its outbound calls agree',
+            max: 1,
+            min: 0,
+            type: 'number',
+          },
+          store: text({
+            default: 'default',
+            describe: 'the name of a store',
+            hint: 'Which of config.stores the table lives in',
+          }),
+          sweep: {
+            default: 5000,
+            describe: 'a whole number above zero',
+            hint: 'How many rows one pass of the delete path takes at a time',
+            above: 0,
+            integer: true,
+            type: 'number',
+          },
+          table: {
+            default: 'henri_calls',
+            describe: 'a table name: letters, digits and underscores',
+            hint: 'henri creates it on boot; changing calls.partition afterwards needs a migration of your own',
+            pattern: /^[A-Za-z_][A-Za-z0-9_]*$/u,
+            type: 'string',
+          },
+        },
+        type: 'object',
+      },
+    ],
+  },
+
   bodyLimit: {
     default: '1mb',
     describe: 'a size, as a string ("1mb") or a number of bytes',
@@ -1365,8 +1501,10 @@ const SCHEMA = {
 
 module.exports = {
   ADAPTERS,
+  ALWAYS,
   DIALECTS,
   LOG_FORMATS,
+  PARTITIONS,
   READS,
   RENDERERS,
   SCHEMA,

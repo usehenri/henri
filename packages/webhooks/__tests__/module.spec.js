@@ -73,7 +73,7 @@ describe('the henri module', () => {
     expect(await module.init()).toBe('webhooks');
     expect(module.enabled).toBe(true);
     expect(
-      henri.calls.some(
+      henri.logged.some(
         ([level, , said]) =>
           level === 'warn' && String(said).includes('no running job queue')
       )
@@ -114,7 +114,7 @@ describe('the henri module', () => {
     await module.init();
 
     const [, ...said] =
-      henri.calls.find(
+      henri.logged.find(
         ([level, , first]) =>
           level === 'info' && String(first).includes('deliveries on')
       ) || [];

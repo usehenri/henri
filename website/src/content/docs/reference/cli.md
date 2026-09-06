@@ -404,6 +404,25 @@ The append-only record of who read or changed personal data, read back. See [The
 | `about <who>` | Everything recorded about one person. The address is not in the table -- henri digests what you asked about -- so this still answers after the erasure took it away. |
 | `verify`      | Walks the hash chain and says whether a row was edited or removed, and where. Exits `1` on a break.                                                                  |
 
+## `calls`
+
+```bash
+henri calls [<request-id>] [--direction=<in|out>] [--service=<name>] [--status=<n>] [--outcome=<name>] [--since=<date>] [--until=<date>] [--limit=<n>] [--json]
+henri calls:stats [--json]
+henri calls:sweep --yes [--json]
+```
+
+The calls the application answered and the calls it made, joined by the request id. See [Call logs](/guides/calls/). It is off until `config.calls` says otherwise, and it holds values -- unlike [the access trail](/guides/trail/), which refuses them.
+
+| Command        | What it does                                                                                                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<request-id>` | One request and everything it caused: the call that came in, every call that went out because of it, in order, with the timings. This is what the two records are for.              |
+| (none)         | The latest calls, newest first, filtered by the flags.                                                                                                                              |
+| `stats`        | What was written, and what was dropped rather than written -- by the per-second ceiling, by a full buffer, or by a store that refused it -- plus the partitions when there are any. |
+| `sweep`        | Takes the calls past `config.calls.keep` away. The retention sweep already does this; the command is for running it on its own. Needs `--yes`, because it removes rows.             |
+
+A sweep drops whole partitions on PostgreSQL and MySQL when `config.calls.partition` asked for them, and deletes rows in bounded batches everywhere else.
+
 ## `doctor`
 
 ```bash

@@ -741,6 +741,11 @@ declare namespace start {
     retention?: RetentionConfig;
     /** The access trail; absent or `false` keeps none. */
     trail?: false | TrailConfig;
+    /**
+     * The call log: the calls the application answered and the calls it
+     * made. Absent (or `false`) keeps none, and no table is created.
+     */
+    calls?: false | CallsConfig;
     /** Maximum size of a JSON or form body (`"1mb"`). */
     bodyLimit?: string | number;
     /**
@@ -859,6 +864,78 @@ declare namespace start {
     /** Which of `config.stores` the table lives in (`"default"`). */
     store?: string;
     /** The table henri creates and appends to (`"henri_trail"`). */
+    table?: string;
+  }
+
+  /**
+   * `config.calls`: the calls an application answered and the calls it
+   * made, joined by the request id. Absent (or `false`) keeps none: no
+   * table is created and no middleware is mounted.
+   *
+   * It holds **values**, which the access trail deliberately does not. See
+   * the guide before turning it on.
+   */
+  interface CallsConfig {
+    /**
+     * The outcomes sampling never drops (`["error"]`). They are recorded
+     * without their bodies: the decision not to capture one was made before
+     * the status was known.
+     */
+    always?: Array<'aborted' | 'client-error' | 'error'>;
+    /** How many buffered rows trigger a flush before the timer does (`500`). */
+    batch?: number;
+    /** `false` keeps the timings and the headers and captures no body. */
+    bodies?: boolean;
+    /**
+     * How many rows may wait to be written (`1000`). Past it a row is
+     * dropped and counted rather than queued forever.
+     */
+    buffer?: number;
+    /** How often the buffer is written, in milliseconds (`1000`). */
+    flush?: number;
+    /**
+     * Path prefixes that are never recorded. The health probes never are,
+     * whatever this says.
+     */
+    ignore?: string[];
+    /** `false` stops henri mounting the middleware at all. */
+    inbound?: boolean;
+    /**
+     * How long a row is kept (`"30d"`); `false` keeps them forever. The
+     * retention sweep is what prunes them.
+     */
+    keep?: string | number | false;
+    /**
+     * How much of a body is stored before it is cut and marked truncated
+     * (`"8kb"`).
+     */
+    maxBody?: string | number | false;
+    /**
+     * The absolute per-process ceiling on rows a second (`100`), or `false`
+     * for none. Sampling is proportional and a burst is not.
+     */
+    maxPerSecond?: number | false;
+    /** `false` makes `track()` and `outbound()` no-ops. */
+    outbound?: boolean;
+    /**
+     * Range partitions by `at`, on PostgreSQL and MySQL only: the sweep
+     * then drops a partition instead of deleting rows. Anything else fails
+     * the boot with `HENRI_CALLS_PARTITION_UNSUPPORTED`.
+     */
+    partition?: 'day' | 'month' | false;
+    /** How many periods are kept ready in front of the clock (`7`). */
+    partitionsAhead?: number;
+    /**
+     * The share of requests recorded (`1`), decided by a hash of the
+     * request id seeded with `config.secret` so the inbound call and every
+     * outbound call it caused agree.
+     */
+    sample?: number;
+    /** Which of `config.stores` the table lives in (`"default"`). */
+    store?: string;
+    /** How many rows one pass of the delete path takes at a time (`5000`). */
+    sweep?: number;
+    /** The table henri creates and writes to (`"henri_calls"`). */
     table?: string;
   }
 
@@ -2574,6 +2651,151 @@ declare namespace start {
     }>;
   }
 
+  /** One call of the call log, inbound or outbound. */
+  interface CallRecord {
+    id: string;
+    /** When the call started, as an ISO-8601 string. */
+    at: string;
+    /** `"in"` for a call answered, `"out"` for a call made. */
+    direction: 'in' | 'out';
+    /** The join: the inbound call and its outbound calls share it. */
+    requestId: string | null;
+    /** Which service an outbound call went to; `null` inbound. */
+    service: string | null;
+    method: string;
+    /** The url, without its userinfo and with the filtered query masked. */
+    url: string | null;
+    /** The route pattern of an inbound call. */
+    route: string | null;
+    status: number | null;
+    /** How long it took, in milliseconds. */
+    duration: number | null;
+    /** The `externalId` of the person, never an address. */
+    actor: string | null;
+    outcome: 'aborted' | 'failed' | 'ok';
+    error: string | null;
+    request: { headers: Record<string, string> | null; body: unknown };
+    response: { headers: Record<string, string> | null; body: unknown };
+    /** Which bodies were cut: `["request"]`, `["response"]`, both, none. */
+    truncated: string[];
+    meta: Record<string, unknown> | string | null;
+  }
+
+  /**
+   * `henri.calls`: the calls the application answered and the calls it
+   * made, joined by the request id. Off unless `config.calls` says
+   * otherwise.
+   *
+   * It holds values, so everything it stores goes through the redactor,
+   * and the credentials of an exchange are masked whatever
+   * `filterParameters` says. It is not the access trail and does not
+   * replace it.
+   */
+  interface CallsModule {
+    name: 'calls';
+    /** `config.calls`, normalized. */
+    settings: {
+      enabled: boolean;
+      keep: number | null;
+      inbound: boolean;
+      outbound: boolean;
+      sample: number;
+      maxPerSecond: number;
+      maxBody: number;
+      partition: 'day' | 'month' | false;
+      store: string;
+      table: string;
+    };
+    /** Whether anything is being recorded. */
+    enabled: boolean;
+    /**
+     * The id of the request being handled, or `null` outside one. The seam
+     * a package outside core reaches for when it has to carry the id into
+     * a job.
+     */
+    requestId(): string | null;
+    /**
+     * Records one finished outbound call. Answers `false` on a disabled
+     * log, on a request the sampling dropped, and when a bound refused it.
+     */
+    outbound(call: {
+      service?: string;
+      method?: string;
+      url?: string;
+      status?: number | null;
+      duration?: number;
+      at?: number;
+      requestId?: string | null;
+      route?: string | null;
+      actor?: string | null;
+      outcome?: 'aborted' | 'failed' | 'ok';
+      error?: string | null;
+      request?: { headers?: object | null; body?: unknown } | null;
+      response?: { headers?: object | null; body?: unknown } | null;
+      meta?: Record<string, unknown>;
+    }): boolean;
+    /**
+     * Times one outbound call. The seam an application's own HTTP client
+     * goes through: henri wraps nobody's client.
+     */
+    track(details: {
+      service?: string;
+      method?: string;
+      url?: string;
+      requestId?: string | null;
+      request?: { headers?: object | null; body?: unknown } | null;
+      meta?: Record<string, unknown>;
+    }): (answer?: {
+      status?: number | null;
+      headers?: object | null;
+      body?: unknown;
+      error?: string | null;
+      url?: string;
+      meta?: Record<string, unknown>;
+    }) => boolean | null;
+    /** The calls matching a filter. */
+    list(filter?: {
+      requestId?: string;
+      direction?: 'in' | 'out';
+      service?: string;
+      actor?: string;
+      outcome?: 'aborted' | 'failed' | 'ok';
+      status?: number;
+      since?: Date | string | number;
+      until?: Date | string | number;
+      limit?: number;
+      offset?: number;
+    }): Promise<CallRecord[]>;
+    count(filter?: Record<string, unknown>): Promise<number>;
+    /**
+     * Everything that happened during one request: the call that came in
+     * and every call that went out because of it, oldest first.
+     */
+    about(
+      requestId: string,
+      filter?: Record<string, unknown>
+    ): Promise<CallRecord[]>;
+    /**
+     * Takes the calls past `config.calls.keep` away. Drops whole partitions
+     * where the dialect has them, and deletes rows in bounded batches for
+     * whatever is left.
+     */
+    prune(options?: { now?: number }): Promise<{
+      removed: number;
+      partitions: string[];
+      before: number | null;
+    }>;
+    /** What was written, and what was dropped rather than written. */
+    stats(): Promise<{
+      enabled: boolean;
+      buffered: number;
+      written: number;
+      total: number;
+      dropped: { buffer: number; failed: number; rate: number };
+      partitions: Array<{ name: string; from: number; to: number }>;
+    }>;
+  }
+
   /** `henri.model`. */
   interface ModelModule {
     name: 'model';
@@ -3158,6 +3380,11 @@ declare namespace start {
     retention: RetentionModule;
     /** The append-only record of who read or changed personal data. */
     trail: TrailModule;
+    /**
+     * The calls the application answered and the calls it made, joined by
+     * the request id. Off unless `config.calls` says otherwise.
+     */
+    calls: CallsModule;
     /**
      * The queue, when the application depends on `@usehenri/jobs`. It is
      * `undefined` when it does not -- core carries no queue of its own --

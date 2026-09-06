@@ -17,6 +17,7 @@ const Model = require('./3.model');
 const Policies = require('./3.policies');
 const Privacy = require('./3.privacy');
 const View = require('./3.view');
+const Calls = require('./4.calls');
 const Retention = require('./4.retention');
 const Trail = require('./4.trail');
 const User = require('./4.user');
@@ -74,6 +75,7 @@ class Henri extends HenriBase {
    */
   async init() {
     this.modules.add(new Cache());
+    this.modules.add(new Calls());
     this.modules.add(new Config());
     this.modules.add(new Encryption());
     this.modules.add(new Mailer());

@@ -152,7 +152,25 @@ class Mailer extends BaseModule {
       );
     }
 
-    const info = await this.transporter.sendMail(opts);
+    const finish = this.tracked();
+    let info;
+
+    try {
+      info = await this.transporter.sendMail(opts);
+    } catch (error) {
+      finish({ error: error.code || error.name, status: null });
+
+      throw error;
+    }
+
+    finish({
+      meta: {
+        accepted: (info.accepted || []).length,
+        messageId: info.messageId,
+        rejected: (info.rejected || []).length,
+      },
+      status: (info.rejected || []).length > 0 ? 550 : 250,
+    });
 
     this.henri.pen.info('mail', `Message sent: ${info.messageId}`);
     this.testAccount &&
@@ -162,6 +180,56 @@ class Mailer extends BaseModule {
       );
 
     return info;
+  }
+
+  /**
+   * The endpoint the transport talks to, as a url.
+   *
+   * There is no address in it and there is none in the row either: a
+   * recipient is personal data, and what a call log is asked is "did the
+   * mail go out during this request, and how long did it take". The counts
+   * and the message id answer that; the addresses are the mailer's own
+   * concern (`guides/calls.md` says so).
+   *
+   * @returns {string} a url
+   * @memberof Mailer
+   */
+  endpoint() {
+    const config = this.config;
+
+    if (!config || typeof config !== 'object') {
+      return 'mail://transport';
+    }
+
+    if (config.host) {
+      return `smtp://${config.host}:${config.port || 587}`;
+    }
+
+    if (config.service) {
+      return `smtp://${config.service}`;
+    }
+
+    return config.jsonTransport ? 'mail://json' : 'mail://transport';
+  }
+
+  /**
+   * Starts timing one send, when there is a call log to time it into
+   *
+   * @returns {function} the finisher (a no-op without a call log)
+   * @memberof Mailer
+   */
+  tracked() {
+    const { calls } = this.henri;
+
+    if (!calls || !calls.enabled) {
+      return () => null;
+    }
+
+    return calls.track({
+      method: 'SEND',
+      service: 'mail',
+      url: this.endpoint(),
+    });
   }
 
   /**

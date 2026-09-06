@@ -1099,6 +1099,72 @@ const COMMANDS = [
   },
   {
     description: [
+      'The calls this application answered and the calls it made, joined by',
+      'the request id henri threads through everything. It holds values --',
+      'the body that came in, the body that went out -- which is what makes',
+      'it the opposite of the access trail rather than a second one.',
+      '',
+      'henri calls <request-id> is what the two records are for: the call',
+      'that came in, every call that went out because of it, in order, with',
+      'the timings.',
+      '',
+      'It is off until config.calls says otherwise, and it is sampled, capped',
+      'and swept: henri calls:stats says what was written and what was',
+      'dropped rather than written.',
+    ],
+    examples: [
+      {
+        command: 'henri calls 018f5c2e-1f2a-7c31-9f0a-2b7c1d3e4f56',
+        description: 'One request and everything it caused',
+      },
+      {
+        command: 'henri calls --direction=out --service=billing',
+        description: 'The latest calls to one service',
+      },
+      {
+        command: 'henri calls:stats',
+        description: 'What was written, and what was dropped',
+      },
+      {
+        command: 'henri calls:sweep --yes',
+        description: 'Take the calls past calls.keep away',
+      },
+    ],
+    flags: [
+      { description: 'only in or only out', flag: '--direction=<in|out>' },
+      { description: 'only this service, outbound', flag: '--service=<name>' },
+      { description: 'only this status', flag: '--status=<n>' },
+      { description: 'only ok, failed or aborted', flag: '--outcome=<name>' },
+      { description: 'calls at or after this moment', flag: '--since=<date>' },
+      { description: 'calls at or before this moment', flag: '--until=<date>' },
+      { description: 'how many calls to print (25)', flag: '--limit=<n>' },
+      { description: 'required by calls:sweep', flag: '--yes' },
+      JSON_FLAG,
+    ],
+    name: 'calls',
+    summary: 'the calls answered and the calls made, joined by request id',
+    targets: [
+      {
+        description: 'the latest calls, or one request id (the default)',
+        name: 'list',
+      },
+      {
+        description: 'what was written, and what was dropped',
+        name: 'stats',
+      },
+      {
+        description: 'take the calls past calls.keep away',
+        name: 'sweep',
+      },
+    ],
+    usage: [
+      'henri calls [<request-id>] [--direction=<in|out>] [--limit=<n>] [--json]',
+      'henri calls:stats [--json]',
+      'henri calls:sweep --yes [--json]',
+    ],
+  },
+  {
+    description: [
       'Starts the MCP server of @usehenri/mcp on stdio for the application',
       'in the current directory. Claude Code reads it from .mcp.json, Cursor',
       'from .cursor/mcp.json (both: { "command": "henri", "args": ["mcp"] }).',

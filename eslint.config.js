@@ -248,6 +248,26 @@ module.exports = [
     },
   },
   {
+    // And so does the call log: a row is the snake_case columns of
+    // base/call-store.js, and the header names of an exchange are whatever
+    // the wire calls them
+    files: [
+      'packages/core/src/base/call-store.js',
+      'packages/core/src/base/calls.js',
+      'packages/core/src/__tests__/calls.spec.js',
+    ],
+    rules: {
+      camelcase: 'off',
+    },
+  },
+  {
+    // ... and the key order of a compound index is the index, not a list
+    files: ['packages/core/src/base/call-store.js'],
+    rules: {
+      'sort-keys': 'off',
+    },
+  },
+  {
     // The endpoints live in a table this package owns: a row is the
     // snake_case columns of packages/webhooks/src/store/schema.js
     files: ['packages/webhooks/**/*.js'],

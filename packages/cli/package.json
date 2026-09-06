@@ -51,6 +51,7 @@
     "analyze",
     "audit",
     "build",
+    "calls",
     "clean",
     "console",
     "credentials",

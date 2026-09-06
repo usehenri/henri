@@ -946,9 +946,19 @@ class Webhooks {
       timestamp: new Date().toISOString(),
       type: event,
     });
+    // The request that caused the emit is over by the time the delivery
+    // goes out, so the id has to travel with the job: without it the call
+    // log would hold the outbound call and nothing to join it to
+    const { calls } = this.henri || {};
     const job = await this.queue().perform(
       DELIVERY_JOB,
-      { body, endpoint: id, event, id: delivery },
+      {
+        body,
+        endpoint: id,
+        event,
+        id: delivery,
+        requestId: (calls && calls.requestId()) || null,
+      },
       {
         at: options.at,
         queue: this.config.queue,
@@ -993,6 +1003,8 @@ class Webhooks {
       }),
     };
 
+    const finish = this.tracked(row.url, args, headers);
+
     try {
       const answer = await deliver({
         allowHttp: this.config.allowHttp,
@@ -1001,6 +1013,15 @@ class Webhooks {
         headers,
         timeout: this.config.timeout,
         url: row.url,
+      });
+
+      finish({
+        meta: {
+          attempt: (context.job && context.job.attempt) || 1,
+          endpoint: row.id,
+          event: args.event,
+        },
+        status: answer.status,
       });
 
       this.log(
@@ -1020,6 +1041,16 @@ class Webhooks {
         status: answer.status,
       };
     } catch (error) {
+      finish({
+        error: error.code || error.name,
+        meta: {
+          attempt: (context.job && context.job.attempt) || 1,
+          endpoint: row.id,
+          event: args.event,
+        },
+        status: error.status || null,
+      });
+
       if (error.gone) {
         await this.disable(row.id, {
           reason: 'the receiver answered 410 Gone',
@@ -1028,6 +1059,45 @@ class Webhooks {
 
       throw error;
     }
+  }
+
+  /**
+   * Starts timing one delivery, when the application keeps a call log.
+   *
+   * The body is the envelope this package built, parsed back into the
+   * object it was: the call log stores a body it can walk and redact, and
+   * a JSON string is not one. What the receiver answered is deliberately
+   * *not* recorded -- it is untrusted text nothing can redact, and the
+   * queue's own job row already holds the excerpt an operator reads.
+   *
+   * @param {string} url Where the delivery goes
+   * @param {object} args The job arguments
+   * @param {object} sent The headers of the request
+   * @returns {Function} The finisher (a no-op without a call log)
+   * @memberof Webhooks
+   */
+  tracked(url, args, sent) {
+    const { calls } = this.henri || {};
+
+    if (!calls || !calls.enabled) {
+      return () => null;
+    }
+
+    let body;
+
+    try {
+      body = JSON.parse(args.body);
+    } catch (error) {
+      body = null;
+    }
+
+    return calls.track({
+      method: 'POST',
+      request: { body, headers: sent },
+      requestId: args.requestId || null,
+      service: 'webhooks',
+      url,
+    });
   }
 
   /**

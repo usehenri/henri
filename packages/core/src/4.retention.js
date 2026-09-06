@@ -50,7 +50,7 @@ class Retention extends BaseModule {
     // the privacy map says is personal
     this.needs = ['config', 'model', 'privacy'];
     // A sweep is recorded in the trail when there is one
-    this.after = ['trail', 'jobs'];
+    this.after = ['calls', 'trail', 'jobs'];
     this.runlevel = 4;
     this.name = 'retention';
     this.henri = null;
@@ -276,6 +276,7 @@ class Retention extends BaseModule {
     receipt.file = options.dryRun ? null : this.write(receipt);
 
     await this.tell(receipt, options);
+    await this.sweepCalls(options);
 
     const swept = receipt.rules.reduce(
       (total, rule) => total + rule.written,
@@ -290,6 +291,49 @@ class Retention extends BaseModule {
     );
 
     return receipt;
+  }
+
+  /**
+   * Prunes the call log, the way `tell()` prunes the trail.
+   *
+   * A call log is the one table henri owns whose retention has to work at a
+   * volume no model reaches, so it is where the partition drop lives
+   * (`base/call-store.js`). It is also the one whose failure must not fail
+   * the sweep: the models have already been swept by the time this runs and
+   * a debugging table that cannot be pruned is a warning, not an outage.
+   *
+   * @async
+   * @param {object} options the options of the sweep
+   * @returns {Promise<?object>} what was taken away, or null
+   * @memberof Retention
+   */
+  async sweepCalls(options) {
+    const { calls, pen } = this.henri;
+
+    if (!calls || !calls.enabled || options.dryRun) {
+      return null;
+    }
+
+    try {
+      const result = await calls.prune({
+        now: options.now ? new Date(options.now).getTime() : Date.now(),
+      });
+
+      pen.info(
+        'retention',
+        'call log',
+        `${result.removed} row(s)`,
+        result.partitions.length > 0
+          ? `and ${result.partitions.length} partition(s) dropped`
+          : ''
+      );
+
+      return result;
+    } catch (error) {
+      pen.warn('retention', 'unable to prune the call log', error.message);
+
+      return null;
+    }
   }
 
   /**

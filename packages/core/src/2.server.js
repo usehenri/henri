@@ -18,6 +18,7 @@ const { apiVersion, secureHeaders } = require('./base/headers');
 const { paginationMiddleware } = require('./base/pagination');
 const { authLimiter, limiter } = require('./base/rate-limit');
 const { requestId } = require('./base/request-id');
+const { callsConfig, inbound } = require('./base/calls');
 const { createShared, manyProcesses } = require('./base/shared');
 const requestTimeout = require('./base/timeout');
 const { drain, settings: stopSettings } = require('./base/shutdown');
@@ -386,12 +387,23 @@ class Server extends BaseModule {
     ));
     const { settings } = api;
 
-    // Middleware order: request id, timeout, secure headers, compression,
-    // cors, body parsers, cookies, boom, api version, pagination, the health
-    // endpoints, static files. The user module adds permit, session, passport
-    // and csrf (runlevel 4), start() adds the rate limits, the router, the
-    // 404 and the error handler.
+    // Middleware order: request id, the call log, timeout, secure headers,
+    // compression, cors, body parsers, cookies, boom, api version,
+    // pagination, the health endpoints, static files. The user module adds
+    // permit, session, passport and csrf (runlevel 4), start() adds the rate
+    // limits, the router, the 404 and the error handler.
     app.use(requestId());
+
+    // The call log goes second when `config.calls` asked for it, and is not
+    // mounted at all when it did not: an application that keeps no call log
+    // pays nothing for the feature, not even a middleware that returns.
+    // Second is the point -- a request refused by the rate limit, the body
+    // parser or the CSRF check is exactly the one worth having in the log,
+    // and anything mounted further down never sees it. `henri.calls` itself
+    // comes up at runlevel 4 and is read per request
+    if (callsConfig(config).inbound) {
+      app.use(inbound(this.henri));
+    }
 
     if (settings.requestTimeout) {
       app.use(requestTimeout(this.henri, settings.requestTimeout));
