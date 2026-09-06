@@ -1,9 +1,19 @@
+// A memo belongs to whoever wrote it, and to nobody else: `ownerId` is not a
+// reference henri can infer, so the model names it. `onErase: 'delete'` is
+// the right answer here and it is not the default one -- a memo is private
+// to its author, so erasing the author erases the memos, where a proposal or
+// an invoice would have survived them.
 module.exports = {
-  options: { timestamps: true },
+  options: {
+    personal: { onErase: 'delete', subject: 'ownerId' },
+    timestamps: true,
+  },
   schema: {
-    body: { type: 'text' },
+    body: { personal: true, type: 'text' },
     // Who wrote it: everything app/policies/memo.js decides comes from here
     ownerId: { index: true, type: 'string' },
+    // Not marked: a mark is on the name, everywhere, and `title` is a column
+    // half the models of an application have
     title: { type: 'string' },
   },
 };

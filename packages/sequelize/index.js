@@ -198,8 +198,9 @@ class Sql {
     const options = { timestamps: true, ...(model.options || {}) };
     const external = wantsExternalId(model);
 
-    // `externalId` is a henri option, not a Sequelize one
+    // `externalId` and `personal` are henri options, not Sequelize ones
     delete options.externalId;
+    delete options.personal;
 
     if (model.name && !options.tableName) {
       options.tableName = model.name;

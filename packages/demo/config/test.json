@@ -11,12 +11,16 @@
   "user": {
     "model": "user",
     "public": ["name"],
-    "signup": { "fields": ["name"] },
+    "signup": {
+      "fields": ["name"]
+    },
     "passwordReset": true,
     "confirmation": true
   },
   "rateLimit": {
-    "auth": { "max": 200 }
+    "auth": {
+      "max": 200
+    }
   },
   "uploads": {
     "root": ".tmp/uploads",
@@ -25,5 +29,8 @@
     "maxFiles": 2,
     "maxFields": 10
   },
-  "env": "test"
+  "env": "test",
+  "privacy": {
+    "receipts": ".tmp/privacy"
+  }
 }

@@ -29,14 +29,14 @@ module.exports = {
 };
 ```
 
-| Key                 | Description                                                                                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `schema`            | The fields, in the format below.                                                                                             |
-| `options`           | `timestamps` and `paranoid` (below), plus anything the ORM takes: handed to `new mongoose.Schema()` or `sequelize.define()`. |
-| `store`             | The store to use, `default` when omitted. The boot fails when the store is not configured.                                   |
-| `name`              | Collection name (Mongoose) or `tableName` (Sequelize).                                                                       |
-| `graphql`           | `{ types, resolvers }` merged into the application schema; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).       |
-| `associate(models)` | Called once every model of the store exists, with the models keyed by global name. Declare relations there.                  |
+| Key                 | Description                                                                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`            | The fields, in the format below.                                                                                                         |
+| `options`           | `timestamps`, `paranoid` and `personal` (below), plus anything the ORM takes: handed to `new mongoose.Schema()` or `sequelize.define()`. |
+| `store`             | The store to use, `default` when omitted. The boot fails when the store is not configured.                                               |
+| `name`              | Collection name (Mongoose) or `tableName` (Sequelize).                                                                                   |
+| `graphql`           | `{ types, resolvers }` merged into the application schema; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).                   |
+| `associate(models)` | Called once every model of the store exists, with the models keyed by global name. Declare relations there.                              |
 
 ```js
 // app/models/Comment.js
@@ -69,13 +69,14 @@ A field is `{ type, ...keys }` or a bare type. The type names and the keys below
 | `json`    | `Mixed`   | `JSON`    |
 | `uuid`    | `String`  | `UUID`    |
 
-| Key        | Description                                                                                        |
-| ---------- | -------------------------------------------------------------------------------------------------- |
-| `required` | `required: true` (Mongoose) or `allowNull: false` (Sequelize).                                     |
-| `default`  | Default value. `Date.now` becomes `NOW` on SQL.                                                    |
-| `enum`     | Allowed values. An `ENUM` column on MySQL, MariaDB and PostgreSQL, an `isIn` validation elsewhere. |
-| `unique`   | Unique index or constraint.                                                                        |
-| `index`    | `index: true` adds an index on the field.                                                          |
+| Key        | Description                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------- |
+| `required` | `required: true` (Mongoose) or `allowNull: false` (Sequelize).                                                |
+| `default`  | Default value. `Date.now` becomes `NOW` on SQL.                                                               |
+| `enum`     | Allowed values. An `ENUM` column on MySQL, MariaDB and PostgreSQL, an `isIn` validation elsewhere.            |
+| `unique`   | Unique index or constraint.                                                                                   |
+| `index`    | `index: true` adds an index on the field.                                                                     |
+| `personal` | This field is about a person: masked in the logs, exported and erased. See [Personal data](/guides/privacy/). |
 
 What the adapters do with anything else differs:
 

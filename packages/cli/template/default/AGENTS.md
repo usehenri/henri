@@ -57,8 +57,9 @@ module.exports = {
 };
 ```
 
-Field keys: `type`, `required`, `default`, `enum`, `unique`, `index`; any other
-key is handed to the adapter as is. Every store adds `createdAt`/`updatedAt`,
+Field keys: `type`, `required`, `default`, `enum`, `unique`, `index` and
+`personal` (this field is about a person: masked in the logs, in `henri privacy:export`, erased by `henri privacy:erase`; `personal: { expose: false }` never leaves the server);
+any other key is handed to the adapter as is. Every store adds `createdAt`/`updatedAt`,
 `Model.paginate({ page, perPage })` -> `{ records, page, perPage, total, pages }`,
 `henri.model.errors(error)` -> `{ field: message }` (`null` otherwise) and `db/seeds.js`, run by `henri db:seed`.
 Every model also carries `externalId`, a uuid that is unique and not null in the

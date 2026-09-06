@@ -39,5 +39,8 @@
       "dialect": "postgres",
       "url": "postgres://henri:henri@127.0.0.1:5432/henri_showcase_test"
     }
+  },
+  "privacy": {
+    "receipts": ".tmp/privacy"
   }
 }

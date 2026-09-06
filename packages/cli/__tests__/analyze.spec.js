@@ -40,6 +40,7 @@ describe('henri analyze', () => {
         'cache',
         'model',
         'policies',
+        'privacy',
         'view',
       ]);
     });

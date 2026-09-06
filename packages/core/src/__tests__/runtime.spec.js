@@ -104,13 +104,30 @@ describe('runtime rules (no application)', () => {
   });
 
   test('scrub masks the password whatever the configuration says', () => {
-    expect(scrub({ email: 'a@b.c', password: 'hash' }, [])).toEqual({
+    expect(
+      scrub({ email: 'a@b.c', password: 'hash' }, { filters: [] })
+    ).toEqual({
       email: 'a@b.c',
       password: '[FILTERED]',
     });
-    expect(scrub({ apiToken: 'x', name: 'n' }, ['token'])).toEqual({
-      apiToken: '[FILTERED]',
-      name: 'n',
+    expect(scrub({ apiToken: 'x', name: 'n' }, { filters: ['token'] })).toEqual(
+      {
+        apiToken: '[FILTERED]',
+        name: 'n',
+      }
+    );
+  });
+
+  test('scrub masks a personal field name exactly, not as a substring', () => {
+    expect(
+      scrub(
+        { filename: 'notes.txt', name: 'Ada', password: 'x' },
+        { filters: [], keys: new Set(['name']) }
+      )
+    ).toEqual({
+      filename: 'notes.txt',
+      name: '[FILTERED]',
+      password: '[FILTERED]',
     });
   });
 
@@ -543,7 +560,10 @@ describe('runtime endpoints (demo app, disk store)', () => {
         .set(HEADERS)
         .send({ id: page.body.records[0].externalId, model: 'User' });
 
-      expect(one.body.record.email).toBe('runtime@usehenri.io');
+      // An email is personal: the runtime hands an agent the record with
+      // it masked, like every other personal field (see base/privacy.js)
+      expect(one.body.record.email).toBe('[FILTERED]');
+      expect(one.body.record.name).toBeTruthy();
       expect(one.body.record.password).toBeUndefined();
       expect(JSON.stringify(one.body)).not.toContain('difference-engine');
     });

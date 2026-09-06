@@ -647,6 +647,7 @@ declare namespace start {
     helmet?: false | Record<string, unknown>;
     /** Parameter names masked in the logs; `false` masks nothing. */
     filterParameters?: string[] | false;
+    privacy?: PrivacyConfig;
     /** Maximum size of a JSON or form body (`"1mb"`). */
     bodyLimit?: string | number;
     /**
@@ -659,6 +660,29 @@ declare namespace start {
     shutdown?: ShutdownConfig;
     errors?: ErrorsConfig;
     [key: string]: unknown;
+  }
+
+  /**
+   * `config.privacy`: what henri does with the fields the models marked
+   * `personal`. Which fields those are is said in the models themselves.
+   */
+  interface PrivacyConfig {
+    /**
+     * Whether a personal field may leave the server in an answer henri
+     * builds (`true`). `false` drops every one of them unless the field
+     * says `personal: { expose: true }`.
+     */
+    expose?: boolean;
+    /**
+     * What happens to the records of an erased person, for the models that
+     * do not say it themselves (`"anonymize"`).
+     */
+    onErase?: 'anonymize' | 'delete' | 'orphan' | 'retain';
+    /**
+     * Where `henri privacy:erase` writes its receipt (`"privacy"`);
+     * `false` keeps none beyond what the command printed.
+     */
+    receipts?: string | false;
   }
 
   /**
@@ -988,6 +1012,12 @@ declare namespace start {
     data?: Record<string, unknown>;
     /** A GraphQL query run for the page; its result becomes `data`. */
     graphql?: string;
+    /**
+     * The fields marked `personal: { expose: false }` this page may carry.
+     * They are dropped from every answer henri builds; naming one here is
+     * how the person's own page gets it back.
+     */
+    include?: string[];
   }
 
   /** Options of `res.resource()`. */
@@ -1004,6 +1034,12 @@ declare namespace start {
      * owner column leaves the rules nothing to read.
      */
     subject?: unknown;
+    /**
+     * The fields marked `personal: { expose: false }` this answer may
+     * carry. They are dropped from everything henri serializes; naming one
+     * here is the only way back.
+     */
+    include?: string[];
   }
 
   /** Options of `res.collection()`. */
@@ -1262,7 +1298,29 @@ declare namespace start {
     enum?: unknown[];
     unique?: boolean;
     index?: boolean;
+    /**
+     * This field is about a person: masked in the logs, included in the
+     * export, erased by an erasure. `{ expose: false }` also keeps it out
+     * of every answer henri builds.
+     */
+    personal?: boolean | PersonalMark;
     [key: string]: unknown;
+  }
+
+  /** The object form of `personal`, when `true` is not enough. */
+  interface PersonalMark {
+    /**
+     * May it leave the server in an answer henri builds
+     * (`config.privacy.expose`, itself `true`)?
+     */
+    expose?: boolean;
+    /** Does it belong in the export of a person's data (`true`)? */
+    export?: boolean;
+    /**
+     * What an erasure writes over it: `clear` where the column can hold
+     * null, `anonymize` where it cannot.
+     */
+    erase?: 'anonymize' | 'clear' | 'retain';
   }
 
   /**
@@ -1310,6 +1368,19 @@ declare namespace start {
     timestamps?: boolean;
     /** Soft deletes: `deletedAt` instead of a real delete. */
     paranoid?: boolean;
+    /** What this model is to a person, for the export and the erasure. */
+    personal?: {
+      /**
+       * The field pointing at the person. henri infers it from
+       * `references`, `ref` and the belongsTo associations; `false` says
+       * these records are about nobody in particular.
+       */
+      subject?: string | false | { field: string; matches?: string };
+      /** What happens to these records when that person is erased. */
+      onErase?: 'anonymize' | 'delete' | 'orphan' | 'retain';
+      /** Whether they belong in the export (`true`). */
+      export?: boolean;
+    };
     [key: string]: unknown;
   }
 
@@ -1684,6 +1755,125 @@ declare namespace start {
     ): Promise<object>;
     /** The path helpers a rule that needs no record leaves. */
     paths(user: any, paths: Paths, options?: { req?: Request }): Promise<Paths>;
+  }
+
+  /** The mark of one personal field, as henri read it back. */
+  interface PersonalField {
+    name: string;
+    /** What an erasure writes over the value. */
+    erase: 'anonymize' | 'clear' | 'retain';
+    /** Whether it may leave the server in an answer henri builds. */
+    expose: boolean;
+    /** Whether it belongs in the export of a person's data. */
+    export: boolean;
+    required: boolean;
+    unique: boolean;
+    type: string;
+  }
+
+  /** How one model relates to the person, in the map. */
+  interface PersonalModel {
+    model: string;
+    /** True for the model that is a person (the user model). */
+    subject: boolean;
+    fields: PersonalField[];
+    /** The field pointing at the person, when henri can see one. */
+    link: {
+      field: string;
+      matches: string;
+      declared: boolean;
+      required: boolean;
+    } | null;
+    onErase: 'anonymize' | 'delete' | 'orphan' | 'retain';
+    exported: boolean;
+    paranoid: boolean;
+  }
+
+  /** What `henri privacy:erase` leaves behind as proof that it ran. */
+  interface ErasureReceipt {
+    version: number;
+    id: string;
+    at: string;
+    application: string | null;
+    /** The algorithm of `subject.digest`. */
+    digest: string;
+    dryRun: boolean;
+    subject: {
+      model: string | null;
+      externalId: string | null;
+      /** HMAC of the identity that was erased, keyed with `config.secret`. */
+      digest: string;
+    };
+    records: Array<{
+      model: string;
+      action: 'anonymize' | 'delete' | 'orphan' | 'retain';
+      count: number;
+      written: number;
+      fields: string[];
+      ids: Array<string | null>;
+    }>;
+    /** Models holding personal data that no link ties to the person. */
+    unlinked: Array<{ model: string; fields: string[]; reason: string }>;
+    /** Where the receipt was written, relative to the application. */
+    file?: string | null;
+  }
+
+  /** Everything the application holds about one person. */
+  interface PersonalExport {
+    version: number;
+    generatedAt: string;
+    application: string | null;
+    subject: {
+      model: string | null;
+      externalId: string | null;
+      email: string | null;
+    };
+    records: Record<string, Array<Record<string, unknown>>>;
+    counts: Record<string, number>;
+    unlinked: string[];
+  }
+
+  /**
+   * `henri.privacy`: which fields of which models are about a person, and
+   * the two operations that follow from the mark.
+   */
+  interface PrivacyModule {
+    name: 'privacy';
+    /** `config.privacy`, normalized. */
+    settings: { expose: boolean; onErase: string; receipts: string | false };
+    /** The global id of the model that is a person, or `null`. */
+    subjectModel: string | null;
+    /** Every personal field name, masked exactly in the logs. */
+    keys: Set<string>;
+    /** The names marked `expose: false`, dropped from every answer. */
+    private: Set<string>;
+    /** The personal fields of a model, by name. */
+    fields(model: string): Record<string, Omit<PersonalField, 'name'>>;
+    /** A copy of a payload without the fields marked `expose: false`. */
+    strip<T>(value: T, include?: string[]): T;
+    /** The map, as data: what `henri privacy` prints. */
+    describe(): {
+      subject: string | null;
+      models: PersonalModel[];
+      private: string[];
+      settings: { expose: boolean; onErase: string; receipts: string | false };
+    };
+    /** The person, by email address, external id or primary key. */
+    subject(who: string | object): Promise<Record<string, unknown>>;
+    export(who: string | object): Promise<PersonalExport>;
+    /** What an erasure would do, and what stands in its way. */
+    plan(
+      who: string | object,
+      options?: { strategy?: string }
+    ): Promise<{
+      steps: Array<Record<string, unknown>>;
+      problems: Array<{ model: string; problem: string; message: string }>;
+      unlinked: Array<{ model: string; fields: string[]; reason: string }>;
+    }>;
+    erase(
+      who: string | object,
+      options?: { strategy?: string; dryRun?: boolean }
+    ): Promise<ErasureReceipt>;
   }
 
   /** `henri.model`. */
@@ -2127,6 +2317,8 @@ declare namespace start {
     router: RouterModule;
     /** `app/policies`, and the record-level authorization built on them. */
     policies: PoliciesModule;
+    /** The fields the models marked `personal`, and what follows from it. */
+    privacy: PrivacyModule;
     /**
      * The queue, when the application depends on `@usehenri/jobs`. It is
      * `undefined` when it does not -- core carries no queue of its own --

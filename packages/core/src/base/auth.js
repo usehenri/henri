@@ -205,12 +205,15 @@ function userAdapter(store, model) {
  * @param {object} adapter facade built by userAdapter()
  * @param {object} user a user instance (or null)
  * @param {Array<string>} [fields=[]] extra fields to expose (config.user.public)
+ * @param {?Set<string>} [hidden=null] the names marked `personal: { expose: false }`
  * @returns {?{externalId: string, email: string, roles: Array<string>}} the public user or null
  */
-function publicUser(adapter, user, fields = []) {
+function publicUser(adapter, user, fields = [], hidden = null) {
   if (!user) {
     return null;
   }
+
+  const isHidden = (field) => Boolean(hidden && hidden.has(field));
 
   const plain = adapter.toPlain(user) || {};
   let roles = [];
@@ -225,10 +228,15 @@ function publicUser(adapter, user, fields = []) {
     ? { email: plain.email, externalId: plain[EXTERNAL_ID], roles }
     : { email: plain.email, id: adapter.userId(user), roles };
 
+  if (isHidden('email')) {
+    delete result.email;
+  }
+
   for (const field of fields) {
     if (
       typeof field === 'string' &&
       field !== 'password' &&
+      !isHidden(field) &&
       Object.prototype.hasOwnProperty.call(plain, field) &&
       typeof plain[field] !== 'undefined'
     ) {

@@ -708,6 +708,64 @@ describe('henri audit', () => {
     expect(declared.names).not.toContain('policies.unenforced');
   });
 
+  test('reports a field about a person that says nothing about it', () => {
+    const marked = withFile(
+      app,
+      'app/models/person.js',
+      `module.exports = {
+  schema: {
+    lastName: { personal: true, type: 'string' },
+    phoneNumber: { personal: { expose: false }, type: 'string' },
+  },
+};
+`
+    );
+    const bare = withFile(
+      app,
+      'app/models/person.js',
+      `module.exports = {
+  schema: {
+    lastName: { type: 'string' },
+    phoneNumber: { type: 'string' },
+    title: { type: 'string' },
+  },
+};
+`
+    );
+
+    expect(marked.names).not.toContain('privacy.unmarked');
+    expect(
+      bare.findings.filter((entry) => entry.check === 'privacy.unmarked')
+    ).toEqual([
+      expect.objectContaining({
+        asvs: 'V8.3.4',
+        file: 'app/models/person.js',
+        message:
+          'lastName, phoneNumber are about a person and are not marked personal',
+        owasp: 'A02:2021 Cryptographic Failures',
+        severity: 'low',
+      }),
+    ]);
+  });
+
+  test('a name is a person on the user model and a title everywhere else', () => {
+    const task = withFile(
+      app,
+      'app/models/note.js',
+      `module.exports = { schema: { name: { type: 'string' } } };\n`
+    );
+    const user = withFile(
+      app,
+      'app/models/user.js',
+      `module.exports = { schema: { name: { type: 'string' } } };\n`
+    );
+
+    expect(task.names).not.toContain('privacy.unmarked');
+    expect(
+      user.findings.find((entry) => entry.check === 'privacy.unmarked')
+    ).toMatchObject({ file: 'app/models/user.js' });
+  });
+
   test('says nothing about policies when the application ships none', () => {
     expect(run(app).names).not.toContain('policies.unenforced');
   });

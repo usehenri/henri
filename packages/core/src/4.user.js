@@ -465,15 +465,22 @@ class User extends BaseModule {
    * `{ externalId, email, roles }` plus the fields listed in
    * `config.user.public`. The primary key stays on the server.
    *
+   * A field the model marked `personal: { expose: false }` is dropped here
+   * too, `email` included: the guarantee is that such a field never leaves
+   * the server, and this is the one payload henri builds on its own.
+   *
    * @param {object} user a user instance
    * @returns {?object} the public user or null
    * @memberof User
    */
   publicUser(user) {
+    const { privacy } = this.henri;
+
     return publicUser(
       this.adapter(),
       user,
-      this.settings ? this.settings.public : []
+      this.settings ? this.settings.public : [],
+      privacy ? privacy.private : null
     );
   }
 

@@ -64,6 +64,22 @@ export default function Account() {
                 </div>
 
                 <div>
+                  <label className={label} htmlFor="phone">
+                    Phone
+                  </label>
+                  <input
+                    className={`${field} mt-1`}
+                    defaultValue={account.phone || ''}
+                    id="phone"
+                    name="phone"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Marked personal in the model and never sent anywhere else:
+                    this page asks for it by name.
+                  </p>
+                </div>
+
+                <div>
                   <label className={label} htmlFor="bio">
                     Bio
                   </label>
@@ -90,7 +106,7 @@ export default function Account() {
                     Save
                   </button>
                   <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                    The form may set a name, a company and a bio.{' '}
+                    The form may set a name, a company, a phone and a bio.{' '}
                     <code className="font-mono">req.permit()</code> drops
                     everything else, so it cannot change your email or grant
                     itself a role.

@@ -4,6 +4,12 @@
  * Keys whose name contains one of the filters (case-insensitive substring
  * match, like Rails) are replaced by `[FILTERED]` before anything is
  * logged. `config.filterParameters` replaces the default list.
+ *
+ * The fields the models marked `personal` are masked too, and they are
+ * matched *exactly* rather than as substrings: `password` may filter
+ * `passwordConfirmation` because whoever wrote it meant a family of names,
+ * but a `name` column marked personal has no business filtering `filename`
+ * or `modelName`. `henri.privacy.keys` holds them (see `base/privacy.js`).
  */
 const DEFAULT_FILTER = Object.freeze([
   'password',
@@ -40,15 +46,23 @@ function filterParameters(config) {
   return DEFAULT_FILTER.slice();
 }
 
+/** The names nothing marked, so the exact match has nothing to do */
+const NO_KEYS = new Set();
+
 /**
  * Should a key be filtered?
  *
  * @param {string} key a key
- * @param {Array<string>} filters the filters
+ * @param {Array<string>} filters the filters (substring match)
+ * @param {Set<string>} [keys=NO_KEYS] the personal field names (exact match)
  * @returns {boolean} filtered or not
  */
-function isFiltered(key, filters) {
+function isFiltered(key, filters, keys = NO_KEYS) {
   const lower = String(key).toLowerCase();
+
+  if (keys && keys.size > 0 && keys.has(String(key))) {
+    return true;
+  }
 
   return filters.some((filter) => lower.includes(String(filter).toLowerCase()));
 }
@@ -58,10 +72,13 @@ function isFiltered(key, filters) {
  *
  * @param {*} value anything (objects and arrays are walked)
  * @param {Array<string>} [filters=DEFAULT_FILTER] the filters
- * @param {number} [depth=0] current depth (internal)
+ * @param {object} [options={}] `keys` (exact matches) and `depth` (internal)
  * @returns {*} the redacted copy (primitives are returned as is)
  */
-function redact(value, filters = DEFAULT_FILTER, depth = 0) {
+function redact(value, filters = DEFAULT_FILTER, options = {}) {
+  const { keys = NO_KEYS, depth = 0 } = options;
+  const deeper = { depth: depth + 1, keys };
+
   if (value === null || typeof value !== 'object') {
     return value;
   }
@@ -71,7 +88,7 @@ function redact(value, filters = DEFAULT_FILTER, depth = 0) {
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => redact(item, filters, depth + 1));
+    return value.map((item) => redact(item, filters, deeper));
   }
 
   if (
@@ -84,15 +101,15 @@ function redact(value, filters = DEFAULT_FILTER, depth = 0) {
   }
 
   if (typeof value.toJSON === 'function') {
-    return redact(value.toJSON(), filters, depth + 1);
+    return redact(value.toJSON(), filters, deeper);
   }
 
   const result = {};
 
   for (const key of Object.keys(value)) {
-    result[key] = isFiltered(key, filters)
+    result[key] = isFiltered(key, filters, keys)
       ? MASK
-      : redact(value[key], filters, depth + 1);
+      : redact(value[key], filters, deeper);
   }
 
   return result;
@@ -103,9 +120,10 @@ function redact(value, filters = DEFAULT_FILTER, depth = 0) {
  *
  * @param {string} url a url or a path (`/login?token=abc`)
  * @param {Array<string>} [filters=DEFAULT_FILTER] the filters
+ * @param {Set<string>} [keys=NO_KEYS] the personal field names (exact match)
  * @returns {string} the url, masked
  */
-function redactUrl(url, filters = DEFAULT_FILTER) {
+function redactUrl(url, filters = DEFAULT_FILTER, keys = NO_KEYS) {
   const text = String(url);
   const index = text.indexOf('?');
 
@@ -117,7 +135,7 @@ function redactUrl(url, filters = DEFAULT_FILTER) {
   let changed = false;
 
   for (const key of Array.from(params.keys())) {
-    if (isFiltered(key, filters)) {
+    if (isFiltered(key, filters, keys)) {
       params.set(key, MASK);
       changed = true;
     }

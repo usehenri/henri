@@ -128,6 +128,21 @@ describe('schema normalizer', () => {
     });
   });
 
+  test('takes the personal mark and keeps it out of the attribute', () => {
+    const { attributes } = normalizeSchema({
+      email: { personal: true, required: true, type: 'string', unique: true },
+      phone: { personal: { expose: false }, type: 'string' },
+    });
+
+    // It is a mark for henri (core's base/privacy.js), not a column option
+    expect(attributes.email).toEqual({
+      allowNull: false,
+      type: DataTypes.STRING,
+      unique: true,
+    });
+    expect(attributes.phone).toEqual({ type: DataTypes.STRING });
+  });
+
   test('throws on unknown keys and types', () => {
     expect(() =>
       normalizeSchema({ name: { type: 'string', validations: {} } })

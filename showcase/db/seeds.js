@@ -903,11 +903,15 @@ module.exports = async (henri) => {
     }
   }
 
-  for (const [name, email, company, bio, admin] of PEOPLE) {
+  for (const [index, person] of PEOPLE.entries()) {
+    const [name, email, company, bio, admin] = person;
+    // Marked `personal: { expose: false }`: the committee can call a
+    // speaker back, and the number never reaches a page or an API answer
+    const phone = `+1-555-01${String(index).padStart(2, '0')}`;
     const user = await findOrCreate(
       User,
       { email },
-      { bio, company, name, password: 'lineup-showcase' }
+      { bio, company, name, password: 'lineup-showcase', phone }
     );
 
     // Roles are never mass assignable: setRoles() is the only way in

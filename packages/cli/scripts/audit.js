@@ -219,6 +219,13 @@ const CHECKS = [
     what: 'a policy in app/policies is never asked: no route declares it and no controller calls req.can or req.authorize',
   },
   {
+    asvs: 'V8.3.4',
+    check: 'privacy.unmarked',
+    level: 2,
+    owasp: 'A02',
+    what: 'a model holds a field that is about a person and does not say so, so henri cannot redact, export or erase it',
+  },
+  {
     asvs: 'V2.2.1',
     check: 'rate-limit.auth-disabled',
     level: 1,
@@ -1416,6 +1423,142 @@ const graphql = (dir, config) => {
   ];
 };
 
+/**
+ * Field names that are about a person wherever they appear. Deliberately
+ * short: a name only earns a place here when no application could mean
+ * something else by it, because a false finding costs more than a missing
+ * one.
+ */
+const ALWAYS_PERSONAL = [
+  'birthDate',
+  'birthdate',
+  'creditCard',
+  'dateOfBirth',
+  'dob',
+  'firstName',
+  'fullName',
+  'iban',
+  'ipAddress',
+  'lastName',
+  'nationalId',
+  'passport',
+  'phoneNumber',
+  'sin',
+  'ssn',
+  'taxId',
+];
+
+/**
+ * And the ones that are about a person on the model that *is* a person:
+ * `name` is a task's name on a Task and a human being's name on a User.
+ */
+const PERSON_FIELDS = [
+  ...ALWAYS_PERSONAL,
+  'address',
+  'avatar',
+  'city',
+  'country',
+  'gender',
+  'mobile',
+  'name',
+  'nickname',
+  'phone',
+  'photo',
+  'picture',
+  'postalCode',
+  'street',
+  'zip',
+];
+
+/**
+ * The definition of one field of a schema, braces balanced
+ *
+ * @param {string} source The model file, comments stripped
+ * @param {string} field The field name
+ * @returns {?{body: string, index: number}} The definition, or null
+ */
+const fieldDefinition = (source, field) => {
+  const opening = new RegExp(`(^|[\\s,{])${field}\\s*:\\s*\\{`, 'mu').exec(
+    source
+  );
+
+  if (!opening) {
+    return null;
+  }
+
+  const start = opening.index + opening[0].length - 1;
+  let depth = 0;
+
+  for (let at = start; at < source.length; at++) {
+    if (source[at] === '{') {
+      depth++;
+    } else if (source[at] === '}') {
+      depth--;
+
+      if (depth === 0) {
+        return { body: source.slice(start, at + 1), index: opening.index };
+      }
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Fields a model holds that are about a person and do not say so.
+ *
+ * The mark is what henri redacts, exports and erases from, so a field that
+ * is plainly about a person and carries none is a gap with consequences,
+ * not a matter of taste. It is read from the file, so a field written any
+ * other way (a bare `name: 'string'`, a schema built at runtime) is not
+ * looked at: this reports what an application says.
+ *
+ * @param {string} dir The application directory
+ * @param {object} config The configuration of the default environment
+ * @returns {Array<object>} The findings
+ */
+const privacy = (dir, config) => {
+  const configured = isObject(config.user) ? config.user.model : config.user;
+  const user = `${String(configured || 'user').toLowerCase()}.js`;
+  const found = [];
+
+  for (const file of sources(dir, 'app/models', ['.js'])) {
+    const source = stripComments(fs.readFileSync(path.join(dir, file), 'utf8'));
+    const isUser = path.basename(file).toLowerCase() === user;
+    const candidates = isUser ? PERSON_FIELDS : ALWAYS_PERSONAL;
+    const unmarked = [];
+    let first = null;
+
+    for (const field of candidates) {
+      const definition = fieldDefinition(source, field);
+
+      if (!definition || /(^|[\s,{])personal\s*:/mu.test(definition.body)) {
+        continue;
+      }
+
+      unmarked.push(field);
+      first = first === null ? definition.index : first;
+    }
+
+    if (unmarked.length === 0) {
+      continue;
+    }
+
+    found.push({
+      asvs: 'V8.3.4',
+      check: 'privacy.unmarked',
+      file,
+      hint: `Mark them in the schema: ${unmarked[0]}: { personal: true, type: '...' }. henri then masks them in the logs, puts them in henri privacy:export and erases them with henri privacy:erase`,
+      line: lineAt(source, first),
+      message: `${unmarked.join(', ')} ${unmarked.length === 1 ? 'is' : 'are'} about a person and ${unmarked.length === 1 ? 'is' : 'are'} not marked personal`,
+      owasp: OWASP.A02,
+      severity: 'low',
+    });
+  }
+
+  return found;
+};
+
 /** How each package manager asks its registry about the production tree */
 const AUDIT_COMMANDS = {
   npm: ['audit', '--omit=dev', '--audit-level=high', '--json'],
@@ -1631,6 +1774,7 @@ const findings = (dir = process.cwd()) => {
     ...guards(dir),
     ...policies(dir),
     ...graphql(dir, config),
+    ...privacy(dir, config),
   ]);
 };
 
@@ -1823,4 +1967,5 @@ module.exports.advisoriesOf = advisoriesOf;
 module.exports.audit = audit;
 module.exports.dependencies = dependencies;
 module.exports.findings = findings;
+module.exports.privacy = privacy;
 module.exports.stripComments = stripComments;

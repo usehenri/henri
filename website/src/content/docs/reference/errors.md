@@ -920,6 +920,79 @@ Usually:
 
 **Fix.** henri's types are `string`, `text`, `number`, `integer`, `float`, `boolean`, `date`, `json` and `uuid`. The adapter maps them to the ORM's own.
 
+## privacy
+
+The personal data marked in the models, the export of one person and the erasure of them.
+
+### `HENRI_PRIVACY_ADAPTER_UNSUPPORTED`
+
+A model holding personal data belongs to an adapter henri cannot export or erase through.
+
+Usually:
+
+- a store adapter that is not mongoose, sequelize or drizzle
+- a model that is not the one the adapter registered
+
+**Fix.** The export and the erasure are driven through the model API of the three adapters henri ships. An adapter of your own answers them by implementing the same statics: `find`, `update` and `destroy`.
+
+### `HENRI_PRIVACY_ERASE_REFUSED`
+
+An erasure was refused before it wrote anything, because the plan cannot be carried out.
+
+Usually:
+
+- a field marked `erase: clear` on a column that cannot hold null
+- records to orphan whose link to the person is `required`
+- the person is to be deleted while another model keeps its records
+
+**Fix.** The message names every problem at once. Say what should happen to those records with `options: { personal: { onErase } }`, or mark the field `erase: 'anonymize'`. Nothing was written: the plan is checked before the first write.
+
+### `HENRI_PRIVACY_INVALID_MARK`
+
+A model marks a field personal in a way henri does not understand.
+
+Usually:
+
+- `personal` given something other than `true`, `false` or an object
+- `personal.erase` given a strategy that does not exist
+- `options.personal.onErase` given a strategy that does not exist
+
+**Fix.** A field is marked `personal: true` or `personal: { expose, export, erase }`, where `erase` is `clear`, `anonymize` or `retain`. A model's `options.personal.onErase` is `anonymize`, `delete`, `orphan` or `retain`.
+
+### `HENRI_PRIVACY_NO_SUBJECT`
+
+An export or an erasure was asked for and the application has no model that is a person.
+
+Usually:
+
+- the application has no user model
+- `config.user.model` names a model that is not in app/models
+
+**Fix.** henri's notion of a person is the user model (`config.user.model`). Add one -- `henri generate authentication` writes it -- or point `config.user.model` at the model that is a person.
+
+### `HENRI_PRIVACY_RECEIPT_UNWRITABLE`
+
+An erasure was carried out and its receipt could not be written.
+
+Usually:
+
+- the directory of `config.privacy.receipts` cannot be created
+- the process cannot write where the receipts go
+
+**Fix.** The erasure happened; what failed is the proof of it, which is the half you have to keep. Make the directory writable, point `config.privacy.receipts` somewhere else, or set it to false and keep the receipt the command printed.
+
+### `HENRI_PRIVACY_UNKNOWN_SUBJECT`
+
+The person an export or an erasure was asked about does not exist.
+
+Usually:
+
+- a misspelled email address
+- an external id that belongs to another model
+- the person was erased already, and their address with them
+
+**Fix.** Name the person by email address, by external id or by primary key. An erased person no longer answers to their address: look their receipt up by digest instead.
+
 ## route
 
 Config/routes.js and the router.

@@ -50,7 +50,8 @@ const normalizeField = (definition) => {
     return normalizeSchema(definition);
   }
 
-  const { allowNull, defaultValue, type, ...rest } = definition;
+  // `personal` is a mark for henri (base/privacy.js), not a Mongoose option
+  const { allowNull, defaultValue, personal, type, ...rest } = definition;
   const field = { ...rest, type: normalizeField(type) };
 
   if (allowNull === false && typeof field.required === 'undefined') {

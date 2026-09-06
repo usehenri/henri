@@ -38,7 +38,16 @@ module.exports = {
     });
   },
 
-  options: { paranoid: true },
+  options: {
+    paranoid: true,
+    // What happens to a proposal when its speaker asks to be erased. The
+    // default, spelled out because it is a decision: the row stays, because
+    // the programme this conference ran is its own record and not only the
+    // speaker's, and the speaker becomes a row that names nobody. Nothing
+    // here is marked `personal`: a title and an abstract are the talk, and
+    // the person is one join away.
+    personal: { onErase: 'anonymize' },
+  },
 
   schema: {
     abstract: {

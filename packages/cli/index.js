@@ -33,6 +33,7 @@ if (require.main === module) {
 const BOOLEAN_FLAGS = [
   'all',
   'checks',
+  'dry-run',
   'force',
   'force-build',
   'help',
@@ -68,7 +69,7 @@ module.exports = (pkg, args) => {
   let command = argv._.shift();
 
   // Rails style: `henri db:migrate` is `henri db migrate`
-  for (const group of ['credentials', 'db']) {
+  for (const group of ['credentials', 'db', 'privacy']) {
     if (command && command.startsWith(`${group}:`)) {
       argv._.unshift(command.slice(group.length + 1));
       command = group;
