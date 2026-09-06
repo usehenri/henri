@@ -1,7 +1,11 @@
 const utils = require('../utils');
+const { stamp } = require('../base/errors');
 
 /** What the React (Next.js) renderer needs installed in the application */
 const PACKAGES = ['@usehenri/react', 'next', 'react', 'react-dom'];
+
+/** What this failure is called (see base/errors.js) */
+const CODE = 'HENRI_VIEW_REACT_UNAVAILABLE';
 
 let Engine;
 
@@ -22,8 +26,8 @@ try {
   const inst = global.henri;
   const fatal =
     inst && inst.pen
-      ? inst.pen.fatal('view', message, hint)
-      : new Error(hint ? `${message}\n${hint}` : message);
+      ? inst.pen.fatal('view', message, hint, null, CODE)
+      : stamp(new Error(hint ? `${message}\n${hint}` : message), CODE);
 
   fatal.cause = error;
 

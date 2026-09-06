@@ -1,3 +1,4 @@
+const { fail } = require('./base/errors');
 const BaseModule = require('./base/module');
 
 const path = require('path');
@@ -308,13 +309,15 @@ class Mailers extends BaseModule {
     const mailer = this.get(name);
 
     if (!mailer) {
-      throw new Error(
+      throw fail(
+        'HENRI_MAIL_UNKNOWN_MAILER',
         `No mailer '${name}' in app/mailers (known: ${this.names().join(', ') || 'none'})`
       );
     }
 
     if (!this.has(name, action)) {
-      throw new Error(
+      throw fail(
+        'HENRI_MAIL_UNKNOWN_ACTION',
         `Mailer '${name}' has no action '${action}' (known: ${this.actions(name).join(', ') || 'none'})`
       );
     }
@@ -322,7 +325,8 @@ class Mailers extends BaseModule {
     const envelope = mailer[action].apply(mailer, args);
 
     if (!envelope || typeof envelope !== 'object') {
-      throw new Error(
+      throw fail(
+        'HENRI_MAIL_INVALID_MESSAGE',
         `Mailer action ${name}#${action} must return the message it wants sent, got ${typeof envelope}`
       );
     }

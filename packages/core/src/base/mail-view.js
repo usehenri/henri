@@ -1,3 +1,4 @@
+const { fail } = require('./errors');
 const path = require('path');
 const fs = require('fs');
 
@@ -267,7 +268,8 @@ class MailViews {
     const file = this.resolve(view);
 
     if (!file) {
-      throw new Error(
+      throw fail(
+        'HENRI_MAIL_VIEW_MISSING',
         `No mail view found for '${view}' in app/views/mailers (looked for ${view}.{${EXTENSIONS.join(',')}})`
       );
     }

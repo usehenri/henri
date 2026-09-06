@@ -3,6 +3,8 @@
  * `'1d'`) or in milliseconds. Everything the queue stores is milliseconds.
  */
 
+const { coded } = require('./errors');
+
 // A Map, not an object: the keys are one letter long on purpose
 const UNITS = new Map([
   ['ms', 1],
@@ -41,7 +43,7 @@ const duration = (value, fallback = null) => {
 
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || value < 0) {
-      throw new Error(`Invalid duration: ${value}`);
+      throw coded('HENRI_JOB_INVALID_DURATION', `Invalid duration: ${value}`);
     }
 
     return Math.round(value);
@@ -50,7 +52,8 @@ const duration = (value, fallback = null) => {
   const match = PATTERN.exec(String(value).trim());
 
   if (!match) {
-    throw new Error(
+    throw coded(
+      'HENRI_JOB_INVALID_DURATION',
       `Invalid duration "${value}": use a number of milliseconds or 30s, 5m, 2h, 1d`
     );
   }
@@ -77,7 +80,7 @@ const runAt = (options = {}, now = Date.now()) => {
     const time = date.getTime();
 
     if (Number.isNaN(time)) {
-      throw new Error(`Invalid date: ${String(at)}`);
+      throw coded('HENRI_JOB_INVALID_DURATION', `Invalid date: ${String(at)}`);
     }
 
     return time;

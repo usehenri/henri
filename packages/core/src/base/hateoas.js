@@ -3,6 +3,7 @@ const {
   hasExternalId,
   stripInternalIds,
 } = require('./external-id');
+const { stamp } = require('./errors');
 const { jsonType, noStore } = require('./headers');
 const { linkHeader, pageLinks, paginate } = require('./pagination');
 
@@ -273,16 +274,22 @@ function send(req, res, body, status) {
  */
 function resource(henri, req, res, record, { type, links, status = 200 } = {}) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
-    throw new TypeError(
-      'res.resource() needs a record (a model instance or a plain object); use res.collection() for lists'
+    throw stamp(
+      new TypeError(
+        'res.resource() needs a record (a model instance or a plain object); use res.collection() for lists'
+      ),
+      'HENRI_API_INVALID_RESOURCE'
     );
   }
 
   const kind = type || routeType(res);
 
   if (!kind) {
-    throw new TypeError(
-      'res.resource() needs a type outside of a route: res.resource(record, { type: "tasks" })'
+    throw stamp(
+      new TypeError(
+        'res.resource() needs a type outside of a route: res.resource(record, { type: "tasks" })'
+      ),
+      'HENRI_API_INVALID_RESOURCE'
     );
   }
 
@@ -340,16 +347,22 @@ function collection(
   { type, page, perPage, total, links, status = 200 } = {}
 ) {
   if (!Array.isArray(records)) {
-    throw new TypeError(
-      'res.collection() needs an array of records; use res.resource() for one record'
+    throw stamp(
+      new TypeError(
+        'res.collection() needs an array of records; use res.resource() for one record'
+      ),
+      'HENRI_API_INVALID_COLLECTION'
     );
   }
 
   const kind = type || routeType(res);
 
   if (!kind) {
-    throw new TypeError(
-      'res.collection() needs a type outside of a route: res.collection(records, { type: "tasks" })'
+    throw stamp(
+      new TypeError(
+        'res.collection() needs a type outside of a route: res.collection(records, { type: "tasks" })'
+      ),
+      'HENRI_API_INVALID_COLLECTION'
     );
   }
 

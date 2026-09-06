@@ -56,6 +56,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                            |
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                   |
 | `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                       |
+| `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                          |
 
 ## The `mailers` object
 
@@ -371,7 +372,7 @@ config ✖ "secret" must be a string, but it is a number => from the credentials
 
 The source matters: `port must be a number` is unhelpful when the culprit is an environment variable three deployments away. A value the [filters](#headers-logs-and-limits) name, and anything the credentials provided, is printed as its type alone; the password of a connection string is always masked.
 
-`henri server` exits `1` and `henri server --json` prints the same thing as `{ "error": { "code": "CONFIG_INVALID", "message", "hint", "problems": [...] } }`, where each problem is `{ key, level, message, expected, received, source, hint }`.
+`henri server` exits `1` and `henri server --json` prints the same thing as `{ "error": { "code": "HENRI_CONFIG_INVALID", "message", "hint", "problems": [...] } }`, where each problem is `{ key, level, message, expected, received, source, hint }`. See [Error codes](/reference/errors/).
 
 **An unknown key is a warning, never a failure.** An application may carry keys of its own — `henri.config.get()` is how it reads them — so henri says it ignores the key and boots:
 

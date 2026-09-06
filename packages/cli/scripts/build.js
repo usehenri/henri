@@ -1,6 +1,7 @@
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+const { CliError } = require('./errors');
 const { readConfig, resolveFrom, validInstall } = require('./utils');
 
 /**
@@ -40,7 +41,8 @@ const main = async () => {
   try {
     engine = require(resolveFrom(name, cwd));
   } catch (error) {
-    throw new Error(
+    throw new CliError(
+      'HENRI_CLI_NOT_INSTALLED',
       `${name.replace(/\/engine$/, '')} is not installed in this project (${error.message})`,
       { cause: error }
     );
@@ -59,7 +61,10 @@ const main = async () => {
     return;
   }
 
-  throw new Error(`${name} does not export a build() function`);
+  throw new CliError(
+    'HENRI_VIEW_NO_BUILD',
+    `${name} does not export a build() function`
+  );
 };
 
 /**
@@ -89,7 +94,10 @@ const legacyBuild = async (cwd) => {
   );
 
   if (result.status !== 0) {
-    throw new Error(`next build exited with status ${result.status}`);
+    throw new CliError(
+      'HENRI_VIEW_BUILD_FAILED',
+      `next build exited with status ${result.status}`
+    );
   }
 };
 

@@ -158,6 +158,9 @@ describe('postgresql database adapter', () => {
         'fatal',
         'postgresql',
         'Missing url (or host and database) in store default',
+        null,
+        null,
+        'HENRI_STORE_URL_MISSING',
       ],
     ]);
   });

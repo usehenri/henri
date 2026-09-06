@@ -31,6 +31,7 @@
  * database leak hands over no working links and nothing has to be expired by
  * a cron job.
  */
+const { fail, stamp: withCode } = require('./errors');
 const debug = require('debug')('henri:accounts');
 
 const { respond } = require('./auth');
@@ -159,8 +160,11 @@ function section(name, raw, defaults) {
   }
 
   if (typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new TypeError(
-      `config.user.${name} must be a boolean or an object, got ${typeof raw}`
+    throw withCode(
+      new TypeError(
+        `config.user.${name} must be a boolean or an object, got ${typeof raw}`
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
@@ -314,7 +318,10 @@ function accounts(henri) {
    */
   const secret = () => {
     if (!henri.config.has('secret')) {
-      throw new Error('account tokens need a secret in your configuration');
+      throw fail(
+        'HENRI_USER_SECRET_MISSING',
+        'account tokens need a secret in your configuration'
+      );
     }
 
     return String(henri.config.get('secret'));

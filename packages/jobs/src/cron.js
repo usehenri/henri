@@ -8,6 +8,8 @@
  * either -- enqueue from a job that knows the zone.
  */
 
+const { coded } = require('./errors');
+
 const MONTHS = {
   apr: 4,
   aug: 8,
@@ -57,7 +59,10 @@ const value = (token, names, field) => {
   }
 
   if (!/^\d+$/.test(token)) {
-    throw new Error(`Invalid ${field} "${token}" in cron expression`);
+    throw coded(
+      'HENRI_JOB_INVALID_CRON',
+      `Invalid ${field} "${token}" in cron expression`
+    );
   }
 
   return Number(token);
@@ -81,7 +86,10 @@ const field = (spec, min, max, name, names = {}) => {
     const [range, step = '1'] = part.split('/');
 
     if (!/^\d+$/.test(step) || Number(step) < 1) {
-      throw new Error(`Invalid step "${step}" in ${name} of a cron expression`);
+      throw coded(
+        'HENRI_JOB_INVALID_CRON',
+        `Invalid step "${step}" in ${name} of a cron expression`
+      );
     }
 
     const by = Number(step);
@@ -101,7 +109,8 @@ const field = (spec, min, max, name, names = {}) => {
     }
 
     if (from < min || to > max || from > to) {
-      throw new Error(
+      throw coded(
+        'HENRI_JOB_INVALID_CRON',
         `Out of range "${part}" in ${name} of a cron expression (${min}-${max})`
       );
     }
@@ -127,7 +136,8 @@ const parse = (expression) => {
   const parts = normalized.split(/\s+/);
 
   if (parts.length !== 5) {
-    throw new Error(
+    throw coded(
+      'HENRI_JOB_INVALID_CRON',
       `Invalid cron expression "${expression}": expected 5 fields (minute hour day month weekday)`
     );
   }

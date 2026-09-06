@@ -154,7 +154,8 @@ class Sql {
     throw fatal(
       this.henri,
       this.adapterName,
-      `Missing url (or host and database) in store ${this.name}`
+      `Missing url (or host and database) in store ${this.name}`,
+      'HENRI_STORE_URL_MISSING'
     );
   }
 

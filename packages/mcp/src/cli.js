@@ -70,7 +70,10 @@ const parseJson = (result) => {
   if (result.timedOut) {
     return {
       data,
-      error: { code: 'TIMEOUT', message: 'the command timed out' },
+      error: {
+        code: 'HENRI_AGENT_TIMEOUT',
+        message: 'the command timed out',
+      },
       ok: false,
       output: result.stderr,
     };
@@ -83,7 +86,7 @@ const parseJson = (result) => {
   return {
     data,
     error: (error && error.error) || {
-      code: 'FAILED',
+      code: 'HENRI_CLI_FAILED',
       exitCode: result.status,
       message:
         result.stderr.trim() || result.stdout.trim() || 'the command failed',

@@ -1,4 +1,8 @@
 const utils = require('../utils');
+const { stamp } = require('../base/errors');
+
+/** What this failure is called (see base/errors.js) */
+const CODE = 'HENRI_VIEW_INERTIA_UNAVAILABLE';
 
 /**
  * Inertia.js (Vite + React) engine, shipped by @usehenri/inertia and resolved
@@ -20,10 +24,10 @@ try {
       `;
 
   if (global.henri && global.henri.pen) {
-    global.henri.pen.fatal('view', message);
+    global.henri.pen.fatal('view', message, null, null, CODE);
   }
 
-  throw new Error(message, { cause: error });
+  throw stamp(new Error(message, { cause: error }), CODE);
 }
 
 module.exports = Engine;

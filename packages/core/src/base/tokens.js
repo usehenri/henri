@@ -35,6 +35,7 @@
  * const { ok } = verify({ purpose: 'password-reset', secret, seed, token });
  * ```
  */
+const { stamp } = require('./errors');
 const crypto = require('crypto');
 
 /** The format the tokens are minted in; the first field of every token */
@@ -139,15 +140,24 @@ function mint({
   subject,
 }) {
   if (typeof secret !== 'string' || secret.length === 0) {
-    throw new TypeError('a token needs a secret to be signed with');
+    throw stamp(
+      new TypeError('a token needs a secret to be signed with'),
+      'HENRI_USER_TOKEN_INVALID'
+    );
   }
 
   if (typeof purpose !== 'string' || purpose.length === 0) {
-    throw new TypeError('a token needs a purpose');
+    throw stamp(
+      new TypeError('a token needs a purpose'),
+      'HENRI_USER_TOKEN_INVALID'
+    );
   }
 
   if (typeof subject !== 'string' || subject.length === 0) {
-    throw new TypeError('a token needs a subject');
+    throw stamp(
+      new TypeError('a token needs a subject'),
+      'HENRI_USER_TOKEN_INVALID'
+    );
   }
 
   const payload = { exp: now + Number(expiresIn), pur: purpose, sub: subject };

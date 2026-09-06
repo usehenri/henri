@@ -8,7 +8,7 @@ const { compileTable, normalizeSchema } = require('./schema');
 const { SESSION_FIELDS, createStore } = require('./session');
 const { ValidationError } = require('./validation');
 const { EXTERNAL_ID, uuidv7, wantsExternalId } = require('./external-id');
-const { fatal, normalizeEmail, redact, toRoles } = require('./utils');
+const { coded, fatal, normalizeEmail, redact, toRoles } = require('./utils');
 
 /**
  * Store adapter contract, shared with @usehenri/sequelize (mysql,
@@ -91,7 +91,8 @@ class Drizzle {
       throw fatal(
         thisHenri,
         this.adapterName,
-        `Missing url (or host and database) in store ${name}`
+        `Missing url (or host and database) in store ${name}`,
+        'HENRI_STORE_URL_MISSING'
       );
     }
 
@@ -525,7 +526,8 @@ class Drizzle {
       const entry = tables[modelName];
 
       if (!entry || !entry.table[field]) {
-        throw new Error(
+        throw coded(
+          'HENRI_MODEL_INVALID_FIELD',
           `${this.adapterName}: unknown reference ${modelName}.${field}`
         );
       }
@@ -717,7 +719,10 @@ class Drizzle {
    */
   rawDatabase() {
     if (!this.db) {
-      throw new Error(`${this.adapterName}: store ${this.name} is not started`);
+      throw coded(
+        'HENRI_STORE_NOT_STARTED',
+        `${this.adapterName}: store ${this.name} is not started`
+      );
     }
 
     return this.db;
@@ -777,7 +782,10 @@ class Drizzle {
    */
   async ping() {
     if (!this.client) {
-      throw new Error(`${this.adapterName}: store ${this.name} is not started`);
+      throw coded(
+        'HENRI_STORE_NOT_STARTED',
+        `${this.adapterName}: store ${this.name} is not started`
+      );
     }
 
     return this.dialect.ping(this.client);
@@ -794,7 +802,10 @@ class Drizzle {
    */
   async query(text, params = []) {
     if (!this.client) {
-      throw new Error(`${this.adapterName}: store ${this.name} is not started`);
+      throw coded(
+        'HENRI_STORE_NOT_STARTED',
+        `${this.adapterName}: store ${this.name} is not started`
+      );
     }
 
     return this.dialect.query(this.client, text, params);

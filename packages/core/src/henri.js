@@ -2,6 +2,7 @@ const HenriBase = require('./base/henri');
 const Modules = require('./0.modules');
 const Pen = require('./0.pen');
 const utils = require('./utils');
+const { fallback } = require('./base/errors');
 const validator = require('validator');
 
 const Config = require('./0.config');
@@ -78,9 +79,12 @@ class Henri extends HenriBase {
     } catch (error) {
       const reason = error && error.message ? error.message : String(error);
 
-      throw new Error(`henri - unable to execute init(): ${reason}`, {
-        cause: error,
-      });
+      throw fallback(
+        new Error(`henri - unable to execute init(): ${reason}`, {
+          cause: error,
+        }),
+        'HENRI_BOOT_FAILED'
+      );
     }
 
     return true;
@@ -136,7 +140,9 @@ class Henri extends HenriBase {
       throw this.pen.fatal(
         'henri',
         `${cwd} is not a henri application: no package.json found`,
-        'Run henri from the root of your application, or create one with: henri new <name>'
+        'Run henri from the root of your application, or create one with: henri new <name>',
+        null,
+        'HENRI_BOOT_NOT_AN_APPLICATION'
       );
     }
 

@@ -848,6 +848,19 @@ const SCHEMA = {
     oneOf: [text(), positive({ describe: 'a number of bytes above zero' })],
   },
 
+  errors: {
+    describe: 'an object of error code settings',
+    keys: {
+      url: {
+        describe: 'a url template holding {code}',
+        hint: 'Unset by default: nothing prints a link. Point it at wherever the catalogue of https://usehenri.io/reference/errors/ is published (https://example.com/e/{code})',
+        pattern: /\{code\}/u,
+        type: 'string',
+      },
+    },
+    type: 'object',
+  },
+
   requestTimeout: {
     default: 30000,
     describe: 'a number of milliseconds above zero, or false',

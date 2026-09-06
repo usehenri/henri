@@ -251,7 +251,7 @@ describe('--json', () => {
       expect(stdout).toBe('');
       expect(parse(stderr)).toEqual({
         error: {
-          code: 'USAGE',
+          code: 'HENRI_CLI_USAGE',
           command: 'generate',
           exitCode: 2,
           hint: expect.stringContaining('Available: agents, authentication'),
@@ -268,7 +268,7 @@ describe('--json', () => {
       expect(status).toBe(2);
       expect(stdout).toBe('');
       expect(parse(stderr).error).toMatchObject({
-        code: 'USAGE',
+        code: 'HENRI_CLI_USAGE',
         command: 'nope',
         exitCode: 2,
       });
@@ -279,7 +279,7 @@ describe('--json', () => {
 
       expect(status).toBe(3);
       expect(parse(stderr).error).toMatchObject({
-        code: 'NOT_A_PROJECT',
+        code: 'HENRI_CLI_NOT_A_PROJECT',
         command: 'routes',
         exitCode: 3,
         hint: expect.stringContaining('henri new <name>'),
@@ -298,7 +298,7 @@ describe('--json', () => {
 
       expect(status).toBe(1);
       expect(parse(stderr).error).toMatchObject({
-        code: 'FAILED',
+        code: 'HENRI_CLI_FAILED',
         command: 'routes',
         exitCode: 1,
         hint: expect.stringContaining('--debug=henri:*'),
@@ -343,7 +343,7 @@ describe('henri clean without a terminal', () => {
 
     expect(json.status).toBe(4);
     expect(JSON.parse(json.stderr).error).toMatchObject({
-      code: 'NEEDS_TTY',
+      code: 'HENRI_CLI_NEEDS_TTY',
       command: 'clean',
       exitCode: 4,
     });

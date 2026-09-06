@@ -133,7 +133,7 @@ describe('henri doctor', () => {
     expect(json.status).toBe(1);
     expect(JSON.parse(json.stdout).ok).toBe(false);
     expect(JSON.parse(json.stderr).error).toMatchObject({
-      code: 'CHECKS_FAILED',
+      code: 'HENRI_CLI_CHECKS_FAILED',
       command: 'doctor',
       exitCode: 1,
     });
@@ -416,6 +416,6 @@ describe('henri doctor', () => {
     const { status, stderr } = henri(['doctor', '--json'], { cwd: dir });
 
     expect(status).toBe(3);
-    expect(JSON.parse(stderr).error.code).toBe('NOT_A_PROJECT');
+    expect(JSON.parse(stderr).error.code).toBe('HENRI_CLI_NOT_A_PROJECT');
   });
 });

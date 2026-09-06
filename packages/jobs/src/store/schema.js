@@ -16,6 +16,8 @@
  */
 
 /** Names an application may give the tables */
+const { coded } = require('../errors');
+
 const SAFE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const DIALECTS = {
@@ -226,12 +228,16 @@ const install = (name, tables) => {
   const dialect = DIALECTS[name];
 
   if (!dialect) {
-    throw new Error(`@usehenri/jobs: unsupported SQL dialect "${name}"`);
+    throw coded(
+      'HENRI_JOB_UNSUPPORTED_STORE',
+      `@usehenri/jobs: unsupported SQL dialect "${name}"`
+    );
   }
 
   for (const table of Object.values(tables)) {
     if (!SAFE_NAME.test(table)) {
-      throw new Error(
+      throw coded(
+        'HENRI_CONFIG_INVALID',
         `@usehenri/jobs: invalid table name "${table}": letters, digits and underscores only`
       );
     }
@@ -260,7 +266,10 @@ const uninstall = (name, tables) => {
   const dialect = DIALECTS[name];
 
   if (!dialect) {
-    throw new Error(`@usehenri/jobs: unsupported SQL dialect "${name}"`);
+    throw coded(
+      'HENRI_JOB_UNSUPPORTED_STORE',
+      `@usehenri/jobs: unsupported SQL dialect "${name}"`
+    );
   }
 
   return [tables.schedules, tables.jobs].map(

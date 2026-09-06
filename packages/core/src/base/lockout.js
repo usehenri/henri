@@ -20,6 +20,7 @@
  * restart, exactly like `config.rateLimit`), or a shared one through
  * `config.user.lockout.store`.
  */
+const { stamp } = require('./errors');
 const crypto = require('crypto');
 const { MemoryStore } = require('express-rate-limit');
 const debug = require('debug')('henri:lockout');
@@ -50,8 +51,11 @@ function lockoutConfig(raw) {
   }
 
   if (typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new TypeError(
-      'config.user.lockout must be false or an object ({ max, windowMs, store })'
+    throw stamp(
+      new TypeError(
+        'config.user.lockout must be false or an object ({ max, windowMs, store })'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 

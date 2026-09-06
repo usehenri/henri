@@ -191,7 +191,7 @@ describe('starting', () => {
       .start()
       .catch((thrown) => thrown);
 
-    expect(error.code).toBe('UNSUPPORTED_STORE');
+    expect(error.code).toBe('HENRI_JOB_UNSUPPORTED_STORE');
     expect(error.message).toContain('permission denied');
     expect(error.hint).toContain('henri jobs:install');
   });

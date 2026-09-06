@@ -26,7 +26,10 @@ const queue = (henri, asked) => {
     'jobs',
     `
       ${asked}, but ${PACKAGE} is not installed.
-      Add it with: npm install ${PACKAGE}`
+      Add it with: npm install ${PACKAGE}`,
+    null,
+    null,
+    'HENRI_JOB_QUEUE_UNAVAILABLE'
   );
 };
 

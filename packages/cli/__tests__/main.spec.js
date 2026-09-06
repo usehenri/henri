@@ -8,7 +8,7 @@ const { cleanup, henri, tmpdir } = require('./helpers');
 describe('errors', () => {
   test('a coded error keeps its code, its hint and its problems', () => {
     const invalid = Object.assign(new Error('invalid configuration'), {
-      code: 'CONFIG_INVALID',
+      code: 'HENRI_CONFIG_INVALID',
       hint: 'See the documentation',
       problems: [{ key: 'port' }],
     });
@@ -20,7 +20,7 @@ describe('errors', () => {
     );
 
     expect(failure).toBeInstanceOf(CliError);
-    expect(failure.code).toBe('CONFIG_INVALID');
+    expect(failure.code).toBe('HENRI_CONFIG_INVALID');
     expect(failure.exitCode).toBe(1);
     expect(failure.hint).toBe('See the documentation');
     expect(failure.message).toBe('invalid configuration');
@@ -30,7 +30,7 @@ describe('errors', () => {
   test('anything else is a FAILED wrapper', () => {
     const failure = toCliError(new Error('boom'));
 
-    expect(failure.code).toBe('FAILED');
+    expect(failure.code).toBe('HENRI_CLI_FAILED');
     expect(failure.exitCode).toBe(1);
     expect(failure.problems).toBeUndefined();
   });
@@ -41,7 +41,7 @@ describe('errors', () => {
 
     first.cause = second;
 
-    expect(toCliError(second).code).toBe('FAILED');
+    expect(toCliError(second).code).toBe('HENRI_CLI_FAILED');
   });
 });
 
@@ -136,7 +136,7 @@ describe('the cli', () => {
 
       expect(status).toBe(2);
       expect(stderr).toContain(
-        'henri generate failed: Unknown generator "nope"'
+        'henri generate failed [HENRI_CLI_USAGE]: Unknown generator "nope"'
       );
       expect(stderr).toContain('Available: agents, authentication');
       expect(stdout).not.toContain('Usage');
@@ -161,7 +161,7 @@ describe('the cli', () => {
       const { status, stderr } = henri(['routes'], { cwd: app });
 
       expect(status).toBe(1);
-      expect(stderr).toContain('henri routes failed:');
+      expect(stderr).toContain('henri routes failed [HENRI_CLI_FAILED]:');
       expect(stderr).toContain('--debug=henri:*');
     });
 

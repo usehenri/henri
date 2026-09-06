@@ -90,7 +90,9 @@ const ok = (data) => ({
  */
 const failed = (error) => {
   const detail =
-    typeof error === 'string' ? { code: 'FAILED', message: error } : error;
+    typeof error === 'string'
+      ? { code: 'HENRI_CLI_FAILED', message: error }
+      : error;
 
   return {
     content: [
@@ -192,7 +194,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
         return ok({ count: routes.length, routes });
       } catch (error) {
         return failed({
-          code: 'FAILED',
+          code: 'HENRI_CLI_FAILED',
           hint: 'config/routes.js must be a CommonJS module exporting an object',
           message: error.message,
         });
@@ -498,7 +500,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
     async ({ body, headers = {}, method = 'GET', path: route }) => {
       if (!route.startsWith('/')) {
         return failed({
-          code: 'USAGE',
+          code: 'HENRI_CLI_USAGE',
           message: `path "${route}" must start with /`,
         });
       }
@@ -509,7 +511,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
 
       if (forbidden) {
         return failed({
-          code: 'USAGE',
+          code: 'HENRI_CLI_USAGE',
           hint: 'Use the errors, logs, query, records and runtime_routes tools instead',
           message:
             'x-henri-runtime is the header of the runtime endpoints: this tool makes ordinary requests',
@@ -548,7 +550,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
         return pages.length > 0
           ? ok({ count: pages.length, pages, versions: installed })
           : failed({
-              code: 'NO_DOCS',
+              code: 'HENRI_AGENT_NO_DOCS',
               hint: 'Reinstall @usehenri/mcp',
               message: 'the documentation was not shipped with this server',
             });
@@ -559,7 +561,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
       return found
         ? ok(Object.assign({ versions: installed }, found))
         : failed({
-            code: 'UNKNOWN_PAGE',
+            code: 'HENRI_AGENT_UNKNOWN_PAGE',
             hint: 'Call guide without a page to list them',
             message: `there is no documentation page named "${page}"`,
           });
@@ -607,7 +609,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
     }) => {
       if (!NAMELESS.has(generator) && !name) {
         return failed({
-          code: 'USAGE',
+          code: 'HENRI_CLI_USAGE',
           hint: 'generate { generator: "scaffold", name: "Post", attributes: ["title:string!"] }',
           message: `${generator} needs a name`,
         });
@@ -615,7 +617,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
 
       if (generator !== 'controller' && name && !NAME.test(name)) {
         return failed({
-          code: 'USAGE',
+          code: 'HENRI_CLI_USAGE',
           message: `name "${name}" is not allowed (${NAME})`,
         });
       }
@@ -658,7 +660,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
       const invalid = reject([name], pattern, 'name');
 
       if (invalid) {
-        return failed({ code: 'USAGE', message: invalid });
+        return failed({ code: 'HENRI_CLI_USAGE', message: invalid });
       }
 
       const result = parseJson(
@@ -706,7 +708,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
           .find(Boolean);
 
       if (invalid) {
-        return failed({ code: 'USAGE', message: invalid });
+        return failed({ code: 'HENRI_CLI_USAGE', message: invalid });
       }
 
       const args = ['test', ...files];
@@ -753,7 +755,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
         );
       } catch (error) {
         return failed({
-          code: 'NOT_INSTALLED',
+          code: 'HENRI_CLI_NOT_INSTALLED',
           hint: 'Install the dependencies of the application (eslint is a devDependency)',
           message: `eslint is not installed in ${app.cwd}: ${error.message}`,
         });
@@ -782,7 +784,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
         files = JSON.parse(result.stdout);
       } catch {
         return failed({
-          code: 'FAILED',
+          code: 'HENRI_CLI_FAILED',
           message: `eslint did not answer JSON (exit ${result.status}): ${tail(result.stderr, 20)}`,
         });
       }

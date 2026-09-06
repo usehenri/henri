@@ -18,12 +18,12 @@ const { JobError } = require('./errors');
  * @param {object} definition What the file exports
  * @param {object} defaults The queue defaults (`queue`, `maxAttempts`, ...)
  * @returns {object} The definition, with the defaults filled in
- * @throws {JobError} BAD_JOB when the file does not export a `perform`
+ * @throws {JobError} HENRI_JOB_INVALID_DEFINITION without a `perform`
  */
 const validate = (name, definition, defaults) => {
   if (!definition || typeof definition.perform !== 'function') {
     throw new JobError(
-      'BAD_JOB',
+      'HENRI_JOB_INVALID_DEFINITION',
       `app/jobs/${name}.js does not export a perform(args, context) function`,
       { job: name }
     );

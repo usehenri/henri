@@ -344,7 +344,7 @@ fs.writeFileSync(
     const { error } = JSON.parse(stderr);
 
     expect(status).toBe(2);
-    expect(error.code).toBe('USAGE');
+    expect(error.code).toBe('HENRI_CLI_USAGE');
     expect(error.message).toContain('EDITOR and VISUAL');
     expect(fs.existsSync(path.join(app, 'config', 'credentials'))).toBe(true);
   });

@@ -211,7 +211,7 @@ describe('credentials', () => {
         delete process.env.HENRI_CREDENTIALS_KEY;
       }
 
-      expect(thrown.code).toBe('CONFIG_INVALID');
+      expect(thrown.code).toBe('HENRI_CONFIG_INVALID');
       expect(thrown.problems).toHaveLength(1);
       expect(thrown.problems[0].key).toBe('stores.default.adapter');
       expect(thrown.problems[0].source).toBe(

@@ -147,7 +147,14 @@ describe('mssql database adapter', () => {
       'Missing url (or host and database) in store default'
     );
     expect(henri.calls).toEqual([
-      ['fatal', 'mssql', 'Missing url (or host and database) in store default'],
+      [
+        'fatal',
+        'mssql',
+        'Missing url (or host and database) in store default',
+        null,
+        null,
+        'HENRI_STORE_URL_MISSING',
+      ],
     ]);
   });
 

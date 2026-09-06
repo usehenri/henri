@@ -21,7 +21,9 @@ class VueEngine {
       throw pen.fatal(
         'vue',
         'the vue renderer is experimental and disabled',
-        'Enable it with "experimental": { "vue": true } in your configuration'
+        'Enable it with "experimental": { "vue": true } in your configuration',
+        null,
+        'HENRI_VIEW_VUE_DISABLED'
       );
     }
 

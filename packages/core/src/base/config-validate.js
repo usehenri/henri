@@ -626,7 +626,7 @@ class ConfigurationError extends Error {
     // the problems are printed once, by whoever has the room for them
     super(summary(problems, header));
     this.name = 'ConfigurationError';
-    this.code = 'CONFIG_INVALID';
+    this.code = 'HENRI_CONFIG_INVALID';
     this.exitCode = 1;
     this.hint =
       'Every key henri reads is documented at https://usehenri.io/reference/configuration/';

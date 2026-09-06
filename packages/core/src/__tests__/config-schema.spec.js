@@ -310,7 +310,7 @@ describe('the configuration schema', () => {
     const { errors } = validate({ port: 'nope' }, { source: () => '.env' });
     const error = new ConfigurationError(errors);
 
-    expect(error.code).toBe('CONFIG_INVALID');
+    expect(error.code).toBe('HENRI_CONFIG_INVALID');
     expect(error.exitCode).toBe(1);
     expect(error.problems).toBe(errors);
     // The message is one line: whoever prints it has the problems too

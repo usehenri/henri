@@ -137,7 +137,9 @@ module.exports = (pkg, args) => {
 /**
  * Print a command failure and exit with its code
  *
- * Text: `henri <command> failed: <message>` and the hint on stderr.
+ * Text: `henri <command> failed [<code>]: <message>` and the hint on stderr.
+ * The code is one of henri's own (see @usehenri/core/error-codes.json), so
+ * the terminal and the JSON name the failure the same way.
  * JSON (--json): `{ "error": { command, message, hint, code, exitCode } }`
  * on stderr.
  *
@@ -165,7 +167,11 @@ function fail(command, error, json = false) {
       })
     );
   } else {
-    console.error(`\n  henri ${command} failed: ${failure.message}\n`);
+    console.error(
+      `\n  henri ${command} failed ${chalk.grey(
+        `[${failure.code}]`
+      )}: ${failure.message}\n`
+    );
 
     for (const problem of failure.problems || []) {
       console.error(

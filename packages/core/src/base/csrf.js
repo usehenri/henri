@@ -1,3 +1,4 @@
+const { stamp } = require('./errors');
 const crypto = require('crypto');
 const debug = require('debug')('henri:csrf');
 
@@ -221,8 +222,11 @@ function csrfConfig(config) {
   }
 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new TypeError(
-      'config.csrf must be a boolean or an object ({ origin, trustedOrigins })'
+    throw stamp(
+      new TypeError(
+        'config.csrf must be a boolean or an object ({ origin, trustedOrigins })'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 

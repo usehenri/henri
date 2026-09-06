@@ -280,7 +280,7 @@ class Jobs {
     }
 
     throw new JobError(
-      'NO_STORE',
+      'HENRI_JOB_STORE_MISSING',
       `@usehenri/jobs: no store named "${name}" in the configuration`,
       { hint: 'Set jobs.store to one of the stores of config/default.json' }
     );
@@ -291,7 +291,7 @@ class Jobs {
    *
    * @param {string} name The job name
    * @returns {object} The definition
-   * @throws {JobError} UNKNOWN_JOB when there is no such file
+   * @throws {JobError} HENRI_JOB_UNKNOWN when there is no such file
    * @memberof Jobs
    */
   definition(name) {
@@ -300,7 +300,7 @@ class Jobs {
     if (!found) {
       const known = Object.keys(this.definitions);
 
-      throw new JobError('UNKNOWN_JOB', `No job named "${name}"`, {
+      throw new JobError('HENRI_JOB_UNKNOWN', `No job named "${name}"`, {
         hint:
           known.length > 0
             ? `The jobs of app/jobs are: ${known.join(', ')}`
@@ -342,7 +342,7 @@ class Jobs {
    *   another on the same `unique` key can tell whether it is the one that
    *   enqueued it (the recurring schedules use it)
    * @returns {Promise<object>} The enqueued job
-   * @throws {JobError} UNKNOWN_JOB, or BAD_ARGUMENTS when the arguments
+   * @throws {JobError} HENRI_JOB_UNKNOWN, or HENRI_JOB_INVALID_ARGUMENTS
    *   cannot be stored
    * @memberof Jobs
    */
@@ -438,7 +438,7 @@ class Jobs {
    * @param {string} name The job name
    * @param {*} [args=null] What perform() receives
    * @returns {Promise<*>} What perform() returned
-   * @throws {JobError} UNKNOWN_JOB, or whatever the job threw
+   * @throws {JobError} HENRI_JOB_UNKNOWN, or whatever the job threw
    * @memberof Jobs
    */
   async performNow(name, args = null) {
@@ -466,13 +466,13 @@ class Jobs {
    * The store, once the queue is started
    *
    * @returns {object} The store backend
-   * @throws {JobError} NOT_STARTED before start()
+   * @throws {JobError} HENRI_JOB_QUEUE_NOT_STARTED before start()
    * @memberof Jobs
    */
   storeOrDie() {
     if (!this.store) {
       throw new JobError(
-        'NOT_STARTED',
+        'HENRI_JOB_QUEUE_NOT_STARTED',
         '@usehenri/jobs: the queue is not started',
         {
           hint: 'henri starts it for you; outside of henri, call await jobs.start()',
@@ -499,14 +499,18 @@ class Jobs {
    *
    * @param {object} [filter={}] `state`, `queue`, `name`, `limit`, `offset`
    * @returns {Promise<Array<object>>} The jobs
-   * @throws {JobError} BAD_STATE for a state that does not exist
+   * @throws {JobError} HENRI_JOB_UNKNOWN_STATE for an unknown state
    * @memberof Jobs
    */
   async list(filter = {}) {
     if (filter.state && !STATES.includes(filter.state)) {
-      throw new JobError('BAD_STATE', `No such state "${filter.state}"`, {
-        hint: `The states are: ${STATES.join(', ')}`,
-      });
+      throw new JobError(
+        'HENRI_JOB_UNKNOWN_STATE',
+        `No such state "${filter.state}"`,
+        {
+          hint: `The states are: ${STATES.join(', ')}`,
+        }
+      );
     }
 
     const rows = await this.storeOrDie().list(filter);
@@ -614,7 +618,7 @@ class Jobs {
 
     if (row.state === 'running') {
       throw new JobError(
-        'RUNNING',
+        'HENRI_JOB_RUNNING',
         `The job ${id} is being performed by ${row.claimed_by}`,
         {
           hint: 'Wait for it to finish, or for the runner that died on it to be recovered from (jobs.stuckAfter)',

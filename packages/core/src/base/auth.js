@@ -22,6 +22,7 @@
  * The password policy and the hashing parameters live in `base/password.js`,
  * the per-account sign-in lockout in `base/lockout.js`.
  */
+const { stamp } = require('./errors');
 const { EXTERNAL_ID, hasExternalId } = require('./external-id');
 const { lockoutConfig } = require('./lockout');
 const { passwordPolicy } = require('./password');
@@ -65,8 +66,11 @@ function userConfig(config, { isTest = false } = {}) {
   }
 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new TypeError(
-      'config.user must be a string (model name) or an object ({ model, public, loginPath, afterLogin, sessionMaxAge, password, lockout })'
+    throw stamp(
+      new TypeError(
+        'config.user must be a string (model name) or an object ({ model, public, loginPath, afterLogin, sessionMaxAge, password, lockout })'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 

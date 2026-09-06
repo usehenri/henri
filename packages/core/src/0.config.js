@@ -3,6 +3,7 @@ const credentials = require('./base/credentials');
 const fs = require('fs');
 const path = require('path');
 const { syntax } = require('./utils');
+const { fail } = require('./base/errors');
 const { MASK, filterParameters, isFiltered, redact } = require('./base/redact');
 const {
   ConfigurationError,
@@ -176,8 +177,7 @@ function parseJson(raw, variable) {
   } catch (error) {
     // No cause and no parser message on purpose: both quote the value, and
     // the value of an environment variable may be a secret
-    // eslint-disable-next-line preserve-caught-error
-    throw new Error(`${variable} is not valid JSON`);
+    throw fail('HENRI_CONFIG_ENV_NOT_JSON', `${variable} is not valid JSON`);
   }
 }
 
@@ -234,7 +234,8 @@ function coerce(raw, current, entry) {
     const value = Number(raw);
 
     if (!Number.isFinite(value)) {
-      throw new Error(
+      throw fail(
+        'HENRI_CONFIG_ENV_TYPE',
         `${variable} is not a number, and "${key}" is one ${where}`
       );
     }
@@ -247,7 +248,8 @@ function coerce(raw, current, entry) {
       return /^true$/i.test(raw);
     }
 
-    throw new Error(
+    throw fail(
+      'HENRI_CONFIG_ENV_TYPE',
       `${variable} is not true or false, and "${key}" is a boolean ${where}`
     );
   }
@@ -256,7 +258,8 @@ function coerce(raw, current, entry) {
     const value = tryJson(raw);
 
     if (value === null || typeof value !== 'object') {
-      throw new Error(
+      throw fail(
+        'HENRI_CONFIG_ENV_TYPE',
         `${variable} is not a JSON object, and "${key}" is one ${where}`
       );
     }
@@ -293,7 +296,8 @@ function overrides(env) {
       .join('.');
 
     if (key === '') {
-      throw new Error(
+      throw fail(
+        'HENRI_CONFIG_ENV_NO_KEY',
         `${variable} names no configuration key: ${prefix}<key> (${prefix}stores${ENV_SEPARATOR}default${ENV_SEPARATOR}url)`
       );
     }
@@ -349,7 +353,8 @@ function applyEnv(config, env = process.env) {
     const raw = env[entry.variable];
 
     if (raw.trim() === '') {
-      throw new Error(
+      throw fail(
+        'HENRI_CONFIG_ENV_EMPTY',
         `${entry.variable} is set but empty: give it a value or unset it`
       );
     }
@@ -567,7 +572,7 @@ class Config extends BaseModule {
     }
 
     if (hasErrors) {
-      throw new Error('Unable to load configuration');
+      throw fail('HENRI_CONFIG_UNREADABLE', 'Unable to load configuration');
     }
 
     this.henri.pen.error('config', 'no configuration has been loaded...');
@@ -676,7 +681,10 @@ class Config extends BaseModule {
       if (safe) {
         return false;
       }
-      throw new Error(`Config key ${key} does not exist`);
+      throw fail(
+        'HENRI_CONFIG_UNKNOWN_KEY',
+        `Config key ${key} does not exist`
+      );
     }
 
     return getPath(this.config, key);
