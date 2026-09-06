@@ -33,6 +33,8 @@ import type {
   StoredFile,
   UploadedFile,
   ViewOptions,
+  WebhookDelivery,
+  WebhookEndpoint,
 } from '@usehenri/core';
 
 /** Asserts that `Actual` and `Expected` are the same type. */
@@ -195,6 +197,46 @@ henri.jobs.perform('welcome');
 
 // @ts-expect-error a job file has to export a perform()
 const broken: JobDefinition = { queue: 'default' };
+
+// --- webhooks ---------------------------------------------------------------
+
+// The module arrives from @usehenri/webhooks, like the queue it delivers
+// through: reading it is a check, not a given
+expectType<boolean | undefined>(henri.webhooks?.enabled);
+
+const webhooks = henri.webhooks!;
+
+expectType<Promise<WebhookEndpoint>>(
+  webhooks.register({ events: ['invoice.*'], url: 'https://acme.example/h' })
+);
+expectType<Promise<WebhookEndpoint>>(
+  webhooks.register({
+    description: 'Acme production',
+    events: '*',
+    headers: { 'x-acme-env': 'production' },
+    owner: 'tenant-42',
+    url: 'https://acme.example/h',
+  })
+);
+expectType<Promise<WebhookDelivery[]>>(
+  webhooks.emit('invoice.paid', { total: 4200 }, { owner: 'tenant-42' })
+);
+expectType<Promise<WebhookDelivery>>(
+  webhooks.deliverTo('an-id', 'invoice.paid')
+);
+expectType<Promise<WebhookEndpoint | null>>(webhooks.endpoint('an-id'));
+expectType<Promise<WebhookEndpoint[]>>(webhooks.endpoints({ disabled: true }));
+expectType<Promise<string[]>>(webhooks.secrets('an-id'));
+expectType<Promise<WebhookEndpoint>>(
+  webhooks.rotate('an-id', { grace: 86400000 })
+);
+expectType<Promise<boolean>>(webhooks.remove('an-id'));
+
+// @ts-expect-error an endpoint needs a url and what it subscribes to
+webhooks.register({ url: 'https://acme.example/h' });
+
+// @ts-expect-error `henri.webhooks` may be undefined: check it first
+henri.webhooks.emit('invoice.paid');
 
 // --- graphql ----------------------------------------------------------------
 

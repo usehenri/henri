@@ -1111,6 +1111,109 @@ const COMMANDS = [
   },
   {
     description: [
+      'The endpoints this application sends signed webhooks to: register',
+      'one, change it, give it a new secret, stop sending to it. Every',
+      'delivery is a job on the webhooks queue, so what happened to one is',
+      "the queue's answer, not this command's: henri jobs:list --queue",
+      'webhooks, henri jobs:dead and henri jobs:show <id>. Needs',
+      '@usehenri/webhooks and @usehenri/jobs. Without a command it lists.',
+    ],
+    examples: [
+      {
+        command:
+          "henri webhooks:add https://acme.example/hooks --events 'invoice.*'",
+        description: 'Register an endpoint and print its signing secret',
+      },
+      {
+        command: 'henri webhooks:rotate <id> --grace 24h',
+        description: 'A new secret, the old one signing for another day',
+      },
+      {
+        command: 'henri webhooks:send <id> invoice.paid --data \'{"total":1}\'',
+        description: 'Queue one delivery by hand, to try a receiver',
+      },
+      {
+        command: 'henri jobs:dead --queue webhooks',
+        description: 'The deliveries that ran out of attempts',
+      },
+    ],
+    flags: [
+      {
+        description: 'add, update: what it subscribes to (or `*`)',
+        flag: '--events=<a,b>',
+      },
+      {
+        description: 'add, list: the tenant the endpoint belongs to',
+        flag: '--owner=<id>',
+      },
+      {
+        description: 'add, update: a header of its own, repeatable',
+        flag: "--header='X-Name: value'",
+      },
+      {
+        description: 'add, update: what it is, for the operator',
+        flag: '--description=<text>',
+      },
+      { description: 'update: where the deliveries go', flag: '--url=<url>' },
+      {
+        description: 'rotate: how long the old secret keeps signing',
+        flag: '--grace=<duration>',
+      },
+      {
+        description: 'disable: why, kept on the endpoint',
+        flag: '--reason=<text>',
+      },
+      {
+        description: 'send: the JSON payload of the delivery',
+        flag: '--data=<json>',
+      },
+      { description: 'show: print the signing secrets too', flag: '--reveal' },
+      { description: 'list: only the disabled endpoints', flag: '--disabled' },
+      { description: 'print the result as JSON', flag: '--json' },
+    ],
+    name: 'webhooks',
+    summary: 'the endpoints this application sends signed webhooks to',
+    targets: [
+      { description: 'the endpoints (--owner, --disabled)', name: 'list' },
+      {
+        description: 'create the endpoints table (idempotent)',
+        name: 'install',
+      },
+      {
+        description: 'the endpoints, and what the queue holds for them',
+        name: 'status',
+      },
+      {
+        description: 'register one, and print its signing secret once',
+        name: 'add <url> --events <a,b>',
+      },
+      {
+        description: 'one endpoint (--reveal prints its secrets)',
+        name: 'show <id>',
+      },
+      {
+        description: 'change the url, the events, the headers',
+        name: 'update <id>',
+      },
+      {
+        description: 'a new secret, the old one signing for --grace',
+        name: 'rotate <id>',
+      },
+      { description: 'stop sending to it', name: 'disable <id>' },
+      { description: 'send to it again', name: 'enable <id>' },
+      { description: 'forget it for good', name: 'remove <id>' },
+      {
+        description: 'queue one delivery by hand',
+        name: 'send <id> [event]',
+      },
+    ],
+    usage: [
+      'henri webhooks [command] [options] [--json]',
+      'henri webhooks:<command>',
+    ],
+  },
+  {
+    description: [
       "Runs the project's tests (test/**/*.test.js) with vitest and henri",
       "booted under NODE_ENV=test. Exits with vitest's code; other arguments",
       'are passed to vitest (--watch, -t <name>, ...).',

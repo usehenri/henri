@@ -66,6 +66,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                              |
 | `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                                  |
 | `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                                     |
+| `webhooks`         |               | Settings of the [outbound webhooks](/guides/webhooks/), see below; needs `@usehenri/webhooks`, which delivers through the queue.                           |
 
 ## The `externalIds` object
 
@@ -516,6 +517,37 @@ Everything the [job queue](/guides/jobs/) reads, all of it optional. The queue i
 | `mailQueue`     | `mailers`    | Queue of the messages [`deliverLater()`](/guides/mail/#delivering-later) hands over.                                                         |
 | `install`       | `true`       | Create the tables at boot. Set `false` in production and run `henri jobs:install` in the deploy.                                             |
 | `recurring`     | `{}`         | Schedules, by name: `job` (defaults to the name), `cron` **or** `every`, and optionally `args`, `queue` and `priority`. Cron is read in UTC. |
+
+Every duration is a number of milliseconds or a string: `'250ms'`, `'30s'`, `'5m'`, `'2h'`, `'1d'`, `'1w'`.
+
+## The `webhooks` object
+
+Everything [outbound webhooks](/guides/webhooks/) read, all of it optional. The package is `@usehenri/webhooks`, which the application installs itself; the key is validated either way. Deliveries are jobs, so the queue has to be there too.
+
+```json
+{
+  "webhooks": {
+    "store": "default",
+    "queue": "webhooks",
+    "maxAttempts": 8,
+    "timeout": "10s",
+    "backoff": { "base": "10s", "factor": 3, "max": "6h", "jitter": 0.2 }
+  }
+}
+```
+
+| Key            | Default          | Description                                                                                                                                                                     |
+| -------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `store`        | `default`        | Which store of `stores` holds the endpoints.                                                                                                                                    |
+| `table`        | `henri_webhooks` | Table (or collection) name. Letters, digits and underscores only.                                                                                                               |
+| `install`      | `true`           | Create the table at boot. Set `false` in production and run `henri webhooks:install` in the deploy.                                                                             |
+| `queue`        | `webhooks`       | The queue the deliveries go to, so a slow receiver never delays the rest of the work.                                                                                           |
+| `maxAttempts`  | `8`              | Attempts before a delivery goes to the dead letter queue. Eight of the default backoff is about three days.                                                                     |
+| `timeout`      | `10s`            | How long one delivery may take, resolution, connection and answer included.                                                                                                     |
+| `backoff`      | see above        | Wait before the next attempt: `base × factor^(attempt − 1)`, capped at `max`, spread by `jitter` (0 to 1).                                                                      |
+| `maxFanout`    | `1000`           | How many deliveries one `emit()` may enqueue before it refuses rather than writing them inside a request.                                                                       |
+| `allowPrivate` | `false`          | `true` lets a delivery reach a loopback, private or link-local address. That is what a webhook url is normally refused for: **development only**, and `henri audit` reports it. |
+| `allowHttp`    | `false`          | `true` lets a delivery go to a plaintext `http` url, payload and signature in the clear. **Development only**, and `henri audit` reports it.                                    |
 
 Every duration is a number of milliseconds or a string: `'250ms'`, `'30s'`, `'5m'`, `'2h'`, `'1d'`, `'1w'`.
 

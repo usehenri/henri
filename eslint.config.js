@@ -248,6 +248,14 @@ module.exports = [
     },
   },
   {
+    // The endpoints live in a table this package owns: a row is the
+    // snake_case columns of packages/webhooks/src/store/schema.js
+    files: ['packages/webhooks/**/*.js'],
+    rules: {
+      camelcase: 'off',
+    },
+  },
+  {
     // A job file reads as a definition: its options first, `perform` last
     files: ['**/app/jobs/**/*.js'],
     rules: {

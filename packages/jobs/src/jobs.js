@@ -287,6 +287,39 @@ class Jobs {
   }
 
   /**
+   * Adds a job the application did not write
+   *
+   * A package that ships work of its own -- `@usehenri/webhooks` delivers a
+   * webhook this way -- registers its job here rather than asking the
+   * application to write a file that would only forward the call. The queue
+   * then has it wherever it is booted, the runner included, because the
+   * module that registers it runs at the same runlevel.
+   *
+   * A definition that came from `app/jobs` is never replaced: an
+   * application that wants its own `henri/webhook` writes
+   * `app/jobs/henri/webhook.js` and it wins, exactly as it does for
+   * `henri/mail`.
+   *
+   * @param {string} name The job name
+   * @param {object} definition `perform(args, context)` plus `queue`,
+   *   `priority`, `maxAttempts`, `timeout` and `backoff`
+   * @returns {boolean} Whether it was registered
+   * @throws {JobError} HENRI_JOB_INVALID_DEFINITION without a `perform`
+   * @memberof Jobs
+   */
+  define(name, definition) {
+    if (this.definitions[name]) {
+      debug('%s is already defined: keeping the one that is there', name);
+
+      return false;
+    }
+
+    this.definitions[name] = validate(name, definition, this.config);
+
+    return true;
+  }
+
+  /**
    * Stops every runner this queue started
    *
    * @returns {Promise<void>} Resolves when they are done
@@ -929,7 +962,14 @@ class Jobs {
     const { attempts, definition, duration: took, store } = context;
     const now = Date.now();
     const max = toNumber(row.max_attempts) || this.config.maxAttempts;
-    const dead = attempts >= max || !definition;
+    // A failure that says `retryable: false` is buried now rather than
+    // after every attempt has learned the same thing: a webhook url that
+    // resolves to a private address, a receiver that answered `410 Gone`, a
+    // payload a remote API will refuse in exactly the same way in six
+    // hours. The job is in the dead letter queue with its reason, which is
+    // where an operator would have found it anyway -- sooner
+    const permanent = Boolean(error) && error.retryable === false;
+    const dead = attempts >= max || !definition || permanent;
     const history = (deserialize(row.history) || []).slice(-HISTORY_LIMIT + 1);
     const message = String((error && error.message) || error);
 
@@ -968,7 +1008,7 @@ class Jobs {
       row.id,
       dead ? 'died after' : 'failed on attempt',
       `${attempts}/${max}`,
-      message
+      permanent && attempts < max ? `(no retry) ${message}` : message
     );
 
     const job = toJob(await store.find(row.id));

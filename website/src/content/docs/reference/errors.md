@@ -1382,3 +1382,147 @@ Usually:
 - `renderer: "vue"` without the experimental flag
 
 **Fix.** Enable it with `"experimental": { "vue": true }`. It was written for Nuxt 2 and has not been exercised since 2020: prefer `inertia`.
+
+## webhook
+
+The outbound webhooks of @usehenri/webhooks: the endpoints, their signatures and their deliveries.
+
+### `HENRI_WEBHOOK_ADDRESS_REFUSED`
+
+A delivery would have reached an address it must not.
+
+Usually:
+
+- a url whose name resolves to a loopback, private, link-local or reserved address
+- a url that is not http or https, or that carries credentials
+- a plaintext http url without `webhooks.allowHttp`
+
+**Fix.** A delivery only opens a public address, and the check happens when the request is made rather than when the endpoint was registered. Register a public https url, or set `webhooks.allowPrivate` in a development configuration.
+
+### `HENRI_WEBHOOK_DELIVERY_FAILED`
+
+A receiver refused a delivery.
+
+Usually:
+
+- a receiver answering anything other than a 2xx
+- a receiver answering a redirect, which a delivery never follows
+- a receiver answering 410 Gone, which also disables the endpoint
+
+**Fix.** The delivery is a job: it is retried with the queue’s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.
+
+### `HENRI_WEBHOOK_FANOUT_TOO_LARGE`
+
+One event would have enqueued more deliveries than the fan-out allows.
+
+Usually:
+
+- an event that more endpoints subscribe to than `webhooks.maxFanout` allows
+
+**Fix.** Emit from a job rather than from a request, so the rows are written outside the response, or raise `webhooks.maxFanout`.
+
+### `HENRI_WEBHOOK_INVALID_ENDPOINT`
+
+An endpoint was registered with something henri refuses.
+
+Usually:
+
+- an event pattern that is not an event name, a family (`invoice.*`) or `*`
+- a header the signature or the request owns
+- more events or headers than one endpoint may carry
+
+**Fix.** An endpoint is `{ url, events }`, plus the optional `owner`, `description` and `headers`. The message names what was refused.
+
+### `HENRI_WEBHOOK_INVALID_EVENT`
+
+An event name is not one henri will sign.
+
+Usually:
+
+- an event name with a character other than a letter, a digit, `-`, `_` or `.`
+
+**Fix.** Name an event in dot separated segments: `invoice.paid`, `member.role.changed`.
+
+### `HENRI_WEBHOOK_INVALID_SECRET`
+
+A signing secret carries no usable key.
+
+Usually:
+
+- a secret of your own that is not `whsec_` and the base64 of at least sixteen bytes
+
+**Fix.** Let henri generate the secret (`henri webhooks:rotate <id>`); it is thirty-two random bytes, base64, behind a `whsec_` label.
+
+### `HENRI_WEBHOOK_NOT_STARTED`
+
+The webhook endpoints were used before they were ready.
+
+Usually:
+
+- the endpoints were used before the boot reached them
+- `webhooks.start()` was never awaited outside henri
+
+**Fix.** henri starts them at runlevel 4; outside henri, `await webhooks.start()` first.
+
+### `HENRI_WEBHOOK_NO_SECRET`
+
+An endpoint has nothing to sign its deliveries with.
+
+Usually:
+
+- every secret of the endpoint has expired, and no rotation added one
+
+**Fix.** Give the endpoint a secret with `henri webhooks:rotate <id>` and hand it to the receiver.
+
+### `HENRI_WEBHOOK_SECRET_UNREADABLE`
+
+An endpoint secret cannot be decrypted.
+
+Usually:
+
+- `HENRI_SECRET` changed after the endpoint was registered
+- the secrets column was written by something other than henri
+
+**Fix.** The endpoint secrets are sealed with a key derived from `secret`: put the old one back, or rotate the endpoint secrets (`henri webhooks:rotate <id>`) and hand the new ones to the receivers.
+
+### `HENRI_WEBHOOK_STORE_MISSING`
+
+The endpoints name a store the configuration does not hold.
+
+Usually:
+
+- a typo in `webhooks.store`
+- a store that only exists in another environment
+
+**Fix.** Set `webhooks.store` to one of the names of the `stores` block, or leave it out to use the default store.
+
+### `HENRI_WEBHOOK_TIMEOUT`
+
+A receiver did not answer within the delivery timeout.
+
+Usually:
+
+- a receiver that accepted the connection and never answered
+
+**Fix.** Raise `webhooks.timeout`, or ask the receiver to answer before it does its work: the attempt is failed and retried like any other failure.
+
+### `HENRI_WEBHOOK_UNKNOWN`
+
+There is no webhook endpoint with that id.
+
+Usually:
+
+- an endpoint id that was removed, or a typo
+
+**Fix.** `henri webhooks:list` shows the endpoints and their ids.
+
+### `HENRI_WEBHOOK_UNSUPPORTED_STORE`
+
+The store the endpoints were given cannot hold them.
+
+Usually:
+
+- a store whose adapter has neither `query()` nor a MongoDB connection
+- an adapter that reports a dialect the endpoints have no statements for
+
+**Fix.** The endpoints live on sqlite, PostgreSQL, MySQL, MSSQL and MongoDB. Point `webhooks.store` at a store on one of them.

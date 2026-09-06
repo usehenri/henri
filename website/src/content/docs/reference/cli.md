@@ -27,6 +27,7 @@ henri <command> [options]
 | `about`                       | Print the versions of Node, henri and the packages installed in the project. |
 | `audit`                       | Check the application against the ASVS and the OWASP Top 10.                 |
 | `analyze [module]`            | Boot the application and print the boot chart of its modules.                |
+| `webhooks`                    | The endpoints this application sends signed webhooks to, see below.          |
 | `help [command]`              | Print the help.                                                              |
 
 `routes`, `openapi`, `analyze`, `generate`, `destroy`, `build` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
@@ -290,6 +291,36 @@ Without a command, `henri jobs` runs a worker: it claims jobs, performs up to `-
 | `discard <id>`          | Deletes a dead job for good. `--all` (with `--queue`/`--name`) for every matching one.                                          |
 
 `--wait` is a global flag (it belongs to `--inspect`), which is why the delay of an enqueue is `--in`.
+
+## `webhooks`
+
+```bash
+henri webhooks [--owner=<id>] [--disabled] [--json]
+henri webhooks:install | webhooks:status
+henri webhooks:add <url> --events '<a,b>' [--owner=<id>] [--description=<text>] [--header='X-Name: value']
+henri webhooks:show <id> [--reveal]   |  henri webhooks:update <id> [--url] [--events] [--header]
+henri webhooks:rotate <id> [--grace=<duration>]
+henri webhooks:disable <id> [--reason=<text>]  |  henri webhooks:enable <id>  |  henri webhooks:remove <id>
+henri webhooks:send <id> [event] [--data=<json>]
+```
+
+Drives the endpoints of [outbound webhooks](/guides/webhooks/) (`@usehenri/webhooks`), in the same `webhooks:` style as `jobs:`. Every command boots to runlevel 4 — no HTTP server, no views — and accepts `--json`. An application without the package exits with `1` and says what to install.
+
+What happened to a **delivery** is not here: a delivery is a job, so `henri jobs:list --queue webhooks`, `henri jobs:dead`, `henri jobs:show <id>` and `henri jobs:retry <id>` are the answer, and `webhooks:status` prints the endpoints next to those counts rather than repeating them.
+
+| Command             | What it does                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `list`              | The endpoints (`--owner`, `--disabled`, `--limit`). The default command.                                                            |
+| `install`           | Creates `henri_webhooks` and its index. Idempotent; run it in a deploy that sets `"install": false`.                                |
+| `status`            | How many endpoints there are, and what the queue holds for the webhooks queue.                                                      |
+| `add <url>`         | Registers an endpoint and prints its signing secret **once**. `--events` is required.                                               |
+| `show <id>`         | One endpoint. `--reveal` prints the signing secrets that still sign, for a receiver that lost one.                                  |
+| `update <id>`       | Changes `--url`, `--events`, `--description` or the `--header`s.                                                                    |
+| `rotate <id>`       | A new secret; `--grace=24h` keeps the old one signing that long, so a receiver can install the new one without dropping a delivery. |
+| `disable <id>`      | Stops sending to it, keeping `--reason` on the endpoint.                                                                            |
+| `enable <id>`       | Sends to it again.                                                                                                                  |
+| `remove <id>`       | Forgets it. The deliveries already queued for it end without being sent.                                                            |
+| `send <id> [event]` | Enqueues one delivery by hand (`--data '{"total":1}'`), to try a receiver. A runner still has to perform it.                        |
 
 ## `privacy`
 

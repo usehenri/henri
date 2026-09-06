@@ -210,6 +210,15 @@ describe('the configuration schema', () => {
         password: { minLength: 16, pepper: { current: 'a-key' } },
         public: ['name'],
       },
+      webhooks: {
+        allowHttp: false,
+        allowPrivate: false,
+        backoff: { base: '10s', factor: 3, jitter: 0.2, max: '6h' },
+        maxAttempts: 8,
+        queue: 'webhooks',
+        table: 'henri_webhooks',
+        timeout: '10s',
+      },
     });
 
     expect(errors).toEqual([]);
@@ -412,6 +421,7 @@ describe('the schema, the declarations and the documentation', () => {
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
     ['MailersConfig', () => Object.keys(SCHEMA.mailers.keys)],
     ['JobsConfig', () => Object.keys(SCHEMA.jobs.keys)],
+    ['WebhooksConfig', () => Object.keys(SCHEMA.webhooks.keys)],
     [
       'RecurringConfig',
       () => Object.keys(SCHEMA.jobs.keys.recurring.values.keys),

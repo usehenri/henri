@@ -521,6 +521,64 @@ describe('henri audit', () => {
     ).not.toContain('uploads.limits-disabled');
   });
 
+  test('reports the webhook escape hatches, and only in production', () => {
+    // A url an application was handed is the classic way into the metadata
+    // service: turning the address rules off in production is a hole with a
+    // registration form in front of it
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      { webhooks: { allowHttp: true, allowPrivate: true } }
+    );
+
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'webhooks.http-allowed',
+        'webhooks.private-addresses-allowed',
+      ])
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V5.2.6',
+        check: 'webhooks.private-addresses-allowed',
+        file: 'config/production.json',
+        message: expect.stringContaining('169.254.169.254'),
+        owasp: 'A10:2021 Server-Side Request Forgery (SSRF)',
+        severity: 'high',
+      })
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V9.1.1',
+        check: 'webhooks.http-allowed',
+        severity: 'medium',
+      })
+    );
+
+    // In development a receiver on the loopback is the point, and the
+    // defaults say nothing at all
+    expect(
+      withConfig(app, 'config/dev.json', {
+        webhooks: { allowHttp: true, allowPrivate: true },
+      }).names
+    ).not.toEqual(
+      expect.arrayContaining([
+        'webhooks.http-allowed',
+        'webhooks.private-addresses-allowed',
+      ])
+    );
+    expect(
+      withConfig(app, 'config/production.json', {
+        webhooks: { maxAttempts: 12, queue: 'webhooks' },
+      }).names
+    ).not.toEqual(
+      expect.arrayContaining([
+        'webhooks.http-allowed',
+        'webhooks.private-addresses-allowed',
+      ])
+    );
+  });
+
   test('reports password hashes that are not bound to their row', () => {
     // An application that turned the binding off is telling anyone who can
     // write its database that a hash copied onto another row still works

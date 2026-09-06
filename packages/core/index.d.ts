@@ -625,6 +625,38 @@ declare namespace start {
     recurring?: Record<string, RecurringConfig>;
   }
 
+  /**
+   * `config.webhooks`: the outbound webhooks. Validated here whether or not
+   * the application has `@usehenri/webhooks`, which is what reads it.
+   */
+  interface WebhooksConfig {
+    /** Which store of `stores` holds the endpoints (`default`). */
+    store?: string;
+    /** Table (or collection) name (`henri_webhooks`); identifiers only. */
+    table?: string;
+    /** Create the table at boot (`true`). */
+    install?: boolean;
+    /** The queue the deliveries go to (`webhooks`). */
+    queue?: string;
+    /** Attempts before a delivery goes to the dead letter queue (`8`). */
+    maxAttempts?: number;
+    /** How long one delivery may take, answer included (`10s`). */
+    timeout?: Duration;
+    /** `base × factor^(attempt − 1)`, capped at `max`, spread by `jitter`. */
+    backoff?: {
+      base?: Duration;
+      factor?: number;
+      jitter?: number;
+      max?: Duration;
+    };
+    /** How many deliveries one `emit()` may enqueue (`1000`). */
+    maxFanout?: number;
+    /** Let a delivery reach a private or loopback address; development only. */
+    allowPrivate?: boolean;
+    /** Let a delivery go to a plaintext http url; development only. */
+    allowHttp?: boolean;
+  }
+
   /** `config.mailers`: the defaults of the mailers in `app/mailers`. */
   interface MailersConfig {
     /** Sender of every message that does not set one. */
@@ -684,6 +716,7 @@ declare namespace start {
     mailers?: MailersConfig;
     api?: ApiConfig;
     jobs?: JobsConfig;
+    webhooks?: WebhooksConfig;
     rateLimit?: boolean | RateLimitConfig;
     shared?: SharedConfig;
     /** `henri.cache`: what it keeps and for how long; `false` turns it off. */
@@ -2414,6 +2447,12 @@ declare namespace start {
     name: 'jobs';
     /** Whether the application has a queue. */
     enabled: boolean;
+    /**
+     * Adds a job the application did not write: how a package ships work of
+     * its own (`@usehenri/webhooks` registers its delivery job this way).
+     * A file of `app/jobs` with the same name wins, and this answers false.
+     */
+    define(name: string, definition: JobDefinition): boolean;
     /** Enqueues a job; nothing runs in this process. */
     perform(name: string, args?: unknown, options?: JobOptions): Promise<Job>;
     /** The name `henri.mailers.onDeliverLater()` expects. */
@@ -2450,6 +2489,119 @@ declare namespace start {
       discard(id: string): Promise<boolean>;
       discardAll(filter?: JobFilter): Promise<number>;
     };
+  }
+
+  /** One webhook endpoint, as `henri.webhooks` hands it out. */
+  interface WebhookEndpoint {
+    id: string;
+    /** Where the deliveries go. */
+    url: string;
+    /** What it subscribes to: event names, `prefix.*`, or `*`. */
+    events: string[];
+    /** The tenant it belongs to, `null` for an application-wide endpoint. */
+    owner: string | null;
+    description: string | null;
+    /** Headers of its own, on top of the ones henri signs with. */
+    headers: Record<string, string>;
+    /** The signing secrets, without their keys. */
+    secrets: Array<{
+      id: string;
+      scheme: string;
+      createdAt: string;
+      expiresAt: string | null;
+    }>;
+    disabled: boolean;
+    disabledAt: string | null;
+    disabledReason: string | null;
+    createdAt: string;
+    updatedAt: string;
+    /** The signing secret, on `register()` and `rotate()` only. */
+    secret?: string;
+  }
+
+  /** One delivery `henri.webhooks.emit()` enqueued. */
+  interface WebhookDelivery {
+    /** The delivery id, which the `webhook-id` header carries. */
+    id: string;
+    endpoint: string;
+    event: string;
+    /** The id of the queue job that performs it. */
+    job: string;
+  }
+
+  /**
+   * `henri.webhooks`: the module `@usehenri/webhooks` ships. It is there
+   * when the application depends on the package, and `undefined` when it
+   * does not. Delivering needs a running queue (`@usehenri/jobs`).
+   */
+  interface WebhooksModule {
+    name: 'webhooks';
+    enabled: boolean;
+    /** Registers an endpoint; the answer carries its secret, once. */
+    register(options: {
+      url: string;
+      events: string | string[];
+      owner?: string;
+      description?: string;
+      headers?: Record<string, string>;
+      secret?: string;
+    }): Promise<WebhookEndpoint>;
+    /**
+     * Enqueues one delivery per subscribed endpoint. Without an `owner` it
+     * reaches the endpoints that have none, never another tenant's.
+     */
+    emit(
+      event: string,
+      data?: unknown,
+      options?: {
+        owner?: string | null;
+        wait?: number | string;
+        at?: Date | string | number;
+      }
+    ): Promise<WebhookDelivery[]>;
+    /** Enqueues one delivery to one endpoint, subscription or not. */
+    deliverTo(
+      id: string,
+      event: string,
+      data?: unknown,
+      options?: { wait?: number | string; at?: Date | string | number }
+    ): Promise<WebhookDelivery>;
+    endpoint(id: string): Promise<WebhookEndpoint | null>;
+    endpoints(filter?: {
+      owner?: string | null;
+      disabled?: boolean;
+      limit?: number;
+      offset?: number;
+    }): Promise<WebhookEndpoint[]>;
+    /** The secrets that still sign, in the clear. */
+    secrets(id: string): Promise<string[]>;
+    update(
+      id: string,
+      changes?: {
+        url?: string;
+        events?: string | string[];
+        description?: string | null;
+        headers?: Record<string, string>;
+        owner?: string | null;
+      }
+    ): Promise<WebhookEndpoint>;
+    /** A new secret; the old ones keep signing for `grace` milliseconds. */
+    rotate(
+      id: string,
+      options?: { grace?: number; secret?: string }
+    ): Promise<WebhookEndpoint>;
+    disable(
+      id: string,
+      options?: { reason?: string }
+    ): Promise<WebhookEndpoint>;
+    enable(id: string): Promise<WebhookEndpoint>;
+    remove(id: string): Promise<boolean>;
+    /** The endpoints, and what the queue holds for them. */
+    stats(): Promise<{
+      endpoints: { total: number; enabled: number; disabled: number };
+      queue: string;
+      deliveries: Record<string, unknown> | null;
+    }>;
   }
 
   /** `henri.uploads`, with `@usehenri/uploads`. */
@@ -2681,6 +2833,12 @@ declare namespace start {
      * own, and `req.files` is then absent as well.
      */
     uploads?: UploadsModule;
+    /**
+     * Outbound webhooks, when the application depends on
+     * `@usehenri/webhooks`. It is `undefined` when it does not, and
+     * delivering needs a running queue as well.
+     */
+    webhooks?: WebhooksModule;
     workers: WorkersModule;
     api: ApiNamespace;
     /**

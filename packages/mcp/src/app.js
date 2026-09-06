@@ -32,7 +32,10 @@ const PACKAGES = [
   '@usehenri/mysql',
   '@usehenri/postgresql',
   '@usehenri/react',
+  '@usehenri/redis',
   '@usehenri/sequelize',
+  '@usehenri/uploads',
+  '@usehenri/webhooks',
 ];
 
 /**

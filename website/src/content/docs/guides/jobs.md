@@ -167,7 +167,52 @@ A retry resets the attempt count, so the retry policy applies again from the sta
 
 A runner that does not have a job's file — an older process during a rolling deploy — puts the job back with a backoff instead of killing it, so the deploy finishes and the job runs.
 
+### A failure a retry cannot fix
+
+Some failures are not going to get better. A remote API answered `410 Gone`, a webhook url resolves to an address the delivery must not open, an address is not an address. Spending eight attempts over three days to learn that again is noise, and the operator finds out three days late.
+
+An error that carries `retryable: false` is buried on the spot, with its reason, however many attempts were left:
+
+```js
+module.exports = {
+  perform: async ({ id }) => {
+    const answer = await fetch(`https://api.example.com/things/${id}`, {
+      method: 'POST',
+    });
+
+    if (answer.status === 422) {
+      // The payload is wrong. It will be just as wrong in six hours
+      throw Object.assign(new Error('the API refused the payload'), {
+        retryable: false,
+      });
+    }
+
+    if (!answer.ok) {
+      throw new Error(`the API answered ${answer.status}`); // retried
+    }
+  },
+};
+```
+
+The job lands in the dead letter queue like any other, so `henri jobs:dead`, `henri jobs:show <id>` and `henri jobs:retry <id>` still apply — it just gets there without the wait. [Outbound webhooks](/guides/webhooks/) use this for every failure a retry cannot fix.
+
 Jobs that succeed are kept for `jobs.keepCompleted` (a day) so their timings can be read, then pruned by the runner.
+
+## A job a package ships
+
+A package that does work of its own registers its job on the queue rather than asking every application to write a file that would only forward the call:
+
+```js
+henri.jobs.define('acme/deliver', {
+  maxAttempts: 8,
+  queue: 'acme',
+  perform: (args, context) => deliver(args),
+});
+```
+
+It has to happen while the queue is up and in every process that has it, which means from a module at runlevel 4 or later — `henri jobs` boots to exactly that level, so the runner has the definition too. [`@usehenri/webhooks`](/guides/webhooks/) registers `henri/webhook` this way.
+
+A file of `app/jobs` with the same name **wins**: `define()` answers `false` and keeps what the application wrote, the way `app/jobs/henri/mail.js` wins over the built-in mail job. That is how an application overrides a package's job — add tracking, change the transport — without the package knowing.
 
 ## Recurring jobs
 
