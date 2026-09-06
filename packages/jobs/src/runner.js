@@ -68,6 +68,20 @@ class Runner {
     this.beatFailed = false;
     /** Schedules already reported as unrunnable, so they are said once */
     this.warned = new Set();
+
+    // How long claiming took: the number that says a queue is contended,
+    // which no log line carries and no count can be derived from. It is a
+    // recorder that does nothing when henri is not tracing, so the loop
+    // below has nothing to test (see base/telemetry.js in core)
+    const telemetry = jobs.henri && jobs.henri.telemetry;
+
+    this.claimed =
+      telemetry && typeof telemetry.histogram === 'function'
+        ? telemetry.histogram('henri.jobs.claim.duration', {
+            description: 'How long one claim took, whatever it claimed',
+            unit: 's',
+          })
+        : { record: () => {} };
   }
 
   /**
@@ -362,12 +376,17 @@ class Runner {
     }
 
     const token = uuid();
+    const started = process.hrtime.bigint();
     const rows = await this.jobs.storeOrDie().claim({
       limit: room,
       now: Date.now(),
       queues: this.queues,
       runner: this.id,
       token,
+    });
+
+    this.claimed.record(Number(process.hrtime.bigint() - started) / 1e9, {
+      'henri.jobs.claimed': rows.length,
     });
 
     for (const row of rows) {

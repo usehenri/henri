@@ -124,6 +124,7 @@ class JobsModule extends BaseModule {
 
     this.enabled = true;
     this.deliverMail();
+    this.instrument();
 
     const names = this.queue.names();
 
@@ -134,6 +135,43 @@ class JobsModule extends BaseModule {
     );
 
     return this.name;
+  }
+
+  /**
+   * How deep the queue is, when henri is collecting metrics.
+   *
+   * The one number about a queue that a log line cannot carry: a depth is
+   * true of a moment, not of an event, and the thing worth alerting on is
+   * that it stopped coming down. An **observable** gauge, so nothing is
+   * measured while a job runs -- but it does cost one `SELECT ... GROUP BY`
+   * per collection, which is what `telemetry.metrics: false` turns off.
+   *
+   * @returns {boolean} Whether the instrument was registered
+   * @memberof JobsModule
+   */
+  instrument() {
+    const { telemetry } = this.henri;
+
+    if (!telemetry || !telemetry.enabled) {
+      return false;
+    }
+
+    return telemetry.observe(
+      'henri.jobs.queue.depth',
+      {
+        description: 'How many jobs the queue holds, by queue and state',
+        kind: 'gauge',
+        unit: '{job}',
+      },
+      async (observe) => {
+        for (const entry of await this.queue.storeOrDie().counts()) {
+          observe(entry.total, {
+            'henri.job.queue': entry.queue,
+            'henri.job.state': entry.state,
+          });
+        }
+      }
+    );
   }
 
   /**

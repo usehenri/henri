@@ -804,6 +804,56 @@ class Jobs {
   }
 
   /**
+   * Performs one claimed row, inside a span when henri is tracing
+   *
+   * The span carries the job's name, its queue, its attempt and its id, and
+   * nothing of its arguments: they are the application's data, and
+   * `base/telemetry.js` in core is explicit that what leaves the process is
+   * henri's own or an identifier that means nothing on its own. The dead
+   * letter row already holds the arguments, durably, for whoever is allowed
+   * to read them.
+   *
+   * It is a root span, not a child of whatever enqueued the job: the queue
+   * carries no trace context on its rows, deliberately -- see the guide.
+   *
+   * A failed attempt is not a failed span: the queue catches the error
+   * itself, retries it and, in the end, writes the row of the dead letter
+   * queue that holds the arguments, every attempt and the stack. That row
+   * is the durable record -- the same reason `base/reporting.js` gives for
+   * not reporting a dead job -- and a second, thinner copy of it in a trace
+   * backend would be one more thing to keep in step.
+   *
+   * @param {object} row A row this runner claimed
+   * @param {object} [options={}] Options
+   * @param {string} [options.runner] The runner id, for the logs
+   * @returns {Promise<object>} `{ state, job, error }`
+   * @memberof Jobs
+   */
+  run(row, options = {}) {
+    const telemetry = this.henri && this.henri.telemetry;
+    const perform = () => this.attempt(row, options);
+
+    if (!telemetry || typeof telemetry.span !== 'function') {
+      return perform();
+    }
+
+    return telemetry.span(
+      `henri.job ${row.name}`,
+      {
+        attributes: {
+          'henri.job.attempt': toNumber(row.attempts) || 1,
+          'henri.job.id': row.id,
+          'henri.job.name': row.name,
+          'henri.job.queue': row.queue,
+        },
+        boundary: 'jobs',
+        kind: 'consumer',
+      },
+      perform
+    );
+  }
+
+  /**
    * Performs one claimed row and writes down what happened
    *
    * A job that throws goes back to its queue with an exponential backoff
@@ -816,7 +866,7 @@ class Jobs {
    * @returns {Promise<object>} `{ state, job, error }`
    * @memberof Jobs
    */
-  async run(row, options = {}) {
+  async attempt(row, options = {}) {
     const store = this.storeOrDie();
     const started = Date.now();
     const attempts = toNumber(row.attempts) || 1;

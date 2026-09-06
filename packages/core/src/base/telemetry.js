@@ -784,10 +784,21 @@ class Telemetry {
         const instrument = create.call(this.meter, name, rest);
 
         instrument.addCallback((result) => {
+          // The answer is handed back rather than dropped: a callback that
+          // has to read a database (the queue's depth) answers a promise,
+          // and the pipeline is the one that waits for it
           try {
-            callback((value, attributes) => result.observe(value, attributes));
+            const answer = callback((value, attributes) =>
+              result.observe(value, attributes)
+            );
+
+            return answer && typeof answer.then === 'function'
+              ? answer.catch((error) => this.failed('observe', error))
+              : answer;
           } catch (error) {
             this.failed('observe', error);
+
+            return undefined;
           }
         });
 
