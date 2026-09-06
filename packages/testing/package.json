@@ -14,24 +14,42 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "types": "index.d.ts",
   "exports": {
-    ".": "./index.js",
-    "./global-setup": "./global-setup.mjs",
-    "./loopback": "./loopback.js",
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./global-setup": {
+      "types": "./global-setup.d.mts",
+      "default": "./global-setup.mjs"
+    },
+    "./loopback": {
+      "types": "./loopback.d.ts",
+      "default": "./loopback.js"
+    },
     "./package.json": "./package.json",
-    "./setup-file": "./setup-file.mjs"
+    "./setup-file": {
+      "types": "./setup-file.d.mts",
+      "default": "./setup-file.mjs"
+    }
   },
   "files": [
+    "global-setup.d.mts",
     "global-setup.mjs",
+    "index.d.ts",
     "index.js",
+    "loopback.d.ts",
     "loopback.js",
     "README.md",
+    "setup-file.d.mts",
     "setup-file.mjs"
   ],
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
+    "@types/supertest": "^7.2.1",
     "supertest": "^7.2.2"
   },
   "peerDependencies": {
