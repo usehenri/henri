@@ -236,6 +236,57 @@ module.exports = {
 };
 
 /**
+ * Generates a mailer (app/mailers), its views and the mail layout
+ *
+ * @param {string} name Mailer name (ex: welcome)
+ * @param {string[]} actions Actions (ex: confirm reset)
+ * @param {object} [opts] { force, report }
+ * @return {Promise<boolean>} True when the mailer was written
+ */
+const mailer = async (name, actions = [], opts = {}) => {
+  const lower = name.toLowerCase();
+  const templates = require('./generate/mailers');
+  const list =
+    actions.length > 0 ? actions.map((one) => one.toLowerCase()) : ['notify'];
+
+  const written = await output(
+    'mailer',
+    'app/mailers',
+    `${lower}.js`,
+    templates.mailer({ actions: list, name: lower }),
+    opts
+  );
+
+  for (const action of list) {
+    await output(
+      'view',
+      `app/views/mailers/${lower}`,
+      `${action}.hbs`,
+      templates.view({ action, name: lower }),
+      { ...opts, raw: true }
+    );
+  }
+
+  // The layout is shared by every mailer: only written when missing
+  await output(
+    'view',
+    'app/views/mailers/layouts',
+    'mailer.hbs',
+    templates.layout(),
+    { ...opts, force: false, raw: true }
+  );
+  await output(
+    'view',
+    'app/views/mailers/layouts',
+    'mailer.text.hbs',
+    templates.textLayout(),
+    { ...opts, force: false, raw: true }
+  );
+
+  return written;
+};
+
+/**
  * The `resources`/`crud` route of a name in config/routes.js, if any
  *
  * @param {string} lower The resource name (ex: tasks)
@@ -467,11 +518,11 @@ const addRoutes = async (entries, opts = {}) => {
  * @param {string} dir Target directory, relative to the project
  * @param {string} file Target file name
  * @param {string} code The code that should be written in the file
- * @param {object} [opts] { force, report }
+ * @param {object} [opts] { force, report, raw }
  * @return {Promise<boolean>} True when the file was written
  */
 const output = async (type, dir, file, code, opts = {}) => {
-  const { force = false } = opts;
+  const { force = false, raw = false } = opts;
   const report = opts.report || new Report();
   const relative = path.join(dir, file);
   const location = path.join(process.cwd(), relative);
@@ -485,7 +536,7 @@ const output = async (type, dir, file, code, opts = {}) => {
     return false;
   }
 
-  fs.outputFileSync(location, await format(code));
+  fs.outputFileSync(location, raw ? code : await format(code));
   report.add('created', relative);
   report.log(`> created ${type} "${file}" @ ${relative}`);
 
@@ -496,6 +547,7 @@ const generators = {
   agents,
   controller,
   crud,
+  mailer,
   model,
   scaffold,
   test,

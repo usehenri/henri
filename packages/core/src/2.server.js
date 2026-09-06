@@ -147,6 +147,7 @@ function watch(henri) {
   const watching = [
     'app/controllers',
     'app/helpers',
+    'app/mailers',
     'app/models',
     'app/workers',
     'app/websocket',

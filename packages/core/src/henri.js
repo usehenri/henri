@@ -8,6 +8,7 @@ const Config = require('./0.config');
 const Mailer = require('./1.mailer');
 const Graphql = require('./1.graphql');
 const Controllers = require('./2.controllers');
+const Mailers = require('./2.mailers');
 const Server = require('./2.server');
 const Model = require('./3.model');
 const View = require('./3.view');
@@ -66,6 +67,7 @@ class Henri extends HenriBase {
     this.modules.add(new Mailer());
     this.modules.add(new Graphql());
     this.modules.add(new Controllers());
+    this.modules.add(new Mailers());
     this.modules.add(new Server());
     this.modules.add(new Model());
     this.modules.add(new Router());

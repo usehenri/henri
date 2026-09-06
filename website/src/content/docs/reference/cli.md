@@ -123,14 +123,15 @@ henri generate <what> <name> [options] [--force]
 henri g <what> <name> [options] [--force]
 ```
 
-| Generator                          | Writes                                                                                                                                                                                                         |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `model <Name> [field:type ...]`    | `app/models/<Name>.js` with the fields (timestamps are on by default).                                                                                                                                         |
-| `controller <name> [action ...]`   | `app/controllers/<name>.js` with one `res.boom.notImplemented()` handler per action, and a `get /<name>/<action>` route for each in `config/routes.js`.                                                        |
-| `worker <name>`                    | `app/workers/<name>.js` with `start()` and `stop()`.                                                                                                                                                           |
-| `test <name>`                      | `test/<name>.test.js` requesting `GET /<name>` with `@usehenri/testing`.                                                                                                                                       |
-| `crud <Name> [field:type ...]`     | The model, `app/controllers/<names>.js` with JSON `index`, `create`, `update` and `destroy`, and the `crud <names>` route.                                                                                     |
-| `scaffold <Name> [field:type ...]` | The model, `app/controllers/<names>.js` with the seven `resources` actions answering HTML or JSON, the `resources <names>` route and the React pages `app/views/pages/<names>/{index,new,edit,show,_form}.js`. |
+| Generator                          | Writes                                                                                                                                                                                                                                               |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model <Name> [field:type ...]`    | `app/models/<Name>.js` with the fields (timestamps are on by default).                                                                                                                                                                               |
+| `controller <name> [action ...]`   | `app/controllers/<name>.js` with one `res.boom.notImplemented()` handler per action, and a `get /<name>/<action>` route for each in `config/routes.js`.                                                                                              |
+| `worker <name>`                    | `app/workers/<name>.js` with `start()` and `stop()`.                                                                                                                                                                                                 |
+| `mailer <name> [action ...]`       | `app/mailers/<name>.js` with one action per name (`notify` when none is given), `app/views/mailers/<name>/<action>.hbs` for each, and `app/views/mailers/layouts/mailer.hbs` and `mailer.text.hbs` when they are missing. See [Mail](/guides/mail/). |
+| `test <name>`                      | `test/<name>.test.js` requesting `GET /<name>` with `@usehenri/testing`.                                                                                                                                                                             |
+| `crud <Name> [field:type ...]`     | The model, `app/controllers/<names>.js` with JSON `index`, `create`, `update` and `destroy`, and the `crud <names>` route.                                                                                                                           |
+| `scaffold <Name> [field:type ...]` | The model, `app/controllers/<names>.js` with the seven `resources` actions answering HTML or JSON, the `resources <names>` route and the React pages `app/views/pages/<names>/{index,new,edit,show,_form}.js`.                                       |
 
 Model and resource names are given in the singular with a capital: `Post` gives the model `Post`, the controller `posts.js`, the route `resources posts` and the pages under `posts/` (`category` gives `categories`, `person` `people`). Existing files are skipped and reported; `--force` overwrites them. Routes are added to `config/routes.js`, which is rewritten (formatted with prettier) with the new keys.
 
@@ -141,6 +142,7 @@ henri generate model User name:string! birthday:date
 henri generate controller locations index show
 henri g scaffold HighScore game:string! score:integer
 henri g worker cleanup
+henri g mailer welcome confirm reset
 henri g test highscores
 ```
 
@@ -153,16 +155,17 @@ henri destroy <what> <name>
 henri d <what> <name>
 ```
 
-| Target              | Removes                                                           |
-| ------------------- | ----------------------------------------------------------------- |
-| `model <Name>`      | `app/models/<Name>.js`                                            |
-| `controller <name>` | `app/controllers/<name>.js` and every route pointing to it        |
-| `route <key>`       | one key of `config/routes.js`: `henri destroy route "get /about"` |
-| `view <folder>`     | `app/views/pages/<folder>`                                        |
-| `worker <name>`     | `app/workers/<name>.js`                                           |
-| `test <name>`       | `test/<name>.test.js`                                             |
-| `crud <Name>`       | what `generate crud` wrote (model, controller, routes)            |
-| `scaffold <Name>`   | what `generate scaffold` wrote (model, controller, routes, pages) |
+| Target              | Removes                                                                          |
+| ------------------- | -------------------------------------------------------------------------------- |
+| `model <Name>`      | `app/models/<Name>.js`                                                           |
+| `controller <name>` | `app/controllers/<name>.js` and every route pointing to it                       |
+| `route <key>`       | one key of `config/routes.js`: `henri destroy route "get /about"`                |
+| `view <folder>`     | `app/views/pages/<folder>`                                                       |
+| `worker <name>`     | `app/workers/<name>.js`                                                          |
+| `mailer <name>`     | `app/mailers/<name>.js` and `app/views/mailers/<name>` (the shared layout stays) |
+| `test <name>`       | `test/<name>.test.js`                                                            |
+| `crud <Name>`       | what `generate crud` wrote (model, controller, routes)                           |
+| `scaffold <Name>`   | what `generate scaffold` wrote (model, controller, routes, pages)                |
 
 Inside a git repository the files are deleted; elsewhere they are moved to `.backup/<timestamp>/` in the project.
 

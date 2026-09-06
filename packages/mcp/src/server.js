@@ -29,6 +29,7 @@ const GENERATORS = [
   'model',
   'controller',
   'crud',
+  'mailer',
   'worker',
   'test',
   'agents',
@@ -40,6 +41,7 @@ const TARGETS = [
   'controller',
   'route',
   'view',
+  'mailer',
   'worker',
   'test',
 ];
@@ -235,12 +237,12 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
     {
       annotations: { destructiveHint: false, idempotentHint: false },
       description:
-        'Runs a henri generator (the same as `henri generate`) and returns the files written, the files skipped and the routes added. scaffold/model/crud take attributes ("title:string!", "body:text"; types: string, text, number, integer, float, boolean, date, json, uuid; ! = required), controller takes action names, agents takes nothing. Existing files are skipped unless force is true.',
+        'Runs a henri generator (the same as `henri generate`) and returns the files written, the files skipped and the routes added. scaffold/model/crud take attributes ("title:string!", "body:text"; types: string, text, number, integer, float, boolean, date, json, uuid; ! = required), controller and mailer take action names, agents takes nothing. Existing files are skipped unless force is true.',
       inputSchema: {
         actions: zod
           .array(zod.string().regex(ACTION))
           .optional()
-          .describe('controller: the actions (index, show, ...)'),
+          .describe('controller, mailer: the actions (index, show, ...)'),
         attributes: zod
           .array(zod.string().regex(ATTRIBUTE))
           .optional()
@@ -282,7 +284,10 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
         });
       }
 
-      const extra = generator === 'controller' ? actions : attributes;
+      const extra =
+        generator === 'controller' || generator === 'mailer'
+          ? actions
+          : attributes;
       const args = ['generate', generator, ...(name ? [name] : []), ...extra];
 
       if (force) {

@@ -161,6 +161,12 @@ class Router extends BaseModule {
       this.handler.get('/_controllers', local, (req, res) =>
         res.json(this.henri.controllers.all())
       );
+
+      // Mailer previews: rendered with the sample data declared next to the
+      // mailers, never delivered (see 2.mailers.js)
+      if (this.henri.mailers && this.henri.mailers.previewable) {
+        this.handler.use('/_mailers', local, this.henri.mailers.previews());
+      }
     }
 
     await this.startView(reload);
