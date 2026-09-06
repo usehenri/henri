@@ -661,6 +661,27 @@ const check = (dir = process.cwd()) => {
     }
   }
 
+  // --- security -------------------------------------------------------------
+  // The static half of `henri audit`: no network, no subprocess beyond the
+  // one doctor already runs. Only the count is reported, because the
+  // findings carry a severity and an OWASP category that this report has no
+  // column for -- and because a warning nobody can act on is noise.
+  const security = require('./audit').findings(dir);
+
+  if (security.length > 0) {
+    const worst = security[0].severity;
+
+    problem(
+      'warning',
+      'security.findings',
+      `${security.length} security finding${security.length === 1 ? '' : 's'} (worst: ${worst})`,
+      {
+        file: security[0].file,
+        hint: 'henri audit lists them with their OWASP category and how to fix them',
+      }
+    );
+  }
+
   const errors = problems.filter((entry) => entry.level === 'error').length;
 
   return {

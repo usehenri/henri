@@ -92,6 +92,76 @@ const COMMANDS = [
   },
   {
     description: [
+      'Checks the application against the checkable requirements of the',
+      'OWASP Application Security Verification Standard 4.0.3, without',
+      'starting it. Every finding names the file and the line it comes from,',
+      'the ASVS requirement and level it maps to and the Top 10 (2021)',
+      'category it falls in, so the report reads against a standard rather',
+      'than against an opinion.',
+      '',
+      'It reports what the application says, never what henri does for it:',
+      'a protection turned off in config/*.json, a secret or a credentials',
+      'key that reached a commit, a model write that takes the whole request',
+      'body, a route left without a role where its siblings have one, a raw',
+      'query built by interpolation, unescaped output in a view, and the',
+      'known advisories of the production dependencies (--no-deps skips',
+      'that one, which is the only step that goes to the network).',
+      '',
+      'Findings are high, medium or low; --fail-on says which of them exits',
+      'with 1 (medium by default, none never fails). A finding in',
+      'config/test.json is reported one severity lower.',
+      '',
+      '--checks prints the catalogue instead of running it: every check, the',
+      'ASVS requirement and level it maps to and what it determines, so the',
+      'answer is what you have covered and not only what you failed.',
+    ],
+    examples: [
+      {
+        command: 'henri audit',
+        description: 'The findings of the application, worst first',
+      },
+      {
+        command: 'henri audit --json --no-deps',
+        description: 'The static findings as JSON, without the network',
+      },
+      {
+        command: 'henri audit --checks',
+        description: 'What the audit can determine, and against what',
+      },
+      {
+        command: 'henri audit --fail-on=high',
+        description: 'Exit 1 on the high findings only',
+      },
+    ],
+    flags: [
+      {
+        description:
+          'exit 1 on this severity or above: high, medium (default), low, none',
+        flag: '--fail-on=<severity>',
+      },
+      {
+        description: 'print the catalogue of checks instead of running them',
+        flag: '--checks',
+      },
+      {
+        description: 'skip the dependency advisories (no network)',
+        flag: '--no-deps',
+      },
+      {
+        description:
+          'print { ok, findings: [{ severity, check, owasp, asvs, level, file, line, message, hint }], summary }',
+        flag: '--json',
+      },
+    ],
+    name: 'audit',
+    summary: 'check the application against the ASVS and the OWASP Top 10',
+    usage: [
+      'henri audit [--fail-on=<severity>] [--no-deps] [--json]',
+      'henri audit --checks [--json]',
+    ],
+  },
+  {
+    description: [
       'Builds the production views without starting the server or the',
       'databases: the next.js pages for the react renderer, the vite client',
       'and SSR bundles (app/views/dist) for inertia. Nothing to do for the',
@@ -322,6 +392,10 @@ const COMMANDS = [
       'its pages, .env present and ignored by git, no secret in config/*.json,',
       'AGENTS.md and vitest.config.js present, dependencies installed.',
       'Exits with 1 when a problem is found; warnings do not fail.',
+      '',
+      'It also runs the static checks of henri audit and warns when they',
+      'find something, without repeating them: run henri audit for the',
+      'findings, their OWASP category and how to fix them.',
     ],
     flags: [
       {

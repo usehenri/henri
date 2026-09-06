@@ -32,6 +32,7 @@ if (require.main === module) {
  */
 const BOOLEAN_FLAGS = [
   'all',
+  'checks',
   'force',
   'force-build',
   'help',
