@@ -127,15 +127,11 @@ jobs:
 
       # Passive: it crawls and reads the answers, it attacks nothing. What
       # fails is in .github/zap/rules.tsv, and it is only the headers and
-      # cookie attributes henri sets for every application.
+      # cookie attributes henri sets for every application. This is the same
+      # script a developer runs against a local application, rather than an
+      # action wrapping it, so there is one code path to keep working.
       - name: ZAP baseline
-        uses: zaproxy/action-baseline@v0.14.0
-        with:
-          target: http://127.0.0.1:3000
-          rules_file_name: .github/zap/rules.tsv
-          cmd_options: '-I -m 2'
-          allow_issue_writing: false
-          artifact_name: zap-baseline
+        run: ZAP_MINUTES=2 scripts/zap-baseline.sh http://127.0.0.1:3000
 
       - name: The application log
         if: always()
