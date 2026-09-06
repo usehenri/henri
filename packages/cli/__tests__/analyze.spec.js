@@ -107,7 +107,10 @@ describe('henri analyze', () => {
       expect(status).toBe(0);
       expect(stdout).toContain('model: level 3, pinned by name');
       expect(stdout).toContain('Waited on');
-      expect(stdout).toContain('graphql (needs)');
+      // This application has no @usehenri/graphql, so no graphql module:
+      // the model runs after it when it is there and needs the configuration
+      expect(stdout).toContain('config (needs)');
+      expect(stdout).not.toContain('graphql');
       expect(stdout).toContain('Waiting on it');
     }, 120000);
 

@@ -4,6 +4,7 @@ const path = require('path');
 const {
   check,
   definesAction,
+  definesGraphql,
   ignores,
   looksPlural,
 } = require('../scripts/doctor');
@@ -54,6 +55,18 @@ describe('doctor helpers', () => {
     expect(definesAction(source, 'show')).toBe(true);
     expect(definesAction(source, 'update')).toBe(true);
     expect(definesAction(source, 'destroy')).toBe(false);
+  });
+
+  test('finds a graphql key in a model source', () => {
+    expect(definesGraphql(`module.exports = { graphql: { types: '' } };`)).toBe(
+      true
+    );
+    expect(definesGraphql(`module.exports = {\n  graphql:{},\n};`)).toBe(true);
+    expect(definesGraphql(`{ "graphql": { "types": "" } }`)).toBe(true);
+    expect(definesGraphql(`module.exports = { schema: { title: {} } };`)).toBe(
+      false
+    );
+    expect(definesGraphql(`// see the graphql guide`)).toBe(false);
   });
 });
 
@@ -231,6 +244,33 @@ describe('henri doctor', () => {
         level: 'warning',
       })
     );
+  });
+
+  test('asks for @usehenri/graphql when a model declares types', () => {
+    const file = path.join(app, 'app/models/Task.js');
+    const original = fs.readFileSync(file, 'utf8');
+
+    fs.writeFileSync(
+      file,
+      original.replace(
+        'module.exports = {',
+        "module.exports = {\n  graphql: { types: 'type Query { tasks: [Task] }' },"
+      )
+    );
+
+    const { problems } = run(app);
+
+    fs.writeFileSync(file, original);
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.declared',
+        hint: expect.stringContaining('@usehenri/graphql'),
+        level: 'error',
+      })
+    );
+
+    expect(run(app).names).not.toContain('deps.declared');
   });
 
   test('reports .env not ignored, and a missing .env as a warning', () => {
