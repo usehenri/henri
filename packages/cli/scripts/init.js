@@ -15,8 +15,9 @@ const {
 } = require('./utils');
 
 /**
- * Template files written by writeAgentFiles (with the placeholders filled)
- * instead of the plain copy
+ * Files writeAgentFiles owns: AGENTS.md is generated from the application
+ * rather than copied, and the other two are copied by it after the sample
+ * resource exists
  */
 const AGENT_FILES = ['AGENTS.md', 'CLAUDE.md', 'mcp.json'];
 
@@ -128,7 +129,7 @@ const main = async (args, name) => {
   await sampleResource(force);
   createDockerfile(pm, store);
   createReadme(projectName, pm, store);
-  createAgentFiles(projectName, force);
+  createAgentFiles(force);
   initGit(skipGit);
 
   if (!skipInstall) {
@@ -151,27 +152,27 @@ ${storeNotice(store)}
 };
 
 /**
- * Writes AGENTS.md (the conventions for coding agents, with the name and
- * the renderer filled in), CLAUDE.md and .mcp.json
+ * Writes AGENTS.md (generated from the application that was just written),
+ * CLAUDE.md and .mcp.json.
  *
- * @param {string} name Project name
- * @param {boolean} force Overwrite existing files
+ * It runs last on purpose: the configuration, the models, the routes and
+ * the sample resource are all on disk by now, so this reads the finished
+ * application and `henri generate agents` later reads the same one. The
+ * directory is the only argument either of them takes, which is what makes
+ * a scaffolded file and a regenerated one the same bytes.
+ *
+ * @param {boolean} force Overwrite what would otherwise be kept
  * @returns {void}
  */
-const createAgentFiles = (name, force) => {
+const createAgentFiles = (force) => {
   console.log(
     ' - Writing AGENTS.md, CLAUDE.md and .mcp.json for coding agents...'
   );
 
-  const { skipped } = writeAgentFiles(process.cwd(), {
-    adapter,
-    force,
-    name,
-    renderer,
-  });
+  const { skipped } = writeAgentFiles(process.cwd(), { force });
 
-  for (const file of skipped) {
-    console.log(`   (${file} exists, kept)`);
+  for (const { file, reason } of skipped) {
+    console.log(`   (${file} kept: ${reason})`);
   }
 };
 

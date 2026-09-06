@@ -599,13 +599,13 @@ class App {
   }
 
   /**
-   * The canonical conventions (the CLI's AGENTS.md template rendered for
-   * this application)
+   * The canonical conventions: what `henri generate agents` would write for
+   * this application, read from the application itself
    *
    * @returns {string} Markdown
    */
   conventions() {
-    return this.cli.agents.renderAgents(this.identity());
+    return this.cli.agents.renderAgents(this.cwd);
   }
 }
 

@@ -1703,12 +1703,20 @@ const check = (dir = process.cwd()) => {
       }
     );
   } else {
-    // AGENTS.md is what a coding agent reads instead of guessing, and it
-    // states two things the configuration can be compared with: which
-    // renderer the pages are written for, and which store's model API the
-    // controllers use. Both are what the generators follow, so a file that
-    // still names the old one sends every generated file the wrong way.
-    const claim = agentsClaim(read('AGENTS.md'));
+    // AGENTS.md is what a coding agent reads instead of guessing, and it is
+    // generated from the application, so the question is whether it still
+    // describes it. Two readings, coarse to fine.
+    //
+    // A file `henri generate agents` wrote carries a digest of what the
+    // application was when it was written: recomputing it catches every
+    // drift the file could carry, a model added or a package installed
+    // included, and not only the two the sentence names. A file written by
+    // hand, or by a henri whose format this one cannot compare itself with,
+    // still gets the renderer and the store checked from its own sentence,
+    // because those two are what send a generated file the wrong way.
+    const source = read('AGENTS.md');
+    const marker = require('./agents').markerOf(source);
+    const claim = agentsClaim(source);
     const adapter = String(
       (
         (config.stores || {}).default ||
@@ -1727,6 +1735,16 @@ const check = (dir = process.cwd()) => {
         ].filter(Boolean)
       : [];
 
+    if (wrong.length === 0 && marker) {
+      const now = require('./agents').fingerprint(dir);
+
+      if (marker.format === now.format && marker.app !== now.app) {
+        wrong.push(
+          'the application has changed since it was written (its models, routes, jobs, mailers, policies or henri packages)'
+        );
+      }
+    }
+
     if (wrong.length > 0) {
       problem(
         'warning',
@@ -1734,7 +1752,7 @@ const check = (dir = process.cwd()) => {
         `AGENTS.md is out of date: ${wrong.join(', ')}`,
         {
           file: 'AGENTS.md',
-          hint: 'henri generate agents --force rewrites it from the configuration. Until it does, an agent reading it writes pages and controllers this application cannot run',
+          hint: 'henri generate agents rewrites the generated section from the application and keeps everything around it. Until it does, an agent reading it writes pages and controllers this application cannot run',
         }
       );
     }
@@ -2380,3 +2398,4 @@ module.exports.policyFor = policyFor;
 module.exports.storeOf = storeOf;
 module.exports.uncommented = uncommented;
 module.exports.imports = imports;
+module.exports.listModules = listModules;
