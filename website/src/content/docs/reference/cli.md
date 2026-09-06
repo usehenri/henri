@@ -128,9 +128,11 @@ GET     /tasks/:id       tasks#show     show_tasks_path
 henri openapi [--out <file>] [--summary]
 ```
 
-Writes the [OpenAPI 3.1](/guides/openapi/) description of what the application exposes, built from `config/routes.js`, `app/models` and the configuration. It starts no server and opens no database. JSON on stdout by default; `--out <file>` writes it instead and prints what it covers, `--summary` prints only that.
+Writes the [OpenAPI 3.1](/guides/openapi/) description of what the application exposes, built from `config/routes.js`, `app/models`, the `params` an action declared and the configuration. It starts no server and opens no database. JSON on stdout by default; `--out <file>` writes it instead and prints what it covers, `--summary` prints only that.
 
-It describes the answers henri produces itself — the HAL collection and resource of every `resources`/`crud` route, the error envelope, the paging, the versioned media type, `Idempotency-Key`, the roles and the policy of each route, and the endpoints henri mounts (`POST /login`, the account flows, the health probes). What a controller writes itself it does not describe: those operations carry the statuses henri answers, `x-henri.known: false`, and no success status at all.
+It describes the answers henri produces itself — the HAL collection and resource of every `resources`/`crud` route, the error envelope, the paging, the versioned media type, `Idempotency-Key`, the roles and the policy of each route, the parameters an action [declared](/guides/controllers/#params-what-an-action-accepts) with the 422 they answer, and the endpoints henri mounts (`POST /login`, the account flows, the health probes). What a controller writes itself it does not describe: those operations carry the statuses henri answers, `x-henri.known: false`, and no success status at all.
+
+Reading a declaration means loading the controller (`require()`, the way the action names are read); a file that will not load outside a booted application, or whose `params` would fail the boot, is named under `x-henri.params.read: false` and in the summary rather than described as accepting nothing.
 
 ```text
 $ henri openapi --summary

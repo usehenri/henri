@@ -125,6 +125,38 @@ module.exports = {
     { only: ['edit', 'submit', 'update', 'withdraw'], run: mustOwnIt },
   ],
 
+  // What each action accepts, checked before it runs and coerced into the
+  // declared type. The check is registered whatever the verb, so the filters
+  // of `index` are refused with a 422 exactly the way the body of `create`
+  // is, and `henri openapi` describes both from this block: the query
+  // parameters of GET /proposals and the request body of POST /proposals are
+  // this, and not a guess made from the model.
+  //
+  // Where the line between this and the model is: here is what may arrive
+  // over HTTP -- the shape, the size, the values that exist at all -- and
+  // there is what makes a proposal (a title of at least eight characters, an
+  // abstract of sixty). The second is a sentence a speaker reads next to the
+  // field they are filling, which is `henri.model.errors()` rendered back
+  // into the form below; the first is a request nobody meant to send.
+  params: {
+    'create,update': {
+      abstract: { maxLength: 4000, type: 'text' },
+      // The public id of an edition or a track, or the empty string the form
+      // posts for "none": `resolveReferences` turns either into what the
+      // column holds, so this says string and not uuid
+      eventId: { type: 'string' },
+      title: { maxLength: 120, type: 'string' },
+      trackId: { type: 'string' },
+    },
+    index: {
+      event: { type: 'uuid' },
+      // The same list the query below filters on: a state that is nobody's
+      // business is a 422 rather than a filter quietly ignored
+      state: { enum: PUBLIC_STATES, type: 'string' },
+    },
+  },
+
+  // eslint-disable-next-line sort-keys -- the hooks and the declaration first
   create: async (req, res) => {
     const attributes = req.permit(...FIELDS);
     let proposal;

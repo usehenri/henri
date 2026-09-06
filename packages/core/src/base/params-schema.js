@@ -98,8 +98,19 @@
  * validates documents), no cross-field rules (`endsAt` after `startsAt` is
  * the action's business, and it needs both values), no date bounds, no
  * message of one's own per field, and no trimming -- henri hands over
- * exactly what was sent. `henri openapi` does not read these declarations
- * yet.
+ * exactly what was sent.
+ *
+ * ## What reads them besides the middleware
+ *
+ * `henri openapi` (base/openapi.js): a declaration is a description of the
+ * request an action accepts, which is what an OpenAPI operation wants, so
+ * the fields become its query, path and body parameters and the 422 below
+ * becomes a response it names. Two things follow from that, and this file
+ * is where they are true: `declarations()` is the only compiler -- the
+ * command runs it over the controller files and a booted application hands
+ * over what it already compiled, so both write the same document -- and the
+ * check is registered whatever the verb, which is why a `GET` that declares
+ * anything is described as answering 422.
  */
 
 const { fail } = require('./errors');

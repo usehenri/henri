@@ -6,38 +6,49 @@ const Henri = require('../henri');
 const { build } = require('../base/openapi');
 const { expand } = require('../base/routes');
 const { loadModules } = require('../utils');
+const { RESERVED: HOOK_KEYS } = require('../base/hooks');
+const { RESERVED: PARAM_KEYS, declarations } = require('../base/params-schema');
 
 const demo = path.resolve(__dirname, '..', '..', '..', 'demo');
+const reserved = new Set([...HOOK_KEYS, ...PARAM_KEYS, 'globalId', 'identity']);
 
 /**
  * The document of the demo application, built from its files the way
- * `henri openapi` builds it
+ * `henri openapi` builds it: the actions the controllers export and the
+ * `params` each of them declared, compiled by the same `declarations()` the
+ * boot compiles them with
  *
  * @returns {object} the document
  */
-const describeDemo = () =>
-  build({
-    actions: Object.fromEntries(
-      Object.entries(
-        loadModules(path.join(demo, 'app', 'controllers'), {
-          keepDirectoryPath: true,
-        })
-      ).flatMap(([, controller]) =>
-        Object.keys(controller)
-          .filter(
-            (key) =>
-              !['before', 'globalId', 'identity'].includes(key) &&
-              typeof controller[key] === 'function'
-          )
-          .map((action) => [`${controller.identity}#${action}`, true])
-      )
-    ),
+const describeDemo = () => {
+  const controllers = loadModules(path.join(demo, 'app', 'controllers'), {
+    keepDirectoryPath: true,
+  });
+  const accepts = {};
+  const actions = {};
+
+  for (const controller of Object.values(controllers)) {
+    const names = Object.keys(controller).filter(
+      (key) => !reserved.has(key) && typeof controller[key] === 'function'
+    );
+    const rules = declarations(controller, controller.identity, names);
+
+    for (const action of names) {
+      actions[`${controller.identity}#${action}`] = true;
+      accepts[`${controller.identity}#${action}`] = rules[action] || {};
+    }
+  }
+
+  return build({
+    accepts,
+    actions,
     config: require(path.join(demo, 'config', 'default.json')),
     info: { title: 'demo', version: '1.0.0' },
     models: Object.values(loadModules(path.join(demo, 'app', 'models'))),
     policies: Object.keys(loadModules(path.join(demo, 'app', 'policies'))),
     routes: expand(require(path.join(demo, 'app', 'routes.js'))),
   });
+};
 
 /**
  * Every `$ref` of a document, with the path it sits at
@@ -155,6 +166,21 @@ describe('the OpenAPI description', () => {
     }
   });
 
+  test('no operation declares the same parameter twice', () => {
+    for (const { operation, route, verb } of operationsOf(document)) {
+      const seen = (operation.parameters || [])
+        .map((parameter) =>
+          parameter.$ref ? resolve(document, parameter.$ref) : parameter
+        )
+        .map((parameter) => `${parameter.in} ${parameter.name}`);
+
+      expect([`${verb} ${route}`, seen.length]).toEqual([
+        `${verb} ${route}`,
+        new Set(seen).size,
+      ]);
+    }
+  });
+
   test('every operation says whether henri knows what it answers', () => {
     for (const { operation, route, verb } of operationsOf(document)) {
       const marks = operation['x-henri'];
@@ -262,6 +288,88 @@ describe('the OpenAPI description', () => {
       expect(document.paths['/echo'].post.responses['409']).toBeUndefined();
     });
 
+    test('a GET declaring its parameters answers 422, and says so', () => {
+      // The check is registered whatever the verb (5.router.js), so a GET
+      // with a declaration refuses `?limit=banana` -- which is what the
+      // document used to deny by tying 422 to the idempotency of a
+      // mutating route
+      const search = document.paths['/notes/search'].get;
+      const named = Object.fromEntries(
+        search.parameters.map((parameter) => [parameter.name, parameter])
+      );
+
+      expect(search.responses['422']).toEqual({
+        $ref: '#/components/responses/InvalidParameters',
+      });
+      expect(search['x-henri'].params).toEqual({
+        fields: ['exact', 'limit', 'q'],
+      });
+      expect(search['x-henri'].enforced).toEqual(['params']);
+      expect(named.limit.schema).toEqual({
+        default: 10,
+        maximum: 50,
+        minimum: 1,
+        type: 'integer',
+      });
+      expect(named.q.schema).toEqual({ maxLength: 60, type: 'string' });
+      expect(named.exact.schema).toEqual({ default: false, type: 'boolean' });
+      expect(named.limit.required).toBe(false);
+    });
+
+    test('a mutating route names both 422s it can answer', () => {
+      // `notes#create` declares `title` and the route honours
+      // Idempotency-Key: two different failures, one status
+      const create = document.paths['/notes'].post;
+      const schema = create.requestBody.content['application/json'].schema;
+
+      expect(create.responses['422']).toEqual({
+        $ref: '#/components/responses/UnprocessableEntity',
+      });
+      expect(
+        document.components.responses.UnprocessableEntity.description
+      ).toContain('HENRI_PARAMS_INVALID');
+      expect(schema.properties.title).toEqual({
+        maxLength: 40,
+        type: 'string',
+      });
+      expect(schema.required).toEqual(['title']);
+      // Open on purpose: an undeclared key is dropped, not refused
+      expect(schema.additionalProperties).toBe(true);
+      expect(create.requestBody.required).toBe(true);
+      expect(create['x-henri'].enforced).toEqual(['_links', 'params']);
+    });
+
+    test('a route with no declaration keeps the idempotency 422 alone', () => {
+      expect(document.paths['/once'].post.responses['422']).toEqual({
+        $ref: '#/components/responses/IdempotencyMismatch',
+      });
+      expect(
+        document.components.responses.IdempotencyMismatch.description
+      ).not.toContain('params');
+      // ... and one that opted out of idempotency answers no 422 at all
+      expect(document.paths['/echo'].post.responses['422']).toBeUndefined();
+      expect(document.paths['/echo'].post['x-henri'].params).toBeUndefined();
+    });
+
+    test('a declared page replaces the paging parameter, never doubles it', () => {
+      const declared = build({
+        accepts: { 'tasks#index': { page: { min: 1, type: 'integer' } } },
+        actions: { 'tasks#index': true },
+        models: [],
+        routes: expand({ 'resources tasks': { only: ['index'] } }),
+      });
+      const index = declared.paths['/tasks'].get;
+      const names = index.parameters.map(
+        (parameter) => parameter.name || parameter.$ref
+      );
+
+      expect(names).toEqual(['page', '#/components/parameters/PerPage']);
+      expect(index.parameters[0].schema).toEqual({
+        minimum: 1,
+        type: 'integer',
+      });
+    });
+
     test('the endpoints henri mounts itself are described exactly', () => {
       const login = document.paths['/login'].post;
 
@@ -306,7 +414,7 @@ describe('the OpenAPI description', () => {
 
       expect(form['x-henri']).toMatchObject({
         answer: 'page',
-        enforced: '_links',
+        enforced: ['_links'],
         known: false,
       });
       expect(
@@ -340,6 +448,39 @@ describe('the OpenAPI description', () => {
       expect(operation.responses.default.description).toContain(
         '501 in development'
       );
+    });
+
+    test('a declaration it could not read is named, not invented', () => {
+      // The one case where the two ways of building the document differ: a
+      // controller `henri openapi` could not load. It says so rather than
+      // describing the action as accepting nothing
+      const blind = build({
+        accepts: { 'tasks#index': null },
+        actions: { 'tasks#index': true },
+        models: [],
+        routes: expand({ 'resources tasks': { only: ['index'] } }),
+      });
+      const index = blind.paths['/tasks'].get;
+
+      expect(index['x-henri'].params).toEqual({ read: false });
+      expect(index.responses['422']).toBeUndefined();
+      expect(index.description).toContain('could not read the `params`');
+      expect(blind.info['x-henri'].params).toEqual({
+        unread: ['tasks#index'],
+      });
+      // ... and a caller that passed no declarations at all is in the same
+      // position for every operation
+      expect(
+        build({
+          actions: { 'tasks#index': true },
+          models: [],
+          routes: expand({ 'resources tasks': { only: ['index'] } }),
+        }).paths['/tasks'].get['x-henri'].params
+      ).toEqual({ read: false });
+    });
+
+    test('the demo document read every declaration it needed', () => {
+      expect(document.info['x-henri'].params).toBeUndefined();
     });
 
     test('the coverage says how much of the document was derived', () => {
@@ -382,6 +523,83 @@ describe('the OpenAPI description', () => {
       expect(Object.keys(live.paths).sort()).toEqual(
         Object.keys(document.paths).sort()
       );
+    });
+
+    test('both ways of building it read the same declarations', () => {
+      // The compiled rules of a booted application and the ones
+      // `henri openapi` compiles from the files are the same rules: the
+      // parameters, the request bodies and the 422s they produce have to
+      // match operation for operation, or one of the two documents is lying
+      for (const { operation, route, verb } of operationsOf(document)) {
+        const other = (live.paths[route] || {})[verb] || {};
+        const where = `${verb} ${route}`;
+
+        expect([where, other['x-henri'] && other['x-henri'].params]).toEqual([
+          where,
+          operation['x-henri'].params,
+        ]);
+        expect([where, other.responses && other.responses['422']]).toEqual([
+          where,
+          operation.responses['422'],
+        ]);
+        expect([where, other.parameters]).toEqual([
+          where,
+          operation.parameters,
+        ]);
+        expect([where, other.requestBody]).toEqual([
+          where,
+          operation.requestBody,
+        ]);
+      }
+    });
+
+    test('a GET refuses what the document says it refuses', async () => {
+      const described = live.paths['/notes/search'].get;
+      const answer = await request
+        .get('/notes/search?limit=banana')
+        .set('Accept', 'application/json');
+
+      expect(answer.status).toBe(422);
+      expect(described.responses['422']).toEqual({
+        $ref: '#/components/responses/InvalidParameters',
+      });
+      expect(live.components.responses.InvalidParameters.description).toContain(
+        'HENRI_PARAMS_INVALID'
+      );
+      expect(answer.body.code).toBe('HENRI_PARAMS_INVALID');
+      expect(Object.keys(answer.body.data.errors)).toEqual(['limit']);
+
+      // ... and accepts what it says it accepts, in the shape it declared
+      const ok = await request
+        .get('/notes/search?limit=2&exact=true')
+        .set('Accept', 'application/json');
+
+      expect(ok.status).toBe(200);
+    });
+
+    test('a mutating route refuses a body the document declared', async () => {
+      const described = live.paths['/notes'].post;
+      const body = described.requestBody.content['application/json'].schema;
+      const answer = await request
+        .post('/notes')
+        .set('Accept', 'application/json')
+        .send({ title: 'x'.repeat(body.properties.title.maxLength + 1) });
+
+      expect(answer.status).toBe(422);
+      expect(described.responses['422']).toEqual({
+        $ref: '#/components/responses/UnprocessableEntity',
+      });
+      expect(answer.body.code).toBe('HENRI_PARAMS_INVALID');
+
+      // The schema says `title` is required, and so does the application
+      const missing = await request
+        .post('/notes')
+        .set('Accept', 'application/json')
+        .send({});
+
+      expect(body.required).toEqual(['title']);
+      expect(missing.status).toBe(422);
+      expect(Object.keys(missing.body.data.errors)).toEqual(['title']);
     });
 
     test('a described collection answers what the document says', async () => {

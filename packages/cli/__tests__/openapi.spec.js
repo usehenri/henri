@@ -52,6 +52,103 @@ describe('henri openapi', () => {
     expect(document.paths['/livez']).toBeDefined();
   });
 
+  describe('what a controller declared it accepts', () => {
+    const controller = () => path.join(app, 'app', 'controllers', 'tasks.js');
+    let original;
+
+    beforeEach(() => {
+      original = fs.readFileSync(controller(), 'utf8');
+    });
+
+    afterEach(() => {
+      fs.writeFileSync(controller(), original);
+    });
+
+    /**
+     * Adds a `params` export to the scaffolded controller
+     *
+     * @param {string} block The block, as source
+     * @returns {object} The document `henri openapi` writes for it
+     */
+    const withParams = (block) => {
+      fs.writeFileSync(
+        controller(),
+        original.replace('module.exports = {', `module.exports = {\n${block}\n`)
+      );
+
+      return JSON.parse(henri(['openapi'], { cwd: app }).stdout);
+    };
+
+    test('is read from the controller file, with no server and no database', () => {
+      const document = withParams(
+        `  params: {
+    index: { q: { type: 'string', maxLength: 20 } },
+    create: { title: { type: 'string', required: true } },
+  },`
+      );
+      const index = document.paths['/tasks'].get;
+      const create = document.paths['/tasks'].post;
+
+      // A GET answers 422 as soon as it declares anything: the check is
+      // registered whatever the verb
+      expect(index.responses['422']).toEqual({
+        $ref: '#/components/responses/InvalidParameters',
+      });
+      expect(index.parameters).toContainEqual(
+        expect.objectContaining({
+          in: 'query',
+          name: 'q',
+          required: false,
+          schema: { maxLength: 20, type: 'string' },
+        })
+      );
+      expect(index['x-henri'].params).toEqual({ fields: ['q'] });
+
+      // A mutating route can answer 422 for two reasons, and says so
+      expect(create.responses['422']).toEqual({
+        $ref: '#/components/responses/UnprocessableEntity',
+      });
+      // The body is the declaration, not the model's writable columns
+      expect(
+        create.requestBody.content['application/json'].schema.properties
+      ).toEqual({ title: { type: 'string' } });
+      expect(
+        create.requestBody.content['application/json'].schema.required
+      ).toEqual(['title']);
+    });
+
+    test('says which declaration it could not read, and describes no parameters', async () => {
+      const document = withParams(
+        "  params: { index: { q: { type: 'nope' } } },"
+      );
+      const index = document.paths['/tasks'].get;
+
+      // A declaration that would fail the boot is one this command could
+      // not read: the operation says so rather than accepting everything
+      expect(index['x-henri'].params).toEqual({ read: false });
+      expect(index.responses['422']).toBeUndefined();
+      expect(index.description).toContain('could not read the `params`');
+      expect(document.info['x-henri'].params.unread).toContain('tasks#index');
+      expect(await validate(document)).toEqual({ valid: true });
+
+      const { stdout } = henri(['openapi', '--summary'], { cwd: app });
+
+      expect(stdout).toContain('could not be read');
+      expect(stdout).toContain('tasks#index');
+    });
+
+    test('a scaffolded application declares none, and nothing is invented', () => {
+      const document = JSON.parse(henri(['openapi'], { cwd: app }).stdout);
+
+      expect(document.info['x-henri'].params).toBeUndefined();
+      expect(document.paths['/tasks'].get['x-henri'].params).toBeUndefined();
+      expect(document.paths['/tasks'].get.responses['422']).toBeUndefined();
+      expect(document.paths['/tasks'].post.responses['422']).toEqual({
+        $ref: '#/components/responses/IdempotencyMismatch',
+      });
+    });
+  });
+
   test('writes the document with --out and reports what it covers', () => {
     const { status, stdout } = henri(['openapi', '--out', 'openapi.json'], {
       cwd: app,

@@ -241,12 +241,17 @@ class Router extends BaseModule {
    */
   describe() {
     const { config, controllers, model, policies } = this.henri;
+    const accepts = {};
     const actions = {};
     let info = {};
 
     for (const route of Object.values(this.routes)) {
       actions[route.controller] =
         typeof controllers.get(route.controller) === 'function';
+      // The compiled rules the boot already holds. `{}` and not null: this
+      // process read the controller, so an action declaring nothing is a
+      // fact here rather than something henri could not find out
+      accepts[route.controller] = controllers.accepts(route.controller) || {};
     }
 
     try {
@@ -264,6 +269,7 @@ class Router extends BaseModule {
     }
 
     return openapi.build({
+      accepts,
       actions,
       config,
       info,

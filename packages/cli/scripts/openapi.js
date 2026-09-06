@@ -86,28 +86,44 @@ const scanActions = (source) => {
 };
 
 /**
- * Which `controller#action` the application actually exports.
+ * Which `controller#action` the application exports, and what each of them
+ * declared it accepts.
  *
  * A route pointing at an action that is not there answers 501 in
  * development and is never registered in production, and the document says
  * so rather than describing an endpoint nobody can call. `null` when
  * `app/controllers` does not exist, which is the honest "unknown".
  *
+ * The declarations are read the only way they can be: the `params` export is
+ * a JavaScript object holding regular expressions and functions, so there is
+ * nothing to scan for. This loads the controller with `require()`, which is
+ * what reading the actions already did, and compiles the block with the same
+ * `declarations()` the boot compiles it with -- so the document is the same
+ * one a booted application answers at `/_openapi.json`. A file that will not
+ * load outside a booted application, or whose declaration would fail the
+ * boot, is marked `null` here: the builder says so in the document rather
+ * than describing an action as accepting nothing.
+ *
  * @param {string} cwd The application directory
- * @returns {?object} `{ 'tasks#index': true }`, or null
+ * @returns {{accepts: ?object, actions: ?object}} `{ 'tasks#index': ... }`
  */
-const actionsOf = (cwd) => {
+const controllersOf = (cwd) => {
   const dir = path.join(cwd, 'app', 'controllers');
 
   if (!fs.existsSync(dir)) {
-    return null;
+    return { accepts: null, actions: null };
   }
 
+  const params = fromCore('src/base/params-schema', cwd);
+  const hooks = fromCore('src/base/hooks', cwd);
+  const reserved = new Set([...hooks.RESERVED, ...params.RESERVED]);
+  const accepts = {};
   const actions = {};
 
   for (const name of listing(dir)) {
     const file = path.join(dir, `${name}.js`);
     let names;
+    let rules = null;
 
     try {
       delete require.cache[require.resolve(file)];
@@ -115,8 +131,16 @@ const actionsOf = (cwd) => {
       const loaded = require(file) || {};
 
       names = Object.keys(loaded).filter(
-        (key) => key !== 'before' && typeof loaded[key] === 'function'
+        (key) => !reserved.has(key) && typeof loaded[key] === 'function'
       );
+
+      try {
+        rules = params.declarations(loaded, name, names);
+      } catch {
+        // A declaration henri could not carry out fails the boot; here it
+        // is one more thing this command could not read
+        rules = null;
+      }
     } catch {
       // A controller that cannot be loaded outside a booted application:
       // read the actions off the source instead of pretending there are none
@@ -125,11 +149,20 @@ const actionsOf = (cwd) => {
 
     for (const action of names) {
       actions[`${name}#${action}`] = true;
+      accepts[`${name}#${action}`] = rules ? rules[action] || {} : null;
     }
   }
 
-  return actions;
+  return { accepts, actions };
 };
+
+/**
+ * Which `controller#action` the application actually exports
+ *
+ * @param {string} cwd The application directory
+ * @returns {?object} `{ 'tasks#index': true }`, or null
+ */
+const actionsOf = (cwd) => controllersOf(cwd).actions;
 
 /**
  * The identity of the application, for `info`
@@ -162,9 +195,11 @@ const identity = (cwd) => {
 const describe = (cwd = process.cwd()) => {
   const { build } = fromCore('src/base/openapi', cwd);
   const { loadModules } = fromCore('src/utils', cwd);
+  const { accepts, actions } = controllersOf(cwd);
 
   return build({
-    actions: actionsOf(cwd),
+    accepts,
+    actions,
     config: readConfig(cwd, undefined),
     info: identity(cwd),
     models: Object.values(loadModules(path.join(cwd, 'app', 'models'))),
@@ -180,7 +215,7 @@ const describe = (cwd = process.cwd()) => {
  * @returns {string} The summary
  */
 const summary = (document) => {
-  const { coverage, excluded = [] } = document.info['x-henri'];
+  const { coverage, excluded = [], params = {} } = document.info['x-henri'];
   const unknown = [];
 
   for (const [route, item] of Object.entries(document.paths)) {
@@ -208,6 +243,13 @@ const summary = (document) => {
       '  What henri cannot know (the controller writes the body; only the failures henri answers itself are described):'
     );
     lines.push(...unknown.map((line) => `    ${line}`), '');
+  }
+
+  if (Array.isArray(params.unread) && params.unread.length > 0) {
+    lines.push(
+      '  Whose `params` declaration could not be read (the controller did not load here; a booted application describes them):'
+    );
+    lines.push(...params.unread.map((entry) => `    ${entry}`), '');
   }
 
   for (const entry of excluded) {
@@ -276,5 +318,6 @@ const main = async (args = {}) => {
 
 module.exports = main;
 module.exports.actionsOf = actionsOf;
+module.exports.controllersOf = controllersOf;
 module.exports.describe = describe;
 module.exports.summary = summary;
