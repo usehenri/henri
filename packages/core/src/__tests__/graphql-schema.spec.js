@@ -54,9 +54,9 @@ const everything = file('Thing', {
     price: { type: 'float' },
     reference: { type: 'bigint' },
     size: { type: 'number' },
-    total: { scale: 2, type: 'decimal' },
     state: { enum: ['draft', 'published'], type: 'string' },
     title: { required: true, type: 'string' },
+    total: { scale: 2, type: 'decimal' },
   },
 });
 

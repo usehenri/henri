@@ -16,11 +16,11 @@ const invoiceModel = {
   schema: {
     // The one people reach for: money
     amount: { scale: 2, type: 'decimal' },
+    name: { type: 'string' },
     // The default settings, 19 total digits and 4 after the point
     rate: { type: 'decimal' },
     // A 64-bit identifier, the other half of the change
     reference: { type: 'bigint' },
-    name: { type: 'string' },
   },
   store: 'default',
 };

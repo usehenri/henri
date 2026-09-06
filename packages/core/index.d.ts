@@ -1860,9 +1860,14 @@ declare namespace start {
     default?: unknown | (() => unknown);
     /** The values accepted, checked after the coercion. */
     enum?: unknown[];
-    /** The bounds of a number. */
-    min?: number;
-    max?: number;
+    /**
+     * The bounds of a number. On a `decimal` or a `bigint` they may be
+     * written out (`min: '0.01'`), so a limit past what a JavaScript
+     * number carries exactly can be declared at all; either way they are
+     * compared digit by digit and never through a double.
+     */
+    min?: number | string;
+    max?: number | string;
     /** The bounds of a length: characters of a string, items of a list. */
     minLength?: number;
     maxLength?: number;

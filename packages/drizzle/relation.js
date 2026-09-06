@@ -139,8 +139,8 @@ const exactComparison = (Model, key, field, shorthand, value) => {
   return {
     column: dialect.cast(Model.column(key), field),
     value: Array.isArray(values)
-      ? values.map((entry) => dialect.compared(entry, field))
-      : dialect.compared(values, field),
+      ? values.map((entry) => dialect.bind(entry, field))
+      : dialect.bind(values, field),
   };
 };
 

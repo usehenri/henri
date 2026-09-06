@@ -204,8 +204,14 @@ describe('attribute parsing', () => {
     );
 
     TYPES.forEach((type, index) => {
+      // A decimal is written with a precision and a scale: the default
+      // (19, 4) is not what somebody who typed `price:decimal` meant
+      const settings = type === 'decimal' ? { precision: 12, scale: 2 } : {};
+
       expect(schema[`f${index}`]).toEqual(
-        index % 2 ? { required: true, type } : { type }
+        index % 2
+          ? { required: true, ...settings, type }
+          : { ...settings, type }
       );
     });
     expect(parseAttributes(['name'])).toEqual({ name: { type: 'string' } });
@@ -218,8 +224,8 @@ describe('attribute parsing', () => {
   });
 
   test('rejects unknown types with the list of valid ones', () => {
-    expect(() => parseAttributes(['score:bigint'])).toThrow(
-      /Unknown type "bigint" for attribute "score"\. Valid types: string, text/
+    expect(() => parseAttributes(['score:varchar'])).toThrow(
+      /Unknown type "varchar" for attribute "score"\. Valid types: string, text/
     );
     expect(() => parseAttributes([':string'])).toThrow(/Invalid attribute/);
   });
@@ -270,6 +276,8 @@ describe('henri generate', () => {
           'g:date',
           'h:json',
           'i:uuid',
+          'j:decimal',
+          'k:bigint!',
         ],
         { cwd: app }
       );
@@ -291,6 +299,8 @@ describe('henri generate', () => {
         g: { type: 'date' },
         h: { type: 'json' },
         i: { type: 'uuid' },
+        j: { precision: 12, scale: 2, type: 'decimal' },
+        k: { required: true, type: 'bigint' },
       });
     });
 

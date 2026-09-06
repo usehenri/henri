@@ -154,6 +154,47 @@ const sqlite = {
   affected: (result) => Number((result && result.changes) || 0),
 
   /**
+   * The bound value of a comparison against a cast column
+   *
+   * @param {*} value A canonical exact value
+   * @param {object} field The normalized field
+   * @returns {*} What to bind
+   */
+  bind: (value, field) =>
+    field.type === 'bigint' ? BigInt(value) : toNumber(value),
+
+  /**
+   * How an exact column is compared and ordered.
+   *
+   * sqlite has neither an exact decimal nor a 64-bit integer a driver hands
+   * back whole -- better-sqlite3 returns `9223372036854775807` as
+   * `9223372036854776000` unless every read asks for BigInts -- so both
+   * types keep their digits in a `text` column, which round-trips the
+   * *value* exactly. A comparison is a different question from a value, and
+   * text answers it wrongly (`'9.99' > '10'` lexicographically), so the
+   * comparison is the one thing that goes through a cast:
+   *
+   * - a `bigint` casts to `INTEGER`, which sqlite carries on 64 bits: the
+   *   answer is exact.
+   * - a `decimal` casts to `REAL`, and that is the one approximation henri
+   *   ships for these types. It is a double, so it is exact to about
+   *   sixteen significant digits and gives the same answer PostgreSQL does
+   *   for every value a person writes down; past that it is the nearest
+   *   double. The stored value never goes through it.
+   *
+   * The bound value is cast the same way, because sqlite would otherwise
+   * compare a number against text and sort every number first.
+   *
+   * @param {object} column The Drizzle column
+   * @param {object} field The normalized field
+   * @returns {object} An SQL expression
+   */
+  cast: (column, field) =>
+    field.type === 'bigint'
+      ? sql`CAST(${column} AS INTEGER)`
+      : sql`CAST(${column} AS REAL)`,
+
+  /**
    * Closes the database
    *
    * @param {object} client A better-sqlite3 database
@@ -320,47 +361,6 @@ const sqlite = {
 
     return error;
   },
-
-  /**
-   * How an exact column is compared and ordered.
-   *
-   * sqlite has neither an exact decimal nor a 64-bit integer a driver hands
-   * back whole -- better-sqlite3 returns `9223372036854775807` as
-   * `9223372036854776000` unless every read asks for BigInts -- so both
-   * types keep their digits in a `text` column, which round-trips the
-   * *value* exactly. A comparison is a different question from a value, and
-   * text answers it wrongly (`'9.99' > '10'` lexicographically), so the
-   * comparison is the one thing that goes through a cast:
-   *
-   * - a `bigint` casts to `INTEGER`, which sqlite carries on 64 bits: the
-   *   answer is exact.
-   * - a `decimal` casts to `REAL`, and that is the one approximation henri
-   *   ships for these types. It is a double, so it is exact to about
-   *   sixteen significant digits and gives the same answer PostgreSQL does
-   *   for every value a person writes down; past that it is the nearest
-   *   double. The stored value never goes through it.
-   *
-   * The bound value is cast the same way, because sqlite would otherwise
-   * compare a number against text and sort every number first.
-   *
-   * @param {object} column The Drizzle column
-   * @param {object} field The normalized field
-   * @returns {object} An SQL expression
-   */
-  cast: (column, field) =>
-    field.type === 'bigint'
-      ? sql`CAST(${column} AS INTEGER)`
-      : sql`CAST(${column} AS REAL)`,
-
-  /**
-   * The bound value of a comparison against a cast column
-   *
-   * @param {*} value A canonical exact value
-   * @param {object} field The normalized field
-   * @returns {*} What to bind
-   */
-  compared: (value, field) =>
-    field.type === 'bigint' ? BigInt(value) : toNumber(value),
 
   /**
    * Column builder for a normalized field
