@@ -109,12 +109,25 @@ an app and is what core's tests boot.
   over the file that loaded (`0.config.js`): `HENRI_SECRET` sets `secret`,
   `HENRI_HOST` `host`, `DATABASE_URL` `stores.default.url`, and
   `HENRI_CONFIG__<key>` (`HENRI_CONFIG_JSON__<key>` for JSON) any other key,
-  whose type comes from the file; every key the environment provided is
+  whose type comes from the file and, when the file has no value there, from
+  the schema; every key the environment provided is
   printed at boot with the `filterParameters` masked. Keys: `port`, `host`, `cors`,
   `renderer`, `inertia`, `experimental`, `stores`, `secret`, `user` (string or
   `{ model, public, loginPath, afterLogin, sessionMaxAge }`), `baseRole`,
   `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `jobs`,
   `rateLimit`, `helmet`, `filterParameters`, `bodyLimit`, `requestTimeout`.
+- The configuration is validated at boot, before any other module starts:
+  `base/config-schema.js` declares every key henri owns (as data, in the order
+  of the documentation page) and `base/config-validate.js` walks it. A wrong
+  value is a `ConfigurationError` listing every problem at once with the key,
+  what was expected, what arrived and where the value came from -- the file,
+  the credentials file or the environment variable -- and it reaches the
+  command line as `CONFIG_INVALID`. An unknown key is a warning, with the
+  closest declared name when it is a near miss. `henri doctor` runs the same
+  schema over every `config/*.json` without booting. The schema, the
+  `Configuration` interface of `index.d.ts` and the table of
+  `website/src/content/docs/configuration.md` are compared key by key by
+  `src/__tests__/config-schema.spec.js`: a new key goes in all three.
 - The JSON API layer lives in `base/{api,hateoas,idempotency,rate-limit,
 request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   `res.collection()` answer HAL with `_links` from the route helpers filtered

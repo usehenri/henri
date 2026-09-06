@@ -142,6 +142,12 @@ annotation when a helper builds part of it:
 const config = { renderer: 'react', stores: { default: { adapter: 'disk' } } };
 ```
 
+It cannot drift from what henri actually accepts: the declarations and the
+[schema the boot runs](/configuration/#validation) are compared key by key by
+`@usehenri/core`'s own suite, along with the table of the
+[configuration page](/configuration/#keys). Adding a key means adding it in
+all three.
+
 ## What is not typed
 
 - **The models.** `Task` is a Mongoose `Model`, a Sequelize `ModelStatic` or a
