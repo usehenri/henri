@@ -447,6 +447,108 @@ describe('the query seam', () => {
     });
   });
 
+  describe('the middleware', () => {
+    /**
+     * A response double carrying the two hooks the middleware uses
+     *
+     * @returns {object} the response
+     */
+    const fakeRes = () => {
+      const listeners = [];
+
+      return {
+        finish: () => listeners.forEach((fn) => fn()),
+        headers: {},
+        headersSent: false,
+        on: (event, fn) => event === 'finish' && listeners.push(fn),
+        setHeader(name, value) {
+          this.headers[name] = value;
+        },
+        writeHead() {
+          return this;
+        },
+      };
+    };
+
+    test('writes the header before the answer goes out, in development', () => {
+      const module = build({ detect: { threshold: 2 } });
+      const middleware = module.middleware();
+      const res = fakeRes();
+
+      expect(middleware).toBeTypeOf('function');
+
+      inRequest('req', () => {
+        middleware({ method: 'GET' }, res, () => {});
+        record(module);
+        record(module);
+        // Express writes the head when the answer starts going out; the
+        // header has to be there by then, which is what the wrap is for
+        res.writeHead(200);
+      });
+
+      expect(res.headers['X-Henri-Queries']).toContain(
+        'n+1 Track.findByKey x2'
+      );
+    });
+
+    test('and outside development it writes none at all', () => {
+      const module = build({ detect: { threshold: 2 } }, true);
+
+      // Production turns the whole seam off, so there is no middleware
+      expect(module.enabled).toBe(false);
+      expect(module.middleware()).toBeNull();
+
+      // On in production by request, the header still is not: a count of an
+      // application's internals is nobody else's business
+      const counting = build({ detect: { threshold: 2 }, enabled: true }, true);
+      const res = fakeRes();
+
+      inRequest('req', () => {
+        counting.middleware()({ method: 'GET' }, res, () => {});
+        record(counting);
+        record(counting);
+        res.writeHead(200);
+      });
+
+      expect(res.headers['X-Henri-Queries']).toBeUndefined();
+    });
+
+    test('the end of the request is when the count is final', () => {
+      const module = build({ detect: { threshold: 3 } });
+      const res = fakeRes();
+
+      inRequest('req', () => {
+        module.middleware()({ method: 'GET' }, res, () => {});
+
+        for (let index = 0; index < 7; index += 1) {
+          record(module);
+        }
+
+        res.finish();
+      });
+
+      const warning = module.henri.lines.find((line) => line[0] === 'warn');
+
+      // Seven, not the three that crossed the line
+      expect(warning.join(' ')).toContain('ran 7 times');
+      expect(module.stats().findings).toBe(1);
+    });
+
+    test('a request with no query allocates no bucket', () => {
+      const module = build({ detect: { threshold: 2 } });
+      const res = fakeRes();
+
+      inRequest('quiet', () => {
+        module.middleware()({ method: 'GET' }, res, () => {});
+        res.writeHead(200);
+        res.finish();
+      });
+
+      expect(res.headers['X-Henri-Queries']).toBeUndefined();
+      expect(module.stats().findings).toBe(0);
+    });
+  });
+
   describe('off', () => {
     test('installs nothing and says nothing', () => {
       const module = build(false);
