@@ -33,8 +33,8 @@ henri generate worker cleanup | test posts | agents   # app/workers, test/, AGEN
 henri destroy scaffold Post                           # undo (model, controller, route, view, worker, test, crud too)
 ```
 
-Types: `string, text, number, integer, float, boolean, date, json, uuid`; a
-trailing `!` makes the field required. `Post` gives `posts` (`Category` ->
+Types: `string, text, number, integer, float, decimal, bigint, boolean, date,
+json, uuid`; a trailing `!` makes the field required. `Post` gives `posts` (`Category` ->
 `categories`, `Person` -> `people`). Existing files are skipped unless `--force`
 is given; `--json` prints the files written or removed. Generators rewrite
 `config/routes.js` through prettier: comments in that file are lost.

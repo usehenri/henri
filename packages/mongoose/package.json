@@ -23,6 +23,8 @@
   "main": "index.js",
   "files": [
     "index.js",
+    "exact.js",
+    "exact-paths.js",
     "external-id.js",
     "plugins.js",
     "schema.js",

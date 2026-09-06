@@ -1,4 +1,11 @@
 const TYPES = require('./types');
+const {
+  canonical,
+  canonicalInteger,
+  compare,
+  isExact,
+  settingsOf,
+} = require('./exact');
 const { isPlainObject } = require('./utils');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -89,6 +96,22 @@ const coerce = (field, value) => {
   }
 
   switch (kind) {
+    // The two the column keeps exactly and JavaScript cannot: they are
+    // decimal strings on both sides of the boundary (see ./exact.js)
+    case 'decimal': {
+      const answer = canonical(value, settingsOf(field));
+
+      return answer.error
+        ? { error: answer.error, value }
+        : { error: null, value: answer.value };
+    }
+    case 'bigint': {
+      const answer = canonicalInteger(value);
+
+      return answer.error
+        ? { error: answer.error, value }
+        : { error: null, value: answer.value };
+    }
     case 'integer': {
       const number =
         typeof value === 'string' && value.trim() !== ''
@@ -170,6 +193,19 @@ const check = (name, field, value, attrs) => {
     );
   }
 
+  // An exact value is a string, so its bounds are compared digit by digit
+  // rather than through the double the type exists to avoid
+  if (isExact(field.type)) {
+    if ('min' in field && compare(value, field.min) < 0) {
+      return failure('min', `must be at least ${field.min}`, name, value);
+    }
+    if ('max' in field && compare(value, field.max) > 0) {
+      return failure('max', `must be at most ${field.max}`, name, value);
+    }
+
+    return custom(name, field, value, attrs);
+  }
+
   if (typeof value === 'number') {
     if (typeof field.min === 'number' && value < field.min) {
       return failure('min', `must be at least ${field.min}`, name, value);
@@ -207,25 +243,39 @@ const check = (name, field, value, attrs) => {
     }
   }
 
-  if (typeof field.validate === 'function') {
-    let result;
+  return custom(name, field, value, attrs);
+};
 
-    try {
-      result = field.validate(value, attrs);
-    } catch (error) {
-      result = error.message || 'is invalid';
-    }
-
-    if (result === false) {
-      return failure('validate', 'is invalid', name, value);
-    }
-    if (typeof result === 'string') {
-      return failure('validate', result, name, value);
-    }
+/**
+ * Runs the `validate` function of a field, when it has one
+ *
+ * @param {string} name The field name
+ * @param {object} field The normalized field
+ * @param {*} value The coerced value
+ * @param {object} attrs Every attribute
+ * @returns {?object} An error entry or null
+ */
+function custom(name, field, value, attrs) {
+  if (typeof field.validate !== 'function') {
+    return null;
   }
 
-  return null;
-};
+  let result;
+
+  try {
+    result = field.validate(value, attrs);
+  } catch (error) {
+    result = error.message || 'is invalid';
+  }
+
+  if (result === false) {
+    return failure('validate', 'is invalid', name, value);
+  }
+
+  return typeof result === 'string'
+    ? failure('validate', result, name, value)
+    : null;
+}
 
 /**
  * Validates and coerces attributes against normalized fields

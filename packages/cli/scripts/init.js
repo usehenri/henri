@@ -835,7 +835,8 @@ const sampleResource = async (force) => {
       location,
       await format(`
 // Models are autoloaded from app/models and exposed globally (here: \`Task\`).
-// Types: string, text, number, integer, float, boolean, date, json, uuid.
+// Types: string, text, number, integer, float, decimal, bigint, boolean,
+// date, json, uuid.
 // Keys: type, required, default, enum, unique (anything else is handed to
 // the adapter as is).
 

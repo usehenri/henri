@@ -113,7 +113,7 @@ module.exports = {
 };
 ```
 
-The nine field types are checked; every other key of a field is passed to the
+The eleven field types are checked; every other key of a field is passed to the
 adapter, so the shape stays open (see [Models](/guides/models/)).
 
 ```js

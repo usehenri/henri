@@ -23,8 +23,16 @@ const {
   sql,
 } = require('drizzle-orm');
 const { coded, isPlainObject } = require('./utils');
+const { canonical, canonicalInteger, isExact, settingsOf } = require('./exact');
 const { checkOrder, comparison, markOf } = require('./encryption');
 const { checkMassWrite } = require('./versions');
+
+/**
+ * The operators whose answer depends on the order of the values, and which
+ * a dialect keeping an exact number as text therefore cannot give without
+ * a cast (see the `cast` of ./dialects.js)
+ */
+const ORDERED = new Set(['between', 'gt', 'gte', 'lt', 'lte']);
 
 /**
  * Operators accepted inside a where value: `{ age: { gt: 18 } }` (the `$`
@@ -57,6 +65,100 @@ const LOGICAL = {
   and: (parts) => and(...parts),
   not: (parts) => not(parts.length === 1 ? parts[0] : and(...parts)),
   or: (parts) => or(...parts),
+};
+
+/**
+ * The field definition of an exact column, when that is what the key names
+ *
+ * @param {function} Model The model
+ * @param {string} key The field name
+ * @returns {?object} The normalized field, or null
+ */
+const exactOf = (Model, key) => {
+  const field = Model.fields && Model.fields[key];
+
+  return field && isExact(field.type) ? field : null;
+};
+
+/**
+ * One value compared against an exact column, as the column holds it.
+ *
+ * A condition is written in whatever the application had -- `10`,
+ * `'10.00'`, `19.99` -- and the column holds one canonical spelling, so the
+ * value is canonicalized before it is bound: on sqlite the comparison is
+ * against text and `'10'` would never equal `'10.0000'` otherwise. A value
+ * that is not a number at all is refused here rather than compared as text
+ * and quietly matching nothing.
+ *
+ * @param {function} Model The model
+ * @param {string} key The field name
+ * @param {object} field The normalized field
+ * @param {*} value The value from the condition
+ * @returns {string} The canonical value
+ * @throws {Error} When the value is not a number
+ */
+const exactValue = (Model, key, field, value) => {
+  const answer =
+    field.type === 'bigint'
+      ? canonicalInteger(value)
+      : canonical(value, settingsOf(field));
+
+  if (answer.error) {
+    throw coded(
+      'HENRI_MODEL_INVALID_QUERY',
+      `The condition on ${Model.modelName}.${key} is ${JSON.stringify(
+        String(value)
+      )}, which ${answer.error}: a ${field.type} is compared against a number`
+    );
+  }
+
+  return answer.value;
+};
+
+/**
+ * The column and the values of a comparison against an exact field
+ *
+ * @param {function} Model The model
+ * @param {string} key The field name
+ * @param {object} field The normalized field
+ * @param {string} shorthand The operator, without its `$`
+ * @param {*} value The value from the condition
+ * @returns {{column: object, value: *}} What to compare, and with what
+ */
+const exactComparison = (Model, key, field, shorthand, value) => {
+  const { dialect } = Model.adapter;
+  const canonicalize = (entry) => exactValue(Model, key, field, entry);
+  const values = Array.isArray(value)
+    ? value.map(canonicalize)
+    : canonicalize(value);
+
+  if (!dialect.cast || !ORDERED.has(shorthand)) {
+    return { column: Model.column(key), value: values };
+  }
+
+  return {
+    column: dialect.cast(Model.column(key), field),
+    value: Array.isArray(values)
+      ? values.map((entry) => dialect.bind(entry, field))
+      : dialect.bind(values, field),
+  };
+};
+
+/**
+ * The expression an order reads a column through: the column itself, or the
+ * cast a dialect keeping an exact number as text needs to sort it
+ *
+ * @param {function} Model The model
+ * @param {string} key The field name
+ * @returns {object} A column or an SQL expression
+ */
+const ordered = (Model, key) => {
+  const field = exactOf(Model, key);
+  const { dialect } = Model.adapter;
+
+  return field && dialect.cast
+    ? dialect.cast(Model.column(key), field)
+    : Model.column(key);
 };
 
 /**
@@ -114,9 +216,20 @@ const compileWhere = (Model, condition) => {
     // configured key. Anything but an equality is refused there rather
     // than matching nothing here (see ./encryption.js)
     const encrypted = markOf(Model, key);
+    // A `decimal` or a `bigint` is a string on both sides of the boundary,
+    // so a condition is canonicalized before it is bound and an ordered
+    // comparison goes through the dialect's cast (see ./exact.js)
+    const exact = exactOf(Model, key);
 
     if (value === null) {
       parts.push(isNull(column));
+    } else if (exact && Array.isArray(value)) {
+      parts.push(
+        OPERATORS.in(
+          column,
+          value.map((entry) => exactValue(Model, key, exact, entry))
+        )
+      );
     } else if (Array.isArray(value)) {
       parts.push(OPERATORS.in(column, comparison(Model, key, value).value));
     } else if (is(value, SQL)) {
@@ -158,6 +271,21 @@ const compileWhere = (Model, condition) => {
           );
         }
 
+        if (exact) {
+          const settled = exactComparison(
+            Model,
+            key,
+            exact,
+            shorthand,
+            value[name]
+          );
+
+          parts.push(
+            operator(settled.column, settled.value, Model.adapter.dialect.name)
+          );
+          continue;
+        }
+
         const { list, value: compared } = comparison(
           Model,
           key,
@@ -173,6 +301,8 @@ const compileWhere = (Model, condition) => {
           parts.push(operator(column, compared, Model.adapter.dialect.name));
         }
       }
+    } else if (exact) {
+      parts.push(eq(column, exactValue(Model, key, exact, value)));
     } else if (encrypted) {
       const { list, value: compared } = comparison(Model, key, value);
 
@@ -214,15 +344,15 @@ const compileOrder = (Model, order) => {
     if (field.startsWith('-')) {
       checkOrder(Model, field.slice(1));
 
-      return [desc(Model.column(field.slice(1)))];
+      return [desc(ordered(Model, field.slice(1)))];
     }
 
     checkOrder(Model, field);
 
     return [
       direction.toLowerCase() === 'desc'
-        ? desc(Model.column(field))
-        : asc(Model.column(field)),
+        ? desc(ordered(Model, field))
+        : asc(ordered(Model, field)),
     ];
   }
 
@@ -244,8 +374,8 @@ const compileOrder = (Model, order) => {
 
       return String(order[field]).toLowerCase() === 'desc' ||
         Number(order[field]) === -1
-        ? desc(Model.column(field))
-        : asc(Model.column(field));
+        ? desc(ordered(Model, field))
+        : asc(ordered(Model, field));
     });
   }
 

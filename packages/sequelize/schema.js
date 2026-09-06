@@ -1,6 +1,13 @@
 const { DataTypes } = require('sequelize');
 const TYPES = require('./types');
 const { DETERMINISTIC_LENGTH, encryptionOf } = require('./encrypted');
+const {
+  canonical,
+  canonicalInteger,
+  checkSettings,
+  isExact,
+  settingsOf,
+} = require('./exact');
 const { coded } = require('./utils');
 
 // Dialects with a native ENUM column type
@@ -17,7 +24,10 @@ const HENRI_KEYS = {
   // Metadata, not a column: henri reads it back through the model file
   // (base/privacy.js), so the attribute never carries it
   personal: 'henri.privacy',
+  // The two a `decimal` carries; they build DECIMAL(p, s) below
+  precision: 'DataTypes.DECIMAL(precision, scale)',
   required: 'allowNull: false',
+  scale: 'DataTypes.DECIMAL(precision, scale)',
   type: 'type',
   unique: 'unique',
 };
@@ -141,6 +151,194 @@ const resolveType = (type, field) => {
 };
 
 /**
+ * The henri exact type a field asks for, whichever way it was spelled.
+ *
+ * A Sequelize `DECIMAL(10, 2)` is the same column as
+ * `{ type: 'decimal', precision: 10, scale: 2 }`, so it is read as one and
+ * gets the same string boundary rather than whatever the driver felt like
+ * handing back. A **bare** `DataTypes.DECIMAL` is not: MySQL makes it
+ * `DECIMAL(10, 0)`, which stores money as whole units, so it is refused by
+ * the caller instead of quietly becoming something else.
+ *
+ * @param {*} type The type from the model file
+ * @returns {?object} `{ bare, precision, scale, type }`, or null
+ */
+const exactTypeOf = (type) => {
+  if (typeof type === 'string' && isExact(type.toLowerCase())) {
+    return { bare: false, type: type.toLowerCase() };
+  }
+
+  const key = type === DataTypes.DECIMAL || type === DataTypes.BIGINT;
+  const name = key
+    ? type.key
+    : (type instanceof DataTypes.DECIMAL && 'DECIMAL') ||
+      (type instanceof DataTypes.BIGINT && 'BIGINT') ||
+      null;
+
+  if (!name) {
+    return null;
+  }
+
+  if (name === 'BIGINT') {
+    return { bare: false, type: 'bigint' };
+  }
+
+  const options = (!key && type.options) || {};
+  const bare = !Number.isInteger(options.precision);
+
+  return {
+    bare,
+    precision: options.precision,
+    scale: Number.isInteger(options.scale) ? options.scale : 0,
+    type: 'decimal',
+  };
+};
+
+/**
+ * One value of an exact field, as the string the column holds
+ *
+ * @param {string} type `decimal` or `bigint`
+ * @param {*} value The value
+ * @param {object} settings `{ precision, scale }`
+ * @returns {{value: string}|{error: string}} The value, or what is wrong
+ */
+const exactly = (type, value, settings) =>
+  type === 'bigint' ? canonicalInteger(value) : canonical(value, settings);
+
+/**
+ * Turns a field into an exact Sequelize attribute: the parameterized
+ * column, a setter that canonicalizes, a validator that says what a value
+ * the column will not carry is wrong with, and a getter that answers the
+ * decimal string every adapter answers with.
+ *
+ * @param {object} attribute The Sequelize attribute, changed in place
+ * @param {string} field The field name
+ * @param {object} exact What `exactTypeOf()` read
+ * @param {object} definition The field definition
+ * @param {string} dialect The Sequelize dialect
+ * @param {object} context `{ model }`, for the messages
+ * @returns {void}
+ * @throws {Error} On sqlite, on a bare DECIMAL, and on bad settings
+ */
+const decorateExact = (
+  attribute,
+  field,
+  exact,
+  definition,
+  dialect,
+  context
+) => {
+  const model = (context && context.model) || 'model';
+
+  // The one downgrade this adapter cannot make quiet. Sequelize reads a
+  // sqlite DECIMAL through a double and a BIGINT past 2^53 loses its
+  // digits, and there is no seam here to store the value as text and cast
+  // for a comparison the way @usehenri/drizzle does
+  if (dialect === 'sqlite') {
+    throw coded(
+      'HENRI_MODEL_TYPE_UNSUPPORTED',
+      `Field '${field}' of ${model} is a ${exact.type}, which @usehenri/sequelize cannot carry on sqlite: the driver reads it through a JavaScript number and the value would come back changed. Use @usehenri/drizzle, which stores both exactly on sqlite, or put the store on postgres, mysql or mssql`
+    );
+  }
+
+  if (exact.bare) {
+    throw coded(
+      'HENRI_MODEL_TYPE_UNSUPPORTED',
+      `Field '${field}' of ${model} is a DECIMAL with no precision, which MySQL makes DECIMAL(10, 0) -- whole units, so money loses its cents. Write { type: 'decimal', precision: 12, scale: 2 } and henri writes the same column on every dialect`
+    );
+  }
+
+  const wrong = checkSettings(
+    exact.type,
+    exact.type === 'decimal' && Number.isInteger(exact.precision)
+      ? exact
+      : definition
+  );
+
+  if (wrong) {
+    throw coded(
+      'HENRI_MODEL_INVALID_FIELD',
+      `Field '${field}' of ${model} ${wrong}`
+    );
+  }
+
+  const settings = settingsOf(
+    Number.isInteger(exact.precision) ? exact : definition
+  );
+
+  attribute.type =
+    exact.type === 'bigint'
+      ? DataTypes.BIGINT
+      : DataTypes.DECIMAL(settings.precision, settings.scale);
+
+  /**
+   * The stored value as the decimal string, whatever the driver gave
+   *
+   * @returns {?string} The value
+   */
+  attribute.get = function get() {
+    const raw = this.getDataValue(field);
+
+    return raw === null || typeof raw === 'undefined' ? raw : String(raw);
+  };
+
+  /**
+   * The canonical value when it fits the column, and the value untouched
+   * when it does not, so the validator below is what says why
+   *
+   * @param {*} value The value
+   * @returns {void}
+   */
+  attribute.set = function set(value) {
+    if (value === null || typeof value === 'undefined') {
+      this.setDataValue(field, value);
+
+      return;
+    }
+
+    const answer = exactly(exact.type, value, settings);
+
+    this.setDataValue(field, answer.error ? value : answer.value);
+  };
+
+  attribute.validate = {
+    ...(attribute.validate || {}),
+
+    /**
+     * The bounds of the column, which the dialect would round to instead
+     *
+     * @param {*} value The stored value
+     * @returns {void}
+     * @throws {Error} When the value does not fit
+     */
+    henriExact(value) {
+      if (value === null || typeof value === 'undefined') {
+        return;
+      }
+
+      const answer = exactly(exact.type, value, settings);
+
+      if (answer.error) {
+        throw new Error(answer.error);
+      }
+    },
+  };
+
+  if (typeof attribute.defaultValue !== 'undefined') {
+    const answer = exactly(exact.type, attribute.defaultValue, settings);
+
+    if (answer.error) {
+      throw coded(
+        'HENRI_MODEL_INVALID_FIELD',
+        `Field '${field}' of ${model} has a default that ${answer.error}`
+      );
+    }
+
+    attribute.defaultValue = answer.value;
+  }
+};
+
+/**
  * Normalizes one field definition
  *
  * @param {string} field The field name
@@ -190,9 +388,15 @@ const normalizeField = (
       attribute.defaultValue = value === Date.now ? DataTypes.NOW : value;
     } else if (key === 'enum' || key === 'index') {
       // Handled below, they depend on the resolved type
-    } else if (key === 'personal' || key === 'encrypted') {
+    } else if (
+      key === 'personal' ||
+      key === 'encrypted' ||
+      key === 'precision' ||
+      key === 'scale'
+    ) {
       // Marks for henri, and nothing Sequelize has to know about: the
-      // second one is applied below, once the type has resolved
+      // encryption one and the decimal column are applied below, once the
+      // type has resolved
     } else if (KNOWN_KEYS.has(key)) {
       attribute[key] = value;
     } else {
@@ -218,6 +422,15 @@ const normalizeField = (
 
   if (definition.index && !attribute.unique) {
     indexes.push({ fields: [field] });
+  }
+
+  // A `decimal` or a `bigint` is an exact column and a decimal string in
+  // JavaScript on every adapter, which is what ./exact.js argues; the two
+  // Sequelize spellings of the same thing are read as the henri type
+  const exact = exactTypeOf(definition.type);
+
+  if (exact) {
+    decorateExact(attribute, field, exact, definition, dialect, context);
   }
 
   // The column of an encrypted field is the ciphertext's, not the

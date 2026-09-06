@@ -19,6 +19,11 @@ const {
 /**
  * The attribute types of the henri model format. Adapters map them to
  * their own types (mongoose: integer -> Number, json -> Mixed, ...).
+ *
+ * `decimal` and `bigint` are the two whose value a JavaScript number
+ * cannot carry, so they are exact decimal strings on every adapter; a
+ * generated `decimal` gets `precision` and `scale` written into the model
+ * file, because the default (19, 4) is rarely what money wants.
  */
 const TYPES = [
   'string',
@@ -26,11 +31,16 @@ const TYPES = [
   'number',
   'integer',
   'float',
+  'decimal',
+  'bigint',
   'boolean',
   'date',
   'json',
   'uuid',
 ];
+
+/** What `price:decimal` writes: money, which is what people mean by one */
+const DECIMAL_SETTINGS = { precision: 12, scale: 2 };
 
 const VIEWS = ['index', '_form', 'new', 'edit', 'show'];
 
@@ -126,7 +136,13 @@ const parseAttributes = (attributes = []) => {
       );
     }
 
-    schema[name] = required ? { required: true, type } : { type };
+    // A decimal with no settings is 19 digits with 4 after the point,
+    // which is not what somebody who typed `price:decimal` meant
+    const settings = type === 'decimal' ? DECIMAL_SETTINGS : {};
+
+    schema[name] = required
+      ? { required: true, ...settings, type }
+      : { ...settings, type };
   }
 
   return schema;

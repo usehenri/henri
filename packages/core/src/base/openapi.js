@@ -140,10 +140,23 @@ const METHODS = new Set([
 /**
  * The henri schema types and what they serialize as. `json` is deliberately
  * `{}`: a JSON column holds whatever the application put in it.
+ *
+ * `decimal` and `bigint` are deliberately **strings**, and that is not a
+ * looser description than the truth -- it is the truth. A JSON number is a
+ * double, so describing an exact column as `{ "type": "number" }` would
+ * tell a client to parse the value into the one shape that cannot hold it,
+ * which is what the two types exist to stop. The `pattern` says what the
+ * string is, and the `format` says which kind (`base/exact.js`).
  */
 const TYPES = {
+  bigint: { format: 'int64', pattern: '^-?\\d+$', type: 'string' },
   boolean: { type: 'boolean' },
   date: { format: 'date-time', type: 'string' },
+  decimal: {
+    format: 'decimal',
+    pattern: '^-?\\d+(\\.\\d+)?$',
+    type: 'string',
+  },
   float: { type: 'number' },
   integer: { type: 'integer' },
   json: {},
@@ -152,6 +165,9 @@ const TYPES = {
   text: { type: 'string' },
   uuid: { format: 'uuid', type: 'string' },
 };
+
+/** The two whose value is a string because a double cannot carry it */
+const EXACT = ['bigint', 'decimal'];
 
 /** Columns henri writes itself: they never belong in a request body */
 const GENERATED = new Set([
@@ -529,6 +545,11 @@ function fieldSchema(name, field, { resolves, settings, write = false }) {
     if (known.format) {
       schema.format = known.format;
     }
+
+    // A `pattern` says nothing about a null, so it widens nothing
+    if (known.pattern) {
+      schema.pattern = known.pattern;
+    }
   }
 
   if (
@@ -572,12 +593,18 @@ function fieldSchema(name, field, { resolves, settings, write = false }) {
     }
   }
 
-  if (!published && Number.isFinite(definition.min)) {
-    schema.minimum = definition.min;
-  }
+  // `minimum` and `maximum` describe a JSON number, and the value of an
+  // exact column is a string: writing them there would be describing a
+  // bound on something the document just said is not a number. The bound
+  // is still enforced -- by the model, which is where it was declared
+  if (!published && !EXACT.includes(definition.type)) {
+    if (Number.isFinite(definition.min)) {
+      schema.minimum = definition.min;
+    }
 
-  if (!published && Number.isFinite(definition.max)) {
-    schema.maximum = definition.max;
+    if (Number.isFinite(definition.max)) {
+      schema.maximum = definition.max;
+    }
   }
 
   return description.length > 0
@@ -604,6 +631,8 @@ function ruleSchema(compiled) {
   const known = TYPES[written.type];
   const schema = {};
 
+  const exact = EXACT.includes(written.type);
+
   if (list) {
     schema.type = 'array';
     schema.items = ruleSchema(written.of);
@@ -612,6 +641,10 @@ function ruleSchema(compiled) {
 
     if (known.format) {
       schema.format = known.format;
+    }
+
+    if (known.pattern) {
+      schema.pattern = known.pattern;
     }
   }
 
@@ -623,11 +656,13 @@ function ruleSchema(compiled) {
     schema.default = written.default;
   }
 
-  if (Number.isFinite(written.min)) {
+  // The bound of an exact rule is not a bound on a JSON number: the value
+  // is a string there, for the reason TYPES gives above
+  if (!exact && Number.isFinite(written.min)) {
     schema.minimum = written.min;
   }
 
-  if (Number.isFinite(written.max)) {
+  if (!exact && Number.isFinite(written.max)) {
     schema.maximum = written.max;
   }
 

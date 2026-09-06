@@ -147,6 +147,20 @@ class Sql {
       options.dialectModule = this.driver;
     }
 
+    // Without this mysql2 reads a BIGINT through a double, so
+    // 9223372036854775807 comes back as 9223372036854776000; with it, a
+    // value past what a JavaScript number carries exactly arrives as a
+    // string and everything smaller is untouched (see ./exact.js)
+    if (
+      /^(mysql|mariadb)$/iu.test(options.dialect || '') ||
+      /^(mysql|mariadb):/iu.test(url || '')
+    ) {
+      options.dialectOptions = {
+        supportBigNumbers: true,
+        ...(options.dialectOptions || {}),
+      };
+    }
+
     debug('store %s configuration %O', this.name, redact({ ...options, url }));
 
     if (url) {

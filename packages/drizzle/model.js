@@ -7,6 +7,7 @@ const {
   resolvesKeys,
   withoutInternalIds,
 } = require('./external-id');
+const { isExact } = require('./exact');
 const { normalizeField } = require('./schema');
 const { checkMassWrite, plainOf, write } = require('./versions');
 const { ValidationError, failure, validate } = require('./validation');
@@ -1830,6 +1831,26 @@ const createModel = (adapter, definition, fields) => {
       );
     },
   });
+  // What a driver hands back for an exact column is whatever that driver
+  // decided -- a string from node-postgres, a BigInt once drizzle mapped
+  // it, a number from mysql2 below 2^53, the digits sqlite kept as text.
+  // One hook makes all of them the decimal string every adapter answers
+  // with, so `toJSON()`, `changed()` and everything the router serializes
+  // see the same value on the three of them. See ./exact.js
+  const exact = Object.keys(fields).filter((field) =>
+    isExact(fields[field].type)
+  );
+
+  if (exact.length > 0) {
+    internalHooks.afterLoad.push((row) => {
+      for (const field of exact) {
+        if (row[field] !== null && typeof row[field] !== 'undefined') {
+          row[field] = String(row[field]);
+        }
+      }
+    });
+  }
+
   Object.assign(Klass, {
     adapter,
     associations: [],

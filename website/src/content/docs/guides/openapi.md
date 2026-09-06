@@ -39,6 +39,8 @@ Every operation also carries `x-henri.enforced`, a list naming what henri actual
 
 A field marked `personal: { expose: false }` is in **no** schema, because [privacy](/guides/privacy/) strips that name from every answer henri builds, at every depth. Neither is `password`. A declared foreign key is typed as the `externalId` of the row it names, because that is what [`base/references.js`](/guides/models/#identifiers) publishes — and `null`, because a key that names no row resolves to nothing.
 
+A [`decimal` and a `bigint`](/guides/models/#exact-numbers) are `{ "type": "string" }` with a `pattern` (`^-?\d+(\.\d+)?$` and `^-?\d+$`) and a `format` (`decimal`, `int64`), because a string is what the JSON answer carries and a JSON number is a double. `minimum` and `maximum` are deliberately left off those two: a numeric bound on a value the document has just called a string describes nothing. The model still enforces it.
+
 ## What an action declared it accepts
 
 A controller that declares [`params`](/guides/controllers/#params-what-an-action-accepts) has told henri the shape of the request it takes, which is exactly what an OpenAPI operation wants. So the document is built from it rather than around it:

@@ -875,6 +875,7 @@ describe('henri mcp against a running application', () => {
     expect(identity.app.pid).toBe(server.pid);
     expect(identity.models.map((model) => model.name).sort()).toEqual([
       'Artwork',
+      'Invoice',
       'Memo',
       'User',
     ]);

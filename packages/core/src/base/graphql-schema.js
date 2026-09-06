@@ -46,6 +46,7 @@
  * | `string`, `text`       | `String`                                       |
  * | `integer`              | `Int`                                          |
  * | `number`, `float`      | `Float`                                        |
+ * | `decimal`, `bigint`    | `String` (exact; a `Float` would undo it)      |
  * | `boolean`              | `Boolean`                                      |
  * | `date`                 | `String` (ISO 8601, what the JSON answer holds) |
  * | `uuid`                 | `String`                                       |
@@ -123,10 +124,23 @@ const { GENERATED, columnsOf, referenceOf, settingsOf } = require('./openapi');
 const { isPlainObject, mapOf } = require('./privacy');
 const { pluralize } = require('./routes');
 
-/** The henri schema types and the GraphQL type each one becomes */
+/**
+ * The henri schema types and the GraphQL type each one becomes.
+ *
+ * `decimal` and `bigint` are `String`, for the same reason the OpenAPI
+ * description calls them strings: GraphQL's `Float` is a double and its
+ * `Int` is 32 bits, so either one would undo the column in the answer --
+ * which is the whole thing the two types exist to stop. henri defines no
+ * custom scalar for them, because a scalar is a `GraphQLScalarType`
+ * instance and core depends on the `graphql` package for nothing (see the
+ * header of this file); the value is already a string at the boundary, so
+ * `String` is what it is, not a fallback.
+ */
 const TYPES = Object.freeze({
+  bigint: 'String',
   boolean: 'Boolean',
   date: 'String',
+  decimal: 'String',
   float: 'Float',
   integer: 'Int',
   number: 'Float',

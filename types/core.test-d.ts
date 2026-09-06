@@ -515,6 +515,9 @@ const declared: Controller = {
       title: { type: 'string', required: true, maxLength: 120 },
       // the short form is the type itself
       year: 'integer',
+      // exact: sent as a string, and a bound may be written out
+      price: { type: 'decimal', min: '0.01' },
+      reference: 'bigint',
     },
     'index,search': { page: { type: 'integer', min: 1, default: 1 } },
   },
@@ -613,6 +616,10 @@ const model: ModelFile = {
     meta: { type: 'json' },
     author: { type: 'string', personal: true },
     phone: { type: 'string', personal: { expose: false, erase: 'retain' } },
+    // The two exact ones: a decimal string in JavaScript, whatever the
+    // adapter stores. `precision` and `scale` belong to the first only
+    amount: { type: 'decimal', precision: 12, scale: 2, min: '0' },
+    reference: { type: 'bigint', unique: true },
   },
   associate(models) {
     expectType<Record<string, unknown>>(models);
@@ -627,6 +634,15 @@ const badModel: ModelFile = {
     title: { type: 'varchar', required: true },
   },
 };
+
+const badPrecision: ModelFile = {
+  schema: {
+    // @ts-expect-error a precision is a number of digits
+    amount: { type: 'decimal', precision: '12' },
+  },
+};
+
+expectType<ModelFile>(badPrecision);
 
 const badMark: ModelFile = {
   schema: {
