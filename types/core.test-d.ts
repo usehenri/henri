@@ -341,9 +341,18 @@ const config: Configuration = {
   rateLimit: { windowMs: 60000, max: 600, auth: { max: 10 } },
   helmet: false,
   requestTimeout: false,
+  shutdown: { delay: 0, drain: 10000, signals: true },
 };
 
 expectType<Configuration>(config);
+
+const badShutdown: Configuration = {
+  // @ts-expect-error the drain deadline is a number of milliseconds
+  shutdown: { drain: '10s' },
+};
+
+expectType<boolean>(henri.server.draining);
+expectType<Promise<void>>(henri.server.shutdown('SIGTERM'));
 
 // The account flows: the configuration, and the service behind the endpoints
 const accounts: Configuration = {
@@ -388,6 +397,7 @@ const badStore: Configuration = {
 export {
   badConfig,
   badFlow,
+  badShutdown,
   badModule,
   noInit,
   badHook,

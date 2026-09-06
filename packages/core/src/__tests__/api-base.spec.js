@@ -721,7 +721,96 @@ describe('rate limiters', () => {
   });
 });
 
-describe('health check', () => {
+describe('health checks', () => {
+  test('liveness answers 200 without looking at a store', async () => {
+    const app = express();
+    let pinged = 0;
+    const henri = fakeHenri(
+      {},
+      {
+        model: {
+          stores: {
+            default: {
+              adapterName: 'disk',
+              ping: async () => {
+                pinged++;
+                throw new Error('connection refused');
+              },
+            },
+          },
+        },
+      }
+    );
+
+    app.get(health.LIVE_PATH, health.live(henri));
+
+    const res = await supertest(app).get('/livez');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body).toEqual({
+      status: 'ok',
+      uptime: expect.any(Number),
+      version: '0.42.0',
+    });
+    expect(pinged).toBe(0);
+  });
+
+  test('readiness answers 503 while the boot is running', async () => {
+    const app = express();
+    const henri = fakeHenri(
+      {},
+      { model: { stores: {} }, modules: { initialized: false } }
+    );
+
+    app.get(health.READY_PATH, health.ready(henri));
+
+    const res = await supertest(app).get('/readyz');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      reason: 'starting',
+      status: 'unavailable',
+      stores: {},
+    });
+  });
+
+  test('readiness answers 503 while the server is draining', async () => {
+    const app = express();
+    let pinged = 0;
+    const henri = fakeHenri(
+      {},
+      {
+        model: {
+          stores: {
+            default: {
+              adapterName: 'disk',
+              ping: async () => {
+                pinged++;
+
+                return true;
+              },
+            },
+          },
+        },
+        modules: { initialized: true },
+        server: { draining: true },
+      }
+    );
+
+    app.get(health.READY_PATH, health.ready(henri));
+
+    const res = await supertest(app).get('/readyz');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      reason: 'shutting down',
+      status: 'unavailable',
+    });
+    // A store that is about to be stopped is not worth waking up
+    expect(pinged).toBe(0);
+  });
+
   test('answers 503 when a store fails or does not answer in time', async () => {
     const app = express();
     const henri = fakeHenri(
@@ -752,16 +841,20 @@ describe('health check', () => {
 
     expect(res.status).toBe(503);
     expect(res.body.status).toBe('unavailable');
+    expect(res.body.reason).toBe('a store did not answer');
+    // What the driver said is in the log, never in the body: a connection
+    // error carries the url, the user and sometimes the password
     expect(res.body.stores).toEqual({
-      broken: { adapter: 'mysql', error: 'connection refused', ok: false },
+      broken: { adapter: 'mysql', error: 'unreachable', ok: false },
       fine: { adapter: 'disk', latency: expect.any(Number), ok: true },
       legacy: { adapter: 'old', ok: true, skipped: true },
-      slow: { adapter: 'mongoose', error: 'no answer after 20ms', ok: false },
+      slow: { adapter: 'mongoose', error: 'timeout', ok: false },
     });
+    expect(JSON.stringify(res.body)).not.toContain('connection refused');
     expect(res.body.version).toBe('0.42.0');
   });
 
-  test('hides the errors and the version in production', async () => {
+  test('hides the version in production', async () => {
     const app = express();
     const henri = fakeHenri(
       {},
@@ -785,7 +878,11 @@ describe('health check', () => {
     const res = await supertest(app).get('/_henri/health');
 
     expect(res.status).toBe(503);
-    expect(res.body.stores.broken).toEqual({ adapter: 'mysql', ok: false });
+    expect(res.body.stores.broken).toEqual({
+      adapter: 'mysql',
+      error: 'unreachable',
+      ok: false,
+    });
     expect(res.body.version).toBeUndefined();
   });
 });

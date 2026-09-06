@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const supertest = require('supertest');
 
 const Henri = require('../henri');
@@ -134,10 +135,12 @@ describe('server', () => {
 
       const first = server.shutdown('SIGTERM');
 
-      expect(stops).toBe(1);
+      // Readiness answers 503 from the first moment, before anything closes
+      expect(server.draining).toBe(true);
+      await vi.waitFor(() => expect(stops).toBe(1));
       expect(exits).toEqual([]);
 
-      server.shutdown('SIGTERM');
+      await server.shutdown('SIGTERM');
       expect(exits).toEqual([1]);
       expect(stops).toBe(1);
 
@@ -145,6 +148,57 @@ describe('server', () => {
       await first;
 
       expect(exits).toEqual([1, 1]);
+    });
+
+    test('shutdown drains the requests in flight before the modules stop', async () => {
+      const server = new Server();
+      const order = [];
+      let received = null;
+      const arrived = new Promise((resolve) => {
+        received = resolve;
+      });
+
+      server.henri = Object.assign(
+        fakeHenri({ port: 0, shutdown: { delay: 0, drain: 5000 } }),
+        {
+          stop: async () => {
+            order.push('modules stopped');
+
+            return [];
+          },
+        }
+      );
+      server.exit = () => order.push('exited');
+
+      await server.init();
+      server.app.get('/slow', (req, res) => {
+        received();
+        setTimeout(() => {
+          order.push('answered');
+          res.json({ ok: true });
+        }, 200);
+      });
+      await server.listen(0, '127.0.0.1');
+
+      const { port } = server.httpServer.address();
+      const answer = new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', path: '/slow', port });
+
+        req.on('response', (res) => {
+          res.resume();
+          res.on('end', () => resolve(res.statusCode));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      await arrived;
+      await server.shutdown('SIGTERM');
+
+      expect(server.draining).toBe(true);
+      expect(await answer).toBe(200);
+      expect(order).toEqual(['answered', 'modules stopped', 'exited']);
+      expect(server.httpServer.listening).toBe(false);
     });
 
     test('shutdown exits 0 on a clean stop', async () => {

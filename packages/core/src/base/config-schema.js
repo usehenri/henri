@@ -829,6 +829,33 @@ const SCHEMA = {
     describe: 'a number of milliseconds above zero, or false',
     oneOf: [{ const: false }, positive()],
   },
+
+  shutdown: {
+    describe: 'an object of graceful shutdown settings',
+    keys: {
+      delay: {
+        default: 0,
+        describe: 'a number of milliseconds, zero or more',
+        hint: 'How long to keep serving after readiness turns 503, before the port closes',
+        min: 0,
+        type: 'number',
+      },
+      drain: {
+        default: 10000,
+        describe: 'a number of milliseconds, zero or more',
+        hint: 'How long the requests in flight get before their socket is closed',
+        min: 0,
+        type: 'number',
+      },
+      signals: {
+        default: true,
+        describe: 'true or false',
+        hint: 'false leaves SIGINT and SIGTERM to the application',
+        type: 'boolean',
+      },
+    },
+    type: 'object',
+  },
 };
 
 module.exports = { ADAPTERS, DIALECTS, RENDERERS, SCHEMA, STORE };

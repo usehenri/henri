@@ -117,7 +117,7 @@ jobs:
           pnpm --filter @usehenri/showcase exec henri server --production \
             > showcase.log 2>&1 &
           for _ in $(seq 1 60); do
-            if curl --silent --fail --output /dev/null http://127.0.0.1:3000/_henri/health; then
+            if curl --silent --fail --output /dev/null http://127.0.0.1:3000/readyz; then
               echo "the showcase answers"
               exit 0
             fi

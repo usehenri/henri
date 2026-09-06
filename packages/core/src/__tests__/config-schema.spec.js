@@ -170,6 +170,7 @@ describe('the configuration schema', () => {
       renderer: 'vue',
       requestTimeout: false,
       secret: 'a-secret',
+      shutdown: { delay: 5000, drain: 20000, signals: false },
       stores: {
         default: {
           adapter: 'drizzle',
@@ -375,6 +376,7 @@ describe('the schema, the declarations and the documentation', () => {
     ['GraphqlConfig', graphqlKeys],
     ['ApiConfig', () => Object.keys(SCHEMA.api.keys)],
     ['RateLimitConfig', rateLimitKeys],
+    ['ShutdownConfig', () => Object.keys(SCHEMA.shutdown.keys)],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
     ['MailersConfig', () => Object.keys(SCHEMA.mailers.keys)],
     ['JobsConfig', () => Object.keys(SCHEMA.jobs.keys)],

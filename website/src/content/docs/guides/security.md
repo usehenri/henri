@@ -49,9 +49,12 @@ Nothing below needs a configuration key. It is on unless you turn it off, and
 Two more that are not ASVS requirements but are the same kind of work: the
 development introspection routes (`/_routes`, `/_controllers`, `/_mailers`) are
 mounted only in development _and_ only for the loopback interface, checked on
-the socket rather than on a header a client can forge; and `GET /_henri/health`
-pings the stores without authentication, on purpose, so a load balancer can
-call it.
+the socket rather than on a header a client can forge; and the health
+endpoints (`GET /livez`, `GET /readyz` and `GET /_henri/health`) answer
+without authentication, on purpose, so a load balancer can call them. They say
+the names of the stores, their adapter and whether each answered, and a
+failure is `timeout` or `unreachable` — never the driver's message, which
+carries the connection string it could not reach.
 
 ## What stays yours
 
@@ -86,9 +89,10 @@ henri could do and does not yet:
 - **The session cookie is `Secure` when `NODE_ENV` is `production`**, not when
   the request arrives over https. An https deployment under another environment
   name gets a cookie without the attribute.
-- **`/_henri/health` is one endpoint, not two.** Liveness (the process is up)
-  and readiness (it can serve) are different questions and a container
-  orchestrator asks them separately.
+- **A drained shutdown needs the platform to play along.** `SIGTERM` closes the
+  port, finishes the requests in flight within `shutdown.drain` and then stops
+  the modules, but a container killed with `SIGKILL` -- a termination grace
+  period shorter than `shutdown.delay + shutdown.drain` -- drops them anyway.
 
 ## `henri audit`
 

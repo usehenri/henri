@@ -44,9 +44,10 @@ log() {
 }
 
 # @usehenri/disk keeps its mongod data in $TMPDIR/henri-mongo-<md5 of the app
-# path>. `henri build` exits without stopping the store and `henri server` has
-# no signal handler, so the mongod of this app can outlive both: stop it by
-# its data path (never anything else running on the machine).
+# path>. `henri build` exits without stopping the store, and a server killed
+# before it drains never stops it either, so the mongod of this app can
+# outlive both: stop it by its data path (never anything else running on the
+# machine).
 stop_mongod() {
   local hash
   hash=$(node -e "process.stdout.write(require('crypto').createHash('md5').update(process.argv[1]).digest('hex'))" "$app")
@@ -289,3 +290,65 @@ if [ "$known" != "$unknown" ]; then
 fi
 
 log "the account flows answer: /signup, and a reset request that says nothing"
+
+# ---------------------------------------------------------------------------
+# 6. The probes an orchestrator asks, and a SIGTERM that drains: the server
+#    stops accepting, finishes what it is serving and exits by itself.
+# ---------------------------------------------------------------------------
+for probe in /livez /readyz /healthz /_henri/health; do
+  probe_status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port$probe" || true)
+
+  if [ "$probe_status" != "200" ]; then
+    echo "GET $probe answered $probe_status, expected 200" >&2
+    exit 1
+  fi
+done
+
+log "GET /livez, /readyz, /healthz and /_henri/health -> 200"
+
+kill -TERM "$server_pid"
+
+for _ in $(seq 1 30); do
+  kill -0 "$server_pid" 2>/dev/null || break
+  sleep 1
+done
+
+if kill -0 "$server_pid" 2>/dev/null; then
+  echo "the server did not exit within 30s of SIGTERM" >&2
+  exit 1
+fi
+
+# The exit code here is the `pnpm exec` wrapper's, which the signal kills, so
+# what henri did is read from its log instead. The wrapper dies as soon as it
+# forwards the signal, while henri is still draining and stopping its
+# modules, so the log is what says the shutdown finished -- not the pid.
+wait "$server_pid" 2>/dev/null || true
+server_pid=""
+
+for _ in $(seq 1 30); do
+  grep -q "exiting application" "$server_log" && break
+  sleep 1
+done
+
+for line in "SIGTERM received" "no longer accepting connections" "exiting application"; do
+  if ! grep -q "$line" "$server_log"; then
+    cat "$server_log"
+    echo "the shutdown never said '$line'" >&2
+    exit 1
+  fi
+done
+
+if grep -q "unable to stop within" "$server_log"; then
+  cat "$server_log"
+  echo "the shutdown hit its deadline instead of finishing" >&2
+  exit 1
+fi
+
+after=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/" || true)
+
+if [ "$after" = "200" ]; then
+  echo "the port still answers after the shutdown" >&2
+  exit 1
+fi
+
+log "SIGTERM -> drained, stopped and let go of the port"

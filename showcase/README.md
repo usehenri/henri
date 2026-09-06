@@ -194,7 +194,7 @@ environment, with the secrets masked.
 start without, maps `PORT` to `HENRI_CONFIG__port` and `HENRI_MIGRATE=false` to
 `HENRI_CONFIG__stores__default__migrate`, and runs `db/seeds.js` first when
 `HENRI_SEED=true`. The boot applies `db/migrations`, and
-`GET /_henri/health` is the healthcheck.
+`GET /readyz` is the healthcheck (`GET /livez` is the liveness probe).
 
 ## Layout
 
