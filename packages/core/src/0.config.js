@@ -517,6 +517,53 @@ function provenance(file, secrets, applied) {
  * @param {Array<string>} filters the filtered parameter names
  * @returns {string} what to print
  */
+/** The password of a connection string: `postgres://user:secret@host/db` */
+const CREDENTIALS = /^([a-z][a-z0-9+.-]*:\/\/[^:@/\s]+):[^@\s/]*@/iu;
+
+/** How deep the walk goes, the same bound `base/redact.js` uses */
+const CREDENTIALS_DEPTH = 8;
+
+/**
+ * The same value with the password of every connection string in it masked.
+ *
+ * A url is the one secret no filter list ever names: nobody writes `url` in
+ * `filterParameters`, and the password lives inside the string rather than
+ * under a key of its own. The scalar case was always masked -- `DATABASE_URL`
+ * prints `postgres://henri:[FILTERED]@...` -- but the same value arriving as
+ * part of an object (`HENRI_CONFIG_JSON__stores`, a credentials file) went
+ * through the key-name redaction, which has no key to match here, and printed
+ * the password in the clear.
+ *
+ * @param {*} value a configuration value, of any shape
+ * @param {number} [depth=0] how deep the walk is
+ * @returns {*} the value, with every connection string masked
+ */
+function withoutCredentials(value, depth = 0) {
+  if (typeof value === 'string') {
+    return value.replace(CREDENTIALS, `$1:${MASK}@`);
+  }
+
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    depth >= CREDENTIALS_DEPTH
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => withoutCredentials(entry, depth + 1));
+  }
+
+  const copy = {};
+
+  for (const [key, held] of Object.entries(value)) {
+    copy[key] = withoutCredentials(held, depth + 1);
+  }
+
+  return copy;
+}
+
 function display(entry, filters) {
   const { key, value, variable } = entry;
   const last = segments(key).pop();
@@ -530,13 +577,10 @@ function display(entry, filters) {
   }
 
   if (value !== null && typeof value === 'object') {
-    return JSON.stringify(redact(value, filters));
+    return JSON.stringify(withoutCredentials(redact(value, filters)));
   }
 
-  return String(value).replace(
-    /^([a-z][a-z0-9+.-]*:\/\/[^:@/\s]+):[^@\s/]*@/i,
-    `$1:${MASK}@`
-  );
+  return withoutCredentials(String(value));
 }
 
 /**
