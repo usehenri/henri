@@ -345,6 +345,23 @@ describe('config from the environment', () => {
       expect(lines.join('\n')).not.toContain('hunter2');
     });
 
+    test('masks a connection string wherever it is, not only on its own', () => {
+      // The scalar case was always masked. The same url inside the object a
+      // JSON variable carries reached the report through the key-name
+      // redaction, which has no key to match: `url` is a name no
+      // filterParameters list would ever hold
+      const { applied, config } = applyEnv(file(), {
+        [`${ENV_JSON_PREFIX}stores`]:
+          '{"default":{"adapter":"drizzle","url":"postgres://henri:hunter2@db.internal:5432/app"}}',
+      });
+      const lines = report(config, applied).join('\n');
+
+      expect(lines).toContain(
+        'postgres://henri:[FILTERED]@db.internal:5432/app'
+      );
+      expect(lines).not.toContain('hunter2');
+    });
+
     test('masks what config.filterParameters names, and nothing else', () => {
       const { applied, config } = applyEnv(
         { filterParameters: ['apiKey'] },
