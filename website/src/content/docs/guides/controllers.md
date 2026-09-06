@@ -166,7 +166,11 @@ The action never runs. The answer is a `422` carrying one message per field, neg
 
 `data.errors` is the `{ field: message }` shape [`henri.model.errors()`](/guides/models/) normalizes an ORM's validation failure to, so a form reads one thing whether the request was refused at the boundary or by the model. A browser that posted a form is sent back to the page it came from (`303`) with the messages in the flash, where a page reads them as `errors`; the values are not flashed, because henri cannot tell a password from a title. A browser that asked for anything else gets the `422` page.
 
-The check runs once the route is allowed — behind the [role guard](/guides/routes/#roles) and the [policy](/guides/policies/) — and **ahead of the `before` hooks**, so a hook that loads a record already sees the coerced value. An action that declares nothing behaves exactly as it did: nothing is checked, nothing is coerced, and `req.permit(...)` is unchanged.
+The check runs once the route is allowed — behind the [role guard](/guides/routes/#roles) and the [policy](/guides/policies/) — and **ahead of the `before` hooks**, so a hook that loads a record already sees the coerced value. It is registered whatever the verb, so an `index` declaring its query string answers `422` the same way a `create` declaring its body does. An action that declares nothing behaves exactly as it did: nothing is checked, nothing is coerced, and `req.permit(...)` is unchanged.
+
+### It is also the description of the request
+
+[`henri openapi`](/guides/openapi/) reads this block: the fields become the query, path and body parameters of the operation, with the types, the bounds and the enums declared here, and the `422` becomes a response the document names. Declaring `params` is how an action gets a request body in the description that is the one it actually accepts, rather than the writable columns of its model.
 
 ## Implicit rendering
 
