@@ -779,10 +779,10 @@ function gate(henri, rules, body) {
 /**
  * The middleware gating what one action answers.
  *
- * It wraps `res.json()` for this route only, so the gate covers what a
- * controller sends by hand and nothing henri serves itself: `/livez`,
- * `/_routes`, the catalogues and the mail previews are not controller
- * actions and never see it.
+ * It wraps the writers of `WRITERS` for this route only, so the gate covers
+ * what a controller sends by hand and nothing henri serves itself:
+ * `/livez`, `/_routes`, the catalogues and the mail previews are not
+ * controller actions and never see it.
  *
  * `res.json()` stays synchronous whenever it can, which is nearly always:
  * the walk is free and only a foreign key nobody eager loaded needs a
