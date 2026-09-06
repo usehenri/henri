@@ -84,7 +84,7 @@ if (!valid) {
 
 ### The pepper
 
-A pepper is a key mixed into every hash that lives outside the database, so a stolen table cannot be cracked offline and someone who can write to it cannot forge a hash for a row. It is off by default. Turn it on with `HENRI_PASSWORD_PEPPER` in `.env`, or `config.user.password.pepper`:
+A pepper is a key mixed into every hash that lives outside the database, so a stolen table cannot be cracked offline and a hash cannot be forged for a password of the attacker's choosing. It is off by default. Turn it on with `HENRI_PASSWORD_PEPPER` in `.env`, or `config.user.password.pepper`:
 
 ```json
 {
@@ -106,6 +106,8 @@ Three things to understand before turning it on:
 - **Losing it loses every peppered password.** There is no recovery: the only way back is a password reset for everyone. Store it the way you store a database credential, and keep it out of the repository.
 - **It arrives gradually.** Hashes written before it existed keep verifying and are rewritten under the key as their owners sign in. `previous` does the same for a rotation. Once no unpeppered hashes are left, set `allowUnpeppered: false` — until then, someone who can write to the table can still plant an unpeppered hash of a password they know.
 
+What a pepper does not do: the key is global, not per row, so someone who can write to the table can still copy a valid hash from one account onto another and sign in with the password they already knew. Binding a hash to the row it belongs to is a different defence, and henri does not have it yet.
+
 ### Sign-in lockout
 
 Nothing caps how many attempts one _account_ receives: the [rate limit](/guides/api/#rate-limiting) counts per address, so an attempt spread across many addresses against one account is unbounded. After `config.user.lockout.max` failures (10) inside `windowMs` (15 minutes) the account refuses sign-in attempts for the rest of the window, whoever is asking and whatever password they send — the check runs before the password is hashed, so a locked account costs nothing.
@@ -120,7 +122,7 @@ Failures are counted for whatever email was submitted, real or not, so `429 Too 
 }
 ```
 
-`"lockout": false` turns it off. The counter is in memory, so it is per process and clears on restart, like the rate limiter; `store` takes any express-rate-limit store (Redis, for instance) and is what makes it hold across processes.
+`"lockout": false` turns it off. The counter is in memory, so it is per process and clears on restart, like the rate limiter. It uses whatever `config.rateLimit.store` uses, so an application that already plugged a shared store (Redis, for instance) gets a lockout that holds across processes without saying so twice; `lockout.store` names a different one.
 
 ## Login and logout
 

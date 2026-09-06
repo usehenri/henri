@@ -7,6 +7,7 @@ const { ExtractJwt, Strategy: JwtStrategy } = require('passport-jwt');
 const { Strategy: LocalStrategy } = require('passport-local');
 const debug = require('debug')('henri:user');
 
+const { loadStore } = require('./base/api');
 const { publicUser, respond, userAdapter, userConfig } = require('./base/auth');
 const { params, permitMiddleware } = require('./base/params');
 const {
@@ -348,7 +349,9 @@ class User extends BaseModule {
 
     if (this.settings.lockout) {
       this.lockout = new Lockout(
-        Object.assign({ secret }, this.settings.lockout)
+        Object.assign({ secret }, this.settings.lockout, {
+          store: this.lockoutStore(),
+        })
       );
     }
 
@@ -452,6 +455,38 @@ class User extends BaseModule {
     this.henri.passport = this.passport;
 
     return this.name;
+  }
+
+  /**
+   * The store the lockout counts in.
+   *
+   * `config.user.lockout.store` when the application named one, otherwise
+   * whatever `config.rateLimit.store` uses: an application that plugged a
+   * shared store for its rate limits gets a lockout that holds across
+   * processes without saying so twice. Without either, the memory store,
+   * which is per process.
+   *
+   * @returns {?object} an express-rate-limit store, or null
+   * @memberof User
+   */
+  lockoutStore() {
+    const configured = this.settings.lockout && this.settings.lockout.store;
+
+    if (typeof configured === 'string') {
+      return loadStore(this.henri, configured, { name: 'lockout' });
+    }
+
+    if (configured && typeof configured === 'object') {
+      return configured;
+    }
+
+    const { api } = this.henri;
+
+    if (api && typeof api.rateLimitStore === 'function') {
+      return api.rateLimitStore('lockout') || null;
+    }
+
+    return null;
   }
 
   /**

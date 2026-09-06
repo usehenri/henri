@@ -60,7 +60,11 @@ function lockoutConfig(raw) {
 
   return {
     max: Number.isInteger(max) && max > 0 ? max : DEFAULTS.max,
-    store: raw.store && typeof raw.store === 'object' ? raw.store : null,
+    store:
+      typeof raw.store === 'string' ||
+      (raw.store && typeof raw.store === 'object')
+        ? raw.store
+        : null,
     windowMs:
       Number.isFinite(windowMs) && windowMs > 0 ? windowMs : DEFAULTS.windowMs,
   };

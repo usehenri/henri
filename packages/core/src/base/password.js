@@ -122,11 +122,13 @@ function positive(value, fallback, floor = 1) {
  * Normalizes the pepper.
  *
  * A pepper is a server-side key mixed into every hash. It lives outside the
- * database, so a stolen table cannot be cracked offline and an attacker with
- * write access cannot forge a hash for a row. It is deliberately *not*
- * `config.secret`: rotating the session secret (which invalidates sessions
- * and signed links, and is a thing applications do) must never make a
- * password unverifiable. Its own key, `HENRI_PASSWORD_PEPPER` or
+ * database, so a stolen table cannot be cracked offline and a hash cannot be
+ * forged for a password of the attacker's choosing. What it does *not* stop,
+ * because the key is global rather than per row, is a valid hash being copied
+ * from one row onto another: the same key recomputes it either way. It is
+ * deliberately *not* `config.secret`: rotating the session secret (which
+ * invalidates sessions and signed links, and is a thing applications do) must
+ * never make a password unverifiable. Its own key, `HENRI_PASSWORD_PEPPER` or
  * `config.user.password.pepper`, and losing it means every peppered password
  * is gone for good.
  *
