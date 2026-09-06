@@ -65,7 +65,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.28.0",
-    "@babel/parser": "^7.28.0",
+    "@babel/parser": "^8.0.4",
     "@babel/preset-env": "^7.28.0",
     "@babel/preset-react": "^8.0.1",
     "@rollup/plugin-babel": "^7.1.0",

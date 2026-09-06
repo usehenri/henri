@@ -86,8 +86,8 @@ importers:
         version: 3.9.6
     devDependencies:
       '@babel/parser':
-        specifier: ^7.28.0
-        version: 7.29.8
+        specifier: ^8.0.4
+        version: 8.0.4
 
   packages/core:
     dependencies:
@@ -341,8 +341,8 @@ importers:
         specifier: ^7.28.0
         version: 7.29.7(supports-color@8.1.1)
       '@babel/parser':
-        specifier: ^7.28.0
-        version: 7.29.8
+        specifier: ^8.0.4
+        version: 8.0.4
       '@babel/preset-env':
         specifier: ^7.28.0
         version: 7.29.7(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
