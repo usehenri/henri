@@ -583,11 +583,94 @@ declare namespace start {
     filterParameters?: string[] | false;
     /** Maximum size of a JSON or form body (`"1mb"`). */
     bodyLimit?: string | number;
+    /**
+     * File uploads, read by `@usehenri/uploads`; `false` accepts no file.
+     * Validated here whether or not the application has the package.
+     */
+    uploads?: false | UploadsConfig;
     /** Milliseconds before a running request is answered 503. */
     requestTimeout?: number | false;
     shutdown?: ShutdownConfig;
     errors?: ErrorsConfig;
     [key: string]: unknown;
+  }
+
+  /**
+   * `config.uploads`: what `@usehenri/uploads` accepts. Every bound is
+   * enforced by the parser as it reads, and `false` on one of them removes
+   * it (which `henri audit` reports).
+   */
+  interface UploadsConfig {
+    /**
+     * Media types that may be kept (`"image/png"`, `"image/*"`), matched
+     * against what the bytes say rather than what the client claimed.
+     * Without it, every type is accepted.
+     */
+    allow?: string[];
+    /** Longest field name, in bytes (`100`). */
+    maxFieldNameSize?: number;
+    /** Largest non-file part; defaults to `config.bodyLimit`. */
+    maxFieldSize?: string | number | false;
+    /** How many non-file fields one request may carry (`100`). */
+    maxFields?: number | false;
+    /** Largest single file (`"10mb"`). */
+    maxFileSize?: string | number | false;
+    /** How much of the original name is kept as metadata (`255`). */
+    maxFilenameLength?: number;
+    /** How many files one request may carry (`10`). */
+    maxFiles?: number | false;
+    /** Largest multipart body, all parts together (`"25mb"`). */
+    maxTotalSize?: string | number | false;
+    /** Path prefixes a multipart body is read under; all of them without it. */
+    paths?: string[];
+    /** Where the local storage keeps files (`"storage/uploads"`). */
+    root?: string;
+    /** Decide the type from the bytes (`true`). */
+    sniff?: boolean;
+    /** `"local"`, or the module id of a storage. */
+    storage?: string;
+  }
+
+  /**
+   * One file that arrived, as `req.files` holds it. It is temporary until
+   * `store()` is called; everything else is removed when the response
+   * closes. With `@usehenri/uploads`.
+   */
+  interface UploadedFile {
+    /** The form field it arrived in. */
+    field: string;
+    /** The original name, cleaned; never used to build a path. */
+    name: string;
+    /** What the client said it was, kept for the record only. */
+    declaredType: string | null;
+    /** What the bytes say it is. */
+    type: string;
+    /** Whether henri recognized those bytes. */
+    sniffed: boolean;
+    /** Whether the declared type and the real one disagree. */
+    readonly mistyped: boolean;
+    size: number;
+    /** sha256 of the content, hex. */
+    checksum: string;
+    /** Keeps the file and answers the record to write to a model. */
+    store(options?: {
+      prefix?: string;
+      storage?: unknown;
+    }): Promise<StoredFile>;
+    /** Removes it now rather than at the end of the request. */
+    discard(): Promise<boolean>;
+    toJSON(): Record<string, unknown>;
+  }
+
+  /** What `store()` resolves with: the record a model holds. */
+  interface StoredFile {
+    key: string;
+    name: string;
+    type: string;
+    size: number;
+    checksum: string;
+    storage: string;
+    uploadedAt: string;
   }
 
   /** `config.errors`: what henri does with the code of a failure. */
@@ -887,6 +970,10 @@ declare namespace start {
     methodNotAllowed(message?: string, data?: unknown): ExpressResponse;
     /** 409 */
     conflict(message?: string, data?: unknown): ExpressResponse;
+    /** 413 */
+    payloadTooLarge(message?: string, data?: unknown): ExpressResponse;
+    /** 415 */
+    unsupportedMediaType(message?: string, data?: unknown): ExpressResponse;
     /** 422 */
     badData(message?: string, data?: unknown): ExpressResponse;
     /** 429 */
@@ -950,6 +1037,21 @@ declare namespace start {
      * `scope`. The name defaults to what the route is about.
      */
     scope(name?: string, context?: object): Promise<any>;
+    /**
+     * The files of a multipart body, by field. Always present, empty when
+     * nothing was uploaded. With `@usehenri/uploads`.
+     */
+    files?: Record<string, UploadedFile[]>;
+    /** The first file of a field, or null. With `@usehenri/uploads`. */
+    file?(field: string): UploadedFile | null;
+    /**
+     * `permit()` for files: only the listed fields come back, and the files
+     * of every other one are removed from the disk on the spot. With
+     * `@usehenri/uploads`.
+     */
+    permitFiles?(
+      ...fields: Array<string | string[]>
+    ): Record<string, UploadedFile[]>;
     /** `{ page, perPage, skip, limit, offset }`, bounded by `config.api`. */
     pagination(overrides?: {
       perPage?: number;
@@ -1748,6 +1850,31 @@ declare namespace start {
     };
   }
 
+  /** `henri.uploads`, with `@usehenri/uploads`. */
+  interface UploadsModule {
+    name: 'uploads';
+    /** Whether this application accepts files. */
+    enabled: boolean;
+    /** `config.uploads`, normalized: every limit in bytes or `false`. */
+    settings: Record<string, unknown>;
+    /** The storage in use (`HenriStorage`). */
+    storage: unknown;
+    /**
+     * Streams a stored file back, as a download: `Content-Disposition:
+     * attachment` and `X-Content-Type-Options: nosniff`, so nothing that was
+     * uploaded is ever rendered on this application's origin.
+     */
+    send(
+      res: Response | ExpressResponse,
+      record: StoredFile | string,
+      options?: { disposition?: 'attachment' | 'inline'; maxAge?: number }
+    ): Promise<unknown>;
+    /** A readable stream of a stored file. */
+    get(record: StoredFile | string): Promise<NodeJS.ReadableStream>;
+    /** Removes a stored file. */
+    delete(record: StoredFile | string): Promise<boolean>;
+  }
+
   /** `henri.workers`. */
   interface WorkersModule {
     name: 'workers';
@@ -1809,6 +1936,12 @@ declare namespace start {
      * and a `deliverLater()` that asked for a delay says what to install.
      */
     jobs?: JobsModule;
+    /**
+     * Uploads, when the application depends on `@usehenri/uploads`. It is
+     * `undefined` when it does not -- core parses no multipart body of its
+     * own, and `req.files` is then absent as well.
+     */
+    uploads?: UploadsModule;
     workers: WorkersModule;
     api: ApiNamespace;
     /** Registration, the password reset and the address confirmation. */

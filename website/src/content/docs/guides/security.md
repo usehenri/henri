@@ -43,6 +43,7 @@ Nothing below needs a configuration key. It is on unless you turn it off, and
 | V5 Validation and encoding | `req.permit('title', 'body')` is the only way a request bag reaches a model in the generated controllers, and it refuses `__proto__`, `constructor` and `prototype`. Queries go through Sequelize, Mongoose or Drizzle, which parameterize. React, Inertia and Handlebars escape what they interpolate. Bodies are bounded by `bodyLimit` (1mb).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | V7 Errors and logging      | Every answer carries `X-Request-Id`, generated or taken from the client, and every log line of that request quotes it. `filterParameters` (`password`, `token`, `secret`, `authorization`, matched as substrings) are masked in everything `henri.pen` prints, query strings included. A `500` in production answers the reason phrase and nothing else; the stack is only in development and test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | V8 Data protection         | A user reaches a view or a JSON answer only as `publicUser()`: `externalId`, `email`, `roles` and whatever `user.public` names. Every record carries an `externalId` (a UUID v7) and the numeric primary key is removed from what `res.render()`, `res.resource()` and `res.collection()` send. A signed-in answer carries `Cache-Control: no-store`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| V12 File upload            | With [`@usehenri/uploads`](/guides/uploads/): a multipart body is bounded before the first byte is read (25mb in total, 10mb a file, 10 files, 100 fields), the type of a file is decided from its bytes and not from the `Content-Type` or the extension the client sent, the stored name is generated (`<yyyy>/<mm>/<32 hex>.<extension of the sniffed type>`) so no name a client sends ever reaches a path, files are written `0600` into a `0700` directory outside everything the application serves, `text/html` and `image/svg+xml` are stored under `.bin`, a stored file is only ever handed back by a controller with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`, and nothing is kept unless a controller calls `store()` -- a request that is refused, times out or is abandoned leaves nothing behind.                                                                                                                                                                                                                                |
 | V13 API                    | Rate limits (600 requests a minute per user or address), `Idempotency-Key` on every mutating route, `Accept: application/vnd.henri.vN+json` versioning, a `requestTimeout` of 30 seconds, and HAL answers whose `_links` are filtered by role. A GraphQL query is bounded before a resolver runs -- 15 aliases, 1000 fields with fragments expanded, 10 levels of nesting, 5000 tokens -- and introspection is off in production.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | V14 Configuration          | [helmet](https://helmetjs.github.io/) sets the headers, with a Content Security Policy that names its origins (no `https:` wildcard) and lets the dev servers work, no HSTS outside production, and `X-Powered-By` off. `Permissions-Policy` denies the camera, the microphone, the location and the other powerful browser features until an application names one. CORS is off unless you ask for it. A double-submit CSRF token (`henri.csrf`, `X-CSRF-Token`) guards every `POST`, `PUT`, `PATCH` and `DELETE` of a session, and the request must also come from an origin this application recognizes (`Sec-Fetch-Site`, then `Origin`), which is the half the token alone does not cover. Secrets live in `.env` or in [encrypted credentials](/configuration/#encrypted-credentials). The configuration is validated against a schema before the first module starts.                                                                                                                                                                                                    |
 
@@ -101,6 +102,13 @@ henri could do and does not yet:
 - **The session cookie is `Secure` when `NODE_ENV` is `production`**, not when
   the request arrives over https. An https deployment under another environment
   name gets a cookie without the attribute.
+- **An uploaded file is recognized, not validated.** `@usehenri/uploads`
+  matches the first bytes against a signature table, which is enough to tell a
+  PNG from an executable named `avatar.png` and not enough to tell a valid PNG
+  from a header followed by anything. It does not open archives (a `.docx` is
+  `application/zip`), it does not scan for malware, and it does not process
+  images: all three are jobs to run after `store()`, not defaults a framework
+  sets. See [Uploads](/guides/uploads/#out-of-scope-on-purpose).
 - **A drained shutdown needs the platform to play along.** `SIGTERM` closes the
   port, finishes the requests in flight within `shutdown.drain` and then stops
   the modules, but a container killed with `SIGKILL` -- a termination grace
@@ -163,8 +171,10 @@ high when a user model exists), `user.lockout: false` (`lockout.disabled`), a
 GraphQL bound set to false (`graphql.limits-disabled`),
 `user.password.binding: false` (`password.binding-disabled`, which is what
 lets a hash copied onto another row sign that row in), `filterParameters:
-false` (`log.filters-disabled`) and `requestTimeout: false`
-(`request-timeout.disabled`).
+false` (`log.filters-disabled`), `requestTimeout: false`
+(`request-timeout.disabled`), an upload bound set to false
+(`uploads.limits-disabled`) and `uploads.sniff: false`, which takes the
+client's word for the type of a file (`uploads.type-check-disabled`).
 
 **Settings that open a door** — a `cors` that accepts any origin, or reflects
 the caller while allowing credentials (`cors.permissive`); `trustProxy: true`
@@ -173,7 +183,10 @@ written by hand, which lets a client choose the address it is rate limited by
 defaults instead of extending them and drops one of them
 (`log.filters-narrowed`); a `user.sessionMaxAge` beyond the 30 days ASVS asks a
 re-authentication within (`session.long-lifetime`); a `user.public` naming a
-field that looks like a credential (`session.public-fields`).
+field that looks like a credential (`session.public-fields`); an
+`uploads.root` inside `app/views`, which `express.static` and the Inertia dev
+server serve, so an uploaded page would be reachable on the application's own
+origin (`uploads.root-served`).
 
 **Code** — a model write that takes `req.body` or `req.query` whole
 (`params.mass-assignment`), `{ unsafe: true }`, which turns off the guard

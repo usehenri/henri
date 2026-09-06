@@ -84,6 +84,23 @@ const duration = (extra = {}) => ({
   ...extra,
 });
 
+/** A size: a number of bytes, or `'10mb'` (what `bodyLimit` accepts) */
+const size = (extra = {}) => ({
+  describe: "a size: a number of bytes, or a string ('10mb')",
+  oneOf: [
+    { above: 0, type: 'number' },
+    { pattern: /^\s*\d+(?:\.\d+)?\s*(?:b|kb|mb|gb)?\s*$/iu, type: 'string' },
+  ],
+  ...extra,
+});
+
+/** The same, with `false` for "no limit" */
+const sizeLimit = (extra = {}) => ({
+  describe: "a size ('10mb', or a number of bytes), or false for no limit",
+  oneOf: [{ const: false }, ...size().oneOf],
+  ...extra,
+});
+
 /** One entry of `stores`: an adapter and how to reach its database */
 const STORE = {
   hint: 'A store is { "adapter": "disk" } and the keys that adapter needs',
@@ -868,17 +885,67 @@ const SCHEMA = {
     oneOf: [text(), positive({ describe: 'a number of bytes above zero' })],
   },
 
-  errors: {
-    describe: 'an object of error code settings',
-    keys: {
-      url: {
-        describe: 'a url template holding {code}',
-        hint: 'Unset by default: nothing prints a link. Point it at wherever the catalogue of https://usehenri.io/reference/errors/ is published (https://example.com/e/{code})',
-        pattern: /\{code\}/u,
-        type: 'string',
+  uploads: {
+    describe: 'an object of upload settings, or false to accept no file',
+    hint: 'Uploads are read by @usehenri/uploads, which the application installs; every key is optional',
+    oneOf: [
+      { const: false },
+      {
+        keys: {
+          allow: {
+            describe:
+              "a list of media types ('image/png', 'image/*'), matched against what the bytes say",
+            hint: 'Without it every type is accepted; the type never comes from the extension',
+            of: text(),
+            type: 'array',
+          },
+          maxFieldNameSize: {
+            default: 100,
+            describe: 'a whole number of bytes, above zero',
+            integer: true,
+            min: 1,
+            type: 'number',
+          },
+          maxFieldSize: sizeLimit({
+            hint: 'One non-file part of the form; defaults to config.bodyLimit',
+          }),
+          maxFields: limit(100),
+          maxFileSize: sizeLimit({ default: '10mb' }),
+          maxFilenameLength: {
+            default: 255,
+            describe: 'a whole number of characters, above zero',
+            hint: 'How much of the original name is kept as metadata; the stored name is generated',
+            integer: true,
+            min: 1,
+            type: 'number',
+          },
+          maxFiles: limit(10),
+          maxTotalSize: sizeLimit({ default: '25mb' }),
+          paths: {
+            describe: "a list of path prefixes ('/api/artworks')",
+            hint: 'Without it a multipart body is read on every route that takes one',
+            of: text({ pattern: /^\//u }),
+            type: 'array',
+          },
+          root: text({
+            default: 'storage/uploads',
+            describe: 'a directory, relative to the application',
+            hint: 'It must be outside app/views/public, which express serves',
+          }),
+          sniff: {
+            default: true,
+            describe: 'true or false',
+            hint: 'false trusts the Content-Type the client sent, which is not evidence',
+            type: 'boolean',
+          },
+          storage: text({
+            default: 'local',
+            describe: "'local', or the module id of a HenriStorage",
+          }),
+        },
+        type: 'object',
       },
-    },
-    type: 'object',
+    ],
   },
 
   requestTimeout: {
@@ -909,6 +976,19 @@ const SCHEMA = {
         describe: 'true or false',
         hint: 'false leaves SIGINT and SIGTERM to the application',
         type: 'boolean',
+      },
+    },
+    type: 'object',
+  },
+
+  errors: {
+    describe: 'an object of error code settings',
+    keys: {
+      url: {
+        describe: 'a url template holding {code}',
+        hint: 'Unset by default: nothing prints a link. Point it at wherever the catalogue of https://usehenri.io/reference/errors/ is published (https://example.com/e/{code})',
+        pattern: /\{code\}/u,
+        type: 'string',
       },
     },
     type: 'object',

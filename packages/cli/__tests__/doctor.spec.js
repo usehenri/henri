@@ -295,6 +295,33 @@ describe('henri doctor', () => {
     expect(run(app).names).not.toContain('deps.declared');
   });
 
+  // An `uploads` block says an application means to accept a file, and
+  // without the package nothing parses a multipart body at all
+  test('asks for @usehenri/uploads when the configuration accepts files', () => {
+    const file = path.join(app, 'config/default.json');
+    const original = fs.readFileSync(file, 'utf8');
+    const config = JSON.parse(original);
+
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ ...config, uploads: { maxFileSize: '5mb' } }, null, 2)
+    );
+
+    const { problems } = run(app);
+
+    fs.writeFileSync(file, original);
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.declared',
+        hint: expect.stringContaining('@usehenri/uploads'),
+        level: 'error',
+      })
+    );
+
+    expect(run(app).names).not.toContain('deps.declared');
+  });
+
   test('reports .env not ignored, and a missing .env as a warning', () => {
     const ignore = path.join(app, '.gitignore');
     const original = fs.readFileSync(ignore, 'utf8');

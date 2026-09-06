@@ -18,5 +18,12 @@
   "rateLimit": {
     "auth": { "max": 200 }
   },
+  "uploads": {
+    "root": ".tmp/uploads",
+    "maxFileSize": "512kb",
+    "maxTotalSize": "1mb",
+    "maxFiles": 2,
+    "maxFields": 10
+  },
   "env": "test"
 }

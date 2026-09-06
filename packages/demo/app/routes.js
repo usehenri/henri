@@ -17,6 +17,7 @@ module.exports = {
     rateLimit: { max: 2, windowMs: 60000 },
   },
   'get /profile': { controller: 'user#profile', roles: ['member'] },
+  'get /uploads/:id': 'uploads#show',
   'get /version': 'main#version',
   // A namespace: the controllers live in app/controllers/admin
   'namespace admin': {
@@ -27,6 +28,8 @@ module.exports = {
   'post /echo': { controller: 'main#echo', idempotent: false },
   'post /once': 'main#echo',
   'post /register': 'user#create',
+  // Multipart, read by @usehenri/uploads before sessions and csrf
+  'post /uploads': { controller: 'uploads#create', idempotent: false },
   // A versioned, scoped resource (/api/v1/artworks)
   'resources artworks': {
     controller: 'artworks',

@@ -55,6 +55,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                |
 | `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                      |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                            |
+| `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                  |
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                   |
 | `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                       |
 | `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                          |
@@ -143,6 +144,36 @@ The keys of the [JSON API](/guides/api/), all optional:
 | `filterParameters` | `["password", "token", "secret", "authorization"]` | Substrings of the parameter names masked in everything `henri.pen` prints; `false` masks nothing.                                                                                                                                                                 |
 | `bodyLimit`        | `"1mb"`                                            | Passed to the JSON and urlencoded body parsers; a string (`"1mb"`) or a number of bytes.                                                                                                                                                                          |
 | `requestTimeout`   | `30000`                                            | Milliseconds before a `503`; `false` disables the timeout.                                                                                                                                                                                                        |
+
+## Uploads
+
+`uploads` is read by [`@usehenri/uploads`](/guides/uploads/), which the application installs; without the package nothing parses a multipart body. `false` accepts no file. Every key is optional, and every limit is enforced by the parser as it reads rather than checked once the file is on disk.
+
+| Key                         | Default             | Description                                                                                                                                               |
+| --------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uploads.storage`           | `"local"`           | `"local"` for the disk, or the module id of a `HenriStorage` resolved from the application.                                                               |
+| `uploads.root`              | `"storage/uploads"` | Where the local storage keeps files, relative to the application. It must be outside `app/views/public`, which `express.static` serves.                   |
+| `uploads.maxFileSize`       | `"10mb"`            | Largest single file; `false` removes the bound.                                                                                                           |
+| `uploads.maxTotalSize`      | `"25mb"`            | Largest multipart body, all parts together. Checked against `Content-Length` before the parser is built, then counted as the bytes arrive.                |
+| `uploads.maxFiles`          | `10`                | How many files one request may carry.                                                                                                                     |
+| `uploads.maxFields`         | `100`               | How many non-file fields one request may carry.                                                                                                           |
+| `uploads.maxFieldNameSize`  | `100`               | Longest field name, in bytes.                                                                                                                             |
+| `uploads.maxFieldSize`      | `bodyLimit`         | Largest non-file part. It defaults to [`bodyLimit`](#headers-logs-and-limits) so one text field costs the same whichever encoding a form was posted with. |
+| `uploads.maxFilenameLength` | `255`               | How much of the original name is kept as metadata. The stored name is generated, so this never bounds a path.                                             |
+| `uploads.allow`             |                     | Media types that may be kept (`"image/png"`, `"image/*"`), matched against what the bytes say. Without it every type is accepted.                         |
+| `uploads.sniff`             | `true`              | Decide the type from the first bytes. `false` trusts the `Content-Type` the client sent, which is not evidence; `henri audit` reports it.                 |
+| `uploads.paths`             |                     | Path prefixes a multipart body is read under (`["/artworks"]`). Without it, any route that takes a body may receive one.                                  |
+
+```json
+{
+  "uploads": {
+    "allow": ["image/png", "image/jpeg", "application/pdf"],
+    "maxFileSize": "5mb",
+    "maxFiles": 3,
+    "paths": ["/artworks"]
+  }
+}
+```
 
 ## Shutdown
 

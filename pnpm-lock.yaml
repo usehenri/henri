@@ -198,6 +198,9 @@ importers:
       '@usehenri/jobs':
         specifier: workspace:^
         version: link:../jobs
+      '@usehenri/uploads':
+        specifier: workspace:^
+        version: link:../uploads
     devDependencies:
       '@usehenri/testing':
         specifier: workspace:^
@@ -492,6 +495,25 @@ importers:
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@26.4.1)(@vitest/coverage-v8@5.0.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.104.0)(tsx@4.23.13)(yaml@2.9.0))
+
+  packages/uploads:
+    dependencies:
+      busboy:
+        specifier: ^1.6.0
+        version: 1.6.0
+      debug:
+        specifier: ^4.4.3
+        version: 4.4.3(supports-color@8.1.1)
+    devDependencies:
+      '@usehenri/core':
+        specifier: workspace:^
+        version: link:../core
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1(supports-color@8.1.1)
+      supertest:
+        specifier: ^7.2.2
+        version: 7.2.2(supports-color@8.1.1)
 
   packages/websocket:
     dependencies:
@@ -3972,6 +3994,10 @@ packages:
     resolution: {integrity: sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q==}
     engines: {node: '>=18'}
 
+  busboy@1.6.0:
+    resolution: {integrity: sha512-8SFQbg/0hQ9xy3UNTB0YEnsNBbWfhf7RtnzpL7TkBiTBRfrQ9Fxcnz7VJsleJpyp6rVLvXiuORqjlHi5q+PYuA==}
+    engines: {node: '>=10.16.0'}
+
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
@@ -6466,6 +6492,10 @@ packages:
 
   std-env@4.2.0:
     resolution: {integrity: sha512-oCUKSupKTHX53EyjDtuZQ64pjLJ6yYCtpmEw0goYxtjG9KpbRe8KAsl2tBUGU9DyMcJ0RwJ8GqJAFzMXcXW1Rw==}
+
+  streamsearch@1.1.0:
+    resolution: {integrity: sha512-Mcc5wHehp9aXz1ax6bZUyY5afg9u2rv5cqQI3mRrYkGC8rW2hM02jWuwjtL++LS5qinSyhj2QfLyNsuc+VsExg==}
+    engines: {node: '>=10.0.0'}
 
   streamx@2.28.1:
     resolution: {integrity: sha512-zEzXb0s5Cds7tqMH6rhZ05lcJydCWiQPEwiNngVqzsxCc962vLY4Uw+mW7od8kDH258k2Uz/JrOkdIAAhSh9VA==}
@@ -10321,6 +10351,10 @@ snapshots:
     dependencies:
       run-applescript: 7.1.0
 
+  busboy@1.6.0:
+    dependencies:
+      streamsearch: 1.1.0
+
   bytes@3.1.2: {}
 
   cac@7.0.0: {}
@@ -12999,6 +13033,8 @@ snapshots:
   statuses@2.0.2: {}
 
   std-env@4.2.0: {}
+
+  streamsearch@1.1.0: {}
 
   streamx@2.28.1:
     dependencies:

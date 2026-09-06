@@ -323,6 +323,79 @@ describe('henri audit', () => {
     );
   });
 
+  test('reports what an application weakened about uploads', () => {
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      {
+        uploads: {
+          maxFiles: false,
+          maxTotalSize: false,
+          root: 'app/views/public/uploads',
+          sniff: false,
+        },
+      }
+    );
+
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'uploads.limits-disabled',
+        'uploads.root-served',
+        'uploads.type-check-disabled',
+      ])
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V12.1.1',
+        check: 'uploads.limits-disabled',
+        file: 'config/production.json',
+        message: expect.stringContaining(
+          'uploads.maxFiles, uploads.maxTotalSize'
+        ),
+        severity: 'medium',
+      })
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V12.4.1',
+        check: 'uploads.root-served',
+        owasp: 'A05:2021 Security Misconfiguration',
+        severity: 'high',
+      })
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V12.2.1',
+        check: 'uploads.type-check-disabled',
+        severity: 'medium',
+      })
+    );
+
+    // Bounds that are raised, a root outside what is served, and the
+    // defaults: nothing to report
+    expect(
+      withConfig(app, 'config/production.json', {
+        uploads: {
+          allow: ['image/png'],
+          maxFiles: 50,
+          maxTotalSize: '200mb',
+          root: 'storage/uploads',
+        },
+      }).names
+    ).not.toEqual(
+      expect.arrayContaining([
+        'uploads.limits-disabled',
+        'uploads.root-served',
+        'uploads.type-check-disabled',
+      ])
+    );
+
+    // "uploads": false accepts no file at all, which is not a weakening
+    expect(
+      withConfig(app, 'config/production.json', { uploads: false }).names
+    ).not.toContain('uploads.limits-disabled');
+  });
+
   test('reports password hashes that are not bound to their row', () => {
     // An application that turned the binding off is telling anyone who can
     // write its database that a hash copied onto another row still works

@@ -72,10 +72,14 @@ const fixture = async () => {
   const app = path.join(dir, 'app');
   const port = await freePort();
 
+  // The application, not what it wrote while running: `.henri` holds the
+  // store's data and `.tmp` the uploads, and another suite may be writing
+  // into either of them right now
   fs.cpSync(demo, app, {
     filter: (source) =>
       !source.includes(`${path.sep}node_modules`) &&
-      !source.includes(`${path.sep}.henri`),
+      !source.includes(`${path.sep}.henri`) &&
+      !source.includes(`${path.sep}.tmp`),
     recursive: true,
   });
   fs.symlinkSync(

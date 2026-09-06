@@ -73,6 +73,7 @@ an app and is what core's tests boot.
 | `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19; the default renderer of `henri new`                                                                                                                        |
 | `packages/jobs`                         | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1; ships its own module, left core in 1.2                                      |
 | `packages/graphql`                      | `@usehenri/graphql`   | GraphQL: the models' types and resolvers merged and served by Apollo Server; left core in 1.2                                                                                                         |
+| `packages/uploads`                      | `@usehenri/uploads`   | File uploads: bounded multipart parsing (busboy), files typed by their bytes and a storage seam; ships its own module, new in 1.2                                                                     |
 | `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                                                     |
 | `packages/mcp`                          | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                                                  |
 | `packages/websocket`                    | private               | Not published, never wired into core                                                                                                                                                                  |
@@ -121,8 +122,8 @@ an app and is what core's tests boot.
   (string or `{ model, public, loginPath, afterLogin, sessionMaxAge, signup,
 passwordReset, confirmation }`), `baseRole`, `policies`,
   `trustProxy`, `csrf`, `graphql`, `mail`, `mailers`, `api`, `jobs`,
-  `rateLimit`, `helmet`, `filterParameters`, `bodyLimit`, `requestTimeout`,
-  `errors`.
+  `rateLimit`, `helmet`, `filterParameters`, `bodyLimit`, `uploads`,
+  `requestTimeout`, `shutdown`, `errors`, `policies`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
@@ -301,6 +302,35 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
 perform|retry|discard` drive it. The module also registers
   `henri.mailers.onDeliverLater()`, so `deliverLater()` enqueues the rendered
   message as the built-in `henri/mail` job.
+- File uploads live in `@usehenri/uploads`. Core parses no multipart body:
+  the package ships the module (`"henri": { "module": "./module.js" }`), so
+  depending on it puts `henri.uploads` in the boot at runlevel 3, with
+  `before: ['user', 'router']` -- the parser has to run before the CSRF
+  middleware, because the `_csrf` field of a multipart form is inside the
+  body. It mounts one middleware that always adds `req.files`
+  (`{ [field]: UploadedFile[] }`), `req.file(field)` and
+  `req.permitFiles(...fields)` -- `req.permit()` for files, which unlinks
+  what the controller did not list -- and reads a multipart body with busboy
+  under the bounds of `config.uploads` (`maxTotalSize` 25mb, `maxFileSize`
+  10mb, `maxFiles` 10, `maxFields` 100, `maxFieldNameSize` 100 bytes,
+  `maxFieldSize` defaulting to `config.bodyLimit`; each of the first four
+  accepts `false`). Every bound reaches the parser, `Content-Length` is
+  checked before one is built, and a refused request is drained (capped) so
+  the client reads its `413`. A file's type comes from its first bytes
+  (`src/sniff.js`), never from the `Content-Type` or the extension; the
+  client's claim is kept as `declaredType`, `config.uploads.allow` matches
+  the sniffed type, and `text/html` and `image/svg+xml` are stored under
+  `.bin`. The stored name is generated
+  (`<yyyy>/<mm>/<32 hex>.<extension of the type>`), the original is cleaned
+  metadata, and the storage refuses any other key shape. Nothing is kept
+  unless a controller calls `store()`, which answers the record a model holds
+  (`{ key, name, type, size, checksum, storage, uploadedAt }`); everything
+  else is swept when the response closes. Storage backends implement
+  `HenriStorage` (JSDoc at the top of `packages/uploads/src/storage/local.js`:
+  `start`, `stop`, `temp`, `put`, `get`, `stat`, `delete`, `url`); the local
+  disk ships (`storage/uploads`, `0700`/`0600`, a `.gitignore` of its own),
+  anything else is a module id resolved from the application, and
+  `henri.uploads.send(res, record)` is how a file is handed back.
 - Controllers may export `before` (`base/hooks.js`): hooks the router runs
   between the role guard and the action, keyed by action (`all`,
   `'show,edit'`) or as `[fn, { run, only, except }]`; a hook that answers ends
@@ -423,6 +453,13 @@ the LICENSE and a README into every public package at publish time
   of the default store (`scripts/adapters.js` maps it to the mongoose,
   sequelize or drizzle flavour), which `henri new --adapter <name>` configures.
   The `template` and `vue` renderers get no generated pages.
+- `@usehenri/uploads` is new in 1.2. It recognizes a file rather than
+  validating it: a signature table plus a text inference over the first 4kb,
+  so a valid header followed by anything is that type, a `.docx` is
+  `application/zip` (archives are never opened), and a format with no
+  signature is `application/octet-stream`. Image processing, direct-to-S3
+  signed uploads, a CDN story and virus scanning are out of scope on purpose
+  and the guide says why. No S3 storage ships, only the local disk.
 - The idempotency and rate-limit stores are in memory unless the app plugs a
   shared store (`config.api.idempotency.store`, `config.rateLimit.store`).
 - `@usehenri/jobs` is new in 1.1. Its claim is covered against sqlite,

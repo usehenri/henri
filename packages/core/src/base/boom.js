@@ -23,9 +23,11 @@ const STATUSES = {
   methodNotAllowed: [405, 'Method Not Allowed'],
   notFound: [404, 'Not Found'],
   notImplemented: [501, 'Not Implemented'],
+  payloadTooLarge: [413, 'Payload Too Large'],
   serverUnavailable: [503, 'Service Unavailable'],
   tooManyRequests: [429, 'Too Many Requests'],
   unauthorized: [401, 'Unauthorized'],
+  unsupportedMediaType: [415, 'Unsupported Media Type'],
 };
 
 /**

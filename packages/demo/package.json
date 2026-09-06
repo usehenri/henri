@@ -9,7 +9,8 @@
     "@usehenri/core": "workspace:^",
     "@usehenri/disk": "workspace:^",
     "@usehenri/graphql": "workspace:^",
-    "@usehenri/jobs": "workspace:^"
+    "@usehenri/jobs": "workspace:^",
+    "@usehenri/uploads": "workspace:^"
   },
   "engines": {
     "node": ">=22"
