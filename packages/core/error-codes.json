@@ -46,6 +46,10 @@
       "what": "the model files of app/models and the schema the adapters normalize"
     },
     {
+      "area": "params",
+      "what": "what a controller declares its actions accept, and the requests checked against it"
+    },
+    {
       "area": "privacy",
       "what": "the personal data marked in the models, the export of one person and the erasure of them"
     },
@@ -1010,6 +1014,31 @@
       "code": "HENRI_MODEL_UNKNOWN_TYPE",
       "fix": "henri's types are `string`, `text`, `number`, `integer`, `float`, `boolean`, `date`, `json` and `uuid`. The adapter maps them to the ORM's own.",
       "what": "A model field asks for a type henri does not have."
+    },
+    {
+      "area": "params",
+      "causes": [
+        "a rule with no `type`, or a type henri does not have",
+        "a constraint the type does not take (`min` on a string, `of` on a number)",
+        "an unknown key, usually a misspelling of `required`, `maxLength` or `default`",
+        "a `default` or an `enum` value the rule itself refuses",
+        "a selector naming an action the controller does not export"
+      ],
+      "code": "HENRI_PARAMS_DECLARATION_INVALID",
+      "fix": "The message names the controller, the action and the field. A rule is `{ type, required, default, enum, min, max, minLength, maxLength, pattern, of }`, or the type itself (`year: 'integer'`). See the Controllers guide.",
+      "what": "A controller declares parameters henri cannot check."
+    },
+    {
+      "area": "params",
+      "causes": [
+        "a value of the wrong type (`?year=banana` where a number was declared)",
+        "a required field nobody sent",
+        "a value outside the bounds the action declared",
+        "a JSON body sending a string where a number or a boolean was declared"
+      ],
+      "code": "HENRI_PARAMS_INVALID",
+      "fix": "The 422 answer carries one message per field in `data.errors`, the shape `henri.model.errors()` normalizes to. Send what the action declared, or change the declaration.",
+      "what": "A request does not match what the action declared it accepts."
     },
     {
       "area": "privacy",

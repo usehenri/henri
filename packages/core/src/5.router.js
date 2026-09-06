@@ -355,8 +355,10 @@ class Router extends BaseModule {
       route,
       verb,
     });
-    // `before` hooks of the controller, then the action wrapped so that
+    // What the action declared it accepts (see base/params-schema.js), then
+    // the `before` hooks of the controller, then the action wrapped so that
     // returning without answering renders its page (see base/hooks.js)
+    const checks = this.checks(controller);
     const hooks = this.hooks(controller);
     const handler = implicit(action, controllerName, controllerAction);
 
@@ -412,6 +414,7 @@ class Router extends BaseModule {
       ...before,
       ...guards,
       ...after,
+      ...checks,
       ...hooks,
       handler
     );
@@ -554,6 +557,34 @@ class Router extends BaseModule {
         'call req.authorize(action, record) once the record is loaded'
       );
     });
+  }
+
+  /**
+   * The parameter check of a controller action, as middlewares
+   *
+   * It runs once the route is allowed and right before the `before` hooks:
+   * a request that may not reach the action is never told what is wrong
+   * with its parameters, and a hook that loads a record already sees the
+   * coerced value. An action that declared nothing gets nothing.
+   *
+   * @param {string} controller the controller (`tasks#create`)
+   * @returns {Array<function>} express middlewares
+   * @memberof Router
+   */
+  checks(controller) {
+    const { controllers } = this.henri;
+
+    if (!controllers || typeof controllers.checks !== 'function') {
+      return [];
+    }
+
+    const found = controllers.checks(controller);
+
+    if (found.length > 0) {
+      debug('%s checks its parameters', controller);
+    }
+
+    return found;
   }
 
   /**
@@ -951,9 +982,18 @@ class Router extends BaseModule {
         csrf: req.csrfToken || null,
         localUrl: this.henri.server.url,
         paths: this._roles['guest'],
-        query: req.query,
         user: this.publicUser(req.user),
       };
+
+      // `query` is read when the page is built, not now: an action that
+      // declared what it accepts has had those values coerced since
+      // (base/params-schema.js), and the page reads the same request
+      // everything else does
+      Object.defineProperty(exposed, 'query', {
+        configurable: true,
+        enumerable: true,
+        get: () => req.query,
+      });
 
       // Only with `csp.nonce` on: the key is absent otherwise, so an
       // application that did not ask for one never reads a null and takes it

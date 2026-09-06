@@ -34,6 +34,18 @@ module.exports = {
     'show,archive': loadNote,
   },
 
+  // What each action accepts, checked and coerced before it runs: `?limit=2`
+  // reaches the action as the number 2 and `?limit=banana` never reaches it
+  params: {
+    create: { title: { maxLength: 40, required: true, type: 'string' } },
+    search: {
+      exact: { default: false, type: 'boolean' },
+      limit: { default: 10, max: 50, min: 1, type: 'integer' },
+      // eslint-disable-next-line id-length -- `?q=` is the search parameter
+      q: { maxLength: 60, type: 'string' },
+    },
+  },
+
   // eslint-disable-next-line sort-keys -- the hooks come first, like in rails
   archive: async (req, res) => {
     req.note.archived = true;
@@ -60,12 +72,21 @@ module.exports = {
   // the /notes page
   index: async () => ({ notes: [...notes.values()] }),
 
-  // A collection route (get /notes/search)
-  search: async (req) => ({
-    notes: [...notes.values()].filter((note) =>
-      String(note.title || '').includes(String(req.query.q || ''))
-    ),
-  }),
+  // A collection route (get /notes/search). `req.permit()` with no field is
+  // everything the declaration above accepted, in the shape it declared: the
+  // limit is a number and `exact` is a boolean, whatever the url said
+  search: async (req) => {
+    const accepted = req.permit();
+    const term = String(accepted.q || '');
+    const matches = (title) =>
+      accepted.exact ? title === term : title.includes(term);
+
+    return {
+      notes: [...notes.values()]
+        .filter((note) => matches(String(note.title || '')))
+        .slice(0, accepted.limit),
+    };
+  },
 
   show: async (req) => ({ note: req.note }),
 };

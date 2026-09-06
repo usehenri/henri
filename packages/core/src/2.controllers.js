@@ -1,7 +1,15 @@
 const BaseModule = require('./base/module');
 const path = require('path');
 const { loadModules } = require('./utils');
-const { RESERVED, chain, hooksFor } = require('./base/hooks');
+const { RESERVED: HOOK_KEYS, chain, hooksFor } = require('./base/hooks');
+const {
+  RESERVED: PARAM_KEYS,
+  declarations,
+  guard,
+} = require('./base/params-schema');
+
+/** The exports of a controller that describe it instead of answering */
+const RESERVED = new Set([...HOOK_KEYS, ...PARAM_KEYS]);
 
 /**
  * Controllers module
@@ -23,7 +31,11 @@ class Controllers extends BaseModule {
     this._controllers = new Map();
     /** The controller modules, for the `before` hooks they export */
     this._modules = new Map();
+    /** The compiled `params` declarations, by `controller#action` */
+    this._params = new Map();
 
+    this.accepts = this.accepts.bind(this);
+    this.checks = this.checks.bind(this);
     this.configure = this.configure.bind(this);
     this.init = this.init.bind(this);
     this.reload = this.reload.bind(this);
@@ -51,16 +63,21 @@ class Controllers extends BaseModule {
    * Configure the models and adapters
    *
    * Every exported function becomes an action (`tasks#index`), except the
-   * reserved keys (`before`), which describe the controller instead.
+   * reserved keys (`before`, `params`), which describe the controller
+   * instead. The `params` declarations are compiled here, so a rule henri
+   * cannot carry out fails the boot naming the controller, the action and
+   * the key rather than accepting everything (see base/params-schema.js).
    *
    * @param {object} controllers Controllers loaded from disk
    * @returns {boolean} success
+   * @throws {Error} when a `params` declaration cannot be carried out
    * @memberof Controllers
    */
   async configure(controllers) {
     for (const id in controllers) {
       if (typeof controllers[id] !== 'undefined') {
         const controller = controllers[id];
+        const actions = [];
 
         this._modules.set(id, controller);
 
@@ -70,8 +87,15 @@ class Controllers extends BaseModule {
 
             if (typeof method === 'function') {
               this._controllers.set(`${id}#${key}`, method);
+              actions.push(key);
             }
           }
+        }
+
+        for (const [action, rules] of Object.entries(
+          declarations(controller, id, actions)
+        )) {
+          this._params.set(`${id}#${action}`, rules);
         }
       }
     }
@@ -106,6 +130,7 @@ class Controllers extends BaseModule {
   async reload() {
     this._controllers.clear();
     this._modules.clear();
+    this._params.clear();
     await this.init();
 
     return this.name;
@@ -131,6 +156,37 @@ class Controllers extends BaseModule {
     }
 
     return chain(hooksFor(controller.before, action, controller));
+  }
+
+  /**
+   * What an action declared it accepts, compiled
+   *
+   * A controller exports it as `params`: an object keyed by action (`all`,
+   * `create`, `'index,search'`) holding one rule per field. See
+   * base/params-schema.js.
+   *
+   * @param {string} key The controller name (ex: tasks#create)
+   * @returns {?object} The rules by field, or null when nothing is declared
+   * @memberof Controllers
+   */
+  accepts(key) {
+    return this._params.get(key) || null;
+  }
+
+  /**
+   * The parameter check of an action, as express middlewares
+   *
+   * Empty for an action that declared nothing, which is what keeps such an
+   * action exactly as it was.
+   *
+   * @param {string} key The controller name (ex: tasks#create)
+   * @returns {Array<function>} The middlewares (none, or one)
+   * @memberof Controllers
+   */
+  checks(key) {
+    const rules = this.accepts(key);
+
+    return rules ? [guard(rules)] : [];
   }
 
   /**
