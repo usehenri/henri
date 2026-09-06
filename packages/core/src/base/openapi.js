@@ -14,6 +14,14 @@
  * A framework can only describe the answers it produces itself. henri
  * produces a lot of them:
  *
+ * - what an action declared it accepts (`params`, base/params-schema.js) is
+ *   checked by henri itself, on every verb: the fields become the query, the
+ *   path and the body parameters of the operation, with the types and the
+ *   bounds the declaration wrote, and the operation answers 422 when a
+ *   request does not match. That check is registered next to the guards
+ *   regardless of the verb, so a `GET` with a declaration answers 422 too --
+ *   which is the whole reason this document reads the declarations rather
+ *   than tying 422 to the idempotency of a mutating route.
  * - the routes expanded from `resources` and `crud` are HAL-guarded
  *   (`base/hateoas.js`): a successful JSON answer carries `_links`, and
  *   with `config.api.strict` one that does not is refused with a 500. That
@@ -44,21 +52,41 @@
  *   columns with their types and marks *nothing* required: what is there is
  *   right, what is missing is the application's business. Every schema is
  *   open (`additionalProperties`).
- * - **what a request body accepts.** `req.permit()` is the controller's
- *   decision, and a required column may well be set by the server (the
- *   speaker of a proposal is the session, never the body). The input
- *   schema is the model's writable columns, all optional, and a foreign
- *   key gets no type at all: what a form posts for it is the
- *   application's to say.
+ * - **what a request body accepts, when the action declared nothing.**
+ *   `req.permit('title')` names the fields and henri never sees that list,
+ *   and a required column may well be set by the server (the speaker of a
+ *   proposal is the session, never the body). Without a declaration the
+ *   input schema is the model's writable columns, all optional, and a
+ *   foreign key gets no type at all: what a form posts for it is the
+ *   application's to say. With one, the body is the declaration -- what
+ *   henri itself checks -- and it stays open, because an undeclared key is
+ *   dropped rather than refused and the action may still permit one by name.
  * - **the status of a success.** `res.resource()` defaults to 200 and takes
  *   any other; the document enumerates the statuses henri can produce and
  *   leaves the rest to the `default` response.
  *
  * Every operation carries an `x-henri` object saying which of the two it
  * is (`answer: 'collection' | 'resource' | 'page' | 'unknown'`, `known`)
- * and what henri actually checks on it (`enforced`), so a reader -- a
- * person or an agent -- never has to guess how much of the document was
+ * and what henri actually checks on it (`enforced`, a list), so a reader --
+ * a person or an agent -- never has to guess how much of the document was
  * derived and how much was assumed.
+ *
+ * ## The declarations, and the two paths that read them
+ *
+ * The `params` block lives in a controller file, which is code, and this
+ * builder is handed the compiled rules rather than reading any: a booted
+ * application passes what `henri.controllers.accepts()` already holds, and
+ * `henri openapi` passes what it compiled from the controllers it could
+ * load, through the same `declarations()` of base/params-schema.js. Same
+ * compiler, same answer.
+ *
+ * A controller the command could not load -- one that reaches for a model
+ * global at import time, or whose declaration would fail the boot -- is the
+ * one case where the two paths differ, so it is **said in the document**
+ * rather than quietly dropped: the operation carries
+ * `x-henri.params.read: false`, it declares no parameters of its own and no
+ * 422 for them, and `info.x-henri.params.unread` lists every such action.
+ * Nothing is invented in its place.
  *
  * ## Why 3.1 and not 3.0
  *
@@ -556,6 +584,176 @@ function fieldSchema(name, field, { resolves, settings, write = false }) {
 }
 
 /**
+ * One rule of a `params` declaration as a JSON Schema.
+ *
+ * The vocabulary is the models' (`type`, `enum`, `default`) plus the bounds
+ * a request needs, so most of it maps across unchanged. Two things do not:
+ * `minLength`/`maxLength` are the items of a list when the rule is a list
+ * (henri has one word for one meaning; JSON Schema has two keywords), and
+ * nothing is nullable -- `null` is an absent field to the checker, never a
+ * value it keeps.
+ *
+ * @param {object} compiled a compiled rule (base/params-schema.js)
+ * @returns {object} the schema
+ */
+function ruleSchema(compiled) {
+  const written = objectOf(compiled);
+  const list = written.type === 'array';
+  const known = TYPES[written.type];
+  const schema = {};
+
+  if (list) {
+    schema.type = 'array';
+    schema.items = ruleSchema(written.of);
+  } else if (known && known.type) {
+    schema.type = known.type;
+
+    if (known.format) {
+      schema.format = known.format;
+    }
+  }
+
+  if (Array.isArray(written.enum) && written.enum.length > 0) {
+    schema.enum = written.enum.slice();
+  }
+
+  if (publishableDefault(written.default)) {
+    schema.default = written.default;
+  }
+
+  if (Number.isFinite(written.min)) {
+    schema.minimum = written.min;
+  }
+
+  if (Number.isFinite(written.max)) {
+    schema.maximum = written.max;
+  }
+
+  if (Number.isFinite(written.minLength)) {
+    schema[list ? 'minItems' : 'minLength'] = written.minLength;
+  }
+
+  if (Number.isFinite(written.maxLength)) {
+    schema[list ? 'maxItems' : 'maxLength'] = written.maxLength;
+  }
+
+  if (written.pattern instanceof RegExp) {
+    schema.pattern = written.pattern.source;
+  }
+
+  return schema;
+}
+
+/**
+ * Where every declared field of an action is described.
+ *
+ * henri reads a field from the query string, the body and the path
+ * parameters, a later source winning; the document has to put each one
+ * somewhere, so it follows what the request can actually carry. A name the
+ * route templates is a path parameter. On a verb with no body, everything
+ * else is a query parameter. On a mutating verb, everything else is the
+ * request body -- which is where a form posts it and where henri writes a
+ * default -- and the description says the query string is read as well.
+ *
+ * @param {object} rules the compiled rules, by field
+ * @param {object} context `{ names, verb }`
+ * @returns {{body: object, path: object, query: object}} the three groups
+ */
+function splitDeclaration(rules, { names, verb }) {
+  const body = {};
+  const path = {};
+  const query = {};
+
+  for (const field of Object.keys(rules).sort()) {
+    if (names.includes(field)) {
+      path[field] = rules[field];
+    } else if (MUTATING.has(verb)) {
+      body[field] = rules[field];
+    } else {
+      query[field] = rules[field];
+    }
+  }
+
+  return { body, path, query };
+}
+
+/**
+ * What a parameter built from a declaration says about itself
+ *
+ * @param {string} where `query` or `path`
+ * @param {object} context `{ action, controller }`
+ * @returns {string} the description
+ */
+function declaredDescription(where, { action, controller }) {
+  return [
+    `Declared by \`${controller}#${action}\` (the \`params\` export): henri checks it before the action runs and answers 422 with a message for this field when it does not fit (\`HENRI_PARAMS_INVALID\`).`,
+    `The ${where === 'path' ? 'path' : 'query string'} is textual, so the value is parsed into the type above rather than checked against it.`,
+  ].join(' ');
+}
+
+/**
+ * The query parameters an action declared
+ *
+ * @param {object} rules the declared fields that arrive in the query
+ * @param {object} context `{ action, controller }`
+ * @returns {Array<object>} the parameter objects
+ */
+function declaredParameters(rules, context) {
+  return Object.keys(rules).map((name) => ({
+    name,
+    in: 'query',
+    required: rules[name].required === true,
+    description: declaredDescription('query', context),
+    schema: ruleSchema(rules[name]),
+  }));
+}
+
+/**
+ * The request body an action declared.
+ *
+ * Open, and deliberately: an undeclared key is dropped rather than refused
+ * (base/params-schema.js), and `req.permit('title')` can still name a field
+ * the declaration says nothing about.
+ *
+ * @param {object} rules the declared fields that arrive in the body
+ * @param {object} context `{ action, controller, model }`
+ * @returns {object} the request body object
+ */
+function declaredBody(rules, { action, controller, model }) {
+  const properties = {};
+  const required = [];
+
+  for (const name of Object.keys(rules)) {
+    properties[name] = ruleSchema(rules[name]);
+
+    if (rules[name].required === true) {
+      required.push(name);
+    }
+  }
+
+  const schema = prune({
+    type: 'object',
+    description: `The fields \`${controller}#${action}\` declared it accepts. A JSON body is checked and never parsed -- \`{"page": "2"}\` where a number was declared is refused -- while a form body is parsed into the declared type.`,
+    properties,
+    required: required.length > 0 ? required : undefined,
+    additionalProperties: true,
+  });
+
+  return {
+    description: `What the action declared (\`params\`), which is what henri checks: a request that does not match is refused with a 422 before the action runs.${
+      model
+        ? ` The columns of the ${model.globalId} model are \`${model.globalId}Input\`, and the action may permit one of them by name.`
+        : ''
+    } Other properties are allowed, because an undeclared key is dropped rather than refused; henri reads a declared field from the query string as well as from the body.`,
+    content: {
+      [JSON_MEDIA]: { schema },
+      'application/x-www-form-urlencoded': { schema },
+    },
+    required: required.length > 0,
+  };
+}
+
+/**
  * The schemas of one model: the record as it leaves, and the columns a
  * request may carry
  *
@@ -947,6 +1145,12 @@ function responsesOf(settings) {
         settings.policyStatus === 403 ? ', or a policy that said no' : ''
       }.`
     ),
+    IdempotencyMismatch: named(
+      'The `Idempotency-Key` was already used for a different method, url or body (base/idempotency.js). The first answer is not replayed to a request that is not the same one.'
+    ),
+    InvalidParameters: named(
+      'The request does not match what the action declared it accepts (`params`, base/params-schema.js): `code` is `HENRI_PARAMS_INVALID` and `data.errors` holds one message per field. The check runs behind the role and the policy guards and ahead of the action, on every verb -- a `GET` declaring its query string answers this too.'
+    ),
     NotAcceptable: named(
       'The client asked for an API version this route does not serve (`Accept: application/vnd.henri.vN+json`).'
     ),
@@ -974,7 +1178,10 @@ function responsesOf(settings) {
       'Nobody is signed in. A browser asking for HTML is redirected to `config.user.loginPath` instead.'
     ),
     UnprocessableEntity: named(
-      'The `Idempotency-Key` was already used for a different method, url or body (base/idempotency.js), or a form could not be accepted.'
+      'Either of the two henri answers on this operation, and `code` says which: the parameter check refused the request (`HENRI_PARAMS_INVALID`, one message per field in `data.errors`), or the `Idempotency-Key` was already used for a different method, url or body.'
+    ),
+    ValidationFailed: named(
+      'A value one of the account handlers henri mounts could not accept: an address that is already registered, a password the user model refused, a form that did not validate. `data.errors` holds one message per field when henri has them.'
     ),
   };
 }
@@ -1056,12 +1263,16 @@ function template(route) {
  * identifier of the record when the model carries one, because that is the
  * only identifier `findById()` resolves (`externalIds.lookup`).
  *
+ * A name the action also declared in `params` is typed by the declaration
+ * instead: that is the rule henri checks, and it is checked on the path like
+ * anywhere else.
+ *
  * @param {Array<string>} names the parameter names
- * @param {object} context `{ findModel, route, settings }`
+ * @param {object} context `{ declared, findModel, route, settings }`
  * @returns {Array<object>} the parameter objects
  */
-function pathParameters(names, { findModel, route, settings }) {
-  const controller = String(route.controller || '').split('#')[0];
+function pathParameters(names, { declared = {}, findModel, route, settings }) {
+  const [controller, action] = String(route.controller || '').split('#');
 
   return names.map((name) => {
     const owner =
@@ -1069,23 +1280,29 @@ function pathParameters(names, { findModel, route, settings }) {
         ? findModel(controller)
         : findModel(name.replace(/_id$/u, ''));
     const external = owner && objectOf(owner.options).externalId !== false;
+    const rule = Object.prototype.hasOwnProperty.call(declared, name)
+      ? declared[name]
+      : null;
     const schema =
       external && settings.lookup === 'external'
         ? { type: 'string', format: 'uuid' }
         : { type: 'string' };
+    const description = owner
+      ? `The externalId of the ${owner.globalId}${
+          external && settings.lookup === 'external'
+            ? ': the primary key does not resolve (base/references.js)'
+            : ''
+        }.`
+      : 'A path parameter henri knows the name of and nothing else.';
 
     return {
       name,
       in: 'path',
       required: true,
-      description: owner
-        ? `The externalId of the ${owner.globalId}${
-            external && settings.lookup === 'external'
-              ? ': the primary key does not resolve (base/references.js)'
-              : ''
-          }.`
-        : 'A path parameter henri knows the name of and nothing else.',
-      schema,
+      description: rule
+        ? `${description} ${declaredDescription('path', { action, controller })}`
+        : description,
+      schema: rule ? ruleSchema(rule) : schema,
     };
   });
 }
@@ -1108,17 +1325,27 @@ function operationId(route, taken) {
 }
 
 /**
- * The failures henri answers on this route, from its own options
+ * The failures henri answers on this route, from its own options and from
+ * what the action declared it accepts.
+ *
+ * The 422 is the one status two of them can produce, and which of the two it
+ * is matters to whoever reads this: an idempotency replay and a parameter
+ * refused are not the same failure and are not fixed the same way. So the
+ * status names the cause it can have here, and the shared component only
+ * when it can have both.
  *
  * @param {object} route the route
  * @param {object} settings the settings
+ * @param {?object} rules what the action declared, or null
  * @returns {object} the responses, by status
  */
-function guardResponses(route, settings) {
+function guardResponses(route, settings, rules) {
   const responses = {};
   const reference = (name) => ({ $ref: `#/components/responses/${name}` });
   const roles = route.roles ? [].concat(route.roles) : null;
   const mutating = MUTATING.has(route.verb);
+  const idempotent =
+    mutating && settings.idempotency && route.idempotent !== false;
 
   if (roles || route.policy) {
     responses['401'] = reference('Unauthorized');
@@ -1140,10 +1367,17 @@ function guardResponses(route, settings) {
     responses['406'] = reference('NotAcceptable');
   }
 
-  if (mutating && settings.idempotency && route.idempotent !== false) {
+  if (idempotent) {
     responses['400'] = reference('BadRequest');
     responses['409'] = reference('Conflict');
+  }
+
+  if (idempotent && rules) {
     responses['422'] = reference('UnprocessableEntity');
+  } else if (idempotent) {
+    responses['422'] = reference('IdempotencyMismatch');
+  } else if (rules) {
+    responses['422'] = reference('InvalidParameters');
   }
 
   if (settings.rateLimit) {
@@ -1158,12 +1392,12 @@ function guardResponses(route, settings) {
  * not
  *
  * @param {object} route the route
- * @param {object} context `{ answer, known, model, policy, settings }`
+ * @param {object} context `{ answer, known, model, params, policy, settings }`
  * @returns {string} the description
  */
 function operationDescription(
   route,
-  { answer, known, model, policy, settings }
+  { answer, known, model, params, policy, settings }
 ) {
   const [controller, action] = String(route.controller).split('#');
   const lines = [
@@ -1198,6 +1432,25 @@ function operationDescription(
   if (route.version) {
     lines.push(
       `Version: \`${route.version}\`. A client asking for another \`application/vnd.henri.vN+json\` gets a 406; one asking for none is served this version.`
+    );
+  }
+
+  if (params.rules) {
+    lines.push(
+      `Parameters: \`${controller}#${action}\` declares ${Object.keys(
+        params.rules
+      )
+        .sort()
+        .map((field) => `\`${field}\``)
+        .join(
+          ', '
+        )} (\`params\`). henri checks them behind the guards and ahead of the action, and answers 422 with one message per field when a request does not match; what it accepts is coerced, so the action reads the declared type.`
+    );
+  }
+
+  if (params.read === false) {
+    lines.push(
+      `Parameters: henri could not read the \`params\` export of \`app/controllers/${controller}.js\` -- the file did not load outside a booted application, or its declaration would fail the boot. If the action declares any, they are checked at runtime and are **not** in this operation; nothing was guessed in their place.`
     );
   }
 
@@ -1402,15 +1655,35 @@ function operationFor(route, context) {
   const isResource = route.resource === true;
   const answer = isResource ? ANSWERS[action] || 'unknown' : 'unknown';
   const known = context.actionKnown(route.controller);
+  const params = context.declared(route.controller);
   const { names } = template(route.route);
-  const parameters = pathParameters(names, { findModel, route, settings });
+  const declared = params.rules
+    ? splitDeclaration(params.rules, { names, verb: route.verb })
+    : { body: {}, path: {}, query: {} };
+  const parameters = pathParameters(names, {
+    declared: declared.path,
+    findModel,
+    route,
+    settings,
+  });
   const responses = {};
 
+  parameters.push(
+    ...declaredParameters(declared.query, { action, controller })
+  );
+
   if (answer === 'collection') {
-    parameters.push(
-      { $ref: '#/components/parameters/Page' },
-      { $ref: '#/components/parameters/PerPage' }
-    );
+    // The paging parameters, unless the action declared one of them itself:
+    // two parameters of the same name in the same place is not a document,
+    // and the declaration is the one henri enforces
+    for (const [name, id] of [
+      ['page', 'Page'],
+      ['per_page', 'PerPage'],
+    ]) {
+      if (!Object.prototype.hasOwnProperty.call(declared.query, name)) {
+        parameters.push({ $ref: `#/components/parameters/${id}` });
+      }
+    }
   }
 
   if (MUTATING.has(route.verb)) {
@@ -1433,7 +1706,7 @@ function operationFor(route, context) {
     );
   }
 
-  Object.assign(responses, guardResponses(route, settings));
+  Object.assign(responses, guardResponses(route, settings, params.rules));
 
   if (answer === 'unknown' || known === false) {
     responses.default = {
@@ -1450,6 +1723,14 @@ function operationFor(route, context) {
   // A form page is a route henri guards and an answer it does not write:
   // it counts with the ones henri cannot describe
   const described = answer === 'collection' || answer === 'resource';
+  // What henri itself checks on this route, and nothing an application does
+  const enforced = []
+    .concat(described || answer === 'page' ? ['_links'] : [])
+    .concat(params.rules ? ['params'] : []);
+  const marks = prune({
+    fields: params.rules ? Object.keys(params.rules).sort() : undefined,
+    read: params.read === false ? false : undefined,
+  });
   const operation = {
     operationId: operationId(route, ids),
     summary: `${controller}#${action}`,
@@ -1457,6 +1738,7 @@ function operationFor(route, context) {
       answer,
       known,
       model,
+      params,
       policy,
       settings,
     }),
@@ -1467,9 +1749,10 @@ function operationFor(route, context) {
       action,
       answer: known === false ? 'unknown' : answer,
       controller,
-      enforced: described || answer === 'page' ? '_links' : undefined,
+      enforced: enforced.length > 0 ? enforced : undefined,
       known: known !== false && described,
       model: answer !== 'unknown' && model ? model.globalId : undefined,
+      params: Object.keys(marks).length > 0 ? marks : undefined,
       pathHelper: route.path,
       policy: route.policy ? policy || false : undefined,
       roles: route.roles ? [].concat(route.roles) : undefined,
@@ -1478,7 +1761,13 @@ function operationFor(route, context) {
     }),
   };
 
-  if (
+  if (Object.keys(declared.body).length > 0) {
+    operation.requestBody = declaredBody(declared.body, {
+      action,
+      controller,
+      model,
+    });
+  } else if (
     MUTATING.has(route.verb) &&
     model &&
     (action === 'create' || action === 'update')
@@ -1651,7 +1940,7 @@ function builtins(context) {
           },
           'The account was created.'
         ),
-        422: { $ref: '#/components/responses/UnprocessableEntity' },
+        422: { $ref: '#/components/responses/ValidationFailed' },
         429: { $ref: '#/components/responses/TooManyRequests' },
         default: errors,
       },
@@ -1689,7 +1978,7 @@ function builtins(context) {
           },
           'Accepted, whatever the address was.'
         ),
-        422: { $ref: '#/components/responses/UnprocessableEntity' },
+        422: { $ref: '#/components/responses/ValidationFailed' },
         429: { $ref: '#/components/responses/TooManyRequests' },
         default: errors,
       },
@@ -1747,7 +2036,7 @@ function builtins(context) {
           'The password was changed.'
         ),
         400: { $ref: '#/components/responses/BadRequest' },
-        422: { $ref: '#/components/responses/UnprocessableEntity' },
+        422: { $ref: '#/components/responses/ValidationFailed' },
         default: errors,
       },
       'x-henri': { answer: 'session', known: true, source: 'built-in' },
@@ -1802,7 +2091,7 @@ function builtins(context) {
           },
           'Accepted, whatever the address was.'
         ),
-        422: { $ref: '#/components/responses/UnprocessableEntity' },
+        422: { $ref: '#/components/responses/ValidationFailed' },
         default: errors,
       },
       'x-henri': { answer: 'acknowledgement', known: true, source: 'built-in' },
@@ -1839,7 +2128,7 @@ function builtins(context) {
           'The link is on its way to the new address.'
         ),
         401: { $ref: '#/components/responses/Unauthorized' },
-        422: { $ref: '#/components/responses/UnprocessableEntity' },
+        422: { $ref: '#/components/responses/ValidationFailed' },
         default: errors,
       },
       security: [{ session: [] }, { bearer: [] }],
@@ -1990,6 +2279,12 @@ function overview(settings) {
  * The OpenAPI 3.1 description of an application
  *
  * @param {object} input what to describe
+ * @param {?object} [input.accepts=null] what each action declared it accepts,
+ *   compiled, as `{ 'tasks#index': rules }` -- `henri.controllers.accepts()`
+ *   on a booted application, `declarations()` over the controller files
+ *   otherwise. An entry that is `null` is a controller whose declaration
+ *   could not be read; a missing entry is one that declares nothing; `null`
+ *   for the whole map is a caller that could not find out at all
  * @param {*} [input.config={}] henri's config module, or the plain object a
  *   command read from `config/<env>.json`
  * @param {Array<object>} [input.models=[]] the model files, with `globalId`
@@ -2006,6 +2301,7 @@ function overview(settings) {
  * @returns {object} the document
  */
 function build({
+  accepts = null,
   actions = null,
   config = {},
   info = {},
@@ -2028,9 +2324,42 @@ function build({
     subject: userModel ? userModel.globalId : null,
   });
   const hidden = new Set(privacy.private);
+  const unread = new Set();
   const context = {
     actionKnown: (controller) =>
       actions === null ? null : Boolean(actions[controller]),
+    /**
+     * What an action declared it accepts, and whether henri got to read it
+     *
+     * @param {string} controller the `controller#action` key
+     * @returns {{read: boolean, rules: ?object}} the declaration
+     */
+    declared: (controller) => {
+      if (!accepts || typeof accepts !== 'object') {
+        unread.add(controller);
+
+        return { read: false, rules: null };
+      }
+
+      if (!Object.prototype.hasOwnProperty.call(accepts, controller)) {
+        return { read: true, rules: null };
+      }
+
+      const written = accepts[controller];
+
+      if (!written || typeof written !== 'object') {
+        unread.add(controller);
+
+        return { read: false, rules: null };
+      }
+
+      const rules = objectOf(written);
+
+      return {
+        read: true,
+        rules: Object.keys(rules).length > 0 ? rules : null,
+      };
+    },
     findModel,
     findPolicy,
     hasUserModel: Boolean(userModel),
@@ -2173,6 +2502,11 @@ function build({
         excluded: excluded.length > 0 ? excluded : undefined,
         generator: 'henri openapi',
         models: files.map((model) => String(model.globalId)).sort(),
+        // The one place the two ways of building this document can differ:
+        // an action whose controller could not be read declares whatever it
+        // declares, and this document does not say so anywhere else
+        params:
+          unread.size > 0 ? { unread: Array.from(unread).sort() } : undefined,
       }),
     },
     servers: servers || serversOf(settings),
@@ -2188,6 +2522,7 @@ module.exports = {
   OPENAPI_VERSION,
   build,
   columnsOf,
+  ruleSchema,
   settingsOf,
   template,
 };
