@@ -852,6 +852,10 @@ const check = (dir = process.cwd()) => {
   const read = (relative) => fs.readFileSync(path.join(dir, relative), 'utf8');
 
   const pkg = fs.readJsonSync(path.join(dir, 'package.json'));
+  const declared = {
+    ...(pkg.dependencies || {}),
+    ...(pkg.devDependencies || {}),
+  };
   const config = readConfig(dir, undefined);
   const renderer = String(config.renderer || 'react').toLowerCase();
   const models = listModules(path.join(dir, 'app', 'models'));
@@ -859,8 +863,34 @@ const check = (dir = process.cwd()) => {
   const jobs = listModules(path.join(dir, 'app', 'jobs'));
   const mailers = listModules(path.join(dir, 'app', 'mailers'));
   const policies = new Set(listModules(path.join(dir, 'app', 'policies')));
-  const stores = Object.keys(config.stores || {});
   const pm = detectPackageManager(dir);
+  // Every environment's file, parsed. `config/<NODE_ENV>.json` replaces
+  // `config/default.json` as a whole rather than merging into it, so each one
+  // is a complete configuration and has to hold together on its own -- which
+  // is what makes a store named in `production.json` alone worth checking
+  // here rather than at the deploy.
+  const configDir = path.join(dir, 'config');
+  const configFiles = fs.existsSync(configDir)
+    ? fs.readdirSync(configDir).filter((file) => file.endsWith('.json'))
+    : [];
+  const environments = new Map();
+  const unreadable = new Map();
+
+  for (const file of configFiles) {
+    try {
+      environments.set(
+        `config/${file}`,
+        fs.readJsonSync(path.join(configDir, file)) || {}
+      );
+    } catch (error) {
+      unreadable.set(`config/${file}`, error.message);
+    }
+  }
+
+  /** The environments that configure a store at all, as [file, stores] */
+  const configured = [...environments]
+    .map(([file, content]) => [file, Object.keys(content.stores || {})])
+    .filter(([, named]) => named.length > 0);
   let rawRoutes = {};
   let routes = [];
 
@@ -952,40 +982,34 @@ const check = (dir = process.cwd()) => {
   // that matters.
   //
   // A configuration with no store at all is `config.missing` or
-  // `config.invalid`, which has already said the useful thing: this section
-  // only runs once there is a `stores` block to compare names with.
-  for (const model of stores.length > 0 ? models : []) {
+  // `config.invalid`, which has already said the useful thing: only the
+  // files that do configure one are compared with.
+  for (const model of configured.length > 0 ? models : []) {
     const file = `app/models/${model}.js`;
     const store = storeOf(read(file));
+    const without = configured
+      .filter(
+        ([, named]) => !named.includes(store === null ? 'default' : store)
+      )
+      .map(([name]) => name);
 
-    if (store === null) {
-      if (!config.stores.default) {
-        problem(
-          'error',
-          'models.store',
-          `${file} names no store and there is no "default" one`,
-          {
-            code: 'HENRI_MODEL_NO_STORE',
-            file,
-            hint: `Add "stores": { "default": ... } to the configuration, or give the model a store: ${stores.map((name) => `"${name}"`).join(', ')}`,
-          }
-        );
-      }
+    if (without.length === 0) {
       continue;
     }
 
-    if (!stores.includes(store)) {
-      problem(
-        'error',
-        'models.store',
-        `${file} uses the store "${store}", which the configuration does not hold`,
-        {
-          code: 'HENRI_MODEL_UNKNOWN_STORE',
-          file,
-          hint: `Add "${store}" to "stores" in every config/*.json, or point the model at one that is there: ${stores.map((name) => `"${name}"`).join(', ')}`,
-        }
-      );
-    }
+    problem(
+      'error',
+      'models.store',
+      store === null
+        ? `${file} names no store and ${without.join(', ')} has no "default" one`
+        : `${file} uses the store "${store}", which ${without.join(', ')} does not hold`,
+      {
+        code:
+          store === null ? 'HENRI_MODEL_NO_STORE' : 'HENRI_MODEL_UNKNOWN_STORE',
+        file,
+        hint: `An environment file replaces config/default.json whole, so every one of them needs the store: add "${store === null ? 'default' : store}" to ${without.join(', ')}, or point the model at one that is in all of them`,
+      }
+    );
   }
 
   // --- controllers ----------------------------------------------------------
@@ -1210,11 +1234,6 @@ const check = (dir = process.cwd()) => {
   }
 
   // --- configuration --------------------------------------------------------
-  const configDir = path.join(dir, 'config');
-  const configFiles = fs.existsSync(configDir)
-    ? fs.readdirSync(configDir).filter((file) => file.endsWith('.json'))
-    : [];
-
   if (!configFiles.includes('default.json')) {
     problem('error', 'config.missing', 'config/default.json is missing', {
       file: 'config/default.json',
@@ -1222,66 +1241,41 @@ const check = (dir = process.cwd()) => {
     });
   }
 
-  // Every environment's file, parsed. `config/<NODE_ENV>.json` replaces
-  // `config/default.json` as a whole rather than merging into it, so each
-  // one is a complete configuration and has to hold together on its own --
-  // which is what makes a store named in `production.json` alone worth
-  // checking here rather than at the deploy.
-  const environments = new Map();
+  for (const [file, message] of unreadable) {
+    problem('error', 'config.syntax', `${file} is not valid JSON: ${message}`, {
+      file,
+    });
+  }
 
-  for (const file of configFiles) {
-    let content;
-
-    try {
-      content = fs.readJsonSync(path.join(configDir, file));
-      environments.set(`config/${file}`, content || {});
-    } catch (error) {
-      problem(
-        'error',
-        'config.syntax',
-        `config/${file} is not valid JSON: ${error.message}`,
-        {
-          file: `config/${file}`,
-        }
-      );
-      continue;
-    }
-
-    if (content && typeof content.secret !== 'undefined') {
-      problem('error', 'config.secret', `config/${file} contains "secret"`, {
-        file: `config/${file}`,
+  for (const [file, content] of environments) {
+    if (typeof content.secret !== 'undefined') {
+      problem('error', 'config.secret', `${file} contains "secret"`, {
+        file,
         hint: 'Move it to HENRI_SECRET in .env (ignored by git) and delete the key',
       });
     }
 
     // The schema of @usehenri/core, the one the boot runs: an application
     // never learns of a wrong key by booting when `henri doctor` can say it
-    for (const entry of validate(content, {
-      source: () => `config/${file}`,
-    }).problems) {
-      problem(
-        entry.level,
-        checkFor(entry),
-        `config/${file}: ${entry.message}`,
-        {
-          file: `config/${file}`,
-          hint:
-            entry.hint ||
-            (checkFor(entry) === 'config.adapter'
-              ? `Adapters: ${ADAPTERS.join(', ')}`
-              : null),
-        }
-      );
+    for (const entry of validate(content, { source: () => file }).problems) {
+      problem(entry.level, checkFor(entry), `${file}: ${entry.message}`, {
+        file,
+        hint:
+          entry.hint ||
+          (checkFor(entry) === 'config.adapter'
+            ? `Adapters: ${ADAPTERS.join(', ')}`
+            : null),
+      });
     }
 
     // The queue, the outbound webhooks and the access trail each own a
     // table in one of the application's stores and name it by hand. The
     // schema says the value is a string; only this file says whether the
     // string is one of the names next to it.
-    const named = Object.keys((content && content.stores) || {});
+    const named = Object.keys(content.stores || {});
 
     for (const [key, failure] of Object.entries(STORE_KEYS)) {
-      const block = content && content[key];
+      const block = content[key];
       const wanted = block && typeof block === 'object' ? block.store : null;
 
       if (typeof wanted !== 'string' || named.includes(wanted)) {
@@ -1291,10 +1285,10 @@ const check = (dir = process.cwd()) => {
       problem(
         'error',
         'config.store',
-        `config/${file}: "${key}.store" is "${wanted}", which is not one of its stores`,
+        `${file}: "${key}.store" is "${wanted}", which is not one of its stores`,
         {
           code: failure,
-          file: `config/${file}`,
+          file,
           hint: `Name one of ${named.map((name) => `"${name}"`).join(', ') || 'the stores of this file'}, or leave "store" out to use the default one`,
         }
       );
@@ -1504,11 +1498,7 @@ const check = (dir = process.cwd()) => {
   const appModules = listModules(path.join(dir, 'app', 'modules')).filter(
     (name) => !name.includes('/')
   );
-  const declaredDeps = {
-    ...(pkg.dependencies || {}),
-    ...(pkg.devDependencies || {}),
-  };
-  const shipped = packageModules(dir, Object.keys(declaredDeps));
+  const shipped = packageModules(dir, Object.keys(declared));
 
   for (const file of shipped.broken) {
     problem(
@@ -1646,7 +1636,6 @@ const check = (dir = process.cwd()) => {
   }
 
   // --- dependencies ---------------------------------------------------------
-  const declared = declaredDeps;
   const needed = new Set(['@usehenri/core']);
 
   for (const name of NEEDS[renderer] || []) {

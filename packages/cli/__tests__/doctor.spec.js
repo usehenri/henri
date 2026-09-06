@@ -723,26 +723,17 @@ describe('henri doctor', () => {
 
   // --- the things that break a boot ----------------------------------------
 
-  test('reports a model whose store the configuration does not hold', () => {
+  // Every environment file is a whole configuration, so the store has to be
+  // in all of them: the one that leaves it out is the boot that fails
+  test('reports a model whose store an environment does not hold', () => {
     const file = path.join(app, 'app/models/Task.js');
     const original = fs.readFileSync(file, 'utf8');
 
     fs.writeFileSync(file, original.replace("'default'", "'reporting'"));
 
-    const { ok, problems } = run(app);
+    const unknown = run(app);
 
-    expect(ok).toBe(false);
-    expect(problems).toContainEqual(
-      expect.objectContaining({
-        check: 'models.store',
-        code: 'HENRI_MODEL_UNKNOWN_STORE',
-        file: 'app/models/Task.js',
-        hint: expect.stringContaining('"default"'),
-        level: 'error',
-      })
-    );
-
-    // A model that names no store needs a default one to exist
+    // A model that names no store needs a default one in every file
     fs.writeFileSync(
       file,
       original.replace(/\n\s+store: 'default',[^\n]*/, '')
@@ -751,17 +742,60 @@ describe('henri doctor', () => {
     const restore = patchConfig(app, (configuration) => {
       configuration.stores = { reporting: configuration.stores.default };
     });
+    const none = run(app);
 
-    expect(run(app).problems).toContainEqual(
+    restore();
+    fs.writeFileSync(file, original);
+
+    expect(unknown.ok).toBe(false);
+    expect(unknown.problems).toContainEqual(
+      expect.objectContaining({
+        check: 'models.store',
+        code: 'HENRI_MODEL_UNKNOWN_STORE',
+        file: 'app/models/Task.js',
+        hint: expect.stringContaining('config/default.json'),
+        level: 'error',
+        message: expect.stringContaining('config/default.json'),
+      })
+    );
+    expect(none.problems).toContainEqual(
       expect.objectContaining({
         check: 'models.store',
         code: 'HENRI_MODEL_NO_STORE',
         level: 'error',
       })
     );
+    expect(run(app).names).not.toContain('models.store');
+  });
 
-    restore();
-    fs.writeFileSync(file, original);
+  // The one an environment file introduces on its own: the store is in
+  // config/default.json and config/production.json forgot it
+  test('reports a store one environment holds and another does not', () => {
+    const production = path.join(app, 'config/production.json');
+    const base = JSON.parse(
+      fs.readFileSync(path.join(app, 'config/default.json'), 'utf8')
+    );
+
+    fs.writeFileSync(
+      production,
+      JSON.stringify({ ...base, stores: { reporting: base.stores.default } })
+    );
+
+    const { ok, problems } = run(app);
+
+    fs.unlinkSync(production);
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'models.store',
+        code: 'HENRI_MODEL_UNKNOWN_STORE',
+        level: 'error',
+        message: expect.stringContaining(
+          'config/production.json does not hold'
+        ),
+      })
+    );
     expect(run(app).names).not.toContain('models.store');
   });
 

@@ -7,12 +7,13 @@
 stopped short of the failures that only show up when something starts, which
 is rarely a good moment — and is exactly what a coding agent cannot see.
 
-Eleven checks more, all of them from the files: a model naming a store the
-configuration does not hold (`models.store`); `jobs.store`, `webhooks.store`
-or `trail.store` naming a store that is not next to it (`config.store`); a
-store adapter another environment configures and nothing installs, since an
-environment file replaces `default.json` whole and `deps.declared` now reads
-every one of them and names the file that asked; a route asking for a policy
+Eleven checks more, all of them from the files. An environment file replaces
+`config/default.json` whole rather than merging into it, so every one of them
+is now read and compared: a model naming a store one of them does not hold
+(`models.store`) and a store adapter one of them configures and nothing
+installs (`deps.declared`, which names the file that asked) are the two that
+used to wait for the deploy. Then `jobs.store`, `webhooks.store` or
+`trail.store` naming a store that is not next to it (`config.store`); a route asking for a policy
 `app/policies` does not hold, which the policies refuse rather than allow
 (`routes.policy`); a file of `app/jobs` with no `perform` (`jobs.perform`); a
 recurring schedule naming a job that is not there, which fails nothing and
