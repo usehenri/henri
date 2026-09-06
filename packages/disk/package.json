@@ -23,6 +23,7 @@
   "main": "index.js",
   "files": [
     "index.js",
+    "port.js",
     "CHANGELOG.md"
   ],
   "publishConfig": {

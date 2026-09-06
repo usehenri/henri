@@ -3,6 +3,7 @@ const { MongoMemoryServer } = require('mongodb-memory-server');
 const debug = require('debug')('henri:disk');
 const path = require('path');
 const fs = require('fs');
+const { startingPort } = require('./port');
 
 /**
  * Disk database adapter
@@ -10,7 +11,8 @@ const fs = require('fs');
  * Runs a local MongoDB (mongodb-memory-server) so models can use the same
  * mongoose adapter as a real MongoDB store. Data is persisted under
  * `<cwd>/.henri/data` (`config.path` to change it), except in test mode
- * where it stays in memory.
+ * where it stays in memory. mongod listens on a port of this process's own
+ * (`./port.js`), or on `config.port` when the application names one.
  *
  * @class Disk
  * @extends {HenriMongoose}
@@ -33,7 +35,8 @@ class Disk extends HenriMongoose {
    *
    * @param {string} name Store name
    * @param {object} config Store configuration: `path` (data directory,
-   *   relative to the app), `dbName` (defaults to henri)
+   *   relative to the app), `dbName` (defaults to henri), `port` (the port
+   *   mongod listens on; one of this process's own by default)
    * @param {Henri} thisHenri Current henri instance
    * @memberof Disk
    */
@@ -77,9 +80,18 @@ class Disk extends HenriMongoose {
    */
   async start() {
     const { pen } = this.henri;
-    const instance = { dbName: this.config.dbName || 'henri' };
+    const fixed = Number(this.config.port) > 0;
+    const instance = {
+      dbName: this.config.dbName || 'henri',
+      // A port of this process's own, so two stores booting at the same
+      // moment never pick the same one (see ./port.js). A configured port is
+      // taken as given: `portGeneration: false` stops the library looking
+      // elsewhere, so the store is reachable where the application says.
+      port: fixed ? Number(this.config.port) : startingPort(),
+      ...(fixed ? { portGeneration: false } : {}),
+    };
 
-    debug('starting %s', this.name);
+    debug('starting %s on port %d', this.name, instance.port);
 
     if (!this.henri.isTest) {
       const dataPath = this.dataPath();
