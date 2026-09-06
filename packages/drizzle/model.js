@@ -1527,6 +1527,23 @@ class Model {
   }
 
   /**
+   * The instance as the database last answered it: the values `changed()`
+   * is measured against, before `set()` moved any of them.
+   *
+   * It is what a versioned model's before state is taken from
+   * (`./versions.js`), and it is public because `instance.update(attrs)`
+   * sets first and saves second, so by the time a `beforeUpdate` hook runs
+   * the instance already holds the new values and the old ones live
+   * nowhere else.
+   *
+   * @returns {object} The attributes, hidden columns included
+   * @memberof Model
+   */
+  previousAttributes() {
+    return { ...this[STATE].original };
+  }
+
+  /**
    * The attributes to write on save: every field for a new instance, the
    * dirty ones otherwise
    *

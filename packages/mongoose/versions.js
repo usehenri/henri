@@ -37,6 +37,12 @@ const { coded } = require('./utils');
  * update is a language (`$set`, `$inc`, `$push`) and only the database
  * knows what it did.
  *
+ * There is deliberately **no document `deleteOne` hook**, which looks like
+ * the obvious place for a destroy and would record it twice:
+ * `doc.deleteOne()` runs its document middleware and then issues the query
+ * that the query middleware below already watches. One delete, one
+ * version, and the query hooks are the pair that sees both sides anyway.
+ *
  * `updateMany` and `deleteMany` are **refused** (`HENRI_VERSION_MASS_WRITE`)
  * and so is `bulkWrite`. They change an unbounded number of documents in
  * one statement, and there is no moment at which henri holds either side of
@@ -188,27 +194,6 @@ const versioned = (schema, henri, model) => {
       record: doc.externalId,
     });
   });
-
-  schema.pre(
-    'deleteOne',
-    { document: true, query: false },
-    function beforeDelete() {
-      this.$locals[BEFORE] = plainOf(this);
-    }
-  );
-
-  schema.post(
-    'deleteOne',
-    { document: true, query: false },
-    async function afterDelete(doc) {
-      await write(henri, model, {
-        after: null,
-        before: doc.$locals[BEFORE] || plainOf(doc),
-        event: 'destroy',
-        record: doc.externalId,
-      });
-    }
-  );
 
   schema.pre([...ONE, ...ONE_DELETE], async function beforeOne() {
     if (optedOut(this)) {

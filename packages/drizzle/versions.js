@@ -14,13 +14,20 @@
  *
  * ## Where the old values come from
  *
- * `beforeUpdate` gets the values about to be written and the instance
- * being saved; `afterUpdate` gets the instance after `merge()`, which has
- * already reset the dirty tracking. So the state before the write is taken
- * in the before hook and left **on the instance**, under a symbol, for the
- * after hook to pick up: the two hooks of one save are the only pair that
- * can see both sides, and the options object is not shared by every path
+ * Neither hook can see both sides on its own. `instance.update(attrs)`
+ * sets the attributes and *then* saves, so by `beforeUpdate` the instance
+ * already holds the new values; and `afterUpdate` runs after `merge()`,
+ * which has reset the dirty tracking, so the old ones are gone. The before
+ * state therefore comes from `instance.previousAttributes()` -- the row as
+ * the database last answered it -- taken in the before hook and left **on
+ * the instance**, under a symbol, for the after hook to pick up. Not on the
+ * options object, because it is not the same one on every path
  * (`Model.bindable()` copies it).
+ *
+ * Every single-row update of this adapter runs through an instance on a
+ * versioned model: `findOneAndUpdate` already did, and `findByIdAndUpdate`
+ * reads the record first when `Model.versioned` is set. That read is the
+ * honest price of a history, and it is paid by the models that asked.
  *
  * The hooks are registered **after** the encryption hooks, so a value this
  * file sees on the way in is already an envelope. It does not matter: core
@@ -170,7 +177,9 @@ const decorateModel = (Model) => {
 
   Model.internalHooks.beforeUpdate.push((values, options = {}, instance) => {
     if (instance) {
-      instance[BEFORE] = plainOf(instance);
+      // Not `plainOf(instance)`: `instance.update(attrs)` sets first and
+      // saves second, so the instance already holds the new values here
+      instance[BEFORE] = instance.previousAttributes();
     }
 
     return values;

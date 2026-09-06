@@ -574,11 +574,14 @@ function sideOf(value, kind, context, field) {
     return undefined;
   }
 
-  if (kind === 'envelope') {
-    if (value === null || typeof value === 'undefined') {
-      return null;
-    }
+  // A column a record did not have yet is `null` and not "not storable":
+  // the whole of a create is a diff from nothing, so `undefined` here has
+  // to be a value or every create would be a version of nothing
+  if (value === null || typeof value === 'undefined') {
+    return null;
+  }
 
+  if (kind === 'envelope') {
     const wrapped = context.encrypt ? context.encrypt(field, value) : undefined;
 
     return typeof wrapped === 'string' ? wrapped : undefined;

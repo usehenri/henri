@@ -6,7 +6,7 @@ const debug = require('debug')('henri:versions');
 
 const { check } = require('./base/arguments');
 const { EXTERNAL_ID } = require('./base/external-id');
-const { findRecords } = require('./base/erasure');
+const { findRecords, kindOf: adapterOf } = require('./base/erasure');
 const {
   currentActor,
   currentRequestId,
@@ -607,6 +607,12 @@ class Versions extends BaseModule {
    * way out. One that will not open -- a key that is gone -- is not a
    * value, so it joins `missing` and the reconstruction stops being exact.
    *
+   * Only what came out of the table is opened. The base of a fold is
+   * usually the live record, and the adapter opened its columns on the way
+   * in, so opening them again would say every one of them is plaintext in
+   * a column declared encrypted -- which is a real incident and not this
+   * one.
+   *
    * @param {string} model the model name
    * @param {object} reified what `reifyFrom()` answered
    * @returns {object} the same, with the envelopes opened
@@ -620,7 +626,12 @@ class Versions extends BaseModule {
     let complete = reified.complete;
 
     for (const field of Object.keys(attributes)) {
-      if (plan.kind(field) !== 'envelope' || attributes[field] === null) {
+      // Only what came out of the version table: the base of a fold is the
+      // live record, whose encrypted columns the adapter already opened
+      if (
+        plan.kind(field) !== 'envelope' ||
+        !encryption.isEnvelope(attributes[field])
+      ) {
         continue;
       }
 
@@ -695,12 +706,35 @@ class Versions extends BaseModule {
 
     // The public identifier goes back with it: every url, every link and
     // every foreign key that named this record still names it
-    const created = await Model.create(
-      { ...values, [EXTERNAL_ID]: target.record },
-      { unsafe: true }
-    );
+    const created = await this.createRecord(Model, {
+      ...values,
+      [EXTERNAL_ID]: target.record,
+    });
 
     return { created: true, missing, record: created, version: target };
+  }
+
+  /**
+   * Creates one record on any of the three adapters.
+   *
+   * Mongoose reads every argument before the last as a document, so
+   * `Model.create(values, options)` there makes two records rather than
+   * one with options; the list form is the one that takes both.
+   *
+   * @async
+   * @param {*} Model the ORM model
+   * @param {object} values the attributes
+   * @returns {Promise<*>} the record
+   * @memberof Versions
+   */
+  async createRecord(Model, values) {
+    if (adapterOf(Model) === 'mongoose') {
+      const [record] = await Model.create([values], { unsafe: true });
+
+      return record;
+    }
+
+    return Model.create(values, { unsafe: true });
   }
 
   /**
@@ -852,9 +886,9 @@ class Versions extends BaseModule {
         continue;
       }
 
-      const records = (step.ids || [])
-        .map((entry) => (entry && entry.externalId) || null)
-        .filter((entry) => typeof entry === 'string');
+      const records = (step.ids || []).filter(
+        (entry) => typeof entry === 'string' && entry !== ''
+      );
 
       if (records.length === 0) {
         continue;
@@ -1004,9 +1038,9 @@ class Versions extends BaseModule {
         continue;
       }
 
-      const records = (step.ids || [])
-        .map((entry) => (entry && entry.externalId) || null)
-        .filter((entry) => typeof entry === 'string');
+      const records = (step.ids || []).filter(
+        (entry) => typeof entry === 'string' && entry !== ''
+      );
 
       if (records.length === 0) {
         continue;
