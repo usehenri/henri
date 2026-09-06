@@ -867,7 +867,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
     'henri://conventions',
     {
       description:
-        'The henri conventions (the canonical AGENTS.md of this henri version, rendered for this application)',
+        'The henri conventions: what `henri generate agents` would write for this application right now, read from its own files',
       mimeType: 'text/markdown',
       title: 'henri conventions',
     },
