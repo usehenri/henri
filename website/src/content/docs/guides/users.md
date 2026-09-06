@@ -385,7 +385,7 @@ A person holds at most one identity per provider, so `unlink` always names one r
 
 The flow leaves the origin and comes back, which is the one case the [CSRF token](#csrf) cannot cover. OAuth already has the answer — the `state` parameter — and henri does not invent a second one.
 
-- **Leaving is a `POST`**, so it goes through the double-submit token and the origin check like every other unsafe request; `GET` answers `405` with `Allow: POST`. A third-party page therefore cannot start the flow in a visitor's browser, which is what closes login CSRF: being signed into somebody else's provider account, or having theirs linked to yours.
+- **Leaving is a `POST`**, so it goes through the double-submit token and the origin check like every other unsafe request; `GET` answers `405` with `Allow: POST`. A third-party page therefore cannot start the flow in a visitor's browser, which is what closes login CSRF: being signed into somebody else's provider account, or having theirs linked to yours. This one route asks for the token even when the visitor holds no session cookie — [the CSRF middleware waives it there](#csrf), because there is normally no session to ride on, and a visitor about to sign in is exactly the person who has none yet.
 - **The state is minted per attempt, kept in the session, single use and expiring.** It is bound to the session cookie, so one minted in one browser cannot be spent in another; it is taken out of the session when it is read, so a callback url works exactly once; and it stops working after `stateExpiresIn` (10 minutes). The pending set is bounded.
 - **PKCE (S256) is on.** The verifier never leaves the server, so an authorization code observed in a `Referer`, a log or a shared browser is not enough to redeem.
 - **A link is checked against the session that is there now**, not only the one the state was minted in.
@@ -461,7 +461,7 @@ await user.update({ password, passwordChangedAt: new Date() });
 
 ## CSRF
 
-Once a user model exists, every response carries a `henri.csrf` cookie (readable by scripts, `SameSite=Lax`). `POST`, `PUT`, `PATCH` and `DELETE` requests that send the session cookie must send that token back in the `X-CSRF-Token` header (`X-XSRF-TOKEN` is accepted as an alias) or a `_csrf` field, otherwise they get a `403` (`Invalid CSRF token`). Requests without a session cookie and requests authenticated with a bearer token are exempt.
+Once a user model exists, every response carries a `henri.csrf` cookie (readable by scripts, `SameSite=Lax`). `POST`, `PUT`, `PATCH` and `DELETE` requests that send the session cookie must send that token back in the `X-CSRF-Token` header (`X-XSRF-TOKEN` is accepted as an alias) or a `_csrf` field, otherwise they get a `403` (`Invalid CSRF token`). Requests without a session cookie and requests authenticated with a bearer token are exempt. One route asks anyway: [starting a provider sign-in](#what-protects-the-callback) needs the token whatever the cookies say, because the exemption's premise — there is no session to ride on — is not true of a person about to open one.
 
 The token reaches the views as `csrf`: the React `fetch()` and `hydrate()` helpers and the Inertia `fetch()` helper add the header for you, the Inertia `Form` adds the `_csrf` field, and Inertia's own visits echo the `XSRF-TOKEN` cookie its engine sets; add `<input type="hidden" name="_csrf" value="{{@csrf}}">` to a Handlebars form. Set `"csrf": false` in the configuration to turn the check off.
 

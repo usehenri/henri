@@ -534,12 +534,63 @@ describe('identity providers (demo app, disk store)', () => {
     });
 
     test('a provider nobody configured is refused, prototype keys included', async () => {
+      const who = await visitor();
+
       for (const name of ['nope', '__proto__', 'constructor']) {
-        const res = await supertest(app).post(`/auth/${name}`);
+        const res = await who.agent
+          .post(`/auth/${name}`)
+          .set('X-CSRF-Token', who.csrf);
 
         expect(res.status).toBe(400);
         expect(res.body.data.reason).toBe('unknown-provider');
       }
+    });
+
+    test('starting a sign-in needs the token with no session cookie too', async () => {
+      // The middleware waives the token for a request that carries no
+      // session cookie, because there is normally no session to ride on.
+      // A visitor about to sign in is exactly the person who has none, so
+      // this route asks anyway -- otherwise a third-party page could start
+      // the flow in their browser.
+      const cold = await supertest(app).post('/auth/acme').send({});
+
+      expect(cold.status).toBe(403);
+      expect(cold.body.data.reason).toBe('forbidden');
+
+      // `POST /login` is the comparison: the framework's rule is unchanged
+      // everywhere else, and this route is the deliberate exception
+      const email = address('cold-post');
+
+      await supertest(app).post('/signup').send({ email, password });
+
+      const signedIn = await supertest(app)
+        .post('/login')
+        .send({ email, password });
+
+      expect(signedIn.status).toBe(200);
+
+      // A visitor holding the cookie the middleware set is let through
+      const who = await visitor();
+      const warm = await who.agent
+        .post('/auth/acme')
+        .set('X-CSRF-Token', who.csrf)
+        .send({});
+
+      expect(warm.status).toBe(200);
+      expect(warm.body.url).toContain('/authorize?');
+    });
+
+    test('a cross-origin start is refused before the provider is read', async () => {
+      const who = await visitor();
+      const res = await who.agent
+        .post('/auth/acme')
+        .set('Origin', 'https://evil.example.com')
+        .set('Sec-Fetch-Site', 'cross-site')
+        .set('X-CSRF-Token', who.csrf)
+        .send({});
+
+      expect(res.status).toBe(403);
+      expect(res.body.data.reason).toBe('forbidden');
     });
 
     test('a POST carrying a session cookie needs the csrf token', async () => {
@@ -1211,7 +1262,11 @@ describe('identity providers (demo app, disk store)', () => {
     test('a "verify" provider opens no session, and links from one', async () => {
       block.providers.acme.allows = 'verify';
 
-      const refused = await supertest(app).post('/auth/acme').send({});
+      const cold = await visitor();
+      const refused = await cold.agent
+        .post('/auth/acme')
+        .set('X-CSRF-Token', cold.csrf)
+        .send({});
 
       expect(refused.status).toBe(400);
       expect(refused.body.data.reason).toBe('not-a-sign-in');

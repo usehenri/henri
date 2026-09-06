@@ -131,6 +131,17 @@
  *   browser, which is what closes login CSRF -- being signed into somebody
  *   else's provider account, or having their provider account linked to
  *   yours.
+ *
+ *   The route asks for that token itself rather than leaving it to the
+ *   middleware, and the reason is worth keeping. The middleware lets an
+ *   unsafe request through when the visitor holds **no session cookie**,
+ *   which everywhere else is right -- there is no session for a third-party
+ *   page to ride on. Here the exemption and the attack describe the same
+ *   person: a visitor about to sign in is exactly the one with no session
+ *   yet. So this route checks the token and the origin whatever the cookies
+ *   say, keeping the middleware's two carve-outs (CSRF turned off in the
+ *   configuration, and a request authenticated by a bearer token) because
+ *   neither of those has a cookie to ride on either.
  * - **The state is minted per attempt, kept in the session, single use and
  *   expiring.** It is bound to the session cookie, so a state minted in one
  *   browser cannot be spent in another; it is taken out of the session when
@@ -189,7 +200,13 @@ const { stamp: withCode } = require('./errors');
 const { check } = require('./arguments');
 const { EMAIL, duration, normalizeEmail } = require('./accounts');
 const { respond } = require('./auth');
-const { safeEqual } = require('./csrf');
+const {
+  csrfConfig,
+  originAllowed,
+  safeEqual,
+  sentToken,
+  trustedSet,
+} = require('./csrf');
 const { storeFor } = require('./identity-store');
 
 /**
@@ -1473,6 +1490,7 @@ const MESSAGES = Object.freeze({
   exchange: 'that provider could not be reached',
   exists:
     'an account already exists for that address; sign in, then link this provider from your account',
+  forbidden: 'that sign-in did not come from this application',
   'last-credential':
     'that is the only way into this account; set a password first',
   'linked-elsewhere':
@@ -1496,6 +1514,7 @@ const MESSAGES = Object.freeze({
 const STATUSES = Object.freeze({
   'already-linked': 'conflict',
   exists: 'conflict',
+  forbidden: 'forbidden',
   'last-credential': 'conflict',
   'linked-elsewhere': 'conflict',
   locked: 'tooManyRequests',
@@ -1635,8 +1654,54 @@ function router(henri) {
     );
   });
 
+  /**
+   * Whether this request may start a sign-in.
+   *
+   * The CSRF middleware lets an unsafe request through when the visitor
+   * holds no session cookie, and everywhere else that is right: there is no
+   * session for a third-party page to ride on. Here it is not. Starting a
+   * sign-in is precisely the request an attacker's page wants to make in a
+   * *signed-out* visitor's browser, and a visitor about to sign in is the
+   * one who has no session yet -- so the exemption and the attack describe
+   * the same person. The token is therefore required here whatever the
+   * cookies say, which costs a real browser nothing: the middleware sets
+   * `henri.csrf` on the response before any page can hold a form.
+   *
+   * The two carve-outs the middleware makes are kept, for the same reasons
+   * it makes them: an application that turned CSRF off has no token to
+   * present, and a request authenticated by a bearer token carries no
+   * cookie an attacker could ride.
+   *
+   * @param {Express.Request} req the request
+   * @returns {boolean} true when the request may proceed
+   */
+  const allowedToStart = (req) => {
+    if (typeof req.csrfToken !== 'string' || !req.csrfToken) {
+      return true;
+    }
+
+    if (/^bearer\s+\S/iu.test(req.get('authorization') || '')) {
+      return true;
+    }
+
+    const { checkOrigin, trustedOrigins } = csrfConfig(henri.config);
+
+    if (
+      checkOrigin &&
+      originAllowed(req, trustedSet(trustedOrigins)) === false
+    ) {
+      return false;
+    }
+
+    return safeEqual(sentToken(req), req.csrfToken);
+  };
+
   routes.post(`${base}/:provider`, (req, res, next) => {
     try {
+      if (!allowedToStart(req)) {
+        return refuse(res, 'forbidden');
+      }
+
       const provider = resolve(req.params.provider);
 
       if (!provider) {

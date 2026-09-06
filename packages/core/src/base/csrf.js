@@ -245,6 +245,24 @@ function csrfConfig(config) {
 }
 
 /**
+ * The origins `originAllowed()` takes, built once from the list a
+ * configuration wrote.
+ *
+ * It is exported because the middleware is not the only place that has to
+ * make this decision: a route that asks for the token itself, where the
+ * middleware waived it, has to apply the same origin rule with the same
+ * inputs (`base/identities.js` is the one that does).
+ *
+ * @param {Array<string>} [origins=[]] the origins, as configured
+ * @returns {Set<string>} the normalized set
+ */
+function trustedSet(origins = []) {
+  return new Set(
+    origins.map(normalizeOrigin).filter((origin) => origin !== null)
+  );
+}
+
+/**
  * Express middleware
  *
  * @param {object} [options={}] options
@@ -264,9 +282,7 @@ function csrf({
   checkOrigin = true,
   trustedOrigins = [],
 } = {}) {
-  const trusted = new Set(
-    trustedOrigins.map(normalizeOrigin).filter((origin) => origin !== null)
-  );
+  const trusted = trustedSet(trustedOrigins);
 
   /**
    * Refuses the request
@@ -343,4 +359,6 @@ module.exports = csrf;
 module.exports.csrfConfig = csrfConfig;
 module.exports.generateToken = generateToken;
 module.exports.originAllowed = originAllowed;
+module.exports.sentToken = sentToken;
+module.exports.trustedSet = trustedSet;
 module.exports.safeEqual = safeEqual;
