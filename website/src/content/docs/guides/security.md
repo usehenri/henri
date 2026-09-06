@@ -344,7 +344,10 @@ a configuration a production boot reads, `webhooks.allowPrivate: true`
 (`webhooks.private-addresses-allowed`, which lets a url someone registered
 reach the loopback, the private network or the metadata service) and
 `webhooks.allowHttp: true` (`webhooks.http-allowed`, which sends the payload
-and the signature that authenticates it in the clear).
+and the signature that authenticates it in the clear), and `calls.keep:
+false` (`calls.kept-forever`: a [call log](/guides/calls/) holds the bodies
+users sent, so a copy of them that nothing ever sweeps is not a setting but
+an accumulation).
 
 **Schema changes nobody reviewed** — an `mssql` store with `"sync": true`
 in `config/default.json` or `config/production.json`, which makes a

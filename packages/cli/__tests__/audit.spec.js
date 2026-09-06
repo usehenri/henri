@@ -640,6 +640,41 @@ describe('henri audit', () => {
     );
   });
 
+  test('reports a call log nothing ever sweeps, and only in production', () => {
+    // A call log holds what users sent. Its retention is part of the
+    // feature, and `keep: false` is the one spelling that takes it away
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      { calls: { keep: false } }
+    );
+
+    expect(names).toContain('calls.kept-forever');
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V7.1.1',
+        check: 'calls.kept-forever',
+        file: 'config/production.json',
+        message: expect.stringContaining('without a sweep'),
+        owasp: 'A09:2021 Security Logging and Monitoring Failures',
+        severity: 'medium',
+      })
+    );
+
+    // A period, no call log at all, and a laptop keeping its own requests
+    // are all somebody's decision rather than a finding
+    expect(
+      withConfig(app, 'config/production.json', { calls: { keep: '30d' } })
+        .names
+    ).not.toContain('calls.kept-forever');
+    expect(
+      withConfig(app, 'config/production.json', { calls: false }).names
+    ).not.toContain('calls.kept-forever');
+    expect(
+      withConfig(app, 'config/dev.json', { calls: { keep: false } }).names
+    ).not.toContain('calls.kept-forever');
+  });
+
   test('reports password hashes that are not bound to their row', () => {
     // An application that turned the binding off is telling anyone who can
     // write its database that a hash copied onto another row still works

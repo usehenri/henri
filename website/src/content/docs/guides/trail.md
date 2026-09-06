@@ -205,3 +205,8 @@ registered.
   every row is not what this is for.
 - **Shipping the entries somewhere.** There is no exporter. `henri trail
 --json` and `henri.trail.list()` are what a log shipper or a report reads.
+- **The values themselves.** An entry holds names, counts and identifiers,
+  and a `meta` carrying a value is refused. What a request sent and what it
+  got back is a [call log](/guides/calls/), which is the deliberate opposite
+  of this one: it holds values, it is sampled rather than complete, and it is
+  not evidence of anything.
