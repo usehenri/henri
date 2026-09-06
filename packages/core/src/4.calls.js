@@ -452,6 +452,13 @@ class Calls extends BaseModule {
 
     this.flushing = (async () => {
       try {
+        // A process that ran past the periods created at boot would write
+        // into the catch-all; topping the plan up here costs a number
+        // comparison per flush and nothing at all when there are none
+        if (this.store.covered && Date.now() >= this.store.covered) {
+          await this.store.ensure();
+        }
+
         await this.store.insert(rows);
         this.counters.written += rows.length;
         this.complained = false;

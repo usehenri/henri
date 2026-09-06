@@ -527,10 +527,14 @@ class SqlCalls {
   /**
    * Makes sure there are partitions in front of the clock.
    *
-   * Cheap to call: it remembers how far it covered and does nothing until
-   * the clock catches up with it. A failure here is not fatal -- the
-   * catch-all partition takes the rows and the next sweep tries again --
-   * so it reports rather than throws.
+   * **A period is only ever added above every existing one**, which is not
+   * an optimization: MySQL keeps its ranges in increasing order, so
+   * reorganizing the catch-all into a period that sits below one that is
+   * already there is refused. A period the sweep dropped therefore does not
+   * come back -- and does not need to, since what it held is gone.
+   *
+   * A failure here is not fatal: the catch-all takes the rows and the next
+   * sweep tries again, so this reports rather than throws.
    *
    * @param {number} [now=Date.now()] the moment
    * @returns {Promise<Array<string>>} the partitions that were created
@@ -541,10 +545,18 @@ class SqlCalls {
       return [];
     }
 
-    const starts = planOf(now, { ahead: this.ahead, every: this.partition });
+    const existing = await this.partitions();
+    const highest = existing.reduce((most, one) => Math.max(most, one.to), 0);
     const made = [];
 
-    for (const start of starts) {
+    for (const start of planOf(now, {
+      ahead: this.ahead,
+      every: this.partition,
+    })) {
+      if (start < highest) {
+        continue;
+      }
+
       const statement = createPartition(
         this.dialect,
         this.table,
@@ -555,6 +567,7 @@ class SqlCalls {
       try {
         await this.run(statement);
         made.push(partitionName(this.dialect, this.table, start));
+        this.covered = Math.max(this.covered, nextOf(start, this.partition));
       } catch (error) {
         if (!ALREADY_THERE.test(reasons(error))) {
           debug('unable to create a partition: %s', error.message);
@@ -562,7 +575,7 @@ class SqlCalls {
       }
     }
 
-    this.covered = starts[starts.length - 1];
+    this.covered = Math.max(this.covered, highest);
 
     return made;
   }
