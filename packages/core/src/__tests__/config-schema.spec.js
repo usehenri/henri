@@ -131,8 +131,8 @@ describe('the configuration schema', () => {
     for (const [label, config] of files) {
       const { errors } = validate(config, { source: () => label });
 
-      expect(`${label}: ${format(errors)}`).toBe(
-        `${label}: invalid configuration (0 problems)`
+      expect(errors.map((problem) => `${label}: ${problem.message}`)).toEqual(
+        []
       );
     }
   });
@@ -232,9 +232,9 @@ describe('the configuration schema', () => {
         'appName',
         'henri ignores it; remove it, or keep it if the application reads it with henri.config.get()',
       ],
-      ['rateLimits', 'Did you mean "rateLimit"?'],
-      ['renderers', 'Did you mean "renderer"?'],
-      ['trustproxy', 'Did you mean "trustProxy"?'],
+      ['rateLimits', 'Rename it to "rateLimit", or remove it'],
+      ['renderers', 'Rename it to "renderer", or remove it'],
+      ['trustproxy', 'Rename it to "trustProxy", or remove it'],
     ]);
   });
 
@@ -252,7 +252,10 @@ describe('the configuration schema', () => {
     });
 
     expect(warnings).toHaveLength(1);
-    expect(warnings[0].hint).toBe('Did you mean "stores.default.url"?');
+    expect(warnings[0].message).toContain('did you mean "stores.default.url"?');
+    expect(warnings[0].hint).toBe(
+      'Rename it to "stores.default.url", or remove it'
+    );
   });
 
   test('the vue renderer needs its experimental flag', () => {
@@ -290,8 +293,9 @@ describe('the configuration schema', () => {
     expect(error.code).toBe('CONFIG_INVALID');
     expect(error.exitCode).toBe(1);
     expect(error.problems).toBe(errors);
-    expect(error.message).toContain('invalid configuration (1 problem)');
-    expect(error.message).toContain('(from .env)');
+    // The message is one line: whoever prints it has the problems too
+    expect(error.message).toBe('invalid configuration (1 problem): port');
+    expect(format(error.problems)).toContain('(from .env)');
   });
 });
 
@@ -324,9 +328,7 @@ describe('reading the schema', () => {
   });
 
   test('describe says what a key accepts', () => {
-    expect(describeNode(SCHEMA.csrf)).toBe(
-      'false to disable the CSRF protection'
-    );
+    expect(describeNode(SCHEMA.port)).toBe('a port number between 1 and 65535');
     expect(describeNode({ type: 'boolean' })).toBe('true or false');
     expect(describeNode({ enum: ['a', 'b'], type: 'string' })).toBe(
       'one of a, b'

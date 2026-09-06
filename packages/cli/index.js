@@ -166,6 +166,20 @@ function fail(command, error, json = false) {
   } else {
     console.error(`\n  henri ${command} failed: ${failure.message}\n`);
 
+    for (const problem of failure.problems || []) {
+      console.error(
+        `  ${problem.message}${problem.source ? ` (from ${problem.source})` : ''}`
+      );
+
+      if (problem.hint) {
+        console.error(`    ${problem.hint}`);
+      }
+    }
+
+    if (failure.problems && failure.problems.length > 0) {
+      console.error('');
+    }
+
     if (failure.hint) {
       console.error(`  ${failure.hint}\n`);
     }

@@ -88,7 +88,8 @@ const STORE = {
     },
     host: text({ describe: 'a host name (or a url, on mongoose)' }),
     migrate: {
-      describe: 'true to apply db/migrations on a production boot (drizzle)',
+      describe: 'true or false',
+      hint: 'drizzle: true applies db/migrations on a production boot',
       type: 'boolean',
     },
     opts: {
@@ -114,11 +115,13 @@ const STORE = {
       unknown: 'allow',
     },
     sessions: {
-      describe: 'true to create the session table without a user model',
+      describe: 'true or false',
+      hint: 'drizzle: true creates the session table without a user model',
       type: 'boolean',
     },
     sync: {
-      describe: 'false to stop a development boot from pushing the schema',
+      describe: 'true or false',
+      hint: 'drizzle: false stops a development boot from pushing the schema',
       type: 'boolean',
     },
     url: text({ describe: 'a connection string' }),
@@ -159,7 +162,7 @@ const SCHEMA = {
     default: 'template',
     describe: `one of ${RENDERERS.join(', ')}`,
     enum: RENDERERS,
-    hint: 'vue also needs { "experimental": { "vue": true } }',
+    hint: 'henri new writes "react"; "vue" also needs { "experimental": { "vue": true } }',
     insensitive: true,
     type: 'string',
   },
@@ -253,7 +256,8 @@ const SCHEMA = {
 
   csrf: {
     default: true,
-    describe: 'false to disable the CSRF protection',
+    describe: 'true or false',
+    hint: 'false disables the double-submit CSRF protection',
     type: 'boolean',
   },
 
@@ -280,7 +284,8 @@ const SCHEMA = {
       },
       previews: {
         default: true,
-        describe: 'false to turn the development preview routes off',
+        describe: 'true or false',
+        hint: 'false turns the development preview routes off',
         type: 'boolean',
       },
     },
@@ -304,7 +309,8 @@ const SCHEMA = {
               },
               ttl: positive({
                 default: 86400000,
-                describe: 'how long answers are kept, in milliseconds',
+                describe: 'a number of milliseconds above zero',
+                hint: 'How long an Idempotency-Key answer is kept',
               }),
             },
             type: 'object',
@@ -327,7 +333,8 @@ const SCHEMA = {
       },
       strict: {
         default: false,
-        describe: 'true to refuse a JSON answer without _links',
+        describe: 'true or false',
+        hint: 'true refuses (500) a JSON answer without _links',
         type: 'boolean',
       },
     },
@@ -335,7 +342,7 @@ const SCHEMA = {
   },
 
   rateLimit: {
-    describe: 'false to disable the limits, or an object of limits',
+    describe: 'an object of limits, true for the defaults, or false for none',
     oneOf: [
       { type: 'boolean' },
       {
@@ -381,13 +388,13 @@ const SCHEMA = {
   },
 
   helmet: {
-    describe: 'false to disable helmet, or an object of helmet options',
+    describe: 'an object of helmet options, or false to disable helmet',
     oneOf: [{ const: false }, { type: 'object', unknown: 'allow' }],
   },
 
   filterParameters: {
     default: ['password', 'token', 'secret', 'authorization'],
-    describe: 'a list of parameter names to mask, or false to mask nothing',
+    describe: 'a list of parameter names to mask, or false',
     oneOf: [{ const: false }, { of: text(), type: 'array' }],
   },
 

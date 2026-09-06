@@ -17,7 +17,7 @@ config ✖ "stores.default.adapter" must be one of disk, drizzle, mariadb, mongo
 config ✖ "secret" must be a string, but it is a number => from the credentials (config/credentials/production.json.enc)
 ```
 
-A value the `filterParameters` name, and anything the credentials provided, is printed as its type alone; the password of a connection string is always masked. The boot fails with a `ConfigurationError` whose `code` is `CONFIG_INVALID` and which carries every problem, so `henri server --json` prints them as `{ "error": { "code", "message", "hint", "problems" } }` and exits `1`.
+A value the `filterParameters` name, and anything the credentials provided, is printed as its type alone; the password of a connection string is always masked. The boot fails with a `ConfigurationError` whose `code` is `CONFIG_INVALID`, whose message names how many problems there are and on which keys, and which carries them all as `{ key, level, message, expected, received, source, hint }`. `henri server` prints them under the failure and exits `1`; `henri server --json` puts them in `{ "error": { "code", "message", "hint", "problems" } }` on stderr.
 
 **An unknown key is a warning, never a failure**: an application may carry keys of its own, and `henri.config.get()` is how it reads them. But a key that is a near miss of one henri owns says so and names the right one (`"renderers" is not a henri configuration key: did you mean "renderer"?`), because that is the actual mistake being made. Inside a store, where everything henri does not declare is forwarded to the driver, only a near miss is worth a word.
 

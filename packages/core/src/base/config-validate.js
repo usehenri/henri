@@ -129,13 +129,15 @@ function received(value, masked = false) {
   }
 
   if (Array.isArray(value)) {
-    return value.length === 0 ? 'an empty list' : `a list of ${value.length}`;
+    if (value.length === 0) {
+      return 'an empty list';
+    }
+
+    return `a list of ${value.length} item${value.length === 1 ? '' : 's'}`;
   }
 
   if (typeof value === 'object') {
-    return masked
-      ? 'an object'
-      : `an object (${Object.keys(value).length} keys)`;
+    return 'an object';
   }
 
   if (masked) {
@@ -202,6 +204,53 @@ function matches(node, value) {
   walk(node, value, '', { mask: () => false, problems, source: () => null });
 
   return problems.every((problem) => problem.level !== 'error');
+}
+
+/**
+ * Is a value of the kind a node stands for? (a boolean for `boolean`, an
+ * object for `object`), whatever its content
+ *
+ * @param {object} node a schema node
+ * @param {any} value the value
+ * @returns {boolean} the right kind or not
+ */
+function accepts(node, value) {
+  if (Object.prototype.hasOwnProperty.call(node, 'const')) {
+    return value === node.const;
+  }
+
+  if (node.oneOf) {
+    return node.oneOf.some((branch) => accepts(branch, value));
+  }
+
+  if (node.type === 'array') {
+    return Array.isArray(value);
+  }
+
+  if (node.type === 'object' || node.type === 'record') {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  return node.type === 'any' || typeof value === node.type;
+}
+
+/**
+ * The branch of a union a value belongs to
+ *
+ * The one it fully matches, or else the one it is the right kind for --
+ * `rateLimit: { max: "lots" }` is the object branch, and the message then
+ * names `rateLimit.max` rather than saying the whole key is wrong.
+ *
+ * @param {object} node a union node (`oneOf`)
+ * @param {any} value the value
+ * @returns {?object} the branch, or null when the value fits none
+ */
+function branchFor(node, value) {
+  return (
+    node.oneOf.find((branch) => matches(branch, value)) ||
+    node.oneOf.find((branch) => accepts(branch, value)) ||
+    null
+  );
 }
 
 /**
@@ -294,13 +343,13 @@ function walk(node, value, key, context) {
   }
 
   if (node.oneOf) {
-    if (!node.oneOf.some((branch) => matches(branch, value))) {
+    const branch = branchFor(node, value);
+
+    if (!branch) {
       wrong();
 
       return;
     }
-
-    const branch = node.oneOf.find((entry) => matches(entry, value));
 
     walk({ ...branch, hint: branch.hint || node.hint }, value, key, context);
 
@@ -431,7 +480,7 @@ function shape(node, value, key, context) {
     context.problems.push({
       expected: null,
       hint: suggestion
-        ? `Did you mean "${prefix}${suggestion}"?`
+        ? `Rename it to "${prefix}${suggestion}", or remove it`
         : 'henri ignores it; remove it, or keep it if the application reads it with henri.config.get()',
       key: path,
       level: 'warning',
@@ -534,17 +583,30 @@ function line(problem) {
 }
 
 /**
- * The problems as one message, in the shape the command line prints
+ * One line naming how many problems there are and which keys they are on
+ *
+ * @param {Array<object>} problems the problems of validate()
+ * @param {string} [header] what to say before them
+ * @returns {string} the line
+ */
+function summary(problems, header = 'invalid configuration') {
+  const count =
+    problems.length === 1 ? '1 problem' : `${problems.length} problems`;
+  const keys = [...new Set(problems.map((problem) => problem.key))];
+
+  return `${header} (${count}): ${keys.join(', ')}`;
+}
+
+/**
+ * The problems as one message: the summary, then a line per problem with
+ * where the value came from and what to do
  *
  * @param {Array<object>} problems the problems of validate()
  * @param {string} [header] what to say before them
  * @returns {string} the message
  */
 function format(problems, header = 'invalid configuration') {
-  const count =
-    problems.length === 1 ? '1 problem' : `${problems.length} problems`;
-
-  return [`${header} (${count})`, ...problems.map(line)].join('\n');
+  return [summary(problems, header), ...problems.map(line)].join('\n');
 }
 
 /**
@@ -560,7 +622,9 @@ class ConfigurationError extends Error {
    * @param {string} [header] what to say before them
    */
   constructor(problems, header = 'invalid configuration') {
-    super(format(problems, header));
+    // One line: the boot log and the command line both print `message`, and
+    // the problems are printed once, by whoever has the room for them
+    super(summary(problems, header));
     this.name = 'ConfigurationError';
     this.code = 'CONFIG_INVALID';
     this.exitCode = 1;
@@ -676,5 +740,6 @@ module.exports = {
   nearest,
   nodeAt,
   received,
+  summary,
   validate,
 };

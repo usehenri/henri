@@ -212,12 +212,14 @@ describe('credentials', () => {
       }
 
       expect(thrown.code).toBe('CONFIG_INVALID');
-      expect(thrown.message).toContain('"stores.default.adapter"');
-      expect(thrown.message).toContain(
-        'from the credentials (config/credentials/production.json.enc)'
+      expect(thrown.problems).toHaveLength(1);
+      expect(thrown.problems[0].key).toBe('stores.default.adapter');
+      expect(thrown.problems[0].source).toBe(
+        'the credentials (config/credentials/production.json.enc)'
       );
       // Every value of that file is a secret: only its type is printed
-      expect(thrown.message).toContain('it is a string');
+      expect(thrown.problems[0].received).toBe('a string');
+      expect(JSON.stringify(thrown.problems)).not.toContain(SECRET);
       expect(thrown.message).not.toContain(SECRET);
     });
 

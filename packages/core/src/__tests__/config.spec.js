@@ -395,10 +395,15 @@ describe('config from the environment', () => {
       expect(thrown).not.toBeNull();
       expect(thrown.cause.code).toBe('CONFIG_INVALID');
       expect(thrown.cause.problems).toHaveLength(1);
-      expect(thrown.cause.message).toContain(
-        '"port" must be a port number between 1 and 65535'
+      expect(thrown.cause.message).toBe(
+        'invalid configuration (1 problem): port'
       );
-      expect(thrown.cause.message).toContain(`from ${ENV_PREFIX}port`);
+      expect(thrown.cause.problems[0]).toMatchObject({
+        key: 'port',
+        message:
+          '"port" must be a port number between 1 and 65535, but it is the string "nope"',
+        source: `${ENV_PREFIX}port`,
+      });
     });
 
     test('an unknown key is a warning, and the boot goes on', async () => {

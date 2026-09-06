@@ -227,7 +227,7 @@ describe('henri doctor', () => {
     expect(problems).toContainEqual(
       expect.objectContaining({
         check: 'config.unknown',
-        hint: 'Did you mean "renderer"?',
+        hint: 'Rename it to "renderer", or remove it',
         level: 'warning',
       })
     );
