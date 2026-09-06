@@ -182,6 +182,20 @@ describe('userAdapter', () => {
     expect(await adapter.findUserById('1')).toBeNull();
     expect(adapter.userId(null)).toBeUndefined();
   });
+
+  test('a record with no identifier is nobody, not the string "undefined"', () => {
+    // What the three adapters answer for a record carrying no key at all:
+    // `String(user._id || user.id)`. The string is truthy, so every guard
+    // written against it used to let it through and name a session with it
+    const adapter = userAdapter(
+      { userId: (user) => String(user._id || user.id) },
+      null
+    );
+
+    expect(adapter.userId({})).toBeUndefined();
+    expect(adapter.userId({ _id: null })).toBeUndefined();
+    expect(adapter.userId({ _id: 42 })).toBe('42');
+  });
 });
 
 describe('publicUser', () => {
@@ -219,6 +233,16 @@ describe('publicUser', () => {
       'admin',
     ]);
     expect(publicUser(adapter, { _id: 1 }).roles).toEqual([]);
+  });
+
+  test('a record with no identifier answers no id at all', () => {
+    // It used to answer `{ id: "undefined" }`, which went to a view and to a
+    // JSON body looking exactly like an identifier
+    expect(publicUser(adapter, { email: 'a@b.c' })).toEqual({
+      email: 'a@b.c',
+      id: undefined,
+      roles: [],
+    });
   });
 });
 
