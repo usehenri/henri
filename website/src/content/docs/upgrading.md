@@ -130,9 +130,28 @@ Nothing changes for a client that sends no session cookie, or one authenticated 
 
 ### The GraphQL endpoint has depth, alias and complexity limits
 
-Only applies if a model of yours declares `graphql`. A query is now refused when it nests more than 10 levels, uses more than 15 aliases, selects more than 1000 fields (fragments expanded) or holds more than 5000 tokens. A page's own query is nowhere near any of these; a generated or machine-built query might be.
+Only applies if a model of yours declares `graphql`, which also means the application now installs `@usehenri/graphql` (below). A query is now refused when it nests more than 10 levels, uses more than 15 aliases, selects more than 1000 fields (fragments expanded) or holds more than 5000 tokens. A page's own query is nowhere near any of these; a generated or machine-built query might be.
 
 Each limit is a key of `config.graphql`, which is now an object as well as a path, and `false` lifts one. The same object adds `authenticated`, `roles` and `loopbackOnly`, because the endpoint has never had a guard of its own. See [Bounding the endpoint](/guides/graphql/#bounding-the-endpoint).
+
+### GraphQL moves to @usehenri/graphql
+
+The GraphQL layer left `@usehenri/core` and lives in [`@usehenri/graphql`](https://www.npmjs.com/package/@usehenri/graphql), which [ships it as a henri module](/reference/under-the-hood/#where-it-goes-a-module-that-arrives-from-a-package). Core no longer depends on `@apollo/server`, `@as-integrations/express5`, `@graphql-tools/merge`, `@graphql-tools/schema` or `graphql`, and carries no GraphQL code at all: an application that never mounted a schema stops installing them.
+
+**If your models declare a `graphql` key, or your controllers render with `{ graphql }`, install one package:**
+
+```bash
+npm install @usehenri/graphql
+```
+
+Nothing else changes. `henri.graphql` is the same object with the same `run()`, `endpoint`, `active`, error classes and `toApolloError()`, the endpoint is still `/_henri/gql` (and still configurable with the `graphql` key), and the schema is still built from the models' `graphql` keys.
+
+Without the package henri says so rather than going quiet:
+
+- a model that declares a `graphql` key fails the boot with the install line;
+- `res.render(view, { graphql })` fails the request with the install line, instead of rendering a page whose data is missing;
+- `henri doctor` reports `deps.declared` when a model declares types or the configuration sets `graphql`;
+- `henri.graphql` is `undefined` rather than an object that does nothing, and a page has no `graphql` key among its view options. Code reading it guards with `henri.graphql &&`; the type declarations make it optional, so TypeScript and a JSDoc-annotated file say so too.
 
 ### New in 1.2
 

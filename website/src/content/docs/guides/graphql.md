@@ -1,11 +1,19 @@
 ---
 title: GraphQL
-description: Add types and resolvers to your models and query them from controllers.
+description: Install @usehenri/graphql, add types and resolvers to your models and query them from controllers.
 sidebar:
   order: 7
 ---
 
-Add a `graphql` key to a model and its types and resolvers are loaded, merged with every other model's and served by Apollo Server at `/_henri/gql` (change the path with the `graphql` configuration key). Introspection is on outside production. No model declaring `graphql` means no endpoint at all: this is opt-in.
+```bash
+npm install @usehenri/graphql        # once, in your application
+```
+
+GraphQL lives in [`@usehenri/graphql`](https://www.npmjs.com/package/@usehenri/graphql). The package [ships a henri module](/reference/under-the-hood/#where-it-goes-a-module-that-arrives-from-a-package), so depending on it is all there is to do: it is in the boot as `henri.graphql`, at level 1. An application that does not depend on it has no `henri.graphql` at all and never loads Apollo Server. GraphQL was part of `@usehenri/core` until 1.2 — see [Upgrading](/upgrading/#graphql-moves-to-usehenrigraphql).
+
+Add a `graphql` key to a model and its types and resolvers are loaded, merged with every other model's and served by Apollo Server at `/_henri/gql` (change the path with the `graphql` configuration key). Introspection is on outside production. No model declaring `graphql` means no endpoint at all: this is opt-in twice over, by the dependency and by the models.
+
+Without the package, nothing is silent: a model that declares a `graphql` key fails the boot, and `res.render(view, { graphql })` fails the request. Both say to install `@usehenri/graphql`, and `henri doctor` reports it as a missing dependency. Everything else keeps working, and a page simply has no `graphql` key among its view options.
 
 ## Definition
 

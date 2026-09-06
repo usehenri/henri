@@ -35,7 +35,7 @@ module.exports = {
 | `options`           | `timestamps` and `paranoid` (below), plus anything the ORM takes: handed to `new mongoose.Schema()` or `sequelize.define()`. |
 | `store`             | The store to use, `default` when omitted. The boot fails when the store is not configured.                                   |
 | `name`              | Collection name (Mongoose) or `tableName` (Sequelize).                                                                       |
-| `graphql`           | `{ types, resolvers }` merged into the application schema. See [GraphQL](/guides/graphql/).                                  |
+| `graphql`           | `{ types, resolvers }` merged into the application schema; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).       |
 | `associate(models)` | Called once every model of the store exists, with the models keyed by global name. Declare relations there.                  |
 
 ```js

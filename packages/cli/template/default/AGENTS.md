@@ -8,20 +8,20 @@ the generators write above `module.exports` (`req`, `res` and `henri` complete; 
 
 ## Layout and naming
 
-| Path                         | What goes there                                                                                                 |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `app/models/Task.js`         | One model per file, singular PascalCase; loaded on boot and exposed as the global `Task`                        |
-| `app/controllers/tasks.js`   | Plain objects of `async (req, res)` actions; lowercase, plural for resources (`tasks#index`)                    |
-| `config/routes.js`           | The routes: `'get /': 'main#home'`, `'resources tasks': 'tasks'`                                                |
-| `app/views/pages/tasks/`     | {{engine}} pages (`.{{ext}}`): `index`, `new`, `show`, `edit`, `_form`; `pages/tasks/index.{{ext}}` is `/tasks` |
-| `app/views/components/`      | Shared components (`import Nav from 'components/nav'`); `assets/` and `public/` next to it                      |
-| `app/views/styles/index.css` | The Tailwind CSS v4 entry point, and the only stylesheet of the application                                     |
-| `app/jobs/welcome.js`        | `{ queue, maxAttempts, timeout, perform(args, context) }`, run by `henri jobs` (needs `@usehenri/jobs`)         |
-| `app/workers/cleanup.js`     | `{ name, start(henri), stop(henri) }`, started with the server (`--skip-workers` to skip)                       |
-| `config/default.json`        | Committed configuration: `stores`, `renderer`, `user`, `baseRole`, `port`, `graphql`, `mail`                    |
-| `config/<NODE_ENV>.json`     | `dev.json`, `production.json` or `test.json` replaces `default.json` as a whole (keys are not merged)           |
-| `.env`                       | `HENRI_SECRET` and machine secrets, loaded on boot; never committed                                             |
-| `test/tasks.test.js`         | Vitest tests run by `henri test`                                                                                |
+| Path                         | What goes there                                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `app/models/Task.js`         | One model per file, singular PascalCase; loaded on boot and exposed as the global `Task`                                 |
+| `app/controllers/tasks.js`   | Plain objects of `async (req, res)` actions; lowercase, plural for resources (`tasks#index`)                             |
+| `config/routes.js`           | The routes: `'get /': 'main#home'`, `'resources tasks': 'tasks'`                                                         |
+| `app/views/pages/tasks/`     | {{engine}} pages (`.{{ext}}`): `index`, `new`, `show`, `edit`, `_form`; `pages/tasks/index.{{ext}}` is `/tasks`          |
+| `app/views/components/`      | Shared components (`import Nav from 'components/nav'`); `assets/` and `public/` next to it                               |
+| `app/views/styles/index.css` | The Tailwind CSS v4 entry point, and the only stylesheet of the application                                              |
+| `app/jobs/welcome.js`        | `{ queue, maxAttempts, timeout, perform(args, context) }`, run by `henri jobs` (needs `@usehenri/jobs`)                  |
+| `app/workers/cleanup.js`     | `{ name, start(henri), stop(henri) }`, started with the server (`--skip-workers` to skip)                                |
+| `config/default.json`        | Committed configuration: `stores`, `renderer`, `user`, `baseRole`, `port`, `graphql` (needs `@usehenri/graphql`), `mail` |
+| `config/<NODE_ENV>.json`     | `dev.json`, `production.json` or `test.json` replaces `default.json` as a whole (keys are not merged)                    |
+| `.env`                       | `HENRI_SECRET` and machine secrets, loaded on boot; never committed                                                      |
+| `test/tasks.test.js`         | Vitest tests run by `henri test`                                                                                         |
 
 ## Generate, do not hand-write
 
