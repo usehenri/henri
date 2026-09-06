@@ -42,7 +42,7 @@
   "dependencies": {
     "@types/express": "^5.0.6",
     "bcryptjs": "^3.0.3",
-    "chalk": "^4.1.2",
+    "chalk": "^6.0.0",
     "chokidar": "^5.0.0",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
