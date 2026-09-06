@@ -319,9 +319,16 @@ if kill -0 "$server_pid" 2>/dev/null; then
 fi
 
 # The exit code here is the `pnpm exec` wrapper's, which the signal kills, so
-# what henri did is read from its log instead
+# what henri did is read from its log instead. The wrapper dies as soon as it
+# forwards the signal, while henri is still draining and stopping its
+# modules, so the log is what says the shutdown finished -- not the pid.
 wait "$server_pid" 2>/dev/null || true
 server_pid=""
+
+for _ in $(seq 1 30); do
+  grep -q "exiting application" "$server_log" && break
+  sleep 1
+done
 
 for line in "SIGTERM received" "no longer accepting connections" "exiting application"; do
   if ! grep -q "$line" "$server_log"; then
