@@ -37,6 +37,14 @@ const PROTECTED = ['createdAt', 'deletedAt', 'updatedAt'];
 // is what every url and every link of a record is made of
 const IMMUTABLE = [EXTERNAL_ID];
 
+// Where an update path that has no instance leaves the lookup of the row it
+// targets, so a hook that needs to know which record it is writing to can
+// ask. Lazy: the query only runs for a hook that asks, which in practice is
+// a password write on the user model (see the adapter's decorateUser).
+// A symbol, so nothing an application passes in its options can be mistaken
+// for it.
+const BIND_IDENTITY = Symbol('henri.bindIdentity');
+
 // Keys that make a first argument an options object instead of a condition
 const OPTION_KEYS = new Set([
   'include',
@@ -577,7 +585,18 @@ class Model {
       return null;
     }
 
-    const values = await this.prepare('update', attrs, options, null);
+    // Called with the public identifier, which is the usual way, the row this
+    // writes to is already named and no second lookup is needed
+    const values = await this.prepare(
+      'update',
+      attrs,
+      this.bindable(
+        options,
+        eq(this.table.id, key),
+        this.externalId && isUuid(id) ? normalizeExternalId(id) : undefined
+      ),
+      null
+    );
     const row = await this.run(() => this.updateById(key, values));
 
     if (!row) {
@@ -1038,6 +1057,52 @@ class Model {
   }
 
   /**
+   * The public identifiers of the rows a condition matches, up to `limit`.
+   *
+   * What a hook uses to find out whether a mass update is really writing to
+   * one row: two is already too many to answer for.
+   *
+   * @param {?object} where The SQL condition
+   * @param {number} [limit=2] How many to look at
+   * @returns {Promise<Array<string>>} The external ids
+   * @memberof Model
+   */
+  static async externalIdsWhere(where, limit = 2) {
+    const rows = await this.run(() => {
+      const query = this.db()
+        .select({ [EXTERNAL_ID]: this.table[EXTERNAL_ID] })
+        .from(this.table);
+
+      return (where ? query.where(where) : query).limit(limit);
+    });
+
+    return rows.map((row) => row[EXTERNAL_ID]);
+  }
+
+  /**
+   * The options of an update, with the lookup of the row it targets attached
+   * for whichever hook needs it. Nothing runs unless a hook asks.
+   *
+   * @param {object} options The caller's options
+   * @param {?object} where The SQL condition the update runs on
+   * @param {string} [known] The external id, when the caller already had it
+   * @returns {object} The options
+   * @memberof Model
+   */
+  static bindable(options, where, known) {
+    if (!this.externalId) {
+      return options;
+    }
+
+    return {
+      ...options,
+      [BIND_IDENTITY]: known
+        ? async () => [known]
+        : () => this.externalIdsWhere(where),
+    };
+  }
+
+  /**
    * Updates a row by id and returns it
    *
    * @param {*} id The id
@@ -1082,7 +1147,12 @@ class Model {
    * @memberof Model
    */
   static async updateWhere(where, attrs, options = {}) {
-    const values = await this.prepare('update', attrs, options, null);
+    const values = await this.prepare(
+      'update',
+      attrs,
+      this.bindable(options, where),
+      null
+    );
 
     if (Object.keys(values).length === 0) {
       return 0;
@@ -1546,4 +1616,4 @@ const createModel = (adapter, definition, fields) => {
   return Klass;
 };
 
-module.exports = { HOOKS, Model, STATE, createModel };
+module.exports = { BIND_IDENTITY, HOOKS, Model, STATE, createModel };

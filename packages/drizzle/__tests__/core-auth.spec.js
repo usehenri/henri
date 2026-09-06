@@ -8,6 +8,7 @@ const supertest = require('supertest');
 const Henri = require('../../core/src/henri');
 const {
   hashPassword,
+  isBound,
   needsRehash,
   passwordPolicy,
 } = require('../../core/src/base/password');
@@ -184,9 +185,123 @@ describe('auth (core on the drizzle sqlite store)', () => {
 
     expect(after.password).not.toBe(stale);
     expect(needsRehash(after.password, henri.user.passwordPolicy)).toBe(false);
-    await expect(henri.user.compare(legacy, after.password)).resolves.toBe(
-      true
-    );
+    // The user, not the hash: the rewrite bound it to this record
+    await expect(henri.user.compare(legacy, after)).resolves.toBe(true);
+    expect(isBound(after.password)).toBe(true);
+  });
+
+  describe('a hash bound to its row', () => {
+    const known = 'the-password-mallory-knows';
+    const mallory = 'mallory@usehenri.io';
+    const victim = 'victim@usehenri.io';
+
+    beforeAll(async () => {
+      await henri._user.create({
+        email: mallory,
+        name: 'Mallory',
+        password: known,
+      });
+      await henri._user.create({
+        email: victim,
+        name: 'Victim',
+        password: 'a-password-nobody-else-knows',
+      });
+    });
+
+    test('does not sign anyone in when it is copied onto another row', async () => {
+      const source = await henri.user.findByEmail(mallory);
+      const target = await henri.user.findByEmail(victim);
+
+      expect(isBound(source.password)).toBe(true);
+      expect(henri.user.identityOf(source)).not.toBe(
+        henri.user.identityOf(target)
+      );
+
+      // The hash is a good one: Mallory signs in with it as herself
+      expect(
+        (
+          await supertest(app)
+            .post('/login')
+            .send({ email: mallory, password: known })
+        ).status
+      ).toBe(200);
+
+      // Copied straight onto the victim's row, hooks bypassed
+      await henri._user.update(
+        { email: victim },
+        { password: source.password },
+        { passwordsHashed: true }
+      );
+      expect((await henri.user.findByEmail(victim)).password).toBe(
+        source.password
+      );
+
+      const res = await supertest(app)
+        .post('/login')
+        .send({ email: victim, password: known });
+
+      expect(res.status).toBe(401);
+    });
+
+    test('an unbound hash still verifies, and is bound afterwards', async () => {
+      const owner = 'migrating@usehenri.io';
+      const secret = 'a-password-that-is-long-enough';
+      const unbound = await hashPassword(
+        secret,
+        henri.user.passwordPolicy,
+        null
+      );
+
+      await henri._user.create(
+        { email: owner, name: 'Migrating', password: unbound },
+        { passwordsHashed: true }
+      );
+
+      expect(isBound(unbound)).toBe(false);
+
+      const res = await supertest(app)
+        .post('/login')
+        .send({ email: owner, password: secret });
+
+      expect(res.status).toBe(200);
+
+      const after = await henri.user.findByEmail(owner);
+
+      expect(isBound(after.password)).toBe(true);
+      await expect(henri.user.compare(secret, after)).resolves.toBe(true);
+    });
+
+    test('a mass password write that cannot name one row is refused', async () => {
+      await expect(
+        henri._user.update({}, { password: 'a-password-for-everyone' })
+      ).rejects.toMatchObject({ name: 'ValidationError' });
+    });
+
+    test('a mass password write that names exactly one row is bound', async () => {
+      const fresh = 'a-brand-new-password-here';
+
+      await henri._user.update({ email: victim }, { password: fresh });
+
+      const after = await henri.user.findByEmail(victim);
+
+      expect(isBound(after.password)).toBe(true);
+      await expect(henri.user.compare(fresh, after)).resolves.toBe(true);
+    });
+
+    test('findByIdAndUpdate binds to the row it names', async () => {
+      const fresh = 'yet-another-good-password';
+      const before = await henri.user.findByEmail(victim);
+
+      await henri._user.findByIdAndUpdate(before.externalId, {
+        password: fresh,
+      });
+
+      const after = await henri.user.findByEmail(victim);
+
+      expect(isBound(after.password)).toBe(true);
+      expect(after.externalId).toBe(before.externalId);
+      await expect(henri.user.compare(fresh, after)).resolves.toBe(true);
+    });
   });
 
   test('finds a user by id without its password', async () => {

@@ -112,14 +112,35 @@ declare namespace start {
           previous?: string[];
           allowUnpeppered?: boolean;
         };
+    /**
+     * Binds a hash to the `externalId` of the record it belongs to, so a hash
+     * copied onto another row stops verifying. Where the pepper stops an
+     * attacker with database write access *forging* a hash, this stops them
+     * *moving* one. `true` by default, and a no-op on a user model that opted
+     * out of `externalId`. `allowUnbound` (`true`) keeps the hashes written
+     * before it working — they are written back bound as their owners sign in
+     * — and should be turned off once none are left.
+     */
+    binding?:
+      | boolean
+      | {
+          enabled?: boolean;
+          allowUnbound?: boolean;
+        };
   }
 
   /** The normalized `config.user.password`. */
-  interface PasswordPolicy extends Required<Omit<PasswordConfig, 'pepper'>> {
+  interface PasswordPolicy extends Required<
+    Omit<PasswordConfig, 'pepper' | 'binding'>
+  > {
     pepper: {
       current: Buffer | null;
       previous: Buffer[];
       allowUnpeppered: boolean;
+    };
+    binding: {
+      enabled: boolean;
+      allowUnbound: boolean;
     };
   }
 
@@ -1198,17 +1219,39 @@ declare namespace start {
     };
     /**
      * Hashes a password with argon2id (or bcrypt), after checking it against
-     * the policy. `rounds` is deprecated: it overrides
-     * `config.user.password.bcryptRounds` and is ignored under argon2id.
+     * the policy. `identity` is the record the hash belongs to (an
+     * `externalId`, a row or an instance): with it, and
+     * `config.user.password.binding.enabled`, the hash is bound to that
+     * record and stops verifying anywhere else. A number is the deprecated
+     * `rounds` argument: it overrides `config.user.password.bcryptRounds` and
+     * is ignored under argon2id.
      */
-    encrypt(password: string, rounds?: number): Promise<string>;
-    /** Resolves `true`; rejects with an error on a mismatch, never `false`. */
-    compare(password: string, hash: string): Promise<true>;
+    encrypt(
+      password: string,
+      options?: number | { identity?: unknown; rounds?: number }
+    ): Promise<string>;
+    /**
+     * Resolves `true`; rejects with an error on a mismatch, never `false`.
+     * Pass the user rather than its hash: a bound hash cannot be checked
+     * without the record it belongs to and rejects with a distinct error.
+     */
+    compare(password: string, user: string | object): Promise<true>;
     /**
      * Writes a stored hash again with the current parameters, after its
-     * owner proved the password. Applies no policy and never throws.
+     * owner proved the password. Applies no policy and never throws. This is
+     * where an unbound hash becomes bound to its row.
      */
     rehash(user: unknown, password: string): Promise<boolean>;
+    /**
+     * The `externalId` a hash written for this record is bound to, or `null`
+     * for a user model that opted out of the public identifier.
+     */
+    identityOf(user: unknown): string | null;
+    /**
+     * Will a hash written now be bound to its record? False when binding is
+     * off or the user model carries no `externalId`.
+     */
+    bindsPasswords(): boolean;
     findByEmail(email: string): Promise<any>;
     findById(id: string): Promise<any>;
     /** `{ id, email, roles }` plus `config.user.public`. */

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const debug = require('debug')('henri:mongoose');
 const { externalId, paginate, paranoid } = require('./plugins');
 const { normalizeSchema } = require('./schema');
-const { EXTERNAL_ID, wantsExternalId } = require('./external-id');
+const { EXTERNAL_ID, uuidv7, wantsExternalId } = require('./external-id');
 const { buildUrl, fatal, normalizeEmail, redact } = require('./utils');
 
 /**
@@ -235,7 +235,30 @@ class Mongoose {
     schema.add({ confirmedAt: { default: null, type: Date } });
     schema.add({ passwordChangedAt: { default: null, type: Date } });
 
-    const encrypt = (password) => thisHenri.user.encrypt(password);
+    const encrypt = (password, identity) =>
+      thisHenri.user.encrypt(password, { identity });
+
+    /**
+     * Are new hashes bound to the document they belong to? An older core (or
+     * a stand-in that only implements `encrypt`) answers no, which is the
+     * behaviour it had.
+     *
+     * @returns {boolean} true when a password write must name its document
+     */
+    const binds = () =>
+      typeof thisHenri.user.bindsPasswords === 'function' &&
+      thisHenri.user.bindsPasswords();
+
+    /**
+     * The error to throw when a password write cannot name its document
+     *
+     * @param {string} detail What the caller was doing
+     * @returns {Error} The error
+     */
+    const unresolved = (detail) =>
+      typeof thisHenri.user.unresolvedPassword === 'function'
+        ? thisHenri.user.unresolvedPassword(detail)
+        : new Error(`cannot hash a password from ${detail}`);
 
     /**
      * Is a save allowed to change the roles?
@@ -275,7 +298,9 @@ class Mongoose {
       // the way the sequelize and drizzle adapters already do; core uses it
       // to upgrade a stored hash after a successful sign-in
       if (this.isModified('password') && !isHashed(this, options)) {
-        this.password = await encrypt(this.password);
+        // The uuid default is applied when the document is constructed, so it
+        // is here before the insert
+        this.password = await encrypt(this.password, this[EXTERNAL_ID]);
       }
     });
 
@@ -290,9 +315,97 @@ class Mongoose {
         stripRoles(update);
       }
 
-      for (const target of [update, update.$set, update.$setOnInsert]) {
-        if (target && typeof target.password === 'string') {
-          target.password = await encrypt(target.password);
+      const targets = [update, update.$set, update.$setOnInsert].filter(
+        (target) => target && typeof target.password === 'string'
+      );
+
+      if (targets.length === 0) {
+        return;
+      }
+
+      let identity;
+
+      if (binds()) {
+        if (this.getOptions().upsert) {
+          // An upsert that inserts invents the document, and its externalId
+          // with it, after this hook has run: there is no identity to bind to
+          // and no way to check one later
+          throw unresolved(`an upserting ${this.op}()`);
+        }
+
+        const rows = await this.model
+          .find(this.getFilter())
+          .select(EXTERNAL_ID)
+          .limit(2)
+          .lean();
+
+        if (rows.length > 1) {
+          throw unresolved(`${this.op}() over more than one document`);
+        }
+
+        // No match writes to nothing, but a document could still appear in
+        // the race: a uuid nobody has makes that hash unusable rather than
+        // usable by whoever landed there
+        identity = rows.length === 1 ? rows[0][EXTERNAL_ID] : uuidv7();
+      }
+
+      for (const target of targets) {
+        target.password = await encrypt(target.password, identity);
+      }
+    });
+
+    // `insertMany` runs no document middleware, so until now it wrote the
+    // password it was given straight to the collection -- in the clear -- and
+    // kept whatever roles came with it. It is a bulk *create*, so every
+    // document is in hand and each hash is bound to its own; the externalId
+    // is stamped here rather than left to the schema default, because the
+    // default is applied after this hook and the hash has to name it.
+    schema.pre('insertMany', async function preInsertMany(docs, options = {}) {
+      const list = Array.isArray(docs) ? docs : [docs];
+
+      for (const doc of list) {
+        if (!doc || typeof doc !== 'object') {
+          continue;
+        }
+
+        if (!options.unsafe) {
+          doc.roles = [...baseRoles];
+        }
+
+        if (typeof doc.password === 'string' && !options.passwordsHashed) {
+          if (!doc[EXTERNAL_ID]) {
+            doc[EXTERNAL_ID] = uuidv7();
+          }
+
+          doc.password = await encrypt(doc.password, doc[EXTERNAL_ID]);
+        }
+      }
+    });
+
+    // `bulkWrite` runs no middleware either, and its operations are a whole
+    // little language of their own. Rather than reimplement the hooks inside
+    // it, a password written this way is refused: it would otherwise be
+    // stored in the clear, which no application can be relying on.
+    schema.pre('bulkWrite', function preBulkWrite(ops = []) {
+      const writes = Array.isArray(ops) ? ops : [];
+
+      for (const operation of writes) {
+        const [name] = Object.keys(operation || {});
+        const body = (operation || {})[name] || {};
+        const candidates = [
+          body.document,
+          body.replacement,
+          body.update,
+          (body.update || {}).$set,
+          (body.update || {}).$setOnInsert,
+        ];
+
+        if (
+          candidates.some(
+            (target) => target && typeof target.password === 'string'
+          )
+        ) {
+          throw unresolved(`${name}() inside bulkWrite()`);
         }
       }
     });

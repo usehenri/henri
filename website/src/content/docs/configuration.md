@@ -308,16 +308,17 @@ Every duration is a number of milliseconds or a string: `'250ms'`, `'30s'`, `'5m
 
 How passwords are checked and hashed. See [Passwords](/guides/users/#passwords).
 
-| Key                     | Default | Description                                                                                                                                                |
-| ----------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `password.minLength`    | `12`    | Shortest password accepted. Never below `8`. Checked when a password is set, never when one is verified.                                                   |
-| `password.maxBytes`     | `72`    | Longest, in bytes: bcrypt ignores everything past 72 and henri will not truncate silently.                                                                 |
-| `password.algorithm`    | `auto`  | `auto` (argon2id when `@node-rs/argon2` resolves, bcrypt otherwise), `argon2id` (fails the boot when it does not) or `bcrypt`.                             |
-| `password.bcryptRounds` | `12`    | bcrypt work factor. Never below `10`.                                                                                                                      |
-| `password.memoryCost`   | `19456` | argon2id memory in kibibytes.                                                                                                                              |
-| `password.timeCost`     | `2`     | argon2id iterations.                                                                                                                                       |
-| `password.parallelism`  | `1`     | argon2id lanes.                                                                                                                                            |
-| `password.pepper`       | off     | A server-side key mixed into every hash, its own, never `config.secret`. `HENRI_PASSWORD_PEPPER` sets it. **Losing it makes every password unverifiable.** |
+| Key                     | Default | Description                                                                                                                                                                         |
+| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `password.minLength`    | `12`    | Shortest password accepted. Never below `8`. Checked when a password is set, never when one is verified.                                                                            |
+| `password.maxBytes`     | `72`    | Longest, in bytes: bcrypt ignores everything past 72 and henri will not truncate silently.                                                                                          |
+| `password.algorithm`    | `auto`  | `auto` (argon2id when `@node-rs/argon2` resolves, bcrypt otherwise), `argon2id` (fails the boot when it does not) or `bcrypt`.                                                      |
+| `password.bcryptRounds` | `12`    | bcrypt work factor. Never below `10`.                                                                                                                                               |
+| `password.memoryCost`   | `19456` | argon2id memory in kibibytes.                                                                                                                                                       |
+| `password.timeCost`     | `2`     | argon2id iterations.                                                                                                                                                                |
+| `password.parallelism`  | `1`     | argon2id lanes.                                                                                                                                                                     |
+| `password.pepper`       | off     | A server-side key mixed into every hash, its own, never `config.secret`. `HENRI_PASSWORD_PEPPER` sets it. **Losing it makes every password unverifiable.**                          |
+| `password.binding`      | on      | Binds a hash to the `externalId` of its row, so one copied onto another row stops verifying. `{ enabled, allowUnbound }`; see [Bound hashes](/guides/users/#bound-password-hashes). |
 
 ### `user.lockout`
 

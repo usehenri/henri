@@ -217,7 +217,51 @@ Three things to understand before turning it on:
 - **Losing it loses every peppered password.** There is no recovery: the only way back is a password reset for everyone. Store it the way you store a database credential, and keep it out of the repository.
 - **It arrives gradually.** Hashes written before it existed keep verifying and are rewritten under the key as their owners sign in. `previous` does the same for a rotation. Once no unpeppered hashes are left, set `allowUnpeppered: false` — until then, someone who can write to the table can still plant an unpeppered hash of a password they know.
 
-What a pepper does not do: the key is global, not per row, so someone who can write to the table can still copy a valid hash from one account onto another and sign in with the password they already knew. Binding a hash to the row it belongs to is a different defence, and henri does not have it yet.
+What a pepper does not do: the key is global, not per row, so on its own it would let someone who can write to the table copy a valid hash from one account onto another and sign in with the password they already knew. That is what the binding below is for.
+
+### Bound password hashes
+
+A hash is a value, and a value can be moved. Someone who can **write** the database but does not have the pepper cannot forge a hash, so they do the next best thing: they take a hash whose password they know — their own account's — and copy it onto somebody else's row, or onto a row they invented.
+
+henri folds the record's `externalId` into what is hashed, keyed by the pepper, so a hash made for one row is arithmetically useless on any other. The pepper answers "you cannot make a hash"; the binding answers "you cannot move one". It is on by default:
+
+```json
+{
+  "user": {
+    "password": {
+      "binding": { "enabled": true, "allowUnbound": true }
+    }
+  }
+}
+```
+
+A bound hash is stored in the same column with a marker in front of it, `$henri-bound$v=1$`, so verification knows which of the two to check and hashes exactly once. No schema change, no migration, and no extra cost per sign-in. The marker is not a secret: someone reading the table can see that a hash is bound, and that tells them nothing.
+
+Three things to understand:
+
+- **The identity is `externalId`, not the primary key.** It is a uuid v7 the adapter generates before the insert, so it exists at the moment a password is first hashed, and it is immutable afterwards on all three adapters. A user model that opted out of it (`options: { externalId: false }`) cannot bind, keeps writing the hashes it wrote before, and henri says so at boot.
+- **It arrives gradually, like the pepper.** Every hash written before this exists is unbound and keeps verifying; each is written back bound the next time its owner signs in successfully. Nobody is asked to reset anything. The curve of "how many are bound" is the curve of "who has signed in since the upgrade" — so it never finishes on its own, and an account that never signs in again stays unbound forever. `allowUnbound: false` ends the migration by refusing whatever is left, which for a dormant account is indistinguishable from deleting it. Count first: `SELECT count(*) FROM users WHERE password NOT LIKE '$henri-bound$%'`.
+- **Set a pepper.** Without one the binding is unkeyed: it still stops a hash being copied, but someone who can write rows can recompute a bound hash for the row they are targeting. Binding is only forgery-resistant with `HENRI_PASSWORD_PEPPER` set.
+
+Because a bound hash cannot be checked on its own, `henri.user.compare()` wants the user rather than its hash:
+
+```js
+const user = await henri.user.findByEmail(email);
+
+await henri.user.compare(password, user); // resolves true, or throws
+```
+
+Handing it a bound hash alone rejects with an error that says so, rather than answering "invalid credentials" to a password that is right.
+
+Setting a password needs to know which row it is for, which every ordinary write does — `User.create()`, `user.save()`, `user.update()`, `User.findByIdAndUpdate()`, `User.bulkCreate()`, `insertMany()`, and a `Model.update()` whose condition matches one row. A mass update that matches **more than one** row is refused with a validation error on `password`: one hash belongs to one record, and writing an unbound one instead would quietly reopen the door this closes. Give each account its own password, or turn `binding.enabled` off.
+
+#### What it does and does not buy
+
+It stops an attacker with database write access **relocating** a hash: onto another user's row, onto a row they inserted, or by restoring one row of an old backup over a newer one. The copied hash is bound to a uuid that is not the target's, so sign-in fails.
+
+It does not stop an attacker who can write **anything**. They can also write `external_id`, and setting the victim's to the one their stolen hash is bound to makes it verify again. What makes that harder rather than impossible: `external_id` is unique, so the value has to be freed first by changing or deleting the row it came from — they cannot keep their own account and clone it, they have to damage a row, which is a visible event. The same attacker can strip the marker and write an unbound hash, which is what `allowUnbound: false` shuts.
+
+And it does nothing at all about a stolen session, an application bug, or a compromised host. The pepper means write access is not enough to forge a hash; the binding means write access is not enough to move one. Neither is a substitute for the database not being writable by strangers.
 
 ### Sign-in lockout
 

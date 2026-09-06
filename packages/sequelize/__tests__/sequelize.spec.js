@@ -371,6 +371,43 @@ describe('sequelize adapter', () => {
       );
     });
 
+    test('passwordsHashed writes a hash straight through, in bulk too', async () => {
+      // The bulk create hook used to hash whatever it was given, ignoring
+      // the flag, so a hash handed to it came out hashed twice and its owner
+      // could not sign in
+      const [written] = await User.bulkCreate(
+        [{ email: 'already@usehenri.io', password: 'hashed:already' }],
+        { passwordsHashed: true }
+      );
+
+      expect(written.password).toBe('hashed:already');
+      expect(
+        (await adapter.findUserByEmail('already@usehenri.io')).password
+      ).toBe('hashed:already');
+
+      await User.update(
+        { password: 'hashed:untouched' },
+        { passwordsHashed: true, where: { email: 'already@usehenri.io' } }
+      );
+
+      expect(
+        (await adapter.findUserByEmail('already@usehenri.io')).password
+      ).toBe('hashed:untouched');
+    });
+
+    test('every row created in bulk keeps its own public identifier', async () => {
+      // What the binding of a hash to its row is made of: the uuid is there
+      // before the insert, one per record, even in a bulk create
+      const [first, second] = await User.bulkCreate([
+        { email: 'bulk-id-one@usehenri.io', password: 'one' },
+        { email: 'bulk-id-two@usehenri.io', password: 'two' },
+      ]);
+
+      expect(first.externalId).toEqual(expect.any(String));
+      expect(second.externalId).toEqual(expect.any(String));
+      expect(first.externalId).not.toBe(second.externalId);
+    });
+
     test('drops roles from mass-assigned creates and updates', async () => {
       const user = await User.create({
         email: 'roles@usehenri.io',

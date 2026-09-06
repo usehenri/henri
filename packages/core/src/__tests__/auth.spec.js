@@ -276,9 +276,10 @@ describe('auth (demo app, disk store)', () => {
       expect(needsRehash(after.password, henri.user.passwordPolicy)).toBe(
         false
       );
-      await expect(
-        henri.user.compare(legacyPassword, after.password)
-      ).resolves.toBe(true);
+      // The user, not the hash: the rewrite bound it to this record
+      await expect(henri.user.compare(legacyPassword, after)).resolves.toBe(
+        true
+      );
 
       // Signing in again changes nothing: the hash is current
       const res = await supertest(app)
@@ -323,12 +324,19 @@ describe('auth (demo app, disk store)', () => {
 
         expect(after.password).not.toBe(before);
 
+        const who = henri.user.identityOf(after);
+
         // And what is stored now is worthless without the key
         await expect(
-          verifyPassword(password, after.password, { pepper: plain })
+          verifyPassword(password, after.password, { pepper: plain }, who)
         ).resolves.toMatchObject({ ok: false });
         await expect(
-          verifyPassword(password, after.password, henri.user.passwordPolicy)
+          verifyPassword(
+            password,
+            after.password,
+            henri.user.passwordPolicy,
+            who
+          )
         ).resolves.toMatchObject({ ok: true, stale: false });
       } finally {
         henri.user.settings.password.pepper = plain;

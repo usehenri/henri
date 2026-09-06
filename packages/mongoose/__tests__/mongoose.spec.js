@@ -499,6 +499,83 @@ describe('mongoose adapter', () => {
       expect(reloaded.name).toBe('query');
     });
 
+    test('hashes and protects insertMany, which ran no middleware at all', async () => {
+      // InsertMany skips document middleware, so until this hook existed it
+      // wrote the password to the collection in the clear and kept whatever
+      // roles came with it
+      await User.insertMany([
+        {
+          email: 'bulk-one@usehenri.io',
+          password: 'plaintext-one',
+          roles: ['admin'],
+        },
+        {
+          email: 'bulk-two@usehenri.io',
+          password: 'plaintext-two',
+        },
+      ]);
+
+      const one = await adapter.findUserByEmail('bulk-one@usehenri.io');
+      const two = await adapter.findUserByEmail('bulk-two@usehenri.io');
+
+      expect(one.password).not.toBe('plaintext-one');
+      expect(one.password).toBe('hashed:plaintext-one');
+      expect(two.password).not.toBe('plaintext-two');
+      expect(two.password).toBe('hashed:plaintext-two');
+
+      // And the roles it was handed are dropped, like every other create
+      expect(one.roles.toObject()).toEqual(['member']);
+
+      // Every row still gets its own public identifier
+      expect(one.externalId).toEqual(expect.any(String));
+      expect(one.externalId).not.toBe(two.externalId);
+    });
+
+    test('refuses a password written through bulkWrite', async () => {
+      // BulkWrite runs no middleware either; rather than reimplement the
+      // hooks inside it, a password written that way is refused instead of
+      // being stored in the clear
+      await expect(
+        User.bulkWrite([
+          {
+            insertOne: {
+              document: {
+                email: 'bulk-write@usehenri.io',
+                password: 'plaintext',
+              },
+            },
+          },
+        ])
+      ).rejects.toThrow(/cannot hash a password/u);
+
+      await expect(
+        User.bulkWrite([
+          {
+            updateOne: {
+              filter: { email: 'felix@usehenri.io' },
+              update: { $set: { password: 'plaintext' } },
+            },
+          },
+        ])
+      ).rejects.toThrow(/cannot hash a password/u);
+
+      await expect(
+        User.findOne({ email: 'bulk-write@usehenri.io' })
+      ).resolves.toBe(null);
+
+      // And a bulkWrite that touches no password is left alone
+      await expect(
+        User.bulkWrite([
+          {
+            updateOne: {
+              filter: { email: 'felix@usehenri.io' },
+              update: { $set: { name: 'bulk renamed' } },
+            },
+          },
+        ])
+      ).resolves.toMatchObject({ modifiedCount: 1 });
+    });
+
     test('changes roles through setRoles or with unsafe', async () => {
       const user = await User.findOne({ email: 'roles@usehenri.io' });
 
@@ -551,6 +628,138 @@ describe('mongoose adapter', () => {
       await expect(user.hasRole(['query'])).resolves.toBe(true);
       await expect(user.hasRole(['query', 'root'])).resolves.toBe(false);
       await expect(user.hasRole()).resolves.toBe(true);
+    });
+  });
+
+  describe('binding a hash to the document it belongs to', () => {
+    let adapter;
+    let User;
+    let bound;
+
+    beforeAll(async () => {
+      const henri = fakeHenri({ baseRole: 'member' });
+
+      // Core asks the adapter to name the document a password is for; this
+      // stand-in records what it was given rather than hashing anything
+      bound = [];
+      henri.user = {
+        bindsPasswords: () => true,
+        encrypt: async (word, options = {}) => {
+          bound.push(options.identity);
+
+          return `bound:${options.identity}:${word}`;
+        },
+        unresolvedPassword: (detail) => {
+          const error = new Error(`cannot hash a password from ${detail}`);
+
+          error.name = 'ValidationError';
+
+          return error;
+        },
+      };
+
+      adapter = new Mongoose(
+        'default',
+        { url: mongod.getUri('binding') },
+        henri
+      );
+      User = adapter.addModel(userModel, 'user');
+      await adapter.start();
+    });
+
+    afterAll(async () => {
+      await adapter.stop();
+    });
+
+    beforeEach(() => {
+      bound = [];
+    });
+
+    test('a create names the document it is inserting', async () => {
+      const user = await User.create({
+        email: 'one@usehenri.io',
+        password: 'secret',
+      });
+
+      expect(bound).toEqual([user.externalId]);
+      expect(user.password).toBe(`bound:${user.externalId}:secret`);
+    });
+
+    test('an update through a query resolves the document first', async () => {
+      const user = await User.create({
+        email: 'two@usehenri.io',
+        password: 'secret',
+      });
+
+      bound = [];
+      await User.updateOne({ email: 'two@usehenri.io' }, { password: 'next' });
+
+      expect(bound).toEqual([user.externalId]);
+      expect((await adapter.findUserByEmail('two@usehenri.io')).password).toBe(
+        `bound:${user.externalId}:next`
+      );
+    });
+
+    test('an update touching more than one document is refused', async () => {
+      await User.create({ email: 'many-a@usehenri.io', password: 'secret' });
+      await User.create({ email: 'many-b@usehenri.io', password: 'secret' });
+
+      bound = [];
+      await expect(
+        User.updateMany(
+          { email: { $in: ['many-a@usehenri.io', 'many-b@usehenri.io'] } },
+          { password: 'shared' }
+        )
+      ).rejects.toThrow(/cannot hash a password/u);
+
+      // Nothing was hashed and nothing was written
+      expect(bound).toEqual([]);
+      expect(
+        (await adapter.findUserByEmail('many-a@usehenri.io')).password
+      ).not.toContain('shared');
+    });
+
+    test('an upserting update is refused: the document does not exist yet', async () => {
+      // The externalId of an inserted document is invented after this hook
+      // runs, so there is nothing to bind to and no way to check one later
+      await expect(
+        User.findOneAndUpdate(
+          { email: 'upsert@usehenri.io' },
+          { password: 'secret' },
+          { upsert: true }
+        )
+      ).rejects.toThrow(/cannot hash a password/u);
+
+      await expect(User.findOne({ email: 'upsert@usehenri.io' })).resolves.toBe(
+        null
+      );
+    });
+
+    test('an upsert that writes no password is left alone', async () => {
+      await User.updateOne(
+        { email: 'one@usehenri.io' },
+        { name: 'renamed' },
+        { upsert: true }
+      );
+
+      expect((await User.findOne({ email: 'one@usehenri.io' })).name).toBe(
+        'renamed'
+      );
+    });
+
+    test('insertMany names each document it inserts', async () => {
+      await User.insertMany([
+        { email: 'bulk-a@usehenri.io', password: 'a' },
+        { email: 'bulk-b@usehenri.io', password: 'b' },
+      ]);
+
+      const first = await adapter.findUserByEmail('bulk-a@usehenri.io');
+      const second = await adapter.findUserByEmail('bulk-b@usehenri.io');
+
+      expect(bound).toEqual([first.externalId, second.externalId]);
+      expect(first.password).toBe(`bound:${first.externalId}:a`);
+      expect(second.password).toBe(`bound:${second.externalId}:b`);
+      expect(first.externalId).not.toBe(second.externalId);
     });
   });
 
