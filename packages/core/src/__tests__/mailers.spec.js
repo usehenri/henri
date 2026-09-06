@@ -79,9 +79,14 @@ describe('mailers', () => {
       const { module } = await boot();
 
       expect(module.names()).toEqual(['welcome']);
-      expect(module.actions('welcome')).toEqual(['confirm', 'digest', 'plain']);
+      expect(module.actions('welcome')).toEqual([
+        'confirm',
+        'digest',
+        'greet',
+        'plain',
+      ]);
       expect(module.tree()).toEqual({
-        welcome: ['confirm', 'digest', 'plain'],
+        welcome: ['confirm', 'digest', 'greet', 'plain'],
       });
       expect(module.has('welcome', 'confirm')).toBe(true);
       expect(module.has('welcome', 'defaults')).toBe(false);

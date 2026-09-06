@@ -1,0 +1,13 @@
+<html>
+  <head>
+    <title>{{t "title"}}</title>
+  </head>
+  <body>
+    <h1>{{t "greeting" name=name}}</h1>
+    <p id="html">{{t "html"}}</p>
+    <p id="notes">{{t "notes" count=count}}</p>
+    <p id="missing">{{t "nothing.here"}}</p>
+    <p id="lang">{{@i18n.locale}}/{{@i18n.source}}</p>
+    <p id="number">{{number count style="percent"}}</p>
+  </body>
+</html>

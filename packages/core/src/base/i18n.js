@@ -352,10 +352,17 @@ const readCatalogues = (root) => {
  * @returns {object} the settings
  */
 const i18nConfig = (config, cwd = null) => {
-  const raw =
-    config && typeof config.get === 'function'
-      ? config.has('i18n') && config.get('i18n')
-      : config && config.i18n;
+  const reader = config && typeof config.get === 'function';
+  let raw;
+
+  if (reader) {
+    // `has()` first: `get()` on a key the schema knows but the file does not
+    // is not the same question, and `false` is a value here
+    raw = config.has('i18n') ? config.get('i18n') : undefined;
+  } else {
+    raw = config ? config.i18n : undefined;
+  }
+
   const given = raw && typeof raw === 'object' ? raw : {};
   const dir = path.resolve(cwd || process.cwd(), given.path || DEFAULT_PATH);
   const { catalogues, problems } = readCatalogues(dir);
