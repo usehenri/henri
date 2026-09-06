@@ -125,6 +125,12 @@ On `SIGINT`, `SIGTERM` or `SIGQUIT` the runner stops claiming, finishes what it 
 
 `--once` drains: it performs everything that is due and exits, which is what a cron entry or a CI step wants. A retry scheduled in the future is left alone, so a drain always ends.
 
+### At least once
+
+Two runners never perform one job at the same time — that is the guarantee above — but the queue is **at least once**, not exactly once. A runner that is killed after `perform()` returned and before the outcome reached the database leaves the job `running`; five minutes later another runner takes it back and performs it again. There is no way around that without a transaction spanning your code and the database, which a job does not have.
+
+So write a job the way you would write a webhook handler: charge the card with an idempotency key, `find` before you `create`, update by id rather than incrementing blindly. `job.id` is stable across attempts of the same job and is the natural key to deduplicate on.
+
 ## Retries and the dead letter queue
 
 A job that throws goes back to its queue with an exponential backoff — `base × factor^(attempt − 1)`, capped at `max`, spread by `jitter` so a hundred jobs failing on the same outage do not all come back at the same instant. The default is 5s, 20s, 80s, 5m20s, then a cap of one hour.
