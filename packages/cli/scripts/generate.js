@@ -8,10 +8,11 @@ const { CliError } = require('./errors');
 const { usage } = require('./help');
 const Report = require('./report');
 const {
+  DEFAULT_RENDERER,
   format,
   names,
-  readConfig,
   readRoutes,
+  rendererOf,
   validInstall,
 } = require('./utils');
 
@@ -32,6 +33,9 @@ const TYPES = [
 ];
 
 const VIEWS = ['index', '_form', 'new', 'edit', 'show'];
+
+/** The extension of a page, per renderer */
+const PAGE_EXTENSIONS = { inertia: 'jsx', react: 'js' };
 
 /**
  * Generators that take no name
@@ -330,7 +334,7 @@ module.exports = {
  * The `resources`/`crud` route of a name in config/routes.js, if any
  *
  * @param {string} lower The resource name (ex: tasks)
- * @returns {?{scope: string}} The route options or null
+ * @returns {?{scope: string, kind: string}} The route options or null
  */
 const resourceRoute = (lower) => {
   const routes = readRoutes(process.cwd());
@@ -339,7 +343,9 @@ const resourceRoute = (lower) => {
     const entry = routes[`${kind} ${lower}`] || routes[`${kind} /${lower}`];
 
     if (entry) {
-      return typeof entry === 'string' ? { scope: '' } : entry;
+      return typeof entry === 'string'
+        ? { kind, scope: '' }
+        : { ...entry, kind };
     }
   }
 
@@ -349,7 +355,8 @@ const resourceRoute = (lower) => {
 /**
  * Generates a test file using @usehenri/testing. When config/routes.js has
  * a `resources`/`crud` entry for the name, the test checks the HAL answers
- * (`_links.self`, `_embedded`).
+ * (`_links.self`, `_embedded`), and a `resources` route of an Inertia
+ * application also gets the page object its browser renders.
  *
  * @param {string} name Test name (ex: tasks, the path it requests)
  * @param {string[]} rest Unused
@@ -362,8 +369,14 @@ const test = async (name, rest = [], opts = {}) => {
   const route = resourceRoute(lower);
   const scope =
     route && route.scope ? `/${route.scope}`.replace(/\/+/g, '/') : '';
+  // A `crud` route answers JSON only: there is no page to ask for
+  const pages =
+    route &&
+    route.kind === 'resources' &&
+    rendererOf(process.cwd()) === 'inertia';
+  const resourceTest = pages ? templates.inertiaResource : templates.resource;
   const code = route
-    ? templates.resource({ lower, path: `${scope}/${lower}` })
+    ? resourceTest({ lower, path: `${scope}/${lower}` })
     : templates.plain({ lower });
 
   return output('test', 'test', `${lower}.test.js`, code, opts);
@@ -390,14 +403,13 @@ const agents = async (name, rest = [], opts = {}) => {
     // The folder name will do
   }
 
-  const renderer = String(readConfig(cwd).renderer || 'react').toLowerCase();
   const { created, skipped } = writeAgentFiles(cwd, {
     // Both come from the configuration: AGENTS.md describes the store and
     // the renderer this application actually uses
     adapter: adapterOf(cwd),
     force: opts.force === true,
     name: appName,
-    renderer,
+    renderer: rendererOf(cwd),
   });
 
   for (const file of created) {
@@ -439,6 +451,7 @@ const resources = async (name, attributes = [], opts = {}) => {
     ...names(name),
     api: apiOf(process.cwd()),
     keys: extractKeys(attributes),
+    renderer: rendererOf(process.cwd()),
   };
   const generator = require('./generate/controllers');
 
@@ -466,6 +479,7 @@ const crud = async (name, attributes = [], opts = {}) => {
     ...names(name),
     api: apiOf(process.cwd()),
     keys: extractKeys(attributes),
+    renderer: rendererOf(process.cwd()),
   };
   const generator = require('./generate/controllers');
 
@@ -483,7 +497,7 @@ const crud = async (name, attributes = [], opts = {}) => {
 /**
  * Handle views processing
  *
- * @param {object} resource { doc, lower, plural, keys }
+ * @param {object} resource { doc, lower, plural, keys, renderer }
  * @param {object} [opts] { force, report }
  * @returns {Promise<void>} Resolves when written
  */
@@ -503,14 +517,22 @@ const extractKeys = (args = []) =>
   args.map((val) => val.split(':')[0].replace(/!$/, ''));
 
 /**
- * Compile one view template into app/views/pages/<plural>/<view>.js
+ * Compile one view template into app/views/pages/<plural>/<view>, a `.jsx`
+ * page for the Inertia renderer and a `.js` one for the Next.js renderer
  *
  * @param {object} resource { doc, lower, plural, keys, view, renderer }
  * @param {object} [opts] { force, report }
  * @return {Promise<boolean>} True when written
  */
 const compileView = async (
-  { doc, lower, plural, keys = [], view = 'index', renderer = 'react' },
+  {
+    doc,
+    lower,
+    plural,
+    keys = [],
+    view = 'index',
+    renderer = DEFAULT_RENDERER,
+  },
   opts = {}
 ) => {
   const data = fs.readFileSync(
@@ -522,7 +544,7 @@ const compileView = async (
   return output(
     'view',
     `app/views/pages/${plural}`,
-    `${view}.js`,
+    `${view}.${PAGE_EXTENSIONS[renderer]}`,
     template({ doc, keys, lower, plural }),
     opts
   );

@@ -67,8 +67,8 @@ an app and is what core's tests boot.
 | `packages/sequelize`                    | `@usehenri/sequelize` | Shared SQL adapter (Sequelize 6)                                                                                                                                    |
 | `packages/mysql`, `postgresql`, `mssql` | `@usehenri/*`         | Dialect packages on top of `@usehenri/sequelize`                                                                                                                    |
 | `packages/drizzle`                      | `@usehenri/drizzle`   | SQL adapter on Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`), new in 1.1                                                         |
-| `packages/react`                        | `@usehenri/react`     | Next.js 16 view engine, `withHenri`, `useHenri`, form components                                                                                                    |
-| `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19 (new in 1.1, experimental)                                                                                                |
+| `packages/react`                        | `@usehenri/react`     | Next.js 16 view engine (pages router), `withHenri`, `useHenri`, form components; supported and frozen                                                               |
+| `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19; the default renderer of `henri new`                                                                                      |
 | `packages/jobs`                         | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1                                            |
 | `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                   |
 | `packages/mcp`                          | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                |
@@ -244,12 +244,18 @@ perform|retry|discard` drive it. The module also registers
 - Apps that use the React renderer must depend on `next`, `react` and `react-dom`
   themselves (Turbopack resolves `next` from the app directory); Inertia apps on
   `@inertiajs/react`, `react`, `react-dom`, `vite` and `@vitejs/plugin-react`.
+- `henri new` defaults to the `inertia` renderer (`template/inertia`);
+  `--renderer react` scaffolds the Next.js one (`template/default`).
+  `scripts/utils.js` owns `RENDERERS` and `DEFAULT_RENDERER`, and `rendererOf()`
+  reads the renderer of an application back from its configuration, which is
+  what makes the generators renderer aware.
 - Both scaffold templates ship Tailwind CSS v4: `app/views/styles/index.css` is
   the only stylesheet, compiled by `@tailwindcss/postcss` through
   `app/views/postcss.config.mjs` (react) or by the `@tailwindcss/vite` plugin
   merged into `app/views/vite.config.mjs` (inertia). The scaffold view
-  templates (`packages/cli/scripts/generate/react-*.hbs`) write Tailwind
-  classes with a `dark:` counterpart; there is no `tailwind.config.js`.
+  templates (`packages/cli/scripts/generate/{inertia,react}-*.hbs`) write
+  Tailwind classes with a `dark:` counterpart; there is no
+  `tailwind.config.js`.
 - ESLint rules worth knowing: `sort-keys`, `prefer-template`, `id-length`,
   `no-nested-ternary`, JSDoc on functions. Prettier: single quotes, es5 commas.
   `.hbs`, the demo views and `packages/cli/scripts/generate` are excluded from
@@ -286,8 +292,13 @@ the LICENSE and a README into every public package at publish time
 
 - The Vue/Nuxt renderer (`core/src/engines/vue.js`) has not been exercised
   since 2020 and only loads with `experimental.vue: true`.
-- The Inertia engine is new in 1.1 and has had little use; its options may
-  change.
+- The React (Next.js) engine is frozen on the pages router: it is supported and
+  keeps getting fixes, but it does not follow Next.js into the app router,
+  because `withHenri` reading `req._henri` on the server has no equivalent
+  there. New applications get Inertia.
+- The Inertia engine reached parity in 1.2 (server-side rendering in
+  development and production, the full scaffold) but is younger than the React
+  one; its options may still change.
 - The SQL adapters run their suites against sqlite by default and against a
   live PostgreSQL or MySQL server with `HENRI_TEST_POSTGRES_URL` /
   `HENRI_TEST_MYSQL_URL` (see above); MSSQL is only covered offline (its
@@ -297,10 +308,11 @@ the LICENSE and a README into every public package at publish time
   development boot create the tables that are missing and report the ones
   whose columns drifted (`Migrations#completeMySQLPlan`); a mysql schema
   change needs `henri db:generate` then `henri db:migrate`.
-- `henri generate scaffold|crud` write React-only pages. The controllers follow
-  the adapter of the default store (`scripts/adapters.js` maps it to the
-  mongoose, sequelize or drizzle flavour), which `henri new --adapter <name>`
-  configures.
+- `henri generate scaffold|crud` write the pages of the application's renderer
+  (`.jsx` for inertia, `.js` for react) and controllers that follow the adapter
+  of the default store (`scripts/adapters.js` maps it to the mongoose,
+  sequelize or drizzle flavour), which `henri new --adapter <name>` configures.
+  The `template` and `vue` renderers get no generated pages.
 - The idempotency and rate-limit stores are in memory unless the app plugs a
   shared store (`config.api.idempotency.store`, `config.rateLimit.store`).
 - `@usehenri/jobs` is new in 1.1. Its claim is covered against sqlite,

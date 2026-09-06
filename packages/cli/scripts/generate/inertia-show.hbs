@@ -1,0 +1,53 @@
+import { Link, useHenri } from '@usehenri/inertia';
+
+// Rendered by the `show` action with `data: { {{lower}}: {...} }`. <Link> visits
+// another page without a full reload; the classes are Tailwind CSS, from
+// app/views/styles/index.css.
+const back = 'text-sm text-zinc-500 hover:underline dark:text-zinc-400';
+
+const Show = () => {
+  const { data, getRoute } = useHenri();
+  const item = data.{{lower}};
+
+  if (!item) {
+    return (
+      <main className="mx-auto w-full max-w-2xl px-6 py-12">
+        <h1 className="text-2xl font-semibold tracking-tight">{{doc}} not found</h1>
+        <Link className={`mt-4 inline-block ${back}`} href={getRoute('index_{{plural}}_path')}>
+          &larr; Back
+        </Link>
+      </main>
+    );
+  }
+
+  // The public identifier: a url never carries the numeric id of a record
+  const id = item.externalId;
+
+  return (
+    <main className="mx-auto w-full max-w-2xl px-6 py-12">
+      <Link className={back} href={getRoute('index_{{plural}}_path')}>
+        &larr; Back
+      </Link>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight">{{doc}}</h1>
+      <p className="mt-1 font-mono text-xs text-zinc-500 dark:text-zinc-400">{id}</p>
+
+      <dl className="mt-8 overflow-hidden rounded-xl border border-zinc-200 text-sm dark:border-zinc-800">
+        {{#each keys}}
+        <div className="flex gap-4 border-b border-zinc-200 px-5 py-3 last:border-0 dark:border-zinc-800">
+          <dt className="w-32 shrink-0 text-zinc-500 dark:text-zinc-400">{{this}}</dt>
+          <dd className="min-w-0 flex-1">{String(item.{{this}} ?? '')}</dd>
+        </div>
+        {{/each}}
+      </dl>
+
+      <Link
+        className="mt-6 inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        href={getRoute('edit_{{plural}}_path', id)}
+      >
+        Edit
+      </Link>
+    </main>
+  );
+};
+
+export default Show;

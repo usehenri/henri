@@ -10,12 +10,15 @@
 [![npm downloads](https://img.shields.io/npm/dm/henri.svg?style=flat-square)](https://www.npmjs.com/package/henri)
 [![CI](https://github.com/usehenri/henri/actions/workflows/ci.yml/badge.svg)](https://github.com/usehenri/henri/actions/workflows/ci.yml)
 
-henri is a Rails-like, server-side rendered JavaScript framework for Node.js:
-models backed by real ORMs (MongoDB through Mongoose, MySQL, PostgreSQL and
-MSSQL through Sequelize, or a zero-config local store), thin controllers,
-declarative routes with roles and CRUD, React views rendered by Next.js or by
-Vite with Inertia.js, GraphQL, mail, background jobs, workers, tests on Vitest
-and hot reload, all driven by one CLI.
+henri is a Rails-like framework for Node.js: server-rendered React, with
+controllers and models behind it and no API layer to write. Controllers hand
+their data straight to the pages, and the same route answers JSON when a
+client asks for it.
+
+Models backed by real ORMs (MongoDB through Mongoose, SQL through Sequelize or
+Drizzle, or a zero-config local store), declarative routes with roles and
+CRUD, users with sessions and roles, GraphQL, mail, background jobs, workers,
+tests on Vitest and hot reload, all driven by one CLI.
 
 ## Install
 

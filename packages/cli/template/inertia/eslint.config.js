@@ -1,3 +1,5 @@
+// ESLint 9 is pinned in package.json because eslint-plugin-react does not
+// support ESLint 10 yet; bump both together when it does.
 const fs = require('fs');
 const path = require('path');
 const js = require('@eslint/js');
@@ -39,6 +41,7 @@ module.exports = [
       '**/node_modules/**',
       'app/views/dist/**',
       '**/.henri/**',
+      '**/.backup/**',
       'coverage/**',
     ],
   },

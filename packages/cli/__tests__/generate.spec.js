@@ -449,11 +449,11 @@ describe('henri generate', () => {
     const files = [
       'app/models/Post.js',
       'app/controllers/posts.js',
-      'app/views/pages/posts/index.js',
-      'app/views/pages/posts/new.js',
-      'app/views/pages/posts/edit.js',
-      'app/views/pages/posts/show.js',
-      'app/views/pages/posts/_form.js',
+      'app/views/pages/posts/index.jsx',
+      'app/views/pages/posts/new.jsx',
+      'app/views/pages/posts/edit.jsx',
+      'app/views/pages/posts/show.jsx',
+      'app/views/pages/posts/_form.jsx',
     ];
 
     beforeAll(() => {

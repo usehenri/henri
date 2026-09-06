@@ -5,7 +5,14 @@ const path = require('path');
 const adapters = require('./adapters');
 const { writeAgentFiles } = require('./agents');
 const { CliError } = require('./errors');
-const { format, insideGit, packageManagerChoice, version } = require('./utils');
+const {
+  DEFAULT_RENDERER,
+  RENDERERS,
+  format,
+  insideGit,
+  packageManagerChoice,
+  version,
+} = require('./utils');
 
 /**
  * Template files written by writeAgentFiles (with the placeholders filled)
@@ -21,11 +28,11 @@ const AGENT_FILES = ['AGENTS.md', 'CLAUDE.md', 'mcp.json'];
  */
 const check = (file) => fs.existsSync(path.join(process.cwd(), file));
 
-// --- renderer selection (@usehenri/inertia) --------------------------------
-// `henri new <app> --renderer inertia` scaffolds from template/inertia and
-// writes "renderer": "inertia"; the default stays template/default (react).
-const RENDERERS = { inertia: 'inertia', react: 'default' };
-let renderer = 'react';
+// --- renderer selection -----------------------------------------------------
+// `henri new <app>` scaffolds from template/inertia and writes
+// "renderer": "inertia". `--renderer react` picks template/default instead,
+// the Next.js engine (RENDERERS maps a renderer to its template directory).
+let renderer = DEFAULT_RENDERER;
 
 /**
  * Pick the renderer (and its template) from the CLI arguments
@@ -34,7 +41,9 @@ let renderer = 'react';
  * @returns {string} the renderer
  */
 const selectRenderer = (args) => {
-  const wanted = String(args.renderer || args.r || 'react').toLowerCase();
+  const wanted = String(
+    args.renderer || args.r || DEFAULT_RENDERER
+  ).toLowerCase();
 
   if (!RENDERERS[wanted]) {
     throw new CliError('USAGE', `Unknown renderer '${wanted}'`, {
@@ -115,13 +124,7 @@ const main = async (args, name) => {
   generateConfig(store);
   allowBuilds(store);
   await portSample(store);
-
-  // The react template gets its Task sample from the scaffold generator;
-  // the other templates ship their own sample pages.
-  if (renderer === 'react') {
-    await sampleResource(force);
-  }
-
+  await sampleResource(force);
   createReadme(projectName, pm, store);
   createAgentFiles(projectName, force);
   initGit(skipGit);
@@ -275,21 +278,15 @@ const createReadme = (name, pm, store) => {
  */
 const readme = (name, pm, store) => {
   const react = renderer === 'react';
-  const sample = react
-    ? `The home page lists the sample \`Task\` resource; add tasks at \`/tasks\`.
+  const extension = react ? 'js' : 'jsx';
+  const sample = `The home page lists the sample \`Task\` resource; add tasks at \`/tasks\`.
 It is a regular scaffold (\`app/models/Task.js\`, \`app/controllers/tasks.js\`,
-\`app/views/pages/tasks/\`, the \`resources tasks\` key of \`config/routes.js\`
-and \`test/tasks.test.js\`): edit it, or remove it with
-\`henri destroy scaffold Task\`.`
-    : `The home page links to the sample tasks page (\`app/models/Tasks.js\`,
-\`app/controllers/tasks.js\`, \`app/views/pages/tasks/index.jsx\` and the
-\`/tasks\` keys of \`config/routes.js\`): edit it, or remove those files.`;
-  const generators = react
-    ? `henri generate scaffold Post title:string! body:text
+\`app/views/pages/tasks/\` (\`.${extension}\` pages), the \`resources tasks\` key of
+\`config/routes.js\` and \`test/tasks.test.js\`): edit it, or remove it with
+\`henri destroy scaffold Task\`.`;
+  const generators = `henri generate scaffold Post title:string! body:text
 henri generate model|controller|worker|test <name>
-henri destroy scaffold Post   # undo a generator`
-    : `henri generate model|controller|worker|test <name>
-henri destroy model Post      # undo a generator`;
+henri destroy scaffold Post   # undo a generator`;
   const pages = react
     ? 'React pages rendered by next.js                  '
     : 'Inertia (React) pages, built by vite            ';
@@ -518,46 +515,29 @@ const allowBuilds = (store) => {
 };
 
 /**
- * Ports the sample controllers the templates ship (written for the mongoose
- * API) to the model API of the selected store. The react template gets its
- * sample from the scaffold generator, which is adapter aware on its own.
+ * Ports the home controller the templates ship (written for the mongoose
+ * API, which the drizzle models answer to as well) to the model API of the
+ * selected store. The Task resource itself comes from the scaffold
+ * generator, which is adapter aware on its own.
  *
  * @param {object} store The selected store (see scripts/adapters.js)
  * @returns {Promise<void>} Resolves when written
  */
 const portSample = async (store) => {
-  if (store.api === 'mongoose') {
+  const home = path.join(process.cwd(), 'app', 'controllers', 'main.js');
+
+  if (store.api !== 'sequelize' || !fs.existsSync(home)) {
     return;
   }
-
-  const cwd = process.cwd();
-  const controllers = require('./generate/controllers');
-  const home = path.join(cwd, 'app', 'controllers', 'main.js');
 
   console.log(
     ` - Porting the sample controllers to the ${store.adapter} store...`
   );
 
-  if (store.api === 'sequelize' && fs.existsSync(home)) {
-    fs.writeFileSync(
-      home,
-      fs.readFileSync(home, 'utf8').replace('Task.find()', 'Task.findAll()')
-    );
-  }
-
-  if (renderer === 'inertia') {
-    fs.writeFileSync(
-      path.join(cwd, 'app', 'controllers', 'tasks.js'),
-      await format(
-        controllers.inertia({
-          api: store.api,
-          doc: 'Task',
-          lower: 'task',
-          plural: 'tasks',
-        })
-      )
-    );
-  }
+  fs.writeFileSync(
+    home,
+    fs.readFileSync(home, 'utf8').replace('Task.find()', 'Task.findAll()')
+  );
 };
 
 /**

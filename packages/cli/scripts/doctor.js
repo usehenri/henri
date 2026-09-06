@@ -61,10 +61,14 @@ const NEEDS = {
 
 /** Page files a resources route needs, per renderer */
 const PAGES = {
-  inertia: ['index'],
+  inertia: ['index', 'new', 'show', 'edit'],
   react: ['index', 'new', 'show', 'edit'],
 };
 
+/** The extension `henri generate scaffold` writes, per renderer */
+const PAGE_EXTENSION = { inertia: '.jsx', react: '.js' };
+
+/** Either extension is accepted: a page is a page whatever it is named */
 const PAGE_EXTENSIONS = ['.js', '.jsx'];
 
 /** Where the credentials of an environment and its key live */
@@ -449,7 +453,7 @@ const check = (dir = process.cwd()) => {
         problem(
           'error',
           'views.pages',
-          `"${key}" renders app/views/pages/${controller}/${page}${PAGE_EXTENSIONS[renderer === 'inertia' ? 1 : 0]} which does not exist`,
+          `"${key}" renders app/views/pages/${controller}/${page}${PAGE_EXTENSION[renderer] || '.js'} which does not exist`,
           {
             file: `app/views/pages/${controller}`,
             hint: `henri generate scaffold ${path.posix.basename(controller).replace(/s$/, '')} --force rewrites the pages`,

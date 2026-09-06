@@ -356,19 +356,40 @@ describe('the scaffolded resource follows the adapter', () => {
     expect(readme).toContain('file:.henri/app.db');
   });
 
-  test('the inertia sample is ported to the store too', () => {
-    const { app } = scaffoldWith(dir, 'inertia', [
+  test('the react scaffold follows the adapter and its own renderer', () => {
+    const { app } = scaffoldWith(dir, 'next', [
       '--renderer',
-      'inertia',
+      'react',
       '--adapter',
       'drizzle',
     ]);
     const controller = read(app, 'app/controllers/tasks.js');
 
-    expect(controller).toContain("Task.order('createdAt desc')");
-    expect(controller).toContain('Task.findByIdAndDelete(req.params.id)');
-    expect(controller).not.toContain('.lean()');
-    expect(controller).not.toContain('deleteOne');
+    // The adapter decides the lookup, the renderer what a browser gets back
+    // from a failed write: the React forms read a 422
+    expect(controller).toContain(
+      'req.task = await Task.findById(req.params.id)'
+    );
+    expect(controller).not.toContain('CastError');
+    expect(controller).toContain('return invalid(res, error);');
+    expect(controller).not.toContain('res.inertia');
+    expect(exists(app, 'app/views/pages/tasks/index.js')).toBe(true);
+    expect(exists(app, 'app/views/pages/tasks/index.jsx')).toBe(false);
+    expect(doctor(app).summary.errors).toBe(0);
+  });
+
+  test('the inertia scaffold renders the page again on a failed write', () => {
+    const { app } = scaffoldWith(dir, 'inertia', ['--adapter', 'drizzle']);
+    const controller = read(app, 'app/controllers/tasks.js');
+
+    expect(controller).toContain(
+      'req.task = await Task.findById(req.params.id)'
+    );
+    expect(controller).toContain("invalid(res, error, '/tasks/new')");
+    expect(controller).toContain('res.inertia.errors(errors)');
+    // An API client still gets the 422, on the same route
+    expect(controller).toContain('res.boom.badData(error.message, { errors })');
+    expect(exists(app, 'app/views/pages/tasks/index.jsx')).toBe(true);
     expect(doctor(app).summary.errors).toBe(0);
   });
 });

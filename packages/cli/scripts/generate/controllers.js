@@ -3,11 +3,12 @@
  *
  * Every function receives the resource names: doc = 'Post' (model global),
  * lower = 'post' (data key of one document), plural = 'posts' (controller,
- * routes and pages), keys = the attributes a request may set and api = the
+ * routes and pages), keys = the attributes a request may set, api = the
  * model API of the store the resource lives in ('mongoose' for the disk and
  * mongoose adapters, 'sequelize' for mysql, postgresql and mssql, 'drizzle'
- * for the drizzle adapter; see scripts/adapters.js). The output goes through
- * prettier, so the indentation here does not matter.
+ * for the drizzle adapter; see scripts/adapters.js) and renderer = the view
+ * engine of the application ('inertia' or 'react'; see scripts/utils.js).
+ * The output goes through prettier, so the indentation here does not matter.
  *
  * The shape is the rails one: a `before` block loads the record of `:id` once
  * for the actions that need it (a hook that answers ends the request), and
@@ -18,6 +19,12 @@
  * for one document (201 + Location on create, 204 on destroy). Browsers get
  * the pages and redirects (scaffold only). `res.negotiate({ html, json })`
  * picks one from the Accept header.
+ *
+ * The renderer only changes what a browser gets when a write fails. The
+ * Inertia client follows a redirect and renders whatever page it lands on, so
+ * an invalid form comes back as the same page rendered again after
+ * `res.inertia.errors()`; the React forms read the `422` instead. API clients
+ * get the same `422` either way.
  *
  * `:id` is the public identifier of the record, its `externalId`: a uuid on
  * every store. `Model.findById()` takes it (and the internal id too), and a
@@ -49,6 +56,28 @@ const apiOf = ({ api }) => (FLAVOURS[api] ? api : DEFAULT_API);
  */
 const of = (part, opts) => FLAVOURS[apiOf(opts)][part](opts);
 
+// --- the renderer -----------------------------------------------------------
+
+/**
+ * Whether this controller renders Inertia pages: the `crud` generator writes
+ * JSON only routes, so it opts out with `pages: false` whatever the renderer
+ *
+ * @param {object} opts { renderer, pages }
+ * @returns {boolean} True for an Inertia scaffold
+ */
+const rendersInertia = ({ renderer, pages }) =>
+  renderer === 'inertia' && pages !== false;
+
+/**
+ * The page file an action renders, as a comment writes it
+ *
+ * @param {object} opts { plural, renderer }
+ * @param {string} view The page (index, new, ...)
+ * @returns {string} A path under app/views
+ */
+const pageFile = ({ plural, renderer }, view) =>
+  `app/views/pages/${plural}/${view}.${renderer === 'inertia' ? 'jsx' : 'js'}`;
+
 // --- the helpers every flavour shares --------------------------------------
 
 const fields = ({ keys }) => `
@@ -56,7 +85,10 @@ const fields = ({ keys }) => `
 const FIELDS = ${JSON.stringify(keys)};
 `;
 
-const validationHelper = ({ doc }) => `
+const validationHelper = (opts) =>
+  rendersInertia(opts) ? inertiaValidation(opts) : jsonValidation(opts);
+
+const jsonValidation = ({ doc }) => `
 /**
  * Answer a failed validation with a 422 and one message per field
  *
@@ -76,6 +108,58 @@ const invalid = (res, error) => {
   return res.boom.badData(error.message, { errors });
 };
 `;
+
+const inertiaValidation = ({ doc }) => `
+/**
+ * Answer a failed validation: a browser gets the form it submitted back with
+ * one message per field, an API client a 422
+ *
+ * @param {object} res Express response
+ * @param {Error} error The error thrown by ${doc}
+ * @param {string} page The page to render again (its form shows the errors)
+ * @param {object} [data] What that page needs to render
+ * @returns {object} The response
+ */
+const invalid = (res, error, page, data = {}) => {
+  // Same { field: message } whatever the store threw, null when the error
+  // is not a validation failure
+  const errors = henri.model.errors(error);
+
+  if (!errors) {
+    throw error;
+  }
+
+  return res.negotiate({
+    // The Inertia client renders the page it gets back, and res.inertia
+    // .errors() is what puts the messages under the fields of its form
+    html: () => {
+      res.inertia.errors(errors);
+
+      return res.render(page, { data });
+    },
+    json: () => res.boom.badData(error.message, { errors }),
+  });
+};
+`;
+
+/**
+ * The `invalid()` call of a failed write
+ *
+ * @param {object} opts { lower, plural, renderer, pages }
+ * @param {string} view The page to render again (new or edit)
+ * @returns {string} The source code
+ */
+const invalidCall = (opts, view) => {
+  if (!rendersInertia(opts)) {
+    return 'return invalid(res, error);';
+  }
+
+  // The edit page needs its record back; the new page renders without data
+  const data =
+    view === 'edit' ? `, { ${opts.lower}: req.${opts.lower} }` : '';
+
+  return `return invalid(res, error, '/${opts.plural}/${view}'${data});`;
+};
 
 /**
  * The paginated query of an index action: one call for the page and the
@@ -122,13 +206,13 @@ const load${doc} = async (req, res) => {
 // --- mongoose (disk, mongoose) ---------------------------------------------
 
 const mongoose = {
-  create: ({ doc, lower }) => `
-    let ${lower};
+  create: (opts) => `
+    let ${opts.lower};
 
     try {
-      ${lower} = await ${doc}.create(req.permit(...FIELDS));
+      ${opts.lower} = await ${opts.doc}.create(req.permit(...FIELDS));
     } catch (error) {
-      return invalid(res, error);
+      ${invalidCall(opts, 'new')}
     }
 `,
   destroy: ({ lower }) => `
@@ -160,12 +244,12 @@ ${validationHelper(opts)}`,
       opts,
       `req.${opts.lower} = await byId(${opts.doc}.findById(req.params.id));`
     ),
-  update: ({ lower }) => `
+  update: (opts) => `
     try {
-      req.${lower}.set(req.permit(...FIELDS));
-      await req.${lower}.save();
+      req.${opts.lower}.set(req.permit(...FIELDS));
+      await req.${opts.lower}.save();
     } catch (error) {
-      return invalid(res, error);
+      ${invalidCall(opts, 'edit')}
     }
 `,
 };
@@ -186,11 +270,11 @@ const drizzle = {
       `// findById() answers null for a malformed id, no cast to guard
   req.${opts.lower} = await ${opts.doc}.findById(req.params.id);`
     ),
-  update: ({ lower }) => `
+  update: (opts) => `
     try {
-      await req.${lower}.update(req.permit(...FIELDS));
+      await req.${opts.lower}.update(req.permit(...FIELDS));
     } catch (error) {
-      return invalid(res, error);
+      ${invalidCall(opts, 'edit')}
     }
 `,
 };
@@ -200,19 +284,19 @@ const drizzle = {
 // then updated or destroyed, and its errors carry an array of items.
 
 const sequelize = {
-  create: ({ doc, lower }) => `
-    let ${lower};
+  create: (opts) => `
+    let ${opts.lower};
 
     try {
-      ${lower} = await ${doc}.create(req.permit(...FIELDS));
+      ${opts.lower} = await ${opts.doc}.create(req.permit(...FIELDS));
     } catch (error) {
-      return invalid(res, error);
+      ${invalidCall(opts, 'new')}
     }
 `,
   destroy: ({ lower }) => `
     await req.${lower}.destroy();
 `,
-  helpers: ({ doc, keys }) => `${fields({ keys })}
+  helpers: (opts) => `${fields(opts)}
 /**
  * Load a row by id, null when the id is malformed
  *
@@ -224,7 +308,7 @@ const sequelize = {
  */
 const byId = async (id) => {
   try {
-    return await ${doc}.findById(id);
+    return await ${opts.doc}.findById(id);
   } catch (error) {
     if (error.name === 'SequelizeDatabaseError') {
       return null;
@@ -233,14 +317,14 @@ const byId = async (id) => {
   }
 };
 
-${validationHelper({ doc })}`,
+${validationHelper(opts)}`,
   load: (opts) =>
     loadHelper(opts, `req.${opts.lower} = await byId(req.params.id);`),
-  update: ({ lower }) => `
+  update: (opts) => `
     try {
-      await req.${lower}.update(req.permit(...FIELDS));
+      await req.${opts.lower}.update(req.permit(...FIELDS));
     } catch (error) {
-      return invalid(res, error);
+      ${invalidCall(opts, 'edit')}
     }
 `,
 };
@@ -268,7 +352,7 @@ const before = ({ doc, actions }) => `
 const index = (opts) => `
   index: async (req, res) => {
     ${page(opts)}
-    // app/views/pages/${opts.plural}/index.js is the /${opts.plural} page for next.js
+    // ${pageFile(opts, 'index')} is the /${opts.plural} page
     const html = () =>
       res.render('/${opts.plural}', {
         data: { ${[opts.plural, 'page', 'perPage', 'total'].sort().join(', ')} },
@@ -287,9 +371,9 @@ const indexJson = (opts) => `
     return res.collection(${opts.plural}, { page, perPage, total });
   },`;
 
-const newC = ({ plural }) => `
+const newC = (opts) => `
   // No answer, no res.render(): what an action returns is the data of its
-  // own page, here app/views/pages/${plural}/new.js
+  // own page, here ${pageFile(opts, 'new')}
   new: async () => ({}),`;
 
 const create = (opts) => `
@@ -383,8 +467,12 @@ const resources = (opts) =>
  * @param {object} opts { doc, lower, plural, keys, api }
  * @returns {string} The source code
  */
-const crud = (opts) =>
-  [
+const crud = (options) => {
+  // `crud` routes answer JSON only: no page to render again, so the failed
+  // validation is a 422 whatever the renderer of the application
+  const opts = { ...options, pages: false };
+
+  return [
     header(opts),
     before({ actions: ['update', 'destroy'], doc: opts.doc }),
     indexJson(opts),
@@ -393,73 +481,6 @@ const crud = (opts) =>
     destroyJson(opts),
     footer(),
   ].join('\n');
-
-/**
- * The sample tasks controller of the inertia template, ported to the model
- * API of a store (the template ships the mongoose one)
- *
- * @param {object} opts { doc, lower, plural, api }
- * @returns {string} The source code
- */
-const inertia = (opts) => {
-  const { doc, plural } = opts;
-  const api = apiOf(opts);
-  // `req.params.id` is the public identifier of the record (its uuid), so
-  // the delete goes through findById rather than a where on the primary key
-  const queries = {
-    drizzle: {
-      list: `${doc}.order('createdAt desc')`,
-      remove: `await ${doc}.findByIdAndDelete(req.params.id);`,
-    },
-    mongoose: {
-      list: `${doc}.find().sort({ createdAt: -1 }).lean()`,
-      remove: `await ${doc}.findByIdAndDelete(req.params.id);`,
-    },
-    sequelize: {
-      list: `${doc}.findAll({ order: [['createdAt', 'DESC']] })`,
-      remove: `const found = await ${doc}.findById(req.params.id);
-
-    if (found) {
-      await found.destroy();
-    }`,
-    },
-  }[api];
-
-  return `
-// Controllers receive express requests. \`res.render(route, { data })\` renders
-// app/views/pages/<route>.jsx with \`data\` available through useHenri().
-// The Inertia client follows redirects, so a form submission ends on the
-// page the controller redirects to.
-const list = () => ${queries.list};
-
-module.exports = {
-  index: async (req, res) => {
-    res.render('/${plural}/index', { data: { ${plural}: await list() } });
-  },
-
-  create: async (req, res) => {
-    try {
-      await ${doc}.create({
-        category: req.body.category,
-        name: req.body.name,
-      });
-
-      return res.redirect('/${plural}');
-    } catch (error) {
-      // Rendering with errors: they show up in the <Form> render prop
-      res.inertia.errors({ name: error.message });
-
-      return res.render('/${plural}/index', { data: { ${plural}: await list() } });
-    }
-  },
-
-  destroy: async (req, res) => {
-    ${queries.remove}
-
-    res.redirect('/${plural}');
-  },
-};
-`;
 };
 
-module.exports = { crud, inertia, resources };
+module.exports = { crud, resources };

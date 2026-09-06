@@ -94,7 +94,7 @@ describe('henri doctor', () => {
         controllers: 2,
         errors: 0,
         models: 1,
-        renderer: 'react',
+        renderer: 'inertia',
         routes: 9,
         warnings: 1,
       },
@@ -271,7 +271,7 @@ describe('henri doctor', () => {
         "module.exports = {\n  'get /ghosts': 'ghosts#index',\n  'get /tasks/stats': 'tasks#stats',"
       )
     );
-    const show = path.join(app, 'app/views/pages/tasks/show.js');
+    const show = path.join(app, 'app/views/pages/tasks/show.jsx');
     const page = fs.readFileSync(show, 'utf8');
 
     fs.unlinkSync(show);
@@ -301,7 +301,7 @@ describe('henri doctor', () => {
       expect.objectContaining({
         check: 'views.pages',
         level: 'error',
-        message: expect.stringContaining('app/views/pages/tasks/show.js'),
+        message: expect.stringContaining('app/views/pages/tasks/show.jsx'),
       })
     );
 

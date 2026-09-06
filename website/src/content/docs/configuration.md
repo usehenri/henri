@@ -18,7 +18,7 @@ Configuration is JSON in the `config` directory. henri loads `config/<NODE_ENV>.
       "adapter": "disk"
     }
   },
-  "renderer": "react",
+  "renderer": "inertia",
   "user": "user",
   "baseRole": "guest"
 }
@@ -35,7 +35,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `port`             | `3000`        | Port to listen on. In development a busy port is replaced by the next free one; under `NODE_ENV=test` the kernel assigns one.                  |
 | `host`             | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file. |
 | `cors`             | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                              |
-| `renderer`         | `template`    | View engine: `react`, `inertia` or `template` (Handlebars), whatever the case. `henri new` writes `react`. See [Views](/guides/views/).        |
+| `renderer`         | `template`    | View engine: `inertia`, `react` or `template` (Handlebars), whatever the case. `henri new` writes `inertia`. See [Views](/guides/views/).      |
 | `inertia`          |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                            |
 | `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                           |
 | `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                    |

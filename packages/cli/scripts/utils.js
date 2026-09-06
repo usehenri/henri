@@ -204,6 +204,40 @@ const readConfig = (dir = process.cwd(), env = process.env.NODE_ENV) => {
 };
 
 /**
+ * The view engines `henri new` and the generators know about, and the
+ * directory under template/ each one is scaffolded from. `inertia` is the
+ * default: server-rendered React on Vite, with no framework of its own to
+ * grow into the server. `react` is the frozen Next.js engine.
+ */
+const RENDERERS = { inertia: 'inertia', react: 'default' };
+
+/** The renderer of a new application, and of a configuration without one */
+const DEFAULT_RENDERER = 'inertia';
+
+/**
+ * The view engine of an application, read back from its configuration so a
+ * generator writes the pages that application can render
+ *
+ * @param {string} [dir=process.cwd()] Project directory
+ * @returns {string} inertia (the default) or react
+ */
+const rendererOf = (dir = process.cwd()) => {
+  let config = {};
+
+  try {
+    config = readConfig(dir, undefined);
+  } catch {
+    // An unreadable configuration: the default renderer will do
+  }
+
+  const renderer = String(
+    (config && config.renderer) || DEFAULT_RENDERER
+  ).toLowerCase();
+
+  return RENDERERS[renderer] ? renderer : DEFAULT_RENDERER;
+};
+
+/**
  * Load config/routes.js from a project without the require cache
  *
  * @param {string} [dir=process.cwd()] Project directory
@@ -387,7 +421,9 @@ const names = (name) => {
 };
 
 module.exports = {
+  DEFAULT_RENDERER,
   PACKAGE_MANAGERS,
+  RENDERERS,
   abort,
   capitalize,
   check,
@@ -403,6 +439,7 @@ module.exports = {
   pluralize,
   readConfig,
   readRoutes,
+  rendererOf,
   resolveFrom,
   resolvePackageJson,
   validInstall,

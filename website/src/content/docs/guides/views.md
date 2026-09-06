@@ -1,15 +1,17 @@
 ---
 title: Views
-description: React (Next.js), Inertia (Vite + React), Handlebars and Vue renderers, all server-side rendered.
+description: Inertia (Vite + React), React (Next.js), Handlebars and Vue renderers, all server-side rendered.
 sidebar:
   order: 4
 ---
 
-Pick a renderer in your configuration. All of them render on the server; the React and Inertia renderers also push updates to the browser while you develop. A view engine is loaded from the application, so its packages must be installed there (`henri new` does it).
+Pick a renderer in your configuration. All of them render on the server; the Inertia and React renderers also push updates to the browser while you develop. A view engine is loaded from the application, so its packages must be installed there (`henri new` does it).
 
 ```json
-{ "renderer": "react" }
+{ "renderer": "inertia" }
 ```
+
+`henri new` writes `inertia`. `henri new --renderer react` writes `react` and scaffolds the Next.js application instead; both render the same pages from the same controllers, and the differences are spelled out under each renderer below.
 
 Whatever the renderer, a controller renders with `res.render(route, { data })` and the page receives `data`, `user`, `paths`, `query`, `csrf`, `localUrl`, `errors` and `graphql` (see [Controllers](/guides/controllers/#resrenderroute-options)). Static files go in `app/views/public`, served at the root.
 
@@ -43,25 +45,12 @@ How it is compiled depends on the renderer:
 
 | Renderer  | Plugin                 | Wiring                                                                             |
 | --------- | ---------------------- | ---------------------------------------------------------------------------------- |
-| `react`   | `@tailwindcss/postcss` | `app/views/postcss.config.mjs`; the stylesheet is imported by `pages/_app.js`      |
 | `inertia` | `@tailwindcss/vite`    | a plugin merged into `app/views/vite.config.mjs`; imported by `app/views/main.jsx` |
+| `react`   | `@tailwindcss/postcss` | `app/views/postcss.config.mjs`; the stylesheet is imported by `pages/_app.js`      |
 
 Both work the same in development and in production: `henri server` compiles the stylesheet on the fly, `henri build` writes it next to the bundle and the html links it, server-side rendered markup included.
 
 ### Adding Tailwind to an existing application
-
-With the React renderer:
-
-```bash
-pnpm add tailwindcss @tailwindcss/postcss
-```
-
-```js
-// app/views/postcss.config.mjs
-export default { plugins: { '@tailwindcss/postcss': {} } };
-```
-
-Then `import '../styles/index.css';` from `app/views/pages/_app.js`.
 
 With the Inertia renderer:
 
@@ -82,23 +71,112 @@ export default mergeConfig(henriViteConfig({ views: import.meta.dirname }), {
 
 Then `import './styles/index.css';` from `app/views/main.jsx`.
 
+With the React renderer:
+
+```bash
+pnpm add tailwindcss @tailwindcss/postcss
+```
+
+```js
+// app/views/postcss.config.mjs
+export default { plugins: { '@tailwindcss/postcss': {} } };
+```
+
+Then `import '../styles/index.css';` from `app/views/pages/_app.js`.
+
 ### Opting out
 
 Nothing in henri depends on Tailwind; the classes are plain strings in the pages. Write your own CSS in `app/views/styles/index.css` (keep the import, it is the only stylesheet the pages load), then remove `tailwindcss` and, depending on the renderer, `@tailwindcss/postcss` with `app/views/postcss.config.mjs`, or `@tailwindcss/vite` with the plugin it adds to `app/views/vite.config.mjs`.
 
 The scaffolded pages, and everything `henri generate scaffold` writes afterwards, keep carrying Tailwind class names. Without Tailwind they are inert: rewrite the markup, or define the handful of classes you keep in your own stylesheet. `sass` stays installed, so renaming the file to `index.scss` (and the import with it) gets you Sass instead, and `*.module.scss` files next to a page keep working.
 
+## Inertia
+
+The default renderer. It speaks the [Inertia.js](https://inertiajs.com/) protocol: your controllers keep rendering routes with `res.render()`, the page is a React 19 component bundled by [Vite](https://vite.dev/), and navigation between pages happens without a full page load. The first visit is server-side rendered; the Inertia client then asks for page objects (JSON) and swaps the component.
+
+What an application gives up by choosing it: Vite is a bundler, not a framework, so there is no file-system routing (`config/routes.js` is the router), no image or font optimization, no incremental static regeneration and no React Server Components. Everything the browser runs is a client component hydrating a server-rendered page.
+
+```json
+{ "renderer": "inertia" }
+```
+
+```bash
+henri new my-app
+# or, in an existing application
+pnpm add @usehenri/inertia @inertiajs/react react react-dom vite @vitejs/plugin-react tailwindcss @tailwindcss/vite sass
+```
+
+The engine reads four files from `app/views`. `henri new` ships them and the engine creates the missing ones on first boot:
+
+| File              | Role                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `index.html`      | The html shell. `<!--head-->` and `<!--body-->` receive the rendered page.                                          |
+| `main.jsx`        | The browser entry: `createInertiaApp` resolving `pages/**/*.jsx` with `resolvePage()`.                              |
+| `ssr.jsx`         | The server entry: `render(page)` resolves to `{ head, body }`.                                                      |
+| `vite.config.mjs` | The shared configuration (`@usehenri/inertia/vite`: React plugin, aliases, builds) merged with the Tailwind plugin. |
+
+`res.render('/tasks/index', { data })` renders `app/views/pages/tasks/index.jsx` (`res.render('/tasks')` finds it too). The page reads what the controller sent through `useHenri()`:
+
+```jsx
+// app/views/pages/tasks/index.jsx
+import { Form, Link, useHenri } from '@usehenri/inertia';
+
+export default function Tasks() {
+  const { data, pathFor, getRoute } = useHenri();
+
+  return (
+    <div>
+      <Form action={pathFor('create_tasks_path')} resetOnSuccess>
+        {({ errors, processing }) => (
+          <>
+            <input name="name" />
+            {errors.name && <p>{errors.name}</p>}
+            <button disabled={processing}>add</button>
+          </>
+        )}
+      </Form>
+      <ul>
+        {data.tasks.map((task) => (
+          <li key={task.externalId}>{task.name}</li>
+        ))}
+      </ul>
+      <Link href={getRoute('home_main_path')}>home</Link>
+    </div>
+  );
+}
+```
+
+`useHenri()` returns the same keys as the React renderer's `withHenri` (`data`, `user`, `paths`, `csrf`, `localUrl`, `flash`, `errors`, `graphql`, `pathFor`, `getRoute`, `fetch`, `hydrate`) plus `query`. They are the props of the Inertia page object, so `usePage().props` from `@inertiajs/react` holds the raw values. `hydrate()` is an Inertia partial reload of `data`; `fetch(target, payload)` is a JSON request outside the Inertia lifecycle (`GET` data goes in the query string) that sends the CSRF header and rejects with an error carrying `status` and `response`.
+
+Forms submit through Inertia's router: a controller answers with a redirect (`res.redirect('/tasks')`; the engine turns it into a `303` after `PUT`, `PATCH` and `DELETE`) and the client lands on the next page. To show validation errors, render the page again after `res.inertia.errors({ name: 'required' })`: they arrive in `errors`. `res.inertia.location(url)` redirects to an external url.
+
+`Form` wraps Inertia's form component: `action` accepts a `pathFor()` result, the method defaults to `POST`, and a hidden `_csrf` field carrying the page's token is added to its children (`csrf={false}` skips it, `csrf="..."` overrides it), so submissions pass henri's [CSRF check](/guides/users/#csrf) in an application with a user model; `fetch()` sends the `X-CSRF-Token` header, and the engine sets an `XSRF-TOKEN` cookie that Inertia's client echoes as `X-XSRF-TOKEN` (an alias henri accepts), so visits made directly with `router.post()` or `useForm().post()` pass as well. `Link`, `Head`, `router`, `usePage` and `useForm` are re-exported from `@inertiajs/react`. `assets`, `components`, `helpers` and `styles` resolve to the matching folders under `app/views`; global stylesheets are imported from `main.jsx`, which is where the [Tailwind stylesheet](#styles) is imported.
+
+Options go under the `inertia` key of your configuration: `ssr: false` renders everything in the browser (the page object is still embedded in the html), `id` changes the root element id (`app`), `entry`, `ssrEntry` and `template` rename the three files above. Hot module replacement in development rides on henri's http server, no second port; in development a page that fails to render on the server answers a `500` with the stack, in production it falls back to client rendering.
+
+`henri server --production` builds the client (`app/views/dist/client`, with a manifest whose hash is the Inertia asset version) and the server bundle (`app/views/dist/ssr`) on the first boot when the manifest is missing, or when `--force-build` is given, then serves `dist/client` with immutable cache headers. `henri build` runs the two Vite builds on their own, without booting henri.
+
 ## React
 
-[Next.js](https://nextjs.org/) (16, pages router, Turbopack) renders the pages in `app/views/pages` and injects the data sent by your controllers. If none of your routes match a `GET` request but a page does, the page is rendered directly. The App Router is not supported: a page under `app/views/app` would bypass `withHenri` and the controllers, and the engine warns when that directory exists.
+:::caution
+Supported, and frozen. The engine is built on the Next.js pages router, which Next.js has deprecated: henri keeps it working, on Next.js 16, and does not follow it into the app router. The contract that hands a controller's data to a page (`withHenri` reading `req._henri` on the server) has no equivalent in the app router or in server components, so this engine stays where it is. Existing applications keep working and keep getting fixes; new ones are better off on [Inertia](#inertia), which is the default.
+:::
 
-Install the peer dependencies in your project (`henri new` already does):
+Choose it anyway when you want what Next.js gives you and Vite does not: `next/image` and `next/font`, the file-system page fallback (a `GET` no route matches still renders a page of the same name), the Next.js plugin ecosystem, or an existing pages-router application you are moving onto henri. What you give up is the app router, server components and streaming: a page under `app/views/app` would bypass `withHenri` and the controllers, and the engine warns when that directory exists.
+
+[Next.js](https://nextjs.org/) (16, pages router, Turbopack) renders the pages in `app/views/pages` and injects the data sent by your controllers.
+
+```json
+{ "renderer": "react" }
+```
+
+Install the peer dependencies in your project (`henri new --renderer react` already does):
 
 ```bash
 pnpm add @usehenri/react next react react-dom tailwindcss @tailwindcss/postcss sass
 ```
 
-Two small files live next to your pages. `henri new` ships them and the engine creates them on first boot when they (or their `.mjs`/`.ts` alternatives) are missing:
+Two small files live next to your pages. `henri new --renderer react` ships them and the engine creates them on first boot when they (or their `.mjs`/`.ts` alternatives) are missing:
 
 ```js
 // app/views/next.config.js
@@ -251,74 +329,6 @@ Both files are read once, at boot and by `next build`. Saving them triggers a re
 ### Production
 
 `henri server --production` (or `NODE_ENV=production`) builds the pages once, when `app/views/.next/BUILD_ID` (or the `distDir` of your `config/next.js`) is missing, and serves the optimized build. `--force-build` rebuilds even if a build exists. `henri build` runs `next build` on its own without booting henri, so it needs neither a database nor the stores: use it in a Docker build stage (the repository's `docker/Dockerfile` does).
-
-## Inertia
-
-:::caution
-New in 1.1 and experimental: the engine, the scaffold and the helpers work end to end, but they have had far less use than the React renderer and their options may change.
-:::
-
-The `inertia` renderer speaks the [Inertia.js](https://inertiajs.com/) protocol: your controllers keep rendering routes with `res.render()`, the page is a React 19 component bundled by [Vite](https://vite.dev/), and navigation between pages happens without a full page load. The first visit is server-side rendered; the Inertia client then asks for page objects (JSON) and swaps the component.
-
-```json
-{ "renderer": "inertia" }
-```
-
-```bash
-henri new my-app --renderer inertia
-# or, in an existing application
-pnpm add @usehenri/inertia @inertiajs/react react react-dom vite @vitejs/plugin-react tailwindcss @tailwindcss/vite sass
-```
-
-The engine reads four files from `app/views`. `henri new --renderer inertia` ships them and the engine creates the missing ones on first boot:
-
-| File              | Role                                                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `index.html`      | The html shell. `<!--head-->` and `<!--body-->` receive the rendered page.                                          |
-| `main.jsx`        | The browser entry: `createInertiaApp` resolving `pages/**/*.jsx` with `resolvePage()`.                              |
-| `ssr.jsx`         | The server entry: `render(page)` resolves to `{ head, body }`.                                                      |
-| `vite.config.mjs` | The shared configuration (`@usehenri/inertia/vite`: React plugin, aliases, builds) merged with the Tailwind plugin. |
-
-`res.render('/tasks/index', { data })` renders `app/views/pages/tasks/index.jsx` (`res.render('/tasks')` finds it too). The page reads what the controller sent through `useHenri()`:
-
-```jsx
-// app/views/pages/tasks/index.jsx
-import { Form, Link, useHenri } from '@usehenri/inertia';
-
-export default function Tasks() {
-  const { data, pathFor, getRoute } = useHenri();
-
-  return (
-    <div>
-      <Form action={pathFor('create_tasks_path')} resetOnSuccess>
-        {({ errors, processing }) => (
-          <>
-            <input name="name" />
-            {errors.name && <p>{errors.name}</p>}
-            <button disabled={processing}>add</button>
-          </>
-        )}
-      </Form>
-      <ul>
-        {data.tasks.map((task) => (
-          <li key={task.externalId}>{task.name}</li>
-        ))}
-      </ul>
-      <Link href={getRoute('home_main_path')}>home</Link>
-    </div>
-  );
-}
-```
-
-`useHenri()` returns the same keys as the React renderer's `withHenri` (`data`, `user`, `paths`, `csrf`, `localUrl`, `flash`, `errors`, `graphql`, `pathFor`, `getRoute`, `fetch`, `hydrate`) plus `query`. They are the props of the Inertia page object, so `usePage().props` from `@inertiajs/react` holds the raw values. `hydrate()` is an Inertia partial reload of `data`; `fetch(target, payload)` is a JSON request outside the Inertia lifecycle (`GET` data goes in the query string) that sends the CSRF header and rejects with an error carrying `status` and `response`.
-
-Forms submit through Inertia's router: a controller answers with a redirect (`res.redirect('/tasks')`; the engine turns it into a `303` after `PUT`, `PATCH` and `DELETE`) and the client lands on the next page. To show validation errors, render the page again after `res.inertia.errors({ name: 'required' })`: they arrive in `errors`. `res.inertia.location(url)` redirects to an external url.
-
-`Form` wraps Inertia's form component: `action` accepts a `pathFor()` result, the method defaults to `POST`, and a hidden `_csrf` field carrying the page's token is added to its children (`csrf={false}` skips it, `csrf="..."` overrides it), so submissions pass henri's [CSRF check](/guides/users/#csrf) in an application with a user model; `fetch()` sends the `X-CSRF-Token` header, and the engine sets an `XSRF-TOKEN` cookie that Inertia's client echoes as `X-XSRF-TOKEN` (an alias henri accepts), so visits made directly with `router.post()` or `useForm().post()` pass as well. `Link`, `Head`, `router`, `usePage` and `useForm` are re-exported from `@inertiajs/react`. `assets`, `components`, `helpers` and `styles` resolve to the matching folders under `app/views`; global stylesheets are imported from `main.jsx`, which is where the [Tailwind stylesheet](#styles) is imported.
-
-Options go under the `inertia` key of your configuration: `ssr: false` renders everything in the browser (the page object is still embedded in the html), `id` changes the root element id (`app`), `entry`, `ssrEntry` and `template` rename the three files above. Hot module replacement in development rides on henri's http server, no second port; in development a page that fails to render on the server answers a `500` with the stack, in production it falls back to client rendering.
-
-`henri server --production` builds the client (`app/views/dist/client`, with a manifest whose hash is the Inertia asset version) and the server bundle (`app/views/dist/ssr`) on the first boot when the manifest is missing, or when `--force-build` is given, then serves `dist/client` with immutable cache headers. `henri build` runs the two Vite builds on their own, without booting henri.
 
 ## Handlebars
 

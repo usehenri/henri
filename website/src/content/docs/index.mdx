@@ -31,9 +31,9 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
     know Ruby on Rails, you already know where everything goes.
   </Card>
   <Card title="Server-side rendered React" icon="rocket">
-    Pages live in `app/views/pages` and are rendered by Next.js, or by Vite with
-    Inertia.js. Controllers hand them data with `res.render()`; the same
-    endpoint answers JSON when asked for it.
+    Pages live in `app/views/pages` and controllers hand them data with
+    `res.render()`: no API layer to write. The same endpoint answers JSON when a
+    client asks for it.
   </Card>
   <Card title="Real ORMs" icon="document">
     Mongoose for MongoDB, Sequelize for MySQL, MariaDB, PostgreSQL and MSSQL. A
@@ -79,18 +79,20 @@ module.exports = {
 ```
 
 ```jsx
-// app/views/pages/tasks.js
-import withHenri from '@usehenri/react';
+// app/views/pages/tasks/index.jsx
+import { useHenri } from '@usehenri/inertia';
 
-const Tasks = ({ data }) => (
-  <ul>
-    {data.tasks.map((task) => (
-      <li key={task.externalId}>{task.name}</li>
-    ))}
-  </ul>
-);
+export default function Tasks() {
+  const { data } = useHenri();
 
-export default withHenri(Tasks);
+  return (
+    <ul>
+      {data.tasks.map((task) => (
+        <li key={task.externalId}>{task.name}</li>
+      ))}
+    </ul>
+  );
+}
 ```
 
 </div>
