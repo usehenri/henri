@@ -355,7 +355,8 @@ ${migrations}
 | \`app/views/pages\`      | ${pages}|
 | \`app/views/components\` | Shared components (\`import x from 'components/x'\`) |
 | \`app/views/styles\`     | Tailwind CSS v4: \`index.css\` is the stylesheet     |
-| \`app/workers\`          | Background workers started with the server       |
+| \`app/jobs\`             | Background jobs (\`henri jobs\`, needs \`@usehenri/jobs\`) |
+| \`app/workers\`          | Long-lived processes started with the server     |
 | \`app/helpers\`          | Server-side helpers                              |
 | \`config/routes.js\`     | Routes                                           |
 | \`config/default.json\`  | Configuration (stores, renderer, user model)     |
@@ -379,7 +380,7 @@ and roles.
 ${database}
 
 See the [documentation](https://usehenri.io) for models, routes, views,
-GraphQL, mail and workers.
+GraphQL, mail, background jobs and workers.
 `;
 };
 
