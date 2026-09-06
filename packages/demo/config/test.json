@@ -7,9 +7,13 @@
   "secret": "nfiwuef9we8f9",
   "graphql": "/_henri/graph",
   "baseRole": "member",
+  "url": "https://demo.usehenri.io",
   "user": {
     "model": "user",
-    "public": ["name"]
+    "public": ["name"],
+    "signup": { "fields": ["name"] },
+    "passwordReset": true,
+    "confirmation": true
   },
   "rateLimit": {
     "auth": { "max": 200 }

@@ -9,7 +9,10 @@
   "baseRole": "member",
   "user": {
     "model": "user",
-    "public": ["name"]
+    "public": ["name"],
+    "signup": { "fields": ["name"] },
+    "passwordReset": true,
+    "confirmation": true
   },
   "env": "default"
 }

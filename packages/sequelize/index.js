@@ -324,6 +324,12 @@ class Sql {
     attributes.password = { allowNull: false, type: DataTypes.STRING };
     attributes.roles = this.rolesAttribute(this.baseRoles());
 
+    // The account flows (base/accounts.js): when the address was confirmed,
+    // and when the password last changed. The second one is what retires the
+    // sessions that were open when a password was reset.
+    attributes.confirmedAt = { allowNull: true, type: DataTypes.DATE };
+    attributes.passwordChangedAt = { allowNull: true, type: DataTypes.DATE };
+
     // The password is only selected through the withPassword scope
     const defaultScope = options.defaultScope || {};
     const scoped = defaultScope.attributes;

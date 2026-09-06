@@ -11,6 +11,13 @@ const EXTENSIONS = ['hbs', 'html', 'htm'];
 const DEFAULT_LAYOUT = 'mailer';
 
 /**
+ * The views henri ships with the mailers it mounts itself (the account
+ * flows). They are looked at last, so an application that writes
+ * `app/views/mailers/auth/reset.hbs` replaces the one henri would have used.
+ */
+const BUILTIN = path.join(__dirname, '..', 'mailers', 'views');
+
+/**
  * Is the path an existing file?
  *
  * @param {string} file the path
@@ -71,6 +78,18 @@ class MailViews {
    */
   get root() {
     return path.join(this.henri.cwd(), 'app/views/mailers');
+  }
+
+  /**
+   * Where a view is looked for, in order: the application first, then the
+   * views henri ships for the mails it sends itself
+   *
+   * @readonly
+   * @returns {Array<string>} the directories, absolute
+   * @memberof MailViews
+   */
+  get roots() {
+    return [this.root, BUILTIN];
   }
 
   /**
@@ -137,15 +156,17 @@ class MailViews {
       ...EXTENSIONS.map((ext) => `${clean}/index${suffix}.${ext}`),
     ];
 
-    for (const candidate of candidates) {
-      const file = path.join(this.root, candidate);
+    for (const root of this.roots) {
+      for (const candidate of candidates) {
+        const file = path.join(root, candidate);
 
-      if (!file.startsWith(`${this.root}${path.sep}`)) {
-        return null;
-      }
+        if (!file.startsWith(`${root}${path.sep}`)) {
+          return null;
+        }
 
-      if (isFile(file)) {
-        return file;
+        if (isFile(file)) {
+          return file;
+        }
       }
     }
 
@@ -175,19 +196,20 @@ class MailViews {
    * @memberof MailViews
    */
   layouts() {
-    const dir = path.join(this.root, 'layouts');
     const names = new Set();
 
-    try {
-      for (const file of fs.readdirSync(dir)) {
-        const ext = path.extname(file).replace('.', '');
+    for (const root of this.roots) {
+      try {
+        for (const file of fs.readdirSync(path.join(root, 'layouts'))) {
+          const ext = path.extname(file).replace('.', '');
 
-        if (EXTENSIONS.includes(ext)) {
-          names.add(path.basename(file, `.${ext}`).replace(/\.text$/, ''));
+          if (EXTENSIONS.includes(ext)) {
+            names.add(path.basename(file, `.${ext}`).replace(/\.text$/, ''));
+          }
         }
+      } catch (error) {
+        // A directory that is not there holds no layout
       }
-    } catch (error) {
-      return [];
     }
 
     return Array.from(names).sort();

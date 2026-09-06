@@ -21,6 +21,8 @@ CREATE TABLE \`users\` (
 	\`email\` varchar(255) NOT NULL,
 	\`password\` varchar(255) NOT NULL,
 	\`roles\` json,
+	\`confirmed_at\` datetime(3),
+	\`password_changed_at\` datetime(3),
 	\`created_at\` datetime(3) NOT NULL,
 	\`updated_at\` datetime(3) NOT NULL,
 	CONSTRAINT \`users_id\` PRIMARY KEY(\`id\`),
@@ -62,6 +64,8 @@ CREATE TABLE "users" (
 	"email" varchar(255) NOT NULL,
 	"password" varchar(255) NOT NULL,
 	"roles" jsonb,
+	"confirmed_at" timestamp with time zone,
+	"password_changed_at" timestamp with time zone,
 	"created_at" timestamp with time zone NOT NULL,
 	"updated_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "users_external_id_unique" UNIQUE("external_id"),
@@ -100,6 +104,8 @@ CREATE TABLE \`users\` (
 	\`email\` text NOT NULL,
 	\`password\` text NOT NULL,
 	\`roles\` text,
+	\`confirmed_at\` integer,
+	\`password_changed_at\` integer,
 	\`created_at\` integer NOT NULL,
 	\`updated_at\` integer NOT NULL
 );
