@@ -361,9 +361,10 @@ const enableAccounts = (opts = {}) => {
 };
 
 /**
- * Generates the account flows: the pages of registration, password reset and
- * address confirmation, the controller rendering them, the mailer and its
- * views, a user model when there is none, and the tests.
+ * Generates the account flows: the pages of registration, password reset,
+ * address confirmation and the identity providers of the account, the
+ * controller rendering them, the mailer and its views, a user model when
+ * there is none, and the tests.
  *
  * The endpoints are henri's own (`config.user.signup`, `passwordReset` and
  * `confirmation`), which this turns on; nothing written here reimplements a
@@ -381,7 +382,7 @@ const authentication = async (name, rest = [], opts = {}) => {
   // application, and the page extension that goes with it
   const renderer = rendererOf(cwd);
   const extension = PAGE_EXTENSIONS[renderer];
-  const actions = ['confirm', 'forgot', 'login', 'new', 'reset'];
+  const actions = ['confirm', 'connections', 'forgot', 'login', 'new', 'reset'];
   let written = false;
 
   enableAccounts(opts);
@@ -430,6 +431,7 @@ const authentication = async (name, rest = [], opts = {}) => {
 
   await addRoutes(
     {
+      'get /account/connections': 'accounts#connections',
       'get /confirm': 'accounts#confirm',
       'get /login': 'accounts#login',
       'get /password/forgot': 'accounts#forgot',
