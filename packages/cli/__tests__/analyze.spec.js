@@ -4,7 +4,7 @@ const { EXIT_CODES } = require('../scripts/errors');
 const { cleanup, henri, tmpdir } = require('./helpers');
 
 // The same minimal drizzle/sqlite application db.spec.js seeds: it boots
-// without a database server, and carries a config/modules.js of its own
+// without a database server, and carries a module of its own in app/modules
 const fixture = path.join(__dirname, 'fixtures', 'seed-app');
 
 const code = (name) => EXIT_CODES.find((entry) => entry.name === name).code;
@@ -69,8 +69,8 @@ describe('henri analyze', () => {
       );
       const names = analysis.modules.map((module) => module.name);
 
-      // The module of config/modules.js: needs the express app, before
-      // the routes mount
+      // The app/modules/metrics.js of the fixture: it needs the express app,
+      // and goes before the routes are mounted
       expect(metrics.runlevel).toBe(5);
       expect(metrics.waitsOn).toEqual(
         expect.arrayContaining([{ name: 'server', why: 'needs' }])

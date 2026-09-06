@@ -1206,10 +1206,18 @@ declare namespace start {
     /** Registers a module. Throws when the name is taken or the module is invalid. */
     add(module: HenriModule): boolean;
     /**
-     * Registers what `config/modules.js` asks for (module instances, module
-     * classes, or the name of a package exporting one). Called by `init()`.
+     * Registers the modules of the application, which `init()` does before
+     * the boot: the packages it depends on that declare
+     * `"henri": { "module": "./module.js" }` in their package.json, its own
+     * `app/modules/*.js`, and whatever `config/modules.js` adds.
      */
-    discover(file?: string): Promise<string[]>;
+    discover(): Promise<string[]>;
+    /** The modules of the packages the application depends on. */
+    fromPackages(cwd?: string): string[];
+    /** The modules of `app/modules`. */
+    fromDirectory(dir?: string): string[];
+    /** The modules `config/modules.js` adds. */
+    fromFile(file?: string): Promise<string[]>;
     /** Same as `henri.analyze()`. */
     analyze(name?: string): BootAnalysis | null;
     /** The modules, last started first: the order `stop()` goes in. */

@@ -1,12 +1,23 @@
+const fs = require('fs');
 const path = require('path');
-const { resolveFrom, stack } = require('./utils');
+const { resolveFrom, resolvePackageJson, stack } = require('./utils');
 const BaseModule = require('./base/module');
 const graph = require('./base/graph');
 
 const debug = require('debug')('henri:modules');
 
-/** Where an application lists the modules it wants in the boot */
+/** Where an application keeps its own modules, next to app/models */
+const MODULES_DIR = path.join('app', 'modules');
+
+/** Where it lists the ones that live anywhere else */
 const MODULES_FILE = path.join('config', 'modules.js');
+
+/**
+ * How a package says it ships a henri module, in its own package.json:
+ * `"henri": { "module": "./module.js" }`. An application depending on it
+ * gets the module in its boot, with nothing else to write.
+ */
+const PACKAGE_FIELD = 'henri';
 
 /**
  * Modules handler
@@ -94,20 +105,133 @@ class Modules {
   }
 
   /**
-   * Register the modules an application asks for in `config/modules.js`
+   * Register the modules of this application, before the boot
+   *
+   * Three sources, in this order: the packages it depends on that ship a
+   * module (`"henri": { "module": "./module.js" }` in their package.json),
+   * its own `app/modules/*.js`, and whatever `config/modules.js` adds. They
+   * are ordinary modules from there on: they pin themselves like henri's
+   * own, and they take part in reload and shutdown.
+   *
+   * @async
+   * @throws when a file, one of its entries or a module is invalid
+   * @returns {Promise<Array<string>>} the names of the added modules
+   * @memberof Modules
+   */
+  async discover() {
+    const { pen } = this.henri;
+    const added = [
+      ...this.fromPackages(),
+      ...this.fromDirectory(),
+      ...(await this.fromFile()),
+    ];
+
+    added.length > 0 && pen.info('modules', 'application', added.join(', '));
+
+    return added;
+  }
+
+  /**
+   * The modules of the packages the application depends on
+   *
+   * A package ships one by pointing at it from its own package.json:
+   * `"henri": { "module": "./module.js" }`. Depending on the package is all
+   * an application has to do, which is what lets somebody publish one.
+   *
+   * @param {string} [cwd] the application directory
+   * @throws when a package points at something that is not a module
+   * @returns {Array<string>} the names of the added modules
+   * @memberof Modules
+   */
+  fromPackages(cwd = this.henri.cwd()) {
+    const added = [];
+    let manifest;
+
+    try {
+      manifest = JSON.parse(
+        fs.readFileSync(path.join(cwd, 'package.json'), 'utf8')
+      );
+    } catch (error) {
+      debug('no readable package.json in %s', cwd);
+
+      return added;
+    }
+
+    const names = [
+      ...Object.keys(manifest.dependencies || {}),
+      ...Object.keys(manifest.devDependencies || {}),
+    ].sort();
+
+    for (const name of names) {
+      const file = packageModule(name, cwd);
+
+      if (!file) {
+        continue;
+      }
+
+      debug('%s ships a henri module: %s', name, file);
+      added.push(...this.register(require(file), `the ${name} package`));
+    }
+
+    return added;
+  }
+
+  /**
+   * The modules an application keeps in `app/modules`
+   *
+   * One module per file, the way `app/models` holds one model per file. A
+   * module that did not name itself is named after its file.
+   *
+   * @param {string} [dir] the directory to read
+   * @throws when a file does not hold a module
+   * @returns {Array<string>} the names of the added modules
+   * @memberof Modules
+   */
+  fromDirectory(dir = path.join(this.henri.cwd(), MODULES_DIR)) {
+    const added = [];
+    let files;
+
+    try {
+      files = fs
+        .readdirSync(dir)
+        .filter((file) => file.endsWith('.js') && !file.startsWith('.'))
+        .sort();
+    } catch (error) {
+      debug('no %s in this application', MODULES_DIR);
+
+      return added;
+    }
+
+    for (const file of files) {
+      const full = path.join(dir, file);
+
+      delete require.cache[require.resolve(full)];
+
+      added.push(
+        ...this.register(require(full), path.join(MODULES_DIR, file), () =>
+          path.basename(file, '.js')
+        )
+      );
+    }
+
+    return added;
+  }
+
+  /**
+   * The modules `config/modules.js` adds
    *
    * The file exports an array (or a function of the henri instance returning
    * one) whose entries are module instances, module classes, or the name of
-   * a package exporting either. This is how a package or an application
-   * takes part in the boot without booting henri itself.
+   * a package exporting either. It is for what the two conventions above do
+   * not cover: a module that lives elsewhere, or one loaded conditionally.
    *
    * @async
-   * @param {string} [file] the file to read, defaults to config/modules.js
+   * @param {string} [file] the file to read
    * @throws when the file, one of its entries or a module is invalid
    * @returns {Promise<Array<string>>} the names of the added modules
    * @memberof Modules
    */
-  async discover(file = path.join(this.henri.cwd(), MODULES_FILE)) {
+  async fromFile(file = path.join(this.henri.cwd(), MODULES_FILE)) {
     const { pen } = this.henri;
     let exported;
 
@@ -138,28 +262,45 @@ class Modules {
       );
     }
 
+    return this.register(entries, MODULES_FILE);
+  }
+
+  /**
+   * Add what a file or a package exported: one module, or an array of them
+   *
+   * @param {any} exported what was required
+   * @param {string} source where it came from, named in the errors
+   * @param {?function} [fallbackName] the name of a module that has none
+   * @throws when an entry is not a module
+   * @returns {Array<string>} the names of the added modules
+   * @memberof Modules
+   */
+  register(exported, source, fallbackName = null) {
     const added = [];
 
-    for (const entry of entries) {
-      const mod = this.instantiate(entry);
+    for (const entry of [].concat(exported)) {
+      const mod = this.instantiate(entry, source);
+
+      if (fallbackName && (!mod.name || mod.name === 'unnamed')) {
+        mod.name = fallbackName(mod);
+      }
 
       this.add(mod) && added.push(mod.name);
     }
-
-    added.length > 0 && pen.info('modules', 'application', added.join(', '));
 
     return added;
   }
 
   /**
-   * Turn an entry of config/modules.js into a module instance
+   * Turn what a file exported into a module instance
    *
    * @param {string|function|BaseModule} entry a name, a class or an instance
+   * @param {string} [source] where it came from, named in the errors
    * @throws when the entry cannot become a module
    * @returns {BaseModule} the instance
    * @memberof Modules
    */
-  instantiate(entry) {
+  instantiate(entry, source = MODULES_FILE) {
     const { pen } = this.henri;
 
     if (typeof entry === 'string') {
@@ -170,12 +311,15 @@ class Modules {
       } catch (error) {
         throw pen.fatal(
           'modules',
-          `${MODULES_FILE} asks for '${entry}', which is not installed`,
+          `${source} asks for '${entry}', which is not installed`,
           error.message
         );
       }
 
-      return this.instantiate((resolved && resolved.default) || resolved);
+      return this.instantiate(
+        (resolved && resolved.default) || resolved,
+        source
+      );
     }
 
     if (entry instanceof BaseModule) {
@@ -192,8 +336,8 @@ class Modules {
 
     throw pen.fatal(
       'modules',
-      `${MODULES_FILE} holds an entry that is not a module`,
-      `got ${typeof entry}`
+      `${source} holds an entry that is not a module`,
+      `got ${entry === null ? 'null' : typeof entry}`
     );
   }
 
@@ -712,6 +856,39 @@ class Modules {
 
     return errors;
   }
+}
+
+/**
+ * The file of the module a package ships, if it ships one
+ *
+ * @param {string} name the package name
+ * @param {string} cwd the application directory
+ * @returns {?string} the absolute path of the module, null when there is none
+ */
+function packageModule(name, cwd) {
+  let manifest;
+
+  try {
+    manifest = resolvePackageJson(name, cwd);
+  } catch (error) {
+    return null;
+  }
+
+  const declared = manifest && manifest[PACKAGE_FIELD];
+
+  if (
+    !declared ||
+    typeof declared !== 'object' ||
+    typeof declared.module !== 'string'
+  ) {
+    return null;
+  }
+
+  // From the package.json on disk, so the module file does not have to be
+  // listed in the package's `exports` map to be reachable
+  const root = path.dirname(resolveFrom(`${name}/package.json`, cwd));
+
+  return path.resolve(root, declared.module);
 }
 
 /**

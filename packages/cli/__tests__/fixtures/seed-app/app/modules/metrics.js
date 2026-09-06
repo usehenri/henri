@@ -1,11 +1,10 @@
-// The modules of this application, booted with henri's own. Entries are
-// module instances, module classes or the name of a package exporting one.
-// See https://usehenri.io/reference/under-the-hood/
+// A module of this application: every file of app/modules is loaded into
+// the boot. See https://usehenri.io/reference/under-the-hood/
 const BaseModule = require('@usehenri/core/src/base/module');
 
 /**
- * A module of the application: it adds a route of its own, so it has to
- * run after the express app exists and before the routes are mounted
+ * It adds a route of its own, so it has to run after the express app exists
+ * and before the routes are mounted
  */
 class Metrics extends BaseModule {
   /**
@@ -33,4 +32,4 @@ class Metrics extends BaseModule {
   }
 }
 
-module.exports = [Metrics];
+module.exports = Metrics;

@@ -79,6 +79,8 @@ const metrics: HenriModule = {
 
 expectType<boolean>(henri.modules.add(metrics));
 expectType<Promise<string[]>>(henri.modules.discover());
+expectType<string[]>(henri.modules.fromDirectory());
+expectType<string[]>(henri.modules.fromPackages());
 expectType<HenriModule[]>(henri.modules.stopOrder);
 expectType<BootAnalysis | null>(henri.analyze());
 expectType<BootAnalysis | null>(henri.modules.analyze('router'));

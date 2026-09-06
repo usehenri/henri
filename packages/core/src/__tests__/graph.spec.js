@@ -468,8 +468,10 @@ describe('the boot graph', () => {
 
     afterEach(() => fs.rmSync(dir, { force: true, recursive: true }));
 
+    const base = JSON.stringify(require.resolve('../base/module'));
+
     /**
-     * Write a config/modules.js and read it back through discover()
+     * Write a config/modules.js and read it back through fromFile()
      *
      * @param {string} source the content of the file
      * @returns {object} `{ henri, file }`
@@ -481,6 +483,26 @@ describe('the boot graph', () => {
 
       return { file, henri: new Henri({ runlevel: 6 }) };
     };
+
+    /**
+     * The source of a module file naming itself
+     *
+     * @param {string} [name] the name it takes, none when omitted
+     * @param {string} [extra] more constructor lines
+     * @returns {string} the file
+     */
+    const source = (name = null, extra = '') => `
+      const BaseModule = require(${base});
+
+      module.exports = class extends BaseModule {
+        constructor() {
+          super();
+          ${name ? `this.name = '${name}';` : ''}
+          ${extra}
+        }
+        async init() { return this.name; }
+      };
+    `;
 
     test('takes an instance, a class and a factory', async () => {
       const { file, henri } = write(`
@@ -515,7 +537,7 @@ describe('the boot graph', () => {
         ];
       `);
 
-      await expect(henri.modules.discover(file)).resolves.toEqual([
+      await expect(henri.modules.fromFile(file)).resolves.toEqual([
         'from_instance',
         'from_class',
         'from_factory',
@@ -540,21 +562,21 @@ describe('the boot graph', () => {
         ];
       `);
 
-      await expect(henri.modules.discover(file)).resolves.toEqual(['seen']);
+      await expect(henri.modules.fromFile(file)).resolves.toEqual(['seen']);
     });
 
     test('does nothing when the application has no config/modules.js', async () => {
       const henri = new Henri({ runlevel: 6 });
 
       await expect(
-        henri.modules.discover(path.join(dir, 'nothing.js'))
+        henri.modules.fromFile(path.join(dir, 'nothing.js'))
       ).resolves.toEqual([]);
     });
 
     test('refuses a file that does not export a list', async () => {
       const { file, henri } = write('module.exports = { not: "a list" };');
 
-      await expect(henri.modules.discover(file)).rejects.toThrow(
+      await expect(henri.modules.fromFile(file)).rejects.toThrow(
         /should export an array of modules/
       );
     });
@@ -562,7 +584,7 @@ describe('the boot graph', () => {
     test('refuses an entry that is not a module', async () => {
       const { file, henri } = write('module.exports = [42];');
 
-      await expect(henri.modules.discover(file)).rejects.toThrow(
+      await expect(henri.modules.fromFile(file)).rejects.toThrow(
         /holds an entry that is not a module/
       );
     });
@@ -572,9 +594,102 @@ describe('the boot graph', () => {
         'module.exports = ["@usehenri/not-a-package"];'
       );
 
-      await expect(henri.modules.discover(file)).rejects.toThrow(
+      await expect(henri.modules.fromFile(file)).rejects.toThrow(
         /asks for '@usehenri\/not-a-package', which is not installed/
       );
+    });
+
+    test('app/modules is scanned, one module per file', async () => {
+      const app = path.join(dir, 'app', 'modules');
+      const henri = new Henri({ runlevel: 6 });
+
+      fs.mkdirSync(app, { recursive: true });
+      fs.writeFileSync(path.join(app, 'audit.js'), source('audit'));
+      // No name of its own: it takes the one of its file
+      fs.writeFileSync(path.join(app, 'metrics.js'), source());
+      fs.writeFileSync(path.join(app, '.keep.js'), source('hidden'));
+      fs.writeFileSync(path.join(app, 'notes.md'), 'not a module');
+
+      expect(henri.modules.fromDirectory(app)).toEqual(['audit', 'metrics']);
+
+      await henri.modules.init();
+
+      expect(henri.metrics.name).toBe('metrics');
+      expect(henri.audit.runlevel).toBe(6);
+    });
+
+    test('app/modules is optional', () => {
+      const henri = new Henri({ runlevel: 6 });
+
+      expect(henri.modules.fromDirectory(path.join(dir, 'nowhere'))).toEqual(
+        []
+      );
+    });
+
+    test('refuses a file of app/modules that holds no module', () => {
+      const app = path.join(dir, 'app', 'modules');
+      const henri = new Henri({ runlevel: 6 });
+
+      fs.mkdirSync(app, { recursive: true });
+      fs.writeFileSync(path.join(app, 'oops.js'), 'module.exports = 42;');
+
+      expect(() => henri.modules.fromDirectory(app)).toThrow(
+        /app\/modules\/oops\.js holds an entry that is not a module/
+      );
+    });
+
+    test('a package ships a module by declaring it in its package.json', async () => {
+      const pkg = path.join(dir, 'node_modules', 'henri-audit-log');
+      const henri = new Henri({ runlevel: 6 });
+
+      fs.mkdirSync(pkg, { recursive: true });
+      fs.writeFileSync(
+        path.join(pkg, 'package.json'),
+        JSON.stringify({
+          henri: { module: './module.js' },
+          main: 'index.js',
+          name: 'henri-audit-log',
+          version: '1.0.0',
+        })
+      );
+      fs.writeFileSync(path.join(pkg, 'module.js'), source('audit_log'));
+      fs.writeFileSync(
+        path.join(dir, 'package.json'),
+        JSON.stringify({
+          dependencies: { 'henri-audit-log': '^1.0.0', lodash: '^4.0.0' },
+          name: 'an-app',
+        })
+      );
+
+      expect(henri.modules.fromPackages(dir)).toEqual(['audit_log']);
+
+      await henri.modules.init();
+
+      expect(henri.audit_log.name).toBe('audit_log');
+    });
+
+    test('a package that ships nothing is left alone', () => {
+      const pkg = path.join(dir, 'node_modules', 'plain');
+      const henri = new Henri({ runlevel: 6 });
+
+      fs.mkdirSync(pkg, { recursive: true });
+      fs.writeFileSync(
+        path.join(pkg, 'package.json'),
+        // `henri` as a version marker, the way an application writes it
+        JSON.stringify({ henri: '1.1.0', name: 'plain', version: '1.0.0' })
+      );
+      fs.writeFileSync(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ dependencies: { plain: '^1.0.0' }, name: 'an-app' })
+      );
+
+      expect(henri.modules.fromPackages(dir)).toEqual([]);
+    });
+
+    test('an application without a package.json asks for nothing', () => {
+      const henri = new Henri({ runlevel: 6 });
+
+      expect(henri.modules.fromPackages(path.join(dir, 'nowhere'))).toEqual([]);
     });
 
     test('an outside module takes part in reload and shutdown', async () => {
@@ -598,7 +713,7 @@ describe('the boot graph', () => {
         })
       );
 
-      await henri.modules.discover(file);
+      await henri.modules.fromFile(file);
       await henri.modules.init();
       await henri.reload();
       await henri.stop();

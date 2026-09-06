@@ -96,8 +96,10 @@ an app and is what core's tests boot.
   and the critical path. Reloadable modules expose `reload()`, run in graph order
   after a backwards `release()` pass for the modules that implement it;
   `henri.stop()` walks the graph backwards, stops every module even when one
-  fails and resolves with the errors. An application adds its own modules (and
-  packages) with `config/modules.js`. `pen.fatal()` returns an Error to throw.
+  fails and resolves with the errors. An application ships modules in
+  `app/modules` (loaded like `app/models`), a package ships one by declaring
+  `"henri": { "module": "./module.js" }` in its package.json, and
+  `config/modules.js` adds anything else. `pen.fatal()` returns an Error to throw.
   Each module is exposed as `henri.<name>`, so names must be unique.
 - The `henri` instance and every model are globals in user apps
   (`global.henri`, `global.Task`). Under `NODE_ENV=test` core does not set the

@@ -7,7 +7,7 @@ sidebar:
 
 ## Modules
 
-henri is a set of modules. Each one says where it goes, henri computes the order, and everything nothing separates starts at the same time. A module that throws fails the boot: `henri.init()` rejects with an `Error` whose `cause` is the module's error, and the CLI prints which module failed, what was still running and what never started.
+henri is a set of modules — its own, plus the ones an application keeps in `app/modules` and the ones its packages ship. Each one says where it goes, henri computes the order, and everything nothing separates starts at the same time. A module that throws fails the boot: `henri.init()` rejects with an `Error` whose `cause` is the module's error, and the CLI prints which module failed, what was still running and what never started.
 
 A module says where it goes in one of two ways, and both are supported for good:
 
@@ -96,23 +96,111 @@ module.exports = Metrics;
 
 `needs` is the half a dependency can express, and `before` is the half it cannot: nothing in henri knows this module exists, so no amount of "I depend on the router" would get the middleware registered in time. Both directions read as the intent, which a number never did — `runlevel = 4` says "somewhere between the users and the routes" and hopes.
 
-### Registering it
+### Where it goes: an application's own module
 
-An application lists its modules in `config/modules.js`. henri reads the file at the start of every boot, so `henri server`, `henri console`, `henri test` and `henri db:seed` all get them.
+`app/modules/*.js` is loaded into the boot, the way `app/models` and
+`app/controllers` are: one module per file, no registration to write. Drop the
+file above in `app/modules/metrics.js` and `henri server`, `henri console`,
+`henri test` and `henri db:seed` all have it. A module that does not name
+itself takes the name of its file, so the shortest one there is is:
+
+```js
+// app/modules/heartbeat.js
+const BaseModule = require('@usehenri/core/src/base/module');
+
+module.exports = class extends BaseModule {
+  async init() {
+    this.timer = setInterval(
+      () => this.henri.pen.info('heartbeat', 'up'),
+      60000
+    );
+
+    return this.name; // 'heartbeat', from the file name
+  }
+
+  async stop() {
+    clearInterval(this.timer);
+
+    return this.name;
+  }
+};
+```
+
+The file exports a module class, an instance, a function of the henri instance
+returning one, or an array of any of those.
+
+### Where it goes: a module that arrives from a package
+
+A package ships a module by pointing at it from its own `package.json`.
+Depending on the package is then all an application has to do:
+
+```json
+{
+  "name": "henri-audit-log",
+  "version": "1.0.0",
+  "main": "index.js",
+  "henri": { "module": "./module.js" }
+}
+```
+
+```js
+// node_modules/henri-audit-log/module.js
+const BaseModule = require('@usehenri/core/src/base/module');
+
+class AuditLog extends BaseModule {
+  constructor() {
+    super();
+    this.name = 'audit';
+    this.needs = ['model'];
+    this.runlevel = 4;
+  }
+
+  async init() {
+    this.henri.pen.info('audit', 'recording writes');
+
+    return this.name;
+  }
+}
+
+module.exports = AuditLog;
+```
+
+```bash
+npm install henri-audit-log
+```
+
+henri reads the `dependencies` and `devDependencies` of the application, and
+every package declaring `henri.module` is in the boot as `henri.audit`. Nothing
+else is written on either side, which is what lets somebody publish a module
+and somebody else use it. The module file does not have to be in the package's
+`exports` map — henri resolves it from the package's own directory — but the
+package must let `require.resolve` reach its `package.json`, which is the
+default.
+
+### Where it goes: anything else
+
+`config/modules.js` adds modules the two conventions above do not cover: one
+that lives somewhere else in the application, or one loaded only under some
+configuration.
 
 ```js
 // config/modules.js
-module.exports = [require('./../app/modules/metrics'), 'henri-audit-log'];
+module.exports = [require('./../lib/reporting'), 'henri-audit-log'];
 ```
 
-An entry is a module instance, a module class (constructed with the henri instance), or the name of a package exporting either — which is how a package joins the boot without the application writing any glue. The list is read once per boot, so adding or removing a module needs a restart, not a reload. The file may also export a function of the henri instance returning that array, when what to load depends on the configuration:
+An entry is a module instance, a module class (constructed with the henri
+instance), or the name of a package exporting either. The file may also export
+a function of the henri instance returning that array:
 
 ```js
 module.exports = (henri) =>
-  henri.config.has('metrics') ? [require('./../app/modules/metrics')] : [];
+  henri.config.has('metrics') ? [require('./../lib/metrics')] : [];
 ```
 
-Modules can still be registered by hand, which is what a program embedding henri does:
+The three sources are read once per boot, in that order — packages, then
+`app/modules`, then `config/modules.js` — so adding or removing a module needs
+a restart, not a reload. Modules can still be registered by hand, which is what
+a program embedding henri does:
 
 ```js
 const Henri = require('@usehenri/core/src/henri');
@@ -122,7 +210,10 @@ henri.modules.add(new Metrics());
 await henri.init();
 ```
 
-The instance is exposed as `henri.<name>`, which is why names must be unique: registering two modules with the same name, or one whose name collides with an existing property of `henri`, stops the boot with a [duplicate module error](/e/dup_mods/).
+The instance is exposed as `henri.<name>`, which is why names must be unique:
+registering two modules with the same name, or one whose name collides with an
+existing property of `henri`, stops the boot with a
+[duplicate module error](/e/dup_mods/).
 
 ### When it does not work
 
