@@ -194,6 +194,9 @@ module.exports = [
       'eslint.config.js',
       '**/config/routes.js',
       '**/types.js',
+      // The configuration schema is a type map read next to the documentation
+      // page: its keys are in the order the page lists them, on purpose
+      'packages/core/src/base/config-schema.js',
     ],
     rules: {
       'sort-keys': 'off',

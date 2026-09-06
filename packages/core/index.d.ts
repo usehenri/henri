@@ -63,6 +63,8 @@ declare namespace start {
     opts?: Record<string, unknown>;
     /** mongoose and SQL: options of the session store. */
     session?: Record<string, unknown>;
+    /** drizzle: create the session table even without a user model. */
+    sessions?: boolean;
     /** disk: data directory, relative to the application (`.henri/data`). */
     path?: string;
     /** disk: database name (`henri`). */
@@ -126,6 +128,8 @@ declare namespace start {
       | {
           windowMs?: number;
           max?: number;
+          /** Alias of `max`, the name express-rate-limit 8 uses. */
+          limit?: number;
           /** Overrides the list of guarded paths. */
           paths?: string[];
         };
@@ -145,6 +149,16 @@ declare namespace start {
     ssrEntry?: string;
     /** Html shell, relative to `app/views` (`index.html`). */
     template?: string;
+  }
+
+  /** `config.mailers`: the defaults of the mailers in `app/mailers`. */
+  interface MailersConfig {
+    /** Sender of every message that does not set one. */
+    from?: string;
+    /** Layout in `app/views/mailers/layouts` (`mailer`); `false` for none. */
+    layout?: string | false;
+    /** `false` turns the development preview routes off. */
+    previews?: boolean;
   }
 
   /**
@@ -179,12 +193,13 @@ declare namespace start {
     graphql?: string;
     /** Nodemailer transport options, or `"test"` for an Ethereal account. */
     mail?: 'test' | Record<string, unknown>;
+    mailers?: MailersConfig;
     api?: ApiConfig;
     rateLimit?: boolean | RateLimitConfig;
     /** Options merged over henri's helmet defaults; `false` disables it. */
     helmet?: false | Record<string, unknown>;
-    /** Parameter names masked in the logs. */
-    filterParameters?: string[];
+    /** Parameter names masked in the logs; `false` masks nothing. */
+    filterParameters?: string[] | false;
     /** Maximum size of a JSON or form body (`"1mb"`). */
     bodyLimit?: string | number;
     /** Milliseconds before a running request is answered 503. */
