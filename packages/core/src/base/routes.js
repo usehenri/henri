@@ -215,6 +215,45 @@ function routeOptions(opts) {
   return out;
 }
 
+/** A controller name: a path of segments, no spaces, no surprises */
+const NAME = /^[a-z0-9][a-z0-9_-]*(\/[a-z0-9][a-z0-9_-]*)*$/i;
+
+/** An action name */
+const ACTION = /^[a-z_][a-z0-9_]*$/i;
+
+/**
+ * Refuse a controller or action that will not resolve to a file.
+ *
+ * A trailing space in `{ controller: 'ship ' }` used to travel all the way to
+ * the loader and surface as a missing controller, which sends the reader
+ * looking for a file that is right there.
+ *
+ * @param {string} controller what the route named, for the message
+ * @param {string} name the controller part
+ * @param {?string} action the action part, when the route named one
+ * @param {string} route the path, for the message
+ * @returns {void}
+ * @throws {Error} when either part is not a usable name
+ */
+function assertName(controller, name, action, route) {
+  const quoted = JSON.stringify(controller);
+
+  if (!NAME.test(name)) {
+    throw new Error(
+      `route "${route}" points at ${quoted}, which is not a controller name: ` +
+        'use letters, digits, dashes and underscores, with "/" for a ' +
+        'directory. A stray space is the usual cause.'
+    );
+  }
+
+  if (typeof action === 'string' && !ACTION.test(action)) {
+    throw new Error(
+      `route "${route}" points at ${quoted}, which is not an action name: ` +
+        'use letters, digits and underscores after the "#".'
+    );
+  }
+}
+
 /**
  * Builds one route object
  *
@@ -227,6 +266,8 @@ function build({ verb, route, controller, options = {}, resource = false }) {
   }
 
   const [name, action] = controller.split('#');
+
+  assertName(controller, name, action, route);
   const entry = Object.assign({}, options, {
     controller,
     path: `${action}_${name}_path`,
@@ -459,8 +500,9 @@ function expandEntry(key, value, context = {}) {
  * @param {object} [rawRoutes={}] the content of config/routes.js
  * @returns {Array<object>} the routes
  */
-function expand(rawRoutes = {}) {
+function expand(rawRoutes = {}, { onOverride = null } = {}) {
   const seen = new Map();
+  const from = new Map();
 
   for (const [key, value] of Object.entries(rawRoutes || {})) {
     if (typeof value === 'undefined' || value === null) {
@@ -468,8 +510,24 @@ function expand(rawRoutes = {}) {
     }
 
     for (const route of expandEntry(key, value)) {
-      // Later keys win, and keep the position of the first one
-      seen.set(`${route.verb} ${route.route}`, route);
+      const id = `${route.verb} ${route.route}`;
+      const previous = seen.get(id);
+
+      // Later keys win, and keep the position of the first one. Say so when
+      // the winner is a different controller: a resources entry quietly
+      // shadowing a route written above it is hard to see in a routes file.
+      if (previous && previous.controller !== route.controller && onOverride) {
+        onOverride({
+          by: key,
+          controller: route.controller,
+          declaredBy: from.get(id),
+          previous: previous.controller,
+          route: id,
+        });
+      }
+
+      from.set(id, key);
+      seen.set(id, route);
     }
   }
 
@@ -482,10 +540,10 @@ function expand(rawRoutes = {}) {
  * @param {object} [rawRoutes={}] the content of config/routes.js
  * @returns {object} the table
  */
-function table(rawRoutes = {}) {
+function table(rawRoutes = {}, options = {}) {
   const out = {};
 
-  for (const route of expand(rawRoutes)) {
+  for (const route of expand(rawRoutes, options)) {
     out[`${route.verb} ${route.route}`] = route;
   }
 

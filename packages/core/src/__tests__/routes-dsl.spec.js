@@ -450,4 +450,61 @@ describe('routes dsl', () => {
       expect(normalize('/')).toBe('/');
     });
   });
+
+  describe('refusing what will not resolve', () => {
+    test('a controller with a space is refused where it is written', () => {
+      // A trailing space used to travel to the loader and surface as a
+      // missing controller, sending the reader to look for a file that is
+      // right there
+      expect(() =>
+        expand({ 'resources ship': { controller: 'ship ' } })
+      ).toThrow(/not a controller name/);
+      expect(() => expand({ 'get /x': 'a b#index' })).toThrow(
+        /not a controller name/
+      );
+      expect(() => expand({ 'get /y': 'tasks#in dex' })).toThrow(
+        /not an action name/
+      );
+    });
+
+    test('a namespaced controller is still a name', () => {
+      expect(expand({ 'get /a': 'admin/tasks#index' })).toHaveLength(1);
+      expect(expand({ 'get /b': 'my-tasks#index' })).toHaveLength(1);
+      expect(expand({ 'get /c': 'tasks_2#index' })).toHaveLength(1);
+    });
+  });
+
+  describe('a route that overrides another', () => {
+    test('says which entry took it, and from whom', () => {
+      const overrides = [];
+
+      expand(
+        {
+          'get /tasks': 'legacy#index',
+          'resources tasks': { controller: 'tasks' },
+        },
+        { onOverride: (event) => overrides.push(event) }
+      );
+
+      expect(overrides).toHaveLength(1);
+      expect(overrides[0]).toMatchObject({
+        by: 'resources tasks',
+        controller: 'tasks#index',
+        declaredBy: 'get /tasks',
+        previous: 'legacy#index',
+        route: 'get /tasks',
+      });
+    });
+
+    test('stays quiet when the same entry is simply repeated', () => {
+      const overrides = [];
+
+      expand(
+        { 'get /tasks': 'tasks#index' },
+        { onOverride: (event) => overrides.push(event) }
+      );
+
+      expect(overrides).toHaveLength(0);
+    });
+  });
 });

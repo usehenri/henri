@@ -187,6 +187,22 @@ module.exports = {
 };
 ```
 
+## When two entries claim the same route
+
+Later entries win, which is what lets a `resources` block be corrected by a line below it. When
+the winner is a different controller, henri says so at boot rather than leaving you to wonder
+why a route reaches the wrong place:
+
+```
+router ⚠ get /tasks is declared twice: "get /tasks" gives it to legacy#index, "resources tasks" overrides it with tasks#index
+```
+
+Repeating the same entry is silent, since nothing changed.
+
+A controller name is checked when the routes are expanded. `{ controller: 'ship ' }` fails at
+boot naming the route, rather than travelling to the loader and surfacing later as a missing
+controller, which sends you looking for a file that is right there.
+
 ## Named paths
 
 Every loaded route gets a name, `<action>_<controller>_path` (`show_todo_path`, `index_categories_path`), mapping to `{ method, route, roles }`. The rule holds whatever the route came from, so a member route of `posts` is `archive_posts_path` and a controller in a sub-directory keeps its folder: `admin/users#index` is `index_admin/users_path`. Pages rendered with `res.render()` (and the JSON answer of the same URL) receive them in `paths`, filtered by the roles of the current user; a page served by the view engine's fallback, without a controller, only gets the routes that need no role. The React and Inertia helpers `pathFor()` and `getRoute()` build URLs from these names, so a renamed route does not break your links.

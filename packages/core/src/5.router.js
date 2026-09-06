@@ -108,7 +108,14 @@ class Router extends BaseModule {
       }
     }
 
-    this.routes = table(this.rawRoutes);
+    this.routes = table(this.rawRoutes, {
+      onOverride: ({ route, previous, controller, declaredBy, by }) =>
+        this.henri.pen.warn(
+          'router',
+          `${route} is declared twice: "${declaredBy}" gives it to ${previous},`,
+          `"${by}" overrides it with ${controller}`
+        ),
+    });
 
     for (let key of Object.keys(this.routes)) {
       if (typeof this.routes[key] !== 'undefined') {
