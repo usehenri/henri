@@ -196,6 +196,43 @@ describe('henri doctor', () => {
     );
   });
 
+  test('runs the configuration through the schema of @usehenri/core', () => {
+    const file = path.join(app, 'config/default.json');
+    const original = fs.readFileSync(file, 'utf8');
+
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        ...JSON.parse(original),
+        port: 'eight thousand',
+        renderers: 'react',
+      })
+    );
+
+    const { ok, problems } = run(app);
+
+    fs.writeFileSync(file, original);
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'config.invalid',
+        file: 'config/default.json',
+        level: 'error',
+        message: expect.stringContaining(
+          '"port" must be a port number between 1 and 65535'
+        ),
+      })
+    );
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'config.unknown',
+        hint: 'Did you mean "renderer"?',
+        level: 'warning',
+      })
+    );
+  });
+
   test('reports .env not ignored, and a missing .env as a warning', () => {
     const ignore = path.join(app, '.gitignore');
     const original = fs.readFileSync(ignore, 'utf8');

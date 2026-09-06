@@ -2,7 +2,48 @@ const fs = require('fs');
 const path = require('path');
 
 const { commands, version } = require('../package.json');
+const { CliError, toCliError } = require('../scripts/errors');
 const { cleanup, henri, tmpdir } = require('./helpers');
+
+describe('errors', () => {
+  test('a coded error keeps its code, its hint and its problems', () => {
+    const invalid = Object.assign(new Error('invalid configuration'), {
+      code: 'CONFIG_INVALID',
+      hint: 'See the documentation',
+      problems: [{ key: 'port' }],
+    });
+    // How a boot failure reaches the command line: wrapped by henri.init()
+    const failure = toCliError(
+      new Error('henri - unable to execute init(): invalid configuration', {
+        cause: invalid,
+      })
+    );
+
+    expect(failure).toBeInstanceOf(CliError);
+    expect(failure.code).toBe('CONFIG_INVALID');
+    expect(failure.exitCode).toBe(1);
+    expect(failure.hint).toBe('See the documentation');
+    expect(failure.message).toBe('invalid configuration');
+    expect(failure.problems).toEqual([{ key: 'port' }]);
+  });
+
+  test('anything else is a FAILED wrapper', () => {
+    const failure = toCliError(new Error('boom'));
+
+    expect(failure.code).toBe('FAILED');
+    expect(failure.exitCode).toBe(1);
+    expect(failure.problems).toBeUndefined();
+  });
+
+  test('a cause chain that loops is walked once', () => {
+    const first = new Error('first');
+    const second = new Error('second', { cause: first });
+
+    first.cause = second;
+
+    expect(toCliError(second).code).toBe('FAILED');
+  });
+});
 
 describe('the cli', () => {
   let dir;

@@ -40,6 +40,7 @@ const EXIT_CODES = [
  */
 const CODES = {
   CHECKS_FAILED: 1,
+  CONFIG_INVALID: 1,
   EXISTS: 1,
   FAILED: 1,
   NEEDS_TTY: 4,
@@ -72,14 +73,57 @@ class CliError extends Error {
 }
 
 /**
- * Coerce anything thrown into a CliError
+ * The first error of a `cause` chain that already carries one of CODES
+ *
+ * A boot failure reaches the command line wrapped ("henri - unable to
+ * execute init(): ..."), so the error that knows what went wrong -- the
+ * ConfigurationError of `@usehenri/core`, for one -- is a cause away.
  *
  * @param {*} error What was thrown
- * @returns {CliError} The same error, or a FAILED wrapper around it
+ * @returns {?object} The error carrying the code, or null
+ */
+const coded = (error) => {
+  const seen = new Set();
+  let current = error;
+
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+
+    if (typeof current.code === 'string' && CODES[current.code]) {
+      return current;
+    }
+
+    current = current.cause;
+  }
+
+  return null;
+};
+
+/**
+ * Coerce anything thrown into a CliError
+ *
+ * An error that already names one of CODES keeps it, along with its hint
+ * and its message, wherever it sits in the `cause` chain.
+ *
+ * @param {*} error What was thrown
+ * @returns {CliError} The same error, or a wrapper around it
  */
 const toCliError = (error) => {
   if (error instanceof CliError) {
     return error;
+  }
+
+  const known = coded(error);
+
+  if (known) {
+    const wrapped = new CliError(known.code, known.message, {
+      cause: error instanceof Error ? error : undefined,
+      hint: known.hint || null,
+    });
+
+    wrapped.problems = known.problems;
+
+    return wrapped;
   }
 
   const message = (error && error.message) || String(error);

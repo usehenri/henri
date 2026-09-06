@@ -159,6 +159,7 @@ function fail(command, error, json = false) {
           exitCode: failure.exitCode,
           hint: failure.hint,
           message: failure.message,
+          ...(failure.problems ? { problems: failure.problems } : {}),
         },
       })
     );
