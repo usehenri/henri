@@ -349,6 +349,17 @@ false` (`calls.kept-forever`: a [call log](/guides/calls/) holds the bodies
 users sent, so a copy of them that nothing ever sweeps is not a setting but
 an accumulation).
 
+**A client address the configuration cannot support** — a
+[`calls.address.from`](/guides/calls/#the-clients-address) covering every
+address (`calls.address-from-any`), which says "believe this header from
+anybody" and lets a client choose the address its own requests are recorded
+under; and, in a configuration a production boot reads, a call log with
+`trustProxy: true` (`calls.address-unverified`). The second is a
+disappointment rather than a hole -- henri refuses to believe a forwarded
+address under a blanket `trustProxy` and records none, which is the point --
+but an empty column nobody was told about is a surprise in an incident, and
+an incident is the worst time to find out.
+
 **Schema changes nobody reviewed** — an `mssql` store with `"sync": true`
 in `config/default.json` or `config/production.json`, which makes a
 production boot run DDL of its own from whatever the models happen to say

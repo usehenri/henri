@@ -87,6 +87,15 @@ their `externalId` when they have one, and an HMAC of their address keyed
 with `config.secret`. The address itself is never in the table -- which is
 what makes the trail survive the erasure it recorded.
 
+### It records no address, and is not going to
+
+An IP address is a value about a person, and this table refuses values. It
+would also be the one place holding personal data that an erasure cannot
+reach: the entries are hash-chained, so a row written over breaks the chain
+that makes the trail evidence in the first place. Where a request came from
+belongs in [the call log](/guides/calls/#the-clients-address), which holds
+values on purpose, is kept for days rather than a year, and can be erased.
+
 ## How it stays append-only
 
 A database will happily let anyone `UPDATE` a row, so "append-only" is not a

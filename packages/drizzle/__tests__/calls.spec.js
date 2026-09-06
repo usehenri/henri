@@ -11,7 +11,7 @@
 // offline and is the reason this suite exists at all.
 const { build, target } = require('./helpers');
 
-const { storeFor } = require('../../core/src/base/call-store');
+const { install, storeFor } = require('../../core/src/base/call-store');
 const { callsConfig, toCall, toRow } = require('../../core/src/base/calls');
 const { redact } = require('../../core/src/base/redact');
 
@@ -153,6 +153,111 @@ describe(`the call log on ${target.name}`, () => {
     expect(call.at).toMatch(/^\d{4}-/u);
   });
 
+  test('the address goes in and comes back, all three columns of it', async () => {
+    await store.insert([
+      row({
+        address: {
+          client: '203.0.113.9',
+          peer: '10.1.2.3',
+          source: 'proxy',
+        },
+        direction: 'in',
+        id: 'with-an-address',
+        requestId: 'addressed',
+        route: '/orders',
+        url: '/orders',
+      }),
+      row({
+        // What a row holds when the configuration could not support an
+        // answer: the peer, and a word saying why the client is empty
+        address: { client: null, peer: '10.1.2.3', source: 'unverified' },
+        direction: 'in',
+        id: 'without-an-address',
+        requestId: 'addressed',
+        url: '/orders',
+      }),
+      // An anonymized one keeps its prefix length, which is why the column
+      // is wide enough for a full IPv6 and a `/48`
+      row({
+        address: {
+          client: '2001:db8:85a3::/48',
+          peer: '2001:db8:1::/48',
+          source: 'header',
+        },
+        direction: 'in',
+        id: 'truncated-address',
+        requestId: 'addressed',
+        url: '/orders',
+      }),
+    ]);
+
+    const found = Object.fromEntries(
+      (await store.list({ requestId: 'addressed' }))
+        .map(toCall)
+        .map((call) => [call.id, call.address])
+    );
+
+    expect(found['with-an-address']).toEqual({
+      client: '203.0.113.9',
+      peer: '10.1.2.3',
+      source: 'proxy',
+    });
+    expect(found['without-an-address']).toEqual({
+      client: null,
+      peer: '10.1.2.3',
+      source: 'unverified',
+    });
+    expect(found['truncated-address'].client).toBe('2001:db8:85a3::/48');
+  });
+
+  test('a person is taken out of the rows that named them, and the rows stay', async () => {
+    await store.insert([
+      row({
+        actor: '018f5c2e-1f2a-7c31-9f0a-2b7c1d3e4f56',
+        address: { client: '203.0.113.9', peer: '10.1.2.3', source: 'proxy' },
+        direction: 'in',
+        id: 'theirs',
+        request: { body: { note: 'about them' }, headers: { accept: 'x' } },
+        requestId: 'erasure',
+        route: '/profile',
+        status: 200,
+        url: '/profile',
+      }),
+      row({
+        actor: '018f5c2e-1f2a-7c31-9f0a-000000000000',
+        address: { client: '198.51.100.4', peer: '10.1.2.3', source: 'proxy' },
+        direction: 'in',
+        id: 'somebody-elses',
+        requestId: 'erasure',
+        url: '/profile',
+      }),
+    ]);
+
+    expect(await store.forget('018f5c2e-1f2a-7c31-9f0a-2b7c1d3e4f56')).toBe(1);
+    // A person nobody's rows name is a clean, empty, successful run
+    expect(await store.forget('018f5c2e-0000-7c31-9f0a-2b7c1d3e4f56')).toBe(0);
+
+    const found = Object.fromEntries(
+      (await store.list({ requestId: 'erasure' }))
+        .map(toCall)
+        .map((call) => [call.id, call])
+    );
+
+    expect(found.theirs.actor).toBeNull();
+    expect(found.theirs.address).toEqual({
+      client: null,
+      peer: null,
+      source: 'proxy',
+    });
+    expect(found.theirs.request.body).toBeNull();
+    expect(found.theirs.request.headers).toBeNull();
+    // The operational record of a request that did happen, naming nobody
+    expect(found.theirs.route).toBe('/profile');
+    expect(found.theirs.status).toBe(200);
+    // ... and nobody else was touched
+    expect(found['somebody-elses'].address.client).toBe('198.51.100.4');
+  });
+
   test('a filter the store cannot use narrows rather than widening', async () => {
     const since = Date.now() + DAY;
 
@@ -181,6 +286,67 @@ describe(`the call log on ${target.name}`, () => {
     expect(await store.count({ requestId: 'bulk' })).toBe(25);
     // And a second pass finds nothing rather than looping
     expect((await store.sweep(before, { batch: 5 })).removed).toBe(0);
+  });
+});
+
+/**
+ * A call log an older henri created, which is the one henri will find in
+ * every application that turned the feature on before the address columns
+ * existed.
+ *
+ * `CREATE TABLE IF NOT EXISTS` is a no-op on it, so without the `ALTER`s
+ * every insert would name three columns the table has not got. This builds
+ * exactly what the previous version emitted -- the same statement with the
+ * three column definitions taken out -- and then lets `install()` catch it
+ * up.
+ */
+describe(`a table created before the address columns, on ${target.name}`, () => {
+  const table = 'henri_calls_old';
+  let adapter = null;
+  let store = null;
+
+  beforeAll(async () => {
+    ({ adapter } = build());
+    await adapter.start();
+    store = storeFor(adapter, settings({ table }));
+
+    const [create] = install(store.dialect, table);
+
+    await store.run(
+      create.replace(/\n\s*(?:client_ip|peer_ip|ip_source) [^,]+,/gu, '')
+    );
+  }, 60000);
+
+  afterAll(async () => {
+    await adapter.stop();
+  });
+
+  test('install adds what is missing, and says nothing when it is there', async () => {
+    await expect(store.install()).resolves.toBeDefined();
+    // Idempotent: the second pass meets its own columns and swallows it
+    await expect(store.install()).resolves.toBeDefined();
+
+    await store.insert([
+      row({
+        address: {
+          client: '203.0.113.9',
+          peer: '10.1.2.3',
+          source: 'proxy',
+        },
+        direction: 'in',
+        id: 'after-the-upgrade',
+        requestId: 'upgraded',
+        url: '/orders',
+      }),
+    ]);
+
+    const [call] = (await store.list({ requestId: 'upgraded' })).map(toCall);
+
+    expect(call.address).toEqual({
+      client: '203.0.113.9',
+      peer: '10.1.2.3',
+      source: 'proxy',
+    });
   });
 });
 
@@ -254,6 +420,29 @@ partitioned(`partitions on ${target.name}`, () => {
 
     expect(await store.count({ requestId: 'day-20' })).toBe(1);
     expect(await store.count({ requestId: 'day-22' })).toBe(1);
+  });
+
+  test('an address survives the partitioned path too', async () => {
+    await store.insert([
+      row({
+        address: { client: '203.0.113.9', peer: '10.1.2.3', source: 'proxy' },
+        at: Date.UTC(2026, 8, 22, 2),
+        direction: 'in',
+        id: 'partitioned-address',
+        requestId: 'day-22-address',
+        url: '/orders',
+      }),
+    ]);
+
+    const [call] = (await store.list({ requestId: 'day-22-address' })).map(
+      toCall
+    );
+
+    expect(call.address).toEqual({
+      client: '203.0.113.9',
+      peer: '10.1.2.3',
+      source: 'proxy',
+    });
   });
 
   test('a row outside every period is kept by the catch-all, not refused', async () => {

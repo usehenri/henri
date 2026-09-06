@@ -4,6 +4,7 @@ const debug = require('debug')('henri:calls');
 const { randomUUID } = require('node:crypto');
 
 const { check } = require('./base/arguments');
+const { describeAddress } = require('./base/address');
 const { fail } = require('./base/errors');
 const { currentRequestId } = require('./base/request-id');
 const { storeFor } = require('./base/call-store');
@@ -93,6 +94,8 @@ class Calls extends BaseModule {
     this.track = this.track.bind(this);
     this.list = this.list.bind(this);
     this.about = this.about.bind(this);
+    this.forPerson = this.forPerson.bind(this);
+    this.forget = this.forget.bind(this);
     this.prune = this.prune.bind(this);
 
     debug('constructor initialized');
@@ -154,7 +157,13 @@ class Calls extends BaseModule {
       this.settings.partition
         ? `${this.settings.partition} partitions`
         : 'swept by deleting rows',
-      `sample ${this.settings.sample}, at most ${this.settings.maxPerSecond}/s`
+      `sample ${this.settings.sample}, at most ${this.settings.maxPerSecond}/s`,
+      // Where an address comes from is a decision an operator has to be
+      // able to read back without opening the configuration
+      describeAddress(
+        this.settings.address,
+        config.has('trustProxy') ? config.get('trustProxy') : true
+      )
     );
 
     return this.name;
@@ -282,6 +291,8 @@ class Calls extends BaseModule {
 
     return this.record({
       actor: actorOf(req.user),
+      // Read by the middleware, while the socket was still open
+      address: state.address,
       at: state.at,
       direction: 'in',
       duration,
@@ -550,6 +561,53 @@ class Calls extends BaseModule {
       since: moment(filter.since),
       until: moment(filter.until),
     };
+  }
+
+  /**
+   * Everything the log holds about one person.
+   *
+   * The call log holds **values**, which is the whole difference between
+   * it and the access trail: the trail can outlive an erasure because it
+   * holds field names and digests, and this one cannot. So a person's rows
+   * answer a data subject request like any other record about them --
+   * `henri privacy:export` reads them here and `henri privacy:erase`
+   * writes over them.
+   *
+   * A row is theirs when it carries their `externalId` as its `actor`,
+   * which is the only join there is: an anonymous request is an address
+   * and nothing henri can tie to a person.
+   *
+   * @async
+   * @param {string} actor the person's `externalId`
+   * @param {object} [filter={}] the rest of the filter (`limit`, `since`)
+   * @returns {Promise<Array<object>>} their calls
+   * @memberof Calls
+   */
+  async forPerson(actor, filter = {}) {
+    check('henri.calls.forPerson', [actor, filter]);
+
+    return this.list({ ...filter, actor });
+  }
+
+  /**
+   * Takes one person out of the rows that named them.
+   *
+   * The row survives and the person does not: the `actor`, the two
+   * addresses and the four payload columns are written over, and the
+   * moment, the method, the url, the route, the status and the request id
+   * are left, because a request did happen and that record names nobody.
+   *
+   * @async
+   * @param {string} actor the person's `externalId`
+   * @returns {Promise<number>} how many rows named them
+   * @memberof Calls
+   */
+  async forget(actor) {
+    check('henri.calls.forget', [actor]);
+
+    await this.flush();
+
+    return this.ready().forget(actor);
   }
 
   /**

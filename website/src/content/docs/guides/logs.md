@@ -161,6 +161,13 @@ It is the shape `henri.mailers.onDeliverLater()` already established: one handle
 
 And what it never gets, which is the part worth reading twice: **nothing that came from the client and nothing about a person.** No url, no query string, no body, no params, no headers, no cookies, no session and no user. The method, the route pattern and the status are what henri chose; the path is not, because `/users/ada@example.com` is a path in some applications and a personal field in all of them. If you want the record, you have the request id and your own logs.
 
+That includes **the client's address**, which is deliberately not in a
+report and is not going to be: the property that makes a handler safe to
+point at a third-party error service is that henri hands it nothing the
+client chose, and an address is from the client. Where a request came from
+is recorded, under rules of its own, by [the call
+log](/guides/calls/#the-clients-address), and the request id joins the two.
+
 The two deliberate exceptions:
 
 - `error` is handed over as it is. A reporter exists for the stack, and a framework that rewrote your Error would be reporting something that never happened. What an error carries is your business; what henri _adds_ is what the rule governs.

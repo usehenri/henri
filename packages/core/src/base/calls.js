@@ -111,7 +111,14 @@
  *   before it is serialized -- rather than by tapping the socket;
  * - the person is the `externalId` and nothing else. Not the primary key,
  *   not the email address: `publicUser()` already decided what a person
- *   looks like when they leave the server and this follows it.
+ *   looks like when they leave the server and this follows it;
+ * - **the client's address is three columns of its own, never a header.**
+ *   What henri believes, when it refuses to believe anything, and why the
+ *   forwarding headers are masked out of the stored blob is the header of
+ *   `base/address.js`. The short version: `X-Forwarded-For` is believed
+ *   through `config.trustProxy` and a named header through
+ *   `calls.address.from`, and a blanket `trustProxy: true` in front of a
+ *   forwarded request records no client address at all.
  *
  * ## How it is swept
  *
@@ -126,6 +133,13 @@
  */
 
 const { EXTERNAL_ID } = require('./external-id');
+const {
+  FORWARDING,
+  MAX,
+  SOURCES,
+  addressConfig,
+  addressOf,
+} = require('./address');
 const { currentRequestId } = require('./request-id');
 const { isFiltered, redactor, urlRedactor } = require('./redact');
 const { fail } = require('./errors');
@@ -153,6 +167,13 @@ const PARTITIONABLE = ['mysql', 'postgres'];
  * The headers whose value is never stored, whatever `filterParameters`
  * says. They are the credentials of the exchange, and a list an
  * application has to remember to write down is a list it forgets.
+ *
+ * The forwarding headers (`base/address.js`) are in it for a different
+ * reason: they carry addresses, an address is personal data, and the stored
+ * headers are one blob the erasure cannot reach inside. Masking them here
+ * is what keeps the address in the columns that *can* be truncated,
+ * exported and erased, rather than in two places with one of them out of
+ * reach.
  */
 const DENIED = Object.freeze([
   'authorization',
@@ -162,6 +183,7 @@ const DENIED = Object.freeze([
   'webhook-signature',
   'x-api-key',
   'x-csrf-token',
+  ...FORWARDING,
 ]);
 
 /** What a row says when a body was longer than `calls.maxBody` */
@@ -276,6 +298,7 @@ function callsConfig(config) {
 
   if (raw === false || raw === null || typeof raw === 'undefined') {
     return {
+      address: null,
       always: [],
       batch: 500,
       buffer: 1000,
@@ -303,6 +326,7 @@ function callsConfig(config) {
       : 1;
 
   return {
+    address: addressConfig(settings.address),
     always: Array.isArray(settings.always)
       ? settings.always.filter((name) => ALWAYS.includes(name))
       : ['error'],
@@ -638,7 +662,14 @@ function inbound(henri) {
     const at = Date.now();
     const started = process.hrtime.bigint();
     const keep = calls.samples(req.id);
-    const state = { body: undefined, keep };
+    // The address is read here rather than at `close`: an aborted request
+    // has no `remoteAddress` left by the time the socket has gone, and an
+    // aborted request is exactly what `calls.always` keeps
+    const state = {
+      address: addressOf(req, calls.settings.address),
+      body: undefined,
+      keep,
+    };
 
     // The response body is taken as a *value* from `res.json`, never off
     // the socket: a value can be walked and redacted, bytes cannot. Only a
@@ -738,18 +769,23 @@ function toRow(call, context) {
     response.truncated ? 'response' : null,
   ].filter(Boolean);
 
+  const address = call.address || {};
+
   return {
     actor: call.actor || null,
     at: call.at,
+    client_ip: text(address.client, MAX),
     direction: DIRECTIONS.includes(call.direction) ? call.direction : 'out',
     duration: Number.isFinite(call.duration) ? Math.round(call.duration) : null,
     error: call.error ? String(call.error).slice(0, 190) : null,
     id: call.id,
+    ip_source: SOURCES.includes(address.source) ? address.source || null : null,
     meta: metaOf(call, { request, response }, redact),
     method: String(call.method || 'GET')
       .toUpperCase()
       .slice(0, 12),
     outcome: OUTCOMES.includes(call.outcome) ? call.outcome : outcomeOf(call),
+    peer_ip: text(address.peer, MAX),
     request_body: request.body,
     request_headers: jsonOf(
       headers(call.request && call.request.headers, head)
@@ -765,6 +801,17 @@ function toRow(call, context) {
     truncated: truncated.length > 0 ? truncated.join(',') : null,
     url: safeUrl(call.url, mask),
   };
+}
+
+/**
+ * A string column, bounded, or null
+ *
+ * @param {*} value anything
+ * @param {number} max the longest the column takes
+ * @returns {?string} the value, or null
+ */
+function text(value, max) {
+  return typeof value === 'string' && value !== '' ? value.slice(0, max) : null;
 }
 
 /**
@@ -845,6 +892,13 @@ function toCall(row) {
 
   return {
     actor: row.actor || null,
+    address: {
+      // `client` is null when the configuration could not support an
+      // answer, and `source` says which of the two nulls this is
+      client: row.client_ip || null,
+      peer: row.peer_ip || null,
+      source: row.ip_source || null,
+    },
     at: Number.isFinite(at) ? new Date(at).toISOString() : null,
     direction: row.direction,
     duration: row.duration === null ? null : Number(row.duration),
@@ -960,6 +1014,7 @@ module.exports = {
   outcomeOf,
   safeUrl,
   seedOf,
+  text,
   toCall,
   toRow,
   track,

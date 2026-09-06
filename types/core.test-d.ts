@@ -421,6 +421,25 @@ henri.calls.list({ direction: 'sideways' });
 // @ts-expect-error a call log is read back by request id, never by address
 henri.calls.about({ email: 'someone@example.test' });
 
+// A person's own rows: what privacy:export reads and privacy:erase writes
+// over. The join is the externalId, so an anonymous request is nobody's
+expectType<Promise<CallRecord[]>>(
+  henri.calls.forPerson('018f5c2e-1f2a-7c31-9f0a-2b7c1d3e4f56')
+);
+expectType<Promise<number>>(
+  henri.calls.forget('018f5c2e-1f2a-7c31-9f0a-2b7c1d3e4f56')
+);
+
+// The address is three things a row holds, and `client` is nullable
+// because henri says so rather than guessing
+expectType<'header' | 'proxy' | 'socket' | 'unverified' | null>(
+  (null as unknown as CallRecord).address.source
+);
+
+// @ts-expect-error the address a call carries is read off the row, not
+// asked for in a filter
+henri.calls.list({ client: '203.0.113.9' });
+
 // --- controllers ------------------------------------------------------------
 
 const tasks: Controller = {

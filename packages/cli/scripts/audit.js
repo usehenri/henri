@@ -74,6 +74,20 @@ const STANDARDS = { asvs: '4.0.3', owasp: 'Top 10:2021' };
  */
 const CHECKS = [
   {
+    asvs: null,
+    check: 'calls.address-from-any',
+    level: null,
+    owasp: 'A05',
+    what: 'calls.address.from covers every address, so any client may choose the address recorded for it',
+  },
+  {
+    asvs: null,
+    check: 'calls.address-unverified',
+    level: null,
+    owasp: 'A09',
+    what: '"trustProxy": true with a call log: the client address cannot be believed, so the column stays empty',
+  },
+  {
     asvs: 'V7.1.1',
     check: 'calls.kept-forever',
     level: 1,
@@ -1040,6 +1054,51 @@ const configFindings = (config, { file, hasUser }) => {
       'calls.keep is false, so the call log keeps every request and response body it captured for as long as the database lasts: it is a copy of what users sent, growing without a sweep',
       `Give it a period in ${file} ("calls": { "keep": "30d" }), which the retention sweep enforces`,
       'V7.1.1'
+    );
+  }
+
+  // Two ways a call log ends up with an address column that is worse than
+  // useless. The first is the dangerous one: a range covering everything
+  // says "believe this header from anybody", which is a client choosing
+  // what an operator reads when they ask who did something. The second is
+  // only a disappointment -- henri refuses to believe a forwarded address
+  // under a blanket trustProxy, so the column is empty rather than forged
+  // -- but an empty column nobody was told about is a surprise in an
+  // incident, which is the worst time to find out
+  if (isObject(config.calls) && isObject(config.calls.address)) {
+    const from = config.calls.address.from;
+    const everything = Array.isArray(from)
+      ? from.filter((entry) =>
+          /^(?:0\.0\.0\.0\/0|::\/0)$/u.test(String(entry).trim())
+        )
+      : [];
+
+    if (everything.length > 0) {
+      add(
+        'high',
+        'calls.address-from-any',
+        OWASP.A05,
+        `calls.address.from includes ${everything.join(', ')}, so henri believes ${config.calls.address.header || 'the named header'} from any peer: a client can choose the address its own requests are recorded under`,
+        'List the addresses or ranges of the proxies actually in front of henri ("from": ["10.0.0.0/8"]); a header from anywhere else is text the client typed',
+        null
+      );
+    }
+  }
+
+  if (
+    isObject(config.calls) &&
+    config.calls.address !== false &&
+    config.trustProxy === true &&
+    !(isObject(config.calls.address) && config.calls.address.header) &&
+    PRODUCTION_CONFIGS.includes(file)
+  ) {
+    add(
+      'low',
+      'calls.address-unverified',
+      OWASP.A09,
+      '"trustProxy": true means a forwarded address could have been sent by anyone, so the call log records no client address at all and says "unverified": the column an incident is read with will be empty',
+      `Set trustProxy to the number of proxies in front of henri in ${file} ("trustProxy": 1), or to false when nothing is, and the address becomes believable`,
+      null
     );
   }
 

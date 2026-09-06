@@ -412,6 +412,7 @@ turning it on.
 ```json
 {
   "calls": {
+    "address": { "header": "cf-connecting-ip", "from": ["10.0.0.0/8"] },
     "keep": "30d",
     "sample": 0.05,
     "maxPerSecond": 100,
@@ -427,6 +428,7 @@ turning it on.
 
 | Key               | Default         | Description                                                                                                                                                                                    |
 | ----------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `address`         | `{}`            | What is recorded about the client's address: `{ anonymize, header, from }`, or `false` for none. See [the client's address](/guides/calls/#the-clients-address).                               |
 | `keep`            | `"30d"`         | How long a row is kept. The retention sweep prunes them; `false` keeps them forever, which on this table is a decision to make on purpose.                                                     |
 | `sample`          | `1`             | The share of requests recorded, from `0` to `1`. The decision is a hash of the request id seeded with `secret`, so the inbound call and every outbound call it caused agree, in every process. |
 | `maxPerSecond`    | `100`           | The absolute per-process ceiling on rows a second, or `false` for none. Sampling is proportional and a burst is not, so this is what a spike runs into.                                        |

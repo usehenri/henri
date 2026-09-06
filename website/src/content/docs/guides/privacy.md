@@ -184,6 +184,34 @@ An application that wants a page rather than a command calls the same thing:
 const document = await henri.privacy.export(req.user);
 ```
 
+## The two framework tables
+
+The walk above is over your **models**, and the tables henri owns itself are
+not models. Two of them hold something about a person, and they answer
+differently on purpose.
+
+**[The call log](/guides/calls/) answers.** It holds values -- the bodies of
+a request, and the address it came from -- so there is something to hand
+over and something to write over, and _wait for `calls.keep` to come round_
+is a deadline rather than an answer to a data subject request. Its rows join
+on the `externalId`, so only the requests a person was signed in for are
+theirs; an anonymous request is an address and nothing henri can tie to
+anybody. The export carries them under a `calls` key, and the erasure writes
+over the `actor`, both addresses and the four payload columns, leaving the
+moment, the method, the url, the route, the status and the request id --
+the record of a request that did happen, naming nobody.
+
+It is **best effort** in both, and the receipt says so: an erasure that has
+already written over a person's records must not fail because a debugging
+log was unreachable.
+
+**[The access trail](/guides/trail/) does not, and that is deliberate.** It
+holds field _names_, counts, public identifiers and digests and refuses a
+value, which is exactly what lets it outlive the erasure it recorded -- it
+is the evidence that the erasure happened. It is also hash-chained, so a row
+written over would break the chain. Its retention is its own clock
+(`trail.keep`).
+
 ## Erasure
 
 ```bash

@@ -60,6 +60,7 @@
  * `fetch`), `henri.privacy` (`fields`, `strip`, `subject`, `export`,
  * `plan`, `erase`), `henri.retention` (`plan`, `sweep`), `henri.trail`
  * (`list`, `count`, `about`, `prune`), `henri.calls` (`list`, `count`,
+ * `forPerson`, `forget`,
  * `about`, `prune`, `outbound`, `track`), `henri.encryption` (`markOf`,
  * `encrypt`, `decrypt`, `candidates`, `tolerate`, `rotate`),
  * `henri.user` (`compare`, `encrypt`, `publicUser`), `henri.accounts`
@@ -621,6 +622,13 @@ const SIGNATURES = {
   ],
 
   'henri.calls.count': [{ name: 'filter', optional: true, ...CALL_FILTER }],
+
+  'henri.calls.forPerson': [
+    { name: 'actor', ...NAME },
+    { name: 'filter', optional: true, ...CALL_FILTER },
+  ],
+
+  'henri.calls.forget': [{ name: 'actor', ...NAME }],
 
   'henri.calls.list': [{ name: 'filter', optional: true, ...CALL_FILTER }],
 

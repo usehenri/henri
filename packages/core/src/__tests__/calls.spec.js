@@ -25,6 +25,35 @@ const {
   startOf,
 } = require('../base/call-store');
 const { redactor, urlRedactor } = require('../base/redact');
+const {
+  addressConfig,
+  addressOf,
+  anonymize,
+  describeAddress,
+  normalize,
+} = require('../base/address');
+
+/** The code a call refused with, without an expect() inside a catch */
+const refused = (work) => {
+  try {
+    work();
+
+    return null;
+  } catch (error) {
+    return error.code;
+  }
+};
+
+/**
+ * A request, as this file needs one: what express would have decided, the
+ * headers a client actually sent, and the socket underneath
+ */
+const asking = (over = {}) => ({
+  app: { get: () => over.trust },
+  headers: over.headers || {},
+  ip: over.ip,
+  socket: { remoteAddress: over.peer || '::ffff:172.16.0.9' },
+});
 
 /** A configuration module standing in for the real one */
 const config = (calls) => ({
@@ -274,6 +303,260 @@ describe('what never reaches a row', () => {
   });
 });
 
+describe('the client address', () => {
+  test('a stored address has one spelling', () => {
+    expect(normalize('::ffff:203.0.113.9')).toBe('203.0.113.9');
+    expect(normalize('fe80::1%lo0')).toBe('fe80::1');
+    expect(normalize('  203.0.113.9  ')).toBe('203.0.113.9');
+    expect(normalize('not-an-address')).toBeNull();
+    expect(normalize(undefined)).toBeNull();
+  });
+
+  test('anonymizing keeps the prefix length in the value', () => {
+    expect(anonymize('203.0.113.9')).toBe('203.0.113.0/24');
+    expect(anonymize('2001:db8:85a3:1234::1')).toBe('2001:db8:85a3::/48');
+    expect(anonymize('::1')).toBe('::/48');
+    expect(anonymize(null)).toBeNull();
+  });
+
+  test('with nothing in front, the peer is the client and a forged header changes nothing', () => {
+    const forged = { 'x-forwarded-for': '1.2.3.4' };
+
+    expect(
+      addressOf(
+        asking({ headers: forged, ip: '172.16.0.9', trust: false }),
+        addressConfig({})
+      )
+    ).toEqual({
+      client: '172.16.0.9',
+      peer: '172.16.0.9',
+      source: 'socket',
+    });
+  });
+
+  test('with a hop count, express decides and henri says a proxy vouched', () => {
+    expect(
+      addressOf(
+        asking({
+          headers: { 'x-forwarded-for': '203.0.113.9' },
+          ip: '203.0.113.9',
+          trust: 1,
+        }),
+        addressConfig({})
+      )
+    ).toEqual({
+      client: '203.0.113.9',
+      peer: '172.16.0.9',
+      source: 'proxy',
+    });
+  });
+
+  // The whole point of the feature: `trustProxy: true` is express'
+  // "believe whoever sent it", so an address taken from it is a value the
+  // client chose. An empty column asks a question; a forged one answers it
+  test('a forged header under a blanket trustProxy records no client at all', () => {
+    const answer = addressOf(
+      asking({
+        headers: { 'x-forwarded-for': '1.2.3.4' },
+        ip: '1.2.3.4',
+        trust: true,
+      }),
+      addressConfig({})
+    );
+
+    expect(answer).toEqual({
+      client: null,
+      peer: '172.16.0.9',
+      source: 'unverified',
+    });
+    // And the row keeps the hop that can answer
+    expect(answer.peer).toBe('172.16.0.9');
+  });
+
+  // Node joins duplicate headers into one string, so a forwarding header
+  // is a string today. Reading an array as "no header at all" would, under
+  // a blanket trustProxy, record the forged address as though it had come
+  // off the socket -- so the shape is not what the answer rests on
+  test('a forwarding header that arrived as a list is still a forwarded one', () => {
+    expect(
+      addressOf(
+        asking({
+          headers: { 'x-forwarded-for': ['1.2.3.4', '5.6.7.8'] },
+          ip: '1.2.3.4',
+          trust: true,
+        }),
+        addressConfig({})
+      )
+    ).toEqual({ client: null, peer: '172.16.0.9', source: 'unverified' });
+  });
+
+  test('a blanket trustProxy with nothing forwarded is still the socket', () => {
+    expect(
+      addressOf(asking({ ip: '172.16.0.9', trust: true }), addressConfig({}))
+    ).toEqual({ client: '172.16.0.9', peer: '172.16.0.9', source: 'socket' });
+  });
+
+  test('a named header is believed from a listed proxy and from nobody else', () => {
+    const settings = addressConfig({
+      from: ['10.0.0.0/8'],
+      header: 'CF-Connecting-IP',
+    });
+    const headers = {
+      'cf-connecting-ip': '198.51.100.7',
+      'x-forwarded-for': '1.2.3.4',
+    };
+
+    expect(
+      addressOf(asking({ headers, peer: '10.1.2.3', trust: true }), settings)
+    ).toEqual({
+      client: '198.51.100.7',
+      peer: '10.1.2.3',
+      source: 'header',
+    });
+
+    // The same header, sent straight at the application by anybody
+    expect(
+      addressOf(
+        asking({ headers, peer: '203.0.113.200', trust: true }),
+        settings
+      )
+    ).toEqual({
+      client: null,
+      peer: '203.0.113.200',
+      source: 'unverified',
+    });
+  });
+
+  test('a listed proxy that sent no usable header is unverified, never itself', () => {
+    const settings = addressConfig({
+      from: ['10.0.0.0/8'],
+      header: 'cf-connecting-ip',
+    });
+
+    for (const headers of [{}, { 'cf-connecting-ip': 'nonsense' }]) {
+      // The peer is a proxy, so answering with it would be the guess the
+      // whole file exists to refuse
+      expect(
+        addressOf(
+          asking({ headers, ip: '10.1.2.3', peer: '10.1.2.3' }),
+          settings
+        )
+      ).toEqual({ client: null, peer: '10.1.2.3', source: 'unverified' });
+    }
+  });
+
+  test('naming a header with nobody allowed to set it fails, loudly', () => {
+    expect(() => addressConfig({ header: 'cf-connecting-ip' })).toThrow(
+      /names nobody allowed to set it/u
+    );
+    expect(refused(() => addressConfig({ header: 'cf-connecting-ip' }))).toBe(
+      'HENRI_CALLS_ADDRESS_UNVERIFIABLE'
+    );
+
+    expect(() => addressConfig({ from: ['nonsense'] })).toThrow(
+      /neither an address nor a range/u
+    );
+    expect(() => addressConfig({ from: ['10.0.0.0/44'] })).toThrow(
+      /neither an address nor a range/u
+    );
+  });
+
+  test('anonymizing applies to both halves', () => {
+    expect(
+      addressOf(
+        asking({
+          headers: { 'x-forwarded-for': '203.0.113.9' },
+          ip: '203.0.113.9',
+          trust: 1,
+        }),
+        addressConfig({ anonymize: true })
+      )
+    ).toEqual({
+      client: '203.0.113.0/24',
+      peer: '172.16.0.0/24',
+      source: 'proxy',
+    });
+  });
+
+  test('false records none of it', () => {
+    expect(
+      addressOf(asking({ ip: '203.0.113.9', trust: 1 }), addressConfig(false))
+    ).toEqual({ client: null, peer: null, source: null });
+    expect(callsConfig(config({ address: false })).address).toBeNull();
+  });
+
+  test('a row carries the three columns and a call reads them back', () => {
+    const row = toRow(
+      {
+        address: { client: '203.0.113.9', peer: '10.1.2.3', source: 'proxy' },
+        at: 1,
+        direction: 'in',
+        id: 'x',
+        method: 'GET',
+        status: 200,
+        url: '/orders',
+      },
+      context()
+    );
+
+    expect(row.client_ip).toBe('203.0.113.9');
+    expect(row.peer_ip).toBe('10.1.2.3');
+    expect(row.ip_source).toBe('proxy');
+    expect(toCall(row).address).toEqual({
+      client: '203.0.113.9',
+      peer: '10.1.2.3',
+      source: 'proxy',
+    });
+  });
+
+  // The address must not reach the table through the one blob an erasure
+  // cannot write into
+  test('a forwarded header is masked in the stored headers whatever the filters say', () => {
+    const row = toRow(
+      {
+        address: { client: '203.0.113.9', peer: '10.1.2.3', source: 'proxy' },
+        at: 1,
+        direction: 'in',
+        id: 'x',
+        method: 'GET',
+        request: {
+          headers: {
+            'cf-connecting-ip': '203.0.113.9',
+            'true-client-ip': '203.0.113.9',
+            'x-forwarded-for': '203.0.113.9, 10.1.2.3',
+            'x-real-ip': '203.0.113.9',
+          },
+        },
+        status: 200,
+        url: '/orders',
+      },
+      context()
+    );
+
+    expect(JSON.parse(row.request_headers)).toEqual({
+      'cf-connecting-ip': '[FILTERED]',
+      'true-client-ip': '[FILTERED]',
+      'x-forwarded-for': '[FILTERED]',
+      'x-real-ip': '[FILTERED]',
+    });
+    // ... and the address is still in the column that can be truncated,
+    // exported and erased
+    expect(row.client_ip).toBe('203.0.113.9');
+  });
+
+  test('the boot line says where an address comes from', () => {
+    expect(describeAddress(addressConfig({}), true)).toMatch(/unverified/u);
+    expect(describeAddress(addressConfig({}), 1)).toMatch(/X-Forwarded-For/u);
+    expect(describeAddress(addressConfig({}), false)).toBe(
+      'addresses from the socket'
+    );
+    expect(describeAddress(addressConfig({ anonymize: true }), false)).toMatch(
+      /truncated/u
+    );
+    expect(describeAddress(addressConfig(false), true)).toBe('no addresses');
+  });
+});
+
 describe('the four bounds', () => {
   test('an outcome is what decides whether sampling gets to drop it', () => {
     expect(outcomeOf({ status: 200 })).toBe('ok');
@@ -340,6 +623,11 @@ describe('the table, per dialect', () => {
       const statements = install(dialect, 'henri_calls').join('\n');
 
       expect(statements).toContain('request_id');
+      expect(statements).toContain('client_ip');
+      expect(statements).toContain('peer_ip');
+      expect(statements).toContain('ip_source');
+      // A table an older henri created is a no-op for the CREATE above
+      expect(statements).toContain('ADD');
       expect(statements).toContain('PRIMARY KEY (at, id)');
       expect(statements).toContain('henri_calls_request');
       expect(statements).toContain('henri_calls_at');
@@ -500,6 +788,87 @@ describe('the module, in the demo application', () => {
     expect(JSON.stringify(call)).not.toMatch(/called@demo\.test/u);
     // ... and the session cookie the request carried is not in it either
     expect(call.request.headers.cookie).toBe('[FILTERED]');
+  });
+
+  // The demo application sets no trustProxy, so it is henri's default of
+  // `true` -- which is exactly the configuration that cannot tell a real
+  // forwarded address from one a client typed
+  test('a request over the loopback records the address it came from', async () => {
+    const id = `spec-addr-${Date.now()}`;
+
+    await request.post('/echo').set('X-Request-Id', id).send({ title: 'x' });
+    await henri.calls.flush();
+
+    const [call] = await henri.calls.about(id);
+
+    expect(call.address.client).toBe('127.0.0.1');
+    expect(call.address.peer).toBe('127.0.0.1');
+    expect(call.address.source).toBe('socket');
+  });
+
+  test('a forged X-Forwarded-For buys no address at all', async () => {
+    const id = `spec-forged-${Date.now()}`;
+
+    await request
+      .post('/echo')
+      .set('X-Request-Id', id)
+      .set('X-Forwarded-For', '198.51.100.23')
+      .set('CF-Connecting-IP', '198.51.100.99')
+      .send({ title: 'x' });
+    await henri.calls.flush();
+
+    const [call] = await henri.calls.about(id);
+
+    // Not 198.51.100.23, and not the peer pretending to be the client
+    expect(call.address.client).toBeNull();
+    expect(call.address.source).toBe('unverified');
+    expect(call.address.peer).toBe('127.0.0.1');
+    // ... and the address it claimed is nowhere in the row, because the
+    // forwarding headers are masked out of the stored blob
+    expect(JSON.stringify(call)).not.toMatch(/198\.51\.100/u);
+    expect(call.request.headers['x-forwarded-for']).toBe('[FILTERED]');
+  });
+
+  test('a person can be handed their calls, and taken out of them', async () => {
+    const agent = supertest.agent(henri.server.app);
+    const email = 'erased-call@demo.test';
+    const password = 'difference-engine';
+
+    await agent.post('/register').send({ email, name: 'Erased', password });
+    await agent.post('/login').send({ email, password });
+
+    const id = `spec-erase-${Date.now()}`;
+
+    await agent.get('/profile').set('X-Request-Id', id);
+    await henri.calls.flush();
+
+    const [call] = await henri.calls.about(id);
+    const actor = call.actor;
+
+    expect(actor).toEqual(expect.any(String));
+    expect(call.address.client).toBe('127.0.0.1');
+
+    // What `henri privacy:export` hands a person
+    const mine = await henri.calls.forPerson(actor);
+
+    expect(mine.length).toBeGreaterThan(0);
+    expect(mine.every((one) => one.actor === actor)).toBe(true);
+
+    // ... and what `henri privacy:erase` writes over. The row survives and
+    // the person does not
+    expect(await henri.calls.forget(actor)).toBe(mine.length);
+    expect(await henri.calls.forPerson(actor)).toEqual([]);
+
+    const [after] = await henri.calls.about(id);
+
+    expect(after.actor).toBeNull();
+    expect(after.address.client).toBeNull();
+    expect(after.address.peer).toBeNull();
+    expect(after.request.headers).toBeNull();
+    // The operational record of a request that did happen, naming nobody
+    expect(after.route).toBe('/profile');
+    expect(after.status).toBe(200);
+    expect(after.requestId).toBe(id);
   });
 
   test('the health probes are not in it', async () => {

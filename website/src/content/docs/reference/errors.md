@@ -473,6 +473,16 @@ Usually:
 
 The call log of `henri.calls`: the table it owns, the store it lives in and the partitions it sweeps.
 
+### `HENRI_CALLS_ADDRESS_UNVERIFIABLE`
+
+The call log was asked to read the client address out of a header it has no way to verify.
+
+Usually:
+
+- `calls.address.header` names a header and `calls.address.from` names nobody allowed to set it
+
+**Fix.** Any client can send a header, so henri only believes a named one from a proxy the application listed. Add the addresses or the ranges of the proxies in front of henri: `{ "calls": { "address": { "header": "cf-connecting-ip", "from": ["10.0.0.0/8"] } } }`. Remove the header to fall back to `X-Forwarded-For`, which `config.trustProxy` already governs.
+
 ### `HENRI_CALLS_DISABLED`
 
 The call log was read back and this application keeps none.

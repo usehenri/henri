@@ -120,6 +120,31 @@ describe('henri calls', () => {
       expect(stderr).toContain('HENRI_CALLS_DISABLED');
     });
 
+    test('a header a client could have typed is never printed as an answer', () => {
+      const { addressOf } = calls;
+
+      expect(
+        addressOf({ client: '203.0.113.9', peer: '10.1.2.3', source: 'proxy' })
+      ).toBe('from 203.0.113.9 through 10.1.2.3');
+      expect(
+        addressOf({
+          client: '203.0.113.9',
+          peer: '203.0.113.9',
+          source: 'socket',
+        })
+      ).toBe('from 203.0.113.9');
+      // The word an operator has to be able to tell from an address: the
+      // configuration could not support an answer, and here is the hop
+      // that can
+      expect(
+        addressOf({ client: null, peer: '10.1.2.3', source: 'unverified' })
+      ).toBe('from unverified, peer 10.1.2.3');
+      // An outbound call has no address, and says nothing rather than
+      // printing an empty note
+      expect(addressOf({ client: null, peer: null, source: null })).toBeNull();
+      expect(addressOf(null)).toBeNull();
+    });
+
     test('an unknown subcommand prints the usage and exits 2', () => {
       const { status, stderr } = run(['calls:nope', '--json']);
 
