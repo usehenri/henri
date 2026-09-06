@@ -48,6 +48,38 @@ describe(`queue (${target.name})`, () => {
       expect(jobs.definitions.ok.maxAttempts).toBe(5);
     });
 
+    test('takes a job from a package, and never replaces one of app/jobs', () => {
+      let performed = null;
+
+      expect(
+        jobs.define('acme/deliver', {
+          maxAttempts: 2,
+          perform: (args) => {
+            performed = args;
+          },
+          queue: 'acme',
+        })
+      ).toBe(true);
+      expect(jobs.names()).toContain('acme/deliver');
+      expect(jobs.definitions['acme/deliver']).toMatchObject({
+        maxAttempts: 2,
+        queue: 'acme',
+      });
+
+      // A file of app/jobs wins: this is how an application overrides the
+      // delivery job a package ships, the way it overrides henri/mail
+      expect(jobs.define('ok', { perform: () => 'no' })).toBe(false);
+      expect(jobs.define('acme/deliver', { perform: () => 'no' })).toBe(false);
+      expect(performed).toBeNull();
+      delete jobs.definitions['acme/deliver'];
+    });
+
+    test('refuses a definition that is not one, whoever registered it', () => {
+      expect(() => jobs.define('acme/broken', {})).toThrow(
+        /does not export a perform/u
+      );
+    });
+
     test('refuses to enqueue a job that does not exist', async () => {
       await expect(jobs.perform('nope')).rejects.toThrow('No job named "nope"');
     });
@@ -213,6 +245,39 @@ describe(`queue (${target.name})`, () => {
       expect(job.history).toHaveLength(3);
       expect(job.history.map((entry) => entry.attempt)).toEqual([1, 2, 3]);
       expect(job.finishedAt).not.toBeNull();
+    });
+
+    test('a failure that says it is permanent is buried on the spot', async () => {
+      jobs.define('acme/permanent', {
+        maxAttempts: 5,
+        perform: () => {
+          throw Object.assign(new Error('the receiver said 410 Gone'), {
+            retryable: false,
+          });
+        },
+      });
+
+      const enqueued = await jobs.perform('acme/permanent');
+
+      await new Runner(jobs).once();
+
+      const job = await jobs.get(enqueued.id);
+
+      // One attempt out of five, and it is already in the dead letter queue:
+      // waiting cannot make a permanent failure temporary
+      expect(job).toMatchObject({ attempts: 1, maxAttempts: 5, state: 'dead' });
+      expect(job.error.message).toBe('the receiver said 410 Gone');
+      expect(job.history).toHaveLength(1);
+      expect(job.finishedAt).not.toBeNull();
+
+      // And an operator still sends it again, once whatever it was is fixed
+      expect(await jobs.dead.retry(job.id)).toMatchObject({
+        attempts: 0,
+        state: 'pending',
+      });
+
+      await jobs.discard(job.id);
+      delete jobs.definitions['acme/permanent'];
     });
 
     test('the backoff grows and is capped', () => {

@@ -245,6 +245,11 @@ module.exports = [
     rules: {
       camelcase: 'off',
       'id-length': 'off',
+    // The endpoints live in a table this package owns: a row is the
+    // snake_case columns of packages/webhooks/src/store/schema.js
+    files: ['packages/webhooks/**/*.js'],
+    rules: {
+      camelcase: 'off',
     },
   },
   {

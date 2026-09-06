@@ -1,0 +1,12 @@
+{
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "sqlite",
+      "url": "file:.henri/webhooks.db"
+    }
+  },
+  "jobs": { "backoff": { "base": "1h", "jitter": 0 } },
+  "webhooks": { "allowHttp": true, "allowPrivate": true, "maxAttempts": 2 },
+  "secret": "a-signature-is-over-the-raw-body"
+}

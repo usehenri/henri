@@ -72,7 +72,8 @@
     "s",
     "server",
     "test",
-    "trail"
+    "trail",
+    "webhooks"
   ],
   "devDependencies": {
     "@babel/parser": "^8.0.4",

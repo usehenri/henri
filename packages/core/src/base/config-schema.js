@@ -868,6 +868,78 @@ const SCHEMA = {
     type: 'object',
   },
 
+  webhooks: {
+    describe: 'an object of outbound webhook settings',
+    hint: 'Deliveries are sent by @usehenri/webhooks, which the application installs; every key is optional',
+    keys: {
+      allowHttp: {
+        default: false,
+        describe: 'true or false',
+        hint: 'true lets a delivery go to a plaintext http url, payload and signature in the clear: development only',
+        type: 'boolean',
+      },
+      allowPrivate: {
+        default: false,
+        describe: 'true or false',
+        hint: 'true lets a delivery reach a loopback, private or link-local address, which is what a webhook url is normally refused for: development only',
+        type: 'boolean',
+      },
+      backoff: {
+        describe: 'an object ({ base, factor, jitter, max })',
+        keys: {
+          base: duration({ default: '10s' }),
+          factor: positive({ default: 3, describe: 'a number above zero' }),
+          jitter: {
+            default: 0.2,
+            describe: 'a number between 0 and 1',
+            max: 1,
+            min: 0,
+            type: 'number',
+          },
+          max: duration({ default: '6h' }),
+        },
+        type: 'object',
+      },
+      install: {
+        default: true,
+        describe: 'true or false',
+        hint: 'false stops the boot from creating the table (henri webhooks:install does)',
+        type: 'boolean',
+      },
+      maxAttempts: {
+        default: 8,
+        describe: 'a whole number of attempts, above zero',
+        hint: 'Eight attempts of the default backoff is about three days of trying',
+        integer: true,
+        min: 1,
+        type: 'number',
+      },
+      maxFanout: {
+        default: 1000,
+        describe: 'a whole number of endpoints, above zero',
+        hint: 'How many deliveries one emit() may enqueue before it refuses',
+        integer: true,
+        min: 1,
+        type: 'number',
+      },
+      queue: text({ default: 'webhooks', describe: 'a queue name' }),
+      store: text({
+        default: 'default',
+        describe: 'the name of a store of `stores`',
+      }),
+      table: text({
+        default: 'henri_webhooks',
+        describe: 'a table name: letters, digits and underscores only',
+        pattern: /^[A-Za-z_][A-Za-z0-9_]*$/u,
+      }),
+      timeout: duration({
+        default: '10s',
+        hint: 'How long one delivery may take, resolution and answer included',
+      }),
+    },
+    type: 'object',
+  },
+
   rateLimit: {
     describe: 'an object of limits, true for the defaults, or false for none',
     oneOf: [

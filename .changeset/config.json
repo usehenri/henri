@@ -26,7 +26,8 @@
       "@usehenri/redis",
       "@usehenri/sequelize",
       "@usehenri/testing",
-      "@usehenri/uploads"
+      "@usehenri/uploads",
+      "@usehenri/webhooks"
     ]
   ],
   "linked": [],

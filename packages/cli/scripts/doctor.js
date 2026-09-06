@@ -756,6 +756,14 @@ const check = (dir = process.cwd()) => {
     needed.add('@usehenri/uploads');
   }
 
+  // And so are the outbound webhooks. They deliver through the queue, so a
+  // `webhooks` block needs both packages: without the queue the endpoints
+  // can be managed and nothing can be sent
+  if (typeof config.webhooks !== 'undefined') {
+    needed.add('@usehenri/webhooks');
+    needed.add('@usehenri/jobs');
+  }
+
   // And so is the shared store: `config.shared` names an adapter the way a
   // database store does, and `redis` means `@usehenri/redis`
   const sharedPackage = packageForShared(config.shared);

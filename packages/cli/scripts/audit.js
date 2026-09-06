@@ -53,6 +53,7 @@ const OWASP = {
   A06: 'A06:2021 Vulnerable and Outdated Components',
   A07: 'A07:2021 Identification and Authentication Failures',
   A09: 'A09:2021 Security Logging and Monitoring Failures',
+  A10: 'A10:2021 Server-Side Request Forgery (SSRF)',
 };
 
 /** The standards the categories come from, printed with the report */
@@ -351,6 +352,20 @@ const CHECKS = [
     level: 1,
     owasp: 'A03',
     what: 'a view writes a value into the page without escaping it',
+  },
+  {
+    asvs: 'V9.1.1',
+    check: 'webhooks.http-allowed',
+    level: 1,
+    owasp: 'A02',
+    what: '"webhooks": { "allowHttp": true }: a delivery may go to a plaintext url, payload and signature in the clear',
+  },
+  {
+    asvs: 'V5.2.6',
+    check: 'webhooks.private-addresses-allowed',
+    level: 1,
+    owasp: 'A10',
+    what: '"webhooks": { "allowPrivate": true }: a delivery may reach the loopback, the private network or the metadata service',
   },
 ];
 
@@ -955,6 +970,35 @@ const configFindings = (config, { file, hasUser }) => {
         `uploads are stored in ${root}, under the directory the view engine and express.static serve: an uploaded page is then reachable on this application's own origin`,
         'Store them outside it: { "uploads": { "root": "storage/uploads" } }, and hand a file back with henri.uploads.send()',
         'V12.4.1'
+      );
+    }
+  }
+
+  // The two escape hatches of the outbound webhooks are what a development
+  // configuration sets to deliver to a receiver on the loopback, and that
+  // is the only place they belong: a url an application was handed is the
+  // classic way into the metadata service. So only the files a production
+  // boot reads are worth the word.
+  if (isObject(config.webhooks) && PRODUCTION_CONFIGS.includes(file)) {
+    if (config.webhooks.allowPrivate === true) {
+      add(
+        'high',
+        'webhooks.private-addresses-allowed',
+        OWASP.A10,
+        'webhooks.allowPrivate is true, so a registered url that resolves to 127.0.0.1, 10.0.0.0/8 or 169.254.169.254 is delivered to: whoever can register an endpoint can read what runs beside this application',
+        `Remove "allowPrivate": true from ${file} and keep it in config/dev.json, where a receiver on the loopback is the point`,
+        'V5.2.6'
+      );
+    }
+
+    if (config.webhooks.allowHttp === true) {
+      add(
+        'medium',
+        'webhooks.http-allowed',
+        OWASP.A02,
+        'webhooks.allowHttp is true, so a delivery may go to a plaintext http url: the payload and the signature that authenticates it are readable on the path',
+        `Remove "allowHttp": true from ${file}; a receiver that cannot serve https cannot keep a shared secret either`,
+        'V9.1.1'
       );
     }
   }

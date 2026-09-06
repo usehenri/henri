@@ -239,6 +239,23 @@ class JobsModule extends BaseModule {
   }
 
   /**
+   * Adds a job the application did not write
+   *
+   * The way a package ships work of its own: `@usehenri/webhooks` registers
+   * its delivery job here at boot, so every process that has the queue --
+   * the runner included -- can perform it. A file of `app/jobs` with the
+   * same name wins, and this answers false.
+   *
+   * @param {string} name The job name
+   * @param {object} definition `perform(args, context)` plus the options
+   * @returns {boolean} Whether it was registered
+   * @memberof JobsModule
+   */
+  define(name, definition) {
+    return this.ready().define(name, definition);
+  }
+
+  /**
    * Enqueues a job
    *
    * @param {string} name The job name (its file under app/jobs)
