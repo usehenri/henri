@@ -2,7 +2,7 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 const debug = require('debug')('henri:jobs');
 
-const { JobError, JobTimeoutError } = require('./errors');
+const { JobError, JobStoreError, JobTimeoutError } = require('./errors');
 const { deserialize, serialize } = require('./serialize');
 const { duration, runAt } = require('./duration');
 const { load, validate } = require('./definitions');
@@ -164,7 +164,17 @@ class Jobs {
         : this.config.install;
 
     if (install) {
-      await this.store.install();
+      try {
+        await this.store.install();
+      } catch (error) {
+        throw new JobStoreError(
+          `@usehenri/jobs: unable to create the queue tables in the "${this.config.store}" store: ${error.message}`,
+          {
+            cause: error,
+            hint: 'Run `henri jobs:install` once with a user that may create tables, then set "install": false in the jobs configuration',
+          }
+        );
+      }
     }
 
     this.started = true;

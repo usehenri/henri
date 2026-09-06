@@ -133,6 +133,28 @@ describe('the store backend', () => {
   });
 });
 
+describe('starting', () => {
+  test('says what to do when it cannot create the tables', async () => {
+    const { Jobs } = require('../src/jobs');
+    const { fakeHenri } = require('./helpers');
+    const henri = fakeHenri({ cwd: APP });
+    const adapter = {
+      adapterName: 'sequelize',
+      ensureConnector: () => ({ getDialect: () => 'postgres' }),
+      query: async () => {
+        throw new Error('permission denied for schema public');
+      },
+    };
+    const error = await new Jobs(henri, { adapter, cwd: APP })
+      .start()
+      .catch((thrown) => thrown);
+
+    expect(error.code).toBe('UNSUPPORTED_STORE');
+    expect(error.message).toContain('permission denied');
+    expect(error.hint).toContain('henri jobs:install');
+  });
+});
+
 describe('the schema', () => {
   const tables = { jobs: 'henri_jobs', schedules: 'henri_jobs_schedules' };
 
