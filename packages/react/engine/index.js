@@ -290,6 +290,20 @@ class ReactEngine {
     this.stamps = hookStamps(this.cwd);
     this.deps = deps;
 
+    /**
+     * Next carries the nonce itself, and henri's part is one line in
+     * `base/headers.js`: `next/dist/server/render.js` reads
+     * `req.headers['content-security-policy']`, pulls the nonce out of its
+     * `script-src` and hands it to the document, whose `<Head>` and
+     * `<NextScript>` write it on the polyfill, chunk and preload tags, on
+     * the Turbopack inline bootstrap, on `__NEXT_DATA__` and on the
+     * `<noscript data-n-css>` the client reads back to nonce the styles it
+     * injects on a client-side navigation. The request header is the whole
+     * seam; there is no server option and `getRequestHandler()` exposes
+     * none. See `init()` for the one case henri cannot cover.
+     */
+    this.supportsNonce = true;
+
     this.init = this.init.bind(this);
     this.build = this.build.bind(this);
     this.prepare = this.prepare.bind(this);
@@ -350,11 +364,38 @@ class ReactEngine {
       );
     }
 
+    // Next's own Document forwards the nonce to <Head> and <NextScript>; one
+    // written by hand has to do it, and nothing warns when it does not --
+    // the page renders, the scripts are refused
+    const csp = configValue(this.henri.config, 'csp');
+
+    if (csp && csp.nonce === true && this.customDocument()) {
+      pen.warn(
+        'view',
+        `${this.customDocument()} is yours, and csp.nonce is on:`,
+        'pass nonce={this.props.nonce} to <Head> and <NextScript>, or their scripts lose it'
+      );
+    }
+
     if (!this.henri.isTest) {
       this.ensureNextConfig();
     }
 
     return true;
+  }
+
+  /**
+   * The `_document` this application wrote, if it wrote one
+   *
+   * @returns {?string} its path under app/views, or null
+   * @memberof ReactEngine
+   */
+  customDocument() {
+    return (
+      ['js', 'jsx', 'mjs', 'ts', 'tsx']
+        .map((ext) => `pages/_document.${ext}`)
+        .find((file) => fs.existsSync(path.join(this.dir, file))) || null
+    );
   }
 
   /**

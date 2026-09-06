@@ -160,6 +160,87 @@ function assetTags(manifest, entry, base = '/') {
 }
 
 /**
+ * Elements a Content Security Policy nonce belongs on: a script of any type,
+ * a style element, and the link relations that fetch something the policy
+ * covers. `rel="icon"`, `rel="manifest"` and the rest are left alone.
+ */
+const NONCE_TAGS = /<(script|style|link)(\s[^>]*)?>/gi;
+const NONCE_RELS = /\brel\s*=\s*["']?\s*(stylesheet|modulepreload|preload)\b/i;
+const HAS_NONCE = /\snonce\s*=/i;
+
+/**
+ * The `<meta property="csp-nonce">` Vite's own runtime reads
+ *
+ * Vite has one nonce seam and this is it: `html.cspNonce` in the Vite config
+ * is a *build time* placeholder ("make sure that this placeholder will be
+ * replaced with a unique value for each request by the server", says its
+ * type), which it writes onto the tags it emits and into this meta tag. Its
+ * client reads the meta at runtime -- `document.querySelector('meta[property=csp-nonce]')`
+ * -- for the `<style>` elements it injects in development and for the
+ * `<link>` elements `__vitePreload` appends to load a lazy chunk or its css
+ * in production. Neither of those exists when the document is written, so
+ * neither can be nonced by rewriting html: the meta tag is the only way they
+ * ever get one.
+ *
+ * henri does not set `html.cspNonce`, because an application owns its
+ * `vite.config.mjs` and half of them would not have it. The tags Vite writes
+ * are nonced by `withNonce` below instead, and this meta carries the same
+ * value to the runtime.
+ *
+ * @param {string} nonce the nonce of this response
+ * @returns {string} html
+ */
+function nonceMeta(nonce) {
+  return `<meta property="csp-nonce" nonce="${escapeHtml(nonce)}">`;
+}
+
+/**
+ * Write a nonce on every script, style and stylesheet link of a document
+ *
+ * This runs over the whole document rather than over the tags this engine
+ * builds, because most of them are not this engine's: the application's
+ * `index.html` shell has its own, `vite.transformIndexHtml` injects the dev
+ * client and `@vitejs/plugin-react`'s inline React Refresh preamble, and the
+ * server bundle returns whatever the page put in `head`. Dropping
+ * `'unsafe-inline'` from `script-src` means all of them need the nonce, so
+ * all of them get it.
+ *
+ * The scan is a regex over start tags, and that is a deliberate limit: a `>`
+ * inside an attribute value would end a tag early. What goes through here is
+ * the shell of an application, Vite's output and React's, none of which write
+ * one; a full parse (parse5, as Vite itself does) would cost a parse and a
+ * serialization on every render for a case that does not arise.
+ *
+ * @param {string} html the document
+ * @param {?string} nonce the nonce, or null to leave the document alone
+ * @returns {string} the document
+ */
+function withNonce(html, nonce) {
+  if (!nonce) {
+    return html;
+  }
+
+  const value = ` nonce="${escapeHtml(nonce)}"`;
+
+  return html.replace(NONCE_TAGS, (tag, name, attributes = '') => {
+    if (HAS_NONCE.test(attributes)) {
+      return tag;
+    }
+
+    if (name.toLowerCase() === 'link' && !NONCE_RELS.test(attributes)) {
+      return tag;
+    }
+
+    const closing = tag.endsWith('/>') ? ' />' : '>';
+    const start = tag
+      .slice(0, tag.length - (tag.endsWith('/>') ? 2 : 1))
+      .replace(/\s+$/, '');
+
+    return `${start}${value}${closing}`;
+  });
+}
+
+/**
  * Inject the rendered head and body into the html shell. The shell should
  * contain `<!--head-->` and `<!--body-->` placeholders; without them the
  * content goes before `</head>` and `</body>`.
@@ -192,6 +273,8 @@ module.exports = {
   escapeHtml,
   hash,
   inject,
+  nonceMeta,
   pageJson,
   pageScript,
+  withNonce,
 };

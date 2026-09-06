@@ -1030,6 +1030,16 @@
     {
       "area": "view",
       "causes": [
+        "`\"csp\": { \"nonce\": true }` with a renderer that does not write the nonce into the document",
+        "a view engine of your own, or an older one, that does not declare `supportsNonce`"
+      ],
+      "code": "HENRI_VIEW_NONCE_UNSUPPORTED",
+      "fix": "Use a renderer that carries it -- `inertia`, `react` or `template` -- or turn the nonce off (`\"csp\": { \"nonce\": false }`). A view engine of your own carries one by writing it on every script and style tag it emits and setting `supportsNonce = true`.",
+      "what": "The configuration asks for a Content Security Policy nonce and the renderer cannot carry it."
+    },
+    {
+      "area": "view",
+      "causes": [
         "a renderer that is not a henri view engine",
         "a version of the engine older than the core running it"
       ],

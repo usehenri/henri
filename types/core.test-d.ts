@@ -619,6 +619,15 @@ const badCache: Configuration = {
   cache: { maxEntries: 'many' },
 };
 
+// --- the content security policy nonce --------------------------------------
+
+expectType<Configuration>({ csp: { nonce: true } });
+
+const badCsp: Configuration = {
+  // @ts-expect-error `nonce` is on or off, not a value you pick
+  csp: { nonce: 'a-nonce-of-my-own' },
+};
+
 // @ts-expect-error `fetch` needs a function to run on a miss
 henri.cache.fetch('visits');
 
@@ -627,6 +636,7 @@ henri.cache.get(null);
 
 export {
   badCache,
+  badCsp,
   cacheConfig,
   badConfig,
   badFlow,

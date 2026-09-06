@@ -45,7 +45,7 @@ Nothing below needs a configuration key. It is on unless you turn it off, and
 | V8 Data protection         | A user reaches a view or a JSON answer only as `publicUser()`: `externalId`, `email`, `roles` and whatever `user.public` names. Every record carries an `externalId` (a UUID v7) and the numeric primary key is removed from what `res.render()`, `res.resource()` and `res.collection()` send -- its own, and every foreign key it declared, which leaves as the `externalId` of the row it names rather than that row's primary key. `Model.findById()` resolves the public identifier and nothing else, so a number in a url answers the same 404 an unknown uuid answers and the rows cannot be walked one number at a time; `findByKey()` is the primary key lookup, for the server-side code that holds one. A signed-in answer carries `Cache-Control: no-store`. A field the model marked [`personal`](/guides/privacy/) is masked by name in every log line and every recorded error; one marked `personal: { expose: false }` is dropped from everything henri serializes, at every depth, unless the answer names it in `include`. `henri privacy:export` and `henri privacy:erase` are built from the same marks, and an erasure leaves a receipt holding an HMAC of the identity rather than the identity. |
 | V12 File upload            | With [`@usehenri/uploads`](/guides/uploads/): a multipart body is bounded before the first byte is read (25mb in total, 10mb a file, 10 files, 100 fields), the type of a file is decided from its bytes and not from the `Content-Type` or the extension the client sent, the stored name is generated (`<yyyy>/<mm>/<32 hex>.<extension of the sniffed type>`) so no name a client sends ever reaches a path, files are written `0600` into a `0700` directory outside everything the application serves, `text/html` and `image/svg+xml` are stored under `.bin`, a stored file is only ever handed back by a controller with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`, and nothing is kept unless a controller calls `store()` -- a request that is refused, times out or is abandoned leaves nothing behind.                                                                                                                                                                                                                                                                                                                                                                        |
 | V13 API                    | Rate limits (600 requests a minute per user or address), `Idempotency-Key` on every mutating route, `Accept: application/vnd.henri.vN+json` versioning, a `requestTimeout` of 30 seconds, and HAL answers whose `_links` are filtered by role. A GraphQL query is bounded before a resolver runs -- 15 aliases, 1000 fields with fragments expanded, 10 levels of nesting, 5000 tokens -- and introspection is off in production.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| V14 Configuration          | [helmet](https://helmetjs.github.io/) sets the headers, with a Content Security Policy that names its origins (no `https:` wildcard) and lets the dev servers work, no HSTS outside production, and `X-Powered-By` off. `Permissions-Policy` denies the camera, the microphone, the location and the other powerful browser features until an application names one. CORS is off unless you ask for it. A double-submit CSRF token (`henri.csrf`, `X-CSRF-Token`) guards every `POST`, `PUT`, `PATCH` and `DELETE` of a session, and the request must also come from an origin this application recognizes (`Sec-Fetch-Site`, then `Origin`), which is the half the token alone does not cover. Secrets live in `.env` or in [encrypted credentials](/configuration/#encrypted-credentials). The configuration is validated against a schema before the first module starts.                                                                                                                                                                                                                                                                                                                                            |
+| V14 Configuration          | [helmet](https://helmetjs.github.io/) sets the headers, with a Content Security Policy that names its origins (no `https:` wildcard), refuses an inline event handler (`script-src-attr 'none'`) and lets the dev servers work, no HSTS outside production, and `X-Powered-By` off. [`"csp": { "nonce": true }`](#content-security-policy) gives every response a fresh nonce and takes `'unsafe-inline'` out of `script-src`. `Permissions-Policy` denies the camera, the microphone, the location and the other powerful browser features until an application names one. CORS is off unless you ask for it. A double-submit CSRF token (`henri.csrf`, `X-CSRF-Token`) guards every `POST`, `PUT`, `PATCH` and `DELETE` of a session, and the request must also come from an origin this application recognizes (`Sec-Fetch-Site`, then `Origin`), which is the half the token alone does not cover. Secrets live in `.env` or in [encrypted credentials](/configuration/#encrypted-credentials). The configuration is validated against a schema before the first module starts. |
 
 Two more that are not ASVS requirements but are the same kind of work: the
 development introspection routes (`/_routes`, `/_controllers`, `/_mailers`,
@@ -68,6 +68,136 @@ SELECT`, `EXPLAIN`, `SHOW` or `DESCRIBE`, with the strings and the comments
 removed first, and no word that writes, locks, waits or reads a file -- and
 what comes back is redacted with `filterParameters`, `password` included
 whatever the configuration says. See [Coding agents](/guides/agents/).
+
+## Content Security Policy
+
+The policy is helmet's, built by henri and overridable key by key through
+`config.helmet.contentSecurityPolicy`. Out of the box it names its origins and
+nothing else: no `https:` wildcard, `object-src 'none'`, `script-src-attr
+'none'` (so an `onclick=""` attribute never runs), and `script-src 'self'` in
+production. Development adds `'unsafe-inline'` and `'unsafe-eval'` to
+`script-src`, plus websockets and blob workers, because that is what Vite,
+Turbopack and React Refresh need to hot reload.
+
+`"csp": { "nonce": true }` is how an application gets rid of that
+`'unsafe-inline'`. Every response then draws a fresh value -- 16 bytes of the
+system CSPRNG, base64url, 22 characters -- the header names it
+(`script-src 'self' 'nonce-h7Qk…'`), and only the tags carrying the same value
+run. henri takes `'unsafe-inline'` out of `script-src` itself when you turn
+this on, rather than asking you to: a `script-src` naming a nonce makes the
+browser ignore `'unsafe-inline'` anyway, so leaving it in would only make the
+header claim a fallback nothing honours.
+
+The nonce reaches your code three ways, all of them the same value:
+
+| Where                   | What                                                                        |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `res.locals.cspNonce`   | Anywhere in a middleware, a hook or a controller.                           |
+| `req._henri.nonce`      | Next to `csrf`, `user` and `paths`. Absent when nonces are off.             |
+| the `nonce` view option | What `res.render()` hands the engine, and what a Handlebars template reads. |
+
+```hbs
+<script nonce='{{nonce}}'>
+  window.APP = { started: Date.now() };
+</script>
+```
+
+`{{@nonce}}` is the same value, read the way the other view options are read.
+
+### What each renderer can carry
+
+**Inertia** carries it fully. The engine writes the nonce onto every
+`<script>`, `<style>` and fetching `<link>` of the document it builds -- its
+own tags, the ones your `app/views/index.html` shipped, the React Refresh
+preamble and dev client Vite injects, and whatever the server bundle returned
+in `head` -- and adds `<meta property="csp-nonce">`, which is the seam Vite's
+own runtime reads: the `<style>` elements it injects on a hot update and the
+`<link>` elements `__vitePreload` appends for a lazy chunk are written after
+the document is, so the meta tag is the only way they ever get one. Vite's
+`html.cspNonce` option is not used: it is a build-time placeholder its own
+docs tell you to string-replace per request, and it lives in a
+`vite.config.mjs` the application owns.
+
+The nonce never reaches the Inertia page props. A visit after the first is
+answered as JSON and swaps props into a document whose policy is the one it
+was loaded with, so a nonce arriving there names nothing.
+
+**React (Next.js)** carries it, and henri's part is one line. Next's pages
+router reads the nonce out of the request's `Content-Security-Policy` header,
+so henri writes the header it just sent back onto the request; Next's document
+then stamps it on the polyfill, chunk and preload tags, on the Turbopack
+inline bootstrap, on `__NEXT_DATA__` and on the `<noscript data-n-css>` its
+client reads back to nonce the styles it injects on a client-side navigation.
+A `Content-Security-Policy` sent by a client is always replaced, so nothing
+downstream reads a nonce this server did not choose. One thing is yours: if
+you write your own `app/views/pages/_document.js`, pass
+`nonce={this.props.nonce}` to `<Head>` and `<NextScript>` -- Next's own
+Document does it, a hand-written one has to, and henri warns at boot when it
+finds one.
+
+**Handlebars** carries it through `{{nonce}}`, above. henri rewrites nothing:
+a template is the one thing that knows where its inline scripts are.
+
+**Vue (Nuxt)** does not carry it, and the boot fails with
+`HENRI_VIEW_NONCE_UNSUPPORTED` rather than sending a policy the document
+cannot honour. A nonce that is generated, named by the header and then never
+written into the markup is worse than none: the page reads as protected and
+its scripts are refused instead. A view engine of your own opts in by writing
+the nonce on every tag it emits and setting `supportsNonce = true`.
+
+### What it costs
+
+**62 nanoseconds a response.** henri's secure-headers middleware costs 147ns a
+request with nonces off and 209ns with them on (Node 24, Apple silicon, half a
+million requests through the middleware itself).
+
+Two things stopped being computable once per protocol, and both are cached.
+The random value: `crypto.randomBytes(16).toString('base64url')` costs 780ns,
+so the bytes come out of a 4kb pool refilled with `crypto.randomFillSync`
+instead -- the same CSPRNG output, drawn in one trip, 49ns a nonce. And the
+header: helmet precomputes it at boot when every directive element is a string
+(15ns a request) and re-joins the whole thing when one of them is a function
+(869ns), which is what naming a per-request nonce would make it do. So henri
+serializes the header once per protocol with a sentinel in the nonce's place,
+cuts it in two, and a request concatenates `prefix + nonce + suffix` for 6ns.
+
+Without either cache the same middleware costs about 1.5µs a request, 24 times
+more. An application whose policy cannot be serialized once -- one that handed
+helmet a directive function of its own -- falls back to helmet joining the
+header per request (+735ns), and still gets this response's nonce.
+
+### `style-src` keeps `'unsafe-inline'`
+
+On purpose, and a nonce is never added to it. A `style=""` attribute cannot
+carry a nonce -- only `style-src-attr` can allow one -- and React, Inertia and
+Vite all set them. Naming a nonce in `style-src` would make the browser ignore
+`'unsafe-inline'` there and break every inline style in the application.
+Tightening that means naming both `style-src` and `style-src-attr` yourself,
+which is a decision about your own markup.
+
+### Left out on purpose
+
+- **`strict-dynamic`.** It says "whatever a trusted script loads is trusted",
+  which is how you drop the host allowlist entirely. It is also what makes
+  `'self'` stop meaning anything, and it needs the whole bundle graph to be
+  loaded by script rather than by markup. Worth doing; not worth doing
+  half-way, and it is a change to what the default policy means rather than an
+  addition to it.
+- **Hashes instead of nonces.** A hash covers a script whose bytes never
+  change, which is the opposite of what a server-rendered page emits: the
+  Inertia page object, `__NEXT_DATA__` and the Turbopack bootstrap are
+  different on every response. Computing a hash per response is a digest over
+  the whole script where a nonce is 22 characters, and it buys the same thing.
+- **Report-only mode.** A second header (`Content-Security-Policy-Report-Only`)
+  that reports and never blocks is how you roll a policy out. henri's policy is
+  not being rolled out -- it is on -- and the useful version of this feature is
+  a policy an application can trial, which is a second set of directives to
+  configure, serialize and cache. `config.helmet.contentSecurityPolicy.reportOnly`
+  already turns the whole thing report-only if that is what you want.
+- **A violation reporting endpoint.** `report-to` needs a route that accepts
+  unauthenticated POSTs from every browser, rate-limits them, stores them
+  somewhere and shows them to somebody. That is a product, and the ones that
+  exist are better at it than a route henri would ship.
 
 ## What stays yours
 
@@ -209,7 +339,10 @@ false` (`log.filters-disabled`), `requestTimeout: false`
 (`uploads.limits-disabled`) and `uploads.sniff: false`, which takes the
 client's word for the type of a file (`uploads.type-check-disabled`).
 
-**Settings that open a door** — a `cors` that accepts any origin, or reflects
+**Settings that open a door** — a `script-src` (or, without one, a
+`default-src`) written by the application that allows `'unsafe-inline'` with no
+nonce beside it, which lets an injected `<script>` run like the application's
+own (`csp.script-unsafe-inline`); a `cors` that accepts any origin, or reflects
 the caller while allowing credentials (`cors.permissive`); `trustProxy: true`
 written by hand, which lets a client choose the address it is rate limited by
 (`trust-proxy.permissive`); a `filterParameters` array that replaces the

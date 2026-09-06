@@ -111,3 +111,67 @@ describe('inertia shell helpers', () => {
     );
   });
 });
+
+describe('the content security policy nonce', () => {
+  const document = [
+    '<!doctype html><html><head>',
+    '<meta charset="utf-8">',
+    '<link rel="icon" href="/favicon.ico">',
+    '<link rel="stylesheet" href="/assets/app.css">',
+    '<link rel="modulepreload" href="/assets/chunk.js" />',
+    '<style>body{margin:0}</style>',
+    '<script type="module">import "/@vite/client"</script>',
+    '</head><body>',
+    '<script data-page="app" type="application/json">{"props":{"a":">"}}</script>',
+    '<div id="app"></div>',
+    '<script nonce="already-there" src="/assets/app.js"></script>',
+    '</body></html>',
+  ].join('\n');
+
+  test('writes the nonce on every script, style and stylesheet link', () => {
+    const html = shell.withNonce(document, 'AbC-_123');
+    const nonced = html.match(/nonce="AbC-_123"/gu) || [];
+
+    // The two links that fetch, the style and the three scripts, less the
+    // one that came with a nonce of its own
+    expect(nonced).toHaveLength(5);
+    expect(html).toContain(
+      '<link rel="stylesheet" href="/assets/app.css" nonce="AbC-_123">'
+    );
+    expect(html).toContain(
+      '<link rel="modulepreload" href="/assets/chunk.js" nonce="AbC-_123" />'
+    );
+    expect(html).toContain('<style nonce="AbC-_123">body{margin:0}</style>');
+    expect(html).toContain(
+      '<script type="module" nonce="AbC-_123">import "/@vite/client"</script>'
+    );
+    expect(html).toContain(
+      '<script data-page="app" type="application/json" nonce="AbC-_123">'
+    );
+  });
+
+  test('leaves alone what the policy does not cover, and what has one', () => {
+    const html = shell.withNonce(document, 'AbC-_123');
+
+    expect(html).toContain('<link rel="icon" href="/favicon.ico">');
+    expect(html).toContain('<meta charset="utf-8">');
+    expect(html).toContain(
+      '<script nonce="already-there" src="/assets/app.js">'
+    );
+  });
+
+  test('leaves the document untouched without a nonce', () => {
+    expect(shell.withNonce(document, null)).toBe(document);
+    expect(shell.withNonce(document, '')).toBe(document);
+  });
+
+  // Vite's own runtime reads this meta: the <style> elements it injects in
+  // development and the <link> elements __vitePreload appends in production
+  // are written after the document is, so this is the only way they get one
+  test('nonceMeta() is what vite reads at runtime', () => {
+    expect(shell.nonceMeta('AbC-_123')).toBe(
+      '<meta property="csp-nonce" nonce="AbC-_123">'
+    );
+    expect(shell.nonceMeta('"><script>')).not.toContain('<script>');
+  });
+});

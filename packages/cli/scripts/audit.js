@@ -86,6 +86,13 @@ const CHECKS = [
     what: 'a config/credentials/*.key reached a commit',
   },
   {
+    asvs: 'V14.4.3',
+    check: 'csp.script-unsafe-inline',
+    level: 1,
+    owasp: 'A03',
+    what: "a Content Security Policy of the application's own that allows 'unsafe-inline' scripts, with no nonce",
+  },
+  {
     asvs: 'V4.2.2',
     check: 'csrf.disabled',
     level: 1,
@@ -753,6 +760,34 @@ const configFindings = (config, { hasUser }) => {
         );
       }
     }
+  }
+
+  // Henri never ships 'unsafe-inline' in a production script-src: one that
+  // is there was written by this application, and it undoes the directive --
+  // an injected <script> runs like any other
+  const directives =
+    isObject(config.helmet) &&
+    isObject(config.helmet.contentSecurityPolicy) &&
+    isObject(config.helmet.contentSecurityPolicy.directives)
+      ? config.helmet.contentSecurityPolicy.directives
+      : null;
+  const scriptSrc = directives
+    ? directives['script-src'] || directives['default-src']
+    : null;
+  const sources = Array.isArray(scriptSrc) ? scriptSrc.map(String) : [];
+
+  if (
+    sources.includes("'unsafe-inline'") &&
+    !sources.some((source) => source.startsWith("'nonce-"))
+  ) {
+    add(
+      'medium',
+      'csp.script-unsafe-inline',
+      OWASP.A03,
+      "the Content Security Policy allows 'unsafe-inline' scripts, so an injected <script> runs like the application's own",
+      'Turn nonces on instead ({ "csp": { "nonce": true } }) and put {{nonce}} on the inline scripts you write yourself',
+      'V14.4.3'
+    );
   }
 
   if (config.rateLimit === false) {

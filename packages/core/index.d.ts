@@ -527,6 +527,21 @@ declare namespace start {
     store?: string | null;
   }
 
+  /**
+   * `config.csp`: the Content Security Policy settings henri owns. The
+   * policy itself is helmet's (`config.helmet.contentSecurityPolicy`).
+   */
+  interface CspConfig {
+    /**
+     * `true` gives every response a fresh nonce (`res.locals.cspNonce`,
+     * `req._henri.nonce`, the `nonce` view option), names it in
+     * `script-src` and takes `'unsafe-inline'` out of that directive. The
+     * renderer has to be able to carry it or the boot fails: `inertia`,
+     * `react` and `template` can, `vue` cannot.
+     */
+    nonce?: boolean;
+  }
+
   /** `config.inertia`: the options of the Inertia renderer. */
   interface InertiaConfig {
     /** Server render the pages (`true`). */
@@ -671,6 +686,8 @@ declare namespace start {
     cache?: false | CacheConfig;
     /** Options merged over henri's helmet defaults; `false` disables it. */
     helmet?: false | Record<string, unknown>;
+    /** Content Security Policy settings henri owns, beside `helmet`. */
+    csp?: CspConfig;
     /** Parameter names masked in the logs; `false` masks nothing. */
     filterParameters?: string[] | false;
     privacy?: PrivacyConfig;
@@ -1030,6 +1047,13 @@ declare namespace start {
      */
     errors?: readonly unknown[] | Record<string, unknown> | null;
     graphql?: { endpoint: string | false; query: string | false };
+    /**
+     * The Content Security Policy nonce of this response, the same value as
+     * `res.locals.cspNonce`. Present only with `config.csp.nonce` on: a key
+     * that is always there and usually null is what makes a page stamp a
+     * nonce nothing enforces.
+     */
+    nonce?: string;
   }
 
   /** The second argument of `res.render()` and `res.hbs()`. */

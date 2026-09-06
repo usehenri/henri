@@ -351,7 +351,15 @@ The `template` renderer serves the `.hbs`, `.html` and `.htm` files under `app/v
 </html>
 ```
 
-The object passed as `data` to `res.render()` is the template context. The other view options are data variables: `{{@user.email}}`, `{{@paths.index_artwork_path.route}}`, `{{@query.page}}`, `{{@localUrl}}`, `{{@csrf}}` (put it in a hidden `_csrf` field of your forms), `{{@errors}}`, `{{@graphql.endpoint}}`.
+The object passed as `data` to `res.render()` is the template context. The other view options are data variables: `{{@user.email}}`, `{{@paths.index_artwork_path.route}}`, `{{@query.page}}`, `{{@localUrl}}`, `{{@csrf}}` (put it in a hidden `_csrf` field of your forms), `{{@errors}}`, `{{@graphql.endpoint}}`, `{{@nonce}}`.
+
+There is one helper, `{{nonce}}`: the [Content Security Policy nonce](/guides/security/#content-security-policy) of this response, for the inline scripts a template writes itself. It is the same value as `{{@nonce}}`, and it is empty unless `"csp": { "nonce": true }` is on.
+
+```handlebars
+<script nonce='{{nonce}}'>
+  window.APP = { started: Date.now() };
+</script>
+```
 
 A route resolves to exactly one file: `/artwork` is `pages/artwork.{hbs,html,htm}`, then `pages/artwork/index.{hbs,html,htm}`, and `/` is `pages/index.*`. A route without a page is a `404`; a template that fails while rendering is a `500` with the stack logged (and shown in development). Templates are compiled once, recompiled when the file changes and dropped on reload; a partial that does not compile is reported and skipped.
 
@@ -366,7 +374,7 @@ The `vue` renderer drives [Nuxt](https://nuxt.com/) the same way the React rende
 ```
 
 :::caution
-The Vue renderer was written for Nuxt 2 and has not been exercised since the 2026 revival. It only loads with `experimental.vue` set to `true`, and warns on boot.
+The Vue renderer was written for Nuxt 2 and has not been exercised since the 2026 revival. It only loads with `experimental.vue` set to `true`, and warns on boot. It is the one renderer that cannot carry a [CSP nonce](/guides/security/#content-security-policy): `"csp": { "nonce": true }` fails the boot with `HENRI_VIEW_NONCE_UNSUPPORTED` rather than sending a policy the document does not honour.
 :::
 
 ## Fetching data again

@@ -265,6 +265,39 @@ describe('henri audit', () => {
     );
   });
 
+  // Henri never ships 'unsafe-inline' in a production script-src, so one
+  // that is there was put there by the application
+  test("reports a script-src the application opened to 'unsafe-inline'", () => {
+    const policy = (directives) =>
+      withConfig(app, 'config/production.json', {
+        helmet: { contentSecurityPolicy: { directives } },
+      });
+
+    expect(
+      policy({ 'script-src': ["'self'", "'unsafe-inline'"] }).findings
+    ).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V14.4.3',
+        check: 'csp.script-unsafe-inline',
+        owasp: 'A03:2021 Injection',
+        severity: 'medium',
+      })
+    );
+
+    // The default-src is the script-src of a policy that names no script-src
+    expect(
+      policy({ 'default-src': ["'self'", "'unsafe-inline'"] }).names
+    ).toContain('csp.script-unsafe-inline');
+
+    // With a nonce beside it the browser ignores 'unsafe-inline' anyway
+    expect(
+      policy({ 'script-src': ["'unsafe-inline'", "'nonce-abc'"] }).names
+    ).not.toContain('csp.script-unsafe-inline');
+    expect(policy({ 'script-src': ["'self'"] }).names).not.toContain(
+      'csp.script-unsafe-inline'
+    );
+  });
+
   test('reports the bounds a configuration removes', () => {
     const { findings: found, names } = withConfig(
       app,

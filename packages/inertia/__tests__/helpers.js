@@ -115,6 +115,7 @@ function fakeRes() {
 
       return this;
     },
+    locals: {},
     redirect(...args) {
       this.calls.push(['redirect', ...args]);
 

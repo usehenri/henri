@@ -981,6 +981,20 @@ const SCHEMA = {
     oneOf: [{ const: false }, { type: 'object', unknown: 'allow' }],
   },
 
+  csp: {
+    describe: 'an object of Content Security Policy settings',
+    hint: "The policy itself is helmet's: config.helmet.contentSecurityPolicy",
+    keys: {
+      nonce: {
+        default: false,
+        describe: 'true to give every response a nonce',
+        hint: "script-src names it and loses 'unsafe-inline'; the renderer has to carry it (inertia, react and template do)",
+        type: 'boolean',
+      },
+    },
+    type: 'object',
+  },
+
   filterParameters: {
     default: ['password', 'token', 'secret', 'authorization'],
     describe: 'a list of parameter names to mask, or false',

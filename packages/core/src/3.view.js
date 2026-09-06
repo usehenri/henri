@@ -1,4 +1,5 @@
 const BaseModule = require('./base/module');
+const { nonceEnabled } = require('./base/headers');
 const { suggestedRenderer } = require('./base/renderer');
 
 const allowed = {
@@ -105,6 +106,28 @@ class View extends BaseModule {
       const Engine = require(`./engines/${engines[this.renderer]}`);
 
       this.engine = new Engine(this.henri);
+    }
+
+    // A nonce that is generated, named by the header and then not written
+    // into the document is worse than none: the page reads as protected and
+    // every inline script it ships is refused instead. An engine says it can
+    // carry one with `supportsNonce`; anything else fails the boot rather
+    // than serving a policy it cannot honour
+    if (nonceEnabled(config) && this.engine.supportsNonce !== true) {
+      throw pen.fatal(
+        'view',
+        `The '${this.renderer}' renderer cannot carry a Content Security Policy nonce.
+
+      "csp": { "nonce": true } asks every response for a nonce and names it
+      in script-src. This renderer does not write it into the document, so
+      the inline scripts it does ship would be refused by the browser.
+
+      Renderers that carry it: inertia, react, template.
+      `,
+        null,
+        null,
+        'HENRI_VIEW_NONCE_UNSUPPORTED'
+      );
     }
 
     this.engine.init && (await this.engine.init());
