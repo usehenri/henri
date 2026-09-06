@@ -727,6 +727,8 @@ declare namespace start {
     csp?: CspConfig;
     /** Parameter names masked in the logs; `false` masks nothing. */
     filterParameters?: string[] | false;
+    /** What a log line looks like: `pretty`, `json`, or `auto`. */
+    logs?: LogsConfig;
     encryption?: EncryptionConfig;
     privacy?: PrivacyConfig;
     /** How long the models keep their records, and what sweeps them. */
@@ -930,6 +932,18 @@ declare namespace start {
     checksum: string;
     storage: string;
     uploadedAt: string;
+  }
+
+  /** `config.logs`: what a line `henri.pen` writes looks like. */
+  interface LogsConfig {
+    /**
+     * `"auto"` (the default) writes json in production and the pretty,
+     * aligned, coloured lines everywhere else; `"json"` and `"pretty"` say
+     * it outright. A json line carries the time, the level, the module, the
+     * request id, the message, the object arguments (masked the way
+     * `filterParameters` and the `personal` marks say) and the error.
+     */
+    format?: 'auto' | 'json' | 'pretty';
   }
 
   /** `config.errors`: what henri does with the code of a failure. */

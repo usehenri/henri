@@ -771,6 +771,16 @@ const badCache: Configuration = {
   cache: { maxEntries: 'many' },
 };
 
+// --- logs and error reporting -----------------------------------------------
+
+expectType<Configuration>({ logs: { format: 'json' } });
+expectType<Configuration>({ logs: { format: 'auto' } });
+
+const badLogs: Configuration = {
+  // @ts-expect-error the formats are auto, json and pretty
+  logs: { format: 'logfmt' },
+};
+
 // --- the content security policy nonce --------------------------------------
 
 expectType<Configuration>({ csp: { nonce: true } });
@@ -789,6 +799,7 @@ henri.cache.get(null);
 export {
   badCache,
   badCsp,
+  badLogs,
   cacheConfig,
   badConfig,
   badFlow,

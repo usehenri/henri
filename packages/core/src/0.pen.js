@@ -5,8 +5,13 @@ const util = require('util');
 const { getColor, stack } = require('./utils');
 const { currentRequestId } = require('./base/request-id');
 const { stamp, url: codeUrl } = require('./base/errors');
-const { filterParameters, redact } = require('./base/redact');
+const { redactor } = require('./base/redact');
 const { recorder } = require('./base/runtime');
+const {
+  entry: logEntry,
+  formatOf,
+  serialize: logLine,
+} = require('./base/logs');
 
 /**
  * Write stuff in the console...
@@ -129,6 +134,16 @@ class Pen extends BaseModule {
     obj = null,
     code = null
   ) {
+    // A machine reading this gets one record with the error, its code and
+    // its stack as fields, instead of a dozen lines of decoration
+    if (this.structured()) {
+      const error = this.errorFor(name, summary, full, code);
+
+      this.shout(name, 'error', ...(obj ? [error, obj] : [error]));
+
+      return error;
+    }
+
     const link = code ? codeUrl(code, this.henri || global.henri) : null;
 
     this.line(2);
@@ -184,6 +199,20 @@ class Pen extends BaseModule {
     }
     this.line(2);
 
+    return this.errorFor(name, summary, full, code);
+  }
+
+  /**
+   * The Error `fatal()` hands back, whatever the format was
+   *
+   * @param {string} name name of the module
+   * @param {(string|Error)} summary the summary, or the error itself
+   * @param {?string} full the long description
+   * @param {?string} code the henri error code of this failure
+   * @returns {Error} the error to throw
+   * @memberof Pen
+   */
+  errorFor(name, summary, full, code) {
     if (summary instanceof Error) {
       return code ? stamp(summary, code) : summary;
     }
@@ -224,6 +253,11 @@ class Pen extends BaseModule {
    * @memberof Pen
    */
   line(times = 1) {
+    // Blank lines are spacing for a person; a json stream has no spacing
+    if (this.structured()) {
+      return;
+    }
+
     this.notTest &&
       times > 0 &&
       // eslint-disable-next-line no-console
@@ -243,11 +277,22 @@ class Pen extends BaseModule {
    * @memberof Pen
    */
   redact(value) {
-    const inst = this.henri || global.henri;
+    return redactor(this.henri || global.henri)(value);
+  }
 
-    return redact(value, filterParameters(inst && inst.config), {
-      keys: (inst && inst.privacy && inst.privacy.keys) || undefined,
-    });
+  /**
+   * Is a machine reading this?
+   *
+   * `config.logs.format`: `json`, `pretty`, or `auto` -- json in production
+   * and pretty everywhere else (see `base/logs.js`). Read on every line
+   * rather than cached, because `pen` is built before the configuration is
+   * loaded and lives across a reload of it.
+   *
+   * @returns {boolean} true when the lines are json
+   * @memberof Pen
+   */
+  structured() {
+    return formatOf(this.henri || global.henri) === 'json';
   }
 
   /**
@@ -334,6 +379,17 @@ class Pen extends BaseModule {
       }
       this.line(1);
     }
+    if (this.structured()) {
+      const data = logLine(
+        logEntry({ args, level, name, redact: (value) => this.redact(value) })
+      );
+
+      // eslint-disable-next-line no-console
+      this.inTesting && console.log(data);
+
+      return { data, space: 0 };
+    }
+
     if (this.longest < name.length) {
       this.longest = name.length;
     }
