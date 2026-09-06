@@ -898,6 +898,34 @@ describe('a filtered index, end to end', () => {
     expect(titles(res)).toHaveLength(3);
   });
 
+  test('a declaration the model refuses fails the boot, not a request', () => {
+    const { controllers, router } = henri;
+    const key = 'memos#search';
+    const kept = controllers.filters(key);
+
+    controllers._filters.set(
+      key,
+      declaration({ where: { ownerId: 'string' } }, key)
+    );
+
+    // The same call the router makes for every route it registers: a
+    // throw here is a boot that does not finish
+    expect(() => router.narrows(key)).toThrow(/a declared reference to User/u);
+
+    controllers._filters.set(key, declaration({ sort: ['body'] }, key));
+
+    expect(() => router.narrows(key)).toThrow(/which is a text column/u);
+
+    controllers._filters.set(
+      key,
+      declaration({ where: { nope: 'string' } }, key)
+    );
+
+    expect(() => router.narrows(key)).toThrow(/not a column of Memo/u);
+
+    controllers._filters.set(key, kept);
+  });
+
   test('the policy still gates the endpoint', async () => {
     const anonymous = await supertest(app)
       .get('/memos/search')
