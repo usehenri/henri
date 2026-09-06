@@ -55,6 +55,8 @@ class Runner {
     this.wake = null;
     this.heartbeatTimer = null;
     this.maintenanceAt = 0;
+    this.sweepAt = 0;
+    this.prunedSchedules = false;
     this.handlers = [];
     this.performed = 0;
     this.failed = 0;
@@ -380,11 +382,21 @@ class Runner {
       return;
     }
 
+    // A cron expression has a minute of resolution, so the schedules are
+    // looked at every second at most
     this.maintenanceAt = now + Math.max(this.pollInterval, 1000);
 
     if (this.recurring) {
       await this.schedule(now);
     }
+
+    if (now < this.sweepAt) {
+      return;
+    }
+
+    // Nothing here is urgent: a job left behind is not late until
+    // `stuckAfter` has gone by, and the pruning is housekeeping
+    this.sweepAt = now + Math.max(5000, Math.floor(this.stuckAfter / 10));
 
     const recovered = await this.jobs
       .storeOrDie()
@@ -417,7 +429,12 @@ class Runner {
     const schedules = this.jobs.config.recurring;
     const enqueued = [];
 
-    await store.pruneSchedules(schedules.map((entry) => entry.name));
+    // The schedules the configuration no longer declares only have to go
+    // once, when this runner starts
+    if (!this.prunedSchedules) {
+      this.prunedSchedules = true;
+      await store.pruneSchedules(schedules.map((entry) => entry.name));
+    }
 
     for (const entry of schedules) {
       const upcoming = this.nextRunOf(entry, now);

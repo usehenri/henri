@@ -146,6 +146,7 @@ describe(`runner (${target.name})`, () => {
 
     runner.keepCompleted = 1000;
     runner.maintenanceAt = 0;
+    runner.sweepAt = 0;
     await runner.maintain();
 
     expect(await jobs.get(job.id)).toBeNull();
