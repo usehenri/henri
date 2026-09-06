@@ -3,6 +3,7 @@ const BaseModule = require('./base/module');
 const debug = require('debug')('henri:encryption');
 const { AsyncLocalStorage } = require('node:async_hooks');
 
+const { check, unknown } = require('./base/arguments');
 const {
   Keyring,
   decrypt,
@@ -289,7 +290,58 @@ class Encryption extends BaseModule {
    * @memberof Encryption
    */
   markOf(model, field) {
+    check('henri.encryption.markOf', [model, field]);
+
     return this.fields.get(`${model}.${field}`) || null;
+  }
+
+  /**
+   * The check `encrypt()` and `decrypt()` make, by hand.
+   *
+   * These two are the one place `base/arguments.js` says not to put its
+   * table: the three adapters call them once per row per encrypted column,
+   * and a walk that allocates per call is not worth it there. So the two
+   * things that actually go wrong are checked with three `typeof`s and no
+   * allocation -- a missing `context`, which writes an envelope whose AAD
+   * no read path can ever match, and a value that is not a string, which
+   * used to be encrypted as `String(value)` and to come back as one.
+   *
+   * @param {string} where The entry point, for the message
+   * @param {*} value The value
+   * @param {object} options The options
+   * @returns {void}
+   * @throws HENRI_ARGUMENT_INVALID
+   * @memberof Encryption
+   */
+  static guard(where, value, options) {
+    if (!options || typeof options !== 'object') {
+      throw fail(
+        'HENRI_ARGUMENT_INVALID',
+        `${where}(options) must be an object holding the context, but it is ${
+          typeof options === 'undefined' ? 'missing' : `a ${typeof options}`
+        }`
+      );
+    }
+
+    if (typeof options.context !== 'string' || options.context === '') {
+      throw fail(
+        'HENRI_ARGUMENT_INVALID',
+        `${where}(options.context) must be the "<Model>.<field>" the value belongs to, and it is missing: the envelope is bound to it, so one written without it never opens again`
+      );
+    }
+
+    // Null and undefined are the documented pass-through: a column that
+    // holds nothing stays holding nothing
+    if (
+      value !== null &&
+      typeof value !== 'undefined' &&
+      typeof value !== 'string'
+    ) {
+      throw fail(
+        'HENRI_ARGUMENT_INVALID',
+        `${where}(value) must be a string, but it is a ${typeof value}`
+      );
+    }
   }
 
   /**
@@ -302,6 +354,8 @@ class Encryption extends BaseModule {
    * @memberof Encryption
    */
   encrypt(value, options) {
+    Encryption.guard('henri.encryption.encrypt', value, options);
+
     if (value === null || typeof value === 'undefined') {
       return value;
     }
@@ -320,6 +374,8 @@ class Encryption extends BaseModule {
    * @memberof Encryption
    */
   decrypt(value, options) {
+    Encryption.guard('henri.encryption.decrypt', value, options);
+
     if (value === null || typeof value === 'undefined') {
       return value;
     }
@@ -391,6 +447,8 @@ class Encryption extends BaseModule {
    * @memberof Encryption
    */
   async tolerate(work) {
+    check('henri.encryption.tolerate', [work]);
+
     const scope = { failures: [] };
     const value = await this.lenient.run(scope, async () => work());
     const seen = new Set();
@@ -428,6 +486,8 @@ class Encryption extends BaseModule {
    * @memberof Encryption
    */
   candidates(value, options) {
+    check('henri.encryption.candidates', [value, options]);
+
     return this.keyring.entries.map((key) =>
       encrypt(value, {
         ...options,
@@ -534,6 +594,26 @@ class Encryption extends BaseModule {
    * @memberof Encryption
    */
   async rotate(options = {}) {
+    check('henri.encryption.rotate', [options]);
+
+    // A rotation over nothing reports `scanned: 0, rotated: 0` and a clean
+    // exit, which is exactly what an operator reads before dropping the old
+    // key. A `model` or a `field` that names no encrypted column is refused
+    const marks = [...this.fields.values()];
+    const wanted = (name, of) =>
+      typeof options[name] === 'string' &&
+      !marks.some((mark) => mark[name] === options[name]) &&
+      unknown('henri.encryption.rotate', `options.${name}`, options[name], [
+        ...new Set(marks.map(of)),
+      ]);
+    const refusal =
+      wanted('model', (mark) => mark.model) ||
+      wanted('field', (mark) => `${mark.model}.${mark.field}`);
+
+    if (refusal) {
+      throw refusal;
+    }
+
     return rotateOf(this.walk, options);
   }
 

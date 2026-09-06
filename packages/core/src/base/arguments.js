@@ -232,8 +232,15 @@ const bag = (keys, extra = {}) => ({
   ...extra,
 });
 
-/** What every cache call takes */
-const CACHE_OPTIONS = bag({ force: BOOLEAN, ttl: DURATION });
+/**
+ * What every cache call takes.
+ *
+ * `ttl` is `ANY` here on purpose: `Cache#ttlOf` owns it and raises
+ * `HENRI_CACHE_TTL_INVALID`, which says more about a duration than a node
+ * could. What the bag adds is the key names around it, so `tll` and `forse`
+ * are refused instead of silently meaning the default.
+ */
+const CACHE_OPTIONS = bag({ force: BOOLEAN, ttl: ANY });
 
 /** What a policy question takes beside the user, the action and the record */
 const POLICY_OPTIONS = {
@@ -278,9 +285,6 @@ const ENCRYPTION_OPTIONS = bag({
   },
   deterministic: BOOLEAN,
 });
-
-/** A value henri encrypts: a string, or nothing */
-const SECRET = { oneOf: [{ const: null }, { type: 'string' }] };
 
 /** The fields marked `expose: false` an answer is allowed to carry */
 const INCLUDE = {
@@ -358,17 +362,11 @@ const SIGNATURES = {
   ],
 
   'henri.encryption.candidates': [
-    { name: 'value', ...NAME },
-    { name: 'options', ...ENCRYPTION_OPTIONS },
-  ],
-
-  'henri.encryption.decrypt': [
-    { name: 'value', optional: true, ...SECRET },
-    { name: 'options', ...ENCRYPTION_OPTIONS },
-  ],
-
-  'henri.encryption.encrypt': [
-    { name: 'value', optional: true, ...SECRET },
+    {
+      ...NAME,
+      describe: 'the value to look up',
+      name: 'value',
+    },
     { name: 'options', ...ENCRYPTION_OPTIONS },
   ],
 
@@ -596,7 +594,10 @@ const UNCHECKED = {
   'henri.config.get':
     'HENRI_CONFIG_UNKNOWN_KEY already refuses anything that is not a key, and this is the one entry point called often enough for an allocation to matter',
   'henri.config.has': 'answers false for anything that is not a key',
+  'henri.encryption.decrypt':
+    'checked by hand in 1.encryption.js, with three typeofs and no allocation: the three adapters call it once per row per encrypted column, which is the one place a walk is not worth it',
   'henri.encryption.describe': 'takes no argument',
+  'henri.encryption.encrypt': 'the same, on the write path',
   'henri.encryption.isEnvelope': 'a total function of unknown',
   'henri.encryption.keyIdIn': 'a total function of unknown',
   'henri.encryption.status': 'takes no argument',

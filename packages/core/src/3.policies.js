@@ -4,6 +4,7 @@ const path = require('path');
 const debug = require('debug')('henri:policies');
 
 const { loadModules } = require('./utils');
+const { check, unknown } = require('./base/arguments');
 const { singularize } = require('./base/routes');
 const { userConfig } = require('./base/auth');
 const {
@@ -286,6 +287,29 @@ class Policies extends BaseModule {
    * @memberof Policies
    */
   async can(user, action, record = null, options = {}) {
+    check('henri.policies.can', [user, action, record, options]);
+
+    return this.answer(user, action, record, options);
+  }
+
+  /**
+   * The same question, unchecked: what henri asks itself.
+   *
+   * `links()` and `paths()` ask it once per link, with an action they read
+   * out of a route helper and options they built themselves. Checking a
+   * value henri produced, inside a loop henri wrote, is the one trade
+   * `base/arguments.js` says not to make -- so the check lives on `can()`,
+   * which is what an application calls, and this is the body they share.
+   *
+   * @async
+   * @param {*} user the user (`req.user`), or null
+   * @param {string} action the action (`update`)
+   * @param {*} [record=null] the record, when there is one
+   * @param {(object|string)} [options={}] `{ policy, type, req }`, or a name
+   * @returns {Promise<boolean>} allowed or not
+   * @memberof Policies
+   */
+  async answer(user, action, record = null, options = {}) {
     const opts = typeof options === 'string' ? { policy: options } : options;
     const name = this.nameFor(record, opts || {});
     const target = record === undefined ? null : record;
@@ -370,7 +394,9 @@ class Policies extends BaseModule {
    * @memberof Policies
    */
   async authorize(user, action, record = null, options = {}) {
-    if (await this.can(user, action, record, options)) {
+    check('henri.policies.authorize', [user, action, record, options]);
+
+    if (await this.answer(user, action, record, options)) {
       return record;
     }
 
@@ -393,7 +419,8 @@ class Policies extends BaseModule {
    * @memberof Policies
    */
   refusal(user, action, record, options = {}) {
-    const name = this.nameFor(record, options || {});
+    const opts = typeof options === 'string' ? { policy: options } : options;
+    const name = this.nameFor(record, opts || {});
     const anonymous = !user;
     const status =
       (options && options.status) || (anonymous ? 401 : this.settings.status);
@@ -425,12 +452,12 @@ class Policies extends BaseModule {
    * @memberof Policies
    */
   async scope(user, name, context = {}) {
+    check('henri.policies.scope', [user, name, context]);
+
     const found = this.resolve(name);
 
     if (!found) {
-      throw new TypeError(
-        `no policy for "${name}": write app/policies/${String(name).toLowerCase()}.js`
-      );
+      throw unknown('henri.policies.scope', 'name', name, this.names());
     }
 
     const policy = this._policies.get(found);
@@ -471,6 +498,8 @@ class Policies extends BaseModule {
    * @memberof Policies
    */
   async links(user, links, record, options = {}) {
+    check('henri.policies.links', [user, links, record, options]);
+
     const name = this.nameFor(record, options);
 
     if (!name || !links) {
@@ -494,7 +523,7 @@ class Policies extends BaseModule {
       if (!known.record && cache && cache.has(key)) {
         allowed = cache.get(key);
       } else {
-        allowed = await this.can(
+        allowed = await this.answer(
           user,
           known.action,
           known.record ? record : null,
@@ -531,6 +560,8 @@ class Policies extends BaseModule {
    * @memberof Policies
    */
   async paths(user, paths, options = {}) {
+    check('henri.policies.paths', [user, paths, options]);
+
     if (this._policies.size === 0 || !paths) {
       return paths;
     }
@@ -560,7 +591,7 @@ class Policies extends BaseModule {
       if (!cache.has(key)) {
         cache.set(
           key,
-          await this.can(user, parsed.action, null, {
+          await this.answer(user, parsed.action, null, {
             policy: name,
             req: options.req || null,
           })
