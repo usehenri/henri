@@ -6,7 +6,7 @@
 const { agent, request } = require('@usehenri/testing');
 
 /** The password every account created here uses */
-const PASSWORD = 'showcase';
+const PASSWORD = 'lineup-showcase';
 
 /**
  * The asset version of the Inertia client. A GET carrying `X-Inertia` and

@@ -18,7 +18,7 @@ export default function Login() {
         <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           The seeded accounts all use the password{' '}
-          <code className="font-mono">showcase</code>. Try{' '}
+          <code className="font-mono">lineup-showcase</code>. Try{' '}
           <code className="font-mono">ada@lineup.dev</code> for the committee
           view.
         </p>

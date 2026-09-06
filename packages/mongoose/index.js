@@ -243,6 +243,19 @@ class Mongoose {
         (options && options.unsafe) || (doc.$locals && doc.$locals.unsafe)
       );
 
+    /**
+     * Is the password already a hash?
+     *
+     * @param {object} doc The document
+     * @param {object} [options] The save options
+     * @returns {boolean} true when flagged passwordsHashed
+     */
+    const isHashed = (doc, options) =>
+      Boolean(
+        (options && options.passwordsHashed) ||
+        (doc.$locals && doc.$locals.passwordsHashed)
+      );
+
     schema.pre('save', async function preSave(options) {
       if (!isUnsafe(this, options) && this.isModified('roles')) {
         if (this.isNew) {
@@ -252,7 +265,10 @@ class Mongoose {
         }
       }
 
-      if (this.isModified('password')) {
+      // `save({ passwordsHashed: true })` writes a hash straight through,
+      // the way the sequelize and drizzle adapters already do; core uses it
+      // to upgrade a stored hash after a successful sign-in
+      if (this.isModified('password') && !isHashed(this, options)) {
         this.password = await encrypt(this.password);
       }
     });

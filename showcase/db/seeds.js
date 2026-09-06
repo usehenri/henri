@@ -6,7 +6,7 @@
 // deploy, so everything below is find-then-create and the numbers are
 // deterministic: running it twice changes nothing.
 //
-// Sign in with any of the emails below; the password is always `showcase`.
+// Sign in with any of the emails below; the password is always `lineup-showcase`.
 // ada@lineup.dev and grace@lineup.dev are on the program committee (admins).
 
 // Name, slug, blurb. The conference keeps the same four tracks every year.
@@ -907,7 +907,7 @@ module.exports = async (henri) => {
     const user = await findOrCreate(
       User,
       { email },
-      { bio, company, name, password: 'showcase' }
+      { bio, company, name, password: 'lineup-showcase' }
     );
 
     // Roles are never mass assignable: setRoles() is the only way in
@@ -985,6 +985,6 @@ module.exports = async (henri) => {
   );
   henri.pen.info(
     'seeds',
-    'sign in as ada@lineup.dev (admin), password showcase'
+    'sign in as ada@lineup.dev (admin), password lineup-showcase'
   );
 };

@@ -78,6 +78,61 @@ declare namespace start {
     [key: string]: unknown;
   }
 
+  /** `config.user.password`: how passwords are checked and hashed. */
+  interface PasswordConfig {
+    /**
+     * `auto` (argon2id when `@node-rs/argon2` resolves, bcrypt otherwise),
+     * `argon2id` (fails at boot when it does not) or `bcrypt`.
+     */
+    algorithm?: 'auto' | 'argon2id' | 'bcrypt';
+    /** Shortest password accepted (`12`); never below `8`. */
+    minLength?: number;
+    /** Longest password accepted, in bytes (`72`, bcrypt's ceiling). */
+    maxBytes?: number;
+    /** bcrypt work factor (`12`); never below `10`. */
+    bcryptRounds?: number;
+    /** argon2id memory, in kibibytes (`19456`). */
+    memoryCost?: number;
+    /** argon2id iterations (`2`). */
+    timeCost?: number;
+    /** argon2id lanes (`1`). */
+    parallelism?: number;
+    /**
+     * A server-side key mixed into every hash, so a stolen table cannot be
+     * cracked offline. Its own key, never `config.secret`; it also reads
+     * `HENRI_PASSWORD_PEPPER`. Losing it makes every peppered password
+     * unverifiable. `previous` keeps a rotation working while rehash-on-login
+     * migrates; `allowUnpeppered` (`true`) keeps hashes written before the
+     * pepper working, and should be turned off once none are left.
+     */
+    pepper?:
+      | string
+      | {
+          current: string;
+          previous?: string[];
+          allowUnpeppered?: boolean;
+        };
+  }
+
+  /** The normalized `config.user.password`. */
+  interface PasswordPolicy extends Required<Omit<PasswordConfig, 'pepper'>> {
+    pepper: {
+      current: Buffer | null;
+      previous: Buffer[];
+      allowUnpeppered: boolean;
+    };
+  }
+
+  /** `config.user.lockout`: the per-account sign-in lockout. */
+  interface LockoutConfig {
+    /** Failed attempts allowed per account per window (`10`). */
+    max?: number;
+    /** The window, in milliseconds (15 minutes). */
+    windowMs?: number;
+    /** An express-rate-limit store; in memory, per process, by default. */
+    store?: object | null;
+  }
+
   /** `config.user` when it is an object rather than the model name. */
   interface UserConfig {
     /** Name of the user model (`user`). */
@@ -90,10 +145,65 @@ declare namespace start {
     afterLogin?: string;
     /** Session lifetime in milliseconds (30 days). */
     sessionMaxAge?: number;
+    /** Password policy and hashing parameters. */
+    password?: PasswordConfig;
+    /** Per-account sign-in lockout; `false` turns it off. */
+    lockout?: false | LockoutConfig;
   }
 
   /** The normalized `config.user`, as `henri.user.settings`. */
-  interface UserSettings extends Required<UserConfig> {}
+  interface UserSettings extends Required<
+    Omit<UserConfig, 'password' | 'lockout'>
+  > {
+    password: PasswordPolicy;
+    lockout: Required<LockoutConfig> | null;
+  }
+
+  /** `config.csrf` when it is an object rather than a boolean. */
+  interface CsrfConfig {
+    /** `false` keeps the token check without the origin check. */
+    origin?: boolean;
+    /**
+     * Other origins allowed to send an unsafe request with a session cookie;
+     * whatever `config.cors` allows is trusted already.
+     */
+    trustedOrigins?: string[];
+  }
+
+  /** `config.graphql` when it is an object rather than the endpoint. */
+  interface GraphqlConfig {
+    /** Path of the endpoint (`/_henri/gql`). */
+    endpoint?: string;
+    /** Require a signed-in user. */
+    authenticated?: boolean;
+    /** Require these roles (implies `authenticated`). */
+    roles?: string | string[];
+    /** Answer 404 to anything but the loopback interface. */
+    loopbackOnly?: boolean;
+    /** Introspection; on outside production by default. */
+    introspection?: boolean;
+    /** Deepest query accepted (`10`); `false` lifts the limit. */
+    maxDepth?: number | false;
+    /** Most aliases one query may use (`15`); `false` lifts the limit. */
+    maxAliases?: number | false;
+    /** Most fields one query may select (`1000`); `false` lifts the limit. */
+    maxComplexity?: number | false;
+    /** Most tokens one document may hold (`5000`); `false` lifts the limit. */
+    maxTokens?: number | false;
+  }
+
+  /** The normalized `config.graphql`, as `henri.graphql.settings`. */
+  interface GraphqlSettings {
+    endpoint: string;
+    authenticated: boolean;
+    roles: string[];
+    loopbackOnly: boolean;
+    introspection: boolean | null;
+    maxDepth: number;
+    maxAliases: number;
+    maxComplexity: number;
+    maxTokens: number;
+  }
 
   /** `config.api`: the JSON API. */
   interface ApiConfig {
@@ -250,9 +360,9 @@ declare namespace start {
     /** Express `trust proxy` (`true`). */
     trustProxy?: boolean | number | string;
     /** `false` disables the CSRF protection. */
-    csrf?: boolean;
-    /** Path of the GraphQL endpoint (`/_henri/gql`). */
-    graphql?: string;
+    csrf?: boolean | CsrfConfig;
+    /** Path of the GraphQL endpoint, or its settings. */
+    graphql?: string | GraphqlConfig;
     /** Nodemailer transport options, or `"test"` for an Ethereal account. */
     mail?: 'test' | Record<string, unknown>;
     mailers?: MailersConfig;
@@ -882,10 +992,33 @@ declare namespace start {
     settings: UserSettings | null;
     /** The passport instance holding the `local` and `jwt` strategies. */
     passport: any;
-    /** Hashes a password; rejects strings shorter than 6 characters. */
+    /** The password policy in force (`config.user.password`, normalized). */
+    readonly passwordPolicy: PasswordPolicy;
+    /** The per-account lockout, `null` when `config.user.lockout` is false. */
+    lockout: object | null;
+    /**
+     * Checks a password against the policy without hashing it. Never throws:
+     * every entry of `errors` carries a stable `code` (`missing`,
+     * `too_short`, `too_long`) and a message a form can show.
+     */
+    validatePassword(password: unknown): {
+      valid: boolean;
+      errors: Array<{ code: string; message: string; [key: string]: unknown }>;
+      policy: { minLength: number; maxBytes: number };
+    };
+    /**
+     * Hashes a password with argon2id (or bcrypt), after checking it against
+     * the policy. `rounds` is deprecated: it overrides
+     * `config.user.password.bcryptRounds` and is ignored under argon2id.
+     */
     encrypt(password: string, rounds?: number): Promise<string>;
     /** Resolves `true`; rejects with an error on a mismatch, never `false`. */
     compare(password: string, hash: string): Promise<true>;
+    /**
+     * Writes a stored hash again with the current parameters, after its
+     * owner proved the password. Applies no policy and never throws.
+     */
+    rehash(user: unknown, password: string): Promise<boolean>;
     findByEmail(email: string): Promise<any>;
     findById(id: string): Promise<any>;
     /** `{ id, email, roles }` plus `config.user.public`. */
@@ -968,6 +1101,8 @@ declare namespace start {
     name: 'graphql';
     /** Path of the endpoint (`/_henri/gql`). */
     endpoint: string;
+    /** The normalized `config.graphql`: the limits and the access rules. */
+    settings: GraphqlSettings;
     /** Whether a schema was found and the endpoint mounted. */
     active: boolean;
     /**

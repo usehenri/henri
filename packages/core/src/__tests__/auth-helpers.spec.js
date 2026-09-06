@@ -19,8 +19,19 @@ describe('userConfig', () => {
   test('defaults without a user key', () => {
     expect(userConfig(configOf({}))).toEqual({
       afterLogin: '/',
+      lockout: { max: 10, store: null, windowMs: 15 * 60 * 1000 },
       loginPath: '/login',
       model: 'user',
+      password: {
+        algorithm: 'auto',
+        bcryptRounds: 12,
+        maxBytes: 72,
+        memoryCost: 19456,
+        minLength: 12,
+        parallelism: 1,
+        pepper: { allowUnpeppered: true, current: null, previous: [] },
+        timeCost: 2,
+      },
       public: [],
       sessionMaxAge: 30 * 24 * 60 * 60 * 1000,
     });
@@ -43,7 +54,7 @@ describe('userConfig', () => {
       })
     );
 
-    expect(settings).toEqual({
+    expect(settings).toMatchObject({
       afterLogin: '/home',
       loginPath: '/signin',
       model: 'account',
@@ -254,6 +265,110 @@ describe('params', () => {
 
     expect(called).toBe(true);
     expect(request.permit('title')).toEqual({ title: 'x' });
+  });
+});
+
+describe('csrfConfig', () => {
+  const { csrfConfig } = csrf;
+
+  test('checks the origin by default and trusts nothing else', () => {
+    expect(csrfConfig(configOf({}))).toEqual({
+      checkOrigin: true,
+      trustedOrigins: [],
+    });
+    expect(csrfConfig(configOf({ csrf: true })).checkOrigin).toBe(true);
+  });
+
+  test('inherits the origins cors already allows', () => {
+    expect(
+      csrfConfig(
+        configOf({ cors: { credentials: true, origin: ['https://app.io'] } })
+      ).trustedOrigins
+    ).toEqual(['https://app.io']);
+
+    // `"cors": true` is the library defaults, which name no origin
+    expect(csrfConfig(configOf({ cors: true })).trustedOrigins).toEqual([]);
+  });
+
+  test('takes its own trusted origins, and can keep the token check alone', () => {
+    expect(
+      csrfConfig(
+        configOf({
+          cors: { origin: 'https://app.io' },
+          csrf: { origin: false, trustedOrigins: ['https://admin.io'] },
+        })
+      )
+    ).toEqual({
+      checkOrigin: false,
+      trustedOrigins: ['https://app.io', 'https://admin.io'],
+    });
+  });
+
+  test('rejects other shapes', () => {
+    expect(() => csrfConfig(configOf({ csrf: 'yes' }))).toThrow(TypeError);
+  });
+});
+
+describe('csrf origin check', () => {
+  const { originAllowed } = csrf;
+
+  /**
+   * A request stand-in
+   *
+   * @param {object} headers the headers, lowercased
+   * @returns {object} the request
+   */
+  const requestOf = (headers) => ({
+    get: (name) => headers[name.toLowerCase()],
+    protocol: 'https',
+  });
+
+  test('says nothing when the request says nothing', () => {
+    expect(originAllowed(requestOf({ host: 'app.io' }), new Set())).toBeNull();
+  });
+
+  test('trusts same-origin and user-initiated navigations', () => {
+    for (const site of ['same-origin', 'none']) {
+      expect(
+        originAllowed(
+          requestOf({ host: 'app.io', 'sec-fetch-site': site }),
+          new Set()
+        )
+      ).toBe(true);
+    }
+  });
+
+  test('refuses a sibling subdomain, which same-site would otherwise cover', () => {
+    expect(
+      originAllowed(
+        requestOf({
+          host: 'app.io',
+          origin: 'https://evil.app.io',
+          'sec-fetch-site': 'same-site',
+        }),
+        new Set()
+      )
+    ).toBe(false);
+  });
+
+  test('accepts an origin matching the host, or one explicitly trusted', () => {
+    expect(
+      originAllowed(
+        requestOf({ host: 'app.io', origin: 'https://app.io/' }),
+        new Set()
+      )
+    ).toBe(true);
+
+    expect(
+      originAllowed(
+        requestOf({
+          host: 'app.io',
+          origin: 'https://admin.io',
+          'sec-fetch-site': 'cross-site',
+        }),
+        new Set(['https://admin.io'])
+      )
+    ).toBe(true);
   });
 });
 

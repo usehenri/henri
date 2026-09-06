@@ -1,6 +1,13 @@
 const supertest = require('supertest');
+const bcrypt = require('bcryptjs');
 const Henri = require('../henri');
 const SessionStoreProxy = require('../base/session-store');
+const Lockout = require('../base/lockout');
+const {
+  needsRehash,
+  pepperConfig,
+  verifyPassword,
+} = require('../base/password');
 
 const email = 'ada@usehenri.io';
 const password = 'analytical-engine';
@@ -192,6 +199,143 @@ describe('auth (demo app, disk store)', () => {
     });
   });
 
+  describe('the password policy', () => {
+    test('refuses a password below the minimum, saying what is wrong', async () => {
+      const res = await supertest(app)
+        .post('/register')
+        .send({ email: 'weak@usehenri.io', name: 'Weak', password: 'sixchr' });
+
+      expect(res.status).toBe(422);
+      expect(res.body.message).toMatch(/at least 12 characters/);
+      await expect(
+        henri.user.findByEmail('weak@usehenri.io')
+      ).resolves.toBeNull();
+    });
+
+    test('refuses what bcrypt would truncate', async () => {
+      const res = await supertest(app)
+        .post('/register')
+        .send({
+          email: 'long@usehenri.io',
+          name: 'Long',
+          password: 'a'.repeat(200),
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.message).toMatch(/at most 72 bytes/);
+    });
+
+    test('validatePassword answers why, without throwing', () => {
+      expect(henri.user.validatePassword('sixchr')).toMatchObject({
+        errors: [{ code: 'too_short', minLength: 12 }],
+        valid: false,
+      });
+      expect(henri.user.validatePassword(password).valid).toBe(true);
+      expect(henri.user.passwordPolicy.minLength).toBe(12);
+    });
+  });
+
+  describe('upgrading a stored hash', () => {
+    const legacyEmail = 'legacy@usehenri.io';
+    // Six characters: what this application accepted before the minimum moved
+    const legacyPassword = 'sixchr';
+    let stale;
+
+    beforeAll(async () => {
+      stale = await bcrypt.hash(legacyPassword, await bcrypt.genSalt(4));
+
+      const user = new henri._user({
+        email: legacyEmail,
+        name: 'Grace',
+        password: stale,
+      });
+
+      await user.save({ passwordsHashed: true });
+    });
+
+    test('a password shorter than the new minimum still signs in', async () => {
+      const before = await henri.user.findByEmail(legacyEmail);
+
+      expect(before.password).toBe(stale);
+      expect(needsRehash(before.password, henri.user.passwordPolicy)).toBe(
+        true
+      );
+
+      const res = await supertest(app)
+        .post('/login')
+        .send({ email: legacyEmail, password: legacyPassword });
+
+      // The policy governs setting a password, never verifying one
+      expect(res.status).toBe(200);
+    });
+
+    test('and its hash was written again with the current parameters', async () => {
+      const after = await henri.user.findByEmail(legacyEmail);
+
+      expect(after.password).not.toBe(stale);
+      expect(needsRehash(after.password, henri.user.passwordPolicy)).toBe(
+        false
+      );
+      await expect(
+        henri.user.compare(legacyPassword, after.password)
+      ).resolves.toBe(true);
+
+      // Signing in again changes nothing: the hash is current
+      const res = await supertest(app)
+        .post('/login')
+        .send({ email: legacyEmail, password: legacyPassword });
+
+      expect(res.status).toBe(200);
+      expect((await henri.user.findByEmail(legacyEmail)).password).toBe(
+        after.password
+      );
+    });
+  });
+
+  describe('adopting a pepper', () => {
+    const pepperEmail = 'pepper@usehenri.io';
+
+    test('rewrites a hash under the new key when its owner signs in', async () => {
+      const before = await henri.user.encrypt(password);
+      const user = new henri._user({
+        email: pepperEmail,
+        name: 'Katherine',
+        password: before,
+      });
+
+      await user.save({ passwordsHashed: true });
+
+      const plain = henri.user.settings.password.pepper;
+
+      henri.user.settings.password.pepper = pepperConfig(
+        'a-key-that-lives-outside-the-database'
+      );
+
+      try {
+        // Nobody is locked out by the change: the old hash still verifies
+        const res = await supertest(app)
+          .post('/login')
+          .send({ email: pepperEmail, password });
+
+        expect(res.status).toBe(200);
+
+        const after = await henri.user.findByEmail(pepperEmail);
+
+        expect(after.password).not.toBe(before);
+
+        // And what is stored now is worthless without the key
+        await expect(
+          verifyPassword(password, after.password, { pepper: plain })
+        ).resolves.toMatchObject({ ok: false });
+        await expect(
+          verifyPassword(password, after.password, henri.user.passwordPolicy)
+        ).resolves.toMatchObject({ ok: true, stale: false });
+      } finally {
+        henri.user.settings.password.pepper = plain;
+      }
+    });
+  });
+
   describe('roles', () => {
     test('denies anonymous requests: 401 for json, redirect for html', async () => {
       const anonymous = supertest(app);
@@ -295,6 +439,99 @@ describe('auth (demo app, disk store)', () => {
       const res = await agent.get('/artwork').set('Accept', 'application/json');
 
       expect(res.body.csrf).toBe(csrf);
+    });
+  });
+
+  describe('csrf: where the request came from', () => {
+    /**
+     * A request carrying a session cookie and a valid token, so that only
+     * the origin check can be what refuses it
+     *
+     * @returns {object} the supertest request
+     */
+    const post = () =>
+      agent
+        .post('/artwork')
+        .set('X-CSRF-Token', csrf)
+        .send({ title: 'origin', year: 1 });
+
+    test('accepts a same-origin request', async () => {
+      const res = await post().set('Sec-Fetch-Site', 'same-origin');
+
+      expect(res.status).toBe(201);
+    });
+
+    test('accepts a request the person started themselves', async () => {
+      const res = await post().set('Sec-Fetch-Site', 'none');
+
+      expect(res.status).toBe(201);
+    });
+
+    test('refuses a forged cross-site request even with a valid token', async () => {
+      const res = await post()
+        .set('Sec-Fetch-Site', 'cross-site')
+        .set('Origin', 'https://evil.example');
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toMatch(/Cross-origin/);
+    });
+
+    test('refuses a sibling subdomain, which the token alone cannot', async () => {
+      // A subdomain can write a cookie on the parent domain, so it can plant
+      // a token it knows; what it cannot do is claim this origin
+      const res = await post()
+        .set('Sec-Fetch-Site', 'same-site')
+        .set('Origin', 'https://evil.usehenri.io');
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toMatch(/Cross-origin/);
+    });
+
+    test('refuses a mismatched Origin even without fetch metadata', async () => {
+      const res = await post().set('Origin', 'https://evil.example');
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toMatch(/Cross-origin/);
+    });
+
+    test('refuses a browser that claims cross-site without an origin', async () => {
+      const res = await post().set('Sec-Fetch-Site', 'cross-site');
+
+      expect(res.status).toBe(403);
+    });
+
+    test('accepts an Origin matching the host, without fetch metadata', async () => {
+      const res = await agent
+        .post('/artwork')
+        .set('X-CSRF-Token', csrf)
+        .set('Host', 'app.usehenri.io')
+        .set('Origin', 'http://app.usehenri.io')
+        .send({ title: 'origin', year: 1 });
+
+      expect(res.status).toBe(201);
+    });
+
+    test('says nothing to a cross-origin client that sends no cookie', async () => {
+      // The case this must not break: an API client on another origin, with
+      // no ambient credentials to ride on
+      const res = await supertest(app)
+        .post('/artwork')
+        .set('Origin', 'https://client.example')
+        .set('Sec-Fetch-Site', 'cross-site')
+        .send({ title: 'api client', year: 1 });
+
+      expect(res.status).toBe(201);
+    });
+
+    test('nor to a bearer token request, whatever origin it claims', async () => {
+      const res = await agent
+        .post('/artwork')
+        .set('Authorization', 'Bearer not-a-real-token')
+        .set('Origin', 'https://client.example')
+        .set('Sec-Fetch-Site', 'cross-site')
+        .send({ title: 'bearer', year: 1 });
+
+      expect(res.status).toBe(201);
     });
   });
 
@@ -405,6 +642,93 @@ describe('auth (demo app, disk store)', () => {
       } finally {
         henri._user = model;
       }
+    });
+  });
+
+  describe('per-account lockout', () => {
+    let original;
+
+    beforeAll(() => {
+      original = henri.user.lockout;
+      // The same object the configuration builds, with a window short enough
+      // to watch it release
+      henri.user.lockout = new Lockout({
+        max: 3,
+        secret: 'test',
+        windowMs: 400,
+      });
+    });
+
+    afterAll(() => {
+      henri.user.lockout.shutdown();
+      henri.user.lockout = original;
+    });
+
+    test('locks an account after the threshold, and refuses the right password too', async () => {
+      const client = supertest(app);
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const res = await client
+          .post('/login')
+          .send({ email, password: 'not-the-password' });
+
+        expect(res.status).toBe(attempt === 3 ? 429 : 401);
+      }
+
+      // The lock is checked before the password is hashed, so the correct
+      // one gets the same answer: this is what bounds a distributed attempt
+      const locked = await client.post('/login').send({ email, password });
+
+      expect(locked.status).toBe(429);
+      expect(Number(locked.headers['retry-after'])).toBeGreaterThan(0);
+      expect(locked.body.message).toMatch(/Too many failed sign-in attempts/);
+    });
+
+    test('sends browsers to the login page rather than a json error', async () => {
+      const res = await supertest(app)
+        .post('/login')
+        .set('Accept', 'text/html')
+        .type('form')
+        .send({ email, password });
+
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe('/login?error=locked');
+    });
+
+    test('an address nobody owns locks the same way, so this is no oracle', async () => {
+      const client = supertest(app);
+      let last;
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        last = await client
+          .post('/login')
+          .send({ email: 'nobody-here@usehenri.io', password: 'guessing' });
+      }
+
+      expect(last.status).toBe(429);
+      expect(last.body.message).toMatch(/Too many failed sign-in attempts/);
+    });
+
+    test('releases the account when the window rolls over', async () => {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+
+      const res = await supertest(app).post('/login').send({ email, password });
+
+      expect(res.status).toBe(200);
+    });
+
+    test('a successful sign-in clears the count', async () => {
+      const client = supertest(app);
+
+      await client.post('/login').send({ email, password: 'not-the-password' });
+      await client.post('/login').send({ email, password: 'not-the-password' });
+      await client.post('/login').send({ email, password });
+
+      const res = await client
+        .post('/login')
+        .send({ email, password: 'not-the-password' });
+
+      expect(res.status).toBe(401);
     });
   });
 });
