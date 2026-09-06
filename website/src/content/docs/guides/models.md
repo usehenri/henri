@@ -49,7 +49,7 @@ module.exports = {
 };
 ```
 
-On SQL, `associate()` runs before `sync()`, so the foreign keys end up in the tables.
+On SQL, `associate()` runs before the schema is brought up, so the foreign keys end up in the tables.
 
 The keys above and the nine field types are declared in `@usehenri/core`: a `/** @type {import('@usehenri/core').ModelFile} */` line, which `henri generate model` writes, is enough for an editor to complete them. The model itself is the ORM's, and stays untyped — see [Types](/reference/types/).
 
@@ -580,6 +580,38 @@ On MySQL a push only creates the tables that do not exist yet: drizzle-kit does 
 
 The three SQL packages are thin dialects over `@usehenri/sequelize`. `host`, `port`, `database`, `username` and `password` are accepted instead of `url`; a store with none of them fails the boot. Every other key of the store (`pool`, `dialectOptions`, `logging`, ...) is forwarded to Sequelize. `logging` defaults to the `henri:sequelize` debug namespace (`henri server --debug=henri:sequelize` prints the queries) and credentials are redacted from that output.
 
-On boot the adapter authenticates, calls the `associate()` exports and runs `sequelize.sync()`: tables are created or extended from the models. There are no migrations.
+#### The schema of a Sequelize store
+
+These adapters have no migrations, and henri does not pretend otherwise: `sequelize.sync()` creates the tables that are **missing** and never alters a table that already exists. That is enough in development and it is not a way to change a live database, so henri is explicit about where each half applies.
+
+**In development** the boot syncs, as it always has, unless the store sets `"sync": false`.
+
+**In production** the boot changes nothing. It reads the database back instead, compares it with the models and warns about every difference it finds. A store that really wants the old behaviour asks for it with `"sync": true`, and `henri audit` reports that as [`schema.autosync`](/guides/security/): it is DDL applied at boot, from whatever the models happen to say, with nobody reviewing it.
+
+**`henri db:status`** is the same comparison on demand, and the one command of the `db:` family a Sequelize store answers:
+
+```bash
+henri db:status              # what the database and the models disagree about
+henri db:status --sql        # the DDL that would close it, for you to review
+henri db:status --json       # `clean: false` and the differences, for CI
+```
+
+It reports a missing table, a missing column, a column whose type or nullability differs, a missing index, and a column that is in the database and in no model. It never writes a `DROP`: a column henri does not recognize may hold the only copy of something, and only you can know. Everything it writes is DDL for **you** to read and run; henri applies none of it.
+
+```
+  Store default (postgres), compared with the models
+
+  3 difference(s):
+    tasks.priority: the column is missing
+    tasks.name: the database has TEXT instead of VARCHAR(255)
+    tasks.legacy_note: the column is in the database and in no model
+
+  henri does not change a Sequelize schema for you: run it again
+  with --sql for the DDL that would close the difference.
+```
+
+On sqlite a column change is reported and no statement is written, because sqlite has no `ALTER COLUMN` and the table has to be rebuilt. `henri db:generate`, `db:migrate` and `db:push` answer `HENRI_CLI_MIGRATIONS_UNSUPPORTED` on these stores and point here.
+
+If you want generated, reviewable, versioned migrations on SQL, that is the [drizzle adapter](#drizzle), and [Upgrading](/upgrading/#moving-a-sequelize-store-to-drizzle) is the path from one to the other.
 
 `options: { paranoid: true }` is Sequelize's own, so `restore()`, `{ paranoid: false }` and `{ force: true }` behave exactly as its documentation describes.

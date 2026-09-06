@@ -3,6 +3,7 @@ const path = require('path');
 
 const { CliError } = require('./errors');
 const { expandEntry, singularize } = require('./routing');
+const { APIS } = require('./adapters');
 const { detectPackageManager, isProject, readRoutes } = require('./utils');
 
 /**
@@ -275,6 +276,13 @@ const CHECKS = [
     what: 'an action of a resource carries no role where its siblings do',
   },
   {
+    asvs: 'V14.1.1',
+    check: 'schema.autosync',
+    level: 2,
+    owasp: 'A05',
+    what: 'a store changes the database schema by itself on a production boot',
+  },
+  {
     asvs: 'V2.10.4',
     check: 'secret.in-config',
     level: 2,
@@ -384,6 +392,9 @@ const DEFAULT_FILTER = ['password', 'token', 'secret', 'authorization'];
  * a local container are in `compose.yaml` anyway
  */
 const LOCAL_HOSTS = ['0.0.0.0', '127.0.0.1', '::1', '[::1]', 'localhost'];
+
+/** The configuration files a production boot reads (0.config.js) */
+const PRODUCTION_CONFIGS = ['config/default.json', 'config/production.json'];
 
 /** Secrets that are not secrets, whatever their length */
 const PLACEHOLDERS = [
@@ -621,7 +632,7 @@ const readJson = (file) => {
  * @param {object} context `{ file, hasUser }`
  * @returns {Array<object>} The findings, without their file
  */
-const configFindings = (config, { hasUser }) => {
+const configFindings = (config, { file, hasUser }) => {
   const found = [];
   const add = (severity, check, owasp, message, hint, asvs = null) =>
     found.push({ asvs, check, hint, message, owasp, severity });
@@ -659,6 +670,32 @@ const configFindings = (config, { hasUser }) => {
         `stores.${name}.url carries the credentials of a remote database`,
         `Remove them and let DATABASE_URL or HENRI_CONFIG__stores__${name}__url provide the connection string, then rotate the password`,
         'V2.10.4'
+      );
+    }
+  }
+
+  // `sync: true` on a Sequelize store makes a production boot run DDL of
+  // its own, from whatever the models happen to say, with nobody reviewing
+  // it. Only the two files a production boot reads are worth the word:
+  // syncing in development is the default and the point. The drizzle
+  // adapter never pushes in production, whatever `sync` says.
+  if (PRODUCTION_CONFIGS.includes(file)) {
+    for (const [name, store] of Object.entries(config.stores || {})) {
+      if (
+        !isObject(store) ||
+        store.sync !== true ||
+        APIS[store.adapter] !== 'sequelize'
+      ) {
+        continue;
+      }
+
+      add(
+        'medium',
+        'schema.autosync',
+        OWASP.A05,
+        `stores.${name} applies schema changes to the production database on every boot`,
+        `Remove "sync": true from ${file} and change the schema in the deploy instead: "henri db:status" reports what the database and the models disagree about, and the drizzle adapter has reviewable migrations ("henri db:generate", "henri db:migrate")`,
+        'V14.1.1'
       );
     }
   }
@@ -1009,7 +1046,7 @@ const configurations = (dir, hasUser) => {
       continue;
     }
 
-    for (const finding of configFindings(config, { hasUser })) {
+    for (const finding of configFindings(config, { file, hasUser })) {
       found.push({
         ...finding,
         file,

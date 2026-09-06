@@ -228,7 +228,9 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   `getModels()`, `start()`, `stop()`, async `getSessionConnector(session)`,
   `findUserByEmail()`, `findUserById()`, `userId()`, `toPlain()`,
   `references()`, async `externalIdsOf(model, keys)`, `ping()`,
-  `transaction()` and, on SQL, `query()`. Core loads them from the app cwd
+  `transaction()` and, on SQL, `query()` and `drift()` (what the database
+  and the models disagree about, which `henri db:status` prints and a
+  production boot warns about). Core loads them from the app cwd
   with `utils.resolveFrom('@usehenri/<adapter>')`. Model files use the henri
   schema format (`type: 'string'|'text'|'number'|'integer'|'float'|'boolean'|
 'date'|'json'|'uuid'`, `required`, `default`, `enum`, `unique`, `index`),
@@ -513,7 +515,17 @@ the LICENSE and a README into every public package at publish time
   live PostgreSQL or MySQL server with `HENRI_TEST_POSTGRES_URL` /
   `HENRI_TEST_MYSQL_URL` (see above); MSSQL is only covered offline (its
   generated DDL), and no adapter is exercised against MariaDB. The Sequelize
-  adapters have no migrations (`sequelize.sync()`); Drizzle has them.
+  adapters have no migrations and are not getting any: `sequelize.sync()`
+  creates the tables that are missing in development, a production boot
+  changes nothing unless the store sets `sync: true`, and `henri db:status`
+  (`packages/sequelize/drift.js`) reads the database back and reports what
+  it and the models disagree about, with `--sql` writing the DDL for a
+  person to review. Generated, versioned migrations are Drizzle's, and
+  `website/src/content/docs/upgrading.md` has the path from one to the
+  other. The drift comparison is exercised on sqlite, PostgreSQL and MySQL;
+  on MSSQL neither it nor the DDL it would write is covered, and sqlite
+  reports a column change without a statement because it has no
+  `ALTER COLUMN`.
 - drizzle-kit does not alter a mysql table on a push: `henri db:push` and the
   development boot create the tables that are missing and report the ones
   whose columns drifted (`Migrations#completeMySQLPlan`); a mysql schema

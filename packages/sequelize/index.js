@@ -1,5 +1,6 @@
 const Sequelize = require('sequelize');
 const debug = require('debug')('henri:sequelize');
+const { Drift, describeDifference } = require('./drift');
 const { lookup, paginate, publicId } = require('./plugins');
 const { normalizeSchema } = require('./schema');
 const {
@@ -44,6 +45,10 @@ const { DataTypes } = Sequelize;
  * @method async ping() Resolves true when the database answers
  * @method async transaction(fn) Runs fn inside a transaction
  * @method async query(sql, params) Raw query (SQL adapters only)
+ * @method async drift() What the database and the models disagree about
+ *   (SQL adapters only): the tables, columns and indexes that differ, and
+ *   the DDL that would close each one. Reads, never writes. `henri
+ *   db:status` prints it and a production boot warns about it.
  */
 
 /**
@@ -125,7 +130,9 @@ class Sql {
    * @memberof Sql
    */
   createConnector() {
-    const { adapter, session, url, ...opts } = this.config;
+    // `sync` is henri's, not Sequelize's (which reads `options.sync` as the
+    // default options of every `Model.sync()`): it never reaches the driver
+    const { adapter, session, sync, url, ...opts } = this.config;
     const options = { logging: (sql) => debug(sql), ...opts };
 
     if (this.dialect) {
@@ -895,8 +902,98 @@ class Sql {
     debug('starting %s', this.name);
     await connector.authenticate();
     this.associate();
-    await connector.sync();
+    await this.sync();
     debug('started %s', this.name);
+  }
+
+  /**
+   * Makes the schema and the database agree after a connection
+   *
+   * Development: `sequelize.sync()`, which creates the tables that are
+   * missing and leaves the ones that exist alone, unless the store sets
+   * `sync: false`. Production: **nothing**, unless the store asks for it
+   * with `sync: true`. A production boot reports the drift instead
+   * (`drift()`), because `sync()` there is unreviewed DDL that creates
+   * whatever the models happen to name and stays silent about every table
+   * that is already wrong. `HENRI_SKIP_SYNC` (set by `henri db`) skips it
+   * all: those commands are the ones driving the schema.
+   *
+   * @returns {Promise<void>} Resolves when done
+   * @memberof Sql
+   */
+  async sync() {
+    const { config, henri } = this;
+
+    if (process.env.HENRI_SKIP_SYNC) {
+      return;
+    }
+
+    const production = Boolean(henri && henri.isProduction);
+
+    if (production ? config.sync === true : config.sync !== false) {
+      await this.ensureConnector().sync();
+
+      return;
+    }
+
+    if (production) {
+      await this.reportDrift();
+    }
+  }
+
+  /**
+   * Warns about what the database and the models disagree about
+   *
+   * Called on a production boot, where henri no longer runs DDL of its own.
+   * A database that cannot be read back is not a reason to refuse to boot:
+   * the application still works, it is the report that is missing.
+   *
+   * @returns {Promise<void>} Resolves when the report has been logged
+   * @memberof Sql
+   */
+  async reportDrift() {
+    const { pen } = this.henri;
+
+    let report;
+
+    try {
+      report = await this.drift();
+    } catch (error) {
+      debug('cannot read the schema back: %s', error.message);
+      pen.warn(
+        this.adapterName,
+        `cannot compare store ${this.name} with the models: ${error.message}`
+      );
+
+      return;
+    }
+
+    if (report.clean) {
+      pen.info(this.adapterName, `store ${this.name} matches the models`);
+
+      return;
+    }
+
+    pen.warn(
+      this.adapterName,
+      `store ${this.name} and the models differ in ${report.differences.length} place(s); run "henri db:status" to see them, "henri db:status --sql" for the DDL that would close them`
+    );
+    report.differences.forEach((difference) =>
+      pen.warn(this.adapterName, describeDifference(difference))
+    );
+  }
+
+  /**
+   * What the database and the models disagree about
+   *
+   * Reads the database back (`describeTable()`, `showIndex()`) and compares
+   * it with the models. Nothing is written.
+   *
+   * @returns {Promise<object>} The drift report
+   * @memberof Sql
+   */
+  async drift() {
+    return new Drift(this).report();
   }
 
   /**

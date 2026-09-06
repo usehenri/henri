@@ -71,7 +71,11 @@ declare namespace start {
     dbName?: string;
     /** drizzle: the dialect, whose driver the application installs. */
     dialect?: 'mysql' | 'postgres' | 'sqlite';
-    /** drizzle: `false` stops the development boot from pushing the schema. */
+    /**
+     * SQL: `false` stops the development boot from bringing the schema up.
+     * On a Sequelize store `true` also lets a production boot create the
+     * tables that are missing, which it otherwise refuses to do.
+     */
     sync?: boolean;
     /** drizzle: apply `db/migrations` on a production boot. */
     migrate?: boolean;

@@ -245,14 +245,14 @@ const reset = async (args, name) => {
 };
 
 /**
- * The store of a migration command
+ * A store by name
  *
  * @param {object} henri A booted instance
  * @param {string} name The store name
  * @returns {Promise<object>} The store adapter
- * @throws {CliError} USAGE when the store is unknown, FAILED when it has no migrations
+ * @throws {CliError} USAGE when the application has no such store
  */
-const migrations = async (henri, name) => {
+const storeOf = async (henri, name) => {
   const store = henri.model.stores[name];
 
   if (!store) {
@@ -262,13 +262,37 @@ const migrations = async (henri, name) => {
     });
   }
 
+  return store;
+};
+
+/**
+ * The store of a migration command
+ *
+ * Only the drizzle adapter has migrations. A Sequelize store answers
+ * `henri db:status`, which reads the database back and reports what it and
+ * the models disagree about, and nothing else: henri does not keep a
+ * migration history it cannot apply.
+ *
+ * @param {object} henri A booted instance
+ * @param {string} name The store name
+ * @returns {Promise<object>} The store adapter
+ * @throws {CliError} USAGE when the store is unknown, MIGRATIONS_UNSUPPORTED
+ *   when the adapter has none
+ */
+const migrations = async (henri, name) => {
+  const store = await storeOf(henri, name);
+
   if (!store.migrations) {
+    const drifts = typeof store.drift === 'function';
+
     await henri.stop();
     throw new CliError(
-      'FAILED',
+      'MIGRATIONS_UNSUPPORTED',
       `Store "${name}" (${store.adapterName}) has no migrations`,
       {
-        hint: 'henri db works with the drizzle adapter: set "adapter": "drizzle" on the store and install @usehenri/drizzle',
+        hint: drifts
+          ? 'The Sequelize adapters create the tables that are missing and never alter one. "henri db:status" says what the database and the models disagree about and "henri db:status --sql" writes the DDL to review; migrations need the drizzle adapter (see https://usehenri.io/upgrading/)'
+          : 'henri db works with the drizzle adapter: set "adapter": "drizzle" on the store and install @usehenri/drizzle',
       }
     );
   }
@@ -367,6 +391,7 @@ const run = async (command, store, args) => {
       applied: status.applied,
       folder: status.folder,
       pending: status.pending,
+      schema: 'migrations',
     };
   }
 
@@ -399,6 +424,51 @@ const run = async (command, store, args) => {
     ok: result.applied,
     statements: result.statements,
     warnings: result.warnings,
+  };
+};
+
+/**
+ * Runs `henri db:status`, whichever adapter the store uses
+ *
+ * A store with migrations (drizzle) answers what is applied and what is
+ * pending. A store without them (the Sequelize adapters) answers what the
+ * database and the models disagree about, which is the same question asked
+ * of an adapter that keeps no history: `schema` says which of the two came
+ * back.
+ *
+ * @param {object} store The store adapter
+ * @param {object} args CLI arguments
+ * @returns {Promise<object>} The result
+ * @throws {CliError} MIGRATIONS_UNSUPPORTED when the adapter answers neither
+ */
+const status = async (store, args) => {
+  if (store.migrations) {
+    return run('status', store, args);
+  }
+
+  if (typeof store.drift !== 'function') {
+    throw new CliError(
+      'MIGRATIONS_UNSUPPORTED',
+      `Store "${store.name}" (${store.adapterName}) has no schema of its own`,
+      {
+        hint: 'henri db:status reads a SQL store back: MongoDB has no schema to compare the models with',
+      }
+    );
+  }
+
+  const report = await store.drift();
+
+  return {
+    clean: report.clean,
+    command: 'status',
+    dialect: report.dialect,
+    differences: report.differences,
+    ok: true,
+    schema: 'models',
+    sql: args.sql === true,
+    statements: report.statements,
+    store: store.name,
+    unsupported: report.unsupported,
   };
 };
 
@@ -460,13 +530,48 @@ const print = (result) => {
     );
   }
 
-  if (result.command === 'status') {
+  if (result.command === 'status' && result.schema === 'migrations') {
     console.log(
       `  Store ${result.store} (${result.dialect}), ${result.folder}`
     );
     console.log('');
     list('Applied', result.applied);
     list('Pending', result.pending);
+  }
+
+  if (result.command === 'status' && result.schema === 'models') {
+    console.log(
+      `  Store ${result.store} (${result.dialect}), compared with the models`
+    );
+    console.log('');
+
+    if (result.clean) {
+      console.log('  The database matches the models');
+    } else {
+      console.log(`  ${result.differences.length} difference(s):`);
+      result.differences.forEach((difference) =>
+        console.log(`    ${difference.description}`)
+      );
+    }
+
+    result.unsupported.forEach((line) => console.log(`  ! ${line}`));
+
+    if (!result.clean && !result.sql) {
+      console.log('');
+      console.log(
+        '  henri does not change a Sequelize schema for you: run it again'
+      );
+      console.log('  with --sql for the DDL that would close the difference.');
+    }
+
+    if (result.sql && result.statements.length > 0) {
+      console.log('');
+      console.log('  Review every statement before you run it:');
+      console.log('');
+      result.statements.forEach((statement) =>
+        console.log(`    ${statement.replace(/;(?=.)/g, ';\n    ')}`)
+      );
+    }
   }
 
   if (result.command === 'generate') {
@@ -558,6 +663,11 @@ const main = async (args) => {
       result = await drop(args, name);
     } else if (command === 'reset') {
       result = await reset(args, name);
+    } else if (command === 'status') {
+      const henri = await boot();
+      const store = await storeOf(henri, name);
+
+      result = await status(store, args).finally(() => henri.stop());
     } else {
       const henri = await boot();
       const store = await migrations(henri, name);
@@ -588,7 +698,10 @@ module.exports = main;
 module.exports.COMMANDS = COMMANDS;
 module.exports.create = create;
 module.exports.drop = drop;
+module.exports.migrations = migrations;
 module.exports.reset = reset;
 module.exports.run = run;
 module.exports.seed = seed;
 module.exports.sow = sow;
+module.exports.status = status;
+module.exports.storeOf = storeOf;

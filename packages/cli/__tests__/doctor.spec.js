@@ -548,6 +548,69 @@ describe('henri doctor', () => {
     );
   });
 
+  test('reports migrations a Sequelize store can never apply', () => {
+    const config = path.join(app, 'config/default.json');
+    const original = fs.readFileSync(config, 'utf8');
+    const folder = path.join(app, 'db/migrations');
+
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, '0000_init.sql'), 'CREATE TABLE a(b);');
+    fs.writeFileSync(
+      config,
+      JSON.stringify({
+        ...JSON.parse(original),
+        stores: { default: { adapter: 'postgresql', url: 'postgres://x/y' } },
+      })
+    );
+
+    const { names, problems } = run(app);
+
+    expect(names).toContain('schema.migrations-ignored');
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'schema.migrations-ignored',
+        file: 'db/migrations',
+        level: 'error',
+      })
+    );
+
+    // The same folder with the drizzle adapter is fine, but nothing applies
+    // it on a production boot until the store says so
+    fs.writeFileSync(
+      config,
+      JSON.stringify({
+        ...JSON.parse(original),
+        stores: { default: { adapter: 'drizzle', url: 'postgres://x/y' } },
+      })
+    );
+
+    const drizzle = run(app);
+
+    expect(drizzle.names).not.toContain('schema.migrations-ignored');
+    expect(drizzle.problems).toContainEqual(
+      expect.objectContaining({
+        check: 'schema.migrations-pending',
+        level: 'warning',
+      })
+    );
+
+    // With "migrate": true in the production configuration, it is applied
+    const production = path.join(app, 'config/production.json');
+
+    fs.writeFileSync(
+      production,
+      JSON.stringify({
+        stores: { default: { adapter: 'drizzle', migrate: true } },
+      })
+    );
+
+    expect(run(app).names).not.toContain('schema.migrations-pending');
+
+    fs.unlinkSync(production);
+    fs.rmSync(folder, { recursive: true });
+    fs.writeFileSync(config, original);
+  });
+
   test('refuses to run outside of a project', () => {
     const { status, stderr } = henri(['doctor', '--json'], { cwd: dir });
 

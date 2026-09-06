@@ -339,6 +339,14 @@ false` (`log.filters-disabled`), `requestTimeout: false`
 (`uploads.limits-disabled`) and `uploads.sniff: false`, which takes the
 client's word for the type of a file (`uploads.type-check-disabled`).
 
+**Schema changes nobody reviewed** — a Sequelize store (`mysql`,
+`postgresql`, `mssql`) with `"sync": true` in `config/default.json` or
+`config/production.json`, which makes a production boot run DDL of its own
+from whatever the models happen to say (`schema.autosync`). henri stopped
+doing that by default in 1.3: a production boot compares the database with
+the models and warns, and `henri db:status` is the same comparison on demand.
+The drizzle adapter never pushes in production, so it is not reported.
+
 **Settings that open a door** — a `script-src` (or, without one, a
 `default-src`) written by the application that allows `'unsafe-inline'` with no
 nonce beside it, which lets an injected `<script>` run like the application's

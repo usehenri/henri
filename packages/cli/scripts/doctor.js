@@ -588,6 +588,51 @@ const check = (dir = process.cwd()) => {
     }
   }
 
+  // --- schema ---------------------------------------------------------------
+  // Whether an application has any way of changing the schema of a live
+  // database. Drift itself needs a connection and belongs to `henri
+  // db:status`; what the files know is which mechanism each store has, and
+  // whether the migrations that are written will ever run.
+  const migrationsDir = path.join(dir, 'db', 'migrations');
+  const written =
+    fs.existsSync(migrationsDir) &&
+    fs.readdirSync(migrationsDir).some((entry) => entry.endsWith('.sql'));
+  const production = readConfig(dir, 'production');
+
+  for (const [name, store] of Object.entries(config.stores || {})) {
+    const api = APIS[store && store.adapter];
+
+    if (api === 'sequelize' && written) {
+      problem(
+        'error',
+        'schema.migrations-ignored',
+        `db/migrations holds migrations and store "${name}" (${store.adapter}) cannot apply them`,
+        {
+          file: 'db/migrations',
+          hint: 'db/migrations is the drizzle adapter\'s. A Sequelize store creates the tables that are missing and never alters one: run "henri db:status" to see what drifted, or move the store to "adapter": "drizzle"',
+        }
+      );
+    }
+
+    if (api !== 'drizzle' || !written) {
+      continue;
+    }
+
+    const deployed = (production.stores || {})[name] || {};
+
+    if (deployed.migrate !== true) {
+      problem(
+        'warning',
+        'schema.migrations-pending',
+        `store "${name}" does not apply db/migrations on a production boot`,
+        {
+          file: 'config/production.json',
+          hint: `Set "stores": { "${name}": { "migrate": true } } in config/production.json, or run "henri db:migrate" as part of the deploy; without either, the boot only warns that migrations are pending`,
+        }
+      );
+    }
+  }
+
   // --- secrets --------------------------------------------------------------
   const hasEnv = exists('.env');
   const hasIgnore = exists('.gitignore');
