@@ -348,6 +348,45 @@ res.collection({ id: '1' });
 // @ts-expect-error `res.resource()` takes one record
 res.resource([{ id: '1' }]);
 
+// The public surface checks what it is called with, and the declarations say
+// the same thing: see base/arguments.js and /reference/api/#wrong-calls
+
+// @ts-expect-error `res.negotiate()` needs an html handler, a json one, or both
+res.negotiate({});
+
+// @ts-expect-error ... and a handler is a function
+res.negotiate({ json: 'nope' });
+
+// @ts-expect-error `res.render()` takes data or graphql, never both
+res.render('/tasks', { data: { tasks: [] }, graphql: '{ tasks }' });
+
+// @ts-expect-error `res.boom.*` answers a string message; the detail is second
+res.boom.badData({ title: 'is required' });
+
+// @ts-expect-error `req.pagination()` bounds are numbers
+req.pagination({ perPage: '25' });
+
+// @ts-expect-error `henri.cache.fetch()` runs a function on a miss
+henri.cache.fetch('recent', 42);
+
+// @ts-expect-error a cache lifetime is a duration, not a Date
+henri.cache.set('recent', [], { ttl: new Date() });
+
+// @ts-expect-error `henri.policies.scope()` names the policy to ask
+henri.policies.scope(null);
+
+// @ts-expect-error an encrypted value belongs to a `<Model>.<field>`
+henri.encryption.encrypt('AA-123', {});
+
+// @ts-expect-error `henri.encryption.tolerate()` takes the work to run
+henri.encryption.tolerate('nope');
+
+// @ts-expect-error an erasure strategy is one of the four henri has
+henri.privacy.erase('someone@example.test', { strategy: 'nuke' });
+
+// @ts-expect-error `henri.trail.list()` filters by what an entry holds
+henri.trail.list({ actin: 'privacy.export' });
+
 // --- controllers ------------------------------------------------------------
 
 const tasks: Controller = {

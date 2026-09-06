@@ -1203,18 +1203,29 @@ declare namespace start {
   }
 
   /** The second argument of `res.render()` and `res.hbs()`. */
-  interface RenderOptions {
-    /** What the page receives as `data`. */
-    data?: Record<string, unknown>;
-    /** A GraphQL query run for the page; its result becomes `data`. */
-    graphql?: string;
-    /**
-     * The fields marked `personal: { expose: false }` this page may carry.
-     * They are dropped from every answer henri builds; naming one here is
-     * how the person's own page gets it back.
-     */
-    include?: string[];
-  }
+  /**
+   * Options of `res.render()`: `data` or `graphql`, never both -- the query
+   * answers the page and the data would be thrown away, so the call is
+   * refused (`HENRI_ARGUMENT_INVALID`).
+   */
+  type RenderOptions =
+    | {
+        /** What the page receives as `data`. */
+        data?: Record<string, unknown>;
+        graphql?: never;
+        /**
+         * The fields marked `personal: { expose: false }` this page may
+         * carry. They are dropped from every answer henri builds; naming
+         * one here is how the person's own page gets it back.
+         */
+        include?: string[];
+      }
+    | {
+        data?: never;
+        /** A GraphQL query run for the page; its result becomes `data`. */
+        graphql: string | Record<string, string>;
+        include?: string[];
+      };
 
   /** Options of `res.resource()`. */
   interface ResourceOptions {
@@ -1405,11 +1416,16 @@ declare namespace start {
     /**
      * Runs `html` for browsers and `json` for API clients. The handler is not
      * awaited: what comes back is the response, not what the handler returned.
+     *
+     * One of the two is required: with neither, express answers `406` and
+     * blames the client's `Accept` header for a mistake in the controller,
+     * so henri refuses the call instead (`HENRI_ARGUMENT_INVALID`).
      */
-    negotiate(handlers: {
-      html?: () => unknown;
-      json?: () => unknown;
-    }): ExpressResponse;
+    negotiate(
+      handlers:
+        | { html: () => unknown; json?: () => unknown }
+        | { html?: () => unknown; json: () => unknown }
+    ): ExpressResponse;
     /** With the Inertia renderer. */
     inertia?: {
       errors(errors: Record<string, string>): ExpressResponse;
@@ -2304,6 +2320,9 @@ declare namespace start {
     }>;
   }
 
+  /** What an erasure does with the records that reference the person. */
+  type ErasureStrategy = 'anonymize' | 'delete' | 'orphan' | 'retain';
+
   /**
    * `henri.privacy`: which fields of which models are about a person, and
    * the two operations that follow from the mark.
@@ -2331,11 +2350,14 @@ declare namespace start {
     };
     /** The person, by email address, external id or primary key. */
     subject(who: string | object): Promise<Record<string, unknown>>;
-    export(who: string | object): Promise<PersonalExport>;
+    export(
+      who: string | object,
+      options?: { source?: 'app' | 'cli' | 'http' | 'job' }
+    ): Promise<PersonalExport>;
     /** What an erasure would do, and what stands in its way. */
     plan(
       who: string | object,
-      options?: { strategy?: string }
+      options?: { strategy?: ErasureStrategy }
     ): Promise<{
       steps: Array<Record<string, unknown>>;
       problems: Array<{ model: string; problem: string; message: string }>;
@@ -2345,7 +2367,11 @@ declare namespace start {
     }>;
     erase(
       who: string | object,
-      options?: { strategy?: string; dryRun?: boolean }
+      options?: {
+        strategy?: ErasureStrategy;
+        dryRun?: boolean;
+        source?: 'app' | 'cli' | 'http' | 'job';
+      }
     ): Promise<ErasureReceipt>;
   }
 
