@@ -12,16 +12,19 @@ const chipOn =
 
 export default function ProposalsIndex() {
   const { data, getRoute } = useHenri();
-  const { editions, filters, page, pages, proposals, total } = data;
+  const { chosen, editions, page, pages, proposals, query, sort, total } = data;
   const base = getRoute('index_proposals_path');
 
+  // Every link carries what the request carried: the query keys are the
+  // ones the controller declared (`filter[state]`, `sort`), so a link is
+  // the same list with one term changed
   const href = (patch) => {
     const params = new URLSearchParams(
-      Object.entries({ ...filters, ...patch }).filter(([, value]) => value)
+      Object.entries({ ...query, ...patch }).filter(([, value]) => value)
     );
-    const query = params.toString();
+    const search = params.toString();
 
-    return query ? `${base}?${query}` : base;
+    return search ? `${base}?${search}` : base;
   };
 
   return (
@@ -33,16 +36,16 @@ export default function ProposalsIndex() {
 
       <div className="mt-6 flex flex-wrap gap-2">
         <Link
-          className={filters.state ? chip : chipOn}
-          href={href({ state: '' })}
+          className={chosen.state ? chip : chipOn}
+          href={href({ 'filter[state]': '' })}
         >
           All states
         </Link>
         {['submitted', 'accepted'].map((state) => (
           <Link
             key={state}
-            className={filters.state === state ? chipOn : chip}
-            href={href({ state })}
+            className={chosen.state === state ? chipOn : chip}
+            href={href({ 'filter[state]': state })}
           >
             {state}
           </Link>
@@ -51,7 +54,7 @@ export default function ProposalsIndex() {
         <span className="w-full sm:hidden" />
 
         <Link
-          className={filters.event ? chip : chipOn}
+          className={query.event ? chip : chipOn}
           href={href({ event: '' })}
         >
           All editions
@@ -59,10 +62,29 @@ export default function ProposalsIndex() {
         {(editions || []).map((event) => (
           <Link
             key={event.externalId}
-            className={filters.event === event.externalId ? chipOn : chip}
+            className={query.event === event.externalId ? chipOn : chip}
             href={href({ event: event.externalId })}
           >
             {event.year}
+          </Link>
+        ))}
+
+        <span className="w-full sm:hidden" />
+
+        {[
+          ['-submittedAt', 'Newest'],
+          ['title', 'By title'],
+        ].map(([term, label]) => (
+          <Link
+            key={term}
+            className={
+              sort === term || (!sort && term === '-submittedAt')
+                ? chipOn
+                : chip
+            }
+            href={href({ sort: term })}
+          >
+            {label}
           </Link>
         ))}
       </div>
@@ -107,7 +129,7 @@ export default function ProposalsIndex() {
         page={page}
         pages={pages}
         path={base}
-        query={filters}
+        query={query}
         total={total}
       />
     </Layout>

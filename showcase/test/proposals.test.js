@@ -79,10 +79,109 @@ describe('proposals', () => {
       ).not.toContain('A draft nobody should see');
     });
 
-    test('filters on a state', async () => {
-      const answer = await page(request(), '/proposals?state=accepted');
+    test('a declared filter narrows the list', async () => {
+      const answer = await page(request(), '/proposals?filter[state]=accepted');
 
       expect(answer.body.props.data.total).toBe(0);
+
+      const submitted = await page(
+        request(),
+        '/proposals?filter[state]=submitted'
+      );
+
+      expect(submitted.body.props.data.total).toBe(15);
+    });
+
+    test('a state that is nobody s business is a 422, not a quiet filter', async () => {
+      const answer = await request()
+        .get('/proposals?filter[state]=draft')
+        .set('Accept', 'application/json');
+
+      expect(answer.status).toBe(422);
+      expect(answer.body.code).toBe('HENRI_FILTER_INVALID');
+      expect(answer.body.data.errors['filter[state]']).toMatch(
+        /must be one of accepted, submitted/
+      );
+    });
+
+    test('a filter cannot reach a record the scope excludes', async () => {
+      // Every proposal here is a talk, the draft included: the filter
+      // matches it, and the list this action *is* -- `state IN (submitted,
+      // accepted)` -- is intersected with what the client asked for rather
+      // than merged into it
+      expect(await Proposal.count({ format: 'talk', state: 'draft' })).toBe(1);
+
+      const answer = await request()
+        .get('/proposals?filter[format]=talk&per_page=50')
+        .set('Accept', 'application/json');
+
+      expect(answer.status).toBe(200);
+      expect(answer.body.total).toBe(15);
+      expect(
+        answer.body._embedded.proposals.map((entry) => entry.title)
+      ).not.toContain('A draft nobody should see');
+    });
+
+    test('nothing undeclared is filterable, and nothing undeclared is sortable', async () => {
+      const column = await request()
+        .get('/proposals?filter[speakerId]=1')
+        .set('Accept', 'application/json');
+
+      expect(column.status).toBe(422);
+      expect(column.body.code).toBe('HENRI_FILTER_INVALID');
+      expect(column.body.data.errors['filter[speakerId]']).toMatch(
+        /is not a filter Proposal accepts here/
+      );
+
+      // `abstract` is a text column: an unbounded order over one is what
+      // henri refuses at boot, so it is not in the sortable list at all
+      const order = await request()
+        .get('/proposals?sort=abstract')
+        .set('Accept', 'application/json');
+
+      expect(order.status).toBe(422);
+      expect(order.body.data.errors.sort).toMatch(
+        /cannot order by "abstract" \(submittedAt, title\)/
+      );
+
+      // ... and a substring search is opt-in, per field
+      const scan = await request()
+        .get('/proposals?filter[level][contains]=inter')
+        .set('Accept', 'application/json');
+
+      expect(scan.status).toBe(422);
+    });
+
+    test('the order is what was asked for, and the links carry it', async () => {
+      const answer = await request()
+        .get('/proposals?filter[state]=submitted&sort=title&per_page=2')
+        .set('Accept', 'application/json');
+
+      expect(answer.status).toBe(200);
+
+      const titles = answer.body._embedded.proposals.map(
+        (entry) => entry.title
+      );
+
+      expect(titles).toEqual([...titles].sort());
+      expect(answer.body._links.next.href).toContain(
+        'filter%5Bstate%5D=submitted'
+      );
+      expect(answer.body._links.next.href).toContain('sort=title');
+
+      // Page two of a filtered list is page two of the same list
+      const second = await request()
+        .get(answer.body._links.next.href)
+        .set('Accept', 'application/json');
+
+      expect(second.status).toBe(200);
+      expect(second.body.total).toBe(15);
+      expect(
+        second.body._embedded.proposals.map((entry) => entry.title)
+      ).toEqual(
+        [...second.body._embedded.proposals].map((entry) => entry.title).sort()
+      );
+      expect(second.body._embedded.proposals[0].title).not.toBe(titles[0]);
     });
 
     test('never sends the speaker email to a page', async () => {

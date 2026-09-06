@@ -283,28 +283,55 @@ describe('the OpenAPI description of the showcase', () => {
       expect(operation.responses['422']).toEqual({
         $ref: '#/components/responses/InvalidParameters',
       });
-      expect(named.state.schema).toEqual({
+      expect(named.event.schema).toEqual({ format: 'uuid', type: 'string' });
+      expect(operation['x-henri'].params).toEqual({ fields: ['event'] });
+      expect(operation['x-henri'].enforced).toEqual([
+        '_links',
+        'params',
+        'filters',
+      ]);
+
+      // The declared filters are parameters too, spelled the way a client
+      // writes them, and the sort is the columns it may name
+      expect(named['filter[state]'].schema).toEqual({
         enum: ['accepted', 'submitted'],
         type: 'string',
       });
-      expect(named.event.schema).toEqual({ format: 'uuid', type: 'string' });
-      expect(operation['x-henri'].params).toEqual({
-        fields: ['event', 'state'],
-      });
-      expect(operation['x-henri'].enforced).toEqual(['_links', 'params']);
+      expect(named['filter[title][contains]']).toBeDefined();
+      expect(named['filter[title][starts]']).toBeUndefined();
+      expect(named.sort.schema.items.enum).toEqual([
+        'submittedAt',
+        '-submittedAt',
+        'title',
+        '-title',
+      ]);
+      expect(operation['x-henri'].filters.model).toBe('Proposal');
+      expect(operation['x-henri'].filters.sort).toEqual([
+        'submittedAt',
+        'title',
+      ]);
 
       // ... and the application answers exactly that
       const refused = await request()
-        .get('/proposals?state=draft')
+        .get('/proposals?event=draft')
         .set('Accept', HAL);
 
       expect(refused.status).toBe(422);
       expect(refused.body.code).toBe('HENRI_PARAMS_INVALID');
-      expect(Object.keys(refused.body.data.errors)).toEqual(['state']);
+      expect(Object.keys(refused.body.data.errors)).toEqual(['event']);
 
       const valid = compile({ $ref: '#/components/schemas/Error' });
 
       expect([valid(refused.body), valid.errors]).toEqual([true, null]);
+
+      // A filter it did not declare is the other 422, with its own code
+      const undeclared = await request()
+        .get('/proposals?filter[speakerId]=1')
+        .set('Accept', HAL);
+
+      expect(undeclared.status).toBe(422);
+      expect(undeclared.body.code).toBe('HENRI_FILTER_INVALID');
+      expect([valid(undeclared.body), valid.errors]).toEqual([true, null]);
 
       // The paging parameters are still there: the declaration names
       // neither, so neither is replaced
@@ -314,9 +341,9 @@ describe('the OpenAPI description of the showcase', () => {
         { $ref: '#/components/parameters/Page' },
         { $ref: '#/components/parameters/PerPage' },
       ]);
-      expect((await request().get('/proposals?state=accepted')).status).toBe(
-        200
-      );
+      expect(
+        (await request().get('/proposals?filter[state]=accepted')).status
+      ).toBe(200);
     });
 
     test('POST /proposals names both 422s it can answer, and answers both', async () => {
