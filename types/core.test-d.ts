@@ -25,6 +25,8 @@ import type {
   Request,
   Response,
   RoutesFile,
+  StoredFile,
+  UploadedFile,
   ViewOptions,
 } from '@usehenri/core';
 
@@ -203,6 +205,37 @@ if (henri.graphql) {
 
 // @ts-expect-error `henri.graphql` may be undefined: check it first
 henri.graphql.run('{ tasks }');
+
+// --- uploads ----------------------------------------------------------------
+
+// The module arrives from @usehenri/uploads, so an application that does not
+// depend on it has neither `henri.uploads` nor `req.files`
+expectType<boolean | undefined>(henri.uploads?.enabled);
+
+const uploads = henri.uploads!;
+const scan = req.files!.scan[0];
+
+expectType<UploadedFile>(scan);
+expectType<string>(scan.type);
+expectType<string | null>(scan.declaredType);
+expectType<boolean>(scan.mistyped);
+expectType<Promise<StoredFile>>(scan.store());
+expectType<Promise<StoredFile>>(scan.store({ prefix: 'artworks' }));
+expectType<Promise<boolean>>(scan.discard());
+expectType<UploadedFile | null>(req.file!('scan'));
+expectType<Record<string, UploadedFile[]>>(req.permitFiles!('scan', 'cv'));
+expectType<Promise<boolean>>(uploads.delete(await scan.store()));
+
+uploads.send(res, await scan.store(), { disposition: 'inline' });
+
+// @ts-expect-error `henri.uploads` may be undefined: check it first
+henri.uploads.send(res, 'a-key');
+
+// @ts-expect-error a disposition is `attachment` or `inline`, nothing else
+uploads.send(res, 'a-key', { disposition: 'embed' });
+
+// @ts-expect-error `uploads` is not a configuration key of the file store
+const badUploads: Configuration = { uploads: { maxFileSize: true } };
 
 // --- request ----------------------------------------------------------------
 

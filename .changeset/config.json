@@ -24,7 +24,8 @@
       "@usehenri/postgresql",
       "@usehenri/react",
       "@usehenri/sequelize",
-      "@usehenri/testing"
+      "@usehenri/testing",
+      "@usehenri/uploads"
     ]
   ],
   "linked": [],

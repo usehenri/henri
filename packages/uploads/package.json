@@ -1,0 +1,53 @@
+{
+  "name": "@usehenri/uploads",
+  "version": "1.1.0",
+  "description": "henri file uploads: bounded multipart parsing, files typed by their bytes and a storage seam",
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/uploads"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "keywords": [
+    "henri",
+    "uploads",
+    "multipart",
+    "files",
+    "busboy",
+    "storage"
+  ],
+  "main": "index.js",
+  "henri": {
+    "module": "./module.js"
+  },
+  "files": [
+    "index.js",
+    "module.js",
+    "src",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "debug": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@usehenri/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@usehenri/core": "workspace:^",
+    "express": "^5.2.1",
+    "supertest": "^7.2.2"
+  }
+}

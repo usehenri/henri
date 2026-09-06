@@ -134,6 +134,7 @@ describe('utils', () => {
         'main',
         'memos',
         'notes',
+        'uploads',
         'user',
       ]);
       expect(typeof controllers.artwork.index).toBe('function');

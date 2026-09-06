@@ -289,6 +289,27 @@ const CHECKS = [
     what: '"trustProxy": true: a client can forge the address it is limited by',
   },
   {
+    asvs: 'V12.1.1',
+    check: 'uploads.limits-disabled',
+    level: 1,
+    owasp: 'A05',
+    what: 'an upload bound is false, so one request may write whatever it sends',
+  },
+  {
+    asvs: 'V12.4.1',
+    check: 'uploads.root-served',
+    level: 1,
+    owasp: 'A05',
+    what: 'uploads are stored inside a directory the application serves',
+  },
+  {
+    asvs: 'V12.2.1',
+    check: 'uploads.type-check-disabled',
+    level: 2,
+    owasp: 'A05',
+    what: '"sniff": false: the type of an uploaded file is whatever the client says it is',
+  },
+  {
     asvs: 'V5.3.3',
     check: 'views.unescaped',
     level: 1,
@@ -308,6 +329,15 @@ const THRESHOLDS = [...SEVERITIES, 'none'];
 
 /** The `config.graphql` bounds `base/graphql-guard.js` enforces */
 const GRAPHQL_BOUNDS = ['maxAliases', 'maxComplexity', 'maxDepth', 'maxTokens'];
+
+/** The `config.uploads` bounds a multipart body is refused by */
+const UPLOAD_BOUNDS = ['maxFields', 'maxFileSize', 'maxFiles', 'maxTotalSize'];
+
+/**
+ * The directory an application serves: `express.static` mounts
+ * `app/views/public`, and the Inertia dev server has `app/views` for a root
+ */
+const SERVED_ROOT = 'app/views';
 
 /** 30 days in milliseconds: henri's default session lifetime */
 const THIRTY_DAYS = 2592000000;
@@ -766,6 +796,50 @@ const configFindings = (config, { hasUser }) => {
       'Remove "requestTimeout": false, or raise it: { "requestTimeout": 120000 }',
       null
     );
+  }
+
+  if (isObject(config.uploads)) {
+    const unbounded = UPLOAD_BOUNDS.filter(
+      (key) => config.uploads[key] === false
+    );
+
+    if (unbounded.length > 0) {
+      add(
+        'medium',
+        'uploads.limits-disabled',
+        OWASP.A05,
+        `uploads.${unbounded.join(', uploads.')} ${unbounded.length === 1 ? 'is' : 'are'} false, so one request may write as much as it sends`,
+        `Raise the bound instead of removing it: { "uploads": { "${unbounded[0]}": "50mb" } }`,
+        'V12.1.1'
+      );
+    }
+
+    if (config.uploads.sniff === false) {
+      add(
+        'medium',
+        'uploads.type-check-disabled',
+        OWASP.A05,
+        'the type of an uploaded file is taken from the Content-Type the client sent, so a script named avatar.png is stored as an image',
+        'Remove "sniff": false and name the types you accept instead: { "uploads": { "allow": ["image/png", "image/jpeg"] } }',
+        'V12.2.1'
+      );
+    }
+
+    const root = String(config.uploads.root || '')
+      .replace(/\\/gu, '/')
+      .replace(/^\.\//u, '')
+      .replace(/\/+$/u, '');
+
+    if (root === SERVED_ROOT || root.startsWith(`${SERVED_ROOT}/`)) {
+      add(
+        'high',
+        'uploads.root-served',
+        OWASP.A05,
+        `uploads are stored in ${root}, under the directory the view engine and express.static serve: an uploaded page is then reachable on this application's own origin`,
+        'Store them outside it: { "uploads": { "root": "storage/uploads" } }, and hand a file back with henri.uploads.send()',
+        'V12.4.1'
+      );
+    }
   }
 
   if (isObject(config.user)) {

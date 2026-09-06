@@ -651,6 +651,12 @@ const check = (dir = process.cwd()) => {
     needed.add('@usehenri/jobs');
   }
 
+  // And so is the multipart parser: an `uploads` block says an application
+  // means to accept a file, and without the package nothing reads one
+  if (config.uploads !== false && typeof config.uploads !== 'undefined') {
+    needed.add('@usehenri/uploads');
+  }
+
   const undeclared = [...needed].filter((name) => !declared[name]);
 
   if (undeclared.length > 0) {

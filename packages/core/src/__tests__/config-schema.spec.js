@@ -35,6 +35,9 @@ const graphqlKeys = () => Object.keys(SCHEMA.graphql.oneOf[1].keys);
 /** The keys of the `rateLimit` object form */
 const rateLimitKeys = () => Object.keys(SCHEMA.rateLimit.oneOf[1].keys);
 
+/** The keys of the `uploads` object form */
+const uploadsKeys = () => Object.keys(SCHEMA.uploads.oneOf[1].keys);
+
 /**
  * The member names of an interface of index.d.ts, at its own level (the
  * keys of an inline object type are not members of the interface)
@@ -181,6 +184,16 @@ describe('the configuration schema', () => {
         legacy: { adapter: 'mysql', logging: false, pool: { max: 5 } },
       },
       trustProxy: 2,
+      uploads: {
+        allow: ['image/png', 'image/*'],
+        maxFileSize: '5mb',
+        maxFiles: 3,
+        maxTotalSize: 20971520,
+        paths: ['/artworks'],
+        root: 'storage/uploads',
+        sniff: true,
+        storage: 'local',
+      },
       user: {
         afterLogin: '/',
         lockout: { max: 10, windowMs: 900000 },
@@ -379,6 +392,7 @@ describe('the schema, the declarations and the documentation', () => {
     ['PoliciesConfig', () => Object.keys(SCHEMA.policies.keys)],
     ['RateLimitConfig', rateLimitKeys],
     ['ShutdownConfig', () => Object.keys(SCHEMA.shutdown.keys)],
+    ['UploadsConfig', uploadsKeys],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
     ['MailersConfig', () => Object.keys(SCHEMA.mailers.keys)],
     ['JobsConfig', () => Object.keys(SCHEMA.jobs.keys)],
