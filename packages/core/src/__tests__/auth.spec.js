@@ -511,6 +511,22 @@ describe('auth (demo app, disk store)', () => {
       expect(res.status).toBe(201);
     });
 
+    test('reads the origin a reverse proxy forwards, not the one it rewrote', async () => {
+      const allowed = await post()
+        .set('X-Forwarded-Host', 'app.example.com')
+        .set('X-Forwarded-Proto', 'https')
+        .set('Origin', 'https://app.example.com');
+
+      expect(allowed.status).toBe(201);
+
+      const refused = await post()
+        .set('X-Forwarded-Host', 'app.example.com')
+        .set('X-Forwarded-Proto', 'https')
+        .set('Origin', 'https://evil.example.com');
+
+      expect(refused.status).toBe(403);
+    });
+
     test('says nothing to a cross-origin client that sends no cookie', async () => {
       // The case this must not break: an API client on another origin, with
       // no ambient credentials to ride on

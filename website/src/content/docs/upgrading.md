@@ -113,7 +113,7 @@ The double-submit token is unchanged. On top of it, an unsafe request carrying a
 What to check:
 
 - **A browser client on another origin that sends cookies.** It needs its origin trusted. Whatever `config.cors.origin` already allows is trusted for you, so an application that configured CORS properly needs no change.
-- **A reverse proxy that rewrites the `Host` header** without `X-Forwarded-Proto` or `X-Forwarded-Host` will make the computed origin disagree with the browser's. `config.trustProxy` is on by default; check it is right for your setup.
+- **A reverse proxy that rewrites the `Host` header** and sets neither `X-Forwarded-Host` nor `X-Forwarded-Proto` will make the computed origin disagree with the browser's. henri reads both when `config.trustProxy` allows it (it is `true` by default); check the setting is right for your setup.
 
 Nothing changes for a client that sends no session cookie, or one authenticated with a bearer token. `"csrf": { "origin": false }` restores the token-only behaviour.
 

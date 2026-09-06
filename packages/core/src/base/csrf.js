@@ -105,13 +105,18 @@ function sentToken(req) {
 }
 
 /**
- * The origin this request was addressed to (`https://app.example.com`)
+ * The origin this request was addressed to (`https://app.example.com`).
+ *
+ * `req.host` and `req.protocol` are what the browser saw: behind a reverse
+ * proxy they come from `X-Forwarded-Host` and `X-Forwarded-Proto` when
+ * `config.trustProxy` allows it, rather than from the internal `Host` the
+ * proxy rewrote.
  *
  * @param {Express.Request} req the request
- * @returns {?string} the origin, or null when there is no Host
+ * @returns {?string} the origin, or null when there is no host
  */
 function ownOrigin(req) {
-  const host = header(req, 'host');
+  const host = req.host || header(req, 'host');
 
   if (!host) {
     return null;

@@ -155,6 +155,8 @@ The token alone does not survive everything: a sibling subdomain, or anything el
 - `same-site` or `cross-site`: the `Origin` must be this application's own origin or one you listed. `evil.example.com` posting to `app.example.com` is refused with `403 Cross-origin request refused`, valid token or not.
 - No fetch metadata at all (an older browser, a script): an `Origin` that does not match is refused; no `Origin` falls through to the token, which is what it always did.
 
+The origin compared against is what the browser saw: behind a reverse proxy it comes from `X-Forwarded-Host` and `X-Forwarded-Proto` when `config.trustProxy` allows it, not from the internal `Host` the proxy rewrote.
+
 Nothing here applies to a request that sends no session cookie, so a cross-origin API client keeps working untouched. A client that _does_ send credentials cross-origin needs its origin trusted; whatever `config.cors.origin` already allows is trusted for you:
 
 ```json
