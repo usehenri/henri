@@ -398,11 +398,25 @@ describe('the wire', () => {
 
     expect(hosted.addressOf('a/b.png')).toMatchObject({
       host: 'henri-uploads.s3.us-east-1.amazonaws.com',
+      hostname: 'henri-uploads.s3.us-east-1.amazonaws.com',
       path: '/a/b.png',
     });
     expect(styled.addressOf('a/b.png')).toMatchObject({
       host: 's3.us-east-1.amazonaws.com',
+      hostname: 's3.us-east-1.amazonaws.com',
       path: '/henri-uploads/a/b.png',
+    });
+
+    // The socket goes to the host the signature covers, port and all: a
+    // named endpoint on a port carries it in `Host` and not in `hostname`
+    const local = new S3Client(
+      Object.assign({ endpoint: 'http://127.0.0.1:9000' }, options)
+    );
+
+    expect(local.addressOf('a/b.png')).toMatchObject({
+      host: '127.0.0.1:9000',
+      hostname: '127.0.0.1',
+      origin: 'http://127.0.0.1:9000',
     });
   });
 

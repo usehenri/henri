@@ -221,11 +221,17 @@ class S3Client {
    */
   addressOf(key, endpoint = null) {
     const at = endpoint || this;
-    const host = this.pathStyle ? at.host : `${this.bucket}.${at.host}`;
-    const authority = at.port ? `${host}:${at.port}` : host;
+    const hostname = this.pathStyle ? at.host : `${this.bucket}.${at.host}`;
+    const authority = at.port ? `${hostname}:${at.port}` : hostname;
 
     return {
+      // What the signature covers and what the `Host` header says: the
+      // authority, port and all
       host: authority,
+      // Where the socket goes, which is the same name -- a virtual-host
+      // style bucket is a DNS name of its own, and connecting elsewhere
+      // would ask TLS for a certificate nobody issued
+      hostname,
       origin: `${at.protocol}//${authority}`,
       path: this.pathStyle ? `/${this.bucket}/${key}` : `/${key}`,
     };
@@ -245,7 +251,7 @@ class S3Client {
    * @memberof S3Client
    */
   attempt({ file, headers, key, length, method, payload }) {
-    const { host, path } = this.addressOf(key);
+    const { host, hostname, path } = this.addressOf(key);
     const signed = sign({
       credentials: this.credentials,
       headers: Object.assign({}, headers, {
@@ -264,19 +270,19 @@ class S3Client {
       const request = client.request(
         {
           headers: signed,
-          host: this.host,
+          host: hostname,
           method,
           path,
           port: this.port || (this.protocol === 'http:' ? 80 : 443),
           protocol: this.protocol,
-          // A signature covers the Host header, so the request has to carry
-          // the one that was signed even when the socket goes elsewhere
+          // A signature covers the `Host` header, so the one that was signed
+          // is the one that goes out: node's own would leave the port off a
+          // default one and on everything else, and a signature is of bytes
           setHost: false,
         },
         resolve
       );
 
-      request.setHeader('host', host);
       request.setTimeout(this.timeout, () => {
         request.destroy(
           coded(
@@ -431,7 +437,7 @@ class S3Client {
       file: null,
       headers: {},
       key,
-      length: 0,
+      length: null,
       method: 'GET',
       payload: EMPTY,
     });
@@ -455,7 +461,7 @@ class S3Client {
       file: null,
       headers: {},
       key,
-      length: 0,
+      length: null,
       method: 'HEAD',
       payload: EMPTY,
     });
@@ -493,7 +499,7 @@ class S3Client {
       file: null,
       headers: {},
       key,
-      length: 0,
+      length: null,
       method: 'DELETE',
       payload: EMPTY,
     });

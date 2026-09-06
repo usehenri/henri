@@ -26,6 +26,7 @@ pnpm --filter @usehenri/website dev   # docs site (Astro + Starlight); `build` a
 scripts/smoke.sh                      # scaffold an app from the packed workspace and boot it
 pnpm db:up                            # postgres, mysql and mongo for local dev (compose.yaml)
 pnpm test:sql:live                    # the SQL suites against the live postgres, then mysql
+pnpm test:s3                          # @usehenri/s3 against a live object store (MinIO, below)
 pnpm test:showcase                    # the showcase application's own suite (needs postgres)
 pnpm db:down                          # stop them (`db:reset` also deletes the data)
 pnpm changeset                        # record a version bump for changed packages
@@ -1026,8 +1027,11 @@ the LICENSE and a README into every public package at publish time
   is sent by recomputing it from the headers that arrived -- which proves
   the wire matches what was signed and nothing about whether AWS would
   accept it. The third leg is `__tests__/live.spec.js` against a real
-  server, skipped without `HENRI_TEST_S3_URL` (`pnpm test:s3`, MinIO in
-  Docker). **Nothing is exercised against AWS, R2, Spaces or GCS**: the
+  server, skipped without `HENRI_TEST_S3_URL` (`pnpm test:s3`, the `Live S3`
+  job of the CI, MinIO in Docker:
+  `docker run -d -p 9000:9000 -e MINIO_ROOT_USER=henri
+-e MINIO_ROOT_PASSWORD=henri-secret quay.io/minio/minio:latest server
+/data`). **Nothing is exercised against AWS, R2, Spaces or GCS**: the
   differences those have from MinIO -- IAM, virtual-host style on a real
   domain, an eventual-consistency window, a region redirect -- are covered
   only by the code that handles them. It is not on npm yet: a new package is
