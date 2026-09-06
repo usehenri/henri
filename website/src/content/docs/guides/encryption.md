@@ -24,9 +24,9 @@ sends the string, and the column holds this:
 henri:v1:r:9f3a1c07:6dQG2thVFFs1ls6NRbQ1DbFbywrkHG_u5CVE0qtYSJxWEPvpUBX5
 ```
 
-It works on the three adapters -- `@usehenri/sequelize` (and the mysql,
-postgresql and mssql packages), `@usehenri/mongoose` (and disk) and
-`@usehenri/drizzle`.
+It works on the three adapters -- `@usehenri/drizzle` (and the postgresql,
+mysql and mariadb packages), `@usehenri/mongoose` (and disk) and
+`@usehenri/sequelize` (which is the mssql store).
 
 This is the one feature of henri that changes stored data, so read
 [the migration](#turning-it-on-over-a-table-that-is-already-full) before
@@ -172,7 +172,7 @@ onto another, is exactly how a value ends up somewhere it does not belong.
 
 What is _not_ covered is the row: a ciphertext copied from one row onto
 another still opens. That is deliberate, and it is the difference between
-this and [`config.user.password.binding`](/guides/users/#password-binding):
+this and [`config.user.password.binding`](/guides/users/#bound-password-hashes):
 a password hash is a credential, so moving it moves the ability to sign in,
 and it names its row. A ciphertext is not a credential; the threat this
 answers is a stolen dump, a backup or a read replica, and whoever can
@@ -201,7 +201,7 @@ A `maxLength`, a `minLength` and a `match` on the field still measure the
 `lowercase` are dropped, because there is nothing left to trim.
 
 On an existing table this is a schema change. On Drizzle it is a generated
-migration (`henri db:generate`, `henri db:migrate`); on Sequelize,
+migration (`henri db:generate`, `henri db:migrate`); on an mssql store,
 `henri db:status` reports the drift and writes the DDL with `--sql`.
 
 ## Turning it on over a table that is already full
@@ -219,7 +219,7 @@ answers with the clear is a state to notice, not a state to live in. The
 migration is four steps and it can be done without downtime:
 
 1. **Widen the column.** `henri db:generate` and `henri db:migrate`
-   (Drizzle), or the DDL `henri db:status --sql` writes (Sequelize).
+   (Drizzle), or the DDL `henri db:status --sql` writes (mssql).
 2. **Deploy the mark, with the permissive read on** for the length of the
    migration:
 

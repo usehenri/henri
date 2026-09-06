@@ -139,7 +139,7 @@ Nothing token-shaped is stored. A link carries a signed token holding three thin
 - its **expiry**, so an old link stops working on its own and nothing has to expire it;
 - a **seed**, the fingerprint of the state the action is about to change: the password hash for a reset, the address and its confirmation date for a confirmation. Performing the action moves the seed, and every token minted against the old one stops verifying.
 
-That is what makes a link single use, and what makes a successful reset invalidate the links that were still in flight. A database leak hands over no working link, because forging one needs the secret, which is in the environment or in the [encrypted credentials](/configuration/#credentials) rather than in the database.
+That is what makes a link single use, and what makes a successful reset invalidate the links that were still in flight. A database leak hands over no working link, because forging one needs the secret, which is in the environment or in the [encrypted credentials](/configuration/#encrypted-credentials) rather than in the database.
 
 The other side of that coin: **rotating `secret` invalidates every outstanding link**. Anyone who asked for a reset before the rotation has to ask again. Sessions go with it (they are signed with the same secret), so it is rarely a surprise, but it is worth knowing before rotating one in production.
 

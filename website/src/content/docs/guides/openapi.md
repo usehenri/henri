@@ -73,7 +73,7 @@ The one exception is `_links`, and only when `config.api.strict` is on: with it,
 
 ### A request body
 
-`req.permit()` names the fields an action accepts, and henri never sees the list. The input schema is the model's writable columns — no `required`, `additionalProperties: true` — because a column the model requires may well be set by the server (the speaker of a proposal is the session, never the body). A **foreign key gets no type at all**: whether a form posts an `externalId`, a primary key or nothing is the application's decision.
+`req.permit()` names the fields an action accepts, and henri never sees that list; a controller that declares [`params`](/guides/controllers/#params-what-an-action-accepts) does hand henri the shape, and this document is not built from it yet. The input schema is the model's writable columns — no `required`, `additionalProperties: true` — because a column the model requires may well be set by the server (the speaker of a proposal is the session, never the body). A **foreign key gets no type at all**: whether a form posts an `externalId`, a primary key or nothing is the application's decision.
 
 ### An action that does not exist
 
