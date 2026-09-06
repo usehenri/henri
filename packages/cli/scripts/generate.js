@@ -289,6 +289,43 @@ const mailer = async (name, actions = [], opts = {}) => {
 };
 
 /**
+ * Generates a job (app/jobs) with perform and a retry policy
+ *
+ * @param {string} name Job name
+ * @param {string[]} rest Unused
+ * @param {object} [opts] { force, report }
+ * @return {Promise<boolean>} True when written
+ */
+const job = async (name, rest = [], opts = {}) => {
+  const lower = name.toLowerCase();
+  const code = `
+// Jobs run outside the request, in a \`henri jobs\` worker process. Enqueue
+// one with \`henri.jobs.perform('${lower}', args)\`, later with
+// \`henri.jobs.performIn('5m', '${lower}', args)\`.
+//
+// \`args\` is stored as JSON: strings, numbers, booleans, null, plain objects
+// and arrays only. Pass an id, never a model instance.
+module.exports = {
+  // The queue a runner picks this job up from
+  queue: 'default',
+
+  // Attempts before the job goes to the dead letter queue (henri jobs:dead)
+  maxAttempts: 5,
+
+  // How long one attempt may take; the job is failed when it runs over
+  timeout: '5m',
+
+  perform: async (args, { henri, job, signal }) => {
+    henri.pen.info('${lower}', job.id, \`attempt \${job.attempt}\`);
+    // Throw to fail the attempt: it is retried with an exponential backoff.
+  },
+};
+`;
+
+  return output('job', 'app/jobs', `${lower}.js`, code, opts);
+};
+
+/**
  * The `resources`/`crud` route of a name in config/routes.js, if any
  *
  * @param {string} lower The resource name (ex: tasks)
@@ -554,6 +591,7 @@ const generators = {
   agents,
   controller,
   crud,
+  job,
   mailer,
   model,
   scaffold,

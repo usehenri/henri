@@ -60,6 +60,7 @@
     "generate",
     "help",
     "init",
+    "jobs",
     "mcp",
     "new",
     "routes",

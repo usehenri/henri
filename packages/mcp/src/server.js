@@ -29,6 +29,7 @@ const GENERATORS = [
   'model',
   'controller',
   'crud',
+  'job',
   'mailer',
   'worker',
   'test',
@@ -41,12 +42,13 @@ const TARGETS = [
   'controller',
   'route',
   'view',
+  'job',
   'mailer',
   'worker',
   'test',
 ];
 
-const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the generate tool to add models, controllers, routes, views, workers and tests instead of writing files by hand, then run doctor and test.`;
+const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor and test.`;
 
 /**
  * A tool result carrying JSON (as text for every client, structured for
@@ -257,7 +259,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
           .regex(CONTROLLER)
           .optional()
           .describe(
-            'Model name (singular, PascalCase: Post) or controller/worker/test name'
+            'Model name (singular, PascalCase: Post) or controller/job/worker/test name'
           ),
       },
       title: 'Generate',
@@ -311,7 +313,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
         name: zod
           .string()
           .describe(
-            'Model name (Post), controller/worker/test/view name, or the route key ("get /about")'
+            'Model name (Post), controller/job/worker/test/view name, or the route key ("get /about")'
           ),
         target: zod.enum(TARGETS).describe('What to remove'),
       },

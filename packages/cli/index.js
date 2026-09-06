@@ -36,6 +36,8 @@ const BOOLEAN_FLAGS = [
   'force-build',
   'help',
   'json',
+  'now',
+  'once',
   'production',
   'skip-install',
   'skip-workers',
@@ -70,6 +72,12 @@ module.exports = (pkg, args) => {
       argv._.unshift(command.slice(group.length + 1));
       command = group;
     }
+  }
+
+  // Same for `henri jobs:install`
+  if (command && command.startsWith('jobs:')) {
+    argv._.unshift(command.slice(5));
+    command = 'jobs';
   }
 
   if (!command) {

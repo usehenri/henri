@@ -362,7 +362,22 @@ describe('henri generate', () => {
     });
   });
 
-  describe('worker and test', () => {
+  describe('worker, job and test', () => {
+    test('writes a job with perform and a retry policy', () => {
+      const { status } = henri(['g', 'job', 'welcome'], { cwd: app });
+
+      expect(status).toBe(0);
+
+      const job = require(path.join(app, 'app/jobs/welcome.js'));
+
+      expect(typeof job.perform).toBe('function');
+      expect(job.queue).toBe('default');
+      expect(job.maxAttempts).toBe(5);
+      expect(read(app, 'app/jobs/welcome.js')).toContain(
+        "henri.jobs.perform('welcome', args)"
+      );
+    });
+
     test('writes a worker with start and stop', () => {
       const { status } = henri(['g', 'worker', 'cleanup'], { cwd: app });
 

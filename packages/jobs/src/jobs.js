@@ -101,6 +101,7 @@ class Jobs {
       options.cwd || (henri && henri.cwd ? henri.cwd() : process.cwd());
     this.config = normalize(options.config || {});
     this.adapter = options.adapter || null;
+    this.ownsAdapter = false;
     this.store = null;
     this.definitions = {};
     this.started = false;
@@ -146,7 +147,16 @@ class Jobs {
       ...this.builtins(),
       ...load(path.join(this.cwd, 'app', 'jobs'), this.config),
     };
-    this.store = storeFor(this.resolveAdapter(), this.config.tables);
+
+    const adapter = this.resolveAdapter();
+
+    // An application may have a queue and no model at all: the store of the
+    // configuration is then built here, and nobody has connected it yet
+    if (this.ownsAdapter) {
+      await adapter.start();
+    }
+
+    this.store = storeFor(adapter, this.config.tables);
 
     const install =
       typeof options.install === 'boolean'
@@ -222,10 +232,13 @@ class Jobs {
     }
 
     if (model && typeof model.getStore === 'function') {
-      // A store no model uses has not been built yet
+      // A store no model uses has not been built yet; the model module keeps
+      // it from here on, so it is stopped with the others
       const store = model.getStore(name);
 
       if (store) {
+        this.ownsAdapter = true;
+
         return store;
       }
     }

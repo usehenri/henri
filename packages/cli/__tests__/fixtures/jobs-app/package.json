@@ -1,0 +1,6 @@
+{
+  "name": "jobs-fixture",
+  "private": true,
+  "henri": true,
+  "description": "Runs henri jobs on a drizzle sqlite store, without a server"
+}

@@ -49,6 +49,7 @@ describe('the cli', () => {
       expect(out('destroy')).toContain('view <folder>');
       expect(out('generate')).toContain('--force');
       expect(out('generate')).toContain('worker <name>');
+      expect(out('generate')).toContain('job <name>');
     });
 
     describe.each(commands.filter((command) => command !== 'help'))(
