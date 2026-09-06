@@ -677,6 +677,8 @@ function identities(henri) {
   let backend = null;
   /** The table the backend was built for */
   let built = null;
+  /** The store adapter it was built on, which a reload replaces */
+  let owner = null;
 
   /**
    * The settings, read again on every call so a reload is picked up
@@ -696,10 +698,15 @@ function identities(henri) {
   const table = () => {
     const { table: name } = settings();
     const found = henri.user && henri.user.userStore();
+    const store = found ? found.store : null;
 
-    if (!backend || built !== name) {
-      backend = storeFor(found ? found.store : null, name);
+    // The model module builds its adapters again on a reload, so the store
+    // is part of what the backend was built for: keeping one that names a
+    // connection nobody holds any more would fail every call after it
+    if (!backend || built !== name || owner !== store) {
+      backend = storeFor(store, name);
       built = name;
+      owner = store;
     }
 
     return backend;
@@ -1386,16 +1393,29 @@ function identities(henri) {
       return { ...refused('denied'), attempt };
     }
 
-    const token = await exchange(provider, {
-      code,
-      verifier: attempt.verifier,
-    });
+    // A provider that times out, refuses the connection, answers with a
+    // redirect (`redirect: 'error'`) or hangs up mid-body throws out of
+    // `fetch`. None of that is a failure of this application's, and a stack
+    // trace is not what the person who clicked a button should be shown
+    let token = null;
+
+    try {
+      token = await exchange(provider, { code, verifier: attempt.verifier });
+    } catch (error) {
+      debug('%s could not be reached: %s', provider.name, error.message);
+    }
 
     if (!token) {
       return { ...refused('exchange'), attempt };
     }
 
-    const found = await profile(provider, token);
+    let found = null;
+
+    try {
+      found = await profile(provider, token);
+    } catch (error) {
+      debug('%s answered no profile: %s', provider.name, error.message);
+    }
 
     if (!found) {
       return { ...refused('profile'), attempt };

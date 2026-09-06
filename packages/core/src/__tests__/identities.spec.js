@@ -1139,6 +1139,27 @@ describe('identity providers (demo app, disk store)', () => {
       expect(post.form.client_secret).toBe('other-secret');
     });
 
+    test('a provider that cannot be reached is a refusal, not a 500', async () => {
+      const held = block.providers.acme.tokenUrl;
+
+      // Nothing listens there, and nothing henri does about it should reach
+      // a person as a stack trace
+      block.providers.acme.tokenUrl = 'http://127.0.0.1:1/token';
+
+      const who = await visitor();
+      const started = await begin(who);
+      const code = provider.issue(
+        { email: address(), email_verified: true, sub: subject() },
+        { challenge: started.challenge, redirectUri: started.redirectUri }
+      );
+      const res = await callback(who, 'acme', { code, state: started.state });
+
+      block.providers.acme.tokenUrl = held;
+
+      expect(res.status).toBe(400);
+      expect(res.body.data.reason).toBe('exchange');
+    });
+
     test('a code the provider refuses is not a session', async () => {
       const who = await visitor();
       const started = await begin(who);
