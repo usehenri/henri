@@ -20,7 +20,6 @@ const { authLimiter, limiter } = require('./base/rate-limit');
 const { requestId } = require('./base/request-id');
 const requestTimeout = require('./base/timeout');
 const debug = require('debug')('henri:server');
-const { detect } = require('detect-port');
 
 /** How long a graceful stop may take before the process is killed (ms) */
 const STOP_TIMEOUT = 5000;
@@ -116,21 +115,17 @@ function safeUserConfig(config) {
   }
 }
 
+/** How many ports to try after the one asked for, in development */
+const PORT_ATTEMPTS = 20;
+
 /**
- * Find a usable port, starting with the one requested
+ * Is this the error of a port already taken?
  *
- * @param {number} port the port we would like to use
- * @param {Pen} pen henri's pen, to warn if we had to change port
- * @returns {Promise<number>} a free port
+ * @param {Error} error what listen() reported
+ * @returns {boolean} true when the port is busy
  */
-async function choosePort(port, pen) {
-  const free = await detect(port);
-
-  if (free !== port) {
-    pen.warn('server', `port ${port} is busy, using ${free} instead`);
-  }
-
-  return free;
+function isPortTaken(error) {
+  return error && (error.code === 'EADDRINUSE' || error.code === 'EACCES');
 }
 
 /* istanbul ignore next */
@@ -445,9 +440,31 @@ class Server extends BaseModule {
     // binding it are a single operation, where detecting a free port and
     // then binding it races with anything else binding meanwhile
     port = henri.isTest ? 0 : port;
-    port = henri.isDev ? await choosePort(port, pen) : port;
 
-    await this.listen(port, this.host);
+    // Binding is the only honest way to know a port is free: asking first and
+    // binding after leaves a window for anything else to take it, which is
+    // the same race that made the test suite answer from the wrong server.
+    // In development we walk up from the port asked for; elsewhere a busy
+    // port is an error the operator wants to see.
+    const wanted = port;
+    const attempts = henri.isDev ? PORT_ATTEMPTS : 0;
+
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.listen(port, this.host);
+        break;
+      } catch (error) {
+        if (!isPortTaken(error.cause || error) || attempt >= attempts) {
+          throw error;
+        }
+
+        port = wanted + attempt + 1;
+      }
+    }
+
+    if (port !== wanted && wanted !== 0) {
+      pen.warn('server', `port ${wanted} is busy, using ${port} instead`);
+    }
 
     port = this.httpServer.address().port;
 
@@ -555,7 +572,9 @@ class Server extends BaseModule {
       const onError = (error) => {
         /* istanbul ignore next */
         if (error.code === 'EADDRINUSE') {
-          return reject(new Error(`port ${port} already in use`));
+          return reject(
+            new Error(`port ${port} already in use`, { cause: error })
+          );
         }
 
         /* istanbul ignore next */

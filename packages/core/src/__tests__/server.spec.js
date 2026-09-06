@@ -187,6 +187,35 @@ describe('server', () => {
     });
   });
 
+  describe('choosing a port', () => {
+    test('a busy port rejects, keeping the reason the retry reads', async () => {
+      const net = require('net');
+      const taken = net.createServer();
+
+      await new Promise((resolve) => taken.listen(0, '127.0.0.1', resolve));
+
+      const busy = taken.address().port;
+      const server = new Server();
+
+      server.henri = fakeHenri({ port: busy });
+      await server.init();
+
+      // In development, start() walks up from a busy port by binding and
+      // catching this, rather than asking whether the port is free and
+      // binding after, which leaves a window for anything else to take it
+      const failure = await server
+        .listen(busy, '127.0.0.1')
+        .then(() => null)
+        .catch((error) => error);
+
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure.message).toContain(`port ${busy} already in use`);
+      expect(failure.cause && failure.cause.code).toBe('EADDRINUSE');
+
+      await new Promise((resolve) => taken.close(resolve));
+    }, 30000);
+  });
+
   describe('loopbackOnly', () => {
     const appWithAddress = (address) => {
       const app = express();
