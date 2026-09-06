@@ -22,6 +22,7 @@ module.exports = {
   // What an action answers, declared and not (see base/answers.js)
   'get /reports/digest': 'reports#digest',
   'get /reports/hand': { controller: 'reports#hand', roles: ['member'] },
+  'get /reports/padded': { controller: 'reports#padded', roles: ['member'] },
   'get /reports/profile': { controller: 'reports#profile', roles: ['member'] },
   'get /reports/records': 'reports#records',
   'get /reports/sensitive': {

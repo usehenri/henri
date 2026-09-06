@@ -113,6 +113,11 @@
  * way to infer it -- the same limit `base/references.js` states for an
  * undeclared foreign key, and for the same reason.
  *
+ * The other one is bytes. `res.send(JSON.stringify(value))` and anything
+ * written to the socket by hand hand over a string, and a string is not an
+ * answer this can walk. `res.json()` is where the gate is because
+ * `res.json()` is where the value still is.
+ *
  * ## What reads them besides the gate
  *
  * `henri openapi` (base/openapi.js): a declaration is a description of what
@@ -140,6 +145,18 @@ const TYPES = [...PARAM_TYPES, 'record'].sort();
 
 /** Every key a rule may hold */
 const KEYS = ['expose', 'from', 'model', 'of', 'required', 'type'];
+
+/**
+ * The methods that write a value the gate can read.
+ *
+ * `res.send(object)` is `res.json()` in express, so wrapping `json` covers
+ * it; `res.jsonp()` serializes on its own and is wrapped for that reason
+ * alone. What is deliberately not here is anything that writes bytes --
+ * `res.send(string)`, `res.write()`, a stream -- because a controller that
+ * serialized its own JSON handed henri a string, and a string is not an
+ * answer this can read.
+ */
+const WRITERS = ['json', 'jsonp'];
 
 /**
  * Is this a plain object (a declaration, a rule, an answer)?
@@ -786,80 +803,104 @@ function gate(henri, rules, body) {
  */
 function guard(henri, rules, name) {
   return (req, res, next) => {
-    const json = res.json.bind(res);
-
-    res.json = (body) => {
-      if (sealed(res)) {
-        return json(body);
-      }
-
-      // An Inertia page object is a rendered page rather than an answer of
-      // this shape, and its props went through the gate as `data` already
-      if (isInertiaPage(req, res)) {
-        return json(body);
-      }
-
-      // The implicit render reads this to tell an action that answered from
-      // one that returned without answering, and it reads it before the
-      // promise below resolves (see base/hooks.js)
-      res._answered = true;
-
-      let gated;
-
-      try {
-        gated = gate(henri, rules, body);
-      } catch (error) {
-        return next(error);
-      }
-
-      if (gated.problems.length > 0 && !report(henri, name, gated.problems)) {
-        res.statusCode = 500;
-
-        return seal(res).json({
-          code: CODE,
-          error: 'Internal Server Error',
-          message: `${name} does not answer what it declared (config.api.strict)`,
-          statusCode: 500,
+    for (const method of WRITERS) {
+      if (typeof res[method] === 'function') {
+        res[method] = wrap(henri, rules, name, {
+          next,
+          req,
+          res,
+          write: res[method].bind(res),
         });
       }
-
-      if (!gated.settle) {
-        seal(res);
-
-        return json(gated.answer);
-      }
-
-      return gated.settle().then(
-        (answer) => {
-          seal(res);
-
-          return json(answer);
-        },
-        (error) => {
-          // A controller that did not `return` its `res.json()` would turn a
-          // throw here into an unhandled rejection, so this answers instead
-          // (the same reasoning as `enforce()` in base/hateoas.js)
-          henri.pen &&
-            henri.pen.error &&
-            henri.pen.error('api', name, error.message);
-
-          if (res.headersSent) {
-            return res;
-          }
-
-          res.statusCode = 500;
-
-          return seal(res).json({
-            code: CODE,
-            error: 'Internal Server Error',
-            message: `${name} could not publish its answer`,
-            statusCode: 500,
-          });
-        }
-      );
-    };
+    }
 
     next();
+  };
+}
+
+/**
+ * One answering method, gated
+ *
+ * @param {Henri} henri the henri instance
+ * @param {?object} rules the compiled rules of the action, or null
+ * @param {string} name the route name
+ * @param {object} context `{ next, req, res, write }`
+ * @returns {function} the replacement
+ */
+function wrap(henri, rules, name, { next, req, res, write }) {
+  /**
+   * The refusal, in the envelope henri answers every failure with
+   *
+   * @param {string} message what happened
+   * @returns {*} the answer
+   */
+  const refuse = (message) => {
+    res.statusCode = 500;
+    seal(res);
+
+    return write({
+      code: CODE,
+      error: 'Internal Server Error',
+      message,
+      statusCode: 500,
+    });
+  };
+
+  return (body) => {
+    if (sealed(res)) {
+      return write(body);
+    }
+
+    // An Inertia page object is a rendered page rather than an answer of
+    // this shape, and its props went through the gate as `data` already
+    if (isInertiaPage(req, res)) {
+      return write(body);
+    }
+
+    // The implicit render reads this to tell an action that answered from
+    // one that returned without answering, and it reads it before the
+    // promise below resolves (see base/hooks.js)
+    res._answered = true;
+
+    let gated;
+
+    try {
+      gated = gate(henri, rules, body);
+    } catch (error) {
+      return next(error);
+    }
+
+    if (gated.problems.length > 0 && !report(henri, name, gated.problems)) {
+      return refuse(
+        `${name} does not answer what it declared (config.api.strict)`
+      );
+    }
+
+    if (!gated.settle) {
+      seal(res);
+
+      return write(gated.answer);
+    }
+
+    return gated.settle().then(
+      (answer) => {
+        seal(res);
+
+        return write(answer);
+      },
+      (error) => {
+        // A controller that did not `return` its `res.json()` would turn a
+        // throw here into an unhandled rejection, so this answers instead
+        // (the same reasoning as `enforce()` in base/hateoas.js)
+        henri.pen &&
+          henri.pen.error &&
+          henri.pen.error('api', name, error.message);
+
+        return res.headersSent
+          ? res
+          : refuse(`${name} could not publish its answer`);
+      }
+    );
   };
 }
 

@@ -60,6 +60,10 @@ module.exports = {
     });
   },
 
+  // The other method that writes a value: express serializes this one
+  // itself instead of going through res.json(), so the gate wraps it too
+  padded: async (req, res) => res.jsonp({ gender: req.user.gender }),
+
   profile: async (req, res) =>
     res.json({ age: req.user.age, who: req.user.email }),
 

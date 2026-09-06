@@ -194,6 +194,8 @@ henri's own answers are untouched by it — the HAL envelope, the page options, 
 
 What the floor cannot do is see through a name. `res.json({ g: user.gender })` is a string as far as henri is concerned, and so is `{ ownerId: memo.ownerId }` — a plain object carries no model, so nothing knows that key names a row. Both are what a declaration is for.
 
+The other thing it cannot do is read bytes. `res.json()` and `res.jsonp()` are gated because that is where the value still is; `res.send(JSON.stringify(value))`, `res.write()` and a stream hand over a string, and a string is not an answer henri can walk.
+
 ### The declaration
 
 ```js

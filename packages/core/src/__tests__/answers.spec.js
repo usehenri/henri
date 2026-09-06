@@ -321,6 +321,15 @@ describe('the exit gate (demo app, disk store)', () => {
     expect(answer.body.total).toBe(1);
   });
 
+  // Express serializes a jsonp answer itself rather than through res.json,
+  // so it is the second writer the gate wraps
+  test('res.jsonp() leaves through the same gate', async () => {
+    const answer = await agent.get('/reports/padded?callback=read');
+
+    expect(answer.status).toBe(200);
+    expect(answer.text).not.toContain('she/her');
+  });
+
   test('a column named by `from` obeys its marks under another name', async () => {
     const answer = await agent.get('/reports/profile');
 
