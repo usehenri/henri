@@ -605,6 +605,14 @@ describe('i18n', () => {
       });
     });
 
+    test('a configured locale with no catalogue fails the boot', async () => {
+      const cwd = appWith({ 'en.json': { a: 'b' } });
+
+      await expect(
+        moduleWith({ i18n: { locales: ['en', 'de'] } }, { cwd })
+      ).rejects.toMatchObject({ code: 'HENRI_LOCALE_UNKNOWN' });
+    });
+
     test('a default nothing translates fails the boot', async () => {
       const cwd = appWith({ 'fr.json': { a: 'b' } });
 

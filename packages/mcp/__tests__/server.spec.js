@@ -93,9 +93,10 @@ const fixture = async () => {
   );
 
   // One configuration whatever NODE_ENV says, so the server and the mcp
-  // server agree on the port without either being told
-  for (const file of fs.readdirSync(config)) {
-    fs.rmSync(path.join(config, file));
+  // server agree on the port without either being told. Only the files: the
+  // directories next to them (config/locales) are part of the application
+  for (const entry of fs.readdirSync(config, { withFileTypes: true })) {
+    entry.isFile() && fs.rmSync(path.join(config, entry.name));
   }
   fs.writeFileSync(
     path.join(config, 'default.json'),

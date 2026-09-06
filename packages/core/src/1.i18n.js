@@ -108,6 +108,20 @@ class I18nModule extends BaseModule {
       return this.name;
     }
 
+    // A locale the configuration names and no file answers is a language
+    // that would be accepted and then say nothing: `req.setLocale('de')`
+    // would succeed and every key would come back as itself
+    const absent = this.settings.locales.filter(
+      (locale) => !this.settings.catalogues[locale]
+    );
+
+    if (absent.length > 0) {
+      throw fail(
+        'HENRI_LOCALE_UNKNOWN',
+        `i18n.locales names ${absent.join(', ')} and ${this.settings.dir} has no catalogue for ${absent.length === 1 ? 'it' : 'them'}`
+      );
+    }
+
     if (!this.settings.locales.includes(this.settings.default)) {
       throw fail(
         'HENRI_LOCALE_UNKNOWN',
