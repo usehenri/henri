@@ -193,6 +193,12 @@ describe('the configuration schema', () => {
         },
         legacy: { adapter: 'mysql', logging: false, pool: { max: 5 } },
       },
+      telemetry: {
+        enabled: true,
+        metrics: true,
+        propagate: false,
+        spans: ['http', 'jobs'],
+      },
       trustProxy: 2,
       uploads: {
         allow: ['image/png', 'image/*'],
@@ -469,6 +475,7 @@ describe('the schema, the declarations and the documentation', () => {
     ['CacheConfig', () => Object.keys(SCHEMA.cache.oneOf[1].keys)],
     ['CspConfig', () => Object.keys(SCHEMA.csp.keys)],
     ['LogsConfig', () => Object.keys(SCHEMA.logs.keys)],
+    ['TelemetryConfig', () => Object.keys(SCHEMA.telemetry.oneOf[1].keys)],
     ['ShutdownConfig', () => Object.keys(SCHEMA.shutdown.keys)],
     ['UploadsConfig', uploadsKeys],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],

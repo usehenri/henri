@@ -325,6 +325,26 @@ const ENCRYPTION_OPTIONS = bag({
   deterministic: BOOLEAN,
 });
 
+/**
+ * What a span takes beside its name and its function.
+ *
+ * `attributes` is `OBJECT` rather than a shape: what an application puts in
+ * one is its own, and `base/telemetry.js` masks it and drops what a span
+ * cannot carry rather than refusing the call. `boundary` is henri's own
+ * list, so a typo there means "always spanned" and is worth refusing.
+ */
+const SPAN_OPTIONS = bag({
+  attributes: maybe(OBJECT),
+  boundary: maybe({
+    enum: ['boot', 'http', 'jobs', 'mail', 'stores', 'views', 'webhooks'],
+    type: 'string',
+  }),
+  kind: maybe({
+    enum: ['client', 'consumer', 'internal', 'producer', 'server'],
+    type: 'string',
+  }),
+});
+
 /** The fields marked `expose: false` an answer is allowed to carry */
 const INCLUDE = {
   describe: 'a list of field names',
@@ -605,6 +625,50 @@ const SIGNATURES = {
     },
   ],
 
+  'henri.telemetry.histogram': [
+    { name: 'name', ...NAME },
+    {
+      name: 'options',
+      optional: true,
+      ...bag({ description: maybe(NAME), unit: maybe(NAME) }),
+    },
+  ],
+
+  'henri.telemetry.inject': [
+    {
+      hint: 'henri.telemetry.inject(headers) writes traceparent into an outgoing header bag',
+      name: 'carrier',
+      ...OBJECT,
+    },
+  ],
+
+  'henri.telemetry.observe': [
+    { name: 'name', ...NAME },
+    {
+      name: 'options',
+      ...bag({
+        description: maybe(NAME),
+        kind: maybe({ enum: ['counter', 'gauge'], type: 'string' }),
+        unit: maybe(NAME),
+      }),
+    },
+    {
+      hint: 'henri.telemetry.observe(name, options, (observe) => observe(value, attributes))',
+      name: 'callback',
+      ...FUNCTION,
+    },
+  ],
+
+  'henri.telemetry.span': [
+    { name: 'name', ...NAME },
+    { name: 'options', optional: true, ...SPAN_OPTIONS },
+    {
+      hint: 'henri.telemetry.span(name, [options], fn) runs fn inside a span',
+      name: 'fn',
+      ...FUNCTION,
+    },
+  ],
+
   'henri.trail.about': [
     { name: 'who', ...WHO },
     { name: 'filter', optional: true, ...TRAIL_FILTER },
@@ -741,6 +805,10 @@ const UNCHECKED = {
     'says so and answers false, which is its documented contract',
   'henri.reporter.report':
     'the one entry point that must not refuse: it runs on a failure path, so throwing would lose the failure it was called about. A wrong source is coerced and a wrong options is read as none, deliberately',
+  'henri.telemetry.boot':
+    'henri.init() is the one caller and what it passes is what henri.analyze() answered; anything else answers false rather than failing a boot for the sake of a span',
+  'henri.telemetry.on':
+    'answers false for anything that is not one of the boundaries, which is what a caller asking about a name henri does not know should get',
   'henri.trail.record':
     'HENRI_TRAIL_INVALID_EVENT and the meta refusals already say what is wrong',
   'henri.utils': 'node resolution answers for itself',

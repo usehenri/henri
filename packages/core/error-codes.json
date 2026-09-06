@@ -78,6 +78,10 @@
       "what": "the store adapters: loading them, starting them, talking to them"
     },
     {
+      "area": "telemetry",
+      "what": "the OpenTelemetry spans and metrics of config.telemetry, and the @opentelemetry/api that carries them"
+    },
+    {
       "area": "trail",
       "what": "the append-only record of who read or changed personal data"
     },
@@ -1378,6 +1382,16 @@
       "code": "HENRI_STORE_URL_MISSING",
       "fix": "Set `stores.<name>.url`, or the `host`, `port`, `database`, `username` and `password` the adapter assembles one from. `DATABASE_URL` sets `stores.default.url`.",
       "what": "A store has nothing to connect to."
+    },
+    {
+      "area": "telemetry",
+      "causes": [
+        "`telemetry.enabled` is true and @opentelemetry/api is not installed in this application",
+        "the package is installed somewhere the application cannot resolve it from"
+      ],
+      "code": "HENRI_TELEMETRY_UNAVAILABLE",
+      "fix": "henri ships the instrumentation and never the pipeline: install the interface with `npm install @opentelemetry/api`, and an SDK and an exporter of your choosing beside it (see the telemetry guide). Leave `telemetry.enabled` out to let henri instrument only when the package is there, or set `\"telemetry\": false` to say this application does not want it.",
+      "what": "The configuration requires telemetry and the application does not have @opentelemetry/api."
     },
     {
       "area": "trail",

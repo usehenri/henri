@@ -1545,6 +1545,21 @@ Usually:
 
 **Fix.** Set `stores.<name>.url`, or the `host`, `port`, `database`, `username` and `password` the adapter assembles one from. `DATABASE_URL` sets `stores.default.url`.
 
+## telemetry
+
+The OpenTelemetry spans and metrics of config.telemetry, and the @opentelemetry/api that carries them.
+
+### `HENRI_TELEMETRY_UNAVAILABLE`
+
+The configuration requires telemetry and the application does not have @opentelemetry/api.
+
+Usually:
+
+- `telemetry.enabled` is true and @opentelemetry/api is not installed in this application
+- the package is installed somewhere the application cannot resolve it from
+
+**Fix.** henri ships the instrumentation and never the pipeline: install the interface with `npm install @opentelemetry/api`, and an SDK and an exporter of your choosing beside it (see the telemetry guide). Leave `telemetry.enabled` out to let henri instrument only when the package is there, or set `"telemetry": false` to say this application does not want it.
+
 ## trail
 
 The append-only record of who read or changed personal data.

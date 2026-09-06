@@ -152,11 +152,23 @@ class Mailer extends BaseModule {
       );
     }
 
+    // Both records want this call: the outbound call log holds what was
+    // attempted and what came back, the span holds the boundary. Neither
+    // holds the message -- no recipient, no subject, no body -- because an
+    // SMTP conversation is worth timing and its contents are personal data
+    const { telemetry } = this.henri;
     const finish = this.tracked();
+    const deliver = () => this.transporter.sendMail(opts);
     let info;
 
     try {
-      info = await this.transporter.sendMail(opts);
+      info = await (telemetry
+        ? telemetry.span(
+            'henri.mail.deliver',
+            { boundary: 'mail', kind: 'client' },
+            deliver
+          )
+        : deliver());
     } catch (error) {
       finish({ error: error.code || error.name, status: null });
 

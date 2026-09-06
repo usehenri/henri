@@ -7,6 +7,7 @@ const { fallback } = require('./base/errors');
 const validator = require('validator');
 
 const Config = require('./0.config');
+const Telemetry = require('./0.telemetry');
 const Encryption = require('./1.encryption');
 const Mailer = require('./1.mailer');
 const Controllers = require('./2.controllers');
@@ -87,6 +88,7 @@ class Henri extends HenriBase {
     this.modules.add(new Privacy());
     this.modules.add(new Retention());
     this.modules.add(new Router());
+    this.modules.add(new Telemetry());
     this.modules.add(new Trail());
     this.modules.add(new User());
     this.modules.add(new View());
@@ -95,6 +97,11 @@ class Henri extends HenriBase {
     try {
       await this.modules.discover();
       await this.modules.init();
+
+      // The boot, as spans, written after the fact out of the timings
+      // `analyze()` already took: nothing runs during the boot for this
+      // (see base/telemetry.js)
+      this.telemetry.boot(this.analyze());
     } catch (error) {
       const reason = error && error.message ? error.message : String(error);
       const failure = fallback(
@@ -103,6 +110,12 @@ class Henri extends HenriBase {
         }),
         'HENRI_BOOT_FAILED'
       );
+
+      // A boot that failed is the one worth having a span of. `telemetry`
+      // is a module of runlevel 0, so it is there unless it is what failed
+      this.telemetry &&
+        typeof this.telemetry.boot === 'function' &&
+        this.telemetry.boot(this.analyze(), failure);
 
       // Awaited, unlike the request path: the process usually exits right
       // after this, and an asynchronous reporter needs its flush in first.

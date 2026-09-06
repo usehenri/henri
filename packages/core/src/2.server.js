@@ -387,20 +387,26 @@ class Server extends BaseModule {
     ));
     const { settings } = api;
 
-    // Middleware order: request id, the call log, timeout, secure headers,
+    // Middleware order: request id, telemetry, the call log, timeout,
+    // secure headers,
     // compression, cors, body parsers, cookies, boom, api version,
     // pagination, the health endpoints, static files. The user module adds
     // permit, session, passport and csrf (runlevel 4), start() adds the rate
     // limits, the router, the 404 and the error handler.
     app.use(requestId());
 
-    // The call log goes second when `config.calls` asked for it, and is not
-    // mounted at all when it did not: an application that keeps no call log
-    // pays nothing for the feature, not even a middleware that returns.
-    // Second is the point -- a request refused by the rate limit, the body
-    // parser or the CSRF check is exactly the one worth having in the log,
-    // and anything mounted further down never sees it. `henri.calls` itself
-    // comes up at runlevel 4 and is read per request
+    // Two records want to be as far out as they can get, and they are not
+    // competing: the span goes second so it covers the whole request and
+    // carries the request id, and the call log goes third so it still sees
+    // what the rate limit, the body parser and the CSRF check refuse --
+    // which are exactly the requests worth having in it. Neither is mounted
+    // when nothing asked for it: an application without @opentelemetry/api
+    // has no telemetry middleware in its stack, and one that keeps no call
+    // log has no call-log middleware, not even one that returns
+    if (this.henri.telemetry && this.henri.telemetry.enabled) {
+      app.use(this.henri.telemetry.middleware());
+    }
+
     if (callsConfig(config).inbound) {
       app.use(inbound(this.henri));
     }

@@ -84,6 +84,24 @@ const ENCRYPTION_KEY = {
 /** What `logs.format` accepts (`base/logs.js`, which owns the meaning) */
 const LOG_FORMATS = ['auto', 'json', 'pretty'];
 
+/**
+ * What `telemetry.spans` accepts: the boundaries henri knows.
+ *
+ * Mirrored from `base/telemetry.js`, which owns the meaning, the way
+ * `LOG_FORMATS` mirrors `base/logs.js` -- requiring it here would close a
+ * cycle through `config-validate.js`, and `__tests__/telemetry.spec.js`
+ * compares the two lists.
+ */
+const BOUNDARIES = [
+  'boot',
+  'http',
+  'jobs',
+  'mail',
+  'stores',
+  'views',
+  'webhooks',
+];
+
 /** A string that is not empty */
 const text = (extra = {}) => ({ pattern: /\S/u, type: 'string', ...extra });
 
@@ -1129,6 +1147,46 @@ const SCHEMA = {
     type: 'object',
   },
 
+  telemetry: {
+    describe: 'an object of telemetry settings, or false to instrument nothing',
+    hint: 'henri ships no SDK and no exporter: install @opentelemetry/api and an SDK of your choosing, and henri traces the boundaries it knows',
+    oneOf: [
+      { const: false },
+      {
+        keys: {
+          enabled: {
+            describe: 'true or false',
+            hint: 'Absent means on when @opentelemetry/api resolves from the application and off when it does not; true fails the boot when it does not, which is what a deployment that requires tracing wants',
+            type: 'boolean',
+          },
+          metrics: {
+            default: true,
+            describe: 'true or false',
+            hint: 'The request duration, the queue depth and the cache counters; false leaves the spans',
+            type: 'boolean',
+          },
+          propagate: {
+            default: true,
+            describe: 'true or false',
+            hint: 'traceparent on the requests henri makes for the application (a webhook delivery); an incoming one is always honoured',
+            type: 'boolean',
+          },
+          spans: {
+            default: 'all',
+            describe: `"all", false, or a list of ${BOUNDARIES.join(', ')}`,
+            hint: 'Which boundaries get a span; false keeps the metrics and emits none',
+            oneOf: [
+              { const: 'all' },
+              { const: false },
+              { of: { enum: BOUNDARIES, type: 'string' }, type: 'array' },
+            ],
+          },
+        },
+        type: 'object',
+      },
+    ],
+  },
+
   encryption: {
     describe: 'an object of encrypted attribute settings',
     hint: 'Which fields are encrypted is said in the models ({ encrypted: true }); this is the key that opens them',
@@ -1502,6 +1560,7 @@ const SCHEMA = {
 module.exports = {
   ADAPTERS,
   ALWAYS,
+  BOUNDARIES,
   DIALECTS,
   LOG_FORMATS,
   PARTITIONS,
