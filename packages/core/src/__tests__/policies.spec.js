@@ -457,7 +457,7 @@ describe('policies (demo app, disk store)', () => {
         /declares no scope/u
       );
       await expect(henri.policies.scope(null, 'ghost')).rejects.toThrow(
-        /no policy for "ghost"/u
+        /scope\(name\) names the string "ghost"/u
       );
 
       henri.policies._policies.delete('scopeless');

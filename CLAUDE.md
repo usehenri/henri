@@ -643,6 +643,33 @@ perform|retry|discard` drive it. The module also registers
   answers 422 with `{ field: message }` and `HENRI_PARAMS_INVALID`, negotiated
   like everything else (a browser that posted a form goes back to it with the
   messages in the flash). An action with no declaration is untouched.
+- The third boundary is every entry point an application calls
+  (`base/arguments.js`), after the configuration and the request: the
+  signature of roughly fifty of them, as data, in the same node vocabulary
+  `config-schema.js` uses -- `config-validate.js` exports `problems()` so
+  there is one walker and no second schema language, and it
+  learned `function` and `date`, the two kinds a call can pass and a JSON
+  file cannot. `check(where, args)` raises `HENRI_ARGUMENT_INVALID` naming
+  the method, the argument, what was expected and what arrived, and reports
+  every problem rather than the first. Three rules: an argument is checked
+  once, at the method an application names (`henri.can` and `req.can` both
+  funnel into `policies.can`, which is where the check is, and `links`/
+  `paths` ask the unchecked `policies.answer` because they loop); `null` is
+  not the same as absent for an argument, and _is_ the same for a selector
+  inside an options bag but not for a key whose absence has a default; and a
+  check never goes inside a loop of henri's own -- `res.collection` checks
+  the list and not the rows, and `encryption.encrypt`/`decrypt` guard by
+  hand with three `typeof`s because the adapters call them per row. The
+  checks always run: there is no build step to compile them out and no
+  reason to want one. `HENRI_ARGUMENT_UNKNOWN_TARGET` is the second code, for
+  a selector that names nothing (`retention.sweep({ only })`,
+  `encryption.rotate({ model })`) rather than a clean, empty, successful run.
+  What already refuses well is listed in `UNCHECKED` with the reason, and
+  `src/__tests__/arguments.spec.js` is what keeps both true: every method
+  `index.d.ts` declares is in one table or the other, every declared
+  signature is checked somewhere in the source, and every entry point is
+  called with garbage derived from its own nodes. The page is
+  `website/src/content/docs/reference/api.md` (`#wrong-calls`).
 - Mailers (`2.mailers.js`) are `app/mailers/*.js` loaded like controllers:
   every exported function is an action returning the message it wants sent
   (`to`, `subject`, `data`, and anything else nodemailer takes), `defaults`

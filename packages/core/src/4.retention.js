@@ -5,6 +5,7 @@ const path = require('path');
 const debug = require('debug')('henri:retention');
 const { randomUUID } = require('node:crypto');
 
+const { check, unknown } = require('./base/arguments');
 const { fail } = require('./base/errors');
 const { PACKAGE } = require('./base/jobs');
 const {
@@ -214,7 +215,47 @@ class Retention extends BaseModule {
    * @memberof Retention
    */
   async plan(options = {}) {
+    check('henri.retention.plan', [options]);
+    this.only(options, 'henri.retention.plan');
+
     return planOf(this.context(), options);
+  }
+
+  /**
+   * Refuse an `only` that matches no rule
+   *
+   * A sweep over nothing answers the way a sweep over everything does --
+   * `0 record(s) over 0 rule(s)`, a receipt, an exit status of zero -- so a
+   * typo in a cron line reads as a job that is doing its work.
+   *
+   * @param {object} options the options of the call
+   * @param {string} where the entry point, for the message
+   * @returns {void}
+   * @throws {Error} `HENRI_ARGUMENT_UNKNOWN_TARGET` when nothing matches
+   * @memberof Retention
+   */
+  only(options, where) {
+    const wanted = options && options.only;
+
+    if (typeof wanted !== 'string') {
+      return;
+    }
+
+    const [model, name] = wanted.split(':');
+    const found = this.rules.some(
+      (rule) =>
+        (!model || model.toLowerCase() === rule.model.toLowerCase()) &&
+        (!name || name === rule.name)
+    );
+
+    if (!found) {
+      throw unknown(
+        where,
+        'options.only',
+        wanted,
+        this.rules.map((rule) => `${rule.model}:${rule.name}`)
+      );
+    }
   }
 
   /**
@@ -226,6 +267,9 @@ class Retention extends BaseModule {
    * @memberof Retention
    */
   async sweep(options = {}) {
+    check('henri.retention.sweep', [options]);
+    this.only(options, 'henri.retention.sweep');
+
     const receipt = await sweepOf(this.context(), options);
 
     receipt.id = randomUUID();

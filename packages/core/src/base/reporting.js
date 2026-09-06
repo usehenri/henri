@@ -235,7 +235,8 @@ class Reporter {
     const handler = this._handler;
 
     // The absence of a handler costs a property read: no payload is built,
-    // nothing is masked and nothing is remembered
+    // nothing is masked and nothing is remembered -- and nothing is checked
+    // either, because a report nobody is listening to has no wrong call
     if (typeof handler !== 'function' || !error) {
       return false;
     }
@@ -280,9 +281,15 @@ class Reporter {
    * @memberof Reporter
    */
   payload(error, options = {}) {
-    const { meta = null, req = null, status = null } = options;
-    const source = SOURCES.includes(options.source)
-      ? options.source
+    // The one entry point `base/arguments.js` leaves lenient on purpose:
+    // this runs on a failure path, so refusing a wrong call would lose the
+    // failure it was called about. `null` used to reach the destructuring
+    // below and be logged as "the error handler threw", which named the
+    // wrong culprit and dropped the report
+    const given = options && typeof options === 'object' ? options : {};
+    const { meta = null, req = null, status = null } = given;
+    const source = SOURCES.includes(given.source)
+      ? given.source
       : 'application';
     const found = {
       at: new Date(),

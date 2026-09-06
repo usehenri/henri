@@ -3,8 +3,10 @@ const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
 const debug = require('debug')('henri:router');
+const { check } = require('./base/arguments');
 const { loopbackOnly, negotiate: answer } = require('./base/http');
 const runtime = require('./base/runtime');
+const { fail } = require('./base/errors');
 const { respond, userConfig } = require('./base/auth');
 const {
   collection,
@@ -1005,8 +1007,22 @@ class Router extends BaseModule {
       req._henri = flash.expose(req, exposed);
 
       res.render = async (route, extras = {}) => {
+        check('res.render', [route, extras]);
+
         let { data = {}, graphql = null } = extras;
         const include = Array.isArray(extras.include) ? extras.include : [];
+
+        if (
+          typeof extras.data !== 'undefined' &&
+          typeof extras.graphql !== 'undefined'
+        ) {
+          // The query wins and the data is discarded, so asking for both is
+          // a page rendered with something other than what it was given
+          throw fail(
+            'HENRI_ARGUMENT_INVALID',
+            'res.render(options) takes data or graphql, not both: the query answers the page and the data would be thrown away'
+          );
+        }
 
         if (
           Object.keys(extras).length > 0 &&
@@ -1099,9 +1115,33 @@ class Router extends BaseModule {
         resource(this.henri, req, res, record, options);
       res.collection = (records, options) =>
         collection(this.henri, req, res, records, options);
-      res.negotiate = (handlers) => this.negotiate(req, res, handlers);
+      res.negotiate = (handlers) => {
+        check('res.negotiate', [handlers]);
+
+        if (
+          typeof handlers.html !== 'function' &&
+          typeof handlers.json !== 'function'
+        ) {
+          const error = fail(
+            'HENRI_ARGUMENT_INVALID',
+            'res.negotiate(handlers) must hold an html handler, a json handler, or both, and it holds neither'
+          );
+
+          // Without this it answered 406, which blames the Accept header of
+          // a client for a mistake in the controller
+          error.hint =
+            'res.negotiate({ html: () => res.render(...), json: () => res.resource(...) })';
+
+          throw error;
+        }
+
+        return this.negotiate(req, res, handlers);
+      };
 
       res.hbs = async (route, extras = {}) => {
+        // The same arguments as res.render, and a body of its own
+        check('res.render', [route, extras], 'res.hbs');
+
         const { data = {}, graphql = null } = extras;
         const opts = await this.viewOptions(req, res, { data, graphql });
 

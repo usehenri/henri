@@ -734,7 +734,9 @@ describe('the cache', () => {
     test('needs a function', async () => {
       const cache = cacheWith();
 
-      await expect(cache.fetch('memo')).rejects.toThrow(/needs a function/u);
+      await expect(cache.fetch('memo')).rejects.toThrow(
+        /henri\.cache\.fetch\(fn\) must be a function/u
+      );
     });
   });
 

@@ -330,6 +330,12 @@ module.exports = {
 };
 ```
 
+`who` is an email address, an external id, or the record itself. A record is
+taken as the person it is, without a lookup, so one that carries no primary
+key names nobody and is refused (`HENRI_PRIVACY_UNKNOWN_SUBJECT`) — it used
+to reach the erasure as `{ id: undefined }`, which on some adapters is every
+row.
+
 It also answers what the map holds: `henri.privacy.keys` (every personal field
 name), `henri.privacy.private` (the ones that never leave), `henri.privacy.fields('User')`,
 `henri.privacy.describe()` and `henri.privacy.plan(who)`.

@@ -136,6 +136,16 @@ function received(value, masked = false) {
     return `a list of ${value.length} item${value.length === 1 ? '' : 's'}`;
   }
 
+  // A function prints as its name and nothing else: `String(fn)` is the
+  // whole body, which is not what a message about the wrong argument wants
+  if (typeof value === 'function') {
+    return value.name ? `the function ${value.name}` : 'a function';
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? 'an invalid date' : 'a date';
+  }
+
   if (typeof value === 'object') {
     return 'an object';
   }
@@ -182,6 +192,8 @@ function describe(node) {
     any: 'anything',
     array: 'a list',
     boolean: 'true or false',
+    date: 'a date',
+    function: 'a function',
     number: 'a number',
     object: 'an object',
     record: 'an object',
@@ -227,8 +239,17 @@ function accepts(node, value) {
     return Array.isArray(value);
   }
 
+  if (node.type === 'date') {
+    return value instanceof Date;
+  }
+
   if (node.type === 'object' || node.type === 'record') {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
+    return (
+      value !== null &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      !(value instanceof Date)
+    );
   }
 
   return node.type === 'any' || typeof value === node.type;
@@ -367,6 +388,23 @@ function walk(node, value, key, context) {
 
       return;
 
+    // `function` and `date` are the two kinds a call can pass and a JSON
+    // file cannot, so the configuration never declares them and
+    // `base/arguments.js` is the only caller that does
+    case 'function':
+      if (typeof value !== 'function') {
+        wrong();
+      }
+
+      return;
+
+    case 'date':
+      if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+        wrong();
+      }
+
+      return;
+
     case 'number':
       if (!validNumber(node, value)) {
         wrong();
@@ -408,7 +446,12 @@ function walk(node, value, key, context) {
       return;
 
     case 'object':
-      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      if (
+        !value ||
+        typeof value !== 'object' ||
+        Array.isArray(value) ||
+        value instanceof Date
+      ) {
         wrong();
 
         return;
@@ -516,6 +559,31 @@ function related(config, context) {
       source: context.source('renderer'),
     });
   }
+}
+
+/**
+ * The problems one value has against one node
+ *
+ * `validate()` is the configuration's entry into the walk; this is the same
+ * walk over a single value, which `base/arguments.js` uses to check what a
+ * public method was called with. One walker, two callers: the vocabulary of
+ * `config-schema.js` means the same thing on both sides.
+ *
+ * @param {object} node a schema node
+ * @param {any} value the value
+ * @param {string} [key=''] what to call it in the messages
+ * @returns {Array<object>} the problems, `[]` when there are none
+ */
+function problems(node, value, key = '') {
+  const found = [];
+
+  walk(node, value, key, {
+    mask: () => false,
+    problems: found,
+    source: () => null,
+  });
+
+  return found;
 }
 
 /**
@@ -739,6 +807,7 @@ module.exports = {
   format,
   nearest,
   nodeAt,
+  problems,
   received,
   summary,
   validate,

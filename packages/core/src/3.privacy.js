@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const debug = require('debug')('henri:privacy');
 
+const { check } = require('./base/arguments');
 const { fail } = require('./base/errors');
 const { userConfig } = require('./base/auth');
 const { mapOf, privacyConfig, stripPersonal } = require('./base/privacy');
@@ -13,6 +14,7 @@ const {
   findSubject,
   planOf,
   plainOf,
+  primaryOf,
 } = require('./base/erasure');
 
 /**
@@ -186,6 +188,11 @@ class Privacy extends BaseModule {
    * @memberof Privacy
    */
   fields(name) {
+    // Only the name is checked: a model that holds nothing personal is not
+    // a mistake, and `{}` is the honest answer for it. An unknown-target
+    // refusal belongs where an empty answer would be a false success
+    check('henri.privacy.fields', [name]);
+
     const entry = this.entryOf(name);
 
     return entry ? entry.fields : {};
@@ -201,6 +208,11 @@ class Privacy extends BaseModule {
    * @memberof Privacy
    */
   strip(value, include = []) {
+    // `include` is the one way back for a field marked `expose: false`, and
+    // it is matched with `Array#includes`: a string there is a *substring*
+    // test, which un-hides every private field whose name it contains
+    check('henri.privacy.strip', [value, include]);
+
     return stripPersonal(value, this.private, include);
   }
 
@@ -283,10 +295,26 @@ class Privacy extends BaseModule {
    * @memberof Privacy
    */
   async subject(who) {
+    check('henri.privacy.subject', [who]);
+
     const context = this.context();
 
     if (who && typeof who === 'object') {
-      return plainOf(who);
+      const plain = plainOf(who);
+      const primary = primaryOf(context.modelOf(this.subjectModel));
+
+      // A record is taken as the person it is, without a lookup -- so a
+      // record that does not say which row it is names everybody. The
+      // erasure downstream builds `where: { [primary]: plain[primary] }`,
+      // and `{ id: undefined }` is every row on some adapters
+      if (plain[primary] === null || typeof plain[primary] === 'undefined') {
+        throw fail(
+          'HENRI_PRIVACY_UNKNOWN_SUBJECT',
+          `the record given to henri.privacy is not one: it carries no "${primary}", so it names nobody`
+        );
+      }
+
+      return plain;
     }
 
     const found = await findSubject(
@@ -307,6 +335,8 @@ class Privacy extends BaseModule {
    * @memberof Privacy
    */
   async export(who, options = {}) {
+    check('henri.privacy.export', [who, options]);
+
     const context = this.context();
     let subject;
     // Tolerant, because a person asking for their data is entitled to an
@@ -419,6 +449,8 @@ class Privacy extends BaseModule {
    * @memberof Privacy
    */
   async plan(who, options = {}) {
+    check('henri.privacy.plan', [who, options]);
+
     const context = this.context();
 
     return this.tolerantly(async () =>
@@ -437,6 +469,8 @@ class Privacy extends BaseModule {
    * @memberof Privacy
    */
   async erase(who, options = {}) {
+    check('henri.privacy.erase', [who, options]);
+
     const context = this.context();
     let receipt;
     let subject;

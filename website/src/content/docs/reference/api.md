@@ -66,6 +66,69 @@ On the instance itself: `henri.env`, `isProduction`, `isDev`, `isTest`, `release
 | `res.negotiate({ html, json })`                                     | Runs `html` for browsers and `json` for API clients.                                                                                                                                                                                                                                                                                                                                                              |
 | `res.format(handlers)`                                              | Express content negotiation; put `json` before `html`.                                                                                                                                                                                                                                                                                                                                                            |
 
+## Wrong calls
+
+Every entry point on this page checks what it is called with. JavaScript is
+not strongly typed and TypeScript erases at runtime, so henri validates
+exhaustively at its boundaries and trusts what is inside — the
+[configuration](/configuration/) at boot, the
+[request](/guides/controllers/#params-what-an-action-accepts) a controller
+answers, and the calls an application makes.
+
+A call henri cannot honour raises `HENRI_ARGUMENT_INVALID` naming the method,
+the argument, what was expected and what arrived:
+
+```
+henri.cache.fetch(fn) must be a function, but it is the number 42
+req.pagination(overrides.perPage) must be a whole number above zero, but it is the string "abc"
+res.render(options) must be an object, but it is the string "oops"
+```
+
+Every problem is reported, not the first one. An `async` method rejects with
+it, which is what its caller is already handling; a synchronous one throws,
+and inside a controller that reaches the client as the 500 the code names.
+
+Four rules are worth knowing, because they are what people bump into:
+
+- **`null` is not the same as absent.** `res.resource(record, null)` is
+  refused: `options = {}` only fills in for `undefined`, so a `null` used to
+  go straight through to the line that broke.
+- **Inside an options bag, a selector or a switch does take `null`** — a
+  caller that computes an option and comes up with nothing should not have to
+  delete the key — **and a key whose absence has a default does not**, because
+  `{ include: null }` and no `include` at all are genuinely different there.
+- **A misspelled option is refused, and named.**
+  `henri.privacy.erase(who, { stratgy: 'delete' })` says _did you mean
+  "options.strategy"?_. An option henri does not know and that is nothing like
+  one it does is left alone, the way the configuration leaves an application's
+  own keys alone.
+- **A selector that names nothing is refused too**, with
+  `HENRI_ARGUMENT_UNKNOWN_TARGET`: `henri.retention.sweep({ only: 'Propsal' })`
+  used to report a clean, successful, empty run, which is exactly what somebody
+  reads as the work being done.
+
+Some entry points refuse on their own terms instead, and keep doing so: a bad
+cache key is `HENRI_CACHE_KEY_INVALID`, a value the cache cannot store is
+`HENRI_CACHE_VALUE_UNSUPPORTED`, a trail entry with no action is
+`HENRI_TRAIL_INVALID_EVENT`, an unknown mailer is `HENRI_MAIL_UNKNOWN_MAILER`.
+Some are deliberately total and answer `null` or `false` rather than throwing:
+`henri.model.errors()`, `henri.policies.get()`, `henri.config.has()`,
+`henri.reporter.onError()`. And one is deliberately lenient:
+`henri.reporter.report()` runs on a failure path, so refusing a wrong call
+there would lose the failure it was called about.
+
+Where a check goes follows one rule: **never inside a loop of henri's own**.
+`res.collection(records)` checks that it was given a list and stops there;
+the rows are the serializer's business, and one assertion per row to catch a
+mistake the call itself announces is the wrong trade. The checks run in
+production too — the cost is a `typeof` per argument on entry points that are
+followed by I/O, and a check that only ran in development would be missing
+from the one place a wrong call is expensive.
+
+The signatures live in `@usehenri/core`'s `src/base/arguments.js`, as data,
+and `src/__tests__/arguments.spec.js` calls every one of them with garbage:
+a public method that forgets its check fails that test.
+
 ## The controller file
 
 ```js

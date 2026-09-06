@@ -1,3 +1,4 @@
+const { check } = require('./base/arguments');
 const { fail } = require('./base/errors');
 const BaseModule = require('./base/module');
 
@@ -130,6 +131,18 @@ class Mailer extends BaseModule {
    * @memberof Mailer
    */
   async send(opts) {
+    check('henri.mail.send', [opts]);
+
+    // Under NODE_ENV=test the transport is nodemailer's json one, which
+    // happily "sends" a message nobody will ever receive; in production the
+    // same call is an SMTP EENVELOPE three deploys later
+    if (!opts.to && !opts.cc && !opts.bcc) {
+      throw fail(
+        'HENRI_MAIL_NO_RECIPIENT',
+        'henri.mail.send(message) needs a recipient: give it a to, a cc or a bcc'
+      );
+    }
+
     if (!this.transporter) {
       this.henri.pen.error('mail', 'transport not initialized');
 

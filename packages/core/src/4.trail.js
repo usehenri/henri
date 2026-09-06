@@ -2,6 +2,7 @@ const BaseModule = require('./base/module');
 
 const debug = require('debug')('henri:trail');
 
+const { check } = require('./base/arguments');
 const { fail } = require('./base/errors');
 const { userConfig } = require('./base/auth');
 const { EXTERNAL_ID } = require('./base/external-id');
@@ -350,6 +351,11 @@ class Trail extends BaseModule {
    * @memberof Trail
    */
   async list(filter = {}) {
+    // A filter value the store cannot use is dropped rather than matched,
+    // so `list({ action: 42 })` used to answer the whole trail -- the
+    // opposite of what it asked for, and no way to tell
+    check('henri.trail.list', [filter]);
+
     const rows = await this.ready().list(this.filter(filter));
 
     return rows.map(toEntry);
@@ -364,6 +370,8 @@ class Trail extends BaseModule {
    * @memberof Trail
    */
   async count(filter = {}) {
+    check('henri.trail.count', [filter]);
+
     return this.ready().count(this.filter(filter));
   }
 
@@ -377,6 +385,8 @@ class Trail extends BaseModule {
    * @memberof Trail
    */
   async about(who, filter = {}) {
+    check('henri.trail.about', [who, filter]);
+
     const { subject, subjectDigest } = this.identify(who);
 
     if (!subject && !subjectDigest) {
@@ -431,7 +441,11 @@ class Trail extends BaseModule {
    * @returns {Promise<object>} `{ removed, before, checkpoint }`
    * @memberof Trail
    */
-  async prune({ now = Date.now() } = {}) {
+  async prune(options = {}) {
+    check('henri.trail.prune', [options]);
+
+    const { now = Date.now() } = options;
+
     if (!this.enabled || !this.store || !this.settings.keep) {
       return { before: null, checkpoint: null, removed: 0 };
     }

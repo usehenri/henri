@@ -1,3 +1,5 @@
+const { check } = require('./arguments');
+
 /**
  * Pagination (`?page=2&per_page=50`) and the links around a page.
  *
@@ -57,6 +59,10 @@ function paginate(
 function paginationMiddleware(settings) {
   return (req, res, next) => {
     req.pagination = (overrides = {}) => {
+      // `paginate` clamps and coerces, so a `perPage` of "abc" used to come
+      // out as NaN and reach the ORM as `.limit(NaN)`
+      check('req.pagination', [overrides]);
+
       const result = paginate(req, Object.assign({}, settings(), overrides));
 
       req._pagination = result;

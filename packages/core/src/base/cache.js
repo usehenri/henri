@@ -3,6 +3,7 @@ const debug = require('debug')('henri:cache');
 
 const { MASK, filterParameters, isFiltered } = require('./redact');
 const { REPORT_EVERY } = require('./shared');
+const { check } = require('./arguments');
 const { fail } = require('./errors');
 
 /**
@@ -975,11 +976,15 @@ class Cache {
    * @memberof Cache
    */
   async get(key) {
+    // Before the short circuit: a bad key is a bad key whatever
+    // `config.cache` says, or a call that works in development with the
+    // cache off is a call that fails in production with it on
+    const full = this.keyFor(key);
+
     if (!this.enabled) {
       return undefined;
     }
 
-    const full = this.keyFor(key);
     let entry;
 
     try {
@@ -1008,11 +1013,14 @@ class Cache {
    * @memberof Cache
    */
   async set(key, value, options = {}) {
+    const full = this.keyFor(key);
+
+    check('henri.cache.set', [key, value, options]);
+
     if (!this.enabled) {
       return false;
     }
 
-    const full = this.keyFor(key);
     const ttl = this.ttlOf(options);
     const payload = encode(value);
     const size = Buffer.byteLength(payload);
@@ -1085,11 +1093,11 @@ class Cache {
    * @memberof Cache
    */
   async delete(key) {
+    const full = this.keyFor(key);
+
     if (!this.enabled) {
       return false;
     }
-
-    const full = this.keyFor(key);
 
     try {
       await this.store.delete(full);
@@ -1148,11 +1156,13 @@ class Cache {
     const run = typeof options === 'function' ? options : fn;
     const settings = typeof options === 'function' ? {} : options;
 
-    if (typeof run !== 'function') {
-      throw new TypeError(
-        'henri.cache.fetch(key, [options], fn) needs a function to run on a miss'
-      );
-    }
+    // The whole call is checked here rather than one piece at a time on the
+    // way through: `ttlOf` used to see a bad duration only after the
+    // function had run, which rejected the fetch and threw away the value
+    // it had just computed
+    this.keyFor(key);
+    check('henri.cache.fetch', [key, settings, run]);
+    this.ttlOf(settings);
 
     if (!this.enabled) {
       return run();
