@@ -1,4 +1,5 @@
 const BaseModule = require('./base/module');
+const { suggestedRenderer } = require('./base/renderer');
 
 const allowed = {
   inertia: 'inertia',
@@ -52,9 +53,22 @@ class View extends BaseModule {
   async init() {
     const { config, pen } = this.henri;
 
-    this.renderer = config.has('renderer')
+    const configured = config.has('renderer');
+
+    this.renderer = configured
       ? config.get('renderer').toLowerCase()
       : 'template';
+
+    if (!configured) {
+      const suggestion = suggestedRenderer(process.cwd());
+
+      suggestion &&
+        pen.warn(
+          'view',
+          `${suggestion.package} is installed but "renderer" is not set, so pages are rendered with handlebars`,
+          `=> add "renderer": "${suggestion.renderer}" to your configuration`
+        );
+    }
 
     const engines = Object.assign({}, allowed);
 

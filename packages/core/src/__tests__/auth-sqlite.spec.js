@@ -212,4 +212,39 @@ describe('auth (sequelize sqlite store)', () => {
     expect(res.body).toEqual({ ok: true });
     expect((await agent.get('/profile')).status).toBe(401);
   });
+
+  test('a session whose user is gone is anonymous, not an error (#65)', async () => {
+    const ghost = supertest.agent(app);
+
+    await henri._user.create({
+      email: 'ghost@usehenri.io',
+      name: 'Ghost',
+      password,
+    });
+
+    const login = await ghost
+      .post('/login')
+      .send({ email: 'ghost@usehenri.io', password });
+
+    expect(login.status).toBe(200);
+
+    const user = await henri.user.findByEmail('ghost@usehenri.io');
+
+    await henri._user.destroy({ force: true, where: { id: user.id } });
+
+    // Passport answers `done(null, false)` for a row that is no longer
+    // there, so the request is anonymous rather than failing to
+    // deserialize, and signing out of it works
+    const profile = await ghost
+      .get('/profile')
+      .set('Accept', 'application/json');
+
+    expect(profile.status).toBe(401);
+
+    const out = await ghost
+      .post('/logout')
+      .set('X-CSRF-Token', cookieOf(login, 'henri.csrf'));
+
+    expect(out.status).toBe(200);
+  });
 });
