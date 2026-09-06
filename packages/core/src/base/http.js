@@ -1,5 +1,5 @@
 const escapeHtml = require('escape-html');
-const { redactUrl } = require('./redact');
+const { urlRedactor } = require('./redact');
 const { isLoopback } = require('../utils');
 const { recorder } = require('./runtime');
 const { STATUSES } = require('./boom');
@@ -129,7 +129,9 @@ function errorHandler(henri) {
   return (error, req, res, next) => {
     const err = error instanceof Error ? error : new Error(String(error));
     const status = normalizeStatus(err.status || err.statusCode);
-    const where = `${req.method} ${redactUrl(req.originalUrl || req.url)}`;
+    const where = `${req.method} ${urlRedactor(henri)(
+      req.originalUrl || req.url || ''
+    )}`;
 
     if (status >= 500) {
       henri.pen.error('server', where, err.stack || err.message);

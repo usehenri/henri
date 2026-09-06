@@ -197,6 +197,32 @@ describe('what a json line never carries', () => {
     expect(line.data[0].password).toBe('hunter2');
   });
 
+  test('the key that opens the encrypted columns, whatever the filters say', () => {
+    const key = 'deadbeef'.repeat(8);
+
+    for (const filterParameters of [
+      undefined,
+      false,
+      ['ssn'],
+      ['password', 'token', 'secret', 'authorization'],
+    ]) {
+      const { lines, pen } = jsonPen(
+        fakeHenri({ filterParameters, logs: { format: 'json' } })
+      );
+
+      // What an application logs when it prints its own configuration
+      pen.info('boot', 'configuration', {
+        encryption: { keys: [key], readPlaintext: false },
+        port: 3000,
+      });
+
+      const [line] = lines;
+
+      expect(JSON.stringify(line)).not.toContain(key);
+      expect(line.data[0]).toEqual({ encryption: '[FILTERED]', port: 3000 });
+    }
+  });
+
   test('the masking is the one pen has always applied, from one place', () => {
     const henri = fakeHenri({}, { personal: ['nickname'] });
     const value = { nickname: 'ada', secret: 'x' };

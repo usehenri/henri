@@ -725,7 +725,13 @@ declare namespace start {
     helmet?: false | Record<string, unknown>;
     /** Content Security Policy settings henri owns, beside `helmet`. */
     csp?: CspConfig;
-    /** Parameter names masked in the logs; `false` masks nothing. */
+    /**
+     * Parameter names masked in the logs (substrings, like Rails'
+     * `filter_parameters`); `false` masks nothing. Setting this *replaces*
+     * the defaults, so one name is masked whatever it says: anything
+     * containing `encryption`, which is where the key that opens the
+     * encrypted columns lives.
+     */
     filterParameters?: string[] | false;
     /** What a log line looks like: `pretty`, `json`, or `auto`. */
     logs?: LogsConfig;
