@@ -35,16 +35,16 @@ shaped by it would inherit that shape.
 Nothing below needs a configuration key. It is on unless you turn it off, and
 `henri audit` reports the turning off, never the default.
 
-| ASVS                       | What henri does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| V2 Authentication          | Passwords are hashed with bcrypt (cost 10, 4 under `NODE_ENV=test`) by the adapter, on create and on update, and never selected by a query: `password` is `select: false` on Mongoose and Drizzle and excluded from the Sequelize default scope. An unknown email is compared against a throwaway hash so a wrong address and a wrong password take the same time. `POST /login` is limited to 10 attempts a minute per address, along with `/register`, `/signup`, `/password`, `/forgot-password` and `/reset-password`. |
-| V3 Session management      | `express-session` with the session in your database, not in the process memory. The `henri.sid` cookie is `HttpOnly`, `SameSite=Lax`, `Secure` in production, `Path=/`, and lasts `user.sessionMaxAge` (30 days). Logging out destroys the session server side and clears the cookie.                                                                                                                                                                                                                                      |
-| V4 Access control          | `roles` on a route registers a guard the router runs before the action: anonymous gets a redirect to `loginPath` or a `401`, signed in without the role a `403`. The `paths` a view receives are filtered by the roles of the viewer, so a page cannot link where its reader may not go. `roles` is stripped from every model write unless you pass `{ unsafe: true }`.                                                                                                                                                    |
-| V5 Validation and encoding | `req.permit('title', 'body')` is the only way a request bag reaches a model in the generated controllers, and it refuses `__proto__`, `constructor` and `prototype`. Queries go through Sequelize, Mongoose or Drizzle, which parameterize. React, Inertia and Handlebars escape what they interpolate. Bodies are bounded by `bodyLimit` (1mb).                                                                                                                                                                           |
-| V7 Errors and logging      | Every answer carries `X-Request-Id`, generated or taken from the client, and every log line of that request quotes it. `filterParameters` (`password`, `token`, `secret`, `authorization`, matched as substrings) are masked in everything `henri.pen` prints, query strings included. A `500` in production answers the reason phrase and nothing else; the stack is only in development and test.                                                                                                                        |
-| V8 Data protection         | A user reaches a view or a JSON answer only as `publicUser()`: `externalId`, `email`, `roles` and whatever `user.public` names. Every record carries an `externalId` (a UUID v7) and the numeric primary key is removed from what `res.render()`, `res.resource()` and `res.collection()` send. A signed-in answer carries `Cache-Control: no-store`.                                                                                                                                                                      |
-| V13 API                    | Rate limits (600 requests a minute per user or address), `Idempotency-Key` on every mutating route, `Accept: application/vnd.henri.vN+json` versioning, a `requestTimeout` of 30 seconds, and HAL answers whose `_links` are filtered by role. GraphQL introspection is off in production.                                                                                                                                                                                                                                 |
-| V14 Configuration          | [helmet](https://helmetjs.github.io/) sets the headers, with a Content Security Policy that lets the dev servers work and no HSTS outside production, and `X-Powered-By` is off. CORS is off unless you ask for it. A double-submit CSRF token (`henri.csrf`, `X-CSRF-Token`) guards every `POST`, `PUT`, `PATCH` and `DELETE` of a session. Secrets live in `.env` or in [encrypted credentials](/configuration/#encrypted-credentials). The configuration is validated against a schema before the first module starts.  |
+| ASVS                       | What henri does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V2 Authentication          | Passwords are hashed with argon2id where `@node-rs/argon2` installs and with bcrypt (cost 12) everywhere else, by the adapter, on create and on update, and a stored hash below the current parameters is upgraded on the next sign-in. A hash is never selected by a query: `password` is `select: false` on Mongoose and Drizzle and excluded from the Sequelize default scope. Twelve characters is the shortest password accepted, and an unknown email is compared against a throwaway hash so a wrong address and a wrong password take the same time. `POST /login` is limited to 10 attempts a minute per address, along with `/register`, `/signup`, `/password`, `/forgot-password` and `/reset-password`, and one account refuses sign-in after 10 consecutive failures in fifteen minutes, whoever is asking.                                                    |
+| V3 Session management      | `express-session` with the session in your database, not in the process memory. The `henri.sid` cookie is `HttpOnly`, `SameSite=Lax`, `Secure` in production, `Path=/`, and lasts `user.sessionMaxAge` (30 days). Logging out destroys the session server side and clears the cookie.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| V4 Access control          | `roles` on a route registers a guard the router runs before the action: anonymous gets a redirect to `loginPath` or a `401`, signed in without the role a `403`. The `paths` a view receives are filtered by the roles of the viewer, so a page cannot link where its reader may not go. `roles` is stripped from every model write unless you pass `{ unsafe: true }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| V5 Validation and encoding | `req.permit('title', 'body')` is the only way a request bag reaches a model in the generated controllers, and it refuses `__proto__`, `constructor` and `prototype`. Queries go through Sequelize, Mongoose or Drizzle, which parameterize. React, Inertia and Handlebars escape what they interpolate. Bodies are bounded by `bodyLimit` (1mb).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| V7 Errors and logging      | Every answer carries `X-Request-Id`, generated or taken from the client, and every log line of that request quotes it. `filterParameters` (`password`, `token`, `secret`, `authorization`, matched as substrings) are masked in everything `henri.pen` prints, query strings included. A `500` in production answers the reason phrase and nothing else; the stack is only in development and test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| V8 Data protection         | A user reaches a view or a JSON answer only as `publicUser()`: `externalId`, `email`, `roles` and whatever `user.public` names. Every record carries an `externalId` (a UUID v7) and the numeric primary key is removed from what `res.render()`, `res.resource()` and `res.collection()` send. A signed-in answer carries `Cache-Control: no-store`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| V13 API                    | Rate limits (600 requests a minute per user or address), `Idempotency-Key` on every mutating route, `Accept: application/vnd.henri.vN+json` versioning, a `requestTimeout` of 30 seconds, and HAL answers whose `_links` are filtered by role. A GraphQL query is bounded before a resolver runs -- 15 aliases, 1000 fields with fragments expanded, 10 levels of nesting, 5000 tokens -- and introspection is off in production.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| V14 Configuration          | [helmet](https://helmetjs.github.io/) sets the headers, with a Content Security Policy that names its origins (no `https:` wildcard) and lets the dev servers work, no HSTS outside production, and `X-Powered-By` off. `Permissions-Policy` denies the camera, the microphone, the location and the other powerful browser features until an application names one. CORS is off unless you ask for it. A double-submit CSRF token (`henri.csrf`, `X-CSRF-Token`) guards every `POST`, `PUT`, `PATCH` and `DELETE` of a session, and the request must also come from an origin this application recognizes (`Sec-Fetch-Site`, then `Origin`), which is the half the token alone does not cover. Secrets live in `.env` or in [encrypted credentials](/configuration/#encrypted-credentials). The configuration is validated against a schema before the first module starts. |
 
 Two more that are not ASVS requirements but are the same kind of work: the
 development introspection routes (`/_routes`, `/_controllers`, `/_mailers`) are
@@ -60,24 +60,29 @@ who may read a record, what a field is allowed to contain, whether an email
 address is really the person's, how long you keep the data. And these, which
 henri could do and does not yet:
 
-- **The CSRF token is a double-submit cookie and nothing else.** There is no
-  `Origin` or `Referer` check, and the token is not bound to the session id, so
-  a sibling subdomain that can set a cookie on your domain can plant one it
-  knows.
-- **There is no account lockout and no password policy** beyond a six character
-  minimum. The authentication limiter is per address, so a distributed attempt
-  against many accounts is only slowed down.
-- **GraphQL has no depth, cost or complexity limit.** If a model exports a
-  `graphql` key, the endpoint answers whatever a client sends. `henri audit`
-  says so when it sees one.
-- **The rate limit and idempotency stores are in the process memory** unless
-  `rateLimit.store` and `api.idempotency.store` name a shared one. Two
-  processes mean two sets of counters.
+- **The CSRF token is not bound to the session id.** It is a random value in a
+  cookie, so one minted before a sign-in is still accepted after it. The
+  origin check is what covers the sibling subdomain that can write a cookie on
+  your domain; the binding is what would cover the token that outlives the
+  session it was issued for.
+- **There is no second factor, and no check against breached passwords.** The
+  policy is a length and a hash; ASVS 2.1.7 asks that a new password be looked
+  up in a list of known-breached ones, which means calling a service, which is
+  a decision an application makes and not a default a framework sets.
+- **The GraphQL endpoint answers anyone** unless `graphql.authenticated`,
+  `graphql.roles` or `graphql.loopbackOnly` says otherwise. The bounds above
+  cap what one query may cost, not who may ask it, and what a resolver is
+  allowed to return is your access control. `henri audit` says so when it sees
+  a model exporting a schema.
+- **The rate limit, lockout and idempotency stores are in the process memory**
+  unless `rateLimit.store`, `user.lockout.store` and `api.idempotency.store`
+  name a shared one. Two processes mean two sets of counters.
 - **`filterParameters` masks the logs, and only the logs.** A model field, a
   mail body and the arguments of a background job are stored and printed as
   they are.
-- **`Permissions-Policy` and `Cross-Origin-Embedder-Policy` are not sent.** Add
-  them through `config.helmet` if you want them.
+- **`Cross-Origin-Embedder-Policy` is not sent.** It breaks third party
+  embeds, so it is a decision an application makes: add it through
+  `config.helmet`.
 - **The session cookie is `Secure` when `NODE_ENV` is `production`**, not when
   the request arrives over https. An https deployment under another environment
   name gets a cookie without the attribute.
@@ -96,7 +101,7 @@ It reads the application; it never starts it. Every finding is a statement
 about a file you can open:
 
 ```text
-  henri audit: 2 findings in 27 checks (1 high, 1 medium, 0 low; failing on medium)
+  henri audit: 2 findings in 30 checks (1 high, 1 medium, 0 low; failing on medium)
 
   high    csrf.disabled              config/production.json
           A01:2021 Broken Access Control / ASVS V4.2.2 (L1)
@@ -133,12 +138,14 @@ password for `localhost` is not a leak, it is what `compose.yaml` says), a
 too short or reads like a placeholder (`secret.weak`, which never prints the
 value).
 
-**Protections turned off** — `csrf: false` (`csrf.disabled`), `helmet: false`
-(`helmet.disabled`) or one of its options set to false so a header stops being
-sent (`helmet.weakened`, one finding per header), `rateLimit: false`
+**Protections turned off** — `csrf: false` (`csrf.disabled`) or its origin
+check alone (`csrf.origin-disabled`), `helmet: false` (`helmet.disabled`) or
+one of its options set to false so a header stops being sent
+(`helmet.weakened`, one finding per header), `rateLimit: false`
 (`rate-limit.disabled`), `rateLimit.auth: false` (`rate-limit.auth-disabled`,
-high when a user model exists), `filterParameters: false`
-(`log.filters-disabled`) and `requestTimeout: false`
+high when a user model exists), `user.lockout: false` (`lockout.disabled`), a
+GraphQL bound set to false (`graphql.limits-disabled`), `filterParameters:
+false` (`log.filters-disabled`) and `requestTimeout: false`
 (`request-timeout.disabled`).
 
 **Settings that open a door** — a `cors` that accepts any origin, or reflects
@@ -166,8 +173,9 @@ application, not a hole. A controller that exports `before` hooks is left
 alone, since that is where an ownership check lives when it is not in
 `config/routes.js`.
 
-**Surface** — a model exporting a `graphql` key, which mounts an endpoint with
-no depth or cost limit (`graphql.exposed`).
+**Surface** — a model exporting a `graphql` key while the endpoint asks for no
+session, no role and no loopback interface, so anyone who can reach the
+application can query it (`graphql.exposed`).
 
 **Dependencies** — the known advisories of the production dependencies
 (`deps.advisories`), whether they could be checked at all

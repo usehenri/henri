@@ -265,6 +265,64 @@ describe('henri audit', () => {
     );
   });
 
+  test('reports the bounds a configuration removes', () => {
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      {
+        csrf: { origin: false },
+        graphql: { maxAliases: false, maxDepth: false },
+        user: { lockout: false, model: 'User' },
+      }
+    );
+
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'csrf.origin-disabled',
+        'graphql.limits-disabled',
+        'lockout.disabled',
+      ])
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V4.2.2',
+        check: 'csrf.origin-disabled',
+        file: 'config/production.json',
+        severity: 'medium',
+      })
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V13.4.1',
+        check: 'graphql.limits-disabled',
+        message: expect.stringContaining(
+          'graphql.maxAliases, graphql.maxDepth'
+        ),
+        severity: 'medium',
+      })
+    );
+
+    // Turning CSRF off entirely is one finding, not two
+    expect(
+      withConfig(app, 'config/production.json', { csrf: false }).names
+    ).not.toContain('csrf.origin-disabled');
+
+    // A bound that is raised rather than removed is not a finding
+    expect(
+      withConfig(app, 'config/production.json', {
+        csrf: { trustedOrigins: ['https://checkout.example.com'] },
+        graphql: { maxAliases: 50 },
+        user: { lockout: { max: 25 } },
+      }).names
+    ).not.toEqual(
+      expect.arrayContaining([
+        'csrf.origin-disabled',
+        'graphql.limits-disabled',
+        'lockout.disabled',
+      ])
+    );
+  });
+
   test('reports a finding of config/test.json one severity lower', () => {
     const { findings: found, ok } = withConfig(app, 'config/test.json', {
       csrf: false,
@@ -495,7 +553,7 @@ describe('henri audit', () => {
     });
   });
 
-  test('reports the GraphQL endpoint a model mounts', () => {
+  test('reports a GraphQL endpoint that asks for no session', () => {
     const model = path.join(app, 'app/models/Task.js');
     const source = fs.readFileSync(model, 'utf8');
 
@@ -507,19 +565,32 @@ describe('henri audit', () => {
       )
     );
 
-    const { findings: found, ok } = run(app);
+    try {
+      const { findings: found, ok } = run(app);
 
-    fs.writeFileSync(model, source);
+      expect(ok).toBe(true);
+      expect(found).toContainEqual(
+        expect.objectContaining({
+          asvs: 'V13.4.2',
+          check: 'graphql.exposed',
+          message: expect.stringContaining('/_henri/gql'),
+          severity: 'low',
+        })
+      );
 
-    expect(ok).toBe(true);
-    expect(found).toContainEqual(
-      expect.objectContaining({
-        asvs: 'V13.4.1',
-        check: 'graphql.exposed',
-        message: expect.stringContaining('/_henri/gql'),
-        severity: 'low',
-      })
-    );
+      // Asking for a session, a role or the loopback interface answers it
+      for (const graphql of [
+        { authenticated: true },
+        { roles: ['admin'] },
+        { loopbackOnly: true },
+      ]) {
+        expect(
+          withConfig(app, 'config/default.json', { graphql }).names
+        ).not.toContain('graphql.exposed');
+      }
+    } finally {
+      fs.writeFileSync(model, source);
+    }
   });
 
   test('--fail-on decides the exit code, and --json prints the error', () => {

@@ -93,6 +93,13 @@ const CHECKS = [
     what: '"csrf": false in a configuration file',
   },
   {
+    asvs: 'V4.2.2',
+    check: 'csrf.origin-disabled',
+    level: 1,
+    owasp: 'A01',
+    what: '"csrf": { "origin": false }: the token is checked, where the request came from is not',
+  },
+  {
     asvs: 'V8.1.1',
     check: 'data.raw-record',
     level: 2,
@@ -128,11 +135,18 @@ const CHECKS = [
     what: '.env reached a commit',
   },
   {
-    asvs: 'V13.4.1',
+    asvs: 'V13.4.2',
     check: 'graphql.exposed',
     level: 2,
+    owasp: 'A01',
+    what: 'a model exports a graphql schema and the endpoint asks for no session, so anyone who can reach the application can query it',
+  },
+  {
+    asvs: 'V13.4.1',
+    check: 'graphql.limits-disabled',
+    level: 2,
     owasp: 'A05',
-    what: 'a model exports a graphql schema, so the endpoint answers queries with no depth or cost limit',
+    what: 'a graphql bound is false, so one request may cost whatever it asks for',
   },
   {
     asvs: 'V14.4.1',
@@ -154,6 +168,13 @@ const CHECKS = [
     level: 1,
     owasp: 'A03',
     what: 'a raw query built by interpolating a template literal',
+  },
+  {
+    asvs: 'V2.2.1',
+    check: 'lockout.disabled',
+    level: 1,
+    owasp: 'A07',
+    what: '"lockout": false: nothing bounds how many guesses one account may receive',
   },
   {
     asvs: 'V7.1.1',
@@ -270,6 +291,9 @@ const SEVERITIES = ['low', 'medium', 'high'];
 
 /** What `--fail-on` accepts */
 const THRESHOLDS = [...SEVERITIES, 'none'];
+
+/** The `config.graphql` bounds `base/graphql-guard.js` enforces */
+const GRAPHQL_BOUNDS = ['maxAliases', 'maxComplexity', 'maxDepth', 'maxTokens'];
 
 /** 30 days in milliseconds: henri's default session lifetime */
 const THIRTY_DAYS = 2592000000;
@@ -576,6 +600,15 @@ const configFindings = (config, { hasUser }) => {
       'Remove "csrf": false. A JSON client that sends Authorization: Bearer, or no session cookie at all, is already exempt',
       'V4.2.2'
     );
+  } else if (isObject(config.csrf) && config.csrf.origin === false) {
+    add(
+      'medium',
+      'csrf.origin-disabled',
+      OWASP.A01,
+      'the origin check is off, so the double-submit token stands alone: anything that can write a cookie on the parent domain can plant one it knows and post with it',
+      'Remove "origin": false and name the origin that needs to post here instead: { "csrf": { "trustedOrigins": ["https://checkout.example.com"] } }',
+      'V4.2.2'
+    );
   }
 
   if (config.cors === true) {
@@ -653,6 +686,23 @@ const configFindings = (config, { hasUser }) => {
     );
   }
 
+  if (isObject(config.graphql)) {
+    const unbounded = GRAPHQL_BOUNDS.filter(
+      (key) => config.graphql[key] === false
+    );
+
+    if (unbounded.length > 0) {
+      add(
+        'medium',
+        'graphql.limits-disabled',
+        OWASP.A05,
+        `graphql.${unbounded.join(', graphql.')} ${unbounded.length === 1 ? 'is' : 'are'} false, so one query may alias, nest or select as much as it asks for`,
+        `Raise the bound instead of removing it: { "graphql": { "${unbounded[0]}": 50 } }`,
+        'V13.4.1'
+      );
+    }
+  }
+
   if (config.trustProxy === true) {
     add(
       'low',
@@ -716,6 +766,17 @@ const configFindings = (config, { hasUser }) => {
         `sessions last ${Math.round(config.user.sessionMaxAge / 86400000)} days`,
         'ASVS asks for a re-authentication at least every 30 days: "sessionMaxAge": 2592000000',
         'V3.3.2'
+      );
+    }
+
+    if (config.user.lockout === false) {
+      add(
+        hasUser ? 'medium' : 'low',
+        'lockout.disabled',
+        OWASP.A07,
+        'the per-account lockout is off: the address limiter still bounds one caller, so a guessing attempt spread over many addresses is unbounded',
+        'Remove "lockout": false and widen the window instead: { "user": { "lockout": { "max": 25 } } }',
+        'V2.2.1'
       );
     }
 
@@ -1122,8 +1183,16 @@ const guards = (dir) => {
 };
 
 /**
- * Is the GraphQL endpoint mounted? It is, and only is, when a model exports
- * a `graphql` key.
+ * Who may query the GraphQL endpoint? It is mounted, and only mounted, when
+ * a model exports a `graphql` key, and it then answers anyone unless
+ * `config.graphql` asks for a session, a role or the loopback interface.
+ *
+ * What one query may cost is not part of this: `base/graphql-guard.js`
+ * bounds aliases, depth, complexity and tokens for every application, and
+ * `graphql.limits-disabled` is what reports the removal of a bound. This is
+ * the other question, the one henri cannot answer for you -- a schema that
+ * reaches a record only its owner may read is an access control decision,
+ * and it lives in the resolvers.
  *
  * @param {string} dir The application directory
  * @param {object} config The configuration of the default environment
@@ -1138,17 +1207,29 @@ const graphql = (dir, config) => {
     return [];
   }
 
+  const settings = isObject(config.graphql) ? config.graphql : {};
+  const guarded =
+    settings.authenticated === true ||
+    settings.loopbackOnly === true ||
+    (Array.isArray(settings.roles) && settings.roles.length > 0);
+
+  if (guarded) {
+    return [];
+  }
+
   const endpoint =
-    typeof config.graphql === 'string' ? config.graphql : '/_henri/gql';
+    typeof config.graphql === 'string'
+      ? config.graphql
+      : settings.endpoint || '/_henri/gql';
 
   return [
     {
-      asvs: 'V13.4.1',
+      asvs: 'V13.4.2',
       check: 'graphql.exposed',
       file: models[0],
-      hint: `Keep the schema to what a client needs, and put the expensive fields behind a role check in their resolver. Introspection is off in production; ${endpoint} is not`,
-      message: `${models.length} model${models.length === 1 ? '' : 's'} export a graphql schema, so ${endpoint} answers queries; henri applies no depth, cost or complexity limit to them`,
-      owasp: OWASP.A05,
+      hint: `Ask for a session: { "graphql": { "authenticated": true } }, name the roles that may query, or keep it to the loopback interface. Then put the records only their owner may read behind a check in their resolver`,
+      message: `${models.length} model${models.length === 1 ? '' : 's'} export a graphql schema and ${endpoint} asks for no session, so anyone who can reach the application can query it`,
+      owasp: OWASP.A01,
       severity: 'low',
     },
   ];
