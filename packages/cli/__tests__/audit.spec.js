@@ -610,7 +610,7 @@ describe('henri audit', () => {
     ).not.toContain('queries.raise-in-production');
     expect(
       withConfig(app, 'config/production.json', {
-        queries: { enabled: true, detect: { threshold: 10 } },
+        queries: { detect: { threshold: 10 }, enabled: true },
       }).names
     ).not.toContain('queries.raise-in-production');
   });

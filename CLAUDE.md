@@ -144,8 +144,9 @@ afterLogin, sessionMaxAge, signup, passwordReset, confirmation }`),
   `baseRole`, `externalIds`, `policies`, `trustProxy`, `csrf`, `graphql`,
   `mail`, `mailers`, `api`, `jobs`, `webhooks`, `rateLimit`, `shared`,
   `cache`, `helmet`, `csp`, `filterParameters`, `logs`, `telemetry`,
-  `encryption`, `privacy`, `retention`, `trail`, `calls`, `versions`, `i18n`,
-  `bodyLimit`, `uploads`, `requestTimeout`, `shutdown`, `errors`.
+  `encryption`, `privacy`, `retention`, `trail`, `calls`, `queries`,
+  `versions`, `i18n`, `bodyLimit`, `uploads`, `requestTimeout`, `shutdown`,
+  `errors`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
@@ -588,6 +589,42 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   asynchronous delivery still joins. `henri calls <request-id>`,
   `henri calls:stats` and `henri calls:sweep` read it back, and the guide is
   `guides/calls.md`.
+- The query seam is `0.queries.js` (`henri.queries`) and `base/queries.js`,
+  on outside production. **Every adapter reports every model call** --
+  `{ at, store, adapter, dialect, model, operation, method, keys, shape,
+duration, rows, requestId, source, callsite }` -- and the N+1 detector is
+  a listener on it. It sits at the **model call and not the statement**, and
+  the header argues why: it is the only level at which henri can give advice
+  (a driver instrumentation counts statements better), a statement count is
+  not actionable (`paginate` is two, a MySQL insert is two), and -- the
+  measurement that settled it -- `include()` on Drizzle is one correlated
+  json subquery, so the Rails lazy-association N+1 **does not exist there**
+  and a detector written to `bullet`'s model would report success. So: **the
+  threshold counts model calls, never statements**, said out loud everywhere
+  because a person reading "40 queries" assumes the other thing. The event
+  carries **no SQL**, and the reason is `@usehenri/sequelize`: its query
+  generator interpolates values into the text it runs (`WHERE "name" =
+'ada'`), so a `sql` field would be safe on Drizzle and Mongoose and a copy
+  of the row there; `keys` is column **names**, the trail's rule. The join
+  is the request id and nothing else, off the same `AsyncLocalStorage`, and
+  **telemetry does not consume this seam** -- statements stay the driver's
+  own instrumentation to trace, `adapter.query()` keeps its span and gains
+  an event, and no model call becomes a span (`base/telemetry.js` was
+  amended to say where that line sits). Each adapter maps its own layer in
+  a `queries.js`: Drizzle and Sequelize **wrap** their statics (both answer
+  promises) plus `Relation.prototype` once per process for the lazy path,
+  Mongoose uses **schema middleware** because `Model.find()` answers a lazy
+  chainable `Query` and wrapping it would break `find().sort()` -- at the
+  cost that an operation that fans out (`populate`) reports twice, which the
+  header and the guide both say. `henri.queries.instrument()` is the one API
+  they call, and it owns the nesting rule (the outermost call wins, so
+  `findById` is one event and not the `first()` it is built out of).
+  A finding goes to the log, to `X-Henri-Queries` in development, or to a
+  thrown `HENRI_QUERIES_N_PLUS_ONE` with `detect.raise` (the test-suite
+  gate); **not** to `henri.reporter`, because an N+1 is a slow answer and
+  not a failure. Off means nothing installed: no hook, no middleware, no
+  allocation. `henri audit` reports `queries.raise-in-production` and the
+  guide is `guides/queries.md`.
 - Model versioning is `4.versions.js` (`henri.versions`),
   `base/versions.js` and `base/version-store.js`, and it is **opt-in per
   model**: `options: { versioned: true }` (or `{ only, except, events }`)
@@ -1174,5 +1211,20 @@ versions.spec.js`), and on MongoDB through the demo application core's
   covered, like the rest of that adapter. henri ships no arithmetic and
   rounds nothing: a value that does not fit the scale is a validation
   failure, and what to do about it is the application's.
+- The query seam and the N+1 detector (`config.queries`) are new. They are
+  covered on sqlite offline and on the live PostgreSQL and MySQL of
+  `pnpm test:sql:live` (`packages/{drizzle,sequelize}/__tests__/
+queries.spec.js`), on MongoDB by `packages/mongoose/__tests__/
+queries.spec.js`, and on a real application by the showcase's cost test.
+  MSSQL rides the Sequelize mapping and has no coverage of its own, like the
+  rest of that adapter. Three limits are deliberate and in the guide: the
+  detector counts **model calls**, so a statement count is a different
+  number and the showcase keeps one counter of each, labelled; a Mongoose
+  `populate` reports one event per operation rather than one per model call,
+  because `pre` and `post` are two callbacks with no scope between them; and
+  repetition is only ever counted **within one request**, so nothing is
+  detected in a job, in the console or across requests. There is no history
+  of findings, no span (the join is the request id and nothing more) and no
+  fix applied on anyone's behalf.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.
