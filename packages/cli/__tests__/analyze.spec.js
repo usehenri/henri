@@ -35,7 +35,11 @@ describe('henri analyze', () => {
       expect(names[0]).toBe('config');
       expect(names).toContain('router');
       expect(names.indexOf('model')).toBeLessThan(names.indexOf('user'));
-      expect(analysis.chart[0].modules).toEqual(['config', 'telemetry']);
+      expect(analysis.chart[0].modules).toEqual([
+        'config',
+        'queries',
+        'telemetry',
+      ]);
       expect(analysis.chart[3].modules).toEqual([
         'cache',
         'model',
