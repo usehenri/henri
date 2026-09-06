@@ -138,8 +138,13 @@ class Pen extends BaseModule {
     // its stack as fields, instead of a dozen lines of decoration
     if (this.structured()) {
       const error = this.errorFor(name, summary, full, code);
+      // The same rule the pretty format follows: an object printed beside
+      // an Error is what the caller wants inspected instead of the stack,
+      // so with an Error there is nothing to add (base/henri.js hands the
+      // Promise of a rejection here, and it holds nothing to log)
+      const extra = obj && !(summary instanceof Error) ? [obj] : [];
 
-      this.shout(name, 'error', ...(obj ? [error, obj] : [error]));
+      this.shout(name, 'error', error, ...extra);
 
       return error;
     }

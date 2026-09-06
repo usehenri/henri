@@ -244,6 +244,17 @@ describe('pen in json', () => {
     expect(lines[0].data).toEqual([{ renderer: 'preact' }]);
   });
 
+  test('fatal of an Error is the error, and not what sat beside it', () => {
+    const { lines, pen } = jsonPen(fakeHenri({ logs: { format: 'json' } }));
+    const thrown = new Error('rejected');
+
+    // What base/henri.js hands an unhandled rejection: the promise holds
+    // nothing worth a field, and the pretty format does not print it either
+    expect(pen.fatal('promise', thrown, null, Promise.resolve())).toBe(thrown);
+    expect(lines[0].data).toBeUndefined();
+    expect(lines[0].err.message).toBe('rejected');
+  });
+
   test('blank lines are spacing for a person, so json has none', () => {
     const pen = new Pen(false, fakeHenri({ logs: { format: 'json' } }));
     const printed = console.log;
