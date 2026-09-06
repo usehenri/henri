@@ -14,6 +14,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "audit:deps": "pnpm audit --prod --audit-level high",
+    "audit:zap": "scripts/zap-baseline.sh",
     "test": "pnpm --filter @usehenri/react build && vitest run",
     "test:watch": "pnpm --filter @usehenri/react build && vitest",
     "test:cover": "vitest run --coverage",

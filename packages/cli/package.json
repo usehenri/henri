@@ -49,6 +49,7 @@
   "commands": [
     "about",
     "analyze",
+    "audit",
     "build",
     "clean",
     "console",

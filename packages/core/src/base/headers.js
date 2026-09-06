@@ -4,6 +4,36 @@ const helmet = require('helmet');
  * Secure headers (helmet), API versioning and JSON content negotiation.
  */
 const HAL = 'application/hal+json';
+
+/**
+ * `Permissions-Policy`: the powerful browser features, denied.
+ *
+ * helmet sets no such header, and a header that is absent is a permission
+ * granted: any script the page runs, its own or an embedded one, may ask for
+ * the camera or the location, and the person is asked to allow it. Denying
+ * them by default costs an application that wants one a single line
+ * (`{ "helmet": { "permissionsPolicy": "geolocation=(self)" } }`), and costs
+ * every other application nothing.
+ *
+ * The list is the features a browser can be asked for that a server-rendered
+ * application does not use without asking. `false` sends no header at all.
+ */
+const PERMISSIONS_POLICY = [
+  'accelerometer=()',
+  'autoplay=()',
+  'camera=()',
+  'display-capture=()',
+  'encrypted-media=()',
+  'fullscreen=(self)',
+  'geolocation=()',
+  'gyroscope=()',
+  'magnetometer=()',
+  'microphone=()',
+  'midi=()',
+  'payment=()',
+  'usb=()',
+  'xr-spatial-tracking=()',
+].join(', ');
 const JSON_TYPE = 'application/json';
 const VERSION_TYPE = /application\/vnd\.henri\.(v?\d+)\+json/i;
 
@@ -44,9 +74,12 @@ function merge(base, extra) {
 /**
  * The Content-Security-Policy directives
  *
- * Helmet's defaults, plus `blob:` images. In development, inline and eval'd
- * scripts (Next dev, Turbopack, Vite HMR, React refresh), websockets and
- * blob workers are allowed.
+ * Helmet's defaults, plus `blob:` images and without the `https:` wildcards
+ * helmet leaves in `style-src` and `font-src`: `https:` is every host on the
+ * internet, which is not a policy, and a stylesheet or a font from somewhere
+ * else is a decision an application makes by naming the origin. In
+ * development, inline and eval'd scripts (Next dev, Turbopack, Vite HMR,
+ * React refresh), websockets and blob workers are allowed.
  *
  * `upgrade-insecure-requests` is only sent to a request that already arrived
  * over https. On a plain http answer it would rewrite every later request of
@@ -65,6 +98,9 @@ function cspDirectives({ isDev = false, secure = false } = {}) {
   const directives = helmet.contentSecurityPolicy.getDefaultDirectives();
 
   directives['img-src'] = ["'self'", 'data:', 'blob:'];
+  directives['font-src'] = ["'self'", 'data:'];
+  // 'unsafe-inline' stays: React, Inertia and Vite all set style attributes
+  directives['style-src'] = ["'self'", "'unsafe-inline'"];
 
   if (isDev) {
     directives['script-src'] = ["'self'", "'unsafe-inline'", "'unsafe-eval'"];
@@ -85,8 +121,10 @@ function cspDirectives({ isDev = false, secure = false } = {}) {
  * `config.helmet` is merged into the options (`false` disables helmet
  * entirely, `{ contentSecurityPolicy: false }` only the CSP, ...). HSTS is
  * off in development and Cross-Origin-Resource-Policy opens up when CORS is
- * enabled. Two middlewares are built so that `upgrade-insecure-requests`
- * follows the protocol the request came in on (`req.secure`, which honours
+ * enabled. `permissionsPolicy` is henri's own, not one of helmet's, so it is
+ * taken out before the options reach helmet, which refuses a key it does not
+ * know. Two middlewares are built so that `upgrade-insecure-requests` follows
+ * the protocol the request came in on (`req.secure`, which honours
  * `config.trustProxy` and `X-Forwarded-Proto`).
  *
  * @param {Henri} henri the henri instance
@@ -101,6 +139,27 @@ function secureHeaders(henri) {
   }
 
   const cors = Boolean(config.has('cors') && config.get('cors'));
+  const options = isPlainObject(custom) ? Object.assign({}, custom) : {};
+  const requested = options.permissionsPolicy;
+
+  delete options.permissionsPolicy;
+
+  /**
+   * The `Permissions-Policy` value to send, or null for none
+   *
+   * @returns {?string} the policy
+   */
+  const policy = () => {
+    if (requested === false) {
+      return null;
+    }
+
+    return typeof requested === 'string' && requested.length > 0
+      ? requested
+      : PERMISSIONS_POLICY;
+  };
+
+  const permissions = policy();
 
   /**
    * The helmet middleware for one protocol
@@ -124,13 +183,17 @@ function secureHeaders(henri) {
       defaults.strictTransportSecurity = false;
     }
 
-    return helmet(merge(defaults, isPlainObject(custom) ? custom : {}));
+    return helmet(merge(defaults, options));
   };
 
   const plain = build(false);
   const encrypted = build(true);
 
   return function henriSecureHeaders(req, res, next) {
+    if (permissions) {
+      res.setHeader('Permissions-Policy', permissions);
+    }
+
     return (req.secure ? encrypted : plain)(req, res, next);
   };
 }
@@ -241,6 +304,7 @@ function noStore(req, res) {
 module.exports = {
   HAL,
   JSON_TYPE,
+  PERMISSIONS_POLICY,
   VERSION_TYPE,
   apiVersion,
   cspDirectives,

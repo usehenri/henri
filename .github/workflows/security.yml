@@ -1,0 +1,138 @@
+name: Security
+
+# The half of the audit that CI owns: the advisories of what we ship, and a
+# dynamic scan of a running application. The static half is `henri audit`,
+# which an application runs itself; `scripts/smoke.sh` runs it on a freshly
+# scaffolded one, in the `Scaffold` job of ci.yml.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    # Monday, an hour after the dependabot pull requests land
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: 0
+
+jobs:
+  dependencies:
+    name: Advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      # --frozen-lockfile is the supply chain check that runs on every job:
+      # an install that resolves anything the lockfile does not name fails
+      - run: pnpm install --frozen-lockfile
+        env:
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      # Production dependencies, high and critical only. That is the line
+      # between a gate people fix and a gate people disable: a moderate
+      # advisory in a build tool nobody ships is not a reason to stop a
+      # release, and `pnpm audit` without --prod finds several at all times.
+      # The full picture, every severity and the dev tree included, is the
+      # step below, which reports and never fails.
+      - name: Production dependencies (high and critical)
+        run: pnpm audit:deps
+
+      - name: Everything else, for the record
+        if: always()
+        run: pnpm audit || true
+
+  zap:
+    name: ZAP baseline
+    # Weekly and on demand only. It boots a real application against a real
+    # database and pulls a 1 GB image: worth an hour a week, not worth being
+    # in the way of every pull request, where the static audit and the
+    # header assertions of the core suite already run.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: henri
+          POSTGRES_PASSWORD: henri
+          POSTGRES_DB: henri_showcase
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U henri -d henri_showcase"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://henri:henri@127.0.0.1:5432/henri_showcase
+      HENRI_SECRET: a-secret-for-the-baseline-scan-of-this-run-0000000000
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      - run: pnpm --filter @usehenri/showcase exec henri db:migrate
+
+      - run: pnpm --filter @usehenri/showcase exec henri db:seed
+
+      - run: pnpm --filter @usehenri/showcase build
+
+      - name: Start the showcase
+        run: |
+          pnpm --filter @usehenri/showcase exec henri server --production \
+            > showcase.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:3000/_henri/health; then
+              echo "the showcase answers"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "the showcase never answered:" && cat showcase.log && exit 1
+
+      # Passive: it crawls and reads the answers, it attacks nothing. What
+      # fails is in .github/zap/rules.tsv, and it is only the headers and
+      # cookie attributes henri sets for every application. This is the same
+      # script a developer runs against a local application, rather than an
+      # action wrapping it, so there is one code path to keep working.
+      - name: ZAP baseline
+        run: ZAP_MINUTES=2 scripts/zap-baseline.sh http://127.0.0.1:3000
+
+      - name: The application log
+        if: always()
+        run: cat showcase.log

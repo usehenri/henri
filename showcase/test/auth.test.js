@@ -68,6 +68,28 @@ describe('authentication', () => {
     expect(answer.body.props.errors.email).toMatch(/already registered/);
   });
 
+  test('signing up refuses a password below the policy, next to the field', async () => {
+    const browser = agent();
+    const start = await browser.get('/signup').set('Accept', 'text/html');
+    const answer = await browser
+      .post('/signup')
+      .set('X-Inertia', 'true')
+      .set('X-CSRF-Token', token(start))
+      .send({
+        email: 'short@example.test',
+        name: 'Too Short',
+        password: 'short',
+      });
+
+    // The hashing hook rejects it: a validation failure, not a 500
+    expect(answer.status).toBe(200);
+    expect(answer.body.component).toBe('signup');
+    expect(answer.body.props.errors.password).toMatch(/at least/);
+    await expect(User.findOne({ email: 'short@example.test' })).resolves.toBe(
+      null
+    );
+  });
+
   test('a signup cannot grant itself a role', async () => {
     const browser = agent();
     const start = await browser.get('/signup').set('Accept', 'text/html');

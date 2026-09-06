@@ -11,6 +11,7 @@ const { loadStore } = require('./base/api');
 const { publicUser, respond, userAdapter, userConfig } = require('./base/auth');
 const { params, permitMiddleware } = require('./base/params');
 const {
+  PasswordPolicyError,
   algorithmFor,
   hashPassword,
   needsRehash,
@@ -142,14 +143,14 @@ class User extends BaseModule {
    * @param {number} [rounds] Deprecated: overrides `password.bcryptRounds`,
    *   ignored when the hash is argon2id
    * @returns {Promise<string>} The hash
-   * @throws {Error} when the password does not meet the policy
+   * @throws {PasswordPolicyError} when the password does not meet the policy
    * @memberof User
    */
   async encrypt(password, rounds = undefined) {
     const verdict = this.validatePassword(password);
 
     if (!verdict.valid) {
-      throw new Error(verdict.errors[0].message);
+      throw new PasswordPolicyError(verdict);
     }
 
     const policy =

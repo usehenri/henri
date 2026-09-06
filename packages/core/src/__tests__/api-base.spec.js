@@ -326,6 +326,34 @@ describe('secure headers', () => {
     expect(res.headers['referrer-policy']).toBe('same-origin');
   });
 
+  test('the powerful browser features are denied, and nameable', async () => {
+    const sent = await withHelmet(fakeHenri()).get('/');
+    const asked = await withHelmet(
+      fakeHenri({ helmet: { permissionsPolicy: 'geolocation=(self)' } })
+    ).get('/');
+    const off = await withHelmet(
+      fakeHenri({ helmet: { permissionsPolicy: false } })
+    ).get('/');
+
+    expect(sent.headers['permissions-policy']).toContain('camera=()');
+    expect(sent.headers['permissions-policy']).toContain('geolocation=()');
+    expect(asked.headers['permissions-policy']).toBe('geolocation=(self)');
+    expect(off.headers['permissions-policy']).toBeUndefined();
+    // Helmet refuses an option it does not know: ours never reaches it
+    expect(off.headers['x-content-type-options']).toBe('nosniff');
+  });
+
+  test('no directive is opened to every host on the internet', async () => {
+    const directives = cspDirectives();
+    const res = await withHelmet(fakeHenri({}, { isProduction: true })).get(
+      '/'
+    );
+
+    expect(directives['font-src']).toEqual(["'self'", 'data:']);
+    expect(directives['style-src']).toEqual(["'self'", "'unsafe-inline'"]);
+    expect(res.headers['content-security-policy']).not.toContain(' https:');
+  });
+
   test('cors opens the cross origin resource policy', async () => {
     const closed = await withHelmet(fakeHenri()).get('/');
     const open = await withHelmet(fakeHenri({ cors: true })).get('/');

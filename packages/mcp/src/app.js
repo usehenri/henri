@@ -224,6 +224,7 @@ class App {
     this.cliDir = locateCli(this.cwd);
     this.cli = {
       agents: require(path.join(this.cliDir, 'scripts', 'agents')),
+      audit: require(path.join(this.cliDir, 'scripts', 'audit')),
       doctor: require(path.join(this.cliDir, 'scripts', 'doctor')),
       help: require(path.join(this.cliDir, 'scripts', 'help')),
       routing: require(path.join(this.cliDir, 'scripts', 'routing')),
@@ -422,6 +423,21 @@ class App {
       secretInConfig: typeof raw.secret !== 'undefined',
       secretInEnv,
     };
+  }
+
+  /**
+   * The security audit: what the application's own files say about the
+   * things a web application is judged on, each finding carrying the OWASP
+   * category and the ASVS requirement it maps to
+   *
+   * @param {object} [options] Options
+   * @param {boolean} [options.deps=false] Ask the package manager for the
+   *   advisories of the production dependencies (this one goes to the
+   *   network, so it is off unless the caller asks)
+   * @returns {object} The audit report
+   */
+  audit({ deps = false } = {}) {
+    return this.cli.audit.audit(this.cwd, { deps });
   }
 
   /**

@@ -125,6 +125,13 @@ pnpm ls --depth 0
 log "pnpm lint"
 pnpm lint
 
+# A scaffolded application has to pass its own audit with nothing to say at
+# all, which is what --fail-on=low asks for. If it ever does not, the
+# scaffold is what is wrong, not the audit. --no-deps keeps the smoke test
+# offline: the advisories are the Security workflow's job.
+log "henri audit"
+pnpm exec henri audit --no-deps --fail-on=low
+
 log "henri build"
 pnpm exec henri build
 stop_mongod

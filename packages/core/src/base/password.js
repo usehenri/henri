@@ -300,6 +300,35 @@ function validatePassword(password, policy) {
 }
 
 /**
+ * What `henri.user.encrypt()` throws when a password fails the policy.
+ *
+ * A password that is too short is the person mistyping a form, not a bug,
+ * and the answer is a 422 next to the field. Every adapter rejects an
+ * invalid write with a `ValidationError` carrying `errors` keyed by field,
+ * and `henri.model.errors()` reads that shape, so this error wears it: a
+ * controller that already handles `Model.create()` failures handles this one
+ * without knowing it exists. `codes` keeps the stable identifiers of
+ * `validatePassword()` (`missing`, `too_short`, `too_long`) for a client
+ * that translates the message itself.
+ */
+class PasswordPolicyError extends Error {
+  /**
+   * @param {{errors: Array<{code: string, message: string}>, policy: object}} verdict what validatePassword() answered
+   * @param {string} [field='password'] the attribute the password was set on
+   */
+  constructor(verdict, field = 'password') {
+    const [first] = verdict.errors;
+
+    super(first ? first.message : 'is invalid');
+
+    this.name = 'ValidationError';
+    this.codes = verdict.errors.map((entry) => entry.code);
+    this.policy = verdict.policy;
+    this.errors = { [field]: { message: this.message } };
+  }
+}
+
+/**
  * Hashes a password with the current parameters.
  *
  * The policy is *not* applied here: callers that are setting a password run
@@ -508,6 +537,7 @@ module.exports = {
   DEFAULTS,
   FLOORS,
   PEPPER_ENV,
+  PasswordPolicyError,
   algorithmFor,
   argon2Available,
   hashPassword,

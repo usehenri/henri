@@ -42,6 +42,25 @@ describe('user', () => {
       await expect(encrypt(password)).resolves.toBeDefined();
     }, 15000);
 
+    test('a password below the policy is a validation failure', async () => {
+      const error = await henri.user.encrypt('lydia').catch((thrown) => thrown);
+
+      // The shape every adapter rejects an invalid write with, so a
+      // controller answers 422 next to the field instead of 500
+      expect(error.name).toBe('ValidationError');
+      expect(error.codes).toEqual(['too_short']);
+      expect(henri.model.errors(error)).toEqual({
+        password: expect.stringContaining('at least'),
+      });
+
+      const missing = await henri.user.encrypt().catch((thrown) => thrown);
+
+      expect(missing.codes).toEqual(['missing']);
+      expect(henri.model.errors(missing)).toEqual({
+        password: 'a password is required',
+      });
+    }, 15000);
+
     test('compare', async () => {
       const { encrypt, compare } = henri.user;
       let hash = await encrypt(password);
