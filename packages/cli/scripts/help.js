@@ -898,6 +898,53 @@ const COMMANDS = [
   },
   {
     description: [
+      'Writes the OpenAPI 3.1 description of what the application exposes,',
+      'built from config/routes.js, app/models and the configuration, without',
+      'starting the server or touching a database. JSON on stdout by default.',
+      '',
+      'It describes the answers henri produces itself: the HAL collection and',
+      'resource of every resources/crud route, the error envelope of every',
+      'failure henri answers, the paging, the versioned media type,',
+      'Idempotency-Key, the roles and the policy of each route, and the',
+      'endpoints henri mounts (POST /login, the account flows, the health',
+      'probes). What a controller writes itself it does not describe: those',
+      'operations carry the statuses henri produces and say, in words, that',
+      "the body is the application's. --summary prints which is which.",
+      '',
+      'Out of scope on purpose: a UI, request validation, client generation',
+      'and GraphQL, which has a schema of its own.',
+    ],
+    examples: [
+      {
+        command: 'henri openapi > openapi.json',
+        description: 'The document, on stdout',
+      },
+      {
+        command: 'henri openapi --out openapi.json',
+        description: 'The same, written to a file the application commits',
+      },
+      {
+        command: 'henri openapi --summary',
+        description: 'What it covers, and what henri cannot know',
+      },
+    ],
+    flags: [
+      {
+        description: 'write the document to a file instead of stdout',
+        flag: '--out <file>',
+      },
+      {
+        description:
+          'print what the document covers instead of the document itself',
+        flag: '--summary',
+      },
+    ],
+    name: 'openapi',
+    summary: 'the OpenAPI 3.1 description of what the application exposes',
+    usage: ['henri openapi [--out <file>] [--summary]'],
+  },
+  {
+    description: [
       'Prints the routes expanded from config/routes.js (verb, path,',
       'controller and path helper) without starting the server.',
     ],

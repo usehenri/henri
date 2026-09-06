@@ -196,6 +196,10 @@ On `SIGINT` or `SIGTERM` the server drains before the modules stop, so a rolling
 
 `shutdown.signals: false` leaves the signals to your application, which then calls `henri.server.shutdown('SIGTERM')` itself. A `henri jobs` runner never listens on a port and drains its own way: it stops claiming, finishes the jobs it holds and writes their outcomes. See [Shutdown](/configuration/#shutdown).
 
+## The description of it all
+
+`henri openapi` writes the [OpenAPI 3.1 description](/guides/openapi/) of everything on this page for one application: its routes, its HAL envelopes, its error bodies, the statuses each guard answers and the endpoints henri mounts. It is generated from the routes and the models, and it says in the document itself where henri cannot know what a controller answers.
+
 ## Middleware order
 
 Knowing the order helps when adding your own with `henri.addMiddleware()`: request id, timeout, helmet, compression (production), cors, body parsers, cookies, `res.boom`, the API version reader, `req.pagination`, the health endpoints, static files, then the user module (permit, session, passport, CSRF), the authentication and global limiters, the router (per route: version guard, route limiter, role guard, idempotency, HAL guard, the action), the `404` and the error handler.

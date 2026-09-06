@@ -18,6 +18,7 @@ henri <command> [options]
 | `server`, `s`                 | Start the application (development mode with hot reload by default).         |
 | `console`                     | Boot the application and open a Node.js REPL.                                |
 | `routes`                      | Print the routes table of `config/routes.js`.                                |
+| `openapi`                     | Write the OpenAPI 3.1 description of what the application exposes.           |
 | `generate <what> <name>`, `g` | Generate code, see below.                                                    |
 | `destroy <what> <name>`, `d`  | Remove what a generator created.                                             |
 | `build`                       | Build the production views without starting the server.                      |
@@ -28,7 +29,7 @@ henri <command> [options]
 | `analyze [module]`            | Boot the application and print the boot chart of its modules.                |
 | `help [command]`              | Print the help.                                                              |
 
-`routes`, `analyze`, `generate`, `destroy`, `build` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
+`routes`, `openapi`, `analyze`, `generate`, `destroy`, `build` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
 
 ## `new` and `init`
 
@@ -117,6 +118,35 @@ GET     /tasks/:id       tasks#show     show_tasks_path
 
 9 routes
 ```
+
+## `openapi`
+
+```bash
+henri openapi [--out <file>] [--summary]
+```
+
+Writes the [OpenAPI 3.1](/guides/openapi/) description of what the application exposes, built from `config/routes.js`, `app/models` and the configuration. It starts no server and opens no database. JSON on stdout by default; `--out <file>` writes it instead and prints what it covers, `--summary` prints only that.
+
+It describes the answers henri produces itself — the HAL collection and resource of every `resources`/`crud` route, the error envelope, the paging, the versioned media type, `Idempotency-Key`, the roles and the policy of each route, and the endpoints henri mounts (`POST /login`, the account flows, the health probes). What a controller writes itself it does not describe: those operations carry the statuses henri answers, `x-henri.known: false`, and no success status at all.
+
+```text
+$ henri openapi --summary
+
+OpenAPI 3.1.0 for lineup 1.0.0
+
+  47 operations, 36 paths
+  27 described from the routes, the models and henri's own endpoints
+  20 whose answer henri cannot know
+
+  What henri cannot know (the controller writes the body; only the failures henri answers itself are described):
+    GET /  main#home
+    GET /about  main#about
+    POST /proposals/{id}/submit  proposals#submit
+```
+
+A booted application answers the same document at `GET /_openapi.json`, in development and from the loopback interface only, like `/_routes` and `/_controllers`.
+
+Exits `2` on `--out` without a file name and `1` with `HENRI_API_DESCRIPTION_UNWRITABLE` when the file cannot be written.
 
 ## Generators
 

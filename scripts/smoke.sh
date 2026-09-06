@@ -142,6 +142,29 @@ pnpm lint
 log "henri audit"
 pnpm exec henri audit --no-deps --fail-on=low
 
+# The description of what the scaffold exposes, from a real install: the
+# command has to ship, run without a database and produce a document the
+# scaffolded resource is actually in.
+log "henri openapi"
+pnpm exec henri openapi --out openapi.json
+node -e '
+  const doc = require("./openapi.json");
+  const wanted = ["/tasks", "/tasks/{id}", "/livez"];
+  const missing = wanted.filter((route) => !doc.paths[route]);
+
+  if (doc.openapi !== "3.1.0" || missing.length > 0) {
+    console.error("henri openapi wrote no usable document:", doc.openapi, missing);
+    process.exit(1);
+  }
+
+  const { coverage } = doc.info["x-henri"];
+
+  console.log(
+    `  ${coverage.operations} operations, ${coverage.described} described, ${coverage.unknown} not`
+  );
+'
+rm openapi.json
+
 log "henri build"
 pnpm exec henri build
 stop_mongod

@@ -56,7 +56,7 @@ const TARGETS = [
   'test',
 ];
 
-const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor, audit and test. The guide tool serves the documentation of the henri version installed here: read it instead of guessing from memory. errors, logs, query, records, runtime_routes and request answer against the running application rather than its files: start with errors when something failed, and use request to check a fix without a browser.`;
+const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the openapi tool to learn the HTTP surface in one call -- every path, its guards, its request body and the answers henri itself produces -- and trust what it marks unknown. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor, audit and test. The guide tool serves the documentation of the henri version installed here: read it instead of guessing from memory. errors, logs, query, records, runtime_routes and request answer against the running application rather than its files: start with errors when something failed, and use request to check a fix without a browser.`;
 
 /** The levels pen writes with */
 const LEVELS = ['error', 'warn', 'info', 'verbose', 'debug', 'silly'];
@@ -223,6 +223,30 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
       const models = app.models(name);
 
       return ok({ count: models.length, models });
+    }
+  );
+
+  server.registerTool(
+    'openapi',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'The OpenAPI 3.1 description of what this application exposes, built from config/routes.js, app/models and the configuration without starting anything. It is the fastest way to learn the HTTP surface: every path and verb, the roles and the policy guarding each one, the request body derived from the model, the HAL resource and collection envelopes, the paging, the error envelope and the statuses henri answers itself, plus the endpoints henri mounts (POST /login, the account flows, the health probes). It is deliberately honest about its limits: an operation whose body a controller writes carries `x-henri.known: false` and declares no success status, so do not assume a shape it does not state. GraphQL is not in it (it has a schema of its own).',
+      inputSchema: {},
+      title: 'OpenAPI description',
+    },
+    async () => {
+      try {
+        return ok(app.openapi());
+      } catch (error) {
+        return failed({
+          code: error.code || 'HENRI_CLI_FAILED',
+          hint:
+            error.hint ||
+            'config/routes.js and the files of app/models must load; run doctor for the details',
+          message: error.message,
+        });
+      }
     }
   );
 

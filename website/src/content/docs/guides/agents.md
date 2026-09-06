@@ -109,6 +109,7 @@ Tools that read the files, without starting anything:
 | Tool          | What it does                                                                        |
 | ------------- | ----------------------------------------------------------------------------------- |
 | `routes`      | The expanded routes with their verbs, paths, controllers, helpers and roles.        |
+| `openapi`     | The [OpenAPI 3.1 description](/guides/openapi/) of the HTTP surface, in one call.   |
 | `models`      | The models and their schemas.                                                       |
 | `controllers` | The controllers and their actions.                                                  |
 | `config`      | The configuration of the app, including which adapter and renderer it uses.         |

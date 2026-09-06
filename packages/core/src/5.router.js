@@ -18,6 +18,7 @@ const { engine: graphqlEngine } = require('./base/graphql');
 const { jsonTypes, noStore, versionGuard } = require('./base/headers');
 const { idempotency } = require('./base/idempotency');
 const { limiter, shutdown } = require('./base/rate-limit');
+const openapi = require('./base/openapi');
 const { table } = require('./base/routes');
 const flash = require('./base/flash');
 const { implicit, track } = require('./base/hooks');
@@ -174,6 +175,14 @@ class Router extends BaseModule {
       this.handler.get('/_controllers', local, (req, res) =>
         res.json(this.henri.controllers.all())
       );
+      // The OpenAPI description of what this application exposes, from the
+      // same table. It is introspection, like the two above: development
+      // only and from this machine only, because it names every route, the
+      // roles that guard it and the policy behind it. An application that
+      // wants to publish it commits the file `henri openapi --out` writes
+      this.handler.get('/_openapi.json', local, (req, res) =>
+        res.json(this.describe())
+      );
 
       // Mailer previews: rendered with the sample data declared next to the
       // mailers, never delivered (see 2.mailers.js)
@@ -217,6 +226,49 @@ class Router extends BaseModule {
     await this.init(true);
 
     return this.name;
+  }
+
+  /**
+   * The OpenAPI 3.1 description of what this application exposes, built
+   * from the table this router registered, the model files and the
+   * configuration (`base/openapi.js`). `henri openapi` builds the same
+   * document from the files, without booting.
+   *
+   * @returns {object} the document
+   * @memberof Router
+   */
+  describe() {
+    const { config, controllers, model, policies } = this.henri;
+    const actions = {};
+    let info = {};
+
+    for (const route of Object.values(this.routes)) {
+      actions[route.controller] =
+        typeof controllers.get(route.controller) === 'function';
+    }
+
+    try {
+      const pkg = JSON.parse(
+        fs.readFileSync(path.join(this.henri.cwd(), 'package.json'), 'utf8')
+      );
+
+      info = {
+        description: pkg.description,
+        title: pkg.name,
+        version: pkg.version,
+      };
+    } catch (error) {
+      debug('no readable package.json: the description keeps its defaults');
+    }
+
+    return openapi.build({
+      actions,
+      config,
+      info,
+      models: (model && model.models) || [],
+      policies: policies ? policies.names() : null,
+      routes: Object.values(this.routes),
+    });
   }
 
   /**

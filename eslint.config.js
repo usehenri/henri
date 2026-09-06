@@ -204,6 +204,18 @@ module.exports = [
     },
   },
   {
+    // The OpenAPI document is written in the order the specification lists
+    // its fields (openapi, info, servers, tags, paths, components, and
+    // inside an operation: operationId, summary, description, parameters,
+    // responses). That order is what the generated file carries, and it is
+    // what a reader of the specification expects to find; alphabetical keys
+    // would make the artifact harder to read for no gain.
+    files: ['packages/core/src/base/openapi.js'],
+    rules: {
+      'sort-keys': 'off',
+    },
+  },
+  {
     // The type-test fixture is a henri application in miniature: type-checked
     // by `pnpm test:types`, never run. Its key order mirrors a routes file and
     // a controller, where the order is load-bearing rather than alphabetical.

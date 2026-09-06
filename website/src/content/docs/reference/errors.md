@@ -159,7 +159,19 @@ Usually:
 
 ## api
 
-The JSON API layer: HAL answers, the health endpoint and the optional GraphQL engine.
+The JSON API layer: HAL answers, the health endpoints, the OpenAPI description of what an application exposes and the optional GraphQL engine.
+
+### `HENRI_API_DESCRIPTION_UNWRITABLE`
+
+The OpenAPI description of the application could not be written where `henri openapi --out` was told to put it.
+
+Usually:
+
+- the directory of `--out` does not exist and could not be created
+- the file or its directory is not writable
+- the path names a directory
+
+**Fix.** Check the path and the permissions of the directory, or print the document to stdout instead: `henri openapi > openapi.json`.
 
 ### `HENRI_API_GRAPHQL_UNAVAILABLE`
 
