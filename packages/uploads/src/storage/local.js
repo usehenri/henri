@@ -45,6 +45,18 @@ const FILE_MODE = 0o600;
 const TMP = '.tmp';
 
 /**
+ * How old a part has to be before a boot sweeps it away.
+ *
+ * The root is shared by everything that runs against it -- two application
+ * processes behind a load balancer, a suite whose test files run at the same
+ * time -- and a boot cannot tell a part a dead process left behind from one
+ * another process is streaming into right now. Age can: a part being written
+ * is minutes old at most, so an hour is past every upload the bounds allow
+ * and still short enough that nothing accumulates.
+ */
+const STALE = 60 * 60 * 1000;
+
+/**
  * What is written into the storage root the first time it is created.
  *
  * The root is a directory of an application's repository by default, and an
@@ -126,6 +138,11 @@ class LocalStorage {
    * `SIGKILL` or a power cut left behind. It runs at boot, where a stale
    * file is a leak nobody is watching rather than a bug in the request.
    *
+   * Only parts older than `STALE` are removed: another process may be
+   * streaming into this same directory right now, and unlinking its part
+   * would fail its request with something that reads like a bug in the
+   * upload rather than what it is.
+   *
    * @async
    * @returns {Promise<number>} how many were removed
    * @memberof LocalStorage
@@ -139,6 +156,7 @@ class LocalStorage {
       return 0;
     }
 
+    const before = Date.now() - STALE;
     let removed = 0;
 
     for (const entry of entries) {
@@ -146,8 +164,14 @@ class LocalStorage {
         continue;
       }
 
+      const file = path.join(this.tmp, entry);
+
       try {
-        await fsp.unlink(path.join(this.tmp, entry));
+        if ((await fsp.stat(file)).mtimeMs > before) {
+          continue;
+        }
+
+        await fsp.unlink(file);
         removed++;
       } catch (error) {
         debug('unable to remove the stale part %s: %s', entry, error.message);
