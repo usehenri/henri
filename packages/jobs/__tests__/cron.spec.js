@@ -90,6 +90,19 @@ describe('duration', () => {
     expect(() => duration(-1)).toThrow('Invalid duration');
   });
 
+  test('the surrounding whitespace is trimmed, not matched', () => {
+    expect(duration('  2h  ')).toBe(7200000);
+    expect(duration('\t30s\n')).toBe(30000);
+
+    // A run of spaces used to be shared between two star quantifiers, one
+    // position at a time: 60000 of them took two seconds to refuse
+    const long = `1${' '.repeat(60000)}!`;
+    const started = process.hrtime.bigint();
+
+    expect(() => duration(long)).toThrow('Invalid duration');
+    expect(Number(process.hrtime.bigint() - started) / 1e6).toBeLessThan(50);
+  });
+
   test('computes when a job should run', () => {
     const now = utc('2026-03-01T10:00:00Z');
 
