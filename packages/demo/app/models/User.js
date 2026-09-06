@@ -2,10 +2,22 @@
 // `password`, `roles`, `confirmedAt` and `passwordChangedAt` to the schema
 // below.
 //
-// The three fields it does declare are about a person, and they say so:
+// The fields it does declare are about a person, and they say so:
 // `personal` is what puts them in an export, erases them on an erasure and
 // masks them in the logs. `gender` says more than `true`: it never leaves
 // the server, whatever a controller hands to res.render() or res.resource().
+//
+// Two of them are also `encrypted`, so the database holds ciphertext and the
+// model hands back the string:
+//
+// - `phone` is randomised: different bytes every time, nothing to see in a
+//   dump, and nothing henri will let you query it by.
+// - `nationalId` is deterministic, because the application looks a person up
+//   by it. That is what makes `User.findOne({ nationalId })` work, and it is
+//   also what a dump gives away: two rows holding the same value hold the
+//   same ciphertext.
+//
+// Neither says `personal`: `encrypted` implies it (see base/privacy.js).
 module.exports = {
   options: {
     timestamps: true,
@@ -14,5 +26,11 @@ module.exports = {
     age: { personal: true, type: 'integer' },
     gender: { personal: { expose: false }, type: 'string' },
     name: { personal: true, type: 'string' },
+    nationalId: {
+      encrypted: { deterministic: true },
+      personal: { expose: false },
+      type: 'string',
+    },
+    phone: { encrypted: true, personal: { expose: false }, type: 'string' },
   },
 };

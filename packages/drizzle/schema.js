@@ -1,9 +1,12 @@
 const TYPES = require('./types');
+const { DETERMINISTIC_LENGTH, encryptionOf } = require('./encrypted');
 const { coded, isPlainObject, snakeCase } = require('./utils');
 
 // Keys of the henri model format understood by this adapter
 const KNOWN_KEYS = new Set([
   'default',
+  // The column type, and the hooks of encryption.js
+  'encrypted',
   'enum',
   'index',
   'length',
@@ -114,10 +117,12 @@ const resolveType = (type, field) => {
  *
  * @param {string} field The field name
  * @param {*} definition The definition from the model file
+ * @param {object} [context] `{ isUser, model }`, what an error names the
+ *   field by and whether henri owns it
  * @returns {object} The normalized field: `type` plus the options given
- * @throws {Error} On unknown keys or types
+ * @throws {Error} On unknown keys, types or marks
  */
-const normalizeField = (field, definition) => {
+const normalizeField = (field, definition, context = {}) => {
   if (!isPlainObject(definition)) {
     return { type: resolveType(definition, field) };
   }
@@ -167,6 +172,27 @@ const normalizeField = (field, definition) => {
     );
   }
 
+  // The column of an encrypted field is the ciphertext's, not the
+  // plaintext's: a `string` no longer fits in a varchar(255) once it
+  // carries an iv, a tag and base64url. See ./encrypted.js
+  const encrypted = encryptionOf(field, definition, context);
+
+  if (encrypted) {
+    normalized.encrypted = encrypted;
+    normalized.type = encrypted.deterministic ? 'string' : 'text';
+
+    if (encrypted.deterministic) {
+      normalized.length = DETERMINISTIC_LENGTH;
+    } else {
+      delete normalized.length;
+    }
+
+    // Bounds and shapes measure the plaintext, in validate(); the column
+    // never sees it, and a `lowercase` over base64url would break the tag
+    delete normalized.lowercase;
+    delete normalized.trim;
+  }
+
   return normalized;
 };
 
@@ -179,18 +205,32 @@ const normalizeField = (field, definition) => {
  * option.
  *
  * @param {object} [schema={}] The model schema
+ * @param {object} [context={}] `{ isUser, model }`, for the marks
  * @returns {object} Normalized fields by name
- * @throws {Error} On unknown keys or types
+ * @throws {Error} On unknown keys, types or marks
  */
-const normalizeSchema = (schema = {}) => {
+const normalizeSchema = (schema = {}, context = {}) => {
   const fields = {};
 
   for (const field of Object.keys(schema)) {
-    fields[field] = normalizeField(field, schema[field]);
+    fields[field] = normalizeField(field, schema[field], context);
   }
 
   return fields;
 };
+
+/**
+ * The fields a normalized schema marked `encrypted`, by name
+ *
+ * @param {object} fields The normalized fields
+ * @returns {object} `{ [field]: { deterministic } }`
+ */
+const encryptedFields = (fields) =>
+  Object.fromEntries(
+    Object.keys(fields || {})
+      .filter((field) => fields[field].encrypted)
+      .map((field) => [field, fields[field].encrypted])
+  );
 
 /**
  * Applies `required`, `default`, `unique` and `references` to a column
@@ -363,6 +403,7 @@ const compileTable = (spec, dialect, context = {}) => {
 module.exports = {
   KNOWN_KEYS,
   compileTable,
+  encryptedFields,
   normalizeField,
   normalizeSchema,
   resolveType,

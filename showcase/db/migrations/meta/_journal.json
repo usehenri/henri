@@ -28,6 +28,13 @@
       "tag": "0003_personal_phone",
       "version": "7",
       "when": 1788684713279
+    },
+    {
+      "breakpoints": true,
+      "idx": 4,
+      "tag": "0004_encrypted_phone",
+      "version": "7",
+      "when": 1788694615549
     }
   ],
   "version": "7"

@@ -15,8 +15,10 @@ Config {
   "key": null,
   "name": "config",
   "needs": [],
+  "provenance": null,
   "reload": [Function],
   "reloadable": true,
   "runlevel": 0,
+  "sourceOf": [Function],
 }
 `;

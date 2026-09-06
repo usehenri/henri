@@ -60,6 +60,24 @@
  * - **export and erasure**: `henri privacy:export` and `henri privacy:erase`
  *   are built from this map (see `base/erasure.js`).
  *
+ * ## `encrypted` implies `personal`
+ *
+ * A field marked `encrypted` (`base/encryption.js`) is personal unless the
+ * model says `personal: false`. Whoever decided a column was worth
+ * encrypting at rest has already answered the question this mark asks, and
+ * the alternative -- a value that is ciphertext in the database and in the
+ * clear in a log line -- is the kind of gap that makes the encryption
+ * decorative. `personal: false` is still the way out, because an
+ * application secret is not somebody's data, and an explicit `personal`
+ * always wins: `{ encrypted: true, personal: { expose: false } }` reads as
+ * written.
+ *
+ * The export and the erasure work on encrypted fields the way they work on
+ * every other one: the model hands back the plaintext, so the export holds
+ * what the person wrote, and what an erasure writes over the value goes
+ * through the same setter and lands encrypted. A value that will not
+ * decrypt does not break the export -- see `Privacy#tolerantly`.
+ *
  * @module base/privacy
  */
 
@@ -84,6 +102,7 @@ const DEFAULT_RECEIPTS = 'privacy';
  */
 const USER_FIELDS = Object.freeze({
   email: Object.freeze({
+    encrypted: false,
     erase: 'anonymize',
     export: true,
     expose: true,
@@ -92,6 +111,7 @@ const USER_FIELDS = Object.freeze({
     unique: true,
   }),
   password: Object.freeze({
+    encrypted: false,
     erase: 'anonymize',
     export: false,
     expose: false,
@@ -177,11 +197,27 @@ function matchOf(value) {
  * @throws when the mark is not a boolean or an object henri understands
  */
 function markOf(model, field, definition, defaults = {}) {
-  if (!isPlainObject(definition) || !('personal' in definition)) {
+  if (!isPlainObject(definition)) {
     return null;
   }
 
-  const mark = definition.personal;
+  // A field somebody went to the trouble of encrypting at rest is about a
+  // person until the model says otherwise: it is masked in the logs, it is
+  // in the export and it is erased. `personal: false` still opts out --
+  // there are secrets that belong to the application rather than to
+  // anybody -- and any other `personal` value wins, so
+  // `{ encrypted: true, personal: { expose: false } }` reads as written.
+  const encrypted =
+    'encrypted' in definition &&
+    definition.encrypted !== false &&
+    definition.encrypted !== null &&
+    typeof definition.encrypted !== 'undefined';
+
+  if (!('personal' in definition) && !encrypted) {
+    return null;
+  }
+
+  const mark = 'personal' in definition ? definition.personal : true;
 
   if (mark === false || mark === null || typeof mark === 'undefined') {
     return null;
@@ -211,6 +247,10 @@ function markOf(model, field, definition, defaults = {}) {
   }
 
   return {
+    // Whether the column holds ciphertext. What an erasure writes over it
+    // is the plaintext, which the adapter encrypts on the way in like any
+    // other write: an erased value is encrypted too
+    encrypted,
     // A column that cannot hold null cannot be cleared: erasing it means
     // writing something meaningless over it instead
     erase: options.erase || (required || unique ? 'anonymize' : 'clear'),

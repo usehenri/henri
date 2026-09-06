@@ -26,7 +26,10 @@ class Model extends BaseModule {
   constructor() {
     super();
     this.reloadable = true;
-    this.needs = ['config'];
+    // The keyring is read before the models, because a field marked
+    // `encrypted` is registered as the adapter builds it and a model that
+    // says it and an application that has no key must not agree to run
+    this.needs = ['config', 'encryption'];
     // Ordering only: the schema is built from the models, but an
     // application without @usehenri/graphql has no graphql module at all
     this.after = ['graphql'];
@@ -149,6 +152,13 @@ class Model extends BaseModule {
     this.ids = [];
     this.models = [];
     this.referenceTable = { classes: new Map(), models: {} };
+
+    // What the models declared `encrypted` is registered by the adapters
+    // as they build them, so a reload starts from nothing here too
+    if (this.henri.encryption) {
+      this.henri.encryption.reset();
+    }
+
     debug('done resetting');
 
     return true;

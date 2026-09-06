@@ -26,6 +26,10 @@
       "what": "config/<env>.json, the environment overrides and the credentials file"
     },
     {
+      "area": "encryption",
+      "what": "the fields marked `encrypted` in the models, the keys that open them and the rotation that moves them"
+    },
+    {
       "area": "factory",
       "what": "the test factories of `@usehenri/testing`: `test/factories`, the records they make and the traits they apply"
     },
@@ -604,6 +608,103 @@
       "what": "No configuration file could be loaded."
     },
     {
+      "area": "encryption",
+      "causes": [
+        "`encrypted` given something other than `true`, `false` or an object",
+        "`encrypted.deterministic` given something that is not a boolean",
+        "a key of the object form henri does not know"
+      ],
+      "code": "HENRI_ENCRYPTION_INVALID_MARK",
+      "fix": "A field is marked `encrypted: true` (randomised) or `encrypted: { deterministic: true }` (queryable by equality). Nothing else is accepted, because a mark henri half understands is a column that quietly stays in the clear.",
+      "what": "A model marks a field encrypted in a way henri does not understand."
+    },
+    {
+      "area": "encryption",
+      "causes": [
+        "a key that is not 64 hexadecimal characters",
+        "a key with a newline or a quote left around it",
+        "the same key configured twice"
+      ],
+      "code": "HENRI_ENCRYPTION_KEY_MALFORMED",
+      "fix": "An encryption key is 32 bytes as 64 hexadecimal characters, what `openssl rand -hex 32` prints. Put it in the credentials (`henri credentials:edit`) under `encryption.keys`, primary first. The value that arrived is never repeated in the message: it may be a key.",
+      "what": "An encryption key is not a key, or two of them are the same."
+    },
+    {
+      "area": "encryption",
+      "causes": [
+        "an old key was dropped from config.encryption.keys before the rotation had finished",
+        "the database was restored from a dump older than the last rotation",
+        "the application is pointed at the database of another environment"
+      ],
+      "code": "HENRI_ENCRYPTION_KEY_UNKNOWN",
+      "fix": "The envelope names the key that wrote it, and this application does not hold it. Put that key back in `config.encryption.keys` -- it decrypts, it does not have to be the primary. `henri encryption:status` counts the rows under each key id, and it is what says when an old key may be dropped.",
+      "what": "A stored value was encrypted with a key this application does not hold."
+    },
+    {
+      "area": "encryption",
+      "causes": [
+        "a where clause naming a randomised encrypted field",
+        "`unique` or `index` on a randomised encrypted field",
+        "an order, a like or a range on an encrypted field"
+      ],
+      "code": "HENRI_ENCRYPTION_NOT_QUERYABLE",
+      "fix": "A randomised ciphertext is different every time, so an equality never matches and an index is an index over noise. Mark the field `encrypted: { deterministic: true }` if it has to be looked up by value, and accept what that leaks: equal plaintexts have equal ciphertexts. Anything other than an equality is out of reach either way.",
+      "what": "An encrypted field was used in a query that cannot work on ciphertext."
+    },
+    {
+      "area": "encryption",
+      "causes": [
+        "a model marks a field `encrypted` and `config.encryption.keys` is unset",
+        "the credentials file holding the key did not open",
+        "a key was configured for another environment only"
+      ],
+      "code": "HENRI_ENCRYPTION_NO_KEY",
+      "fix": "Generate one with `openssl rand -hex 32` and put it in the credentials of the environment: `henri credentials:edit`, then `{ \"encryption\": { \"keys\": [\"...\"] } }`. henri refuses to boot rather than write the column in the clear.",
+      "what": "A model has an encrypted field and this application has no encryption key."
+    },
+    {
+      "area": "encryption",
+      "causes": [
+        "the column was filled before the field was marked `encrypted`",
+        "`henri encryption:rotate` has not run yet, or did not finish",
+        "a row was written by something that is not this application"
+      ],
+      "code": "HENRI_ENCRYPTION_PLAINTEXT",
+      "fix": "Set `{ \"encryption\": { \"readPlaintext\": true } }` for the length of the migration, run `henri encryption:rotate` until `henri encryption:status` reports no plaintext left, then take it out again. Reading the clear out of a column that is supposed to be encrypted is a state to leave, not a setting to keep.",
+      "what": "A column declared encrypted holds a value that is not encrypted."
+    },
+    {
+      "area": "encryption",
+      "causes": [
+        "a deterministic field given more than 480 bytes of text",
+        "a long field marked deterministic when it never had to be queried"
+      ],
+      "code": "HENRI_ENCRYPTION_TOO_LONG",
+      "fix": "A deterministic field lives in a varchar(700) so it can carry a unique index on every dialect, which leaves 480 bytes of plaintext. Mark it `encrypted: true` instead: a randomised field is stored as `text`, has no ceiling, and is not queryable anyway.",
+      "what": "A deterministic encrypted value is longer than its column can hold."
+    },
+    {
+      "area": "encryption",
+      "causes": [
+        "the stored bytes were modified",
+        "a ciphertext copied from another model, another field or another scheme",
+        "a column narrower than the ciphertext it was given, so the value was truncated"
+      ],
+      "code": "HENRI_ENCRYPTION_UNREADABLE",
+      "fix": "The key is here and the value did not verify, so this is not a lost key: the bytes changed. The tag covers the model, the field and the scheme, so a value moved between two columns fails here too. Restore the row, or write it again from wherever it came from. Nothing was decoded and nothing was written.",
+      "what": "A stored value did not verify under the key that wrote it."
+    },
+    {
+      "area": "encryption",
+      "causes": [
+        "`encrypted` on a number, a date, a boolean or a json field",
+        "`encrypted` on a field with no type"
+      ],
+      "code": "HENRI_ENCRYPTION_UNSUPPORTED_TYPE",
+      "fix": "henri encrypts `string` and `text` and nothing else: a ciphertext is a string, and a column that has to keep its type in the database keeps it. Store the value as text and encrypt that, or leave the column in the clear.",
+      "what": "A field marked encrypted has a type henri does not encrypt."
+    },
+    {
       "area": "factory",
       "causes": [
         "two factories that make each other, with nothing to end the chain",
@@ -745,8 +846,8 @@
       "area": "job",
       "causes": ["a job whose `perform()` never returned in time"],
       "code": "HENRI_JOB_TIMEOUT",
-      "fix": "Raise the job’s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
-      "what": "An attempt ran past the job’s timeout."
+      "fix": "Raise the job\u2019s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
+      "what": "An attempt ran past the job\u2019s timeout."
     },
     {
       "area": "job",

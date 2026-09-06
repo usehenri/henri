@@ -239,6 +239,9 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(better-sqlite3@13.0.3)(mysql2@3.24.3(@types/node@26.4.1))(pg@8.23.0)(sqlite3@6.0.1)
     devDependencies:
+      '@usehenri/core':
+        specifier: workspace:^
+        version: link:../core
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
@@ -370,6 +373,9 @@ importers:
         specifier: ^9.9.5
         version: 9.9.5
     devDependencies:
+      '@usehenri/core':
+        specifier: workspace:^
+        version: link:../core
       express-session:
         specifier: ^1.19.0
         version: 1.19.0(supports-color@8.1.1)
@@ -496,6 +502,9 @@ importers:
         specifier: ^6.37.8
         version: 6.37.8(mysql2@3.24.3(@types/node@26.4.1))(pg-hstore@2.3.4)(pg@8.23.0)(sqlite3@6.0.1)(supports-color@8.1.1)(tedious@20.0.0(supports-color@8.1.1))
     devDependencies:
+      '@usehenri/core':
+        specifier: workspace:^
+        version: link:../core
       express-session:
         specifier: ^1.19.0
         version: 1.19.0(supports-color@8.1.1)

@@ -61,6 +61,19 @@ const ON_ERASE = ['anonymize', 'delete', 'orphan', 'retain'];
 
 /** What `trail.reads` accepts (`base/trail.js`) */
 const READS = ['all', 'personal'];
+/**
+ * One `encryption.keys` entry: 32 bytes as 64 hexadecimal characters.
+ *
+ * It carries its own `describe` because the value never reaches the
+ * message (`0.config.js` masks this path whatever `filterParameters`
+ * says), so "must be a string, but it is a string" is all a validation
+ * failure would otherwise say about a key with a newline in it.
+ */
+const ENCRYPTION_KEY = {
+  describe: 'a key of 64 hexadecimal characters (openssl rand -hex 32)',
+  pattern: /^[0-9a-f]{64}$/iu,
+  type: 'string',
+};
 
 /** A string that is not empty */
 const text = (extra = {}) => ({ pattern: /\S/u, type: 'string', ...extra });
@@ -1091,6 +1104,26 @@ const SCHEMA = {
     default: ['password', 'token', 'secret', 'authorization'],
     describe: 'a list of parameter names to mask, or false',
     oneOf: [{ const: false }, { of: text(), type: 'array' }],
+  },
+
+  encryption: {
+    describe: 'an object of encrypted attribute settings',
+    hint: 'Which fields are encrypted is said in the models ({ encrypted: true }); this is the key that opens them',
+    keys: {
+      keys: {
+        describe:
+          'a key, or a list of keys with the one that writes first, each 64 hexadecimal characters',
+        hint: 'Never in config/*.json, which is committed: put them in the credentials (`henri credentials:edit`) or in HENRI_ENCRYPTION_KEYS. A rotation adds the new key in front and keeps the old one until `henri encryption:status` reports nothing left under it',
+        oneOf: [ENCRYPTION_KEY, { of: ENCRYPTION_KEY, type: 'array' }],
+      },
+      readPlaintext: {
+        default: false,
+        describe: 'true or false',
+        hint: 'true lets a column declared encrypted answer with whatever it holds, which is what makes a backfill possible; take it out once `henri encryption:status` reports no plaintext left',
+        type: 'boolean',
+      },
+    },
+    type: 'object',
   },
 
   privacy: {

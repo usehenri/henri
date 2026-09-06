@@ -727,6 +727,7 @@ declare namespace start {
     csp?: CspConfig;
     /** Parameter names masked in the logs; `false` masks nothing. */
     filterParameters?: string[] | false;
+    encryption?: EncryptionConfig;
     privacy?: PrivacyConfig;
     /** How long the models keep their records, and what sweeps them. */
     retention?: RetentionConfig;
@@ -744,6 +745,32 @@ declare namespace start {
     shutdown?: ShutdownConfig;
     errors?: ErrorsConfig;
     [key: string]: unknown;
+  }
+
+  /**
+   * `config.encryption`: the keys that open the fields the models marked
+   * `encrypted`. Which fields those are is said in the models themselves.
+   *
+   * The keys are secrets: they belong in `config/credentials/<env>.json.enc`
+   * (`henri credentials:edit`) or in `HENRI_ENCRYPTION_KEYS`, never in a
+   * `config/*.json`, which is committed. `henri audit` reports it when they
+   * are.
+   */
+  interface EncryptionConfig {
+    /**
+     * The key, or the keys with the one that writes first, each 64
+     * hexadecimal characters (`openssl rand -hex 32`). Every key decrypts;
+     * only the first encrypts, which is what makes a rotation a deploy
+     * rather than a migration.
+     */
+    keys?: string | string[];
+    /**
+     * Whether a column declared encrypted may answer with a value that is
+     * not encrypted (`false`). `true` is what makes a backfill possible on
+     * a table that is already full; take it out once
+     * `henri encryption:status` reports no plaintext left.
+     */
+    readPlaintext?: boolean;
   }
 
   /**
@@ -1453,7 +1480,28 @@ declare namespace start {
      * of every answer henri builds.
      */
     personal?: boolean | PersonalMark;
+    /**
+     * The column holds ciphertext and the model the string. `true` is the
+     * randomised scheme (different bytes every time, and nothing may query
+     * it); `{ deterministic: true }` keeps an equality and a `unique`, and
+     * gives away which rows hold the same value.
+     *
+     * Only `string` and `text` may be encrypted, a randomised field may
+     * not be `unique` or `index`, and the field may not carry a
+     * `default` -- each of those is a boot failure rather than a warning.
+     */
+    encrypted?: boolean | EncryptedMark;
     [key: string]: unknown;
+  }
+
+  /** The object form of `encrypted`, when `true` is not enough. */
+  interface EncryptedMark {
+    /**
+     * Derive the initialization vector from the plaintext, so the same
+     * value is the same ciphertext in this field and an equality still
+     * matches (`false`).
+     */
+    deterministic?: boolean;
   }
 
   /** The object form of `personal`, when `true` is not enough. */
@@ -1983,6 +2031,12 @@ declare namespace start {
     }>;
     /** Models holding personal data that no link ties to the person. */
     unlinked: Array<{ model: string; fields: string[]; reason: string }>;
+    /**
+     * Encrypted fields the walk could not read before it wrote over them:
+     * a key that is gone, or bytes that were changed. The erasure happened
+     * either way, and this is what says so.
+     */
+    unreadable: UnreadableValue[];
     /** Where the receipt was written, relative to the application. */
     file?: string | null;
   }
@@ -2000,6 +2054,131 @@ declare namespace start {
     records: Record<string, Array<Record<string, unknown>>>;
     counts: Record<string, number>;
     unlinked: string[];
+    /**
+     * Encrypted fields that could not be read, and why. The export runs
+     * inside `henri.encryption.tolerate()`, so a missing key costs a
+     * `null` and a line here rather than the whole document.
+     */
+    unreadable: UnreadableValue[];
+  }
+
+  /** One encrypted value that would not open, and why. */
+  interface UnreadableValue {
+    /** `<Model>.<field>`. */
+    context: string;
+    /** The henri error code of the failure. */
+    code: string | null;
+    /** The key the envelope names, when it is one. */
+    keyId: string | null;
+  }
+
+  /** What one encrypted column holds, counted without opening a value. */
+  interface EncryptionFieldStatus {
+    model: string;
+    field: string;
+    deterministic: boolean;
+    /** Rows walked, soft-deleted ones included. */
+    rows: number;
+    /** How many are under the key that writes today. */
+    current: number;
+    /** How many are under another key, and must be rotated. */
+    stale: number;
+    /** How many are not encrypted at all. */
+    plaintext: number;
+    /** The count by key id, plus `plaintext`, `null` and `malformed`. */
+    counts: Record<string, number>;
+  }
+
+  /**
+   * `henri.encryption`: the keys that open the fields the models marked
+   * `encrypted`, and the rotation that moves them.
+   *
+   * No member of this interface ever answers key material: a key is named
+   * by its id, eight hexadecimal characters of a digest.
+   */
+  interface EncryptionModule {
+    name: 'encryption';
+    /** Is at least one key configured? */
+    readonly enabled: boolean;
+    /** The key ids, the one that writes first. */
+    readonly keys: string[];
+    /** The id of the key new values are written under. */
+    readonly primary: string | null;
+    /** May a column declared encrypted answer with what it holds? */
+    readonly readPlaintext: boolean;
+    /** The mark a model declared for a field, or `null`. */
+    markOf(
+      model: string,
+      field: string
+    ): { model: string; field: string; deterministic: boolean } | null;
+    /** The map, as data: what `henri encryption` prints. */
+    describe(): {
+      enabled: boolean;
+      readPlaintext: boolean;
+      fields: Array<{ model: string; field: string; deterministic: boolean }>;
+      keys: Array<{ id: string; primary: boolean; source: string }>;
+    };
+    /** Encrypts one value under the key that writes. */
+    encrypt(
+      value: string | null | undefined,
+      options: { context: string; deterministic?: boolean }
+    ): string | null | undefined;
+    /** Decrypts one value, throwing when it will not open. */
+    decrypt(
+      value: string | null | undefined,
+      options: { context: string; deterministic?: boolean }
+    ): string | null | undefined;
+    /**
+     * Every envelope a deterministic value could be stored as, one per
+     * configured key: what keeps a lookup working during a rotation.
+     */
+    candidates(value: string, options: { context: string }): string[];
+    /** Does this value carry the envelope prefix? */
+    isEnvelope(value: unknown): boolean;
+    /** The key id a stored value names, or `null`. */
+    keyIdIn(value: unknown): string | null;
+    /**
+     * Runs `work` with every unreadable value reading as `null`, and
+     * answers what could not be read beside the result. The only way past
+     * a decryption failure, and it is a call rather than a setting.
+     */
+    tolerate<T>(
+      work: () => T | Promise<T>
+    ): Promise<{ value: T; failures: UnreadableValue[] }>;
+    /** What the encrypted columns hold, counted by key id. */
+    status(): Promise<{
+      ok: boolean;
+      primary: string | null;
+      keys: string[];
+      total: number;
+      stale: number;
+      plaintext: number;
+      fields: EncryptionFieldStatus[];
+    }>;
+    /**
+     * Rewrites every value that is not under the key that writes, and
+     * every value that is still in the clear. Never overwrites one it
+     * could not read first.
+     */
+    rotate(options?: {
+      dryRun?: boolean;
+      model?: string;
+      field?: string;
+    }): Promise<{
+      dryRun: boolean;
+      scanned: number;
+      rotated: number;
+      fields: Array<{
+        model: string;
+        field: string;
+        scanned: number;
+        rotated: number;
+        skipped: number;
+      }>;
+      failures: Array<
+        UnreadableValue & { model: string; field: string; record: string }
+      >;
+    }>;
   }
 
   /**
@@ -2038,6 +2217,8 @@ declare namespace start {
       steps: Array<Record<string, unknown>>;
       problems: Array<{ model: string; problem: string; message: string }>;
       unlinked: Array<{ model: string; fields: string[]; reason: string }>;
+      /** Encrypted fields the walk could not read while planning. */
+      unreadable: UnreadableValue[];
     }>;
     erase(
       who: string | object,
@@ -2816,6 +2997,7 @@ declare namespace start {
     /** `app/policies`, and the record-level authorization built on them. */
     policies: PoliciesModule;
     /** The fields the models marked `personal`, and what follows from it. */
+    encryption: EncryptionModule;
     privacy: PrivacyModule;
     /** How long the models keep their records, and the sweep that runs. */
     retention: RetentionModule;

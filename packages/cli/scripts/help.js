@@ -478,6 +478,78 @@ const COMMANDS = [
     usage: ['henri doctor [--json] [--no-reach]'],
   },
   {
+    description: [
+      'The fields this application encrypts at rest: which of them, whether',
+      'each one is randomised or deterministic, and the ids of the keys the',
+      'application holds. Without a command it prints that map. No key is',
+      'ever printed, by this or anything else.',
+      '',
+      'status counts what the columns hold, by key id, without opening a',
+      'single value. It is the command a rotation finishes with: an old key',
+      'may be dropped once nothing names it, and not a deploy before -- a',
+      'record nobody writes again is only ever moved by the rotation.',
+      '',
+      'rotate rewrites every value that is not under the key that writes',
+      'today, soft deleted rows included, one column of one row at a time so',
+      'that updatedAt does not move. A value that will not open is counted',
+      'and left exactly as it is. A backfill is the same command: a column',
+      'that held plaintext before the field was marked encrypted is rewritten',
+      'too, with config.encryption.readPlaintext on for the length of it.',
+      '',
+      'All three boot the models only: no port is bound.',
+    ],
+    examples: [
+      {
+        command: 'henri encryption',
+        description: 'What this application encrypts, and under which keys',
+      },
+      {
+        command: 'henri encryption:status',
+        description: 'Whether the old key may be dropped yet',
+      },
+      {
+        command: 'henri encryption:rotate --dry-run',
+        description: 'What a rotation would rewrite, without writing',
+      },
+    ],
+    flags: [
+      {
+        description: 'rotate: report what it would do and write nothing',
+        flag: '--dry-run',
+      },
+      {
+        description: 'rotate: one model only',
+        flag: '--model=<Name>',
+      },
+      {
+        description: 'rotate: one field only',
+        flag: '--field=<name>',
+      },
+      JSON_FLAG,
+    ],
+    name: 'encryption',
+    summary: 'the encrypted fields of this application, and the key rotation',
+    targets: [
+      {
+        description: 'the encrypted fields and the key ids (the default)',
+        name: 'map',
+      },
+      {
+        description: 'what the columns hold, counted by key id',
+        name: 'status',
+      },
+      {
+        description: 'rewrite everything under the key that writes today',
+        name: 'rotate',
+      },
+    ],
+    usage: [
+      'henri encryption [--json]',
+      'henri encryption:status [--json]',
+      'henri encryption:rotate [--dry-run] [--model=<Name>] [--field=<name>] [--json]',
+    ],
+  },
+  {
     aliases: ['g'],
     description: [
       'Writes models, controllers, routes, views, policies, mailers, workers',

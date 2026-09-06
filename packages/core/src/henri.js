@@ -6,6 +6,7 @@ const { fallback } = require('./base/errors');
 const validator = require('validator');
 
 const Config = require('./0.config');
+const Encryption = require('./1.encryption');
 const Mailer = require('./1.mailer');
 const Controllers = require('./2.controllers');
 const Mailers = require('./2.mailers');
@@ -69,6 +70,7 @@ class Henri extends HenriBase {
   async init() {
     this.modules.add(new Cache());
     this.modules.add(new Config());
+    this.modules.add(new Encryption());
     this.modules.add(new Mailer());
     this.modules.add(new Controllers());
     this.modules.add(new Mailers());

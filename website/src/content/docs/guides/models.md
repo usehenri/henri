@@ -69,14 +69,15 @@ A field is `{ type, ...keys }` or a bare type. The type names and the keys below
 | `json`    | `Mixed`   | `JSON`    |
 | `uuid`    | `String`  | `UUID`    |
 
-| Key        | Description                                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------------------- |
-| `required` | `required: true` (Mongoose) or `allowNull: false` (Sequelize).                                                |
-| `default`  | Default value. `Date.now` becomes `NOW` on SQL.                                                               |
-| `enum`     | Allowed values. An `ENUM` column on MySQL, MariaDB and PostgreSQL, an `isIn` validation elsewhere.            |
-| `unique`   | Unique index or constraint.                                                                                   |
-| `index`    | `index: true` adds an index on the field.                                                                     |
-| `personal` | This field is about a person: masked in the logs, exported and erased. See [Personal data](/guides/privacy/). |
+| Key         | Description                                                                                                                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `required`  | `required: true` (Mongoose) or `allowNull: false` (Sequelize).                                                                                                                                           |
+| `default`   | Default value. `Date.now` becomes `NOW` on SQL.                                                                                                                                                          |
+| `enum`      | Allowed values. An `ENUM` column on MySQL, MariaDB and PostgreSQL, an `isIn` validation elsewhere.                                                                                                       |
+| `unique`    | Unique index or constraint.                                                                                                                                                                              |
+| `index`     | `index: true` adds an index on the field.                                                                                                                                                                |
+| `personal`  | This field is about a person: masked in the logs, exported and erased. See [Personal data](/guides/privacy/).                                                                                            |
+| `encrypted` | The column holds ciphertext and the model the string. `true` is randomised (not queryable), `{ deterministic: true }` keeps an equality and a `unique`. See [Encrypted attributes](/guides/encryption/). |
 
 What the adapters do with anything else differs:
 

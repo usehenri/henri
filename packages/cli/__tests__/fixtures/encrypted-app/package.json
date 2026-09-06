@@ -1,0 +1,6 @@
+{
+  "name": "encrypted-fixture",
+  "private": true,
+  "henri": true,
+  "description": "Runs henri encryption against a drizzle sqlite store, without a server"
+}

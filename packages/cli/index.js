@@ -76,6 +76,7 @@ module.exports = (pkg, args) => {
   for (const group of [
     'credentials',
     'db',
+    'encryption',
     'privacy',
     'retention',
     'trail',

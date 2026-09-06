@@ -18,10 +18,12 @@ import type {
   Job,
   JobDefinition,
   JobStats,
+  EncryptionFieldStatus,
   ErasureReceipt,
   ModelFile,
   Page,
   PersonalExport,
+  UnreadableValue,
   Pagination,
   Policy,
   PoliciesModule,
@@ -489,6 +491,62 @@ async function erasing(): Promise<void> {
 }
 
 expectType<Promise<void>>(erasing());
+
+// --- encrypted attributes ---------------------------------------------------
+
+// A field says it next to its type, and both schemes are accepted
+const encryptedModel: ModelFile = {
+  schema: {
+    badge: { encrypted: { deterministic: true }, type: 'string', unique: true },
+    ssn: { encrypted: true, personal: true, type: 'string' },
+  },
+};
+
+void encryptedModel;
+
+const wrongMark: ModelFile = {
+  // @ts-expect-error `encrypted` is true or { deterministic }, nothing else
+  schema: { ssn: { encrypted: 'yes', type: 'string' } },
+};
+
+void wrongMark;
+
+expectType<boolean>(henri.encryption.enabled);
+expectType<string[]>(henri.encryption.keys);
+expectType<string | null>(henri.encryption.primary);
+expectType<boolean>(henri.encryption.readPlaintext);
+expectType<string | null>(henri.encryption.keyIdIn('henri:v1:r:00000000:x'));
+expectType<string[]>(
+  henri.encryption.candidates('B-1', { context: 'Person.badge' })
+);
+
+async function rotating(): Promise<void> {
+  const status = await henri.encryption.status();
+
+  expectType<boolean>(status.ok);
+  expectType<EncryptionFieldStatus[]>(status.fields);
+
+  const report = await henri.encryption.rotate({ dryRun: true });
+
+  expectType<number>(report.rotated);
+  expectType<string>(report.failures[0].record);
+
+  // The one way past a value that will not open, and it says what it cost
+  const read = await henri.encryption.tolerate(async () => 'a plaintext');
+
+  expectType<string>(read.value);
+  expectType<UnreadableValue[]>(read.failures);
+
+  // @ts-expect-error a rotation takes options, not a model name
+  await henri.encryption.rotate('Person');
+}
+
+expectType<Promise<void>>(rotating());
+
+// The export and the receipt say which encrypted fields would not open
+declare const exported: PersonalExport;
+expectType<UnreadableValue[]>(exported.unreadable);
+expectType<UnreadableValue[]>(receipt.unreadable);
 
 // The private fields of a payload are dropped unless the answer asks
 res.render('/account', { data: { user: {} }, include: ['phone'] });

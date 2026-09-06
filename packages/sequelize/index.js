@@ -1,6 +1,7 @@
 const Sequelize = require('sequelize');
 const debug = require('debug')('henri:sequelize');
 const { Drift, describeDifference } = require('./drift');
+const { decorateAttributes, decorateModel } = require('./encryption');
 const { lookup, paginate, publicId } = require('./plugins');
 const { normalizeSchema } = require('./schema');
 const {
@@ -201,9 +202,14 @@ class Sql {
   addModel(model, user) {
     const connector = this.ensureConnector();
     const isUser = model.identity === user;
-    const { attributes, indexes } = normalizeSchema(model.schema || {}, {
-      dialect: connector.getDialect(),
-    });
+    const { attributes, encrypted, indexes } = normalizeSchema(
+      model.schema || {},
+      {
+        dialect: connector.getDialect(),
+        isUser,
+        model: model.globalId,
+      }
+    );
     // Rails has timestamps on every table: `timestamps: false` opts out
     const options = { timestamps: true, ...(model.options || {}) };
     const external = wantsExternalId(model);
@@ -232,11 +238,27 @@ class Sql {
       this.overload(attributes, options, model);
     }
 
+    // Before define(): Sequelize reads `get` and `set` off an attribute
+    // when it builds the model and never looks again. `register()` is
+    // what refuses the boot when a field says `encrypted` and the
+    // application has no key
+    if (Object.keys(encrypted).length > 0) {
+      this.henri.encryption.register(model.globalId, encrypted);
+      decorateAttributes(attributes, encrypted, {
+        henri: this.henri,
+        model: model.globalId,
+      });
+    }
+
     const instance = lookup(
       paginate(connector.define(model.globalId, attributes, options)),
       external,
       this.henri
     );
+
+    if (Object.keys(encrypted).length > 0) {
+      decorateModel(instance, encrypted, this.henri);
+    }
 
     if (external) {
       publicId(instance);

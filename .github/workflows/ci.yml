@@ -242,11 +242,14 @@ jobs:
           MONGOMS_DISABLE_POSTINSTALL: '1'
 
       # Creates henri_showcase_test, then boots the app once per test file.
-      # HENRI_SECRET replaces the showcase/.env a developer copies from
-      # .env.example: a variable already set wins over the file.
+      # HENRI_SECRET and HENRI_ENCRYPTION_KEYS replace the showcase/.env a
+      # developer copies from .env.example: a variable already set wins over
+      # the file. The two are separate on purpose -- the second one opens the
+      # encrypted columns and rotates on its own schedule.
       - run: pnpm test:showcase
         env:
           HENRI_SECRET: a-secret-for-the-showcase-tests-of-this-run
+          HENRI_ENCRYPTION_KEYS: '0000000000000000000000000000000000000000000000000000000000000001'
 
       - run: pnpm --filter @usehenri/showcase build
 

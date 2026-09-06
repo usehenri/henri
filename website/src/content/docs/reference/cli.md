@@ -322,6 +322,28 @@ What happened to a **delivery** is not here: a delivery is a job, so `henri jobs
 | `remove <id>`       | Forgets it. The deliveries already queued for it end without being sent.                                                            |
 | `send <id> [event]` | Enqueues one delivery by hand (`--data '{"total":1}'`), to try a receiver. A runner still has to perform it.                        |
 
+## `encryption`
+
+```bash
+henri encryption [--json]
+henri encryption:status [--json]
+henri encryption:rotate [--dry-run] [--model=<Name>] [--field=<name>] [--json]
+```
+
+The fields the models mark [`encrypted`](/guides/encryption/), the ids of the keys that open them, and the rotation that moves them. All three boot the models only (runlevel 4, like `privacy` and `db:seed`): no port is bound and no route is registered. No key is ever printed, by these or by anything else.
+
+| Command  | What it does                                                                                                                                                                              |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)   | Prints the map: which fields of which models are encrypted, whether each is randomised or deterministic, and the id and source of every key held.                                         |
+| `status` | Counts what the columns hold, by key id, without opening a single value. Exits `0` whatever it finds: "not finished yet" is what it was asked.                                            |
+| `rotate` | Rewrites every value that is not under the key that writes today, soft-deleted rows included, one column of one row at a time so `updatedAt` does not move. Exits `1` if anything failed. |
+
+A backfill is a rotation: a column that held plaintext before the field was marked `encrypted` is "not under the primary key" either, so the same command encrypts it — with `config.encryption.readPlaintext` on for the length of the migration.
+
+A value that will not open is counted, named and **left exactly as it is**: the rotation decrypts, re-encrypts and reads the new envelope back before it writes anything. `--dry-run` reports without writing; `--model` and `--field` narrow the walk.
+
+Dropping a key while `status` still counts rows under it is how a rotation becomes a data loss — a record nobody writes again is only ever moved by this walk. That is why the status counts by key id rather than answering "done".
+
 ## `privacy`
 
 ```bash

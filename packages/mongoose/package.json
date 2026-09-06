@@ -28,7 +28,9 @@
     "schema.js",
     "types.js",
     "utils.js",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "encrypted.js",
+    "encryption.js"
   ],
   "publishConfig": {
     "access": "public",
@@ -47,6 +49,7 @@
     "express-session": "^1.17.1"
   },
   "devDependencies": {
+    "@usehenri/core": "workspace:^",
     "express-session": "^1.19.0",
     "mongodb-memory-server": "^11.2.0"
   }

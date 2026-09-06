@@ -313,6 +313,65 @@ describe('henri audit', () => {
     ).not.toContain('schema.autosync');
   });
 
+  // The two ways an application can weaken the encrypted attributes: a
+  // key that reached a committed file, and the migration setting left on
+  test('reports an encryption key written in a configuration file', () => {
+    const {
+      findings: found,
+      names,
+      ok,
+    } = withConfig(app, 'config/production.json', {
+      encryption: {
+        keys: [
+          'a2f1000000000000000000000000000000000000000000000000000000000000',
+        ],
+      },
+    });
+
+    expect(ok).toBe(false);
+    expect(names).toContain('encryption.key-in-config');
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V2.10.4',
+        check: 'encryption.key-in-config',
+        file: 'config/production.json',
+        message: expect.stringContaining('readable by anyone'),
+        owasp: 'A02:2021 Cryptographic Failures',
+        severity: 'high',
+      })
+    );
+    // The hint has to name the way out, not only the problem
+    expect(
+      found.find((entry) => entry.check === 'encryption.key-in-config').hint
+    ).toContain('henri encryption:rotate');
+  });
+
+  test('reports readPlaintext, which is a migration and not a setting', () => {
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      { encryption: { readPlaintext: true } }
+    );
+
+    expect(names).toContain('encryption.read-plaintext');
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V6.1.1',
+        check: 'encryption.read-plaintext',
+        owasp: 'A02:2021 Cryptographic Failures',
+        severity: 'medium',
+      })
+    );
+
+    // An application that does neither is reported for neither
+    expect(
+      withConfig(app, 'config/production.json', {
+        encryption: { readPlaintext: false },
+      }).names
+    ).not.toContain('encryption.read-plaintext');
+    expect(run(app).names).not.toContain('encryption.key-in-config');
+  });
+
   // Henri never ships 'unsafe-inline' in a production script-src, so one
   // that is there was put there by the application
   test("reports a script-src the application opened to 'unsafe-inline'", () => {

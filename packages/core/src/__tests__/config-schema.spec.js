@@ -327,6 +327,42 @@ describe('the configuration schema', () => {
     expect(errors[0].message).not.toContain('42');
   });
 
+  test('an encryption key is masked whatever the filters say', () => {
+    const { display, isSecretPath } = require('../0.config');
+    const key = `${'a'.repeat(63)}\n`;
+
+    // The path, the indexed path, and nothing else
+    expect(isSecretPath('encryption.keys')).toBe(true);
+    expect(isSecretPath('encryption.keys[0]')).toBe(true);
+    expect(isSecretPath('encryption.readPlaintext')).toBe(false);
+    expect(isSecretPath('secret')).toBe(false);
+
+    // The boot report, which prints what the environment provided
+    expect(
+      display(
+        {
+          key: 'encryption.keys',
+          value: [key],
+          variable: 'HENRI_ENCRYPTION_KEYS',
+        },
+        []
+      )
+    ).toBe('[FILTERED]');
+
+    // And a validation failure over a key with a typo in it: the value is
+    // still a key, so it is named by its type
+    const { errors } = validate(
+      { encryption: { keys: [key] } },
+      { mask: (name) => isSecretPath(name) }
+    );
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0].key).toBe('encryption.keys[0]');
+    expect(errors[0].message).toContain('64 hexadecimal characters');
+    expect(errors[0].message).not.toContain('aaa');
+    expect(errors[0].received).toBe('a string');
+  });
+
   test('the password of a connection string is always masked', () => {
     expect(received('postgres://henri:hunter2@db:5432/app')).toBe(
       'the string "postgres://henri:[FILTERED]@db:5432/app"'

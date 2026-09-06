@@ -1,0 +1,10 @@
+{
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "sqlite",
+      "url": ":memory:"
+    }
+  },
+  "secret": "a-fixture-secret-that-is-not-the-encryption-key"
+}

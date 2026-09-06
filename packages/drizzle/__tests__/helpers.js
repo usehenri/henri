@@ -2,6 +2,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const Drizzle = require('../index');
+const Encryption = require('@usehenri/core/src/1.encryption');
+const { generateKey } = require('@usehenri/core/src/base/encryption');
 const target = require('./targets');
 
 // Every store the suites open lives on the target (sqlite in memory, or
@@ -29,12 +31,13 @@ const fakeHenri = (settings = {}) => {
     };
   });
 
-  return {
+  const henri = {
     _user: null,
     calls,
     config: {
       get: (key) => settings[key],
       has: (key) => typeof settings[key] !== 'undefined',
+      sourceOf: () => 'the test',
     },
     cwd: () => process.cwd(),
     isProduction: false,
@@ -43,6 +46,30 @@ const fakeHenri = (settings = {}) => {
       encrypt: async (password) => `hashed:${password}`,
     },
   };
+
+  // The real module, not a stand-in: what the adapter is being tested
+  // against is the envelope core writes, and a double would drift from it
+  const encryption = new Encryption();
+
+  encryption.henri = henri;
+  henri.encryption = encryption;
+
+  return henri;
+};
+
+/**
+ * A henri whose encryption module is loaded with the given keys
+ *
+ * @param {Array<string>} keys The keys, the one that writes first
+ * @param {object} [settings={}] Other configuration values
+ * @returns {Promise<object>} The fake henri
+ */
+const withKeys = async (keys, settings = {}) => {
+  const henri = fakeHenri({ encryption: { keys }, ...settings });
+
+  await henri.encryption.init();
+
+  return henri;
 };
 
 /**
@@ -56,8 +83,19 @@ const fakeHenri = (settings = {}) => {
  *   on the same data
  * @returns {{ adapter: Drizzle, henri: object }} adapter and its fake henri
  */
-const build = (settings = {}, config = {}, key) => {
-  const henri = fakeHenri(settings);
+const build = (settings = {}, config = {}, key) =>
+  buildWith(fakeHenri(settings), config, key);
+
+/**
+ * The same, on a henri that was built already (the encryption suites,
+ * which need `henri.encryption.init()` awaited before the first model)
+ *
+ * @param {object} henri A fake henri
+ * @param {object} [config={}] extra store configuration
+ * @param {string} [key] A stable key (see build)
+ * @returns {{ adapter: Drizzle, henri: object }} adapter and its fake henri
+ */
+const buildWith = (henri, config = {}, key) => {
   // A suite pointing the store somewhere itself (a sqlite file) keeps it
   const store = config.url ? {} : target.store(key);
   const adapter = new Drizzle('default', { ...store, ...config }, henri);
@@ -126,10 +164,13 @@ const tmpdir = (prefix = 'henri-drizzle-') =>
 module.exports = {
   Drizzle,
   build,
+  buildWith,
   fakeHenri,
+  generateKey,
   sessions,
   target,
   taskModel,
   tmpdir,
   userModel,
+  withKeys,
 };
