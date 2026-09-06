@@ -43,6 +43,8 @@ describe('henri new', () => {
       'app/views/jsconfig.json',
       'app/views/styles/index.css',
       'eslint.config.js',
+      'Dockerfile',
+      '.dockerignore',
     ]) {
       expect(exists(app, file)).toBe(true);
     }
@@ -52,6 +54,55 @@ describe('henri new', () => {
     // Nothing from the next.js template
     expect(exists(app, 'app/views/next.config.js')).toBe(false);
     expect(exists(app, 'app/views/pages/_app.js')).toBe(false);
+  });
+
+  test('writes a Dockerfile that installs, builds and runs as node', () => {
+    const file = read(app, 'Dockerfile');
+    const pm = detectPackageManager(app);
+
+    // The install is production only, so henri has to be a dependency
+    expect(JSON.parse(read(app, 'package.json')).dependencies.henri).toMatch(
+      /^\^\d/u
+    );
+
+    expect(file).toContain(`FROM \${NODE_IMAGE} AS build`);
+    expect(file).toContain(
+      { npm: 'npm ci --omit=dev', pnpm: 'pnpm install --prod' }[pm] ||
+        'yarn install --production'
+    );
+    expect(file).toContain('node_modules/.bin/henri build');
+    expect(file).toContain('USER node');
+    // Readiness, not liveness: an unreachable database is not a restart
+    expect(file).toContain('/readyz');
+    expect(file).not.toContain('/livez');
+    // The zero-config store cannot be what an image runs on
+    expect(file).toContain('point the application at a real database');
+
+    const ignored = read(app, '.dockerignore');
+
+    for (const entry of ['node_modules', '.env', '.henri', '.git']) {
+      expect(ignored).toContain(entry);
+    }
+  });
+
+  test('the Dockerfile of a sqlite app builds its native driver', () => {
+    const { app: sqlite, dir: elsewhere } = scaffold([
+      '--no-git',
+      '--adapter',
+      'drizzle',
+    ]);
+
+    try {
+      const file = read(sqlite, 'Dockerfile');
+
+      // The better-sqlite3 driver has no prebuilt binary for every node and platform
+      // pair, so the build stage -- and only it -- needs a toolchain
+      expect(file).toContain('better-sqlite3 compiles on install');
+      expect(file).toContain('python3 make g++');
+      expect(file).not.toContain('point the application at a real database');
+    } finally {
+      cleanup(elsewhere);
+    }
   });
 
   test('always writes pnpm-workspace.yaml (npm and yarn ignore it)', () => {

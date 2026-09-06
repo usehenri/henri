@@ -125,6 +125,7 @@ const main = async (args, name) => {
   allowBuilds(store);
   await portSample(store);
   await sampleResource(force);
+  createDockerfile(pm, store);
   createReadme(projectName, pm, store);
   createAgentFiles(projectName, force);
   initGit(skipGit);
@@ -225,6 +226,12 @@ const buildPackage = (name, store) => {
   dependencies[store.package] = `^${version}`;
   Object.assign(dependencies, store.drivers);
 
+  // `henri server` is how the application runs, not a tool used to build it,
+  // so the CLI is a dependency and not a development one: an image built
+  // with a production-only install has to have it, and `npm i -g henri`
+  // being on the machine that deploys is not something to rely on.
+  dependencies.henri = `^${version}`;
+
   const pkg = {
     ...templatePkg,
     ...existing,
@@ -246,6 +253,200 @@ const buildPackage = (name, store) => {
 
   fs.writeJsonSync(path.join(cwd, 'package.json'), pkg, { spaces: 2 });
   fs.removeSync(path.join(cwd, 'package.old.json'));
+};
+
+/** How each package manager installs a production-only tree in an image */
+const DOCKER_INSTALL = {
+  npm: {
+    install: 'npm ci --omit=dev',
+    manifests: 'package.json package-lock.json',
+    setup: '',
+  },
+  pnpm: {
+    install: 'pnpm install --prod --frozen-lockfile',
+    manifests: 'package.json pnpm-lock.yaml pnpm-workspace.yaml',
+    setup: 'RUN corepack enable',
+  },
+  yarn: {
+    install: 'yarn install --production --frozen-lockfile',
+    manifests: 'package.json yarn.lock',
+    setup: 'RUN corepack enable',
+  },
+};
+
+/**
+ * The Dockerfile of a scaffolded application.
+ *
+ * Two stages so the build cache and the package manager stay out of the
+ * image that ships. The install is production-only, which works because the
+ * renderer and its bundler are dependencies rather than development ones,
+ * and `henri build` compiles the views without booting henri, so the image
+ * builds with no database in sight.
+ *
+ * The process runs as `node` on an unprivileged port, and the health check
+ * asks `/readyz` -- readiness rather than liveness, because a container
+ * whose database is unreachable should leave the load balancer rather than
+ * be restarted. henri drains on SIGTERM by itself, so node is the entry
+ * point and no init wrapper is needed to forward the signal; `docker run
+ * --init` is still worth it if the application spawns child processes.
+ *
+ * @param {string} pm Package manager
+ * @param {object} store The selected store (see scripts/adapters.js)
+ * @returns {string} The Dockerfile
+ */
+const dockerfile = (pm, store) => {
+  const { install, manifests, setup } =
+    DOCKER_INSTALL[pm] || DOCKER_INSTALL.npm;
+
+  // The zero-config store runs a MongoDB inside the process, from a binary
+  // it downloads on first use. That is right for trying things out on a
+  // laptop and wrong in an image: the download does not belong in a boot and
+  // the data would live in the container. Say so here rather than let the
+  // image fail at run time with a download error.
+  const preamble =
+    store.adapter === 'disk'
+      ? `#
+# This application uses the zero-config store (@usehenri/disk), which runs a
+# MongoDB inside the process and keeps its data in .henri/. It is for trying
+# things out, not for an image: point the application at a real database
+# before deploying it.
+#
+#   henri new my-app --adapter postgresql   # or mysql, mssql, mongoose
+#   henri new my-app --adapter drizzle      # sqlite, postgres or mysql
+#
+# then set DATABASE_URL on the container.
+#`
+      : '#';
+
+  // A driver with a native addon (better-sqlite3) has no prebuilt binary for
+  // every node and platform pair, so it compiles on install, and the slim
+  // image carries no toolchain. Only the build stage needs one: what ends up
+  // in the image is the compiled addon.
+  const native =
+    Object.keys(store.builds || {}).length > 0
+      ? `# ${Object.keys(store.builds).join(', ')} compiles on install
+RUN apt-get update \\
+  && apt-get install --yes --no-install-recommends python3 make g++ \\
+  && rm -rf /var/lib/apt/lists/*
+
+`
+      : '';
+
+  return `# syntax=docker/dockerfile:1
+${preamble}
+#   docker build -t my-app .
+#   docker run --rm -p 3000:3000 \\
+#     -e HENRI_SECRET=$(openssl rand -hex 32) \\
+#     -e DATABASE_URL=postgres://user:password@host.docker.internal:5432/my_app \\
+#     my-app
+#
+# The configuration is committed (config/production.json, falling back to
+# config/default.json) and the environment is applied over it: DATABASE_URL,
+# HENRI_SECRET, and any HENRI_CONFIG__<key> for the rest. Nothing is written
+# at start time.
+#
+# The schema is not this file's job: run henri db:migrate against the
+# database before the first boot, or set "migrate": true on the store so
+# that the boot applies whatever is pending.
+
+ARG NODE_IMAGE=node:24-bookworm-slim
+
+# ---- build: install and compile the views ---------------------------------
+FROM \${NODE_IMAGE} AS build
+
+ENV CI=true \\
+  HUSKY=0 \\
+  NODE_ENV=production \\
+  MONGOMS_DISABLE_POSTINSTALL=1
+
+${native}${setup ? `${setup}\n\n` : ''}WORKDIR /srv
+
+# The manifests first, so a change to the source does not reinstall
+COPY ${manifests} ./
+RUN ${install}
+
+COPY . .
+
+# Compiles the production views without booting henri: no database needed
+RUN node_modules/.bin/henri build
+
+# ---- runtime ---------------------------------------------------------------
+FROM \${NODE_IMAGE}
+
+ENV NODE_ENV=production \\
+  PORT=3000
+
+COPY --from=build --chown=node:node /srv /srv
+
+# The application writes beside its code -- the zero-config store keeps its
+# data in .henri/, and anything the application saves lands here too -- so
+# the directory itself has to belong to the user that runs it, which the
+# COPY above only did for the files inside it
+RUN chown node:node /srv
+
+WORKDIR /srv
+USER node
+EXPOSE 3000
+
+# Readiness, not liveness: a container whose database is unreachable should
+# leave the load balancer, not be restarted
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \\
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/readyz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# node is the entry point, so it receives SIGTERM and henri drains: it stops
+# accepting, finishes what it is serving, then stops the modules
+CMD ["node", "node_modules/henri/bin/henri.js", "server", "--production"]
+`;
+};
+
+/** What never belongs in a build context */
+const DOCKERIGNORE = `.git
+.github
+node_modules
+npm-debug.log*
+yarn-error.log*
+.pnpm-store
+
+# Secrets and local state
+.env
+.env.*
+config/credentials/*.key
+.henri
+
+# Build output, rebuilt in the image
+.next
+public/assets
+dist
+coverage
+
+# Not part of the running application
+test
+.backup
+*.md
+Dockerfile
+.dockerignore
+`;
+
+/**
+ * Writes the Dockerfile and the .dockerignore (existing ones are kept)
+ *
+ * @param {string} pm Package manager
+ * @param {object} store The selected store (see scripts/adapters.js)
+ * @returns {void}
+ */
+const createDockerfile = (pm, store) => {
+  const cwd = process.cwd();
+
+  if (check('Dockerfile') && check('.dockerignore')) {
+    return;
+  }
+
+  console.log(' - Adding a Dockerfile...');
+
+  check('Dockerfile') ||
+    fs.writeFileSync(path.join(cwd, 'Dockerfile'), dockerfile(pm, store));
+  check('.dockerignore') ||
+    fs.writeFileSync(path.join(cwd, '.dockerignore'), DOCKERIGNORE);
 };
 
 /**
@@ -343,6 +544,23 @@ henri doctor                  # check the app against the henri conventions
 ${pm} run lint                # eslint
 \`\`\`
 ${migrations}
+## Deploying
+
+\`Dockerfile\` builds a production image: a two stage build that installs the
+production dependencies, compiles the views with \`henri build\` and runs as
+the \`node\` user. The health check asks \`/readyz\`, and henri drains on
+\`SIGTERM\`: it stops accepting connections, finishes what it is serving, then
+stops.
+
+\`\`\`bash
+docker build -t ${name} .
+docker run --rm -p 3000:3000 -e HENRI_SECRET=$(openssl rand -hex 32) ${name}
+\`\`\`
+
+The configuration is committed and the environment is applied over it, so a
+deployment sets \`HENRI_SECRET\`, \`DATABASE_URL\` and any
+\`HENRI_CONFIG__<key>\` it needs. Nothing is written at start time.
+
 ## Layout
 
 | Path                   | Role                                             |

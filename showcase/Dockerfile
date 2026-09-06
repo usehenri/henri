@@ -59,7 +59,8 @@ FROM ${NODE_IMAGE}
 ENV NODE_ENV=production \
   PORT=3000
 
-# tini forwards SIGTERM to node (henri installs no signal handler)
+# tini is PID 1 so zombies are reaped; henri installs its own SIGTERM
+# handler and drains, so this is not what forwards the signal
 RUN apt-get update \
   && apt-get install --yes --no-install-recommends tini \
   && rm -rf /var/lib/apt/lists/*
