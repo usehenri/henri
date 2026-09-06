@@ -458,6 +458,15 @@ const COMMANDS = [
       'AGENTS.md and vitest.config.js present, dependencies installed.',
       'Exits with 1 when a problem is found; warnings do not fail.',
       '',
+      'It also reads what would fail a boot: a model naming a store the',
+      'configuration does not hold, a store adapter another environment',
+      'configures and nothing installs, a route asking for a policy that is',
+      'not there, a file of app/jobs with no perform, a recurring schedule',
+      'naming a job that does not exist, a mailer action with no view, an',
+      'app/modules file whose name is taken or whose needs nothing provides,',
+      'and the henri packages installed at two different versions. Such a',
+      'problem carries the henri error code the boot would raise.',
+      '',
       'It also runs the static checks of henri audit and warns when they',
       'find something, without repeating them: run henri audit for the',
       'findings, their OWASP category and how to fix them.',
@@ -465,12 +474,12 @@ const COMMANDS = [
     flags: [
       {
         description:
-          'print { ok, problems: [{ level, check, file, message, hint }] }',
+          'print { ok, problems: [{ level, check, code, file, message, hint }] }',
         flag: '--json',
       },
       {
         description:
-          'skip the one check that opens a connection: whether the shared store of config.shared answers',
+          'skip the two checks that open a connection: whether the shared store of config.shared answers, and whether a store holds the migrations of db/migrations',
         flag: '--no-reach',
       },
     ],

@@ -19,7 +19,7 @@ Installing the package is not the same as using it: an application that has neit
 
 ## Defining a job
 
-`app/jobs/<name>.js` exports an object, the shape models and controllers already use. `perform(args, context)` is the only required key; the name of the job is its path under `app/jobs`, so `app/jobs/mail/digest.js` is the job `mail/digest`.
+`app/jobs/<name>.js` exports an object, the shape models and controllers already use. `perform(args, context)` is the only required key; the name of the job is its path under `app/jobs`, so `app/jobs/mail/digest.js` is the job `mail/digest`. A file without one fails the boot (`HENRI_JOB_INVALID_DEFINITION`), and [`henri doctor`](/reference/cli/#doctor) reports it — along with a [recurring schedule](#recurring-jobs) naming a job that is not there, which fails nothing at all and simply never runs.
 
 ```js
 // app/jobs/welcome.js

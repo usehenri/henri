@@ -71,6 +71,8 @@ A message renders `app/views/mailers/<mailer>/<action>` — Handlebars, the envi
 
 A view engine that knows how to render mail itself takes over: an engine exposing `renderMail({ view, layout, data, meta })` and answering `{ html, text }` (or a string) is asked first. Neither the React nor the Inertia engine implements it today, so both render mail through Handlebars.
 
+The view is read when the message is built, so a missing one fails the request that sends the mail — a signup, a password reset — rather than the boot. [`henri doctor`](/reference/cli/#doctor) reports a mailer action with no view (`mailers.view`); a mailer whose actions hand back their own `html`, or name their own `view`, is left alone, because a file cannot say which action does.
+
 ### The layout
 
 `app/views/mailers/layouts/mailer.hbs` wraps every message. `{{{body}}}` is where the view goes; the signature, the footer and the unsubscribe link are written once.
