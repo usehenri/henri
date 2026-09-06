@@ -47,7 +47,7 @@ module.exports = {
 
 Keys are `verb /path` with any Express verb (`get`, `post`, `put`, `patch`, `delete`, `options`, `head`, ...), or one of the keywords `root`, `resources`, `crud` and `namespace`. When two keys expand to the same verb and path, the later one wins.
 
-`henri routes` prints the expanded table (verb, path, controller, path helper and roles) without starting the server. While the server runs, `r` prints the loaded routes and `u` the ones whose controller is missing, and in development `GET /_routes` and `GET /_controllers` return the same as JSON, from the machine running the server only.
+`henri routes` prints the expanded table (verb, path, controller, path helper, roles and policy) without starting the server. While the server runs, `r` prints the loaded routes and `u` the ones whose controller is missing, and in development `GET /_routes` and `GET /_controllers` return the same as JSON, from the machine running the server only.
 
 In development, a route pointing to a missing controller answers `501 Not Implemented` so you notice; in production it is skipped. Requests nothing claims get a `404`, errors thrown by a controller a `500`; both are content negotiated (JSON `{ statusCode, error, message }` for API clients, an HTML page for browsers, with the stack in development only).
 
@@ -56,6 +56,19 @@ In development, a route pointing to a missing controller answers `501 Not Implem
 Give a route an array of roles and only authenticated users whose `roles` contain every one of them can reach it. Denied requests get a `401` (not logged in, `Authentication required`) or a `403` (missing role, with the required `roles` in `data`) as JSON; a browser asking for HTML is redirected to `config.user.loginPath`, `/login` by default. henri mounts `POST /login` but no login page: add one there (see [Users](/guides/users/#login-and-logout)).
 
 A route with `roles` in an application without a user model logs a warning at boot and denies every request.
+
+## Policies
+
+`roles` says who may reach an endpoint. `policy` says who may act on the record behind it, from `app/policies/<model>.js`, and the two compose -- a route may declare both, and the role answers first.
+
+```js
+// `true` names the policy after the controller: proposals -> proposal
+'resources proposals': { policy: true },
+// or name another one
+'get /proposals/mine': { controller: 'proposals#mine', policy: 'proposal' },
+```
+
+The guard answers the actions that need no record (`index`, `new`, `create`) before the action runs, and leaves the rest to the controller, which has the record. A missing policy or a missing rule refuses. See [Policies](/guides/policies/).
 
 ## CRUD
 
@@ -205,4 +218,4 @@ controller, which sends you looking for a file that is right there.
 
 ## Named paths
 
-Every loaded route gets a name, `<action>_<controller>_path` (`show_todo_path`, `index_categories_path`), mapping to `{ method, route, roles }`. The rule holds whatever the route came from, so a member route of `posts` is `archive_posts_path` and a controller in a sub-directory keeps its folder: `admin/users#index` is `index_admin/users_path`. Pages rendered with `res.render()` (and the JSON answer of the same URL) receive them in `paths`, filtered by the roles of the current user; a page served by the view engine's fallback, without a controller, only gets the routes that need no role. The React and Inertia helpers `pathFor()` and `getRoute()` build URLs from these names, so a renamed route does not break your links.
+Every loaded route gets a name, `<action>_<controller>_path` (`show_todo_path`, `index_categories_path`), mapping to `{ method, route, roles }`. The rule holds whatever the route came from, so a member route of `posts` is `archive_posts_path` and a controller in a sub-directory keeps its folder: `admin/users#index` is `index_admin/users_path`. Pages rendered with `res.render()` (and the JSON answer of the same URL) receive them in `paths`, filtered by the roles of the current user and then by the [policies](/guides/policies/) that can answer without a record; a page served by the view engine's fallback, without a controller, only gets the routes that need no role. The React and Inertia helpers `pathFor()` and `getRoute()` build URLs from these names, so a renamed route does not break your links.

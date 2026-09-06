@@ -2,14 +2,14 @@
 title: JSON API
 description: HAL answers with res.resource and res.collection, pagination, Idempotency-Key, rate limiting, request ids, versioning, the health endpoints and graceful shutdown.
 sidebar:
-  order: 6
+  order: 7
 ---
 
 Every henri controller can answer JSON, and the answers follow the conventions a Rails API gives you: hypermedia links ([HAL](https://datatracker.ietf.org/doc/html/draft-kelly-json-hal)), idempotent mutations, rate limits, request ids, secure headers, filtered logs, liveness and readiness endpoints and a shutdown that drains. Most of it is on by default and configured from `config/default.json`; the keys are listed in [Configuration](/configuration/#json-api).
 
 ## Answering HAL
 
-`res.resource(record, options)` answers one record and `res.collection(records, options)` a page of them. Both send the public fields of the record and add `_links`, built from the route helpers of the controller and filtered by the roles of the current user: a visitor who may not `DELETE` never sees the `destroy` link.
+`res.resource(record, options)` answers one record and `res.collection(records, options)` a page of them. Both send the public fields of the record and add `_links`, built from the route helpers of the controller and filtered by the roles of the current user: a visitor who may not `DELETE` never sees the `destroy` link. With a [policy](/guides/policies/) for the model, they are filtered again against the record itself, so two people with the same role reading the same proposal get different links — and a controller that presents its records before sending them names what the rules should read with `subject`.
 
 ```js
 // app/controllers/tasks.js

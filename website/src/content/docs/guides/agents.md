@@ -2,7 +2,7 @@
 title: Coding agents
 description: 'What henri gives a coding agent: AGENTS.md, machine readable output, stable exit codes, henri doctor and the henri MCP server.'
 sidebar:
-  order: 12
+  order: 13
 ---
 
 henri is built to be driven by a coding agent as well as by a person. The conventions are written down where an agent will read them, every command can answer JSON, failures carry a code instead of prose, and an MCP server exposes the parts of the framework an agent needs to see. None of it is required: a person typing commands gets the same framework.

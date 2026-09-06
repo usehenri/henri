@@ -2,7 +2,7 @@
 title: Jobs
 description: A database backed queue with retries, a dead letter queue and recurring jobs, run by henri jobs.
 sidebar:
-  order: 9
+  order: 10
 ---
 
 A job is work that does not belong in a request: sending a mail, resizing an upload, calling a slow API, rebuilding a report. henri writes it down in the database the application already runs and a separate process performs it, so the request answers immediately and the work survives a restart.
