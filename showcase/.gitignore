@@ -7,6 +7,9 @@
 # lighter way to point the store somewhere else; this stays for the rest.
 config/dev.json
 
+# Credentials keys: never commit them (henri credentials:edit)
+config/credentials/*.key
+
 # Vite builds and the model globals henri records on boot
 app/views/dist
 .henri

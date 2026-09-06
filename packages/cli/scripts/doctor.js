@@ -48,6 +48,72 @@ const PAGES = {
 
 const PAGE_EXTENSIONS = ['.js', '.jsx'];
 
+/** Where the credentials of an environment and its key live */
+const CREDENTIALS = path.join('config', 'credentials');
+
+/**
+ * The credentials keys of an application, as posix paths relative to it
+ *
+ * @param {string} dir The application directory
+ * @returns {Array<string>} The key files (`config/credentials/dev.key`)
+ */
+const keyFiles = (dir) => {
+  const folder = path.join(dir, CREDENTIALS);
+
+  if (!fs.existsSync(folder)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(folder)
+    .filter((name) => name.endsWith('.key'))
+    .map((name) => `${CREDENTIALS}/${name}`.replace(/\\/g, '/'));
+};
+
+/**
+ * Does a .gitignore cover the credentials keys? Anything that names every
+ * key of the folder counts, whichever way it is written.
+ *
+ * @param {string} ignore The content of .gitignore
+ * @returns {boolean} Covered or not
+ */
+const ignoresKeys = (ignore) =>
+  ignore
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^\//, ''))
+    .some((line) =>
+      ['*.key', '**/*.key', `${CREDENTIALS}/*.key`, `${CREDENTIALS}/`].includes(
+        line
+      )
+    );
+
+/**
+ * The credentials keys git has in its index: a key that reached a commit is
+ * a leaked key, whatever .gitignore says now
+ *
+ * @param {string} dir The application directory
+ * @returns {Array<string>} The tracked key files (none without git)
+ */
+const trackedKeys = (dir) => {
+  if (!fs.existsSync(path.join(dir, '.git'))) {
+    return [];
+  }
+
+  try {
+    const { execFileSync } = require('child_process');
+    const listed = execFileSync(
+      'git',
+      ['ls-files', '--cached', '--', `${CREDENTIALS}/*.key`],
+      { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+
+    return listed.split(/\r?\n/).filter((line) => line.trim() !== '');
+  } catch {
+    // No git binary, or not a repository: the .gitignore check stands alone
+    return [];
+  }
+};
+
 /**
  * Does a model name look plural? (ends with an s that is not part of
  * -ss, -us or -is: Tasks yes, Status, Address and Analysis no)
@@ -467,6 +533,23 @@ const check = (dir = process.cwd()) => {
         });
       }
     }
+  }
+
+  // --- credentials ----------------------------------------------------------
+  for (const key of keyFiles(dir)) {
+    if (!hasIgnore || !ignoresKeys(read('.gitignore'))) {
+      problem('error', 'credentials.ignored', `${key} is not ignored by git`, {
+        file: '.gitignore',
+        hint: 'Add a "config/credentials/*.key" line: the key opens every secret of that environment',
+      });
+    }
+  }
+
+  for (const key of trackedKeys(dir)) {
+    problem('error', 'credentials.committed', `${key} is committed`, {
+      file: key,
+      hint: `Remove it from the repository (git rm --cached ${key}), rotate the secrets it holds and write them again with henri credentials:edit`,
+    });
   }
 
   // --- agents, tests --------------------------------------------------------

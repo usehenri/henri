@@ -198,13 +198,28 @@ Seeds and migrations, in the Rails `db:` style (`henri db seed` works too). Ever
 
 The other four drive the migrations of a [Drizzle](/guides/models/#drizzle) store: `status` lists the applied and pending migrations of `db/migrations`, `generate` writes a migration from the schema changes, `migrate` applies the pending ones, and `push` makes the database match the models without a migration. `push` refuses statements that lose data and exits with `1` unless `--force` is passed. `--store=<name>` picks the store; stores on another adapter exit with `1`.
 
+## `credentials`
+
+```bash
+henri credentials:edit [--env=<name>]
+henri credentials:show [--env=<name>] [--json]
+```
+
+The encrypted secrets of an environment, in the Rails `credentials:` style (`henri credentials edit` works too). `--env` defaults to `NODE_ENV`, and to `dev` when it is unset, which is the environment henri reads its configuration file under; `--production` selects production like everywhere else.
+
+`edit` decrypts `config/credentials/<env>.json.enc` into a file only you can read, opens `EDITOR` (or `VISUAL`) on it, and encrypts what comes back. The first edit of an environment writes the key, adds it to `.gitignore` and starts the file with a fresh `secret`. The plaintext never survives the command: it is removed when the editor closes, when the editor fails, and when the process is interrupted. An editor that exits non-zero, or content that is not a JSON object, leaves the credentials as they were.
+
+`show` prints the decrypted credentials on stdout. With `--json` it prints the environment, the file and the key paths it holds — never a value, in this command and in every error message.
+
+Both exit with `1` when the key is missing or wrong, naming the file and `HENRI_CREDENTIALS_KEY`. See [Configuration](/configuration/#encrypted-credentials).
+
 ## `doctor`
 
 ```bash
 henri doctor [--json]
 ```
 
-Checks the application against the conventions without starting it: no database, no views, nothing booted. Reports the Node version, the configuration and its syntax, the secret and the `.env` holding it, the git ignore rules, the store adapter, the routes and each route's controller and action, controller and model naming, the page files a `resources` route needs, the test configuration, the declared and installed dependencies, and `AGENTS.md`. Exits with `1` when it finds an error. See [Coding agents](/guides/agents/).
+Checks the application against the conventions without starting it: no database, no views, nothing booted. Reports the Node version, the configuration and its syntax, the secret and the `.env` holding it, the git ignore rules, the credentials keys (not ignored, or already in the git index), the store adapter, the routes and each route's controller and action, controller and model naming, the page files a `resources` route needs, the test configuration, the declared and installed dependencies, and `AGENTS.md`. Exits with `1` when it finds an error. See [Coding agents](/guides/agents/).
 
 ## `mcp`
 

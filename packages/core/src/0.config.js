@@ -1,4 +1,5 @@
 const BaseModule = require('./base/module');
+const credentials = require('./base/credentials');
 const fs = require('fs');
 const path = require('path');
 const { syntax } = require('./utils');
@@ -282,8 +283,9 @@ function overrides(env) {
 /**
  * The configuration, with the environment applied over it
  *
- * Precedence, lowest first: the configuration file, the named shorthands
- * (HENRI_SECRET, HENRI_HOST, DATABASE_URL), then the generic overrides
+ * Precedence, lowest first: the configuration file, the credentials of the
+ * environment (applyCredentials), the named shorthands (HENRI_SECRET,
+ * HENRI_HOST, DATABASE_URL), then the generic overrides
  * (HENRI_CONFIG__<path>), which name the key they set and win.
  *
  * @param {object} config the parsed configuration
@@ -352,6 +354,39 @@ function withEnv(config, env = process.env) {
 }
 
 /**
+ * The configuration, with `config/credentials/<env>.json.enc` applied over it
+ *
+ * Every leaf of the decrypted object replaces the value the file has at that
+ * path, so a credentials file holding `{ "mail": { "auth": { "pass": "x" } } }`
+ * leaves the rest of `mail` alone.
+ *
+ * @param {object} config parsed configuration
+ * @param {string} cwd the application directory
+ * @param {string} env the environment
+ * @param {object} [environment=process.env] the environment variables
+ * @returns {{applied: Array<string>, config: object, source: ?string}} the
+ *   configuration, the paths the credentials provided and where the key
+ *   came from
+ * @throws {Error} when the file exists and cannot be opened
+ */
+function applyCredentials(config, cwd, env, environment = process.env) {
+  const secrets = credentials.read(cwd, env, environment);
+
+  if (!secrets) {
+    return { applied: [], config, source: null };
+  }
+
+  return {
+    applied: secrets.entries.map((entry) => entry.key),
+    config: secrets.entries.reduce(
+      (current, entry) => setPath(current, entry.key, entry.value),
+      config
+    ),
+    source: secrets.source,
+  };
+}
+
+/**
  * A value of the environment, ready to be printed
  *
  * A key `config.filterParameters` matches (`secret`, `password`, `token`
@@ -401,6 +436,7 @@ class Config extends BaseModule {
     this.reloadable = true;
     this.henri = null;
     this.fromEnv = [];
+    this.fromCredentials = [];
 
     this.get = this.get.bind(this);
     this.has = this.has.bind(this);
@@ -419,11 +455,8 @@ class Config extends BaseModule {
   async init() {
     loadDotEnv(this.henri.cwd());
 
-    const configPath = path.join(
-      this.henri.cwd(),
-      'config',
-      `${this.henri.env || 'dev'}.json`
-    );
+    const env = this.henri.env || 'dev';
+    const configPath = path.join(this.henri.cwd(), 'config', `${env}.json`);
     const defaultPath = path.join(this.henri.cwd(), 'config', 'default.json');
 
     let hasErrors = false;
@@ -444,15 +477,18 @@ class Config extends BaseModule {
     }
 
     if (loaded) {
-      // Outside the try above: a wrong environment variable is a boot
-      // failure of its own, never a reason to fall back to another file
-      const { applied, config } = applyEnv(loaded);
+      // Outside the try above: a credentials file that will not open, and a
+      // wrong environment variable, are boot failures of their own, never a
+      // reason to fall back to another file
+      const secrets = applyCredentials(loaded, this.henri.cwd(), env);
+      const { applied, config } = applyEnv(secrets.config);
 
       this.config = config;
       this.fromEnv = applied.map(({ key, variable }) => ({ key, variable }));
+      this.fromCredentials = secrets.applied;
 
       Object.freeze(this.config);
-      this.report(applied);
+      this.report(applied, secrets);
 
       return this.name;
     }
@@ -467,18 +503,29 @@ class Config extends BaseModule {
   }
 
   /**
-   * Prints the keys the environment provided, so nobody debugs a value they
-   * cannot see. Filtered parameters are masked.
+   * Prints the keys the environment and the credentials provided, so nobody
+   * debugs a value they cannot see. Filtered parameters are masked, and a
+   * credentials line is names only: every value in that file is a secret.
    *
    * @param {Array<object>} applied what applyEnv() applied
+   * @param {object} [secrets] what applyCredentials() applied
    * @returns {void}
    * @memberof Config
    */
-  report(applied) {
+  report(applied, secrets = { applied: [], source: null }) {
     const filters = filterParameters({
       get: (key) => getPath(this.config, key),
       has: (key) => hasPath(this.config, key),
     });
+
+    if (secrets.applied.length > 0) {
+      this.henri.pen.info(
+        'config',
+        'from the credentials',
+        secrets.applied.join(', '),
+        `key: ${secrets.source}`
+      );
+    }
 
     for (const entry of applied) {
       if (entry.ignored) {
@@ -560,6 +607,7 @@ module.exports = Config;
 module.exports.ALIASES = ALIASES;
 module.exports.ENV_JSON_PREFIX = ENV_JSON_PREFIX;
 module.exports.ENV_PREFIX = ENV_PREFIX;
+module.exports.applyCredentials = applyCredentials;
 module.exports.applyEnv = applyEnv;
 module.exports.loadDotEnv = loadDotEnv;
 module.exports.withEnv = withEnv;

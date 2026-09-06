@@ -51,6 +51,7 @@
     "build",
     "clean",
     "console",
+    "credentials",
     "d",
     "db",
     "destroy",

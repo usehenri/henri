@@ -12,8 +12,10 @@
 /.henri
 
 # configuration: config/default.json is committed, secrets live in .env
+# and in config/credentials/<env>.json.enc, whose key is never committed
 /config/local.json
 .env
+config/credentials/*.key
 
 # logs
 /logs/*.log

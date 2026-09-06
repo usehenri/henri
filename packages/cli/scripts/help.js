@@ -90,6 +90,63 @@ const COMMANDS = [
   },
   {
     description: [
+      'The secrets of an environment, encrypted with AES-256-GCM in',
+      'config/credentials/<env>.json.enc, which is committed. The key that',
+      'opens it is HENRI_CREDENTIALS_KEY or config/credentials/<env>.key,',
+      'which is never committed (henri new ignores it, henri doctor checks',
+      'it). On boot henri decrypts the file and applies it over the',
+      'configuration, under the environment variables: what is in there is',
+      'read with henri.config.get("mail.auth.pass").',
+      '',
+      'edit decrypts into a file only you can read, opens EDITOR (or VISUAL)',
+      'and encrypts what comes back; the plaintext is removed on every exit',
+      'path. The first edit of an environment generates the key and the file.',
+      'Neither command prints a secret with --json.',
+    ],
+    examples: [
+      {
+        command: 'henri credentials:edit',
+        description: 'Edits the credentials of the development environment',
+      },
+      {
+        command: 'henri credentials:edit --env production',
+        description: 'Creates them on the first run, with a fresh secret',
+      },
+      {
+        command: 'henri credentials:show --env production --json',
+        description: 'The key paths the file holds, without their values',
+      },
+    ],
+    flags: [
+      {
+        description:
+          'the environment (default: NODE_ENV, or dev when it is unset)',
+        flag: '--env=<name>',
+      },
+      {
+        description: 'print the environment, the file and its key paths',
+        flag: '--json',
+      },
+    ],
+    name: 'credentials',
+    summary: 'encrypted secrets, per environment',
+    targets: [
+      {
+        description: 'decrypt, open EDITOR, encrypt what comes back',
+        name: 'edit',
+      },
+      {
+        description: 'print the decrypted credentials on stdout',
+        name: 'show',
+      },
+    ],
+    usage: [
+      'henri credentials <command> [--env=<name>] [--json]',
+      'henri credentials:<command>',
+    ],
+  },
+  {
+    description: [
       'Boots the models only (no views, no workers) and drives the database.',
       'seed runs db/seeds.js on any adapter; the migration commands need the',
       'drizzle adapter and its db/migrations folder (drizzle-kit layout). In',

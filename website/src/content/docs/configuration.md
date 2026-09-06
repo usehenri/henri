@@ -117,8 +117,9 @@ On boot henri reads `.env` in the application directory (`KEY=value` lines, opti
 Lowest first, one story for every variable:
 
 1. the configuration file: `config/<NODE_ENV>.json`, or `config/default.json` when it does not exist (the two are never merged);
-2. the named shorthands, in the table below;
-3. `HENRI_CONFIG__<key>`, which names the key it sets and wins over everything.
+2. the [encrypted credentials](#encrypted-credentials) of that environment, when the application has some;
+3. the named shorthands, in the table below;
+4. `HENRI_CONFIG__<key>`, which names the key it sets and wins over everything.
 
 Nothing is applied twice and nothing is merged into a value: the last writer of a key replaces it.
 
@@ -166,6 +167,45 @@ config ✏ from the environment => port = 8080 => HENRI_CONFIG__port
 ```
 
 A key whose name matches `filterParameters` (`password`, `token`, `secret`, `authorization` by default) is masked, and so is the password of a connection string, which no filter list would ever name. `henri.config.fromEnv` holds the same list as `{ key, variable }` pairs — the paths and the variable names, never the values.
+
+## Encrypted credentials
+
+Rails' `credentials:edit`, in henri. `config/credentials/<env>.json.enc` holds the secrets of one environment, encrypted, and is **committed with the application**; the key that opens it never is. A deployment then carries one secret instead of twenty, and adding a secret to staging is a commit rather than a round of environment variables.
+
+```bash
+henri credentials:edit                     # the development environment
+henri credentials:edit --env production    # creates the key and the file
+henri credentials:show --env production --json   # the key paths, no values
+```
+
+`edit` decrypts into a file only you can read, opens `EDITOR` (or `VISUAL`) on it, and encrypts what comes back when the editor closes. The plaintext is removed on every exit path, including an editor that fails and an interrupted process, and what you save must be a JSON object or the credentials are left as they were.
+
+**JSON, not YAML.** henri's configuration is JSON, and the decrypted object is applied over it key by key, so the two files are written the same way and henri needs no parser it does not already have.
+
+```json
+{
+  "secret": "a4f1...",
+  "mail": { "auth": { "user": "postmaster@example.com", "pass": "..." } }
+}
+```
+
+**The key** is `HENRI_CREDENTIALS_KEY`, or `config/credentials/<env>.key` (64 hexadecimal characters, what `openssl rand -hex 32` prints). The variable wins. `henri new` ignores `config/credentials/*.key` from the first commit, `henri credentials:edit` adds the line when it generates a key, and `henri doctor` reports a key that is not ignored or that reached the git index. When the file exists and no key can be found, the boot stops with `config/credentials/production.json.enc needs a key: set HENRI_CREDENTIALS_KEY, or put it back in config/credentials/production.key` — never a silent boot without secrets.
+
+**The cipher is AES-256-GCM**, from node's own crypto. The envelope is one line, `henri:v1:<iv>:<tag>:<ciphertext>`, all base64, and the environment name is authenticated along with the content: a modified file, a wrong key, and a `production.json.enc` renamed to `staging.json.enc` all fail loudly instead of decrypting to nonsense. No error message quotes the file, the key or a decrypted value.
+
+**Where it sits in the precedence**: over the configuration file, under the environment. The credentials are committed with the application, like the configuration files, and the environment is the deployment, so a container can still override with `DATABASE_URL` or `HENRI_CONFIG__<key>`. Each leaf of the decrypted object replaces that one key, so `{ "mail": { "auth": { "pass": "x" } } }` leaves the rest of `mail` alone, and the values are then read like any other configuration:
+
+```js
+henri.config.get('mail.auth.pass');
+```
+
+The boot prints the paths the credentials provided and where the key came from — the names only, since every value in that file is a secret:
+
+```
+config ✏ from the credentials => secret, mail.auth.pass => key: HENRI_CREDENTIALS_KEY
+```
+
+`henri.config.fromCredentials` holds the same paths.
 
 ## The `user` object
 
