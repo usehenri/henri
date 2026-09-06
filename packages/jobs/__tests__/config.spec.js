@@ -155,6 +155,74 @@ describe('starting', () => {
   });
 });
 
+describe('the claim statement', () => {
+  const { SqlStore } = require('../src/store/sql');
+  const tables = { jobs: 'henri_jobs', schedules: 'henri_jobs_schedules' };
+
+  /**
+   * The claim of a dialect, as it is sent to the database
+   *
+   * @param {string} dialect sqlite, postgres, mysql or mssql
+   * @returns {object} `{ sql, params }`
+   */
+  const claim = (dialect) => {
+    const store = new SqlStore(
+      { query: () => null },
+      { dialect, dollars: dialect === 'postgres', tables }
+    );
+    const built = store.claimStatement({
+      limit: 5,
+      now: 1000,
+      queues: ['default', 'mailers'],
+      runner: 'runner-1',
+      token: 'a-token',
+    });
+
+    return { params: built.params, sql: store.prepare(built.sql) };
+  };
+
+  // MSSQL is the one dialect no server in CI exercises: the statement is
+  // snapshotted so a change to it is at least visible in review
+  test.each(['sqlite', 'postgres', 'mysql', 'mssql'])(
+    'claims with one statement on %s',
+    (dialect) => {
+      expect(claim(dialect)).toMatchSnapshot();
+    }
+  );
+
+  test('every dialect counts the attempt and stamps the token', () => {
+    for (const dialect of ['sqlite', 'postgres', 'mysql', 'mssql']) {
+      const { params, sql } = claim(dialect);
+
+      expect(sql).toContain('attempts = attempts + 1');
+      expect(sql).toContain(`state = 'running'`);
+      expect(sql).toContain(`state = 'pending'`);
+      // The claim is one statement, so it is its own transaction
+      expect(sql.split(';')).toHaveLength(1);
+      expect(params).toContain('a-token');
+      expect(params).toContain('runner-1');
+      expect(params).toContain(5);
+    }
+  });
+
+  test('leaves the queue filter out when no queue was named', () => {
+    const store = new SqlStore(
+      { query: () => null },
+      { dialect: 'postgres', dollars: true, tables }
+    );
+    const { sql } = store.claimStatement({
+      limit: 1,
+      now: 1,
+      queues: [],
+      runner: 'r',
+      token: 't',
+    });
+
+    expect(sql).not.toContain('queue IN');
+    expect(sql).toContain('FOR UPDATE SKIP LOCKED');
+  });
+});
+
 describe('the schema', () => {
   const tables = { jobs: 'henri_jobs', schedules: 'henri_jobs_schedules' };
 

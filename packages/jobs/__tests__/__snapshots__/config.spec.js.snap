@@ -1,5 +1,77 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`the claim statement > claims with one statement on mssql 1`] = `
+{
+  "params": [
+    "runner-1",
+    "a-token",
+    1000,
+    1000,
+    1000,
+    1000,
+    5,
+    1000,
+    "default",
+    "mailers",
+  ],
+  "sql": "UPDATE henri_jobs SET state = 'running', attempts = attempts + 1, claimed_by = ?, claim_token = ?, claimed_at = ?, heartbeat_at = ?, started_at = ?, updated_at = ? WHERE id IN (SELECT TOP (?) id FROM henri_jobs WITH (UPDLOCK, READPAST) WHERE state = 'pending' AND run_at <= ? AND queue IN (?, ?) ORDER BY priority ASC, run_at ASC, id ASC)",
+}
+`;
+
+exports[`the claim statement > claims with one statement on mysql 1`] = `
+{
+  "params": [
+    "runner-1",
+    "a-token",
+    1000,
+    1000,
+    1000,
+    1000,
+    1000,
+    "default",
+    "mailers",
+    5,
+  ],
+  "sql": "UPDATE henri_jobs SET state = 'running', attempts = attempts + 1, claimed_by = ?, claim_token = ?, claimed_at = ?, heartbeat_at = ?, started_at = ?, updated_at = ? WHERE state = 'pending' AND run_at <= ? AND queue IN (?, ?) ORDER BY priority ASC, run_at ASC, id ASC LIMIT ?",
+}
+`;
+
+exports[`the claim statement > claims with one statement on postgres 1`] = `
+{
+  "params": [
+    "runner-1",
+    "a-token",
+    1000,
+    1000,
+    1000,
+    1000,
+    1000,
+    "default",
+    "mailers",
+    5,
+  ],
+  "sql": "UPDATE henri_jobs SET state = 'running', attempts = attempts + 1, claimed_by = $1, claim_token = $2, claimed_at = $3, heartbeat_at = $4, started_at = $5, updated_at = $6 WHERE id IN (SELECT id FROM henri_jobs WHERE state = 'pending' AND run_at <= $7 AND queue IN ($8, $9) ORDER BY priority ASC, run_at ASC, id ASC LIMIT $10 FOR UPDATE SKIP LOCKED)",
+}
+`;
+
+exports[`the claim statement > claims with one statement on sqlite 1`] = `
+{
+  "params": [
+    "runner-1",
+    "a-token",
+    1000,
+    1000,
+    1000,
+    1000,
+    1000,
+    "default",
+    "mailers",
+    5,
+  ],
+  "sql": "UPDATE henri_jobs SET state = 'running', attempts = attempts + 1, claimed_by = ?, claim_token = ?, claimed_at = ?, heartbeat_at = ?, started_at = ?, updated_at = ? WHERE id IN (SELECT id FROM henri_jobs WHERE state = 'pending' AND run_at <= ? AND queue IN (?, ?) ORDER BY priority ASC, run_at ASC, id ASC LIMIT ?)",
+}
+`;
+
 exports[`the schema > writes the DDL of mssql 1`] = `
 "IF OBJECT_ID('henri_jobs', 'U') IS NULL CREATE TABLE [henri_jobs] (
   id VARCHAR(36) NOT NULL,
