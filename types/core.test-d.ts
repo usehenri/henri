@@ -25,6 +25,7 @@ import type {
   Request,
   Response,
   RoutesFile,
+  SharedStore,
   StoredFile,
   UploadedFile,
   ViewOptions,
@@ -499,14 +500,43 @@ const badStore: Configuration = {
   stores: { default: { adapter: 'sqlite' } },
 };
 
+// The shared store: one backend for the rate limit, the lockout and the keys
+const sharedConfig: Configuration = {
+  shared: {
+    adapter: 'redis',
+    url: 'redis://127.0.0.1:6379',
+    prefix: 'lineup:',
+    onError: 'open',
+    // Anything else reaches the driver
+    database: 3,
+  },
+};
+
+expectType<Configuration>(sharedConfig);
+expectType<SharedStore | null>(henri.shared);
+expectType<SharedStore | null>(henri.api.shared);
+
+const badShared: Configuration = {
+  // @ts-expect-error a failure policy is `closed` or `open`, nothing else
+  shared: { adapter: 'redis', onError: 'maybe' },
+};
+
+const namelessShared: Configuration = {
+  // @ts-expect-error a shared store must name its adapter
+  shared: { url: 'redis://127.0.0.1:6379' },
+};
+
 export {
   badConfig,
   badFlow,
   badPolicies,
   badPolicyRoute,
+  badShared,
+  namelessShared,
   policiesConfig,
   policyRoutes,
   proposalPolicy,
+  sharedConfig,
   badShutdown,
   badModule,
   noInit,

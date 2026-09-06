@@ -159,6 +159,48 @@ jobs:
           NODE_ENV: test
           HENRI_TEST_MYSQL_URL: mysql://root:henri@127.0.0.1:3306/henri_test
 
+  # `config.shared`: the rate limit, the sign-in lockout and the idempotency
+  # keys counted in Redis instead of one process. Offline the suite skips, so
+  # this job is what actually exercises @usehenri/redis.
+  redis:
+    name: Live Redis
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          # The shared store suites never boot MongoDB
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      # Without the variable the live half of the suite skips
+      - run: pnpm test:redis
+        env:
+          NODE_ENV: test
+
   # The showcase application (showcase/) runs against a real PostgreSQL, so
   # its suite is not part of `pnpm test`. This job runs it, and builds the
   # production views the way a deployment would.

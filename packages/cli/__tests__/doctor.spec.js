@@ -7,6 +7,8 @@ const {
   definesGraphql,
   ignores,
   looksPlural,
+  packageForShared,
+  reach,
 } = require('../scripts/doctor');
 const { cleanup, henri, scaffold } = require('./helpers');
 
@@ -55,6 +57,15 @@ describe('doctor helpers', () => {
     expect(definesAction(source, 'show')).toBe(true);
     expect(definesAction(source, 'update')).toBe(true);
     expect(definesAction(source, 'destroy')).toBe(false);
+  });
+
+  test('names the package config.shared needs installed', () => {
+    expect(packageForShared({ adapter: 'redis' })).toBe('@usehenri/redis');
+    expect(packageForShared({ adapter: 'redis', enabled: false })).toBeNull();
+    // A path or a module id of its own is the application's business
+    expect(packageForShared({ adapter: './lib/backend' })).toBeNull();
+    expect(packageForShared({ adapter: '@acme/shared' })).toBeNull();
+    expect(packageForShared(undefined)).toBeNull();
   });
 
   test('finds a graphql key in a model source', () => {
@@ -320,6 +331,104 @@ describe('henri doctor', () => {
     );
 
     expect(run(app).names).not.toContain('deps.declared');
+  });
+
+  // `config.shared` names the backend the rate limit, the sign-in lockout
+  // and the idempotency keys count in, the way a store names its adapter
+  test('asks for @usehenri/redis when config.shared names it', () => {
+    const file = path.join(app, 'config/default.json');
+    const original = fs.readFileSync(file, 'utf8');
+    const config = JSON.parse(original);
+
+    config.shared = { adapter: 'redis', url: 'redis://127.0.0.1:6399' };
+    fs.writeFileSync(file, JSON.stringify(config, null, 2));
+
+    const { problems } = run(app);
+
+    fs.writeFileSync(file, original);
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.declared',
+        hint: expect.stringContaining('@usehenri/redis'),
+        level: 'error',
+      })
+    );
+
+    expect(run(app).names).not.toContain('deps.declared');
+  });
+
+  // The one check that opens a connection: an application that says its
+  // counters live somewhere else gets told when that somewhere is not there
+  test('reports a shared store that does not answer', async () => {
+    const file = path.join(app, 'config/default.json');
+    const original = fs.readFileSync(file, 'utf8');
+    const config = JSON.parse(original);
+    const backend = path.join(app, 'lib');
+
+    fs.mkdirSync(backend, { recursive: true });
+    fs.writeFileSync(
+      path.join(backend, 'shared.js'),
+      `module.exports = class Down {
+        async start() { throw new Error('connection refused'); }
+        async ping() { return true; }
+        async stop() { return true; }
+        rateLimitStore() { return {}; }
+        keyValueStore() { return {}; }
+      };\n`
+    );
+
+    config.shared = { adapter: './lib/shared' };
+    fs.writeFileSync(file, JSON.stringify(config, null, 2));
+
+    const down = await reach(app, { problems: [], summary: { warnings: 0 } });
+
+    expect(down.problems).toContainEqual(
+      expect.objectContaining({
+        check: 'shared.unreachable',
+        level: 'warning',
+        message: expect.stringContaining('connection refused'),
+      })
+    );
+    expect(down.summary.warnings).toBe(1);
+
+    // A backend that answers is silent
+    fs.writeFileSync(
+      path.join(backend, 'shared.js'),
+      `module.exports = class Up {
+        async start() { return true; }
+        async ping() { return true; }
+        async stop() { return true; }
+        rateLimitStore() { return {}; }
+        keyValueStore() { return {}; }
+      };\n`
+    );
+
+    const fresh = { problems: [], summary: { warnings: 0 } };
+
+    // Node caches a required module, so the second one needs its own file
+    fs.writeFileSync(
+      path.join(backend, 'up.js'),
+      fs.readFileSync(path.join(backend, 'shared.js'), 'utf8')
+    );
+    config.shared = { adapter: './lib/up' };
+    fs.writeFileSync(file, JSON.stringify(config, null, 2));
+
+    await reach(app, fresh);
+
+    expect(fresh.problems).toEqual([]);
+
+    // An adapter that is not installed is `deps.declared`, not this
+    config.shared = { adapter: 'nowhere' };
+    fs.writeFileSync(file, JSON.stringify(config, null, 2));
+
+    const absent = { problems: [], summary: { warnings: 0 } };
+
+    await reach(app, absent);
+    fs.writeFileSync(file, original);
+    fs.rmSync(backend, { force: true, recursive: true });
+
+    expect(absent.problems).toEqual([]);
   });
 
   test('reports .env not ignored, and a missing .env as a warning', () => {

@@ -436,8 +436,38 @@ declare namespace start {
           /** Overrides the list of guarded paths. */
           paths?: string[];
         };
-    /** Module exporting an express-rate-limit store, or a factory. */
+    /**
+     * Module exporting an express-rate-limit store, or a factory. Without
+     * one the limiter counts in `config.shared`, and without that in this
+     * process only.
+     */
     store?: string | null;
+  }
+
+  /**
+   * `config.shared`: the backend the rate limit, the sign-in lockout and the
+   * idempotency keys count in, so two processes share one set of counters.
+   * Anything beyond these keys reaches the driver.
+   */
+  interface SharedConfig {
+    /**
+     * An adapter name (`"redis"` resolves `@usehenri/redis` from the
+     * application), or the module id of a backend of your own.
+     */
+    adapter: string;
+    /** `false` keeps the block and counts in this process again (`true`). */
+    enabled?: boolean;
+    /** Connection string (`redis://`, `rediss://`). */
+    url?: string;
+    /** Key prefix (`"henri:"`); one per application on a shared server. */
+    prefix?: string;
+    /**
+     * What a request does when the backend does not answer: `"closed"`
+     * (the default) refuses it with a 503 and a `Retry-After`, `"open"`
+     * serves it uncounted. The idempotency keys are always closed.
+     */
+    onError?: 'closed' | 'open';
+    [key: string]: unknown;
   }
 
   /** `config.inertia`: the options of the Inertia renderer. */
@@ -577,6 +607,7 @@ declare namespace start {
     api?: ApiConfig;
     jobs?: JobsConfig;
     rateLimit?: boolean | RateLimitConfig;
+    shared?: SharedConfig;
     /** Options merged over henri's helmet defaults; `false` disables it. */
     helmet?: false | Record<string, unknown>;
     /** Parameter names masked in the logs; `false` masks nothing. */
@@ -1891,7 +1922,40 @@ declare namespace start {
     idempotencyStore: unknown;
     rateLimitStore(name: string): unknown;
     limiters: unknown[];
-    stop(): void;
+    /** The same object as `henri.shared`, `null` without `config.shared`. */
+    shared: SharedStore | null;
+    stop(): Promise<void>;
+  }
+
+  /**
+   * `henri.shared`: the backend `config.shared` names, and the one place the
+   * failure policy of the three counters lives. `null` when the application
+   * names none, which means every counter is kept in this process.
+   */
+  interface SharedStore {
+    /** The adapter name (`"redis"`). */
+    name: string;
+    /** `"closed"` or `"open"`, from `config.shared.onError`. */
+    onError: 'closed' | 'open';
+    /** Whether the last call reached the backend. */
+    healthy: boolean;
+    /** What it is talking to, with the password taken out. */
+    describe(): string;
+    /** Opens the connection; `false` when the backend did not answer. */
+    start(): Promise<boolean>;
+    /** Closes it, and every store handed out. */
+    stop(): Promise<boolean>;
+    /** Whether the backend answers (`GET /readyz`, `henri doctor`). */
+    ping(): Promise<boolean>;
+    /** An express-rate-limit store, with the failure policy applied. */
+    rateLimitStore(feature: string): unknown;
+    /** A `{ get, set, add, delete }` store, always fail-closed. */
+    keyValueStore(feature: string): {
+      get(key: string): Promise<unknown>;
+      set(key: string, value: unknown, ttl: number): Promise<void>;
+      add(key: string, value: unknown, ttl: number): Promise<boolean>;
+      delete(key: string): Promise<void>;
+    };
   }
 
   /** `henri.utils`. */
@@ -1944,6 +2008,12 @@ declare namespace start {
     uploads?: UploadsModule;
     workers: WorkersModule;
     api: ApiNamespace;
+    /**
+     * The backend `config.shared` names, which the rate limit, the sign-in
+     * lockout and the idempotency keys count in. `null` without one: every
+     * counter is then kept in this process.
+     */
+    shared: SharedStore | null;
     /** Registration, the password reset and the address confirmation. */
     accounts: AccountsService;
     /** The passport instance (also `henri.user.passport`). */

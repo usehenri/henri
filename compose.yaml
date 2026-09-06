@@ -5,6 +5,7 @@
 #   pnpm db:up             start them and wait until they answer
 #   pnpm test:sql:live     the SQL suites against postgres, then against mysql
 #   pnpm test:sql:postgres one of the two on its own
+#   pnpm test:redis        the shared store suite against the redis below
 #   pnpm db:down           stop them, keeping the data
 #   pnpm db:reset          stop them and delete the data
 #
@@ -62,6 +63,20 @@ services:
     healthcheck:
       test:
         ['CMD-SHELL', 'mongosh --quiet --eval "db.adminCommand({ ping: 1 })"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # The shared store of `config.shared`: where the rate limit, the sign-in
+  # lockout and the idempotency keys are counted when an application runs
+  # more than one process. `@usehenri/redis` talks to it, and its suites run
+  # against this one with HENRI_TEST_REDIS_URL (offline, they skip).
+  redis:
+    image: redis:8
+    ports:
+      - '${HENRI_REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli ping | grep -q PONG']
       interval: 5s
       timeout: 5s
       retries: 20

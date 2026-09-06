@@ -34,9 +34,14 @@
  * {
  *   "status": "ok",
  *   "stores": { "default": { "adapter": "disk", "ok": true, "latency": 2 } },
+ *   "shared": { "adapter": "redis", "ok": true, "latency": 1 },
  *   "uptime": 42
  * }
  * ```
+ *
+ * `shared` is only there when `config.shared` names a shared store
+ * (`base/shared.js`); a process whose counters cannot be counted is not
+ * ready either.
  *
  * All three are mounted before the sessions and the limiters, never cached
  * and unauthenticated, on purpose -- a load balancer has no credentials. The
@@ -157,6 +162,46 @@ async function ping(henri, timeout) {
 }
 
 /**
+ * Ping the shared store (`config.shared`), when there is one.
+ *
+ * It belongs in readiness rather than beside the databases: with the default
+ * `onError: "closed"` a process whose shared store is down refuses every
+ * guarded request, which is exactly "do not send me traffic", and with
+ * `"open"` it is still worth taking out of the pool while the counters are
+ * not being counted.
+ *
+ * @param {Henri} henri the henri instance
+ * @param {number} timeout how long it may take (ms)
+ * @returns {Promise<?object>} what it answered, null without a shared store
+ */
+async function pingShared(henri, timeout) {
+  const shared = henri.shared || null;
+
+  if (!shared) {
+    return null;
+  }
+
+  const started = Date.now();
+
+  try {
+    await withTimeout(
+      Promise.resolve().then(() => shared.ping()),
+      timeout
+    );
+
+    return { adapter: shared.name, latency: Date.now() - started, ok: true };
+  } catch (error) {
+    henri.pen.error('health', 'shared', error.message);
+
+    return {
+      adapter: shared.name,
+      error: error.timeout ? TIMEOUT : UNREACHABLE,
+      ok: false,
+    };
+  }
+}
+
+/**
  * What every one of these endpoints answers, before its own keys
  *
  * @param {Henri} henri the henri instance
@@ -216,16 +261,26 @@ function ready(henri, { timeout = 2000 } = {}) {
       );
     }
 
-    const { checks, ok } = await ping(henri, timeout);
+    const [{ checks, ok }, shared] = await Promise.all([
+      ping(henri, timeout),
+      pingShared(henri, timeout),
+    ]);
 
     answer.stores = checks;
+
+    if (shared) {
+      answer.shared = shared;
+    }
 
     if (!ok) {
       answer.reason = 'a store did not answer';
       answer.status = 'unavailable';
+    } else if (shared && !shared.ok) {
+      answer.reason = 'the shared store did not answer';
+      answer.status = 'unavailable';
     }
 
-    return res.status(ok ? 200 : 503).json(answer);
+    return res.status(answer.status === 'ok' ? 200 : 503).json(answer);
   };
 }
 
@@ -236,5 +291,6 @@ module.exports.PATH = PATH;
 module.exports.READY_PATH = READY_PATH;
 module.exports.live = live;
 module.exports.phase = phase;
+module.exports.pingShared = pingShared;
 module.exports.ready = ready;
 module.exports.withTimeout = withTimeout;

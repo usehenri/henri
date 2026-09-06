@@ -90,9 +90,18 @@ henri could do and does not yet:
   cap what one query may cost, not who may ask it, and what a resolver is
   allowed to return is your access control. `henri audit` says so when it sees
   a model exporting a schema.
-- **The rate limit, lockout and idempotency stores are in the process memory**
-  unless `rateLimit.store`, `user.lockout.store` and `api.idempotency.store`
-  name a shared one. Two processes mean two sets of counters.
+- **Naming where the counters live is still yours to do.** The rate limit,
+  the sign-in lockout and the idempotency keys are counted in this process
+  unless [`config.shared`](/configuration/#the-shared-object) names a backend
+  for all three at once (`pnpm add @usehenri/redis`), and henri cannot know
+  how many processes you run. It says which it is on every boot -- `counted
+in redis (fail closed)` or `counted in this process` -- and warns outright
+  when the environment says there is more than one process (a cluster
+  worker, a numbered pm2 instance, `WEB_CONCURRENCY`, a dyno past the first)
+  and nothing shared is configured. Two processes without it mean two sets of
+  counters: a rate limit that is twice what it says, a lockout an attacker
+  escapes by being routed elsewhere, and an idempotency key that stops being
+  idempotent.
 - **`filterParameters` masks the logs, and only the logs.** A model field, a
   mail body and the arguments of a background job are stored and printed as
   they are.

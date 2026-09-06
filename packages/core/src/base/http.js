@@ -147,6 +147,12 @@ function errorHandler(henri) {
       return next(err);
     }
 
+    // A guard that could not reach its store (base/shared.js) asks for a
+    // retry rather than pretending the request failed
+    if (status === 503 && Number(err.retryAfter) > 0) {
+      res.set('Retry-After', String(Math.ceil(err.retryAfter)));
+    }
+
     // 4xx errors carry a message meant for the client (body parser, boom...)
     const exposed = status < 500 || henri.isDev || henri.isTest;
     const message = exposed ? err.message : reason(status);

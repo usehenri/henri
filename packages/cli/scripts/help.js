@@ -456,10 +456,15 @@ const COMMANDS = [
           'print { ok, problems: [{ level, check, file, message, hint }] }',
         flag: '--json',
       },
+      {
+        description:
+          'skip the one check that opens a connection: whether the shared store of config.shared answers',
+        flag: '--no-reach',
+      },
     ],
     name: 'doctor',
     summary: 'check the application against the henri conventions',
-    usage: ['henri doctor [--json]'],
+    usage: ['henri doctor [--json] [--no-reach]'],
   },
   {
     aliases: ['g'],

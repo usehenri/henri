@@ -23,6 +23,7 @@
       "@usehenri/mysql",
       "@usehenri/postgresql",
       "@usehenri/react",
+      "@usehenri/redis",
       "@usehenri/sequelize",
       "@usehenri/testing",
       "@usehenri/uploads"

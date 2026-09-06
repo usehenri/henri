@@ -174,6 +174,12 @@ describe('the configuration schema', () => {
       renderer: 'vue',
       requestTimeout: false,
       secret: 'a-secret',
+      shared: {
+        adapter: 'redis',
+        onError: 'open',
+        prefix: 'lineup:',
+        url: 'redis://127.0.0.1:6379',
+      },
       shutdown: { delay: 5000, drain: 20000, signals: false },
       stores: {
         default: {
@@ -391,6 +397,7 @@ describe('the schema, the declarations and the documentation', () => {
     ['ApiConfig', () => Object.keys(SCHEMA.api.keys)],
     ['PoliciesConfig', () => Object.keys(SCHEMA.policies.keys)],
     ['RateLimitConfig', rateLimitKeys],
+    ['SharedConfig', () => Object.keys(SCHEMA.shared.keys)],
     ['ShutdownConfig', () => Object.keys(SCHEMA.shutdown.keys)],
     ['UploadsConfig', uploadsKeys],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
