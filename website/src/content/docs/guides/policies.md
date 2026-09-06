@@ -218,8 +218,9 @@ const proposals = await Proposal.where(await req.scope('proposal'));
 **henri never looks inside that value.** It is a `where` for the ORM you
 chose, not something henri builds a query from — which is what keeps this a
 seam rather than a half-written query builder. A policy with no `scope` throws
-rather than quietly meaning "everything", because "everything they may see"
-has no safe default.
+`HENRI_POLICY_SCOPE_REQUIRED` rather than quietly meaning "everything",
+because "everything they may see" has no safe default; `scope: () => ({})` is
+how a policy says everything on purpose.
 
 ## `before`, and the shape of a rule
 

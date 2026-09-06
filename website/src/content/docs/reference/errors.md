@@ -30,6 +30,11 @@ catalogue does not hold, or holds one nothing raises.
   branches on (see [the CLI reference](/reference/cli/#exit-codes)).
 - **`henri mcp`.** A failed tool call answers `{ "error": { "code", "message", "hint" } }`.
 
+In the last two the `hint` is what to do next, and when the failure carries
+none of its own it is the **fix** of that code's entry below -- so the
+instruction written down here is the one a person reads in their terminal and
+an agent reads in its tool result, rather than a page they have to find.
+
 ## Linking a code to a page
 
 henri ships no address. Set `errors.url` to a template holding `{code}` and
@@ -225,8 +230,8 @@ Usually:
 
 - `graphql` is neither `true` nor an object
 - `graphql` holds a key henri does not know (`generate`, `name`, `queries`, `mutations`, `filters`, `except`, `types`, `resolvers`)
-- `graphql.mutations` names something other than `create`, `update` or `destroy`
-- the model's name is not a GraphQL type name and `graphql.name` does not give one
+- the `graphql` of a model names a mutation other than `create`, `update` or `destroy`
+- the model's name is not a GraphQL type name and the `name` of its `graphql` does not give one
 - `graphql` is an object that neither generates a definition nor writes one
 
 **Fix.** `graphql: true` derives the type, the queries and the resolvers from the schema; an object takes `generate`, `name`, `queries`, `mutations`, `filters`, `except`, `types` and `resolvers`. `henri graphql` prints what a model would generate.
@@ -267,6 +272,40 @@ Usually:
 
 **Fix.** Send the `externalId` of the row the reference names -- the identifier henri publishes it as. A primary key does not name a row from outside (see `base/references.js`).
 
+### `HENRI_API_IDEMPOTENCY_IN_PROGRESS`
+
+A request reused an idempotency key that another request is still holding.
+
+Usually:
+
+- a second request sent the same `Idempotency-Key` while the first one is still running
+- a client that retried before the first answer came back
+- a first request that is still holding the key because it never finished
+
+**Fix.** Wait and send the same request again: the `Retry-After` header says how long. The answer of the first request is replayed once it lands, so nothing has to be sent twice.
+
+### `HENRI_API_IDEMPOTENCY_KEY_INVALID`
+
+The `Idempotency-Key` header is not shaped like a key.
+
+Usually:
+
+- an `Idempotency-Key` header longer than 255 characters
+- a key holding something other than printable ascii, or nothing at all
+
+**Fix.** Send 1 to 255 printable ascii characters -- a uuid is the usual choice -- or leave the header off, which is what makes a request ordinary again.
+
+### `HENRI_API_IDEMPOTENCY_KEY_REUSED`
+
+An idempotency key was reused for a request that is not the one it was first sent with.
+
+Usually:
+
+- the same `Idempotency-Key` sent with another method, another url or another body
+- a key generated once and reused for the next request rather than for the retry of that one
+
+**Fix.** Generate a key per request and reuse it only to retry that one. Sending the first body again replays the first answer; sending a different one is refused rather than executed twice.
+
 ### `HENRI_API_INVALID_COLLECTION`
 
 res.collection() was called with something it cannot turn into a HAL collection.
@@ -288,6 +327,17 @@ Usually:
 - it was called outside a route and no `type` was passed
 
 **Fix.** Pass one record (a model instance or a plain object) and use `res.collection()` for lists; outside a `resources` route name the type: `res.resource(record, { type: 'tasks' })`.
+
+### `HENRI_API_RATE_LIMITED`
+
+A client sent more requests than the rate limit allows.
+
+Usually:
+
+- more requests from one client than `rateLimit.max` allows in `rateLimit.windowMs`
+- the tighter limit the login and account paths get
+
+**Fix.** Wait the number of seconds the `Retry-After` header carries and send it again. `rateLimit` is where the window and the ceiling are set, and `config.shared` is what makes the counting the same across processes.
 
 ## argument
 
@@ -727,7 +777,7 @@ Usually:
 - a truncated key
 - a key with a stray newline or quotes
 
-**Fix.** A credentials key is 64 hexadecimal characters, which is what `henri credentials:init` writes. Copy the whole of it.
+**Fix.** A credentials key is 64 hexadecimal characters, which is what `henri credentials:edit` writes into config/credentials/<env>.key the first time it runs. Copy the whole of it.
 
 ### `HENRI_CONFIG_CREDENTIALS_KEY_MISSING`
 
@@ -1499,6 +1549,21 @@ Usually:
 
 **Fix.** The 422 answer carries one message per field in `data.errors`, the shape `henri.model.errors()` normalizes to. Send what the action declared, or change the declaration.
 
+## policy
+
+The record level authorization of `app/policies`: the rules, and the scope a list is filtered by.
+
+### `HENRI_POLICY_SCOPE_REQUIRED`
+
+A list was asked to be scoped by a policy that declares no scope.
+
+Usually:
+
+- `app/policies/<model>.js` declares no `scope(user)` and something asked for one
+- a list was scoped by a policy written before the query seam existed
+
+**Fix.** Add `scope(user)` to `app/policies/<model>.js`: it answers the condition the list is filtered by, and `scope: () => ({})` is how a policy says "everything". henri hands the value back untouched and guesses nothing, which is why a missing one is refused rather than read as no filter at all.
+
 ## privacy
 
 The personal data marked in the models, the export of one person and the erasure of them.
@@ -1705,6 +1770,17 @@ Usually:
 - the adapter's session store failed to build its table
 
 **Fix.** Point the sessions at a store whose adapter has one (mongoose, disk, or a SQL store). Without one, sessions fall back to an in-memory store that is lost on every restart.
+
+### `HENRI_STORE_SHARED_UNAVAILABLE`
+
+A guarded request could not be counted: the shared store did not answer.
+
+Usually:
+
+- the backend of `config.shared` is down, or unreachable from this process
+- the connection was refused, or the call timed out
+
+**Fix.** Bring the backend of `config.shared` back, and read the boot line of the rate limit, which says where the counting happens. `shared.onError: "open"` serves a request the backend cannot count rather than refusing it; the idempotency keys are always refused, because serving one uncounted is executing it twice.
 
 ### `HENRI_STORE_START_FAILED`
 
@@ -1940,6 +2016,29 @@ Usually:
 ## user
 
 The user module: sessions, passwords, tokens and the CSRF protection.
+
+### `HENRI_USER_CSRF_INVALID`
+
+An unsafe request carried a session cookie and no matching CSRF token.
+
+Usually:
+
+- a form posted without the `_csrf` field, or a request without the `X-CSRF-Token` header
+- the `henri.csrf` cookie was cleared, or never read back
+- a page cached long enough for its token to be replaced
+
+**Fix.** Send the `henri.csrf` cookie back in the `X-CSRF-Token` header or in the `_csrf` field of the body. A view reads it as `req._henri.csrf`, and the form components of the renderers write it themselves. An API client sending a bearer token and no session cookie is never asked for one.
+
+### `HENRI_USER_CSRF_ORIGIN_REFUSED`
+
+An unsafe request came from an origin this application does not recognize.
+
+Usually:
+
+- a POST, PUT, PATCH or DELETE whose `Origin` is not this application
+- `Sec-Fetch-Site` saying the request came from somewhere else, a sibling subdomain included
+
+**Fix.** Post from this application. Another origin that is meant to post here goes in `csrf.trustedOrigins`; `csrf.origin: false` drops the check for everyone, which leaves the token alone against a sibling subdomain.
 
 ### `HENRI_USER_PASSWORD_MISMATCH`
 

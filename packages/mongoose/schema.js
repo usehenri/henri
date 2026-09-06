@@ -73,7 +73,10 @@ const normalizeField = (
   const wrong = checkSettings(name, definition);
 
   if (wrong) {
-    throw coded('HENRI_MODEL_INVALID_FIELD', `Field '${field}' ${wrong}`);
+    throw coded(
+      'HENRI_MODEL_INVALID_FIELD',
+      `Field '${field}' of ${(context && context.model) || 'the model'} ${wrong}`
+    );
   }
 
   // A `decimal` is padded to its scale on the way in and read back as a

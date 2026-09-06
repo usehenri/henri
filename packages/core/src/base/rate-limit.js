@@ -94,11 +94,17 @@ function limiter(henri, options = {}) {
         windowMs
       );
 
-      return res.boom.tooManyRequests('Too many requests, retry later', {
-        limit: settings.limit,
-        retryAfter: seconds,
-        windowMs,
-      });
+      return res.boom.tooManyRequests(
+        `Too many requests: wait ${seconds} second${
+          seconds === 1 ? '' : 's'
+        } and send it again -- the Retry-After header carries the same number`,
+        {
+          limit: settings.limit,
+          retryAfter: seconds,
+          windowMs,
+        },
+        'HENRI_API_RATE_LIMITED'
+      );
     },
     keyGenerator: (req) => keyFor(req),
     legacyHeaders: false,

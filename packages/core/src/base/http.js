@@ -110,9 +110,14 @@ function negotiate(
  */
 function notFound(henri) {
   return (req, res) => {
+    // Outside production the answer says where the route table is, since
+    // "nothing claimed this url" and "the route points somewhere else" look
+    // the same from here; production says only that there is nothing
     const message = henri.isProduction
       ? 'Not Found'
-      : `Cannot ${req.method} ${req.originalUrl || req.url}`;
+      : `Cannot ${req.method} ${req.originalUrl || req.url} -- ` +
+        'no route claims it. `henri routes` prints the table, and ' +
+        'config/routes.js is where a route is added.';
 
     return negotiate(res, 404, message);
   };

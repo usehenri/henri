@@ -315,7 +315,9 @@ function idempotency(henri, { ttl = DAY, sessionCookie = 'henri.sid' } = {}) {
 
     if (!KEY_FORMAT.test(key)) {
       return res.boom.badRequest(
-        `${HEADER} must be 1 to 255 printable ascii characters`
+        `${HEADER} must be 1 to 255 printable ascii characters: send a fresh one (a uuid is the usual choice), or leave the header off`,
+        undefined,
+        'HENRI_API_IDEMPOTENCY_KEY_INVALID'
       );
     }
 
@@ -332,8 +334,9 @@ function idempotency(henri, { ttl = DAY, sessionCookie = 'henri.sid' } = {}) {
           debug('%s reused with another request (%s)', key, scope);
 
           return res.boom.badData(
-            `${HEADER} was already used for a different request`,
-            { key }
+            `${HEADER} was already used for a different request: send a new key for a new request, or the same body to replay the first answer`,
+            { key },
+            'HENRI_API_IDEMPOTENCY_KEY_REUSED'
           );
         }
 
@@ -342,8 +345,9 @@ function idempotency(henri, { ttl = DAY, sessionCookie = 'henri.sid' } = {}) {
           res.set('Retry-After', '1');
 
           return res.boom.conflict(
-            `A request with this ${HEADER} is still in progress`,
-            { key }
+            `A request with this ${HEADER} is still in progress: wait a second and send it again -- the Retry-After header says how long`,
+            { key },
+            'HENRI_API_IDEMPOTENCY_IN_PROGRESS'
           );
         }
 
@@ -374,8 +378,9 @@ function idempotency(henri, { ttl = DAY, sessionCookie = 'henri.sid' } = {}) {
         res.set('Retry-After', '1');
 
         return res.boom.conflict(
-          `A request with this ${HEADER} is still in progress`,
-          { key }
+          `A request with this ${HEADER} is still in progress: wait a second and send it again -- the Retry-After header says how long`,
+          { key },
+          'HENRI_API_IDEMPOTENCY_IN_PROGRESS'
         );
       }
     } catch (error) {

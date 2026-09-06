@@ -52,6 +52,11 @@ catalogue does not hold, or holds one nothing raises.
   branches on (see [the CLI reference](/reference/cli/#exit-codes)).
 - **\`henri mcp\`.** A failed tool call answers \`{ "error": { "code", "message", "hint" } }\`.
 
+In the last two the \`hint\` is what to do next, and when the failure carries
+none of its own it is the **fix** of that code's entry below -- so the
+instruction written down here is the one a person reads in their terminal and
+an agent reads in its tool result, rather than a page they have to find.
+
 ## Linking a code to a page
 
 henri ships no address. Set \`errors.url\` to a template holding \`{code}\` and

@@ -238,7 +238,9 @@ describe('henri jobs', () => {
         });
 
         expect(status).toBe(1);
-        expect(JSON.parse(stderr).error.message).toBe('No job with id "nope"');
+        expect(JSON.parse(stderr).error.message).toBe(
+          'No dead job with id "nope"'
+        );
       }
     });
 

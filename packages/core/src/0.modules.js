@@ -248,7 +248,8 @@ class Modules {
       throw pen.fatal(
         'modules',
         `unable to load ${MODULES_FILE}`,
-        error.message,
+        `${error.message}
+Fix ${MODULES_FILE}, or delete it: an application without one boots with the core modules alone.`,
         null,
         'HENRI_BOOT_MODULES_FILE_UNREADABLE'
       );
@@ -261,7 +262,8 @@ class Modules {
       throw pen.fatal(
         'modules',
         `${MODULES_FILE} should export an array of modules`,
-        `it exported ${typeof entries}`,
+        `it exported ${typeof entries}
+Export an array of modules -- names, classes or instances -- or a function returning one: module.exports = ['@acme/module', new Mine()].`,
         null,
         'HENRI_BOOT_MODULES_FILE_INVALID'
       );
@@ -317,7 +319,8 @@ class Modules {
         throw pen.fatal(
           'modules',
           `${source} asks for '${entry}', which is not installed`,
-          error.message,
+          `${error.message}
+Install it in the application (npm install ${entry}), or remove the entry from ${source}.`,
           null,
           'HENRI_BOOT_MODULE_NOT_INSTALLED'
         );
@@ -344,7 +347,8 @@ class Modules {
     throw pen.fatal(
       'modules',
       `${source} holds an entry that is not a module`,
-      `got ${entry === null ? 'null' : typeof entry}`,
+      `got ${entry === null ? 'null' : typeof entry}
+An entry is a package name, a class extending @usehenri/core/module, or an instance of one.`,
       null,
       'HENRI_BOOT_INVALID_MODULE'
     );
@@ -371,7 +375,8 @@ class Modules {
       throw pen.fatal(
         'modules',
         'init',
-        'no modules loaded before init',
+        `no modules loaded before init
+Register the modules before calling init(): henri.modules.register(...), or let henri load its own.`,
         null,
         'HENRI_BOOT_NO_MODULES'
       );
@@ -385,7 +390,8 @@ class Modules {
       throw pen.fatal(
         'modules',
         'init',
-        `no modules loaded before init (the boot stops at level ${plan.ceiling})`,
+        `no modules loaded before init (the boot stops at level ${plan.ceiling})
+Raise the ceiling (new Henri({ runlevel })), or lower the runlevel of the modules that were left out. \`henri analyze\` prints the level of every module.`,
         null,
         'HENRI_BOOT_NO_MODULES'
       );
@@ -990,21 +996,25 @@ function validate(obj, info) {
   if (!(obj instanceof BaseModule)) {
     throw fail(
       'HENRI_BOOT_INVALID_MODULE',
-      `modules => ${label} is not extending BaseModule`
+      `modules => ${label} is not extending BaseModule: ` +
+        `extend @usehenri/core/module -- \`class Mine extends require('@usehenri/core/module') {}\``
     );
   }
 
   if (typeof obj.runlevel !== 'number') {
     throw fail(
       'HENRI_BOOT_INVALID_MODULE',
-      `modules => ${label} runlevel is not defined`
+      `modules => ${label} runlevel is not defined: set \`this.runlevel\` ` +
+        `(${graph.MIN_RUNLEVEL} to ${graph.MAX_RUNLEVEL}) in the constructor, ` +
+        `or name what it needs with \`needs\`, \`after\` or \`before\``
     );
   }
 
   if (typeof obj.name !== 'string') {
     throw fail(
       'HENRI_BOOT_INVALID_MODULE',
-      `modules => ${label} name is not a string`
+      `modules => ${label} name is not a string: set \`this.name\` to a ` +
+        `unique name, which is how the module is reached (henri.<name>)`
     );
   }
 
@@ -1012,14 +1022,17 @@ function validate(obj, info) {
     throw fail(
       'HENRI_BOOT_RUNLEVEL_OUT_OF_RANGE',
       `modules => ${obj.name} runlevel is out of range: the levels go from ` +
-        `${graph.MIN_RUNLEVEL} to ${graph.MAX_RUNLEVEL}`
+        `${graph.MIN_RUNLEVEL} to ${graph.MAX_RUNLEVEL}. Pick one of those, ` +
+        `or prefer naming what the module needs (\`needs\`, \`after\`, ` +
+        `\`before\`) over a numeric pin`
     );
   }
 
   if (typeof obj.init !== 'function') {
     throw fail(
       'HENRI_BOOT_INVALID_MODULE',
-      `modules => ${obj.name} init is not a function`
+      `modules => ${obj.name} init is not a function: implement ` +
+        `\`async init()\`, which is what the boot calls`
     );
   }
 
@@ -1031,7 +1044,9 @@ function validate(obj, info) {
     ) {
       throw fail(
         'HENRI_BOOT_INVALID_MODULE',
-        `modules => ${obj.name} ${key} should be a module name or an array of them`
+        `modules => ${obj.name} ${key} should be a module name or an array ` +
+          `of them: write \`this.${key} = 'router'\` or ` +
+          `\`this.${key} = ['router', 'user']\``
       );
     }
   }
@@ -1039,7 +1054,8 @@ function validate(obj, info) {
   if (typeof obj.release !== 'undefined' && typeof obj.release !== 'function') {
     throw fail(
       'HENRI_BOOT_INVALID_MODULE',
-      `modules => ${obj.name} release is not a function`
+      `modules => ${obj.name} release is not a function: make \`release()\` ` +
+        `a method, or take it off -- a reload without one just runs \`reload()\``
     );
   }
 
@@ -1047,7 +1063,8 @@ function validate(obj, info) {
     if (typeof obj.reload !== 'function') {
       throw fail(
         'HENRI_BOOT_INVALID_MODULE',
-        `modules => ${obj.name} has no valid reload function. Is it reloadable?`
+        `modules => ${obj.name} says it is reloadable and has no reload ` +
+          `function: implement \`async reload()\`, or take \`reloadable\` off`
       );
     }
   }
@@ -1083,8 +1100,9 @@ function crashOnDuplicateModule(existing, func, info, pen) {
 
   throw pen.fatal(
     'modules',
-    'you have a module trying to load over another...',
-    'a module name is how it is reached (henri.<name>): rename one of the two',
+    `two modules answer to the name "${func.name}"`,
+    `a module name is how it is reached (henri.${func.name}), so it has to be unique.
+Rename one of the two files above, or give one of them a name of its own.`,
     null,
     'HENRI_BOOT_DUPLICATE_MODULE'
   );

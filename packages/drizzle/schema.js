@@ -124,7 +124,9 @@ const resolveType = (type, field) => {
 
   throw coded(
     'HENRI_MODEL_UNKNOWN_TYPE',
-    `Unsupported type ${describe(type)} for field '${field}'`
+    `Unsupported type ${describe(type)} for field '${field}'; use one of ${Object.keys(
+      TYPES
+    ).join(', ')}`
   );
 };
 
@@ -232,7 +234,7 @@ const normalizeField = (field, definition, context = {}) => {
     if (option) {
       throw coded(
         'HENRI_MODEL_FIELD_INCOMPLETE',
-        `Field '${field}' has '${option}' but no type`
+        `Field '${field}' has '${option}' but no type: write ${field}: { type: 'string', ${option}: ... }, or the short form ${field}: 'string'`
       );
     }
 
@@ -267,7 +269,7 @@ const normalizeField = (field, definition, context = {}) => {
   if ('enum' in normalized && !Array.isArray(normalized.enum)) {
     throw coded(
       'HENRI_MODEL_INVALID_FIELD',
-      `Field '${field}': 'enum' must be an array`
+      `Field '${field}': 'enum' must be an array of the values the column accepts, as in enum: ['draft', 'sent']`
     );
   }
 

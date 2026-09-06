@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const { version } = require('../package.json');
-const { EXIT_CODES } = require('../scripts/errors');
+const { CliError, EXIT_CODES, toCliError } = require('../scripts/errors');
+const { entry } = require('@usehenri/core/errors');
 const { cleanup, exists, henri, scaffold } = require('./helpers');
 
 /**
@@ -284,6 +285,24 @@ describe('--json', () => {
         exitCode: 3,
         hint: expect.stringContaining('henri new <name>'),
       });
+    });
+
+    test('a coded failure with no hint of its own borrows the catalogue', () => {
+      // The catalogue is where "how to fix it" is written down; a failure
+      // that says nothing about what to do next reaches the terminal with
+      // that instruction rather than with a code alone
+      expect(new CliError('EXISTS', 'already there').hint).toBe(
+        entry('HENRI_CLI_EXISTS').fix
+      );
+      expect(new CliError('EXISTS', 'x', { hint: 'mine' }).hint).toBe('mine');
+
+      const boot = Object.assign(new Error('no store'), {
+        code: 'HENRI_MODEL_NO_STORE',
+      });
+
+      expect(toCliError(new Error('boot failed', { cause: boot })).hint).toBe(
+        entry('HENRI_MODEL_NO_STORE').fix
+      );
     });
 
     test('unexpected failures are FAILED with the debug hint', () => {

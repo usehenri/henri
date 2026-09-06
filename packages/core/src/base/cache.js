@@ -4,7 +4,7 @@ const debug = require('debug')('henri:cache');
 const { MASK, filterParameters, isFiltered } = require('./redact');
 const { REPORT_EVERY } = require('./shared');
 const { check } = require('./arguments');
-const { fail } = require('./errors');
+const { fail, stamp } = require('./errors');
 
 /**
  * `henri.cache`: keys, values, a TTL, and `fetch`.
@@ -1288,8 +1288,11 @@ function cacheConfig(config) {
   }
 
   if (typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new TypeError(
-      'config.cache must be an object ({ ttl, maxEntries, maxSize, maxEntrySize, store }) or false'
+    throw stamp(
+      new TypeError(
+        'config.cache must be an object ({ ttl, maxEntries, maxSize, maxEntrySize, store }) or false, which is how an application says it wants no cache'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 

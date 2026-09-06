@@ -1,5 +1,6 @@
 const path = require('path');
 const debug = require('debug')('henri:shared');
+const { stamp } = require('./errors');
 
 /**
  * The shared store: one backend, every counter that has to be counted once.
@@ -105,6 +106,9 @@ class SharedStoreError extends Error {
 
     this.name = 'SharedStoreError';
     this.code = 'SHARED_STORE_UNAVAILABLE';
+    // `code` is what `unavailable()` reads, so henri's own name for this
+    // failure goes where `coded()` looks second (base/errors.js)
+    this.henriCode = 'HENRI_STORE_SHARED_UNAVAILABLE';
     this.feature = feature;
     this.retryAfter = 1;
     this.status = 503;
@@ -138,8 +142,11 @@ function sharedConfig(config) {
   }
 
   if (typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new TypeError(
-      'config.shared must be an object ({ adapter, url, prefix, onError })'
+    throw stamp(
+      new TypeError(
+        'config.shared must be an object ({ adapter, url, prefix, onError }), or false to count in this process'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
@@ -150,16 +157,22 @@ function sharedConfig(config) {
   const adapter = typeof raw.adapter === 'string' ? raw.adapter.trim() : '';
 
   if (adapter === '') {
-    throw new TypeError(
-      'config.shared needs an adapter: { "adapter": "redis", "url": "redis://..." }'
+    throw stamp(
+      new TypeError(
+        'config.shared needs an adapter: { "adapter": "redis", "url": "redis://..." }'
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
   const onError = String(raw.onError || DEFAULTS.onError).toLowerCase();
 
   if (!POLICIES.includes(onError)) {
-    throw new TypeError(
-      `config.shared.onError must be one of ${POLICIES.join(', ')}`
+    throw stamp(
+      new TypeError(
+        `config.shared.onError must be one of ${POLICIES.join(', ')}: "closed" refuses a request the backend cannot count, "open" serves it uncounted`
+      ),
+      'HENRI_CONFIG_INVALID'
     );
   }
 
@@ -204,8 +217,11 @@ function loadBackend(adapter, cwd, resolve) {
     return loaded && loaded.default ? loaded.default : loaded;
   }
 
-  throw new Error(
-    `unable to load the shared store adapter '${adapter}': install it with \`npm install @usehenri/${adapter}\``
+  throw stamp(
+    new Error(
+      `unable to load the shared store adapter '${adapter}': install it in the application (npm install @usehenri/${adapter}), or take \`shared\` out of the configuration to count in this process again`
+    ),
+    'HENRI_STORE_UNUSABLE'
   );
 }
 
@@ -372,7 +388,7 @@ class SharedStore {
     }
 
     throw new SharedStoreError(
-      `the shared store (${this.name}) did not answer`,
+      `the shared store (${this.name}) did not answer: check that the backend is reachable, or set shared.onError to "open" to serve ${feature} uncounted while it is down`,
       { cause: error, feature }
     );
   }
@@ -646,8 +662,11 @@ function createShared(henri) {
   );
 
   if (typeof Backend !== 'function') {
-    throw new Error(
-      `the shared store adapter '${settings.adapter}' does not export a constructor`
+    throw stamp(
+      new Error(
+        `the shared store adapter '${settings.adapter}' does not export a constructor: a backend is a class taking (settings, henri) and answering keyValueStore() and rateLimitStore()`
+      ),
+      'HENRI_STORE_UNUSABLE'
     );
   }
 
@@ -655,8 +674,11 @@ function createShared(henri) {
 
   for (const method of ['keyValueStore', 'rateLimitStore']) {
     if (typeof backend[method] !== 'function') {
-      throw new Error(
-        `the shared store adapter '${settings.adapter}' has no ${method}()`
+      throw stamp(
+        new Error(
+          `the shared store adapter '${settings.adapter}' has no ${method}(): a backend answers both keyValueStore() and rateLimitStore()`
+        ),
+        'HENRI_STORE_UNUSABLE'
       );
     }
   }
