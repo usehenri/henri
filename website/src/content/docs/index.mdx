@@ -85,7 +85,7 @@ import withHenri from '@usehenri/react';
 const Tasks = ({ data }) => (
   <ul>
     {data.tasks.map((task) => (
-      <li key={task._id}>{task.name}</li>
+      <li key={task.externalId}>{task.name}</li>
     ))}
   </ul>
 );

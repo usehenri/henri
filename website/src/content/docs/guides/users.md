@@ -85,7 +85,7 @@ const { paths, pathFor } = useHenri();
 
 ## What leaves the server
 
-Only the public representation of a user reaches views, `req._henri.user` and JSON answers: `{ id, email, roles }` plus the fields listed in `config.user.public`. `henri.user.publicUser(user)` builds that object; use it whenever you send a user to a browser yourself.
+Only the public representation of a user reaches views, `req._henri.user` and JSON answers: `{ externalId, email, roles }` plus the fields listed in `config.user.public`. `henri.user.publicUser(user)` builds that object; use it whenever you send a user to a browser yourself. The identifier is the user's public one; the primary key stays on the server, like every record's (see [Identifiers](/guides/models/#identifiers)). A user model that opted out of it answers with `id` instead.
 
 ```json
 {

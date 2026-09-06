@@ -223,7 +223,7 @@ config ✏ from the credentials => secret, mail.auth.pass => key: HENRI_CREDENTI
 }
 ```
 
-`public` lists the fields, besides `id`, `email` and `roles`, that views and JSON answers may see; `loginPath` is where browsers are sent when a route denies them; `afterLogin` where they land after a form login; `sessionMaxAge` the session lifetime in milliseconds (30 days). See [Users](/guides/users/).
+`public` lists the fields, besides `externalId`, `email` and `roles`, that views and JSON answers may see; `loginPath` is where browsers are sent when a route denies them; `afterLogin` where they land after a form login; `sessionMaxAge` the session lifetime in milliseconds (30 days). See [Users](/guides/users/).
 
 ## Reading the configuration in your code
 

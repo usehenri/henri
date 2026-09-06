@@ -97,6 +97,58 @@ module.exports = {
 
 This changed in henri 1.2: before it, only `options: { timestamps: true }` added them on the Mongoose and Drizzle adapters (Sequelize already added them by default). See [Upgrading](/upgrading/#timestamps-are-on-by-default).
 
+## Identifiers
+
+Every record has two identifiers, and only one of them is public.
+
+The primary key is what it has always been: a `bigint` on SQL, an `ObjectId` on MongoDB. It is what the foreign keys, the joins and the indexes are made of, and it stays on the server. Alongside it, every model carries `externalId`: a uuid, stored in an `external_id` column that is `NOT NULL` and `UNIQUE` in the database itself, generated on the insert when the caller brings none.
+
+`externalId` is the only identifier that leaves the server. Routes, hypermedia links, path helpers, the `Location` header of a `201` and the data a page receives all carry it; `toJSON()` drops the primary key, so a numeric id never reaches a browser and nobody can count up from `/tasks/1` to see how many tasks there are, or guess the next one.
+
+```js
+const task = await Task.create({ name: 'Ship it' });
+
+task.id; // 42, on the server
+task.externalId; // '0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11'
+JSON.stringify(task); // {"name":"Ship it","externalId":"0199a5c1-...", ...}
+```
+
+The values are [UUID version 7](https://www.rfc-editor.org/rfc/rfc9562): the first 48 bits are the Unix time in milliseconds, so the values a busy table writes are close to each other and the unique index appends to its right edge instead of scattering writes over the whole b-tree the way a version 4 uuid does. Any uuid you supply yourself is accepted (and lowercased), whatever its version.
+
+### Looking a record up
+
+`Model.findById()` takes either identifier, so a controller hands it `req.params.id` and does not care which one is in the url:
+
+```js
+await Task.findById('0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11'); // the public id
+await Task.findById(42); // the primary key
+await Task.findById('42'); // the primary key, as a string
+```
+
+The two can never be confused: a uuid is 36 characters with four dashes, and neither a number nor a 24 character `ObjectId` can look like one. `findByIdAndUpdate()`, `findByIdAndDelete()` and, on the Sequelize adapters, `findByPk()` take both as well.
+
+Because both work, `/tasks/42` still answers as long as somebody types it. A controller that must refuse the internal id looks the record up on the column instead:
+
+```js
+const task = await Task.findOne({ externalId: req.params.id });
+```
+
+### The column, and opting out
+
+```js
+// app/models/Task.js
+module.exports = {
+  // This model keeps behaving exactly as it did: no externalId, and its
+  // primary key is serialized the way it used to be
+  options: { externalId: false },
+  schema: { name: { type: 'string', required: true } },
+};
+```
+
+Nothing else changes when a model opts out: it is the one escape hatch, for a lookup table or a legacy table you do not own.
+
+The foreign keys are unaffected. `belongsTo` and `hasMany` keep pointing at the primary key, `include()` and `populate()` are unchanged, and a `taskId` column still holds a number. What a page or an API client sees of an association is the associated record with its own `externalId`.
+
 ## Soft deletes
 
 `options: { paranoid: true }` is Rails' `acts_as_paranoid` (and Sequelize's own name for it): deleting a record stamps `deletedAt` instead of removing the row, and every query hides the stamped records.
@@ -112,7 +164,7 @@ module.exports = {
 ```js
 await task.destroy(); // deletedAt = now, the row stays
 await Task.count(); // does not count it
-await Task.findById(task.id); // null
+await Task.findById(task.externalId); // null
 ```
 
 The spelling of the rest follows the adapter, because the API is the adapter's own:
@@ -269,7 +321,7 @@ It works on every adapter (the migration commands of `henri db` do not: those ne
 
 ## The user model
 
-When a model matches the configured `user` name (`user` by default, so `app/models/User.js`), the adapter adds three fields to it:
+When a model matches the configured `user` name (`user` by default, so `app/models/User.js`), the adapter adds three fields to it, on top of the `externalId` every model gets:
 
 | Field      | Behaviour                                                                                                                                                                                                                                 |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

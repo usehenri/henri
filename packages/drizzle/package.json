@@ -17,6 +17,7 @@
   "files": [
     "index.js",
     "dialects.js",
+    "external-id.js",
     "migrations.js",
     "model.js",
     "relation.js",
