@@ -125,9 +125,7 @@
   "codes": [
     {
       "area": "agent",
-      "causes": [
-        "node_modules is missing in the application directory"
-      ],
+      "causes": ["node_modules is missing in the application directory"],
       "code": "HENRI_AGENT_NOT_INSTALLED",
       "fix": "Install the dependencies of the application, then ask again.",
       "what": "The application cannot be started because its dependencies are not installed."
@@ -192,10 +190,7 @@
     },
     {
       "area": "agent",
-      "causes": [
-        "a typo in the page name",
-        "a page of another henri version"
-      ],
+      "causes": ["a typo in the page name", "a page of another henri version"],
       "code": "HENRI_AGENT_UNKNOWN_PAGE",
       "fix": "Call the guide tool without a page to list the ones this server ships.",
       "what": "There is no documentation page by that name."
@@ -702,10 +697,7 @@
     },
     {
       "area": "config",
-      "causes": [
-        "a truncated key",
-        "a key with a stray newline or quotes"
-      ],
+      "causes": ["a truncated key", "a key with a stray newline or quotes"],
       "code": "HENRI_CONFIG_CREDENTIALS_KEY_MALFORMED",
       "fix": "A credentials key is 64 hexadecimal characters, which is what `henri credentials:init` writes. Copy the whole of it.",
       "what": "The credentials key is not 64 hexadecimal characters."
@@ -1053,9 +1045,7 @@
     },
     {
       "area": "job",
-      "causes": [
-        "a job whose `perform()` never returned in time"
-      ],
+      "causes": ["a job whose `perform()` never returned in time"],
       "code": "HENRI_JOB_TIMEOUT",
       "fix": "Raise the job’s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
       "what": "An attempt ran past the job’s timeout."
@@ -1072,9 +1062,7 @@
     },
     {
       "area": "job",
-      "causes": [
-        "a typo in the state given to `henri jobs list --state`"
-      ],
+      "causes": ["a typo in the state given to `henri jobs list --state`"],
       "code": "HENRI_JOB_UNKNOWN_STATE",
       "fix": "The message lists the states a job can be in.",
       "what": "The queue was asked for a state that does not exist."
@@ -1959,9 +1947,7 @@
     },
     {
       "area": "view",
-      "causes": [
-        "`renderer: \"vue\"` without the experimental flag"
-      ],
+      "causes": ["`renderer: \"vue\"` without the experimental flag"],
       "code": "HENRI_VIEW_VUE_DISABLED",
       "fix": "Enable it with `\"experimental\": { \"vue\": true }`. It was written for Nuxt 2 and has not been exercised since 2020: prefer `inertia`.",
       "what": "The vue renderer is experimental and was not enabled."
@@ -2067,18 +2053,14 @@
     },
     {
       "area": "webhook",
-      "causes": [
-        "a receiver that accepted the connection and never answered"
-      ],
+      "causes": ["a receiver that accepted the connection and never answered"],
       "code": "HENRI_WEBHOOK_TIMEOUT",
       "fix": "Raise `webhooks.timeout`, or ask the receiver to answer before it does its work: the attempt is failed and retried like any other failure.",
       "what": "A receiver did not answer within the delivery timeout."
     },
     {
       "area": "webhook",
-      "causes": [
-        "an endpoint id that was removed, or a typo"
-      ],
+      "causes": ["an endpoint id that was removed, or a typo"],
       "code": "HENRI_WEBHOOK_UNKNOWN",
       "fix": "`henri webhooks:list` shows the endpoints and their ids.",
       "what": "There is no webhook endpoint with that id."

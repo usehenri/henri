@@ -159,6 +159,7 @@ describe(`the access trail on ${target.name}`, () => {
     // drop a table it does not know; the trail's is not drizzle's to drop
     expect([...adapter.reservedTables()].sort()).toEqual([
       'henri_calls',
+      'henri_identities',
       'henri_jobs',
       'henri_jobs_schedules',
       'henri_trail',

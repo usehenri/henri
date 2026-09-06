@@ -17,6 +17,9 @@ import type {
   Controller,
   Henri,
   HenriModule,
+  Identity,
+  IdentityProvider,
+  IdentityResult,
   Job,
   JobDefinition,
   JobStats,
@@ -900,6 +903,62 @@ henri.accounts.urlFor('confirm/h1.a.b');
 
 // @ts-expect-error `register(null)` read `null.email` one frame down
 henri.accounts.register(null);
+
+// Identity providers: the configuration, and the service behind the callback
+const identities: Configuration = {
+  url: 'https://example.com',
+  user: {
+    identities: {
+      merge: 'verified',
+      providers: {
+        acme: {
+          authorizationUrl: 'https://acme.example/oauth/authorize',
+          claims: { subject: 'sub', verified: false },
+          clientId: 'a-client',
+          clientSecret: 'a-secret',
+          scope: ['openid', 'email'],
+          tokenUrl: 'https://acme.example/oauth/token',
+          trusted: true,
+          userinfoUrl: 'https://acme.example/oauth/userinfo',
+        },
+      },
+    },
+    model: 'user',
+  },
+};
+
+expectType<Configuration>(identities);
+expectType<boolean>(henri.identities.enabled);
+expectType<IdentityProvider[]>(henri.identities.providers());
+expectType<IdentityProvider | null>(henri.identities.providerOf('acme'));
+expectType<string>(henri.identities.redirectUri('acme'));
+expectType<Promise<Identity[]>>(henri.identities.forUser(req.user));
+expectType<Promise<Identity[]>>(henri.identities.forPerson('an-external-id'));
+expectType<Promise<number>>(henri.identities.forget('an-external-id'));
+expectType<Promise<IdentityResult>>(henri.identities.complete(req));
+expectType<Promise<{ ok: boolean; reason: string | null }>>(
+  henri.identities.unlink(req.user, 'acme')
+);
+expectType<string[]>(henri.identities.problems());
+
+const merge: Configuration = {
+  // @ts-expect-error refuse and verified are the two answers; a third is not
+  user: { identities: { merge: 'session' } },
+};
+
+const provider: Configuration = {
+  user: {
+    identities: {
+      providers: {
+        // @ts-expect-error a provider without its endpoints cannot be used
+        acme: { clientId: 'a-client', clientSecret: 'a-secret' },
+      },
+    },
+  },
+};
+
+expectType<Configuration>(merge);
+expectType<Configuration>(provider);
 
 // Policies: one question, and the file that answers it
 expectType<PoliciesModule>(henri.policies);
