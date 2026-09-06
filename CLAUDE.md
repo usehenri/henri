@@ -1038,7 +1038,7 @@ disposition, filename, type })` is one call whatever the backend -- the
   marked `personal: { expose: false }` (a filter over it is the value one bit
   at a time). `2.controllers.js` compiles the block, `5.router.js` binds it to
   the model and mounts the guard next to the parameter check, and
-  `req.filter([{ policy, scope }])` answers `{ where, order, sort, terms }`:
+  `req.filters([{ policy, scope }])` answers `{ where, order, sort, terms }`:
   **the client's condition is intersected with `policy.scope(user)` with an
   `and`**, so a filter narrows a list and can never widen it, and the order
   ends with `externalId` so a page is stable. A request asking for anything

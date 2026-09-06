@@ -32,7 +32,7 @@
  *   },
  *
  *   index: async (req, res) => {
- *     const { order, where } = await req.filter();
+ *     const { order, where } = await req.filters();
  *     const { page, perPage, records, total } = await Proposal.paginate({
  *       ...req.pagination(),
  *       order,
@@ -141,7 +141,7 @@
  * ## The scope wins
  *
  * A client-supplied filter **narrows a list and can never widen it**. The
- * condition `req.filter()` answers is
+ * condition `req.filters()` answers is
  * `policy.scope(user) AND (what the client asked for)` -- an `and`, spelled
  * for the adapter, never a merge of keys. `base/graphql-resolvers.js` made
  * the same promise for the derived list query and could keep it by letting
@@ -151,12 +151,12 @@
  * conditions on one column intersect; they never replace each other.
  *
  * The scope is `policy.scope(user)` and it is asked for by default, which
- * is what makes this safe to reach for: an action that calls `req.filter()`
+ * is what makes this safe to reach for: an action that calls `req.filters()`
  * on a model whose policy declares no scope gets the refusal
  * `henri.policies.scope()` already gives rather than "everything". An
  * application whose list is genuinely public says so, once, in the call:
- * `req.filter({ scope: false })`, or hands over the condition it wants
- * intersected (`req.filter({ scope: { state: PUBLIC } })`).
+ * `req.filters({ scope: false })`, or hands over the condition it wants
+ * intersected (`req.filters({ scope: { state: PUBLIC } })`).
  *
  * ## The links carry it
  *
@@ -1493,7 +1493,7 @@ function narrow(Model, scope, condition) {
       'HENRI_FILTER_SCOPE_UNMERGEABLE',
       'the policy scope is not a condition a filter can narrow',
       {
-        hint: 'A scope that is not a plain object is handed to the ORM as it is, so henri cannot put a filter under it: answer a plain object from scope(user), or hand req.filter() the condition to intersect',
+        hint: 'A scope that is not a plain object is handed to the ORM as it is, so henri cannot put a filter under it: answer a plain object from scope(user), or hand req.filters() the condition to intersect',
       }
     );
   }

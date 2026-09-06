@@ -250,7 +250,7 @@ module.exports = {
       scope.eventId = edition ? edition.id : 0;
     }
 
-    const { order, terms, where } = await req.filter({ scope });
+    const { order, terms, where } = await req.filters({ scope });
     const { records, page, perPage, total, pages } = await Proposal.paginate({
       ...req.pagination(),
       include: INCLUDE,

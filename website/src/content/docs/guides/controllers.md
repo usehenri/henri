@@ -272,7 +272,7 @@ filters: {
 },
 
 index: async (req, res) => {
-  const { order, where } = await req.filter();
+  const { order, where } = await req.filters();
 
   return res.collection(
     ...
@@ -280,7 +280,7 @@ index: async (req, res) => {
 },
 ```
 
-`req.filter()` intersects what the client asked for with what [the policy says the list is](/guides/policies/#scoping-a-list), so a filter narrows a list and can never widen it. Nothing undeclared is filterable, an order over a `text` or an `encrypted` column is refused at boot, and `henri openapi` describes the `filter[...]` parameters the same way it describes `params`. The whole of it is in [Filtering and sorting](/guides/filtering/).
+`req.filters()` intersects what the client asked for with what [the policy says the list is](/guides/policies/#scoping-a-list), so a filter narrows a list and can never widen it. Nothing undeclared is filterable, an order over a `text` or an `encrypted` column is refused at boot, and `henri openapi` describes the `filter[...]` parameters the same way it describes `params`. The whole of it is in [Filtering and sorting](/guides/filtering/).
 
 ## Implicit rendering
 

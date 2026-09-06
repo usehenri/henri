@@ -223,7 +223,7 @@ because "everything they may see" has no safe default; `scope: () => ({})` is
 how a policy says everything on purpose.
 
 It is also the floor under a filtered index:
-[`req.filter()`](/guides/filtering/) intersects what a client asked for with
+[`req.filters()`](/guides/filtering/) intersects what a client asked for with
 this condition, with an `and`, so a filter can only ever narrow the list — and
 an action that reaches for it on a model whose policy declares no `scope` gets
 the same refusal `req.scope()` gives.

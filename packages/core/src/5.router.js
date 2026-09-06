@@ -790,7 +790,7 @@ class Router extends BaseModule {
   }
 
   /**
-   * What `req.filter()` answers: the condition and the order this request
+   * What `req.filters()` answers: the condition and the order this request
    * asked for, under the condition the policy says the list is.
    *
    * The scope is asked for unless the call says otherwise, which is what
@@ -811,7 +811,7 @@ class Router extends BaseModule {
     if (!state) {
       throw fail(
         'HENRI_FILTER_DECLARATION_INVALID',
-        `${info.controller ? `${info.controller}#${info.action}` : 'this action'} calls req.filter() and declares no filters`,
+        `${info.controller ? `${info.controller}#${info.action}` : 'this action'} calls req.filters() and declares no filters`,
         {
           hint: 'Say what a client may narrow and order this list by: filters: { index: { where: { ... }, sort: [ ... ] } }',
         }
@@ -1469,8 +1469,8 @@ class Router extends BaseModule {
 
       // What this request may narrow and order its list by, intersected
       // with what the policy says the list is (see base/filters.js)
-      req.filter = (options = {}) => {
-        check('req.filter', [options]);
+      req.filters = (options = {}) => {
+        check('req.filters', [options]);
 
         return this.narrowed(req, res, options);
       };

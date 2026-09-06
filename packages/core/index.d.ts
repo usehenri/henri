@@ -1775,7 +1775,7 @@ declare namespace start {
    */
   type FilterDeclarations = Record<string, FilterDeclaration>;
 
-  /** What `req.filter()` takes. */
+  /** What `req.filters()` takes. */
   interface FilterOptions {
     /** The policy whose `scope(user)` the filter is intersected with. */
     policy?: string;
@@ -1801,7 +1801,7 @@ declare namespace start {
     name: string;
   }
 
-  /** What `req.filter()` answers. */
+  /** What `req.filters()` answers. */
   interface FilterResult {
     /** The model the declaration is about. */
     model: string;
@@ -2083,7 +2083,7 @@ declare namespace start {
      * policy unless the call hands one over, and it can only narrow:
      * `scope: false` says the list is public.
      */
-    filter(options?: FilterOptions): Promise<FilterResult>;
+    filters(options?: FilterOptions): Promise<FilterResult>;
     /**
      * The files of a multipart body, by field. Always present, empty when
      * nothing was uploaded. With `@usehenri/uploads`.

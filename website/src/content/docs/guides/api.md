@@ -113,7 +113,7 @@ filters: {
 },
 
 index: async (req, res) => {
-  const { order, where } = await req.filter();
+  const { order, where } = await req.filters();
   const { page, perPage, records, total } = await Task.paginate({
     ...req.pagination(),
     order,
@@ -124,7 +124,7 @@ index: async (req, res) => {
 },
 ```
 
-`?filter[state]=accepted&filter[submittedAt][gte]=2026-01-01&sort=-submittedAt` is the request. `req.filter()` intersects it with what [the policy says the list is](/guides/policies/#scoping-a-list), so a filter narrows a list and can never widen it, and it appends the record's `externalId` to the order so paging is exact. The whole of it — the operators, what can never be declared, and why a substring search is opt-in per field — is in [Filtering and sorting](/guides/filtering/).
+`?filter[state]=accepted&filter[submittedAt][gte]=2026-01-01&sort=-submittedAt` is the request. `req.filters()` intersects it with what [the policy says the list is](/guides/policies/#scoping-a-list), so a filter narrows a list and can never widen it, and it appends the record's `externalId` to the order so paging is exact. The whole of it — the operators, what can never be declared, and why a substring search is opt-in per field — is in [Filtering and sorting](/guides/filtering/).
 
 ## Idempotency
 

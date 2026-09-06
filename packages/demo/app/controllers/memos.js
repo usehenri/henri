@@ -77,7 +77,7 @@ module.exports = {
   // into it: `?filter[archivedAt][gte]=...` answers nothing here rather
   // than reaching the archive
   search: async (req, res) => {
-    const { order, where } = await req.filter({
+    const { order, where } = await req.filters({
       scope: { ...(await req.scope('memo')), archivedAt: null },
     });
     const { page, perPage, records, total } = await Memo.paginate({

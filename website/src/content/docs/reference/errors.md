@@ -1057,7 +1057,7 @@ Usually:
 - a filter over a randomised `encrypted` column, or anything but an equality over a deterministic one
 - a sort over a `text`, a `json` or an `encrypted` column
 - an operator that is not one, or that the declared type does not take
-- an action calling `req.filter()` without declaring `filters`
+- an action calling `req.filters()` without declaring `filters`
 
 **Fix.** The message names the controller, the action and the field. A filter is `{ type, enum, min, max, minLength, maxLength, pattern, operators, column }` over a column the model has; a sort is a list of column names. See the Filtering guide.
 
@@ -1083,7 +1083,7 @@ Usually:
 
 - a policy whose `scope(user)` answers something other than a plain object
 
-**Fix.** A filter is intersected with the scope so it can never widen the list, and henri cannot put a condition under a value it hands the ORM untouched. Answer a plain object from `scope(user)`, or hand `req.filter({ scope })` the condition to intersect.
+**Fix.** A filter is intersected with the scope so it can never widen the list, and henri cannot put a condition under a value it hands the ORM untouched. Answer a plain object from `scope(user)`, or hand `req.filters({ scope })` the condition to intersect.
 
 ## identity
 

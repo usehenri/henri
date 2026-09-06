@@ -1033,7 +1033,7 @@ const SIGNATURES = {
   // public and takes no scope at all" -- so it is `ANY` rather than a
   // condition node: what a policy answers is handed to the ORM untouched
   // and henri never looks inside it (see base/filters.js)
-  'req.filter': [
+  'req.filters': [
     {
       name: 'options',
       optional: true,

@@ -56,7 +56,7 @@ module.exports = {
   },
 
   index: async (req, res) => {
-    const { order, where } = await req.filter();
+    const { order, where } = await req.filters();
     const { page, perPage, records, total } = await Proposal.paginate({
       ...req.pagination(),
       order,
@@ -151,30 +151,30 @@ These fail the **boot**, naming the controller, the action and the field (`HENRI
     scope.eventId = edition ? edition.id : 0;
   }
 
-  const { order, where } = await req.filter({ scope });
+  const { order, where } = await req.filters({ scope });
   ```
 
 ## The scope wins
 
-`req.filter()` answers `policy.scope(user) AND (what the client asked for)`. An **and**, spelled for the adapter — never a merge of keys, so two conditions on one column intersect and never replace each other.
+`req.filters()` answers `policy.scope(user) AND (what the client asked for)`. An **and**, spelled for the adapter — never a merge of keys, so two conditions on one column intersect and never replace each other.
 
 **A client-supplied filter narrows a list and can never widen it.** That is the whole promise, and it is what makes the surface safe to expose: the worst a hostile query string can do is answer fewer rows.
 
-The scope is [`policy.scope(user)`](/guides/policies/#scoping-a-list) and it is asked for by default, which is what makes this safe to reach for: an action that calls `req.filter()` on a model whose policy declares no scope gets the refusal `henri.policies.scope()` already gives rather than "everything".
+The scope is [`policy.scope(user)`](/guides/policies/#scoping-a-list) and it is asked for by default, which is what makes this safe to reach for: an action that calls `req.filters()` on a model whose policy declares no scope gets the refusal `henri.policies.scope()` already gives rather than "everything".
 
 ```js
-await req.filter(); // the policy of this route
-await req.filter({ policy: 'proposal' }); // another one
-await req.filter({ scope: { state: PUBLIC } }); // a condition of your own
-await req.filter({ scope: false }); // this list is public
+await req.filters(); // the policy of this route
+await req.filters({ policy: 'proposal' }); // another one
+await req.filters({ scope: { state: PUBLIC } }); // a condition of your own
+await req.filters({ scope: false }); // this list is public
 ```
 
 `scope: false` is how an application says, once and in writing, that a list takes no scope at all.
 
-## What `req.filter()` answers
+## What `req.filters()` answers
 
 ```js
-const { model, order, sort, terms, where } = await req.filter();
+const { model, order, sort, terms, where } = await req.filters();
 ```
 
 | Key     | What it holds                                                       |
