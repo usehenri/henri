@@ -13,7 +13,18 @@ const UNITS = new Map([
   ['w', 604800000],
 ]);
 
-const PATTERN = /^\s*(\d+(?:\.\d+)?)\s*(ms|[smhdw])?\s*$/i;
+/**
+ * The written form: an amount, then a unit.
+ *
+ * The surrounding whitespace is trimmed before this runs rather than
+ * matched by it. `^\s*…\s*$` around an optional group is quadratic: on
+ * `'1' + ' '.repeat(60000) + '!'` the two star quantifiers split the run
+ * between them one position at a time, which measured 2 seconds before this
+ * was one `\s*` with nothing to share with. A duration reaches here from
+ * `--in=` and from whatever an application passes to `enqueue()`, so it is
+ * not always a value the author typed.
+ */
+const PATTERN = /^(\d+(?:\.\d+)?)\s*(ms|[smhdw])?$/i;
 
 /**
  * Milliseconds of a duration
@@ -36,7 +47,7 @@ const duration = (value, fallback = null) => {
     return Math.round(value);
   }
 
-  const match = PATTERN.exec(String(value));
+  const match = PATTERN.exec(String(value).trim());
 
   if (!match) {
     throw new Error(
