@@ -146,6 +146,25 @@ Neither change touches the database: the columns, the joins and the indexes are 
 { "externalIds": { "lookup": "any", "references": false } }
 ```
 
+### `DECIMAL` and `BIGINT` are exact columns, and their value is a string
+
+The schema format gained two types, `decimal` and `bigint`, and the Sequelize spellings a model file may already carry now point at them. See [Exact numbers](/guides/models/#exact-numbers).
+
+**The column changes.** On a drizzle store, `DECIMAL` and `NUMERIC` used to resolve to `number` — a double — and `BIGINT` to `integer`, 32 bits. They are `numeric(19, 4)` and `bigint` now (`decimal(19, 4)` on MySQL), which is what those names always meant. It is a schema change like any other: `henri db:generate` writes it and `henri db:migrate` applies it, on a copy of the database first if the column holds rows. A `DECIMAL` was storing money in a double, so the values in it are already whatever a double made of them.
+
+**The value changes.** A `decimal` and a `bigint` cross into JavaScript as exact decimal strings — `'19.99'`, not `19.99` — on every adapter, and that is what a JSON answer, a version diff and a cached record hold. What breaks is arithmetic on the way out:
+
+```js
+// before
+const total = invoice.amount * quantity;
+// after: henri ships no arithmetic, and the string is the exact value
+const total = Number(invoice.amount) * quantity; // a double again, deliberately
+```
+
+A page that only prints the value needs no change; a sum needs a decimal library and a string handed back to henri. Values are still written the way they always were — `Invoice.create({ amount: 19.99 })` works — but a value with more decimal places than the `scale` is now **refused rather than rounded**, so `0.1 + 0.2` fails validation instead of landing in the column. Rounding is the application's.
+
+**Two things fail the boot rather than doing something else.** A bare `DataTypes.DECIMAL` on a Sequelize store: a decimal with no precision is `DECIMAL(10, 0)` on MySQL — whole units, so money loses its cents — and writing `{ type: 'decimal', precision: 12, scale: 2 }` gets the same column on every dialect. And either type on a Sequelize store on sqlite, which reads it back through a double; that one is a configuration `henri new` never wrote, since sqlite goes to Drizzle.
+
 ## From 1.1 to 1.2
 
 ### Every record has a public uuid, and the numeric id stops leaving the server

@@ -601,7 +601,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
     {
       annotations: { destructiveHint: false, idempotentHint: false },
       description:
-        'Runs a henri generator (the same as `henri generate`) and returns the files written, the files skipped and the routes added. scaffold/model/crud take attributes ("title:string!", "body:text"; types: string, text, number, integer, float, boolean, date, json, uuid; ! = required), controller and mailer take action names, authentication and agents take nothing. `authentication` turns the account flows on in config/*.json and writes the pages, the controller, the mailer and the tests around the endpoints henri mounts. Existing files are skipped unless force is true.',
+        'Runs a henri generator (the same as `henri generate`) and returns the files written, the files skipped and the routes added. scaffold/model/crud take attributes ("title:string!", "body:text"; types: string, text, number, integer, float, decimal, bigint, boolean, date, json, uuid; ! = required), controller and mailer take action names, authentication and agents take nothing. `authentication` turns the account flows on in config/*.json and writes the pages, the controller, the mailer and the tests around the endpoints henri mounts. Existing files are skipped unless force is true.',
       inputSchema: {
         actions: zod
           .array(zod.string().regex(ACTION))

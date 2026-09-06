@@ -378,11 +378,31 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   and the models disagree about, which `henri db:status` prints and a
   production boot warns about). Core loads them from the app cwd
   with `utils.resolveFrom('@usehenri/<adapter>')`. Model files use the henri
-  schema format (`type: 'string'|'text'|'number'|'integer'|'float'|'boolean'|
-'date'|'json'|'uuid'`, `required`, `default`, `enum`, `unique`, `index`),
+  schema format (`type: 'string'|'text'|'number'|'integer'|'float'|'decimal'|
+'bigint'|'boolean'|'date'|'json'|'uuid'`, `required`, `default`, `enum`,
+  `unique`, `index`),
   normalized by `schema.js` in each adapter (Sequelize and Drizzle throw on
   unknown keys,
-  Mongoose passes them through). The user model gets `email` (unique,
+  Mongoose passes them through). **`decimal` and `bigint` are the two a
+  JavaScript number cannot carry**, and `base/exact.js` is the argument (a
+  copy per adapter, byte identical, kept so by `src/__tests__/exact.spec.js`,
+  the way `external-id.js` is): a `decimal` has a `precision` (19, at
+  most 38) and a `scale` (4), a `bigint` takes neither, and both cross into
+  JavaScript as exact decimal **strings** on every adapter -- never a
+  `number`, never a `BigInt`, because `JSON.stringify` throws on one and
+  henri serializes records in a dozen places. henri ships no arithmetic. A
+  value with more decimal places than the scale, more digits than the
+  precision, a `bigint` past the signed 64-bit range or a `number` that is
+  not a safe integer is refused rather than rounded, so `0.1 + 0.2` fails
+  validation instead of landing in the column. The columns are
+  `numeric(p, s)`/`bigint` on postgres, `decimal(p, s)`/`bigint` on mysql,
+  `Decimal128`/BSON `BigInt` on MongoDB, `DECIMAL(p, s)`/`BIGINT` on mssql,
+  and on sqlite a `text` of the digits, cast for a comparison only
+  (`dialects.js`: `CAST(... AS INTEGER)`, exact; `CAST(... AS REAL)`, the
+  one approximation). `graphql-schema.js` makes both `String`,
+  `openapi.js` a string with a `pattern` and no numeric bound, and
+  `params-schema.js` a rule type a JSON body must send as a string.
+  The user model gets `email` (unique,
   lowercased), `password` (hashed, not selected by default), `roles`
   (stripped from mass assignment; `setRoles()` or `{ unsafe: true }`) and the
   two dates the account flows write, `confirmedAt` and `passwordChangedAt`.
@@ -1138,5 +1158,21 @@ versions.spec.js`), and on MongoDB through the demo application core's
   schema change that dropped a column, and no route: henri serves no
   version over HTTP, so an application that wants to show a history writes
   the controller and the policy itself.
+- The exact types (`decimal`, `bigint`) are new. **On sqlite a comparison
+  and an order of a `decimal` go through `CAST(... AS REAL)`**, a double,
+  and that is the one approximation henri ships for them: exact to about
+  sixteen significant digits, which is the answer PostgreSQL gives for
+  every value a person writes down, and the nearest double past that. The
+  stored value never goes through it and an equality does not either (the
+  text is canonical), and a `bigint` casts to `INTEGER`, which sqlite
+  carries on 64 bits. `@usehenri/sequelize` **refuses both types on
+  sqlite** at boot (`HENRI_MODEL_TYPE_UNSUPPORTED`, naming the model and
+  the field) rather than reading a value back changed: it has no seam to
+  keep the digits as text and cast for a comparison. That is unreachable
+  through `henri new` -- sqlite goes to Drizzle and Sequelize is only
+  under `@usehenri/mssql` -- and MSSQL itself has only its generated DDL
+  covered, like the rest of that adapter. henri ships no arithmetic and
+  rounds nothing: a value that does not fit the scale is a validation
+  failure, and what to do about it is the application's.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.

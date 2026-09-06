@@ -79,17 +79,18 @@ A `henri generate graphql` would have written the SDL above into `app/models/Art
 
 ### What each type becomes
 
-| henri schema           | GraphQL                                                                                              |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- |
-| `string`, `text`       | `String`                                                                                             |
-| `integer`              | `Int`                                                                                                |
-| `number`, `float`      | `Float`                                                                                              |
-| `boolean`              | `Boolean`                                                                                            |
-| `date`                 | `String`, ISO 8601 — the same string the JSON answer carries                                         |
-| `uuid`                 | `String`                                                                                             |
-| `json`                 | nothing: a JSON column holds no shape GraphQL could state, so add the field and a scalar of your own |
-| `enum: [...]`          | an `enum <Type><Field>` when every value is a GraphQL name, `String` when one is not (`in-progress`) |
-| a declared foreign key | `ID`, holding the `externalId` of the row it names                                                   |
+| henri schema           | GraphQL                                                                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `string`, `text`       | `String`                                                                                                                                                  |
+| `integer`              | `Int`                                                                                                                                                     |
+| `number`, `float`      | `Float`                                                                                                                                                   |
+| `decimal`, `bigint`    | `String` — the [exact value](/guides/models/#exact-numbers); a `Float` is a double and an `Int` is 32 bits, so either would undo the column in the answer |
+| `boolean`              | `Boolean`                                                                                                                                                 |
+| `date`                 | `String`, ISO 8601 — the same string the JSON answer carries                                                                                              |
+| `uuid`                 | `String`                                                                                                                                                  |
+| `json`                 | nothing: a JSON column holds no shape GraphQL could state, so add the field and a scalar of your own                                                      |
+| `enum: [...]`          | an `enum <Type><Field>` when every value is a GraphQL name, `String` when one is not (`in-progress`)                                                      |
+| a declared foreign key | `ID`, holding the `externalId` of the row it names                                                                                                        |
 
 `required: true` makes the field non-null. The timestamps, `deletedAt` on a `paranoid` model and the columns henri adds to the user model are all there, because they are all in the JSON answer.
 

@@ -643,7 +643,7 @@ const generators = (facts) => {
 ${lines.join('\n')}
 \`\`\`
 
-Types are \`string, text, number, integer, float, boolean, date, json, uuid\`, and a trailing \`!\` makes the field required. \`Post\` gives \`posts\` (\`Category\` -> \`categories\`, \`Person\` -> \`people\`). An existing file is skipped unless \`--force\`; \`--json\` prints the files written or removed and the routes added. The generators rewrite \`config/routes.js\` through prettier, so comments in that file are lost. Regenerate this file with \`henri generate agents\` whenever the application changes shape.`;
+Types are \`string, text, number, integer, float, decimal, bigint, boolean, date, json, uuid\`, and a trailing \`!\` makes the field required. \`Post\` gives \`posts\` (\`Category\` -> \`categories\`, \`Person\` -> \`people\`). An existing file is skipped unless \`--force\`; \`--json\` prints the files written or removed and the routes added. The generators rewrite \`config/routes.js\` through prettier, so comments in that file are lost. Regenerate this file with \`henri generate agents\` whenever the application changes shape.`;
 };
 
 /**

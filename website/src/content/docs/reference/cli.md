@@ -195,7 +195,7 @@ henri g <what> <name> [options] [--force]
 
 Model and resource names are given in the singular with a capital: `Post` gives the model `Post`, the controller `posts.js`, the route `resources posts` and the pages under `posts/` (`category` gives `categories`, `person` `people`). Existing files are skipped and reported; `--force` overwrites them. Routes are added to `config/routes.js`, which is rewritten (formatted with prettier) with the new keys.
 
-Fields are `name:type`, `string` when the type is omitted; a trailing `!` (`name:string!` or `name!:string`) makes the field required. Types: `string`, `text`, `number`, `integer`, `float`, `boolean`, `date`, `json`, `uuid`, mapped by each adapter (see [Models](/guides/models/#the-schema-format)); anything else is refused.
+Fields are `name:type`, `string` when the type is omitted; a trailing `!` (`name:string!` or `name!:string`) makes the field required. Types: `string`, `text`, `number`, `integer`, `float`, `decimal`, `bigint`, `boolean`, `date`, `json`, `uuid`, mapped by each adapter (see [Models](/guides/models/#the-schema-format)); anything else is refused. A generated `decimal` is written out as `{ type: 'decimal', precision: 12, scale: 2 }`, because a field somebody spells `price:decimal` is money and the default (19, 4) is not — see [Exact numbers](/guides/models/#exact-numbers).
 
 ```bash
 henri generate model User name:string! birthday:date

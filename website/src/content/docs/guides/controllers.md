@@ -124,16 +124,16 @@ module.exports = {
 
 `all` (or `*`) is every action, any other key is one action or a comma-separated list, and the action's own key wins over the lists before it. A rule may be the type itself: `year: 'integer'` is `year: { type: 'integer' }`.
 
-| Key                      | What it does                                                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `type`                   | `string`, `text`, `number`, `integer`, `float`, `boolean`, `date`, `json`, `uuid` — the [model types](/guides/models/) — and `array` |
-| `required`               | the field has to be there                                                                                                            |
-| `default`                | what an absent field is worth; a function is called per request                                                                      |
-| `enum`                   | the values accepted, checked after the coercion                                                                                      |
-| `min`, `max`             | the bounds of a number                                                                                                               |
-| `minLength`, `maxLength` | the bounds of a length: characters of a string, items of a list                                                                      |
-| `pattern`                | a regular expression a string has to match                                                                                           |
-| `of`                     | the rule every item of a list follows; a list declares it                                                                            |
+| Key                      | What it does                                                                                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`                   | `string`, `text`, `number`, `integer`, `float`, `decimal`, `bigint`, `boolean`, `date`, `json`, `uuid` — the [model types](/guides/models/) — and `array` |
+| `required`               | the field has to be there                                                                                                                                 |
+| `default`                | what an absent field is worth; a function is called per request                                                                                           |
+| `enum`                   | the values accepted, checked after the coercion                                                                                                           |
+| `min`, `max`             | the bounds of a number; on a `decimal` or a `bigint` they are compared digit by digit and may be written out as strings themselves                        |
+| `minLength`, `maxLength` | the bounds of a length: characters of a string, items of a list                                                                                           |
+| `pattern`                | a regular expression a string has to match                                                                                                                |
+| `of`                     | the rule every item of a list follows; a list declares it                                                                                                 |
 
 A rule henri cannot carry out fails the boot with `HENRI_PARAMS_DECLARATION_INVALID`, naming the controller, the action and the key: an unknown type, an unknown key (`requird`), a constraint the type does not take (`min` on a string), a `default` the rule itself refuses, a selector naming an action the controller does not export. A declaration that silently accepts everything is the mistake this feature exists to remove.
 
@@ -142,7 +142,9 @@ A rule henri cannot carry out fails the boot with `HENRI_PARAMS_DECLARATION_INVA
 A query string is all strings. A form body is all strings. A JSON body is not, and that is the rule:
 
 - **A textual source** — the query string, a path parameter, a form body — is _parsed_ into the type. `?page=2` arrives as the number `2`, `?active=true` (or `on`, `yes`, `1`) as `true`, `?at=2024-01-02` as a `Date`. There is no other way for a client to say `2` there.
-- **A JSON body** is _checked_, never parsed: `{"page": "2"}` is a caller sending a string where the action declared a number, and it is refused. JSON can say `2`; it said `"2"`. The two types JSON cannot carry are the exception and are read from a string there as well: a `date` is an ISO-8601 string and a `uuid` is a string.
+- **A JSON body** is _checked_, never parsed: `{"page": "2"}` is a caller sending a string where the action declared a number, and it is refused. JSON can say `2`; it said `"2"`. The types JSON cannot carry are the exception and are read from a string there as well: a `date` is an ISO-8601 string, a `uuid` is a string, and so are a `decimal` and a `bigint`.
+
+The last two are the interesting case, because JSON _can_ express them — as a double, which is the value they exist to avoid. `{"price": 19.99}` is refused for that reason, and `{"price": "19.99"}` is what a client sends. From a textual source the digits are kept as a string rather than parsed into a number, so an [exact value](/guides/models/#exact-numbers) is the same string wherever it came from; `enum` matches by value there, so `'10'` matches a declared `'10.00'`, and `minLength`, `maxLength` and `pattern` are not constraints those two take — they measure text — so declaring one fails the boot.
 
 The rest follows: an empty string from a textual source is an absent field (a browser sends one for every input nobody touched) unless the type is `string` or `text`; `null` is an absent field everywhere; a single textual value is a one-item list when the type is `array`, while a JSON body has to send the list; and `?year=1&year=2` is a list arriving where a number was declared, which is refused rather than silently taking one of the two.
 

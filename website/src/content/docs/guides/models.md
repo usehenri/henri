@@ -51,23 +51,27 @@ module.exports = {
 
 On SQL, `associate()` runs before the schema is brought up, so the foreign keys end up in the tables.
 
-The keys above and the nine field types are declared in `@usehenri/core`: a `/** @type {import('@usehenri/core').ModelFile} */` line, which `henri generate model` writes, is enough for an editor to complete them. The model itself is the ORM's, and stays untyped — see [Types](/reference/types/).
+The keys above and the eleven field types are declared in `@usehenri/core`: a `/** @type {import('@usehenri/core').ModelFile} */` line, which `henri generate model` writes, is enough for an editor to complete them. The model itself is the ORM's, and stays untyped — see [Types](/reference/types/).
 
 ## The schema format
 
 A field is `{ type, ...keys }` or a bare type. The type names and the keys below mean the same thing on every adapter, so a model written for the disk adapter moves to MongoDB or PostgreSQL unchanged.
 
-| Type      | Mongoose  | Sequelize |
-| --------- | --------- | --------- |
-| `string`  | `String`  | `STRING`  |
-| `text`    | `String`  | `TEXT`    |
-| `number`  | `Number`  | `DOUBLE`  |
-| `integer` | `Number`  | `INTEGER` |
-| `float`   | `Number`  | `FLOAT`   |
-| `boolean` | `Boolean` | `BOOLEAN` |
-| `date`    | `Date`    | `DATE`    |
-| `json`    | `Mixed`   | `JSON`    |
-| `uuid`    | `String`  | `UUID`    |
+| Type      | Drizzle (postgres)         | Drizzle (mysql) | Drizzle (sqlite)        | Mongoose     | Sequelize (mssql) |
+| --------- | -------------------------- | --------------- | ----------------------- | ------------ | ----------------- |
+| `string`  | `varchar(255)`             | `varchar(255)`  | `text`                  | `String`     | `STRING`          |
+| `text`    | `text`                     | `text`          | `text`                  | `String`     | `TEXT`            |
+| `number`  | `double precision`         | `double`        | `real`                  | `Number`     | `DOUBLE`          |
+| `integer` | `integer`                  | `int`           | `integer`               | `Number`     | `INTEGER`         |
+| `float`   | `real`                     | `float`         | `real`                  | `Number`     | `FLOAT`           |
+| `decimal` | `numeric(p, s)`            | `decimal(p, s)` | `text` (the digits)     | `Decimal128` | `DECIMAL(p, s)`   |
+| `bigint`  | `bigint`                   | `bigint`        | `text` (the digits)     | `BigInt`     | `BIGINT`          |
+| `boolean` | `boolean`                  | `boolean`       | `integer` (`0`/`1`)     | `Boolean`    | `BOOLEAN`         |
+| `date`    | `timestamp with time zone` | `datetime(3)`   | `integer` (ms of epoch) | `Date`       | `DATE`            |
+| `json`    | `jsonb`                    | `json`          | `text` (JSON)           | `Mixed`      | `JSON`            |
+| `uuid`    | `uuid`                     | `varchar(36)`   | `text`                  | `String`     | `UUID`            |
+
+`decimal` and `bigint` are the two whose value a JavaScript number cannot carry, so they cross into JavaScript as exact decimal strings on every adapter. See [Exact numbers](#exact-numbers).
 
 | Key         | Description                                                                                                                                                                                              |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -76,6 +80,8 @@ A field is `{ type, ...keys }` or a bare type. The type names and the keys below
 | `enum`      | Allowed values. An `ENUM` column on MySQL, MariaDB and PostgreSQL, an `isIn` validation elsewhere.                                                                                                       |
 | `unique`    | Unique index or constraint.                                                                                                                                                                              |
 | `index`     | `index: true` adds an index on the field.                                                                                                                                                                |
+| `precision` | A `decimal` only: the total number of digits, 19 by default and 38 at most — the widest every dialect henri writes carries. See [Exact numbers](#exact-numbers).                                         |
+| `scale`     | A `decimal` only: the digits after the point, 4 by default. A value with more of them is refused, not rounded.                                                                                           |
 | `personal`  | This field is about a person: masked in the logs, exported and erased. See [Personal data](/guides/privacy/).                                                                                            |
 | `encrypted` | The column holds ciphertext and the model the string. `true` is randomised (not queryable), `{ deterministic: true }` keeps an equality and a `unique`. See [Encrypted attributes](/guides/encryption/). |
 
@@ -84,7 +90,87 @@ What the adapters do with anything else differs:
 - **Mongoose** passes every other key and type through, so `{ type: 'ObjectId', ref: 'Post' }`, `[String]`, nested objects, `lowercase`, `trim`, `match`, `select`, `validate` and the JavaScript constructors (`String`, `Number`, `Date`) all work. It also understands the Sequelize spellings `allowNull: false` and `defaultValue`.
 - **Sequelize** (`mssql` only) accepts its own attribute options (`allowNull`, `defaultValue`, `validate`, `field`, `primaryKey`, `autoIncrement`, `references`, `onDelete`, `onUpdate`, `comment`, `get`, `set`, `values`, ...), its data types (`type: DataTypes.STRING(50)` or the uppercase name as a string, `'STRING'`), the JavaScript constructors (`Object` and `Array` become `JSON`, `Buffer` a `BLOB`), and stores nested objects and arrays as `JSON`. Any other key throws at boot with the list of supported keys, so a typo never becomes a silently ignored option. A field with a known key but no `type` is an error too.
 
-`@usehenri/mongoose/types` and `@usehenri/sequelize/types` export the map above if you need the ORM types themselves.
+`@usehenri/drizzle/types`, `@usehenri/mongoose/types` and `@usehenri/sequelize/types` export the map above if you need the column or ORM types themselves.
+
+## Exact numbers
+
+Two of the types hold a value a JavaScript number cannot: `decimal`, an exact number with a `precision` (total digits) and a `scale` (digits after the point), and `bigint`, a signed 64-bit integer. Money is the reason the first one exists — a `number` column is a double, and a double answers `1.0000000000000007` for a hundred cents — and an identifier that comes from somewhere else is the reason for the second, because `9223372036854775807` read through a double is `9223372036854776000`.
+
+```js
+// app/models/Invoice.js
+module.exports = {
+  schema: {
+    // Money: two digits after the point
+    amount: { type: 'decimal', precision: 12, scale: 2 },
+    // The defaults, 19 digits with 4 after the point: a unit price wants
+    // more than money does
+    rate: { type: 'decimal' },
+    // What the accounting system calls it, past where an `integer` stopped
+    reference: { type: 'bigint', unique: true },
+  },
+};
+```
+
+`precision` is 19 by default and 38 at most, which is the widest every dialect henri writes carries; `scale` is 4 and cannot be more than the precision. A `bigint` takes neither: declaring a `precision` or a `scale` on one fails the boot.
+
+### The value is a string
+
+A value of either type crosses into JavaScript as an exact decimal **string**, on every adapter: `'19.99'`, `'-1'`, `'9223372036854775807'`. Never a `number`, never a `BigInt`, never an object of henri's own.
+
+```js
+const invoice = await Invoice.create({
+  amount: 19.99,
+  reference: '90071992547409911',
+});
+
+invoice.amount; // '19.99'
+invoice.reference; // '90071992547409911'
+JSON.stringify(invoice); // {"amount":"19.99","reference":"90071992547409911", ...}
+```
+
+There are four reasons, and they are the same four everywhere the value travels:
+
+- `JSON.stringify` throws on a `BigInt`, and henri serializes records in a dozen places — `res.render()`, `res.resource()`, `res.collection()`, the cache, the call log, a version diff, the trail, a job payload, GraphQL. One escaping into any of them is a `TypeError` raised deep inside express, after the controller returned.
+- A decimal object needs a dependency and would not survive JSON either.
+- It is the shortest path rather than a conversion: node-postgres hands `numeric` and `int8` back as strings, mysql2 hands `DECIMAL` back as a string, and `Decimal128.toString()` is exact. Turning any of those into a number is the step that loses the value.
+- A string is exact, JSON-safe and identical on the three adapters, which is what makes one model file mean one thing everywhere.
+
+**henri ships no arithmetic.** An application that adds two prices picks its own library and hands henri back a string.
+
+On the way in, a string (a decimal literal, exponent form included), a JavaScript `number` and — for a `bigint` — a `BigInt` are all accepted. A number goes through `String(value)`, the shortest representation that round-trips, so the literal a person typed survives: `19.99` is `'19.99'`.
+
+### What is refused rather than rounded
+
+Each of these is a value the database would have quietly changed:
+
+- more decimal places than the `scale`, counted after the trailing zeros, which are not information: `'19.9900'` is fine at scale 2 and `'19.999'` is not;
+- more digits before the point than `precision - scale`;
+- a `bigint` outside `-9223372036854775808 .. 9223372036854775807`;
+- a JavaScript number that is not a safe integer where a whole number was asked for (`2 ** 60` is refused, and the message says to pass it as a string).
+
+So `0.1 + 0.2` arrives as `0.30000000000000004` and fails validation instead of landing in the column: **henri does not round money**, because rounding is the application's to do and it is the application that knows which way.
+
+`min` and `max` mean what they always did on an exact field, and they are compared digit by digit rather than through a double, so a bound past what a double holds can be written down. (Mongoose has a `min` and a `max` of its own and drops both on a `Decimal128` without a word, so henri carries them itself there.) The keys that measure text — `minLength`, `maxLength`, `match`, `trim`, `lowercase` and `length` — fail the boot on an exact field, naming it: the value is a string, so they would only count its digits.
+
+### On each store
+
+| Store                                  | `decimal`                  | `bigint`                   |
+| -------------------------------------- | -------------------------- | -------------------------- |
+| PostgreSQL (`drizzle`, `postgresql`)   | `numeric(p, s)`            | `bigint`                   |
+| MySQL and MariaDB (`drizzle`, `mysql`) | `decimal(p, s)`            | `bigint`                   |
+| sqlite (`drizzle`)                     | `text`, holding the digits | `text`, holding the digits |
+| MongoDB (`disk`, `mongoose`)           | `Decimal128`               | a BSON 64-bit integer      |
+| SQL Server (`mssql`)                   | `DECIMAL(p, s)`            | `BIGINT`                   |
+
+sqlite has neither an exact decimal nor a 64-bit integer its driver hands back whole (better-sqlite3 reads `9223372036854775807` back as `9223372036854776000`), so the drizzle adapter keeps the digits in a `text` column, which round-trips the value exactly. A comparison is a different question from a value, and text answers it wrongly — `'9.99' > '10'` lexicographically — so **a comparison and an order** are the one thing that goes through a cast: `CAST(col AS INTEGER)` for a `bigint`, which sqlite carries on 64 bits and is therefore exact, and `CAST(col AS REAL)` for a `decimal`, which is a double and is the one approximation henri ships for these types — accurate to about sixteen significant digits, the same answer PostgreSQL gives for every value a person writes down. An equality is not cast at all: the stored text is canonical, so `=` is exact.
+
+`@usehenri/sequelize` **refuses both types on sqlite** at boot, naming the model and the field ([`HENRI_MODEL_TYPE_UNSUPPORTED`](/reference/errors/#henri_model_type_unsupported)), and points at `@usehenri/drizzle`: it reads a sqlite `DECIMAL` through a double and loses the digits of a `BIGINT` past 2^53, and it has no seam to store the value as text and cast for a comparison the way the drizzle adapter does. It is a corner `henri new` cannot produce — sqlite goes to Drizzle, and Sequelize is reachable only under [`mssql`](#mssql-1) — and the adapter says so rather than reading a value back changed.
+
+### The Sequelize spellings
+
+A model written for Sequelize keeps its data type names on a drizzle store, and the two that used to be downgrades point at the real types now: `DECIMAL` and `NUMERIC` are `decimal` (they were `number`, a double) and `BIGINT` is `bigint` (it was `integer`, 32 bits). On an `mssql` store, `DataTypes.DECIMAL(10, 2)` is read as `{ type: 'decimal', precision: 10, scale: 2 }` and gets the same string boundary. A **bare `DataTypes.DECIMAL`** is refused there, because MySQL makes it `DECIMAL(10, 0)` — whole units, so money loses its cents. Write `{ type: 'decimal', precision: 12, scale: 2 }` and henri writes the same column on every dialect.
+
+Elsewhere: an exact field is a `String` in [GraphQL](/guides/graphql/#what-each-type-becomes), a string with a `pattern` in the [OpenAPI document](/guides/openapi/), and a `decimal` or `bigint` rule in a controller's [`params`](/guides/controllers/#params-what-an-action-accepts) block.
 
 ## Timestamps
 

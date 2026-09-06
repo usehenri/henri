@@ -35,7 +35,7 @@ const FORCE_FLAG = {
 };
 
 const FIELD_TYPES =
-  'string, text, number, integer, float, boolean, date, json, uuid';
+  'string, text, number, integer, float, decimal, bigint, boolean, date, json, uuid';
 
 /**
  * The catalogue of commands: one entry per command, rendered as text by
