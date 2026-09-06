@@ -186,6 +186,12 @@ declare namespace start {
      * `POST /account/email`.
      */
     confirmation?: boolean | ConfirmationConfig;
+    /**
+     * Signing in with somebody else's identity provider:
+     * `POST /auth/:provider`, `GET /auth/:provider/callback` and
+     * `POST /auth/:provider/unlink`. Off until a provider is named.
+     */
+    identities?: false | IdentitiesConfig;
   }
 
   /** `config.user.signup`. */
@@ -237,11 +243,192 @@ declare namespace start {
     requirePassword?: boolean;
   }
 
+  /**
+   * One `config.user.identities.providers.<name>`. henri ships no provider
+   * list: an application names its own and points them at their endpoints.
+   */
+  interface IdentityProviderConfig {
+    /** Where a browser is sent. https, unless `allowHttp` says otherwise. */
+    authorizationUrl: string;
+    /** Where an authorization code is redeemed, server to server. */
+    tokenUrl: string;
+    /** Where the person's claims are read with the access token. */
+    userinfoUrl: string;
+    /** The client identifier the provider issued. */
+    clientId: string;
+    /**
+     * The client secret. It belongs in the encrypted credentials
+     * (`henri credentials:edit`) or in the environment; `henri audit`
+     * reports one written in a `config/*.json`.
+     */
+    clientSecret: string;
+    /** The scopes to ask for (`['openid', 'email']`). */
+    scope?: string | string[];
+    /** Which fields of the userinfo answer henri reads. */
+    claims?: {
+      /** The claim holding the provider's identifier for a person (`sub`). */
+      subject?: string;
+      /** The address claim (`email`). */
+      email?: string;
+      /**
+       * The claim saying the address is verified (`email_verified`), or
+       * `false` for a provider that never verifies one -- which makes it a
+       * provider you can link and cannot sign up with.
+       */
+      verified?: string | false;
+    };
+    /** What a button calls it (the name). */
+    label?: string;
+    /**
+     * What an identity from this provider is allowed to imply. `signin`
+     * opens a session; `verify` identifies the person and never opens one
+     * on its own, so it can only be linked from a session. It is written on
+     * the row, so changing this never promotes the identities already there.
+     */
+    allows?: 'signin' | 'verify';
+    /** How the client secret reaches the token endpoint (`basic`). */
+    auth?: 'basic' | 'post';
+    /** Send a PKCE code challenge (`true`). */
+    pkce?: boolean;
+    /**
+     * This provider is an authority on who owns an address here. It is what
+     * `merge: 'verified'` needs, and `henri audit` reports the pair.
+     */
+    trusted?: boolean;
+    /** Extra authorization parameters (`{ prompt: 'select_account' }`). */
+    params?: Record<string, string>;
+  }
+
+  /** `config.user.identities`. */
+  interface IdentitiesConfig {
+    /** `false` leaves the endpoints unmounted without removing the providers. */
+    enabled?: boolean;
+    /** The providers, by the name a url calls them. */
+    providers?: Record<string, IdentityProviderConfig>;
+    /**
+     * What a callback does when its verified address already belongs to an
+     * account. `refuse` (the default) refuses and says to sign in and link;
+     * `verified` links it, which lets whoever can make a trusted provider
+     * assert an address take the account behind it. Linking from a session
+     * is not a value here: it is the flow, and it is always available.
+     */
+    merge?: 'refuse' | 'verified';
+    /** The prefix of the identity endpoints (`/auth`). */
+    path?: string;
+    /** Where a browser lands once a provider was linked (`/`). */
+    after?: string;
+    /** Open an account for a verified address that belongs to nobody (`true`). */
+    signup?: boolean;
+    /** Reach a provider over http; development only. */
+    allowHttp?: boolean;
+    /** How long one sign-in attempt stays valid (`'10m'`). */
+    stateExpiresIn?: Duration;
+    /** How long a provider has to answer (`'10s'`). */
+    timeout?: Duration;
+    /** The table the identities live in (`henri_identities`). */
+    table?: string;
+  }
+
+  /** One provider, as a page renders it: never the client secret. */
+  interface IdentityProvider {
+    name: string;
+    label: string;
+    allows: 'signin' | 'verify';
+    trusted: boolean;
+  }
+
+  /** One row of the identity table. */
+  interface Identity {
+    id: string;
+    /** The public identifier of the person it names. */
+    userId: string;
+    provider: string;
+    /** The identifier the provider issues for that person. */
+    subject: string;
+    /** The address the provider asserted when it was linked. */
+    email: string | null;
+    /** Whether the provider said that address was verified, then. */
+    verified: boolean;
+    /** What this binding is allowed to imply. */
+    allows: 'signin' | 'verify';
+    /**
+     * How it came to be: `signup` (henri opened the account for it),
+     * `session` (linked from a signed-in session) or `verified` (the
+     * automatic merge `merge: 'verified'` allows).
+     */
+    origin: 'signup' | 'session' | 'verified';
+    linkedAt: number | null;
+    lastUsedAt: number | null;
+  }
+
+  /** What a callback answered. */
+  interface IdentityResult {
+    ok: boolean;
+    /** What happened: `signin`, `signup` or `link`. */
+    action: 'signin' | 'signup' | 'link' | null;
+    /** Why not: `state`, `unverified`, `exists`, `denied`, ... */
+    reason: string | null;
+    user: any;
+    identity: Identity | null;
+    attempt: Record<string, unknown> | null;
+  }
+
+  /**
+   * `henri.identities`: signing in with somebody else's identity provider.
+   * The endpoints of `config.user.identities` call this, and so can a
+   * controller that would rather answer them itself.
+   */
+  interface IdentitiesModule {
+    /** What an identity may imply: `signin`, `verify`. */
+    readonly ALLOWS: readonly string[];
+    /** What the merge rule may be told to do: `refuse`, `verified`. */
+    readonly MERGES: readonly string[];
+    /** The normalized `config.user.identities`. */
+    readonly settings: Required<IdentitiesConfig>;
+    /** Whether a provider is configured and the endpoints are mounted. */
+    readonly enabled: boolean;
+    /** The providers a page renders its buttons from; never their secrets. */
+    providers(): IdentityProvider[];
+    /** One of them by name, or `null`. */
+    providerOf(name: unknown): IdentityProvider | null;
+    /** The url a provider sends the browser back to. Register this one. */
+    redirectUri(provider: string): string;
+    /** Every identity of one person, oldest link first. */
+    forUser(user: object): Promise<Identity[]>;
+    /** The same, by the public identifier an export holds. */
+    forPerson(who: string): Promise<Identity[]>;
+    /** Takes every identity of a person away. They are deleted, not masked. */
+    forget(who: string): Promise<number>;
+    /**
+     * Removes one. It refuses to take away the last way into an account:
+     * an account henri opened from a callback has no password anybody
+     * knows, so unlinking would lock its owner out.
+     */
+    unlink(
+      user: object,
+      provider: string
+    ): Promise<{ ok: boolean; reason: string | null }>;
+    /** The state, the exchange, the profile and the merge rule. */
+    complete(
+      req: Request | ExpressRequest,
+      query?: object
+    ): Promise<IdentityResult>;
+    /** Creates the table and its indexes; idempotent. */
+    install(): Promise<string[]>;
+    /** What is wrong with the configured providers, all of it at once. */
+    problems(): string[];
+  }
+
   /** The normalized `config.user`, as `henri.user.settings`. */
   interface UserSettings extends Required<
     Omit<
       UserConfig,
-      'password' | 'lockout' | 'signup' | 'passwordReset' | 'confirmation'
+      | 'password'
+      | 'lockout'
+      | 'signup'
+      | 'passwordReset'
+      | 'confirmation'
+      | 'identities'
     >
   > {
     password: PasswordPolicy;
@@ -4291,6 +4478,12 @@ declare namespace start {
     cache: CacheModule;
     /** Registration, the password reset and the address confirmation. */
     accounts: AccountsService;
+    /**
+     * Signing in with somebody else's identity provider: the identity
+     * table, the callback and the merge rule. Its endpoints are mounted
+     * when `config.user.identities` names a provider.
+     */
+    identities: IdentitiesModule;
     /** The passport instance (also `henri.user.passport`). */
     passport: any;
     /**

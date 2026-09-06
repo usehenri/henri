@@ -784,7 +784,7 @@ Every duration is a number of milliseconds or a string: `'250ms'`, `'30s'`, `'5m
 }
 ```
 
-`public` lists the fields, besides `externalId`, `email` and `roles`, that views and JSON answers may see; `loginPath` is where browsers are sent when a route denies them; `afterLogin` where they land after a form login; `sessionMaxAge` the session lifetime in milliseconds (30 days). See [Users](/guides/users/).
+`public` lists the fields, besides `externalId`, `email` and `roles`, that views and JSON answers may see; `loginPath` is where browsers are sent when a route denies them; `afterLogin` where they land after a form login; `sessionMaxAge` the session lifetime in milliseconds (30 days). Four more blocks are the endpoints henri mounts when they are asked for: `signup`, `passwordReset` and `confirmation` (the [account flows](/guides/users/#the-account-flows)), and `identities` (the [identity providers](/guides/users/#signing-in-with-somebody-elses-identity-provider)). See [Users](/guides/users/).
 
 ### `user.password`
 
@@ -811,6 +811,44 @@ The per-account sign-in lockout; `false` turns it off. See [Sign-in lockout](/gu
 | `lockout.max`      | `10`     | Failed attempts one account may receive per window, whoever sends them.                     |
 | `lockout.windowMs` | `900000` | The window, 15 minutes.                                                                     |
 | `lockout.store`    | memory   | An express-rate-limit store shared between processes; in memory and per process by default. |
+
+### `user.identities`
+
+Signing in with somebody else's identity provider. Off until `providers` names one; henri ships no provider list and no provider secrets. See [Identity providers](/guides/users/#signing-in-with-somebody-elses-identity-provider).
+
+```json
+{
+  "user": {
+    "identities": {
+      "providers": {
+        "acme": {
+          "authorizationUrl": "https://acme.example/oauth/authorize",
+          "tokenUrl": "https://acme.example/oauth/token",
+          "userinfoUrl": "https://acme.example/oauth/userinfo",
+          "clientId": "...",
+          "clientSecret": "...",
+          "scope": ["openid", "email"]
+        }
+      }
+    }
+  }
+}
+```
+
+| Key                         | Default            | Description                                                                                                                                                                                      |
+| --------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `identities.providers`      | `{}`               | The providers, by the name a url calls them. One is enough to mount the endpoints.                                                                                                               |
+| `identities.merge`          | `refuse`           | What a callback does when its verified address already has an account. `refuse` says to sign in and link; `verified` links it, needs the provider `trusted`, and `henri audit` reports the pair. |
+| `identities.path`           | `/auth`            | Prefix of `POST <path>/:provider`, `GET <path>/:provider/callback` and `POST <path>/:provider/unlink`.                                                                                           |
+| `identities.after`          | `/`                | Where a browser lands once a provider was linked.                                                                                                                                                |
+| `identities.signup`         | `true`             | Open an account for a verified address that belongs to nobody; `false` refuses instead.                                                                                                          |
+| `identities.allowHttp`      | `false`            | `true` lets a provider be reached over plaintext http, client secret and access token in the clear. **Development only**, and `henri audit` reports it.                                          |
+| `identities.stateExpiresIn` | `10m`              | How long one sign-in attempt stays valid. The state is minted per attempt, kept in the session, and single use.                                                                                  |
+| `identities.timeout`        | `10s`              | How long a provider has to answer the token and userinfo requests.                                                                                                                               |
+| `identities.table`          | `henri_identities` | Table (or collection) name. Letters, digits and underscores only.                                                                                                                                |
+| `identities.enabled`        | `true`             | `false` leaves the endpoints unmounted without removing the providers.                                                                                                                           |
+
+Each provider takes `authorizationUrl`, `tokenUrl`, `userinfoUrl`, `clientId` and `clientSecret` (all required), plus `scope`, `claims` (`subject`, `email`, `verified`), `label`, `allows` (`signin` or `verify`), `auth` (`basic` or `post`), `pkce`, `trusted` and `params`. **The client secret belongs in the [encrypted credentials](#encrypted-credentials) or in the environment**, never here: `henri audit` reports one written in a configuration file the way it reports an encryption key there. A provider that cannot be used as configured fails the boot naming every problem at once.
 
 ## The `csrf` object
 

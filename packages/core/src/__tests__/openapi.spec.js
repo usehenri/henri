@@ -387,6 +387,27 @@ describe('the OpenAPI description', () => {
       expect(document.paths['/livez'].get).toBeDefined();
       expect(document.paths['/readyz'].get.responses['503']).toBeDefined();
     });
+
+    test('the identity endpoints say which provider and what a refusal means', () => {
+      const start = document.paths['/auth/{provider}'].post;
+      const callback = document.paths['/auth/{provider}/callback'].get;
+
+      expect(start['x-henri'].source).toBe('built-in');
+      expect(start.parameters[0]).toMatchObject({
+        in: 'path',
+        name: 'provider',
+        schema: { enum: ['acme', 'other'], type: 'string' },
+      });
+      // A GET on the start endpoint is the 405 the router answers, so the
+      // document describes the POST and nothing else there
+      expect(document.paths['/auth/{provider}'].get).toBeUndefined();
+      expect(callback.responses['409'].description).toContain('exists');
+      expect(
+        callback.responses['200'].content['application/json'].schema.properties
+          .identity.properties.subject
+      ).toBeUndefined();
+      expect(document.paths['/auth/{provider}/unlink'].post).toBeDefined();
+    });
   });
 
   describe('what henri does not know', () => {

@@ -174,6 +174,93 @@ const sizeLimit = (extra = {}) => ({
 });
 
 /** One entry of `stores`: an adapter and how to reach its database */
+/**
+ * One `user.identities.providers.<name>` entry.
+ *
+ * henri ships no provider list, so this is the shape and not the contents:
+ * an application names its providers and points them at their own three
+ * endpoints. `clientSecret` is a secret like any other -- the encrypted
+ * credentials or the environment, never a `config/*.json`, which is what
+ * `henri audit` reports.
+ */
+const IDENTITY_PROVIDER = {
+  keys: {
+    allows: text({
+      default: 'signin',
+      describe: 'one of signin, verify',
+      enum: ['signin', 'verify'],
+      hint: 'verify identifies the person and never opens a session on its own; it can only be linked from a session',
+    }),
+    auth: text({
+      default: 'basic',
+      describe: 'one of basic, post',
+      enum: ['basic', 'post'],
+      hint: 'how the client secret reaches the token endpoint (client_secret_basic or client_secret_post)',
+    }),
+    authorizationUrl: text({
+      describe: 'the url a browser is sent to',
+      hint: 'https, unless user.identities.allowHttp says otherwise',
+    }),
+    claims: {
+      describe: 'which fields of the userinfo answer henri reads',
+      keys: {
+        email: text({ default: 'email', describe: 'the address claim' }),
+        subject: text({
+          default: 'sub',
+          describe: "the claim holding the provider's identifier for a person",
+        }),
+        verified: {
+          default: 'email_verified',
+          describe: 'a claim name, or false',
+          hint: 'false says this provider never verifies an address, so it can be linked and never signed up with',
+          oneOf: [{ const: false }, text()],
+        },
+      },
+      type: 'object',
+    },
+    clientId: text({ describe: 'the client identifier the provider issued' }),
+    clientSecret: text({
+      describe: 'the client secret the provider issued',
+      hint: 'Put it in the encrypted credentials (henri credentials:edit) or in the environment; henri audit reports one written here',
+    }),
+    label: text({ describe: 'what a button calls this provider' }),
+    params: {
+      describe: 'extra authorization parameters, by name',
+      hint: 'What a provider asks for beyond the standard ones',
+      type: 'record',
+      values: text(),
+    },
+    pkce: {
+      default: true,
+      describe: 'true or false',
+      hint: 'false stops sending a code challenge, for a provider that refuses parameters it does not know',
+      type: 'boolean',
+    },
+    scope: {
+      describe: "a list of scopes, or one string ('openid email')",
+      oneOf: [text(), { of: text(), type: 'array' }],
+    },
+    tokenUrl: text({ describe: 'where an authorization code is redeemed' }),
+    trusted: {
+      default: false,
+      describe: 'true or false',
+      hint: 'Only a provider that is an authority on who owns an address here; it is what user.identities.merge "verified" needs, and henri audit reports the pair',
+      type: 'boolean',
+    },
+    userinfoUrl: text({
+      describe: "where the person's claims are read with the access token",
+    }),
+  },
+  required: [
+    'authorizationUrl',
+    'clientId',
+    'clientSecret',
+    'tokenUrl',
+    'userinfoUrl',
+  ],
+  type: 'object',
+};
+
 const STORE = {
   hint: 'A store is { "adapter": "disk" } and the keys that adapter needs',
   keys: {
@@ -372,6 +459,71 @@ const SCHEMA = {
                     hint: 'false lets a signed-in account change its address without its password',
                     type: 'boolean',
                   },
+                },
+                type: 'object',
+              },
+            ],
+          },
+          identities: {
+            default: false,
+            describe:
+              'false, or an object ({ providers, merge, path, after, signup, allowHttp, stateExpiresIn, timeout, table })',
+            hint: 'mounts POST <path>/:provider, GET <path>/:provider/callback and POST <path>/:provider/unlink',
+            oneOf: [
+              { const: false },
+              {
+                keys: {
+                  after: text({
+                    default: '/',
+                    describe: 'a path to land on once a provider was linked',
+                  }),
+                  allowHttp: {
+                    default: false,
+                    describe: 'true or false',
+                    hint: 'true lets a provider be reached over http, which is for development and nothing else',
+                    type: 'boolean',
+                  },
+                  enabled: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'false leaves the endpoints unmounted without removing the providers',
+                    type: 'boolean',
+                  },
+                  merge: text({
+                    default: 'refuse',
+                    describe: 'one of refuse, verified',
+                    enum: ['refuse', 'verified'],
+                    hint: 'verified links a callback to the account that already holds that address, so whoever can make a trusted provider assert it takes that account; the provider must also be trusted: true, and henri audit reports the pair',
+                  }),
+                  path: text({
+                    default: '/auth',
+                    describe: 'the prefix of the identity endpoints',
+                  }),
+                  providers: {
+                    describe:
+                      'the identity providers, by the name a url calls them',
+                    hint: 'henri ships none: an application names its own and points them at their endpoints',
+                    type: 'record',
+                    values: IDENTITY_PROVIDER,
+                  },
+                  signup: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'false refuses a callback whose verified address belongs to nobody, instead of opening an account for it',
+                    type: 'boolean',
+                  },
+                  stateExpiresIn: duration({
+                    default: '10m',
+                    describe: 'how long one sign-in attempt stays valid',
+                  }),
+                  table: text({
+                    default: 'henri_identities',
+                    describe: 'the table the identities live in',
+                  }),
+                  timeout: duration({
+                    default: '10s',
+                    describe: 'how long a provider has to answer',
+                  }),
                 },
                 type: 'object',
               },

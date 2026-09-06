@@ -221,6 +221,20 @@ const CHECKS = [
     what: 'one helmet option is false, so the header it owns is not sent',
   },
   {
+    asvs: null,
+    check: 'identities.http-allowed',
+    level: null,
+    owasp: 'A02',
+    what: '"user": { "identities": { "allowHttp": true } }: a provider may be reached over plaintext http, client secret and access token in the clear',
+  },
+  {
+    asvs: null,
+    check: 'identities.merge-verified',
+    level: null,
+    owasp: 'A07',
+    what: '"user": { "identities": { "merge": "verified" } }: a provider asserting an address that already has an account is linked to it, so whoever can make that provider assert it takes the account',
+  },
+  {
     asvs: 'V5.3.4',
     check: 'injection.raw-query',
     level: 1,
@@ -324,6 +338,13 @@ const CHECKS = [
     level: 2,
     owasp: 'A05',
     what: 'a store changes the database schema by itself on a production boot',
+  },
+  {
+    asvs: 'V2.10.4',
+    check: 'secret.identity-client',
+    level: 2,
+    owasp: 'A02',
+    what: 'an identity provider client secret is written in a configuration file, which is committed',
   },
   {
     asvs: 'V2.10.4',
@@ -679,6 +700,78 @@ const readJson = (file) => {
     return fs.readJsonSync(file);
   } catch {
     return null;
+  }
+};
+
+/**
+ * What `user.identities` says that a reader of the repository should not be
+ * able to read, and what it says that a production deployment should not
+ * mean.
+ *
+ * Three things, and each is the counterpart of a check henri already makes.
+ * A client secret in a committed file is the encryption key of
+ * `encryption.key-in-config`. `allowHttp` is `webhooks.allowHttp`, and it
+ * has the same one honest use, which is a provider on the loopback in
+ * development. And `merge: "verified"` is the one this feature exists to
+ * argue about: it is what makes a provider's word about an address enough
+ * to be handed the account that already holds it.
+ *
+ * @param {*} identities The `user.identities` block
+ * @param {object} context `{ add, file }`
+ * @returns {void} nothing
+ */
+const identityFindings = (identities, { add, file }) => {
+  if (!isObject(identities)) {
+    return;
+  }
+
+  const providers = isObject(identities.providers) ? identities.providers : {};
+  const named = Object.keys(providers).filter(
+    (name) =>
+      isObject(providers[name]) &&
+      typeof providers[name].clientSecret === 'string' &&
+      providers[name].clientSecret !== ''
+  );
+
+  if (named.length > 0) {
+    add(
+      'high',
+      'secret.identity-client',
+      OWASP.A02,
+      `the client secret of ${named.join(', ')} is written in a configuration file, which is committed: whoever reads this repository can complete a sign-in as this application`,
+      'Move it to the encrypted credentials (henri credentials:edit, then { "user": { "identities": { "providers": { ... } } } }) or to HENRI_CONFIG_JSON__user, then rotate it at the provider: the one in git is burnt',
+      'V2.10.4'
+    );
+  }
+
+  if (!PRODUCTION_CONFIGS.includes(file)) {
+    return;
+  }
+
+  if (identities.merge === 'verified') {
+    const trusted = Object.keys(providers).filter(
+      (name) => isObject(providers[name]) && providers[name].trusted === true
+    );
+
+    add(
+      'high',
+      'identities.merge-verified',
+      OWASP.A07,
+      `a callback from ${trusted.join(', ') || 'a trusted provider'} whose address already belongs to an account is linked to it, so anyone who can make that provider assert an address gets the account behind it, password and all`,
+      'Remove "merge": "verified" and let a person sign in and link the provider from their account, which is the only link that carries their consent. Keep it only where the provider is this application\'s own identity provider and is the authority on who owns an address',
+      null
+    );
+  }
+
+  if (identities.allowHttp === true) {
+    add(
+      'medium',
+      'identities.http-allowed',
+      OWASP.A02,
+      'user.identities.allowHttp is true, so a provider may be reached over plaintext http: the client secret, the authorization code and the access token are readable on the path',
+      `Remove "allowHttp": true from ${file} and keep it in config/dev.json, where a provider on the loopback is the point`,
+      null
+    );
   }
 };
 
@@ -1197,6 +1290,8 @@ const configFindings = (config, { file, hasUser }) => {
         'V2.4.1'
       );
     }
+
+    identityFindings(config.user.identities, { add, file });
 
     const leaking = (config.user.public || []).filter(
       (field) =>

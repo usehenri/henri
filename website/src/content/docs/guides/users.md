@@ -1,6 +1,6 @@
 ---
 title: Users
-description: The user model, registration, login, the password reset, the email confirmation, sessions, CSRF, roles and what a browser may see.
+description: The user model, registration, login, the password reset, the email confirmation, identity providers, sessions, CSRF, roles and what a browser may see.
 sidebar:
   order: 5
 ---
@@ -23,7 +23,7 @@ Registration, the password reset and the address confirmation are three more end
 henri generate authentication
 ```
 
-That writes the user model (when there is none), the pages, the controller rendering them, an overridable copy of the mail templates and a test suite, and turns the three blocks below on. The rest of this page is what it wired.
+That writes the user model (when there is none), the pages, the controller rendering them, an overridable copy of the mail templates and a test suite, and turns the three blocks below on. It also writes the sign-in buttons and the account page of the [identity providers](#signing-in-with-somebody-elses-identity-provider), which render whatever the configuration names — nothing, until it names one. The rest of this page is what it wired.
 
 ## The account flows
 
@@ -313,6 +313,142 @@ Both are mounted before your routes, on every renderer. henri ships no login pag
 
 In a controller, `req.user` is the user instance (without its password) and `req.isAuthenticated()` tells whether someone is logged in. Views get the public user, see below.
 
+## Signing in with somebody else's identity provider
+
+`config.user.identities` mounts three endpoints and gives henri a table beside the user model:
+
+```json
+{
+  "user": {
+    "identities": {
+      "providers": {
+        "acme": {
+          "authorizationUrl": "https://acme.example/oauth/authorize",
+          "tokenUrl": "https://acme.example/oauth/token",
+          "userinfoUrl": "https://acme.example/oauth/userinfo",
+          "clientId": "...",
+          "clientSecret": "...",
+          "scope": ["openid", "email"]
+        }
+      }
+    }
+  }
+}
+```
+
+henri ships **no provider list and no provider secrets**. There is no `github` inside it and nothing to fill in for one: an application names its providers and points each at its own three endpoints, and the client secret belongs in the [encrypted credentials](/configuration/#encrypted-credentials) (`henri credentials:edit`) or in the environment — `henri audit` reports one written in a `config/*.json` the way it reports an encryption key there.
+
+| Endpoint                       | What it does                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------- |
+| `POST /auth/:provider`         | Sends the browser to the provider. Signed in, it is a **link** instead. `GET` answers `405`. |
+| `GET /auth/:provider/callback` | What the provider sends the browser back to. Register this url with the provider.            |
+| `POST /auth/:provider/unlink`  | Takes a link away. Refuses to take away the last way into an account.                        |
+
+`henri.identities.redirectUri('acme')` prints the url to register. It is built from `config.url`, never from the request, so a `Host` header a client chose cannot move it.
+
+### The merge rule
+
+A callback comes back with a verified address, and that address already belongs to an account with a password. **henri refuses.** The callback answers `reason: 'exists'`, no session is opened, nothing is written, and the person is told to sign in the way they already do and then link the provider from their account.
+
+The alternative applications reach for — link automatically when the provider says the address is verified — is the way this feature goes wrong, and not by a little:
+
+- it lets a stranger change which credentials open an account. The owner did nothing, was asked nothing and saw nothing, and afterwards a second way in exists;
+- it collapses that account's security to the weakest provider it can be linked from. The hashing, the lockout and the reset flow stop mattering the moment any provider that will assert the address is reachable, and nobody agreed to that trade;
+- `email_verified` does not mean what the auto-link needs it to mean. It is a provider's belief that somebody could read a mailbox at some point, from a provider that may be self-hosted, may verify a custom domain an attacker controls, or may be an enterprise tenant allowed to claim a domain — and it is never a statement about who owns an account in _your_ database;
+- half the providers do not send the claim at all, and reading "absent" as "verified" builds the takeover by accident. That is the most common way this is got wrong.
+
+The third possibility — link only when the session already belongs to that user — is right, and it is not a setting because it is the **flow**. A callback started from a signed-in session is a link, always, and it is the only automatic link henri makes. The session is the consent, and it is consent the account owner gave with their own credentials a moment ago; the address is not even looked at there.
+
+`"merge": "verified"` does what the wrong answer does. It is gated twice — the provider must also be marked `"trusted": true`, and `henri audit` reports the pair as a finding — and it has one honest use: a single-tenant application whose provider is its own corporate identity provider, where the provider genuinely _is_ the authority on who owns an address.
+
+### An address the provider did not verify
+
+An unverified address decides nothing:
+
+- the identity is keyed on the provider and the **subject** it issues, so somebody already linked signs in whatever the address says. The subject is the credential and the address never was;
+- a callback with no identity and no verified address answers `reason: 'unverified'` **before it reads the user table**, so a refusal for an address that has an account and one for an address that has none are the same answer at the same price. That is the rule the account flows keep and this flow does not get to be the exception;
+- a signed-in person may still link such a provider, because the session is the proof.
+
+A provider that never verifies an address says so once, and becomes one you can link and cannot sign up with:
+
+```json
+{ "claims": { "verified": false } }
+```
+
+### Two providers claiming one address
+
+They are two rows, because the key is the provider and its subject and not the address. The second one is the case above: it arrives, its address has an account, and it is refused — unless the person is signed in, in which case it is a link and both providers then open that account. Two _different people_ at two providers claiming one address end the same way: whoever arrives first with a verified address gets the account (when `signup` is on), and the second is refused rather than merged into it.
+
+A person holds at most one identity per provider, so `unlink` always names one row and an account cannot quietly grow a second way in at a provider it already has.
+
+### What protects the callback
+
+The flow leaves the origin and comes back, which is the one case the [CSRF token](#csrf) cannot cover. OAuth already has the answer — the `state` parameter — and henri does not invent a second one.
+
+- **Leaving is a `POST`**, so it goes through the double-submit token and the origin check like every other unsafe request; `GET` answers `405` with `Allow: POST`. A third-party page therefore cannot start the flow in a visitor's browser, which is what closes login CSRF: being signed into somebody else's provider account, or having theirs linked to yours. This one route asks for the token even when the visitor holds no session cookie — [the CSRF middleware waives it there](#csrf), because there is normally no session to ride on, and a visitor about to sign in is exactly the person who has none yet.
+- **The state is minted per attempt, kept in the session, single use and expiring.** It is bound to the session cookie, so one minted in one browser cannot be spent in another; it is taken out of the session when it is read, so a callback url works exactly once; and it stops working after `stateExpiresIn` (10 minutes). The pending set is bounded.
+- **PKCE (S256) is on.** The verifier never leaves the server, so an authorization code observed in a `Referer`, a log or a shared browser is not enough to redeem.
+- **A link is checked against the session that is there now**, not only the one the state was minted in.
+- **The lockout and the rate limit are the same ones.** A locked account cannot be signed into through a provider either, or this would be a way around the lockout of `POST /login`, and a successful identity sign-in clears the count. A failed callback is deliberately **not** counted as a failed attempt: there is nothing to guess at a callback, so counting would only hand somebody a way to lock an address out. The [auth rate limit](/guides/api/#rate-limiting) covers every request under the identity path, the callback included.
+- **The session identifier is new before the person is in it**, the fixation defence `POST /signup` and the password reset already take.
+
+henri never parses an `id_token`. If a token response carries one it is ignored, and the profile comes from `userinfoUrl` over a request henri makes itself with the access token — which is the same claims over a channel that is already authenticated, without JWKS fetching, key rotation and algorithm confusion. henri also ships no OAuth **provider**: being an authorization server is a different product.
+
+### The identity table
+
+`henri_identities` is a table henri owns, the way [the job queue](/guides/jobs/) and [the access trail](/guides/trail/) own theirs: raw SQL through the adapter, or a MongoDB collection, and never a model. **A row is a credential** — whoever can write one can sign in as whoever it points at — and a model would put `provider` and `subject` behind an application's own mass assignment, scaffold, routes and `graphql: true`. It also has to exist on a store with no models at all, so that sign-in with a provider needs no model file.
+
+Reading them is `henri.identities.forUser(user)`, which answers rows carrying the provider, when it was linked, the address the provider asserted, whether it said that address was verified, **what the row is allowed to imply** and how it came to be:
+
+| `origin`   | How it came to be                                                            |
+| ---------- | ---------------------------------------------------------------------------- |
+| `signup`   | henri opened the account for this callback (the address belonged to nobody). |
+| `session`  | Linked from a session that already belonged to that person.                  |
+| `verified` | The automatic merge, which only `merge: "verified"` allows.                  |
+
+`allows` is what a row may imply: `signin` opens a session, `verify` identifies the person and never opens one on its own, so it can only be linked from a session. It is written on the row at link time and read from the row afterwards — turning a provider from `verify` into `signin` does not promote the identities linked under the old rule.
+
+An account henri opened from a callback has a password nobody knows: the column is `NOT NULL` on every adapter, so one is generated and handed to nobody. That means the identity is the only way in, and `unlink` refuses to take away the last one. `POST /password/forgot` is how such a person gets a password of their own, and the refusal lifts once they have one.
+
+Identities are personal data: `henri privacy:export` lists the providers (never the subject, which is the credential) and `henri privacy:erase` **deletes** the rows rather than anonymizing them, because an anonymized credential still opens the account.
+
+### The rest of `user.identities`
+
+| Key              | Default            | Description                                                                             |
+| ---------------- | ------------------ | --------------------------------------------------------------------------------------- |
+| `providers`      | `{}`               | The providers, by the name a url calls them. One is enough to turn the endpoints on.    |
+| `merge`          | `refuse`           | What a callback does with a verified address that already has an account. See above.    |
+| `path`           | `/auth`            | The prefix of the three endpoints.                                                      |
+| `after`          | `/`                | Where a browser lands once a provider was linked.                                       |
+| `signup`         | `true`             | Open an account for a verified address that belongs to nobody. `false` refuses instead. |
+| `allowHttp`      | `false`            | Reach a provider over plaintext http. Development only, and `henri audit` reports it.   |
+| `stateExpiresIn` | `10m`              | How long one attempt stays valid.                                                       |
+| `timeout`        | `10s`              | How long a provider has to answer.                                                      |
+| `table`          | `henri_identities` | Table (or collection) name. Letters, digits and underscores only.                       |
+| `enabled`        | `true`             | `false` leaves the endpoints unmounted without removing the providers.                  |
+
+And of one provider:
+
+| Key                | Default          | Description                                                                                      |
+| ------------------ | ---------------- | ------------------------------------------------------------------------------------------------ |
+| `authorizationUrl` | —                | Where a browser is sent. Required.                                                               |
+| `tokenUrl`         | —                | Where the authorization code is redeemed, server to server. Required.                            |
+| `userinfoUrl`      | —                | Where the person's claims are read with the access token. Required.                              |
+| `clientId`         | —                | Required.                                                                                        |
+| `clientSecret`     | —                | Required. Its home is the credentials or the environment.                                        |
+| `scope`            | `[]`             | A list, or one space-separated string.                                                           |
+| `claims.subject`   | `sub`            | The claim holding the provider's identifier for a person.                                        |
+| `claims.email`     | `email`          | The address claim.                                                                               |
+| `claims.verified`  | `email_verified` | The claim saying the address is verified, or `false` for a provider that never verifies one.     |
+| `label`            | the name         | What a button calls it.                                                                          |
+| `allows`           | `signin`         | `signin` or `verify`, see above.                                                                 |
+| `auth`             | `basic`          | `basic` (`client_secret_basic`) or `post` (`client_secret_post`).                                |
+| `pkce`             | `true`           | `false` stops sending a code challenge, for a provider that refuses parameters it does not know. |
+| `trusted`          | `false`          | This provider is an authority on who owns an address here. What `merge: "verified"` needs.       |
+| `params`           | `{}`             | Extra authorization parameters (`{ "prompt": "select_account" }`).                               |
+
+A provider that cannot be used as configured **fails the boot** (`HENRI_IDENTITY_PROVIDER_INVALID`), naming every provider and every problem at once, rather than mounting a button that would fail.
+
 ## Sessions
 
 The session cookie, `henri.sid`, is `httpOnly`, `SameSite=Lax`, `Secure` in production, lives 30 days (`config.user.sessionMaxAge`, in milliseconds) and is only written once something is stored in it. Sessions are kept in the database of the user model's store and survive model reloads.
@@ -325,7 +461,7 @@ await user.update({ password, passwordChangedAt: new Date() });
 
 ## CSRF
 
-Once a user model exists, every response carries a `henri.csrf` cookie (readable by scripts, `SameSite=Lax`). `POST`, `PUT`, `PATCH` and `DELETE` requests that send the session cookie must send that token back in the `X-CSRF-Token` header (`X-XSRF-TOKEN` is accepted as an alias) or a `_csrf` field, otherwise they get a `403` (`Invalid CSRF token`). Requests without a session cookie and requests authenticated with a bearer token are exempt.
+Once a user model exists, every response carries a `henri.csrf` cookie (readable by scripts, `SameSite=Lax`). `POST`, `PUT`, `PATCH` and `DELETE` requests that send the session cookie must send that token back in the `X-CSRF-Token` header (`X-XSRF-TOKEN` is accepted as an alias) or a `_csrf` field, otherwise they get a `403` (`Invalid CSRF token`). Requests without a session cookie and requests authenticated with a bearer token are exempt. One route asks anyway: [starting a provider sign-in](#what-protects-the-callback) needs the token whatever the cookies say, because the exemption's premise — there is no session to ride on — is not true of a person about to open one.
 
 The token reaches the views as `csrf`: the React `fetch()` and `hydrate()` helpers and the Inertia `fetch()` helper add the header for you, the Inertia `Form` adds the `_csrf` field, and Inertia's own visits echo the `XSRF-TOKEN` cookie its engine sets; add `<input type="hidden" name="_csrf" value="{{@csrf}}">` to a Handlebars form. Set `"csrf": false` in the configuration to turn the check off.
 

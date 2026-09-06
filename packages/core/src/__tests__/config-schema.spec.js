@@ -469,6 +469,15 @@ describe('the schema, the declarations and the documentation', () => {
     ['SignupConfig', () => flowKeys('signup')],
     ['PasswordResetConfig', () => flowKeys('passwordReset')],
     ['ConfirmationConfig', () => flowKeys('confirmation')],
+    ['IdentitiesConfig', () => flowKeys('identities')],
+    [
+      'IdentityProviderConfig',
+      () =>
+        Object.keys(
+          SCHEMA.user.oneOf[1].keys.identities.oneOf[1].keys.providers.values
+            .keys
+        ),
+    ],
     ['CsrfConfig', csrfKeys],
     ['GraphqlConfig', graphqlKeys],
     ['ApiConfig', () => Object.keys(SCHEMA.api.keys)],

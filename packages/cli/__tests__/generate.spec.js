@@ -508,6 +508,17 @@ describe('henri generate', () => {
         policy: () => ({ maxBytes: 72, minLength: 12 }),
         settings: { signup: { fields: ['name'] } },
       };
+      // The generated controller reads the providers back out of the
+      // configuration; an application with none renders no button
+      global.henri.identities = {
+        forUser: async () => [
+          { linkedAt: 1767225600000, provider: 'acme', subject: 'never-shown' },
+        ],
+        providers: () => [
+          { allows: 'signin', label: 'Acme', name: 'acme', trusted: false },
+          { allows: 'verify', label: 'Bank', name: 'bank', trusted: false },
+        ],
+      };
 
       const { status, stdout, stderr } = henri(['g', 'authentication'], {
         cwd: auth,
@@ -521,6 +532,7 @@ describe('henri generate', () => {
     afterAll(() => {
       cleanup(authDir);
       delete global.henri.accounts;
+      delete global.henri.identities;
     });
 
     test('turns the three flows on in the configuration', () => {
@@ -543,6 +555,7 @@ describe('henri generate', () => {
         'app/views/pages/accounts/forgot.jsx',
         'app/views/pages/accounts/reset.jsx',
         'app/views/pages/accounts/confirm.jsx',
+        'app/views/pages/accounts/connections.jsx',
         'app/mailers/auth.js',
         'app/views/mailers/auth/confirm.hbs',
         'app/views/mailers/auth/reset.hbs',
@@ -567,6 +580,7 @@ describe('henri generate', () => {
       expect(routes['get /password/forgot']).toBe('accounts#forgot');
       expect(routes['get /password/reset']).toBe('accounts#reset');
       expect(routes['get /confirm']).toBe('accounts#confirm');
+      expect(routes['get /account/connections']).toBe('accounts#connections');
       // The mutating half is mounted by the user module, not by the app
       expect(routes['post /signup']).toBeUndefined();
       expect(routes['post /password/forgot']).toBeUndefined();
@@ -585,6 +599,15 @@ describe('henri generate', () => {
       expect(read(auth, 'app/views/pages/accounts/login.jsx')).toContain(
         'action="/login"'
       );
+      // Leaving for a provider is a POST, so it is a form and not a link:
+      // henri answers 405 to a GET precisely so a third-party page cannot
+      // start an authentication in a visitor's browser
+      expect(read(auth, 'app/views/pages/accounts/login.jsx')).toContain(
+        'method="post"'
+      );
+      expect(read(auth, 'app/views/pages/accounts/connections.jsx')).toContain(
+        '/unlink'
+      );
     });
 
     test('the controller only renders, and reads the policy for the form', () => {
@@ -595,6 +618,25 @@ describe('henri generate', () => {
       expect(accounts.confirm({})).toEqual({ email: null });
       expect(accounts.create).toBeUndefined();
       expect(accounts.update).toBeUndefined();
+    });
+
+    test('the sign-in page only offers a provider that may open a session', () => {
+      const accounts = require(path.join(auth, 'app/controllers/accounts.js'));
+
+      expect(accounts.login().providers).toEqual([
+        { allows: 'signin', label: 'Acme', name: 'acme', trusted: false },
+      ]);
+    });
+
+    test('the connections page never sees the subject a provider issued', async () => {
+      const accounts = require(path.join(auth, 'app/controllers/accounts.js'));
+      const props = await accounts.connections({ user: {} });
+
+      expect(props.linked).toEqual([
+        { label: 'Acme', linkedAt: '2026-01-01', provider: 'acme' },
+      ]);
+      expect(props.available.map((one) => one.name)).toEqual(['bank']);
+      expect(JSON.stringify(props)).not.toContain('never-shown');
     });
 
     test('the mailer replaces henri.s messages action by action', () => {

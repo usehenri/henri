@@ -1136,6 +1136,8 @@ class Drizzle {
 
     return {
       calls: block(read('calls')),
+      // The identities are a block of `user`, not a key of their own
+      identities: block(block(read('user')).identities),
       jobs: block(read('jobs')),
       trail: block(read('trail')),
       versions: block(read('versions')),
@@ -1146,9 +1148,9 @@ class Drizzle {
   /**
    * The tables that live in this database and are not drizzle's.
    *
-   * `@usehenri/jobs`, the access trail and the call log of core own tables
-   * of their own and create them through raw SQL, because all of them have
-   * to work on a store that has no models at all. drizzle-kit compares the
+   * `@usehenri/jobs`, the access trail, the call log and the identities of
+   * core own tables of their own and create them through raw SQL, because
+   * all of them have to work on a store that has no models at all. drizzle-kit compares the
    * schema to the database and would offer to drop them; a push that did
    * would take an application's job history, its audit trail, or its call
    * log with it.
@@ -1157,7 +1159,8 @@ class Drizzle {
    * @memberof Drizzle
    */
   reservedTables() {
-    const { calls, jobs, trail, versions, webhooks } = this.reservedBlocks();
+    const { calls, identities, jobs, trail, versions, webhooks } =
+      this.reservedBlocks();
     const name = (value, fallback) =>
       typeof value === 'string' && value !== '' ? value : fallback;
     const queue = name(jobs.table, 'henri_jobs');
@@ -1166,6 +1169,7 @@ class Drizzle {
       queue,
       `${queue}_schedules`,
       name(calls.table, 'henri_calls'),
+      name(identities.table, 'henri_identities'),
       name(trail.table, 'henri_trail'),
       name(versions.table, 'henri_versions'),
       name(webhooks.table, 'henri_webhooks'),

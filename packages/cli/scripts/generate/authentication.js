@@ -9,20 +9,23 @@
 // forms below post to them as plain browser forms, which is why the same page
 // body works under both renderers.
 
-/** Tailwind classes shared by the generated pages */
-const STYLES = `const field =
-  'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100 dark:focus:ring-zinc-100/10';
-const label = 'text-sm font-medium';
-const primary =
+/** The class names of the generated pages */
+const TOKENS = `const primary =
   'inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200';
 const card =
   'rounded-xl border border-zinc-200 p-6 dark:border-zinc-800';
 const notice =
   'rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900';
 const problem =
-  'rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200';
+  'rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200';`;
 
-/**
+/** The two a form needs, and the input that uses them */
+const FIELD = `const field =
+  'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100 dark:focus:ring-zinc-100/10';
+const label = 'text-sm font-medium';`;
+
+/** The labelled input the pages with a form share */
+const INPUT = `/**
  * One labelled input, with the error the server sent under it
  *
  * @param {object} props The props
@@ -43,6 +46,21 @@ function Field({ errors = {}, name, title, ...rest }) {
     </div>
   );
 }`;
+
+/**
+ * The styles a page needs.
+ *
+ * A page with no form gets neither the `Field` component nor the two class
+ * names only it uses: a scaffolded application lints what it was given, and
+ * an unused const is an error there.
+ *
+ * @param {string} body The body of the page
+ * @returns {string} The declarations above it
+ */
+const styles = (body) =>
+  body.includes('<Field')
+    ? `${FIELD}\n${TOKENS}\n\n${INPUT}`
+    : TOKENS;
 
 /** How a prop is declared when a page asks for it */
 const PROPS = {
@@ -82,7 +100,7 @@ export default withHenri(${name});`;
 
   return `${header}
 
-${STYLES}
+${styles(body)}
 
 ${open}${body}
 ${close}
@@ -111,9 +129,41 @@ const MESSAGES = `      {(flash.notice || []).map((message) => (
  */
 const CSRF = `        {csrf && <input name="_csrf" type="hidden" value={csrf} />}`;
 
+/**
+ * The buttons of the identity providers, rendered from what the controller
+ * read out of the configuration.
+ *
+ * Each is a form and not a link, because leaving for a provider is a `POST`:
+ * henri answers 405 to a `GET`, so a third-party page cannot make a
+ * visitor's browser start an authentication. Only a provider that may open a
+ * session on its own is here; one declared `allows: "verify"` is linked from
+ * the connections page and never signs anybody in.
+ */
+const PROVIDERS = `      {(data.providers || []).length > 0 && (
+        <div className="mt-8">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Or continue with
+          </p>
+          {(data.providers || []).map((provider) => (
+            <form
+              action={\`/auth/\${provider.name}\`}
+              className="mt-2"
+              key={provider.name}
+              method="post"
+            >
+              {csrf && <input name="_csrf" type="hidden" value={csrf} />}
+              <button className={\`\${primary} w-full\`} type="submit">
+                {provider.label}
+              </button>
+            </form>
+          ))}
+        </div>
+      )}`;
+
 /** The sign in page: the form henri's own POST /login answers */
 const login = () => `  const failed = query.error === 'invalid';
   const unconfirmed = query.error === 'unconfirmed';
+  const refused = data.messages[query.error];
 
   return (
     <main className="mx-auto w-full max-w-md px-6 py-16">
@@ -130,6 +180,7 @@ ${MESSAGES}
           again on the <a className="underline" href="/confirm">confirmation page</a>.
         </p>
       )}
+      {refused && <p className={\`\${problem} mt-6\`}>{refused}</p>}
 
       <form action="/login" className={\`\${card} mt-6\`} method="post">
 ${CSRF}
@@ -151,6 +202,8 @@ ${CSRF}
           Sign in
         </button>
       </form>
+
+${PROVIDERS}
 
       <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
         <a className="underline" href="/signup">Create an account</a>
@@ -303,13 +356,90 @@ ${CSRF}
   );`;
 
 /**
+ * The account page of the identity providers: what is linked, what can be,
+ * and the one button that takes a link away.
+ *
+ * Linking is the same `POST /auth/:provider` the sign-in page uses. It
+ * behaves differently only because there is a session: henri links the
+ * provider to the account holding it, whatever address the provider
+ * asserts, and that session is the consent -- which is why a callback with
+ * no session and a known address is refused instead.
+ */
+const connections = () => `  const linked = data.linked || [];
+  const available = data.available || [];
+
+  return (
+    <main className="mx-auto w-full max-w-md px-6 py-16">
+      <h1 className="text-3xl font-semibold tracking-tight">Sign-in methods</h1>
+${MESSAGES}
+
+      <div className={\`\${card} mt-6\`}>
+        {linked.length === 0 && (
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            No provider is linked to this account.
+          </p>
+        )}
+        {linked.map((entry) => (
+          <form
+            action={\`/auth/\${entry.provider}/unlink\`}
+            className="flex items-center justify-between py-2"
+            key={entry.provider}
+            method="post"
+          >
+            {csrf && <input name="_csrf" type="hidden" value={csrf} />}
+            <span className="text-sm">
+              {entry.label}
+              {entry.linkedAt && (
+                <span className="text-zinc-500"> · linked {entry.linkedAt}</span>
+              )}
+            </span>
+            <button className="text-sm underline" type="submit">
+              Unlink
+            </button>
+          </form>
+        ))}
+      </div>
+
+      {available.length > 0 && (
+        <div className="mt-8">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Link another way to sign in
+          </p>
+          {available.map((provider) => (
+            <form
+              action={\`/auth/\${provider.name}\`}
+              className="mt-2"
+              key={provider.name}
+              method="post"
+            >
+              {csrf && <input name="_csrf" type="hidden" value={csrf} />}
+              <button className={\`\${primary} w-full\`} type="submit">
+                {provider.label}
+              </button>
+            </form>
+          ))}
+        </div>
+      )}
+
+      {available.length === 0 && linked.length === 0 && (
+        <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
+          This application has no identity provider configured. Add one under
+          config.user.identities.providers, and keep its client secret in the
+          encrypted credentials (henri credentials:edit).
+        </p>
+      )}
+    </main>
+  );`;
+
+/**
  * The pages, by the action of the controller that renders them: what the
  * component is called, what henri hands it, and its body
  */
 const PAGES = {
   confirm: { body: confirm, name: 'Confirm', props: ['csrf', 'data', 'errors', 'flash'] },
+  connections: { body: connections, name: 'Connections', props: ['csrf', 'data', 'flash'] },
   forgot: { body: forgot, name: 'Forgot', props: ['csrf', 'errors', 'flash'] },
-  login: { body: login, name: 'Login', props: ['csrf', 'flash', 'query'] },
+  login: { body: login, name: 'Login', props: ['csrf', 'data', 'flash', 'query'] },
   new: { body: signup, name: 'Signup', props: ['csrf', 'data', 'errors', 'flash'] },
   reset: { body: reset, name: 'Reset', props: ['csrf', 'data', 'errors', 'flash'] },
 };
@@ -343,8 +473,21 @@ const controller = () => `// The pages of the account flows. henri owns the endp
 // The whole service is on \`henri.accounts\` when you would rather answer
 // these yourself: register(), requestPasswordReset(), resetPassword(),
 // confirm(), requestConfirmation() and requestEmailChange().
+//
+// The same goes for the identity providers: henri mounts
+// \`POST /auth/:provider\`, \`GET /auth/:provider/callback\` and
+// \`POST /auth/:provider/unlink\`, and \`henri.identities\` is the service
+// behind them. The pages here only read what is configured; nothing is
+// mounted until config.user.identities names a provider.
 module.exports = {
   before: {
+    connections: [
+      (req, res) => {
+        if (!req.user) {
+          return res.redirect('/login');
+        }
+      },
+    ],
     'login,new': [
       (req, res) => {
         if (req.user) {
@@ -356,9 +499,49 @@ module.exports = {
 
   confirm: (req) => ({ email: (req.user && req.user.email) || null }),
 
+  // What is linked to this account and what could be. henri.identities
+  // hands back the providers without their client secrets, and an identity
+  // without the subject the provider issued: that subject is the credential
+  // and a page has no use for it
+  connections: async (req) => {
+    const held = await henri.identities.forUser(req.user);
+    const labels = new Map(
+      henri.identities.providers().map((one) => [one.name, one.label])
+    );
+
+    return {
+      available: henri.identities
+        .providers()
+        .filter((one) => !held.some((entry) => entry.provider === one.name)),
+      linked: held.map((entry) => ({
+        label: labels.get(entry.provider) || entry.provider,
+        linkedAt: entry.linkedAt
+          ? new Date(entry.linkedAt).toISOString().slice(0, 10)
+          : null,
+        provider: entry.provider,
+      })),
+    };
+  },
+
   forgot: () => ({}),
 
-  login: () => ({}),
+  // The buttons of the sign-in page are whatever config.user.identities
+  // names, and only the providers that may open a session on their own.
+  // \`messages\` is what a refused callback comes back with in ?error=
+  login: () => ({
+    messages: {
+      exists:
+        'An account already exists for that address. Sign in, then link that provider from your account.',
+      exchange: 'That provider could not be reached. Try again.',
+      locked: 'Too many failed sign-in attempts. Try again later.',
+      state: 'That sign-in took too long. Try again.',
+      unverified:
+        'That provider did not confirm your address. Sign in, then link it from your account.',
+    },
+    providers: henri.identities
+      .providers()
+      .filter((provider) => provider.allows === 'signin'),
+  }),
 
   // The signup form asks for the fields config.user.signup.fields permits,
   // and shows the minimum length the password policy asks for

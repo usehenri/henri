@@ -294,6 +294,19 @@ module.exports = [
     },
   },
   {
+    // And the identities: a row is the snake_case columns of
+    // base/identity-store.js, and a token request is the snake_case form
+    // fields OAuth 2.0 spells (`grant_type`, `redirect_uri`, `client_id`)
+    files: [
+      'packages/core/src/__tests__/identities.spec.js',
+      'packages/core/src/base/identities.js',
+      'packages/core/src/base/identity-store.js',
+    ],
+    rules: {
+      camelcase: 'off',
+    },
+  },
+  {
     // The endpoints live in a table this package owns: a row is the
     // snake_case columns of packages/webhooks/src/store/schema.js
     files: ['packages/webhooks/**/*.js'],

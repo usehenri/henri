@@ -380,6 +380,7 @@ class Privacy extends BaseModule {
     });
 
     document.calls = await this.callsOf(subject);
+    document.identities = await this.identitiesOf(subject);
 
     await this.tell(subject, {
       action: 'privacy.export',
@@ -538,6 +539,7 @@ class Privacy extends BaseModule {
     }
 
     receipt.calls = await this.forgetCalls(subject, options);
+    receipt.identities = await this.forgetIdentities(subject, options);
     receipt.file = options.dryRun ? null : this.record(receipt);
 
     await this.tell(subject, {
@@ -563,6 +565,96 @@ class Privacy extends BaseModule {
     );
 
     return receipt;
+  }
+
+  /**
+   * The providers this person signs in with, for an export.
+   *
+   * The subject a provider issues is not in it: it is the credential, and
+   * an export is a copy somebody carries around. What a person is owed
+   * here is which providers open their account and when each was linked.
+   *
+   * @async
+   * @param {object} subject The person, as a plain object
+   * @returns {Promise<?object>} `{ records }`, `{ problem }`, or null when
+   *   this application has no identity providers
+   * @memberof Privacy
+   */
+  async identitiesOf(subject) {
+    const { identities } = this.henri;
+    const who = subject && subject[EXTERNAL_ID];
+
+    if (!identities || !identities.enabled || typeof who !== 'string') {
+      return null;
+    }
+
+    try {
+      const held = await identities.forPerson(who);
+
+      return {
+        records: held.map((entry) => ({
+          allows: entry.allows,
+          email: entry.email,
+          lastUsedAt: entry.lastUsedAt,
+          linkedAt: entry.linkedAt,
+          origin: entry.origin,
+          provider: entry.provider,
+          verified: entry.verified,
+        })),
+      };
+    } catch (error) {
+      debug('unable to read the identities: %s', error.message);
+
+      return { problem: error.code || 'unreadable' };
+    }
+  }
+
+  /**
+   * Takes the person's identities away.
+   *
+   * They are deleted rather than anonymized, which is the one place this
+   * module does not follow `onErase`: an identity is a credential, and an
+   * anonymized credential still opens the account it was erased from.
+   *
+   * @async
+   * @param {object} subject The person, as a plain object
+   * @param {object} options `dryRun`
+   * @returns {Promise<?object>} `{ action, count, written }`, `{ problem }`,
+   *   or null when this application has no identity providers
+   * @memberof Privacy
+   */
+  async forgetIdentities(subject, options) {
+    const { identities } = this.henri;
+    const who = subject && subject[EXTERNAL_ID];
+
+    if (!identities || !identities.enabled || typeof who !== 'string') {
+      return null;
+    }
+
+    try {
+      if (options.dryRun) {
+        return {
+          action: 'delete',
+          count: (await identities.forPerson(who)).length,
+          written: 0,
+        };
+      }
+
+      const count = await identities.forget(who);
+
+      return { action: 'delete', count, written: count };
+    } catch (error) {
+      // An erasure that has already written over a person's records must
+      // not fail because their credentials were unreachable; the receipt
+      // is what says the rows are still there
+      this.henri.pen.warn(
+        'privacy',
+        'the identities were not reached; this person can still be signed in through a provider',
+        error.message
+      );
+
+      return { problem: error.code || 'unreachable' };
+    }
   }
 
   /**

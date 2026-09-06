@@ -49,6 +49,7 @@ const INTERFACES = {
   EncryptionModule: 'henri.encryption',
   Henri: 'henri',
   I18nModule: 'henri.i18n',
+  IdentitiesModule: 'henri.identities',
   MailModule: 'henri.mail',
   ModelModule: 'henri.model',
   Pen: 'henri.pen',
