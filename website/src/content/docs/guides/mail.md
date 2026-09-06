@@ -137,7 +137,7 @@ await henri.mailers.welcome.confirm(user).deliverLater();
 await henri.mailers.welcome.confirm(user).deliverLater({ wait: '10m' });
 ```
 
-The options of the call are the options of an enqueue, so `wait`, `at`, `queue` and `priority` all work; `henri jobs` sends them. See [Jobs](/guides/jobs/#delivering-mail-through-the-queue).
+The options of the call are the options of an enqueue, so `wait`, `at`, `queue` and `priority` all work; `henri jobs` sends them. See [Jobs](/guides/jobs/#delivering-mail-through-the-queue). Without a queue there is nothing to hold a message back, so a call carrying a `wait` or an `at` is refused and says to install the package rather than sending the mail now; `deliverLater()` on its own delivers out of band, as below.
 
 Another queue plugs into the same seam:
 

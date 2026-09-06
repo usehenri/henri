@@ -22,8 +22,12 @@
     "cron"
   ],
   "main": "index.js",
+  "henri": {
+    "module": "./module.js"
+  },
   "files": [
     "index.js",
+    "module.js",
     "src",
     "CHANGELOG.md"
   ],
@@ -38,7 +42,11 @@
     "debug": "^4.4.3",
     "glob": "^11.0.3"
   },
+  "peerDependencies": {
+    "@usehenri/core": "workspace:^"
+  },
   "devDependencies": {
+    "@usehenri/core": "workspace:^",
     "@usehenri/mongoose": "workspace:^",
     "@usehenri/sequelize": "workspace:^",
     "mongodb-memory-server": "^11.2.0",

@@ -5,6 +5,7 @@ const debug = require('debug')('henri:mailers');
 
 const { accountsConfig } = require('./base/accounts');
 const { loadModules } = require('./utils');
+const { queue } = require('./base/jobs');
 const MailViews = require('./base/mail-view');
 const Message = require('./base/mail-message');
 const previews = require('./base/mail-preview');
@@ -396,17 +397,28 @@ class Mailers extends BaseModule {
    * Hand a rendered message to the delivery handler
    * Without one, henri delivers it out of band: the send is started but not
    * awaited, failures are logged, and `drain()` waits for the ones in
-   * flight. That is deliberately not a queue: nothing survives a restart.
+   * flight. That is deliberately not a queue: nothing survives a restart,
+   * and a `wait` or an `at` cannot be honoured -- that one says what to
+   * install (`base/jobs.js`) instead of sending the message now.
    *
    * @async
    * @param {object} message the rendered message (nodemailer's shape)
    * @param {object} [options={}] passed on to the handler
    * @returns {Promise<object>} what the handler answered, or `{ queued: true }`
+   * @throws when the call asked for a delay and there is no queue
    * @memberof Mailers
    */
   async enqueue(message, options = {}) {
     if (this._handler) {
       return this._handler(message, options);
+    }
+
+    // Out of band is not a queue: it cannot hold a message back. A call that
+    // asked for a delay is told what to install rather than seeing its mail
+    // leave now; one that asked for nothing gets the documented fallback,
+    // silently, the way an application without jobs has always worked.
+    if (options && (options.wait || options.at)) {
+      queue(this.henri, 'a message asked to be delivered later');
     }
 
     const flight = this.henri.mail.send(message).catch((error) => {

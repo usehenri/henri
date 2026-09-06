@@ -71,7 +71,7 @@ an app and is what core's tests boot.
 | `packages/drizzle`                      | `@usehenri/drizzle`   | SQL adapter on Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`), new in 1.1                                                                                           |
 | `packages/react`                        | `@usehenri/react`     | Next.js 16 view engine (pages router), `withHenri`, `useHenri`, form components; supported and frozen                                                                                                 |
 | `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19; the default renderer of `henri new`                                                                                                                        |
-| `packages/jobs`                         | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1                                                                              |
+| `packages/jobs`                         | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1; ships its own module, left core in 1.2                                      |
 | `packages/graphql`                      | `@usehenri/graphql`   | GraphQL: the models' types and resolvers merged and served by Apollo Server; left core in 1.2                                                                                                         |
 | `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                                                     |
 | `packages/mcp`                          | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                                                  |
@@ -233,10 +233,19 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   `res.render(view, { graphql })` fails the request. Everything else is
   guarded, so an application without either is silent, and `henri doctor`
   reports the missing dependency.
-- Background jobs live in `@usehenri/jobs`, which core loads from the app the
-  way it loads a store adapter (`4.jobs.js`, runlevel 4, so `henri jobs` boots
-  to that level and binds no port) and exposes as `henri.jobs`
-  (`perform`/`performIn`/`performAt`/`performNow`, `list`, `stats`, `dead.*`).
+- Background jobs live in `@usehenri/jobs`. Core carries none of it: the
+  package ships the module itself (`"henri": { "module": "./module.js" }`,
+  `src/module.js`), so depending on the package is what puts `henri.jobs` in
+  the boot (`perform`/`performIn`/`performAt`/`performNow`, `list`, `stats`,
+  `dead.*`), at runlevel 4, so `henri jobs` boots to that level and binds no
+  port. Installing it is not the same as using it: an application with
+  neither `app/jobs` nor a `jobs` block keeps the module inert
+  (`henri.jobs.enabled` false, no table created), and one without the package
+  has no `henri.jobs` at all. `base/jobs.js` in core is the one place that
+  reaches for it -- `deliverLater()` with a `wait` or an `at` fails with the
+  install line rather than sending the mail now -- and `henri doctor` reports
+  the missing dependency when `app/jobs` holds a file or the configuration
+  has a `jobs` block. `henri new` does not add the dependency.
   A job is `app/jobs/<name>.js` exporting `perform(args, context)` plus
   `queue`, `priority`, `maxAttempts`, `timeout` and `backoff`. The queue owns
   `henri_jobs` and `henri_jobs_schedules` and reaches them through

@@ -1,9 +1,35 @@
 const BaseModule = require('../base/module');
 const Henri = require('../henri');
-const Jobs = require('../4.jobs');
+const Mailers = require('../2.mailers');
+
+const { PACKAGE, queue } = require('../base/jobs');
 
 let henri;
 
+/**
+ * The mailers module with a henri that has no queue: what an application
+ * that never installed @usehenri/jobs runs
+ *
+ * @returns {object} the module instance
+ */
+const withoutJobs = () => {
+  const mailers = new Mailers();
+
+  mailers.henri = {
+    jobs: undefined,
+    mail: { send: async () => ({ sent: true }) },
+    pen: henri.pen,
+  };
+
+  return mailers;
+};
+
+// Core carries no queue: it is the module @usehenri/jobs ships, and the demo
+// application depends on it. What is covered here is the seam -- that the
+// module arrives from the package in its slot, that app/jobs is reached
+// through it, that the mails of deliverLater() become jobs, and that a
+// message asking for a delay without the package says what to install. The
+// queue itself is covered in packages/jobs.
 describe('jobs', () => {
   beforeAll(async () => {
     henri = new Henri({ runlevel: 4 });
@@ -20,17 +46,20 @@ describe('jobs', () => {
     }
   });
 
-  test('should be defined and extend BaseModule', () => {
+  test('should arrive from the package the application depends on', () => {
     expect(henri.jobs).toBeDefined();
     expect(henri.jobs).toBeInstanceOf(BaseModule);
+    expect(henri.jobs.name).toEqual('jobs');
+    expect(henri.jobs.needs).toEqual(['config', 'model']);
+    expect(henri.jobs.after).toEqual(['mailers']);
+    expect(henri.modules.modules.has('jobs')).toBe(true);
   });
 
+  // `henri jobs` boots to this level, which binds no port
   test('should be a module of runlevel 4, so a runner binds no port', () => {
-    const jobs = new Jobs();
-
-    expect(jobs.runlevel).toBe(4);
-    expect(jobs.name).toBe('jobs');
-    expect(jobs.enabled).toBe(false);
+    expect(henri.jobs.runlevel).toBe(4);
+    expect(henri.modules.plan.nodes.get('jobs').runlevel).toBe(4);
+    expect(henri.router).toBeUndefined();
   });
 
   test('should load app/jobs of the application', () => {
@@ -42,82 +71,11 @@ describe('jobs', () => {
     const job = await henri.jobs.perform('echo', { hello: 'demo' });
 
     expect(job.state).toBe('pending');
-    expect(job.queue).toBe('default');
     expect((await henri.jobs.get(job.id)).args).toEqual({ hello: 'demo' });
   });
 
-  test('should enqueue later and at a moment', async () => {
-    const later = await henri.jobs.performIn('1h', 'echo', null);
-    const when = new Date(Date.now() + 7200000);
-    const dated = await henri.jobs.performAt(when, 'echo', null);
-
-    expect(new Date(later.runAt).getTime()).toBeGreaterThan(Date.now());
-    expect(dated.runAt).toBe(when.toISOString());
-  });
-
-  test('should perform a job inline with performNow', async () => {
-    expect(await henri.jobs.performNow('echo', { hello: 'now' })).toEqual({
-      attempt: 1,
-      echo: { hello: 'now' },
-    });
-  });
-
-  test('should answer with the counts of the queue', async () => {
-    await henri.jobs.perform('echo', null);
-
-    const stats = await henri.jobs.stats();
-
-    expect(stats.totals.pending).toBe(1);
-    expect(stats.jobs).toContain('echo');
-  });
-
-  test('should expose the dead letter queue', async () => {
-    const { Runner } = require(
-      require.resolve('@usehenri/jobs/src/runner', {
-        paths: [process.cwd()],
-      })
-    );
-    const enqueued = await henri.jobs.perform(
-      'echo',
-      { explode: 'on purpose' },
-      { maxAttempts: 1 }
-    );
-
-    await new Runner(henri.jobs.queue).once();
-
-    expect(await henri.jobs.dead.count()).toBe(1);
-
-    const [dead] = await henri.jobs.dead.list();
-
-    expect(dead.id).toBe(enqueued.id);
-    expect(dead.error.message).toBe('boom: on purpose');
-    expect((await henri.jobs.dead.retry(dead.id)).state).toBe('pending');
-    expect(await henri.jobs.dead.discardAll({ state: 'pending' })).toBe(1);
-  });
-
-  test('should reload app/jobs', async () => {
-    await henri.jobs.reload();
-
-    expect(henri.jobs.enabled).toBe(true);
-    expect(henri.jobs.names()).toContain('echo');
-  });
-
-  test('should refuse a job that does not exist', async () => {
-    await expect(henri.jobs.perform('nope')).rejects.toThrow(
-      'No job named "nope"'
-    );
-  });
-
-  test('should say what to install when the application has no queue', () => {
-    const jobs = new Jobs();
-
-    jobs.henri = henri;
-
-    expect(() => jobs.ready()).toThrow();
-  });
-
-  // `henri.mailers` renders a message and hands the rendered payload to the
-  // handler this module registers (see Jobs#deliverMail)
+  // The seam core owns: the queue registers itself as the delivery handler
+  // of the mailers (see JobsModule#deliverMail in @usehenri/jobs)
   test('should take the deliveries of henri.mailers', async () => {
     const message = { subject: 'Hello', to: 'ada@example.com' };
     const job = await henri.mailers.enqueue(message, { wait: '5m' });
@@ -125,5 +83,37 @@ describe('jobs', () => {
     expect(job.name).toBe('henri/mail');
     expect(job.args).toEqual(message);
     expect(new Date(job.runAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  test('should be reached through base/jobs.js', () => {
+    expect(queue(henri, 'a job')).toBe(henri.jobs);
+    expect(() => queue({ jobs: undefined, pen: henri.pen }, 'a job')).toThrow(
+      PACKAGE
+    );
+  });
+
+  // What an application that never installs @usehenri/jobs sees: nothing is
+  // loaded, and only a call that cannot be honoured says something
+  describe(`without ${PACKAGE}`, () => {
+    test('should fail a message that asked to be delivered later', async () => {
+      await expect(
+        withoutJobs().enqueue({ to: 'ada@example.com' }, { wait: '5m' })
+      ).rejects.toThrow(PACKAGE);
+    });
+
+    // Out of band is the documented fallback of deliverLater(): an
+    // application with no queue has always worked this way, and silently
+    test('should deliver out of band when nothing asked for a delay', async () => {
+      const mailers = withoutJobs();
+
+      await expect(mailers.enqueue({ to: 'ada@example.com' })).resolves.toEqual(
+        {
+          deferred: true,
+          handler: 'inline',
+        }
+      );
+
+      await mailers.drain();
+    });
   });
 });

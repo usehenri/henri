@@ -1,4 +1,6 @@
 const { CliError } = require('./errors');
+// The one place the package is named, shared with what core says at runtime
+const { PACKAGE } = require('@usehenri/core/src/base/jobs');
 const { usage } = require('./help');
 const { validInstall } = require('./utils');
 
@@ -54,6 +56,9 @@ const boot = async () => {
 /**
  * The queue of a booted instance
  *
+ * `henri.jobs` is the module `@usehenri/jobs` ships: an application that
+ * does not depend on the package has none at all.
+ *
  * @param {object} henri A booted instance
  * @returns {object} The queue module (`henri.jobs`)
  * @throws {CliError} FAILED when the application has no queue
@@ -62,7 +67,7 @@ const queueOf = async (henri) => {
   if (!henri.jobs || !henri.jobs.enabled) {
     await henri.stop();
     throw new CliError('FAILED', 'This application has no job queue', {
-      hint: 'Install @usehenri/jobs and write a job with: henri generate job <name>',
+      hint: `Install ${PACKAGE} and write a job with: henri generate job <name>`,
     });
   }
 

@@ -623,7 +623,8 @@ describe('account flows (demo app, disk store)', () => {
       await signup({ email }).expect(201);
       await henri.accounts.drain();
 
-      // Hand the deliveries back to the queue, the way 4.jobs.js wired them
+      // Hand the deliveries back to the queue, the way the module of
+      // @usehenri/jobs wired them (JobsModule#deliverMail)
       henri.jobs.deliverMail();
 
       try {

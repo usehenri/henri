@@ -314,6 +314,9 @@ importers:
         specifier: ^11.0.3
         version: 11.1.0
     devDependencies:
+      '@usehenri/core':
+        specifier: workspace:^
+        version: link:../core
       '@usehenri/mongoose':
         specifier: workspace:^
         version: link:../mongoose

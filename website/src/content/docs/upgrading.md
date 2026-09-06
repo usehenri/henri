@@ -153,6 +153,27 @@ Without the package henri says so rather than going quiet:
 - `henri doctor` reports `deps.declared` when a model declares types or the configuration sets `graphql`;
 - `henri.graphql` is `undefined` rather than an object that does nothing, and a page has no `graphql` key among its view options. Code reading it guards with `henri.graphql &&`; the type declarations make it optional, so TypeScript and a JSDoc-annotated file say so too.
 
+### The queue registers itself
+
+Nothing to change unless your application enqueues jobs. `@usehenri/jobs` was already a package of its own, but `@usehenri/core` carried the module that loaded it: an application without the package still had a `henri.jobs`, an inert object whose every method explained what to install. The package [ships the module itself](/reference/under-the-hood/#where-it-goes-a-module-that-arrives-from-a-package) now, the way [`@usehenri/graphql`](#graphql-moves-to-usehenrigraphql) does.
+
+**If your application has `app/jobs` or a `jobs` configuration block, make sure it depends on the package:**
+
+```bash
+npm install @usehenri/jobs
+```
+
+It probably already does — nothing worked without it. `henri doctor` reports it as a missing dependency when it does not, and `henri jobs` says the same.
+
+Nothing else changes: the queue, the runner, the retries, the dead letter queue, the recurring schedules, the tables and every `henri jobs` command are untouched, and the module still sits at level 4 so a runner binds no port.
+
+What is different is the application that has no queue:
+
+- `henri.jobs` is `undefined` rather than an object that does nothing. Code reading it guards with `henri.jobs &&`; the type declarations make it optional, so TypeScript and a JSDoc-annotated file say so too.
+- `deliverLater({ wait })` or `deliverLater({ at })` without the package now fails with the install line instead of sending the mail immediately. `deliverLater()` with nothing to honour is unchanged: it delivers out of band, silently, as documented in [Mail](/guides/mail/#delivering-later).
+
+`henri new` does not add the dependency, and the boot of an application without it says nothing at all.
+
 ### New in 1.2
 
 Nothing below breaks anything, they are additions:

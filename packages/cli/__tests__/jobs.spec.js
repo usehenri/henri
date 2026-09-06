@@ -11,9 +11,9 @@ const bin = path.resolve(__dirname, '../../henri/bin/henri.js');
 const fixture = path.join(__dirname, 'fixtures', 'jobs-app');
 
 /**
- * Core resolves the adapter and @usehenri/jobs from the application
- * directory: link the workspace packages into the fixture's node_modules
- * (ignored by git)
+ * The fixture depends on the adapter and on @usehenri/jobs, which is what
+ * puts the queue in its boot: link the workspace packages into its
+ * node_modules (ignored by the repository)
  *
  * @returns {void}
  */

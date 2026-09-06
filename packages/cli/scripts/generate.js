@@ -441,6 +441,9 @@ const job = async (name, rest = [], opts = {}) => {
 // one with \`henri.jobs.perform('${lower}', args)\`, later with
 // \`henri.jobs.performIn('5m', '${lower}', args)\`.
 //
+// The queue is a package of its own: \`npm install @usehenri/jobs\` once, and
+// \`henri.jobs\` is there (\`henri doctor\` says so when it is not).
+//
 // \`args\` is stored as JSON: strings, numbers, booleans, null, plain objects
 // and arrays only. Pass an id, never a model instance.
 /** @type {import('@usehenri/core').JobDefinition} */

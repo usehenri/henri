@@ -124,16 +124,22 @@ henri.addMiddleware((router: unknown) => router, 'metrics');
 
 // --- jobs -------------------------------------------------------------------
 
-expectType<Promise<Job>>(henri.jobs.perform('welcome', { userId: 1 }));
+// The module arrives from @usehenri/jobs, so an application that does not
+// depend on the package has none: reading it is a check, not a given
+expectType<boolean | undefined>(henri.jobs?.enabled);
+
+const jobs = henri.jobs!;
+
+expectType<Promise<Job>>(jobs.perform('welcome', { userId: 1 }));
 expectType<Promise<Job>>(
-  henri.jobs.perform('report', null, { priority: -10, queue: 'reports' })
+  jobs.perform('report', null, { priority: -10, queue: 'reports' })
 );
-expectType<Promise<Job>>(henri.jobs.performIn('5m', 'welcome', { userId: 1 }));
-expectType<Promise<Job>>(henri.jobs.performAt(new Date(), 'welcome', null));
-expectType<Promise<Job[]>>(henri.jobs.list({ state: 'pending' }));
-expectType<Promise<JobStats>>(henri.jobs.stats());
-expectType<Promise<Job | null>>(henri.jobs.dead.retry('an-id'));
-expectType<Promise<number>>(henri.jobs.dead.discardAll({ queue: 'mailers' }));
+expectType<Promise<Job>>(jobs.performIn('5m', 'welcome', { userId: 1 }));
+expectType<Promise<Job>>(jobs.performAt(new Date(), 'welcome', null));
+expectType<Promise<Job[]>>(jobs.list({ state: 'pending' }));
+expectType<Promise<JobStats>>(jobs.stats());
+expectType<Promise<Job | null>>(jobs.dead.retry('an-id'));
+expectType<Promise<number>>(jobs.dead.discardAll({ queue: 'mailers' }));
 
 const welcome: JobDefinition = {
   maxAttempts: 5,
@@ -151,7 +157,10 @@ const welcome: JobDefinition = {
 expectType<JobDefinition>(welcome);
 
 // @ts-expect-error `pending` is a state, not a queue
-henri.jobs.list({ state: 'sleeping' });
+jobs.list({ state: 'sleeping' });
+
+// @ts-expect-error `henri.jobs` may be undefined: check it first
+henri.jobs.perform('welcome');
 
 // @ts-expect-error a job file has to export a perform()
 const broken: JobDefinition = { queue: 'default' };
