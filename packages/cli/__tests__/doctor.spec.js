@@ -504,6 +504,155 @@ describe('henri doctor', () => {
     expect(run(app).names).not.toContain('deps.declared');
   });
 
+  // The catalogues of config/locales, compared with each other. This is the
+  // half of "a missing key is findable" that does not need the application
+  // to have been asked for one: a key `en` has and `fr` has not renders as
+  // English in production and is invisible in a review.
+  describe('the catalogues of an application that translates', () => {
+    /**
+     * Writes locale files into the scaffolded application
+     *
+     * @param {object} files `{ 'en.json': {...} }`
+     * @returns {Function} Removes them again
+     */
+    const locales = (files) => {
+      const dir = path.join(app, 'config/locales');
+
+      fs.mkdirSync(dir, { recursive: true });
+
+      for (const [name, content] of Object.entries(files)) {
+        fs.writeFileSync(
+          path.join(dir, name),
+          typeof content === 'string' ? content : JSON.stringify(content)
+        );
+      }
+
+      return () => fs.rmSync(dir, { force: true, recursive: true });
+    };
+
+    test('says nothing about an application that has none', () => {
+      expect(run(app).names).not.toContain('i18n.incomplete');
+      expect(run(app).ok).toBe(true);
+    });
+
+    test('says nothing about catalogues that agree', () => {
+      const restore = locales({
+        'en.json': { greeting: 'Hello, {name}', title: 'Notes' },
+        'fr.json': { greeting: 'Bonjour, {name}', title: 'Notes' },
+      });
+
+      expect(run(app).names.filter((name) => name.startsWith('i18n.'))).toEqual(
+        []
+      );
+
+      restore();
+    });
+
+    test('names the keys one locale has and another has not', () => {
+      const restore = locales({
+        'en.json': { nav: { home: 'Home', settings: 'Settings' } },
+        'fr.json': { nav: { home: 'Accueil' } },
+      });
+
+      expect(run(app).problems).toContainEqual({
+        check: 'i18n.incomplete',
+        code: null,
+        file: 'config/locales/fr.json',
+        hint: expect.stringContaining('falls back to en'),
+        level: 'warning',
+        message: expect.stringContaining('nav.settings'),
+      });
+
+      restore();
+    });
+
+    test('names a key that exists only in the other file', () => {
+      const restore = locales({
+        'en.json': { title: 'Notes' },
+        'fr.json': { subtitle: 'Notes', title: 'Notes' },
+      });
+
+      expect(run(app).problems).toContainEqual(
+        expect.objectContaining({
+          check: 'i18n.orphan',
+          level: 'warning',
+          message: expect.stringContaining('subtitle'),
+        })
+      );
+
+      restore();
+    });
+
+    test('reports placeholders that disagree, which render as themselves', () => {
+      const restore = locales({
+        'en.json': { greeting: 'Hello, {name}' },
+        'fr.json': { greeting: 'Bonjour, {nom}' },
+      });
+
+      expect(run(app).problems).toContainEqual(
+        expect.objectContaining({
+          check: 'i18n.placeholders',
+          level: 'warning',
+          message: expect.stringContaining('greeting'),
+        })
+      );
+
+      restore();
+    });
+
+    test('a locale file henri cannot read is an error, with the code', () => {
+      const restore = locales({ 'en.json': '{ not json' });
+
+      expect(run(app).problems).toContainEqual(
+        expect.objectContaining({
+          check: 'i18n.catalogue',
+          code: 'HENRI_LOCALE_CATALOGUE_INVALID',
+          file: 'config/locales/en.json',
+          level: 'error',
+        })
+      );
+      expect(run(app).ok).toBe(false);
+
+      restore();
+    });
+
+    test('a configured locale with no catalogue is an error', () => {
+      const restore = locales({ 'en.json': { title: 'Notes' } });
+      const back = patchConfig(app, (config) =>
+        Object.assign(config, { i18n: { locales: ['en', 'de'] } })
+      );
+
+      expect(run(app).problems).toContainEqual(
+        expect.objectContaining({
+          check: 'i18n.locale',
+          code: 'HENRI_LOCALE_UNKNOWN',
+          level: 'error',
+        })
+      );
+
+      back();
+      restore();
+    });
+
+    test('a default nothing translates is an error', () => {
+      const restore = locales({ 'fr.json': { title: 'Notes' } });
+      const back = patchConfig(app, (config) =>
+        Object.assign(config, { i18n: { default: 'de', locales: ['fr'] } })
+      );
+
+      expect(run(app).problems).toContainEqual(
+        expect.objectContaining({
+          check: 'i18n.default',
+          code: 'HENRI_LOCALE_UNKNOWN',
+          level: 'error',
+        })
+      );
+
+      back();
+      restore();
+    });
+  });
+
   // A model saying `graphql: true` has henri derive its definition from its
   // schema. What is invisible until a query arrives is the authorization
   // around it, and what is invisible forever is a hand-written type naming

@@ -4,6 +4,7 @@ const path = require('path');
 const { APIS, PACKAGES, packagesFor } = require('./adapters');
 const { CliError } = require('./errors');
 const { validate } = require('@usehenri/core/src/base/config-validate');
+const { readCatalogues } = require('@usehenri/core/src/base/i18n');
 const { controllerOf, expand, singularize } = require('./routing');
 const {
   detectPackageManager,
@@ -131,6 +132,7 @@ const CORE_MODULES = [
   'config',
   'controllers',
   'encryption',
+  'i18n',
   'mail',
   'mailers',
   'model',
@@ -212,6 +214,12 @@ const STORE_KEYS = {
   trail: 'HENRI_TRAIL_UNSUPPORTED_STORE',
   webhooks: 'HENRI_WEBHOOK_STORE_MISSING',
 };
+
+/** How many keys of a difference are named before the count takes over */
+const NAMED = 5;
+
+/** `{name}` in a translation, with `{{` and `}}` as the literal braces */
+const PLACEHOLDER = /\{\{|\}\}|\{([a-z0-9_.]+)\}/giu;
 
 /** Where the credentials of an environment and its key live */
 const CREDENTIALS = path.join('config', 'credentials');
@@ -892,6 +900,37 @@ const mailerActions = (source) =>
       ([name, held]) => held.kind === 'function' && !MAILER_RESERVED.has(name)
     )
     .map(([name]) => name);
+
+/**
+ * The `{name}` placeholders a translation carries, sorted and deduplicated.
+ *
+ * A key whose placeholders differ between locales is the failure this check
+ * exists for: it renders, it reads like a sentence, and one language shows
+ * a person `{count}`.
+ *
+ * @param {*} entry A translation, or a set of plural forms
+ * @returns {Array<string>} The names
+ */
+const placeholdersOf = (entry) => {
+  const found = new Set();
+  const scan = (text) => {
+    for (const [match, name] of String(text).matchAll(PLACEHOLDER)) {
+      match === '{{' || match === '}}' || found.add(name);
+    }
+  };
+
+  typeof entry === 'string'
+    ? scan(entry)
+    : Object.values(entry || {}).forEach(scan);
+
+  return Array.from(found).sort();
+};
+
+/** A list of names, cut short once it stops being readable */
+const someOf = (names) =>
+  names.length > NAMED
+    ? `${names.slice(0, NAMED).join(', ')} and ${names.length - NAMED} more`
+    : names.join(', ');
 
 /** A module's own name: `this.name = 'search'` or `name: 'search'` */
 const MODULE_NAME =
@@ -1767,6 +1806,128 @@ const check = (dir = process.cwd()) => {
           hint: `Write app/views/mailers/${view}.hbs. A <action>.text.hbs next to it replaces the plain text part, which is derived from the html otherwise`,
         }
       );
+    }
+  }
+
+  // --- i18n -----------------------------------------------------------------
+  // The half of "a missing key is findable" that does not need the
+  // application to have been asked: the files on disk, compared with each
+  // other. A key one locale has and another does not renders as the key in
+  // production; placeholders that disagree render as `{count}` to a person.
+  const localeDir = (config.i18n && config.i18n.path) || 'config/locales';
+  const { catalogues, problems: unreadableLocales } = readCatalogues(
+    path.join(dir, localeDir)
+  );
+  const onDisk = Object.keys(catalogues).sort();
+
+  for (const trouble of unreadableLocales) {
+    problem(
+      'error',
+      'i18n.catalogue',
+      `${path.relative(dir, trouble.file)}: ${trouble.reason}`,
+      {
+        code: 'HENRI_LOCALE_CATALOGUE_INVALID',
+        file: path.relative(dir, trouble.file),
+        hint: 'A translation is a string, or an object of plural forms holding at least "other". A locale file henri cannot read fails the boot',
+      }
+    );
+  }
+
+  if (onDisk.length > 0) {
+    const asked = Array.isArray(config.i18n && config.i18n.locales)
+      ? config.i18n.locales
+      : onDisk;
+    const fallback =
+      (config.i18n && config.i18n.default) ||
+      (asked.includes('en') ? 'en' : asked[0]);
+
+    for (const locale of asked) {
+      if (onDisk.includes(locale)) {
+        continue;
+      }
+
+      problem(
+        'error',
+        'i18n.locale',
+        `config.i18n.locales names "${locale}" and ${localeDir}/${locale}.json is not there`,
+        {
+          code: 'HENRI_LOCALE_UNKNOWN',
+          file: 'config/default.json',
+          hint: `Write ${localeDir}/${locale}.json, or take the locale out of config.i18n.locales`,
+        }
+      );
+    }
+
+    if (!onDisk.includes(fallback)) {
+      problem(
+        'error',
+        'i18n.default',
+        `config.i18n.default is "${fallback}" and ${localeDir}/${fallback}.json is not there`,
+        {
+          code: 'HENRI_LOCALE_UNKNOWN',
+          file: 'config/default.json',
+          hint: `Every lookup falls back to it, so it is the one catalogue that has to exist: write ${localeDir}/${fallback}.json`,
+        }
+      );
+    }
+
+    const reference = catalogues[fallback] || {};
+
+    for (const locale of asked) {
+      const own = catalogues[locale];
+
+      if (!own || locale === fallback) {
+        continue;
+      }
+
+      const absent = Object.keys(reference)
+        .filter((key) => !Object.hasOwn(own, key))
+        .sort();
+      const extra = Object.keys(own)
+        .filter((key) => !Object.hasOwn(reference, key))
+        .sort();
+
+      absent.length > 0 &&
+        problem(
+          'warning',
+          'i18n.incomplete',
+          `${localeDir}/${locale}.json is missing ${absent.length} key${absent.length === 1 ? '' : 's'} that ${fallback} has: ${someOf(absent)}`,
+          {
+            file: `${localeDir}/${locale}.json`,
+            hint: `Each of them falls back to ${fallback}, so the page renders and the language is half there. Translate them, or take them out of ${localeDir}/${fallback}.json`,
+          }
+        );
+
+      extra.length > 0 &&
+        problem(
+          'warning',
+          'i18n.orphan',
+          `${localeDir}/${locale}.json has ${extra.length} key${extra.length === 1 ? '' : 's'} that ${fallback} has not: ${someOf(extra)}`,
+          {
+            file: `${localeDir}/${locale}.json`,
+            hint: `A key nothing else holds is usually a rename that happened in one file: add it to ${localeDir}/${fallback}.json, or remove it`,
+          }
+        );
+
+      const disagree = Object.keys(reference)
+        .filter((key) => Object.hasOwn(own, key))
+        .filter(
+          (key) =>
+            placeholdersOf(reference[key]).join(',') !==
+            placeholdersOf(own[key]).join(',')
+        )
+        .sort();
+
+      disagree.length > 0 &&
+        problem(
+          'warning',
+          'i18n.placeholders',
+          `${localeDir}/${locale}.json fills different values than ${fallback} in ${disagree.length} key${disagree.length === 1 ? '' : 's'}: ${someOf(disagree)}`,
+          {
+            file: `${localeDir}/${locale}.json`,
+            hint: 'A value nobody passed is printed as its own placeholder, so this is a "{count}" on somebody\'s page. The names on both sides have to match',
+          }
+        );
     }
   }
 
