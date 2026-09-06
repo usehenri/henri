@@ -3,5 +3,11 @@
   "framework": "astro",
   "installCommand": "pnpm install --filter @usehenri/website",
   "buildCommand": "pnpm build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "master": true
+    }
+  }
 }
