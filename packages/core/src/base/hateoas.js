@@ -99,8 +99,15 @@ function withId(plain) {
  * lookups behind the foreign keys are batched once for the page rather
  * than once per record (see base/references.js).
  *
+ * The privacy strip runs after, never before: publishing resolves a foreign
+ * key into the public identifier of the row it names, and a field marked
+ * `personal: { expose: false }` must not leave carrying whatever it
+ * resolved to (see base/privacy.js).
+ *
  * @param {Henri} henri the henri instance
  * @param {*} records a model instance, a plain object, or a list of either
+ * @param {Array<string>} [include=[]] the personal fields this answer asked
+ *   for by name, which the strip keeps
  * @returns {Promise<*>} the copy
  */
 async function toPublic(henri, records, include = []) {
