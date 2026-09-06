@@ -79,7 +79,7 @@ has to be named per record or per process. An application's own suite keeps
 | ------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/henri`               | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                                                                                                                                               |
 | `packages/cli`                 | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `openapi`, `graphql`, `generate` (incl. `authentication`), `destroy`, `build`, `test`, `db`, `jobs`, `webhooks`, `privacy`, `encryption`, `calls`, `doctor`, `audit`, `mcp`, `clean`, `about`, `analyze`; the app templates |
-| `packages/core`                | `@usehenri/core`      | The framework: modules, server, router, models, views, users, policies, mail                                                                                                                                                                                              |
+| `packages/core`                | `@usehenri/core`      | The framework: modules, server, router, models, views, users, policies, mail, i18n                                                                                                                                                                                        |
 | `packages/mongoose`            | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                                                                                                                                              |
 | `packages/disk`                | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                                                                                                                                      |
 | `packages/drizzle`             | `@usehenri/drizzle`   | henri's SQL data layer: Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`). The default of `henri new`, on sqlite                                                                                                                           |
@@ -144,7 +144,7 @@ afterLogin, sessionMaxAge, signup, passwordReset, confirmation }`),
   `baseRole`, `externalIds`, `policies`, `trustProxy`, `csrf`, `graphql`,
   `mail`, `mailers`, `api`, `jobs`, `webhooks`, `rateLimit`, `shared`,
   `cache`, `helmet`, `csp`, `filterParameters`, `logs`, `telemetry`,
-  `encryption`, `privacy`, `retention`, `trail`, `calls`, `versions`,
+  `encryption`, `privacy`, `retention`, `trail`, `calls`, `versions`, `i18n`,
   `bodyLimit`, `uploads`, `requestTimeout`, `shutdown`, `errors`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
@@ -645,6 +645,44 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   a rotation with `config.encryption.readPlaintext` on, `henri audit`
   reports a key in a configuration file and `readPlaintext` left on, and the
   guide is `website/src/content/docs/guides/encryption.md`.
+- Internationalization is `1.i18n.js` (`henri.i18n`) and `base/i18n.js`,
+  off unless `config/locales` holds a catalogue -- which is the call log's
+  rule and matters here because most applications have one language: no
+  block and no directory means no catalogue held, **no middleware mounted**,
+  no `req.locale`, no `i18n` in the view options, nothing on the client and
+  no boot line, for a `fs.existsSync` at boot. A locale is
+  `config/locales/<locale>.json` or `<locale>/<namespace>.json`, flattened
+  to dotted keys; a leaf is a string or a set of `Intl.PluralRules`
+  categories (`other` required, `"=0"` winning over its category), and
+  anything else fails the boot. The locale of a request is decided in one
+  order and the decision is **visible** -- `req.locale`, `req.localeSource`,
+  `Content-Language`, and `Vary: Accept-Language` when the header answered:
+  an explicit `req.setLocale()`, the column `i18n.from.user` names, the
+  query, a cookie henri reads and never writes, `Accept-Language` by q
+  value, the default. The path prefix is deliberately **not** on that list,
+  because henri's route table is the source of both the url and the helper
+  that prints it. A missing key answers **the key**, never a sentence
+  guessed from it, and is recorded in `henri.i18n.missing()` whatever
+  `i18n.missing` says (`warn` outside production, `key` in it, `throw` for a
+  test suite); `henri doctor` compares the files on disk
+  (`i18n.incomplete`, `i18n.orphan`, `i18n.placeholders`). **A translation
+  is never escaped and its values always are, at the boundary that renders
+  them**: `t()` answers a plain string, the Handlebars `{{t}}` escapes the
+  values and returns a `SafeString`, a `<view>.text.hbs` escapes nothing,
+  and React escapes its own children -- so markup in a catalogue is markup
+  in Handlebars and text in a page. The catalogue reaches a browser once per
+  **document** (`henri.i18n.embed()`, called by the two engines) and never
+  on an XHR answer, which carries `{ locale, source, url }` whose digest is
+  in the file name; `i18n.client` takes `always` and `false`. **The locale
+  of a mail is the recipient's and never the request's**: the envelope's
+  `locale`, or `for` (the record, read through `henri.i18n.forUser()`),
+  which is what makes a mail from a job right, and `deliverLater()` renders
+  before it enqueues so a worker needs no catalogue. Dates, numbers,
+  currency and the plural rules stay `Intl`'s -- `{{number}}` and `{{date}}`
+  forward their hash to it unchanged, and exist only because Handlebars has
+  no expressions -- and model attribute names and validation messages are
+  not translated, composing with `henri.model.errors()` through
+  `t(key, values, { default })`. The guide is `guides/i18n.md`.
 - The router (`5.router.js`) expands `config/routes.js` through
   `base/routes.js` (`root`, `resources`/`crud` with `only`/`except`/`omit`,
   `member`, `collection`, `namespace`, `nested`; `@usehenri/cli` requires the
