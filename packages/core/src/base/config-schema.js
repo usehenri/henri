@@ -67,6 +67,16 @@ const positive = (extra = {}) => ({
   ...extra,
 });
 
+/** A duration: milliseconds, or `'250ms'`, `'30s'`, `'5m'`, `'2h'`, `'1d'` */
+const duration = (extra = {}) => ({
+  describe: "a duration: milliseconds, or '30s', '5m', '2h', '1d'",
+  oneOf: [
+    { min: 0, type: 'number' },
+    { pattern: /^\s*\d+(?:\.\d+)?\s*(?:ms|[smhdw])?\s*$/iu, type: 'string' },
+  ],
+  ...extra,
+});
+
 /** One entry of `stores`: an adapter and how to reach its database */
 const STORE = {
   hint: 'A store is { "adapter": "disk" } and the keys that adapter needs',
@@ -336,6 +346,103 @@ const SCHEMA = {
         describe: 'true or false',
         hint: 'true refuses (500) a JSON answer without _links',
         type: 'boolean',
+      },
+    },
+    type: 'object',
+  },
+
+  jobs: {
+    describe: 'an object of job queue settings',
+    hint: 'The queue loads when this key is there or app/jobs holds a file',
+    keys: {
+      backoff: {
+        describe: 'an object ({ base, factor, jitter, max })',
+        keys: {
+          base: duration({ default: '5s' }),
+          factor: positive({ default: 4, describe: 'a number above zero' }),
+          jitter: {
+            default: 0.15,
+            describe: 'a number between 0 and 1',
+            max: 1,
+            min: 0,
+            type: 'number',
+          },
+          max: duration({ default: '1h' }),
+        },
+        type: 'object',
+      },
+      concurrency: {
+        default: 5,
+        describe: 'a whole number of jobs, above zero',
+        integer: true,
+        min: 1,
+        type: 'number',
+      },
+      install: {
+        default: true,
+        describe: 'true or false',
+        hint: 'false stops the boot from creating the tables (henri jobs:install does)',
+        type: 'boolean',
+      },
+      keepCompleted: duration({ default: '1d' }),
+      mailQueue: text({ default: 'mailers', describe: 'a queue name' }),
+      maxArgsBytes: {
+        default: 524288,
+        describe: 'a whole number of bytes, above zero',
+        integer: true,
+        min: 1,
+        type: 'number',
+      },
+      maxAttempts: {
+        default: 5,
+        describe: 'a whole number of attempts, above zero',
+        integer: true,
+        min: 1,
+        type: 'number',
+      },
+      pollInterval: duration({ default: '1s' }),
+      priority: {
+        default: 0,
+        describe: 'a number (the higher, the sooner)',
+        type: 'number',
+      },
+      queue: text({ default: 'default', describe: 'a queue name' }),
+      queues: {
+        describe: "a list of queue names, or one string ('a,b')",
+        oneOf: [text(), { of: text(), type: 'array' }],
+      },
+      recurring: {
+        describe: 'an object of schedules, by name',
+        type: 'record',
+        values: {
+          hint: 'A schedule needs a "cron" or an "every", never both',
+          keys: {
+            args: { describe: 'the arguments of the job', type: 'any' },
+            cron: text({ describe: 'a cron expression, read in UTC' }),
+            every: duration(),
+            job: text({
+              describe: 'the job name (the schedule name by default)',
+            }),
+            name: text({ describe: 'an alias of `job`' }),
+            priority: { describe: 'a number', type: 'number' },
+            queue: text({ describe: 'a queue name' }),
+          },
+          type: 'object',
+        },
+      },
+      store: text({
+        default: 'default',
+        describe: 'the name of a store of `stores`',
+      }),
+      stuckAfter: duration({ default: '5m' }),
+      table: text({
+        default: 'henri_jobs',
+        describe: 'a table name: letters, digits and underscores only',
+        pattern: /^[A-Za-z_][A-Za-z0-9_]*$/u,
+      }),
+      timeout: {
+        describe: "a duration, or null for 'no limit'",
+        oneOf: [{ const: null }, duration()],
       },
     },
     type: 'object',

@@ -351,6 +351,11 @@ describe('the schema, the declarations and the documentation', () => {
     ['RateLimitConfig', rateLimitKeys],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
     ['MailersConfig', () => Object.keys(SCHEMA.mailers.keys)],
+    ['JobsConfig', () => Object.keys(SCHEMA.jobs.keys)],
+    [
+      'RecurringConfig',
+      () => Object.keys(SCHEMA.jobs.keys.recurring.values.keys),
+    ],
   ])('%s declares exactly what the schema does', (name, keys) => {
     expect(members(source, name).sort()).toEqual(keys().sort());
   });

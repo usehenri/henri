@@ -151,6 +151,68 @@ declare namespace start {
     template?: string;
   }
 
+  /** A duration: milliseconds, or `'250ms'`, `'30s'`, `'5m'`, `'2h'`, `'1d'`. */
+  type Duration = number | string;
+
+  /** One entry of `config.jobs.recurring`, keyed by schedule name. */
+  interface RecurringConfig {
+    /** The job to enqueue (the schedule name by default). */
+    job?: string;
+    /** An alias of `job`. */
+    name?: string;
+    /** A cron expression, read in UTC; `cron` or `every`, never both. */
+    cron?: string;
+    /** How often to run it; `cron` or `every`, never both. */
+    every?: Duration;
+    /** The arguments handed to the job. */
+    args?: unknown;
+    /** The queue it goes to. */
+    queue?: string;
+    /** The higher, the sooner. */
+    priority?: number;
+  }
+
+  /** `config.jobs`: the background job queue of `@usehenri/jobs`. */
+  interface JobsConfig {
+    /** Which store of `stores` holds the queue (`default`). */
+    store?: string;
+    /** Table (or collection) name (`henri_jobs`); identifiers only. */
+    table?: string;
+    /** Queue of a job that names none (`default`). */
+    queue?: string;
+    /** Queues a runner takes from when given no `--queue`. */
+    queues?: string | string[];
+    /** How many jobs one runner performs at once (`5`). */
+    concurrency?: number;
+    /** Attempts before a job goes to the dead letter queue (`5`). */
+    maxAttempts?: number;
+    /** How long one attempt may take; `null` for no limit. */
+    timeout?: Duration | null;
+    /** Priority of a job that names none (`0`). */
+    priority?: number;
+    /** `base × factor^(attempt − 1)`, capped at `max`, spread by `jitter`. */
+    backoff?: {
+      base?: Duration;
+      factor?: number;
+      jitter?: number;
+      max?: Duration;
+    };
+    /** How often a runner looks for work (`1s`, never under 50ms). */
+    pollInterval?: Duration;
+    /** Without a heartbeat for that long, a running job is put back (`5m`). */
+    stuckAfter?: Duration;
+    /** How long finished jobs are kept (`1d`); `0` keeps them forever. */
+    keepCompleted?: Duration;
+    /** Size limit of the serialized arguments of one job (`524288`). */
+    maxArgsBytes?: number;
+    /** Queue of the messages `deliverLater()` hands over (`mailers`). */
+    mailQueue?: string;
+    /** Create the tables at boot (`true`). */
+    install?: boolean;
+    /** Schedules, by name. */
+    recurring?: Record<string, RecurringConfig>;
+  }
+
   /** `config.mailers`: the defaults of the mailers in `app/mailers`. */
   interface MailersConfig {
     /** Sender of every message that does not set one. */
@@ -195,6 +257,7 @@ declare namespace start {
     mail?: 'test' | Record<string, unknown>;
     mailers?: MailersConfig;
     api?: ApiConfig;
+    jobs?: JobsConfig;
     rateLimit?: boolean | RateLimitConfig;
     /** Options merged over henri's helmet defaults; `false` disables it. */
     helmet?: false | Record<string, unknown>;

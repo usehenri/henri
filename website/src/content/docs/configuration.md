@@ -48,6 +48,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                             |
 | `mailers`          |               | Defaults of the [mailers](/guides/mail/): `from`, `layout` and `previews`, see below.                                                          |
 | `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                    |
+| `jobs`             |               | Settings of the [job queue](/guides/jobs/), see below. The queue also loads when `app/jobs` holds a file.                                      |
 | `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                              |
 | `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                               |
 | `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                     |
@@ -246,6 +247,7 @@ Everything the [job queue](/guides/jobs/) reads, all of it optional. It only loa
 | Key             | Default      | Description                                                                                                                                  |
 | --------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `store`         | `default`    | Which store of `stores` holds the queue.                                                                                                     |
+| `priority`      | `0`          | Priority of a job that names none; the higher, the sooner it is claimed.                                                                     |
 | `table`         | `henri_jobs` | Table (or collection) name; the schedules live in `<table>_schedules`. Letters, digits and underscores only.                                 |
 | `queue`         | `default`    | Queue of a job that names none.                                                                                                              |
 | `queues`        | all          | Queues a runner takes from when `henri jobs` is given no `--queue`.                                                                          |
