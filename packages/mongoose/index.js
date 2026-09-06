@@ -1,6 +1,10 @@
 const mongoose = require('mongoose');
 const debug = require('debug')('henri:mongoose');
 const { externalId, lookups, owned, paginate, paranoid } = require('./plugins');
+const {
+  instrument: instrumentQueries,
+  instrumentStatics,
+} = require('./queries');
 const { normalizeModel } = require('./schema');
 const { exactPaths, exactness } = require('./exact-paths');
 const { encryption } = require('./encryption');
@@ -201,10 +205,13 @@ class Mongoose {
       versioned(schema, this.henri, model.globalId);
     }
 
-    const instance = this.mongoose.model(
-      model.globalId,
-      schema,
-      model.name || undefined
+    // Last on the schema, so what it measures is every other plugin's work
+    // as well: an application that is not counting gets no hook at all
+    instrumentQueries(schema, this, model.globalId);
+
+    const instance = instrumentStatics(
+      this.mongoose.model(model.globalId, schema, model.name || undefined),
+      this
     );
 
     if (isUser) {

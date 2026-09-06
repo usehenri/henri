@@ -489,6 +489,23 @@ class Queries extends BaseModule {
   }
 
   /**
+   * Is a model call already being measured further out?
+   *
+   * `instrument()` applies this rule itself, so a wrapper never has to ask.
+   * An adapter that cannot be wrapped does: the Mongoose one is instrumented
+   * with schema middleware rather than by wrapping its statics (a `Query` is
+   * lazy and chainable, and wrapping it away would break `find().sort()`), so
+   * it calls `record()` directly and this is how it keeps the `find` and the
+   * `countDocuments` inside `paginate()` from being counted twice.
+   *
+   * @returns {boolean} true when this call is a layer of another one
+   * @memberof Queries
+   */
+  nested() {
+    return nested();
+  }
+
+  /**
    * What has been seen since the boot
    *
    * @returns {object} `{ enabled, detecting, events, findings, requests }`
