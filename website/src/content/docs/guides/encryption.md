@@ -367,7 +367,11 @@ henri encryption:rotate   # rewrite everything under the key that writes
 
 All three boot the models and nothing above them: no port is bound and no
 route is registered. `--json` on any of them prints the report for a script;
-`--dry-run`, `--model` and `--field` narrow the rotation. The work itself is
+`--dry-run`, `--model` and `--field` narrow the rotation. A `--model` or a
+`--field` that names no encrypted column is refused
+(`HENRI_ARGUMENT_UNKNOWN_TARGET`) rather than reporting
+`scanned: 0, rotated: 0` and a clean exit, which is exactly what an operator
+reads before dropping the old key. The work itself is
 `henri.encryption`, so an application can run the same walk from a job.
 
 `encryption:status` opens nothing -- the key id is in the clear inside every

@@ -137,7 +137,7 @@ await henri.mailers.welcome.confirm(user).deliverLater();
 await henri.mailers.welcome.confirm(user).deliverLater({ wait: '10m' });
 ```
 
-The options of the call are the options of an enqueue, so `wait`, `at`, `queue` and `priority` all work; `henri jobs` sends them. See [Jobs](/guides/jobs/#delivering-mail-through-the-queue). Without a queue there is nothing to hold a message back, so a call carrying a `wait` or an `at` is refused and says to install the package rather than sending the mail now; `deliverLater()` on its own delivers out of band, as below.
+The options of the call are the options of an enqueue, so `wait`, `at`, `queue` and `priority` all work — and only those four: a misspelled `wait` used to be ignored, which is a mail that leaves immediately, so an option henri does not know is now refused and the right name is suggested. `henri jobs` sends them. See [Jobs](/guides/jobs/#delivering-mail-through-the-queue). Without a queue there is nothing to hold a message back, so a call carrying a `wait` or an `at` is refused and says to install the package rather than sending the mail now; `deliverLater()` on its own delivers out of band, as below.
 
 Another queue plugs into the same seam:
 
@@ -176,7 +176,7 @@ Set `"mail": "test"` to use an [Ethereal](https://ethereal.email/) fake account:
 
 ## Sending without a mailer
 
-`henri.mail.send()` is unchanged and still takes a nodemailer message:
+`henri.mail.send()` still takes a nodemailer message, and now refuses one with no recipient (`HENRI_MAIL_NO_RECIPIENT`): under `NODE_ENV=test` the transport is nodemailer's json one, which happily "sends" a message nobody will ever receive, so a missing `to` used to be invisible until production.
 
 ```js
 await henri.mail.send({

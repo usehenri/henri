@@ -181,6 +181,11 @@ recurring `henri/retention` job itself:
 const receipt = await henri.retention.sweep({ only: 'Proposal' });
 ```
 
+An `only` that matches no rule is refused (`HENRI_ARGUMENT_UNKNOWN_TARGET`),
+and the message lists the rules there are. A typo used to report a clean,
+successful, empty run — which is exactly what a cron line doing nothing looks
+like from the outside. Same for `henri retention:sweep --only=Propsal`.
+
 The queue is a package an application installs, so henri never assumes it.
 The boot line says which of the three it is, by name:
 

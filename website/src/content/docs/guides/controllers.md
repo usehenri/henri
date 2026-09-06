@@ -203,6 +203,8 @@ Besides `data`, the view engine receives `user` (the public user or `null`), `pa
 
 `res.hbs(route, options)` renders a Handlebars template whatever the configured renderer, with the same options.
 
+`data` and `graphql` are one or the other, never both: the query answers the page and the data would be thrown away, so the call is refused. So is a second argument that is not an object — it used to be read as a GraphQL query, and it said so only in development. See [Wrong calls](/reference/api/#wrong-calls).
+
 ## `req.permit(...fields)`
 
 Never hand `req.body` to a model as is: a client could set `roles` or any other column. `req.permit()` returns a plain object holding only the fields you list, taken from the query string, the body and the path parameters (a path parameter wins over the body, the body over the query string). Fields that were not sent are left out, and `__proto__`, `constructor` and `prototype` are never copied.
@@ -211,6 +213,8 @@ Never hand `req.body` to a model as is: a client could set `roles` or any other 
 const data = req.permit('email', 'password', 'name');
 const same = req.permit(['email', 'password', 'name']); // arrays are flattened
 ```
+
+Every field has to be a name. One stray `undefined` — `req.permit(maybe)` where `maybe` turned out to be nothing — is refused rather than answering `{}`, which used to be a write that quietly saved nothing.
 
 `henri.params(req).permit(...)` is the same helper for code outside the middleware chain, and `henri.params(req).all()` the merged parameters, for reading only.
 
@@ -240,6 +244,8 @@ res.boom.notFound('No such task', { id: req.params.id });
 | `badGateway`        | 502    |
 | `serverUnavailable` | 503    |
 
+`message` is a string: the envelope promises one and the [OpenAPI description](/guides/openapi/) says so, so `res.boom.badData({ title: 'is required' })` is refused — the detail goes in `data`, which is the second argument.
+
 A third argument names the failure: `res.boom.notFound('No such task', null, 'HENRI_MODEL_UNKNOWN_STORE')` adds a `code` to the body. It is the same envelope the 404 and 500 handlers answer with, and a failure henri raises itself already carries its own — see [Error codes](/reference/errors/).
 
 The React `Form` reads `data.errors` of a `422` and shows each message under its field, and the `RequestError` thrown by `fetch()` exposes `message`, `statusCode` and `data`.
@@ -258,6 +264,8 @@ return res.negotiate({
   json: () => res.resource(task),
 });
 ```
+
+One of the two is required. With neither, express answers `406 Not Acceptable`, which blames the client's `Accept` header for a mistake in the controller — so henri refuses the call instead.
 
 ## `res.format(handlers)`
 
