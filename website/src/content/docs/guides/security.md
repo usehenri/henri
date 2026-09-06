@@ -30,6 +30,35 @@ because that is what a report is read against outside a security team — but it
 is an awareness document, ten categories chosen for teaching, and an audit
 shaped by it would inherit that shape.
 
+### What `henri audit` does not do
+
+Most of it reads your configuration and the shape of your files: which keys are
+set, which marks a model carries, which packages are installed, what a route
+declares. Four checks do look inside your source — a template literal inside
+`store.query()`, a `dangerouslySetInnerHTML` or a triple stache in a view, a
+model write that takes the whole body, a record answered as the ORM returned it
+— and they find those **shapes**, by pattern.
+
+They are not a code analysis. There is no dataflow here: nothing follows a value
+from a request to a sink, so `henri audit` cannot tell you whether the string in
+that query came from a parameter or from a constant two files away, and it finds
+nothing that is not one of the shapes it knows. A clean run means your settings,
+your declarations and those four patterns are right. It does not mean the code
+is.
+
+That line is deliberate. Taint analysis of JavaScript is its own field, and a
+command that half-does it is worse than one that does not, because a security
+tool people believe to be complete is the one that lets something through. Reach
+for a JavaScript static analysis tool for that half. Two more corners are covered
+elsewhere and are also not this one: the dependency advisories (`pnpm
+audit:deps`, which `henri audit` runs unless `--no-deps`) and the weekly ZAP
+baseline in `.github/workflows/security.yml`.
+
+`henri doctor` sits beside it and answers a different question: audit weighs what
+an application _chose_, so every finding carries a severity and a requirement;
+doctor reports what an application cannot have _meant_, so nothing it says has
+one.
+
 ## What henri does for every application
 
 Nothing below needs a configuration key. It is on unless you turn it off, and
