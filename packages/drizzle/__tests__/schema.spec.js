@@ -42,7 +42,9 @@ describe('schema normalizer', () => {
       key: 'uuid',
       name: { type: 'string' },
       notes: 'text',
+      price: { type: 'decimal' },
       ratio: 'float',
+      reference: 'bigint',
       settings: 'json',
       weight: 'number',
     });
@@ -58,7 +60,9 @@ describe('schema normalizer', () => {
       key: 'uuid',
       name: 'string',
       notes: 'text',
+      price: 'decimal',
       ratio: 'float',
+      reference: 'bigint',
       settings: 'json',
       weight: 'number',
     });
@@ -66,8 +70,10 @@ describe('schema normalizer', () => {
 
   test('documents the same names as the types map', () => {
     expect(Object.keys(types).sort()).toEqual([
+      'bigint',
       'boolean',
       'date',
+      'decimal',
       'float',
       'integer',
       'json',

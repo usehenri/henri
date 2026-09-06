@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('drizzle-orm');
+const { settingsOf, toNumber } = require('./exact');
 
 /**
  * Everything that differs between sqlite, postgres and mysql: the driver,
@@ -321,6 +322,47 @@ const sqlite = {
   },
 
   /**
+   * How an exact column is compared and ordered.
+   *
+   * sqlite has neither an exact decimal nor a 64-bit integer a driver hands
+   * back whole -- better-sqlite3 returns `9223372036854775807` as
+   * `9223372036854776000` unless every read asks for BigInts -- so both
+   * types keep their digits in a `text` column, which round-trips the
+   * *value* exactly. A comparison is a different question from a value, and
+   * text answers it wrongly (`'9.99' > '10'` lexicographically), so the
+   * comparison is the one thing that goes through a cast:
+   *
+   * - a `bigint` casts to `INTEGER`, which sqlite carries on 64 bits: the
+   *   answer is exact.
+   * - a `decimal` casts to `REAL`, and that is the one approximation henri
+   *   ships for these types. It is a double, so it is exact to about
+   *   sixteen significant digits and gives the same answer PostgreSQL does
+   *   for every value a person writes down; past that it is the nearest
+   *   double. The stored value never goes through it.
+   *
+   * The bound value is cast the same way, because sqlite would otherwise
+   * compare a number against text and sort every number first.
+   *
+   * @param {object} column The Drizzle column
+   * @param {object} field The normalized field
+   * @returns {object} An SQL expression
+   */
+  cast: (column, field) =>
+    field.type === 'bigint'
+      ? sql`CAST(${column} AS INTEGER)`
+      : sql`CAST(${column} AS REAL)`,
+
+  /**
+   * The bound value of a comparison against a cast column
+   *
+   * @param {*} value A canonical exact value
+   * @param {object} field The normalized field
+   * @returns {*} What to bind
+   */
+  compared: (value, field) =>
+    field.type === 'bigint' ? BigInt(value) : toNumber(value),
+
+  /**
    * Column builder for a normalized field
    *
    * @param {object} core drizzle-orm/sqlite-core
@@ -332,6 +374,10 @@ const sqlite = {
     switch (field.type) {
       case 'integer':
         return core.integer(column);
+      // The digits, exactly; see `cast` above
+      case 'bigint':
+      case 'decimal':
+        return core.text(column);
       case 'number':
       case 'float':
         return core.real(column);
@@ -467,6 +513,16 @@ const postgres = {
     switch (field.type) {
       case 'integer':
         return core.integer(column);
+      case 'bigint':
+        // Node-postgres hands `int8` back as a string and drizzle turns it
+        // into a BigInt; henri's own hooks make it the decimal string every
+        // adapter answers with (packages/drizzle/exact.js)
+        return core.bigint(column, { mode: 'bigint' });
+      case 'decimal': {
+        const { precision, scale } = settingsOf(field);
+
+        return core.numeric(column, { precision, scale });
+      }
       case 'number':
         return core.doublePrecision(column);
       case 'float':
@@ -519,7 +575,13 @@ const mysql = {
    */
   connect: async (config, paths) => {
     const driver = requireDriver('mysql2/promise', paths);
-    const options = credentials(config);
+    // Without this mysql2 reads a BIGINT through a double, so
+    // 9223372036854775807 comes back as 9223372036854776000 and the
+    // `bigint` column would be a lie. With it, a value past what a
+    // JavaScript number carries exactly arrives as a string and everything
+    // smaller is untouched -- so henri's own BIGINT tables (the queue, the
+    // trail, the call log, the versions) keep reading numbers
+    const options = { supportBigNumbers: true, ...credentials(config) };
 
     if (config.url) {
       options.uri = config.url.replace(/^mariadb:/i, 'mysql:');
@@ -607,6 +669,16 @@ const mysql = {
     switch (field.type) {
       case 'integer':
         return core.int(column);
+      case 'bigint':
+        // Mysql2 needs `supportBigNumbers` (set in credentials() above) to
+        // hand a value past 2^53 back whole; drizzle then makes it a BigInt
+        // and henri's own hooks make it the decimal string
+        return core.bigint(column, { mode: 'bigint' });
+      case 'decimal': {
+        const { precision, scale } = settingsOf(field);
+
+        return core.decimal(column, { precision, scale });
+      }
       case 'number':
         return core.double(column);
       case 'float':

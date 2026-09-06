@@ -1,5 +1,12 @@
 const TYPES = require('./types');
 const { DETERMINISTIC_LENGTH, encryptionOf } = require('./encrypted');
+const {
+  canonical,
+  canonicalInteger,
+  checkSettings,
+  isExact,
+  settingsOf,
+} = require('./exact');
 const { coded, isPlainObject, snakeCase } = require('./utils');
 
 // Keys of the henri model format understood by this adapter
@@ -18,9 +25,12 @@ const KNOWN_KEYS = new Set([
   'minLength',
   // Metadata, not a column: what henri redacts, exports and erases
   'personal',
+  // The two a `decimal` column carries; see ./exact.js
+  'precision',
   'primaryKey',
   'references',
   'required',
+  'scale',
   'select',
   'trim',
   'type',
@@ -38,18 +48,24 @@ const CONSTRUCTORS = new Map([
   [Array, 'json'],
 ]);
 
-// Sequelize data type names accepted for compatibility with existing models
+// Sequelize data type names accepted for compatibility with existing models.
+// `BIGINT` and `DECIMAL` used to be downgrades -- a 32-bit integer and a
+// double -- so a model asking for money got binary floating point and one
+// asking for a big identifier got a column that refused the insert above
+// 2,147,483,647. They point at the exact types now.
 const SEQUELIZE_TYPES = {
-  BIGINT: 'integer',
+  BIGINT: 'bigint',
   BOOLEAN: 'boolean',
   DATE: 'date',
   DATEONLY: 'date',
-  DECIMAL: 'number',
+  DECIMAL: 'decimal',
   DOUBLE: 'number',
   FLOAT: 'float',
   INTEGER: 'integer',
   JSON: 'json',
   JSONB: 'json',
+  NUMERIC: 'decimal',
+  REAL: 'float',
   STRING: 'string',
   TEXT: 'text',
   UUID: 'uuid',
@@ -112,6 +128,89 @@ const resolveType = (type, field) => {
   );
 };
 
+// Keys that measure a string, and therefore mean nothing on a `decimal` or
+// a `bigint`: the value is a string, so they would quietly count digits
+const TEXTUAL_KEYS = [
+  'length',
+  'lowercase',
+  'match',
+  'maxLength',
+  'minLength',
+  'trim',
+];
+
+/**
+ * One value of an exact field, as the string the column holds
+ *
+ * @param {string} type `decimal` or `bigint`
+ * @param {*} value The value
+ * @param {object} settings `{ precision, scale }`
+ * @returns {{value: string}|{error: string}} The value, or what is wrong
+ */
+const exactly = (type, value, settings) =>
+  type === 'bigint' ? canonicalInteger(value) : canonical(value, settings);
+
+/**
+ * Settles the `precision` and `scale` of an exact field and canonicalizes
+ * everything the definition itself holds -- the default, the enum and the
+ * bounds -- so nothing downstream compares a literal against a stored
+ * value that spells the same number differently
+ *
+ * @param {string} field The field name
+ * @param {object} normalized The normalized field, changed in place
+ * @returns {void}
+ * @throws {Error} When the definition holds a value the type refuses
+ */
+const normalizeExact = (field, normalized) => {
+  const settings = settingsOf(normalized);
+  const textual = TEXTUAL_KEYS.filter((key) => key in normalized);
+
+  if (textual.length > 0) {
+    throw coded(
+      'HENRI_MODEL_INVALID_FIELD',
+      `Field '${field}' has '${textual[0]}', which measures text: a ${normalized.type} is a number, and its bounds are 'min' and 'max'`
+    );
+  }
+
+  for (const key of ['default', 'max', 'min']) {
+    const value = normalized[key];
+
+    if (!(key in normalized) || value === null || typeof value === 'function') {
+      continue;
+    }
+
+    const answer = exactly(normalized.type, value, settings);
+
+    if (answer.error) {
+      throw coded(
+        'HENRI_MODEL_INVALID_FIELD',
+        `Field '${field}' has a '${key}' of ${JSON.stringify(String(value))}, which ${answer.error}`
+      );
+    }
+
+    normalized[key] = answer.value;
+  }
+
+  if (Array.isArray(normalized.enum)) {
+    normalized.enum = normalized.enum.map((entry) => {
+      const answer = exactly(normalized.type, entry, settings);
+
+      if (answer.error) {
+        throw coded(
+          'HENRI_MODEL_INVALID_FIELD',
+          `Field '${field}' has the enum value ${JSON.stringify(String(entry))}, which ${answer.error}`
+        );
+      }
+
+      return answer.value;
+    });
+  }
+
+  if (normalized.type === 'decimal') {
+    Object.assign(normalized, settings);
+  }
+};
+
 /**
  * Normalizes one field definition
  *
@@ -170,6 +269,16 @@ const normalizeField = (field, definition, context = {}) => {
       'HENRI_MODEL_INVALID_FIELD',
       `Field '${field}': 'enum' must be an array`
     );
+  }
+
+  const settings = checkSettings(normalized.type, normalized);
+
+  if (settings) {
+    throw coded('HENRI_MODEL_INVALID_FIELD', `Field '${field}' ${settings}`);
+  }
+
+  if (isExact(normalized.type)) {
+    normalizeExact(field, normalized);
   }
 
   // The column of an encrypted field is the ciphertext's, not the

@@ -9,8 +9,21 @@
  *
  * Values are read by the model layer too: `js` is the JavaScript type a
  * value is coerced to before validation.
+ *
+ * `decimal` and `bigint` are the two whose `js` is neither a number nor a
+ * Date: they cross into JavaScript as exact decimal **strings**, because a
+ * double undoes the column. `./exact.js` is where that is argued, and
+ * sqlite -- which has neither an exact decimal nor a 64-bit integer a
+ * driver hands back whole -- keeps the digits in a `text` column and casts
+ * for a comparison. See `./dialects.js`.
  */
 module.exports = {
+  bigint: {
+    js: 'bigint',
+    mysql: 'bigint',
+    postgres: 'bigint',
+    sqlite: 'text (the digits)',
+  },
   boolean: {
     js: 'boolean',
     mysql: 'boolean',
@@ -22,6 +35,12 @@ module.exports = {
     mysql: 'datetime(3)',
     postgres: 'timestamp with time zone',
     sqlite: 'integer (ms since epoch)',
+  },
+  decimal: {
+    js: 'decimal',
+    mysql: 'decimal(precision, scale)',
+    postgres: 'numeric(precision, scale)',
+    sqlite: 'text (the digits)',
   },
   float: {
     js: 'number',
