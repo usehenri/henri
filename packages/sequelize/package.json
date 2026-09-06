@@ -27,6 +27,7 @@
     "exact.js",
     "external-id.js",
     "plugins.js",
+    "queries.js",
     "schema.js",
     "types.js",
     "utils.js",
