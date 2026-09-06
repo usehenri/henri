@@ -164,7 +164,10 @@ const controllersOf = (cwd) => {
     for (const action of names) {
       actions[`${name}#${action}`] = true;
       accepts[`${name}#${action}`] = rules ? rules[action] || {} : null;
-      answers[`${name}#${action}`] = answered ? answered[action] || {} : {};
+      // `null`, not `{}`: a file that would not load outside a booted
+      // application declares nothing henri could read, which is not the
+      // same fact as an action that declares nothing
+      answers[`${name}#${action}`] = answered ? answered[action] || {} : null;
     }
   }
 

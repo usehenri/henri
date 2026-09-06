@@ -1574,7 +1574,7 @@ function operationDescription(
 
   if (params.read === false) {
     lines.push(
-      `Parameters: henri could not read the \`params\` export of \`app/controllers/${controller}.js\` -- the file did not load outside a booted application, or its declaration would fail the boot. If the action declares any, they are checked at runtime and are **not** in this operation; nothing was guessed in their place.`
+      `Parameters: henri could not read the \`params\` export of \`app/controllers/${controller}.js\` -- the file did not load outside a booted application, or its declaration would fail the boot. If the action declares any, they are checked at runtime and are **not** in this operation; nothing was guessed in their place, and the same is true of its \`answers\` block.`
     );
   }
 

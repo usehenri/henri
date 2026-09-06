@@ -149,6 +149,82 @@ describe('henri openapi', () => {
     });
   });
 
+  describe('what a controller declared it answers', () => {
+    const controller = () => path.join(app, 'app', 'controllers', 'main.js');
+    let original;
+
+    beforeEach(() => {
+      original = fs.readFileSync(controller(), 'utf8');
+    });
+
+    afterEach(() => {
+      fs.writeFileSync(controller(), original);
+    });
+
+    /**
+     * Adds an `answers` export to the scaffolded controller
+     *
+     * @param {string} block The block, as source
+     * @returns {object} The document `henri openapi` writes for it
+     */
+    const withAnswers = (block) => {
+      fs.writeFileSync(
+        controller(),
+        original.replace('module.exports = {', `module.exports = {\n${block}\n`)
+      );
+
+      return JSON.parse(henri(['openapi'], { cwd: app }).stdout);
+    };
+
+    test('gives an operation henri could not describe a success status', async () => {
+      const document = withAnswers(
+        `  answers: {
+    home: { tasks: { model: 'Task', type: 'array' }, total: { type: 'integer', required: true } },
+  },`
+      );
+      const home = document.paths['/'].get;
+
+      expect(home['x-henri'].answers).toEqual(['tasks', 'total']);
+      expect(home['x-henri'].known).toBe(true);
+      expect(home['x-henri'].enforced).toContain('answers');
+      expect(home.responses['200'].content['application/json'].schema).toEqual({
+        additionalProperties: false,
+        properties: {
+          tasks: {
+            items: { $ref: '#/components/schemas/Task' },
+            type: 'array',
+          },
+          total: { type: 'integer' },
+        },
+        required: ['total'],
+        type: 'object',
+      });
+      expect(home.description).toContain('declared');
+      expect(await validate(document)).toEqual({ valid: true });
+    });
+
+    test('a declaration that would fail the boot describes nothing', () => {
+      const document = withAnswers(
+        "  answers: { home: { tasks: { model: 'Ghost', type: 'lasagna' } } },"
+      );
+      const home = document.paths['/'].get;
+
+      expect(home['x-henri'].answers).toBeUndefined();
+      expect(home['x-henri'].known).toBe(false);
+      expect(home.responses['200']).toBeUndefined();
+      expect(home.responses.default.description).toContain('Not described');
+    });
+
+    test('a scaffolded application declares none, and nothing is invented', () => {
+      const document = JSON.parse(henri(['openapi'], { cwd: app }).stdout);
+      const home = document.paths['/'].get;
+
+      expect(home['x-henri'].answers).toBeUndefined();
+      expect(home.responses['200']).toBeUndefined();
+      expect(home.responses.default.description).toContain('Not described');
+    });
+  });
+
   test('writes the document with --out and reports what it covers', () => {
     const { status, stdout } = henri(['openapi', '--out', 'openapi.json'], {
       cwd: app,
