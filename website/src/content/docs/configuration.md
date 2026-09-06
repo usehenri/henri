@@ -205,11 +205,11 @@ See [Models](/guides/models/#adapters) for each adapter.
 
 The keys of the [JSON API](/guides/api/), all optional:
 
-| Key                             | Default                              | Description                                                                                                                                           |
-| ------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `api.perPage`, `api.maxPerPage` | `25`, `100`                          | Page size read by `req.pagination()` and its upper bound.                                                                                             |
-| `api.strict`                    | `false`                              | Refuse (500) a JSON answer without `_links` on a `resources`/`crud` route instead of logging it.                                                      |
-| `api.idempotency`               | `{ "ttl": 86400000, "store": null }` | How long answers are kept for `Idempotency-Key` replays and the module exporting a shared `{ get, set, delete }` store; `false` disables the feature. |
+| Key                             | Default                              | Description                                                                                                                                                                                                               |
+| ------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.perPage`, `api.maxPerPage` | `25`, `100`                          | Page size read by `req.pagination()` and its upper bound.                                                                                                                                                                 |
+| `api.strict`                    | `false`                              | Refuse (500) a JSON answer without `_links` on a `resources`/`crud` route, and one that does not match what the action [declared it answers](/guides/controllers/#answers-what-an-action-answers), instead of logging it. |
+| `api.idempotency`               | `{ "ttl": 86400000, "store": null }` | How long answers are kept for `Idempotency-Key` replays and the module exporting a shared `{ get, set, delete }` store; `false` disables the feature.                                                                     |
 
 ## Rate limits
 

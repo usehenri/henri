@@ -105,25 +105,33 @@ const scanActions = (source) => {
  * than describing an action as accepting nothing.
  *
  * @param {string} cwd The application directory
- * @returns {{accepts: ?object, actions: ?object}} `{ 'tasks#index': ... }`
+ * @returns {{accepts: ?object, actions: ?object, answers: ?object}} the
+ *   declarations, by `controller#action`
  */
 const controllersOf = (cwd) => {
   const dir = path.join(cwd, 'app', 'controllers');
 
   if (!fs.existsSync(dir)) {
-    return { accepts: null, actions: null };
+    return { accepts: null, actions: null, answers: null };
   }
 
   const params = fromCore('src/base/params-schema', cwd);
   const hooks = fromCore('src/base/hooks', cwd);
-  const reserved = new Set([...hooks.RESERVED, ...params.RESERVED]);
+  const declared = fromCore('src/base/answers', cwd);
+  const reserved = new Set([
+    ...hooks.RESERVED,
+    ...params.RESERVED,
+    ...declared.RESERVED,
+  ]);
   const accepts = {};
+  const answers = {};
   const actions = {};
 
   for (const name of listing(dir)) {
     const file = path.join(dir, `${name}.js`);
     let names;
     let rules = null;
+    let answered = null;
 
     try {
       delete require.cache[require.resolve(file)];
@@ -141,6 +149,12 @@ const controllersOf = (cwd) => {
         // is one more thing this command could not read
         rules = null;
       }
+
+      try {
+        answered = declared.declarations(loaded, name, names);
+      } catch {
+        answered = null;
+      }
     } catch {
       // A controller that cannot be loaded outside a booted application:
       // read the actions off the source instead of pretending there are none
@@ -150,10 +164,14 @@ const controllersOf = (cwd) => {
     for (const action of names) {
       actions[`${name}#${action}`] = true;
       accepts[`${name}#${action}`] = rules ? rules[action] || {} : null;
+      // `null`, not `{}`: a file that would not load outside a booted
+      // application declares nothing henri could read, which is not the
+      // same fact as an action that declares nothing
+      answers[`${name}#${action}`] = answered ? answered[action] || {} : null;
     }
   }
 
-  return { accepts, actions };
+  return { accepts, actions, answers };
 };
 
 /**
@@ -195,11 +213,12 @@ const identity = (cwd) => {
 const describe = (cwd = process.cwd()) => {
   const { build } = fromCore('src/base/openapi', cwd);
   const { loadModules } = fromCore('src/utils', cwd);
-  const { accepts, actions } = controllersOf(cwd);
+  const { accepts, actions, answers } = controllersOf(cwd);
 
   return build({
     accepts,
     actions,
+    answers,
     config: readConfig(cwd, undefined),
     info: identity(cwd),
     models: Object.values(loadModules(path.join(cwd, 'app', 'models'))),

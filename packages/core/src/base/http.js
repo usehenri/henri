@@ -4,6 +4,7 @@ const { isLoopback } = require('../utils');
 const { recorder } = require('./runtime');
 const { STATUSES } = require('./boom');
 const { coded } = require('./errors');
+const { seal } = require('./headers');
 
 /**
  * Escape a string for html
@@ -88,7 +89,8 @@ function negotiate(
       redirect
         ? res.redirect(redirect)
         : res.type('html').send(page(status, title, details, code)),
-    json: () => res.json(body),
+    // The envelope henri writes itself, like base/boom.js (base/answers.js)
+    json: () => seal(res).json(body),
     // Escaped as well: static analyzers treat every send() as an html sink
     // eslint-disable-next-line sort-keys
     default: () =>

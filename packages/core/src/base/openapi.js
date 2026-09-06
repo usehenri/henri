@@ -682,6 +682,92 @@ function ruleSchema(compiled) {
 }
 
 /**
+ * One rule of an `answers` declaration as a JSON Schema.
+ *
+ * The three shapes a rule has, in the order they are read: a field naming a
+ * model is that model's record schema, a field naming a column is typed from
+ * the model file, and anything else is its own type. `henri openapi` reads
+ * the model files, so both references resolve here even though the check
+ * that runs at boot lives in `base/answers.js`.
+ *
+ * @param {object} compiled a compiled rule (base/answers.js)
+ * @param {object} context the builder context
+ * @returns {object} the schema
+ */
+function answerSchema(compiled, context) {
+  const written = objectOf(compiled);
+  const { models, settings } = context;
+  const fileOf = (name) =>
+    models.find((file) => String(file.globalId) === String(name)) || null;
+
+  if (written.model) {
+    const known = fileOf(written.model);
+    const record = known
+      ? { $ref: `#/components/schemas/${known.globalId}` }
+      : { type: 'object' };
+
+    return written.type === 'array' ? { type: 'array', items: record } : record;
+  }
+
+  if (written.type === 'array') {
+    return { type: 'array', items: answerSchema(written.of, context) };
+  }
+
+  if (written.from) {
+    const source = fileOf(written.from.model);
+    const columns = source ? columnsOf(source, settings) : {};
+
+    if (columns[written.from.field]) {
+      return fieldSchema(
+        written.from.field,
+        columns[written.from.field],
+        context
+      );
+    }
+  }
+
+  return ruleSchema(written);
+}
+
+/**
+ * The 200 of an action that said what it answers.
+ *
+ * This is the one thing the document could not know: an operation whose body
+ * a controller writes carried no success status at all. Additional
+ * properties are refused, and that is not a style choice -- what is not
+ * declared does not leave (see base/answers.js), so the document says what
+ * the gate does.
+ *
+ * @param {object} rules the compiled rules of the action
+ * @param {object} context the builder context
+ * @param {object} where `{ action, controller }`
+ * @returns {object} the response object
+ */
+function declaredAnswer(rules, context, { action, controller }) {
+  const properties = {};
+  const required = [];
+
+  for (const name of Object.keys(rules).sort()) {
+    properties[name] = answerSchema(rules[name], context);
+
+    if (rules[name].required) {
+      required.push(name);
+    }
+  }
+
+  const schema = { type: 'object', properties, additionalProperties: false };
+
+  if (required.length > 0) {
+    schema.required = required;
+  }
+
+  return {
+    description: `What \`${controller}#${action}\` declared it answers (\`answers\`). henri sends the declared fields and nothing else, publishes the ones naming a model and drops every field the models marked \`personal: { expose: false }\`.`,
+    content: { [JSON_MEDIA]: { schema } },
+  };
+}
+
+/**
  * Where every declared field of an action is described.
  *
  * henri reads a field from the query string, the body and the path
@@ -1429,12 +1515,13 @@ function guardResponses(route, settings, rules) {
  * not
  *
  * @param {object} route the route
- * @param {object} context `{ answer, known, model, params, policy, settings }`
+ * @param {object} context `{ answer, answers, known, model, params, policy,
+ *   settings }`
  * @returns {string} the description
  */
 function operationDescription(
   route,
-  { answer, known, model, params, policy, settings }
+  { answer, answers, known, model, params, policy, settings }
 ) {
   const [controller, action] = String(route.controller).split('#');
   const lines = [
@@ -1487,7 +1574,7 @@ function operationDescription(
 
   if (params.read === false) {
     lines.push(
-      `Parameters: henri could not read the \`params\` export of \`app/controllers/${controller}.js\` -- the file did not load outside a booted application, or its declaration would fail the boot. If the action declares any, they are checked at runtime and are **not** in this operation; nothing was guessed in their place.`
+      `Parameters: henri could not read the \`params\` export of \`app/controllers/${controller}.js\` -- the file did not load outside a booted application, or its declaration would fail the boot. If the action declares any, they are checked at runtime and are **not** in this operation; nothing was guessed in their place, and the same is true of its \`answers\` block.`
     );
   }
 
@@ -1525,7 +1612,18 @@ function operationDescription(
 
   if (answer === 'unknown') {
     lines.push(
-      'henri does not know what this action answers: it is not one of the seven actions expanded from `resources`, so nothing wraps it and the controller writes the body. The statuses below are the ones henri produces before the action runs, or in place of it.'
+      answers
+        ? `Answers ${Object.keys(answers)
+            .sort()
+            .map((field) => `\`${field}\``)
+            .join(
+              ', '
+            )}, which \`${controller}#${action}\` declared (\`answers\`). henri sends those fields and nothing else, publishes the ones naming a model, and drops every field the models marked \`personal: { expose: false }\`; a field that is missing or of another type is ${
+            settings.strict
+              ? 'refused with a 500 (config.api.strict)'
+              : 'reported in the log'
+          }.`
+        : 'henri does not know what this action answers: it is not one of the seven actions expanded from `resources`, so nothing wraps it and the controller writes the body. The statuses below are the ones henri produces before the action runs, or in place of it. An action says what it answers with an `answers` block (base/answers.js), and this operation then describes it.'
     );
   }
 
@@ -1676,6 +1774,24 @@ function resourceResponses(action, { embed, model }) {
 }
 
 /**
+ * What the catch-all response of an operation henri does not write says
+ *
+ * @param {object} context `{ declaredAnswers, known }`
+ * @returns {string} the description
+ */
+function defaultDescription({ declaredAnswers, known }) {
+  if (known === false) {
+    return 'The controller has no such action: 501 in development, 404 in production.';
+  }
+
+  if (declaredAnswers) {
+    return 'The statuses this action chooses for itself. Its successful answer is the one above, which the action declared; a failure henri answers itself uses the error envelope.';
+  }
+
+  return "Not described: what this action answers is the controller's own. A failure henri answers itself uses the error envelope; anything else is this application's.";
+}
+
+/**
  * One operation of the description
  *
  * @param {object} route the route
@@ -1693,6 +1809,8 @@ function operationFor(route, context) {
   const answer = isResource ? ANSWERS[action] || 'unknown' : 'unknown';
   const known = context.actionKnown(route.controller);
   const params = context.declared(route.controller);
+  const declaredAnswers =
+    known === false ? null : context.answered(route.controller);
   const { names } = template(route.route);
   const declared = params.rules
     ? splitDeclaration(params.rules, { names, verb: route.verb })
@@ -1743,14 +1861,20 @@ function operationFor(route, context) {
     );
   }
 
+  // The one thing this document could not know, until an action said it:
+  // a body a controller writes has a shape henri now enforces
+  if (answer === 'unknown' && declaredAnswers) {
+    responses['200'] = declaredAnswer(declaredAnswers, context, {
+      action,
+      controller,
+    });
+  }
+
   Object.assign(responses, guardResponses(route, settings, params.rules));
 
   if (answer === 'unknown' || known === false) {
     responses.default = {
-      description:
-        known === false
-          ? 'The controller has no such action: 501 in development, 404 in production.'
-          : "Not described: what this action answers is the controller's own. A failure henri answers itself uses the error envelope; anything else is this application's.",
+      description: defaultDescription({ declaredAnswers, known }),
       content: { [JSON_MEDIA]: { schema: {} } },
     };
   } else {
@@ -1763,7 +1887,8 @@ function operationFor(route, context) {
   // What henri itself checks on this route, and nothing an application does
   const enforced = []
     .concat(described || answer === 'page' ? ['_links'] : [])
-    .concat(params.rules ? ['params'] : []);
+    .concat(params.rules ? ['params'] : [])
+    .concat(declaredAnswers ? ['answers'] : []);
   const marks = prune({
     fields: params.rules ? Object.keys(params.rules).sort() : undefined,
     read: params.read === false ? false : undefined,
@@ -1773,6 +1898,7 @@ function operationFor(route, context) {
     summary: `${controller}#${action}`,
     description: operationDescription(route, {
       answer,
+      answers: declaredAnswers,
       known,
       model,
       params,
@@ -1785,9 +1911,12 @@ function operationFor(route, context) {
     'x-henri': prune({
       action,
       answer: known === false ? 'unknown' : answer,
+      answers: declaredAnswers
+        ? Object.keys(declaredAnswers).sort()
+        : undefined,
       controller,
       enforced: enforced.length > 0 ? enforced : undefined,
-      known: known !== false && described,
+      known: known !== false && (described || Boolean(declaredAnswers)),
       model: answer !== 'unknown' && model ? model.globalId : undefined,
       params: Object.keys(marks).length > 0 ? marks : undefined,
       pathHelper: route.path,
@@ -2322,6 +2451,10 @@ function overview(settings) {
  *   otherwise. An entry that is `null` is a controller whose declaration
  *   could not be read; a missing entry is one that declares nothing; `null`
  *   for the whole map is a caller that could not find out at all
+ * @param {?object} [input.answers=null] what each action declared it answers,
+ *   compiled, as `{ 'reports#digest': rules }` -- `henri.controllers.answers()`
+ *   on a booted application, `declarations()` of base/answers.js over the
+ *   controller files otherwise. A missing entry declares nothing
  * @param {*} [input.config={}] henri's config module, or the plain object a
  *   command read from `config/<env>.json`
  * @param {Array<object>} [input.models=[]] the model files, with `globalId`
@@ -2340,6 +2473,7 @@ function overview(settings) {
 function build({
   accepts = null,
   actions = null,
+  answers = null,
   config = {},
   info = {},
   models = [],
@@ -2365,6 +2499,23 @@ function build({
   const context = {
     actionKnown: (controller) =>
       actions === null ? null : Boolean(actions[controller]),
+    /**
+     * What an action declared it answers (see base/answers.js)
+     *
+     * @param {string} controller the `controller#action` key
+     * @returns {?object} the rules, or null when nothing is declared
+     */
+    answered: (controller) => {
+      if (!answers || typeof answers !== 'object') {
+        return null;
+      }
+
+      const written = answers[controller];
+      const rules =
+        written && typeof written === 'object' ? objectOf(written) : {};
+
+      return Object.keys(rules).length > 0 ? rules : null;
+    },
     /**
      * What an action declared it accepts, and whether henri got to read it
      *

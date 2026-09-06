@@ -422,7 +422,14 @@ function walk(context, value, name = null) {
     return copy;
   }
 
-  const model = name || modelOf(context.classes, value);
+  // The caller's word first, then the map of registered constructors: a
+  // controller that says which model a plain object holds (`base/answers.js`)
+  // is the only way an object that never was a record can have its foreign
+  // keys published, and it is the reason `types` exists
+  const model =
+    name ||
+    (context.types ? context.types.get(value) : null) ||
+    modelOf(context.classes, value);
   const plain = typeof value.toJSON === 'function' ? value.toJSON() : value;
 
   // A registered model is a record whatever its prototype is; anything else
@@ -552,17 +559,24 @@ async function settle(henri, context) {
 }
 
 /**
- * The last gate on the way out: a copy of the value with no internal id and
- * no foreign key that names a row by its primary key.
+ * The walk, without the lookups: the copy, and what is still missing.
  *
- * Everything an application hands `res.render()`, `res.resource()` or
- * `res.collection()` goes through here, once per answer.
+ * The two halves are separate because one of them is free and the other is
+ * a query. An answer whose foreign keys were all eager loaded -- or that
+ * holds no record at all, which is most of what a controller hands
+ * `res.json()` -- comes back complete from here, and the caller answers
+ * without an asynchronous hop it does not need (see base/answers.js).
  *
  * @param {Henri} henri the henri instance
  * @param {*} value a record, a list of records, or anything else
- * @returns {Promise<*>} the value, published
+ * @param {object} [options={}] options
+ * @param {?WeakMap} [options.types=null] the model of a node the caller
+ *   knows and henri cannot see: a plain object carries no model, so this is
+ *   what lets a declared answer publish one
+ * @returns {{context: object, copy: *, pending: Array}} the copy, the
+ *   context to hand `settle()` and the keys it would resolve
  */
-async function publish(henri, value) {
+function prepare(henri, value, { types = null } = {}) {
   const table = (henri && henri.model && henri.model.referenceTable) || {
     classes: new Map(),
     models: {},
@@ -573,14 +587,41 @@ async function publish(henri, value) {
     pending: [],
     references: settings(henri).references,
     seen: new WeakMap(),
+    types,
   };
   const copy = walk(context, value);
 
-  if (context.pending.length > 0) {
+  return { context, copy, pending: context.pending };
+}
+
+/**
+ * The last gate on the way out: a copy of the value with no internal id and
+ * no foreign key that names a row by its primary key.
+ *
+ * Everything an application hands `res.render()`, `res.resource()` or
+ * `res.collection()` goes through here, once per answer.
+ *
+ * @param {Henri} henri the henri instance
+ * @param {*} value a record, a list of records, or anything else
+ * @param {object} [options={}] options (see `prepare`)
+ * @returns {Promise<*>} the value, published
+ */
+async function publish(henri, value, options = {}) {
+  const { context, copy, pending } = prepare(henri, value, options);
+
+  if (pending.length > 0) {
     await settle(henri, context);
   }
 
   return copy;
 }
 
-module.exports = { DEFAULTS, build, keyOf, publish, settings };
+module.exports = {
+  DEFAULTS,
+  build,
+  keyOf,
+  prepare,
+  publish,
+  settings,
+  settle,
+};

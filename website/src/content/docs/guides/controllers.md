@@ -1,13 +1,13 @@
 ---
 title: Controllers
-description: Express handlers under app/controllers, autoloaded and reloaded on save, with before hooks, declared parameters, implicit rendering and flash messages.
+description: Express handlers under app/controllers, autoloaded and reloaded on save, with before hooks, declared parameters, declared answers, implicit rendering and flash messages.
 sidebar:
   order: 2
 ---
 
 Controllers live in `app/controllers`. Every `.js` file there is loaded on boot, reloaded on save and referenced from `config/routes.js` as `file#action`; a file in a subdirectory is prefixed with it (`app/controllers/admin/users.js` is `admin/users#index`).
 
-A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block and an optional `params` block saying what each action accepts. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
+A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block, an optional `params` block saying what each action accepts and an optional `answers` block saying what each action answers. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
 
 A `/** @type {import('@usehenri/core').Controller} */` line above `module.exports` is what gives `req` and `res` completion in an editor; the generators write it for you. See [Types](/reference/types/).
 
@@ -98,7 +98,7 @@ module.exports = {
 };
 ```
 
-A hook may also be given by name (`before: { show: 'loadTask' }`), which resolves to another export of the same controller. `before` and [`params`](#params-what-an-action-accepts) are never routable: they are the keys of a controller that are not actions.
+A hook may also be given by name (`before: { show: 'loadTask' }`), which resolves to another export of the same controller. `before`, [`params`](#params-what-an-action-accepts) and [`answers`](#answers-what-an-action-answers) are never routable: they are the keys of a controller that are not actions.
 
 ## `params`: what an action accepts
 
@@ -173,6 +173,88 @@ The check runs once the route is allowed — behind the [role guard](/guides/rou
 ### It is also the description of the request
 
 [`henri openapi`](/guides/openapi/) reads this block: the fields become the query, path and body parameters of the operation, with the types, the bounds and the enums declared here, and the `422` becomes a response the document names. Declaring `params` is how an action gets a request body in the description that is the one it actually accepts, rather than the writable columns of its model.
+
+## `answers`: what an action answers
+
+`params` declares what arrives. `answers` declares what leaves, in the same block shape and with the same vocabulary — and it sits next to a rule that needs no declaration at all, so read the floor first.
+
+### The floor: every JSON answer is published and stripped
+
+`res.render()`, `res.resource()` and `res.collection()` have always gone through one gate on the way out: a foreign key leaves as the [`externalId`](/guides/models/#two-identifiers) of the row it names, and a field a model marked [`personal: { expose: false }`](/guides/privacy/) is dropped. **`res.json()` now goes through the same gate**, on every action of every controller, declared or not:
+
+```js
+// the models say `gender` never leaves; this does not change that
+res.json({ rows: [{ email: user.email, gender: user.gender }] });
+// => {"rows":[{"email":"ada@usehenri.io"}]}
+```
+
+That is the hole this closes. An object a controller builds by hand is not a record — the props of an Inertia page assembled in the action, a total next to a list — so nothing published it and nothing stripped it, and a field marked as never leaving left. There is no setting that turns the floor off: the mark is the model's word about a person, and a controller is not where it is overruled. `res.resource(record, { include })` and `res.render(view, { data, include })` are still how a private field is sent on purpose, and `expose: true` below is the third way.
+
+henri's own answers are untouched by it — the HAL envelope, the page options, the `res.boom.*` body, the 404 and 500 pages, an Inertia page object — because those were built through the gate already or are an envelope with a shape of their own.
+
+What the floor cannot do is see through a name. `res.json({ g: user.gender })` is a string as far as henri is concerned, and so is `{ ownerId: memo.ownerId }` — a plain object carries no model, so nothing knows that key names a row. Both are what a declaration is for.
+
+The other thing it cannot do is read bytes. `res.json()` and `res.jsonp()` are gated because that is where the value still is; `res.send(JSON.stringify(value))`, `res.write()` and a stream hand over a string, and a string is not an answer henri can walk.
+
+### The declaration
+
+```js
+module.exports = {
+  answers: {
+    all: { total: 'integer' },
+    index: {
+      rows: { model: 'Memo', type: 'array' },
+      who: { from: 'User.email', type: 'string' },
+    },
+    show: { memo: { model: 'Memo' } },
+  },
+
+  index: async (req, res) =>
+    res.json({
+      rows: (await Memo.find()).map((memo) => ({
+        ownerId: memo.ownerId,
+        title: memo.title,
+      })),
+      total: await Memo.count(),
+      who: req.user.email,
+    }),
+};
+```
+
+`all` (or `*`) is every action, any other key is one action or a comma-separated list, and the action's own key wins over the lists before it — the selectors `before` and `params` already use. A rule may be the type itself: `total: 'integer'` is `total: { type: 'integer' }`.
+
+| Key        | What it does                                                                                                                                                                                             |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`     | the [model types](/guides/models/), plus `array` and `record`. Implied by `model` (a record) and by `from` (`json`, the type that says nothing)                                                          |
+| `model`    | the model whose records this field holds: one record on its own, a list of them with `type: 'array'`. **This is what publishes a hand-built object**: `ownerId` above leaves as the owner's `externalId` |
+| `from`     | `'User.email'`, the column this value came from. The field then obeys that column's marks under whatever name the answer gives it, and `henri openapi` types it from the model file                      |
+| `of`       | the rule every item of a list of scalars follows                                                                                                                                                         |
+| `required` | the field has to be in the answer                                                                                                                                                                        |
+| `expose`   | `true` says this action may carry a field marked `personal: { expose: false }` — the declared form of the `include` `res.resource()` takes                                                               |
+
+A rule henri cannot carry out fails the boot with `HENRI_ANSWERS_DECLARATION_INVALID`, naming the controller, the action and the field: an unknown type or key, a `model` that is not one of this application's, a `from` that is not `Model.field`, a list with neither `of` nor `model`, a selector naming an action the controller does not export, and a `from` pointing at a column marked `expose: false` without `expose: true` next to it. A declaration that reads like a guarantee and is quietly ignored is the mistake this exists to remove.
+
+There is no `enum`, no `min`, no `pattern` and no `default`: a declaration describes the shape of an answer, and henri does not validate an application's own values on the way out — the model did that on the way in, and a response that fails after the work is done turns a cosmetic mistake into an outage.
+
+### What is not declared does not leave
+
+An action that declared answers sends the fields it declared, and nothing else:
+
+```js
+answers: { peek: { title: 'string' } },
+peek: async (req, res) => res.json({ secret: req.memo.body, title: req.memo.title }),
+// => {"title":"Minutes"}
+```
+
+That is the same rule `req.permit()` follows in the other direction — the declaration is the list, an undeclared key is dropped and never refused — and it is the safe direction: the field nobody declared is the field nobody thought about. It costs nothing to adopt, because it only applies to an action that declared: one that declares nothing keeps every byte it sends today.
+
+The other half goes the other way. A field that was **declared and is missing**, or that holds something other than what was declared, is a mistake in the declaration rather than something leaking, so it is reported once per route in the log and only refused with [`config.api.strict`](/configuration/) — the setting that already means "refuse what would otherwise be a warning about this application's API", where it answers a 500 carrying `HENRI_ANSWERS_MISMATCH`.
+
+The declaration is one level deep, like `params`: it describes the fields of the answer, not the inside of a record it names. What leaves inside a declared record is what the record holds, published and stripped by the floor.
+
+### It is also the description of the answer
+
+[`henri openapi`](/guides/openapi/) refused to describe what a controller writes: such an operation carried the statuses henri produces, `x-henri.known: false` and no success status at all. A declared answer is exactly what it could not know, so an operation that has one carries a `200` with the schema — `$ref`ing the model's record schema for a field naming a model, the column's own schema for a field naming one, and `additionalProperties: false`, because the document says what the gate does.
 
 ## Implicit rendering
 

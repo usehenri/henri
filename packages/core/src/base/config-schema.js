@@ -898,7 +898,7 @@ const SCHEMA = {
       strict: {
         default: false,
         describe: 'true or false',
-        hint: 'true refuses (500) a JSON answer without _links',
+        hint: 'true refuses (500) a JSON answer without _links, and one that does not match what the action declared it answers',
         type: 'boolean',
       },
     },

@@ -19,6 +19,16 @@ module.exports = {
     rateLimit: { max: 2, windowMs: 60000 },
   },
   'get /profile': { controller: 'user#profile', roles: ['member'] },
+  // What an action answers, declared and not (see base/answers.js)
+  'get /reports/digest': 'reports#digest',
+  'get /reports/hand': { controller: 'reports#hand', roles: ['member'] },
+  'get /reports/padded': { controller: 'reports#padded', roles: ['member'] },
+  'get /reports/profile': { controller: 'reports#profile', roles: ['member'] },
+  'get /reports/records': 'reports#records',
+  'get /reports/sensitive': {
+    controller: 'reports#sensitive',
+    roles: ['member'],
+  },
   'get /uploads/:id': 'uploads#show',
   'get /version': 'main#version',
   // A namespace: the controllers live in app/controllers/admin

@@ -7,9 +7,13 @@ const {
   declarations,
   guard,
 } = require('./base/params-schema');
+const {
+  RESERVED: ANSWER_KEYS,
+  declarations: answered,
+} = require('./base/answers');
 
 /** The exports of a controller that describe it instead of answering */
-const RESERVED = new Set([...HOOK_KEYS, ...PARAM_KEYS]);
+const RESERVED = new Set([...HOOK_KEYS, ...PARAM_KEYS, ...ANSWER_KEYS]);
 
 /**
  * Controllers module
@@ -33,8 +37,11 @@ class Controllers extends BaseModule {
     this._modules = new Map();
     /** The compiled `params` declarations, by `controller#action` */
     this._params = new Map();
+    /** The compiled `answers` declarations, by `controller#action` */
+    this._answers = new Map();
 
     this.accepts = this.accepts.bind(this);
+    this.answers = this.answers.bind(this);
     this.checks = this.checks.bind(this);
     this.configure = this.configure.bind(this);
     this.init = this.init.bind(this);
@@ -63,14 +70,15 @@ class Controllers extends BaseModule {
    * Configure the models and adapters
    *
    * Every exported function becomes an action (`tasks#index`), except the
-   * reserved keys (`before`, `params`), which describe the controller
-   * instead. The `params` declarations are compiled here, so a rule henri
-   * cannot carry out fails the boot naming the controller, the action and
-   * the key rather than accepting everything (see base/params-schema.js).
+   * reserved keys (`before`, `params`, `answers`), which describe the
+   * controller instead. The `params` and `answers` declarations are compiled
+   * here, so a rule henri cannot carry out fails the boot naming the
+   * controller, the action and the key rather than accepting or sending
+   * everything (see base/params-schema.js and base/answers.js).
    *
    * @param {object} controllers Controllers loaded from disk
    * @returns {boolean} success
-   * @throws {Error} when a `params` declaration cannot be carried out
+   * @throws {Error} when a declaration cannot be carried out
    * @memberof Controllers
    */
   async configure(controllers) {
@@ -96,6 +104,12 @@ class Controllers extends BaseModule {
           declarations(controller, id, actions)
         )) {
           this._params.set(`${id}#${action}`, rules);
+        }
+
+        for (const [action, rules] of Object.entries(
+          answered(controller, id, actions)
+        )) {
+          this._answers.set(`${id}#${action}`, rules);
         }
       }
     }
@@ -131,6 +145,7 @@ class Controllers extends BaseModule {
     this._controllers.clear();
     this._modules.clear();
     this._params.clear();
+    this._answers.clear();
     await this.init();
 
     return this.name;
@@ -171,6 +186,20 @@ class Controllers extends BaseModule {
    */
   accepts(key) {
     return this._params.get(key) || null;
+  }
+
+  /**
+   * What an action declared it answers, compiled
+   *
+   * A controller exports it as `answers`: an object keyed by action the way
+   * `params` is, one rule per field. See base/answers.js.
+   *
+   * @param {string} key The controller name (ex: memos#index)
+   * @returns {?object} The rules by field, or null when nothing is declared
+   * @memberof Controllers
+   */
+  answers(key) {
+    return this._answers.get(key) || null;
   }
 
   /**

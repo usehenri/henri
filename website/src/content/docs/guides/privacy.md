@@ -22,12 +22,12 @@ module.exports = {
 
 That is the whole mark. Four things follow from it:
 
-| What        | Where                                                                    |
-| ----------- | ------------------------------------------------------------------------ |
-| Redaction   | Every log line and every recorded error masks the field, by name         |
-| What leaves | `expose: false` drops it from every answer henri builds                  |
-| Export      | `henri privacy:export <who>` hands the person everything held about them |
-| Erasure     | `henri privacy:erase <who>` removes them, and leaves a receipt           |
+| What        | Where                                                                          |
+| ----------- | ------------------------------------------------------------------------------ |
+| Redaction   | Every log line and every recorded error masks the field, by name               |
+| What leaves | `expose: false` drops it from every answer henri builds, `res.json()` included |
+| Export      | `henri privacy:export <who>` hands the person everything held about them       |
+| Erasure     | `henri privacy:erase <who>` removes them, and leaves a receipt                 |
 
 `henri privacy` prints the map, the way `henri routes` prints the routes:
 
@@ -109,9 +109,10 @@ default would break every application there is. The rule is one sentence:
 > `expose: false`, and then it never leaves at all.
 
 `expose: false` is absolute and it applies by name, everywhere: `res.render()`,
-`res.resource()`, `res.collection()`, the public user of every page, at every
-depth of the payload, whether the value came from a model instance, a `.lean()`
-query or an object a presenter built. The one way back is to ask for it:
+`res.resource()`, `res.collection()`, **`res.json()` on any controller
+action**, the public user of every page, at every depth of the payload,
+whether the value came from a model instance, a `.lean()` query or an object a
+presenter built. The one way back is to ask for it:
 
 ```js
 // app/controllers/accounts.js -- the person's own page, and only this one
@@ -122,7 +123,17 @@ return res.render('/account', {
 ```
 
 `res.resource(record, { include: ['phone'] })` and
-`res.collection(records, { include: ['phone'] })` take the same option.
+`res.collection(records, { include: ['phone'] })` take the same option, and an
+action answering with `res.json()` says it in its
+[`answers`](/guides/controllers/#answers-what-an-action-answers) block
+(`phone: { from: 'User.phone', type: 'string', expose: true }`), which is the
+same permission written down instead of passed.
+
+What a name-based rule cannot see is the same value under another name:
+`res.json({ p: user.phone })` is a string as far as henri is concerned. That is
+the other half of what `answers` is for — `from: 'User.phone'` is how a
+controller says which column a value came from, and a `from` naming a column
+marked `expose: false` fails the boot unless the rule says `expose: true`.
 
 `config.privacy.expose: false` flips the default the other way: every personal
 field is then private unless it says `personal: { expose: true }`. It is one

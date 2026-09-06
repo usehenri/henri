@@ -2,11 +2,13 @@
 
 exports[`controllers > should match snapshot 1`] = `
 Controllers {
+  "_answers": Map {},
   "_controllers": Map {},
   "_modules": Map {},
   "_params": Map {},
   "accepts": [Function],
   "after": [],
+  "answers": [Function],
   "before": [],
   "checks": [Function],
   "configure": [Function],

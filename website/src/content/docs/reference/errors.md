@@ -157,6 +157,38 @@ Usually:
 
 **Fix.** Check that the development server is still running, and read its output: a boot that failed halfway leaves the port closed.
 
+## answers
+
+What a controller declared its actions answer (`answers`), and the gate every JSON answer leaves through.
+
+### `HENRI_ANSWERS_DECLARATION_INVALID`
+
+A controller declares an answer henri cannot carry out.
+
+Usually:
+
+- a rule with no `type` and no `model`, or a type henri does not have
+- a `model` that is not a model of this application, or a `from` that is not `Model.field`
+- `model` next to a type that is not `array`, or a list with neither `of` nor `model`
+- an unknown key, usually a misspelling of `required` or `expose`
+- a `from` naming a column the model marked `personal: { expose: false }`, without `expose: true`
+- a selector naming an action the controller does not export
+
+**Fix.** The message names the controller, the action and the field. A rule is `{ type, model, from, of, required, expose }`, or the type itself (`total: 'integer'`); `model` names one of this application's models and `from` is `Model.field`. See the Controllers guide.
+
+### `HENRI_ANSWERS_MISMATCH`
+
+An action answered something other than what it declared, and `config.api.strict` refused it.
+
+Usually:
+
+- a field the action declared `required` is not in what it sent
+- a declared field holds something other than the type it declared
+- the action sent fields it never declared, which were dropped
+- the action declared fields and answered with a list or a scalar
+
+**Fix.** The answer is reported once per route (`pen.warn`) and only refused like this with `config.api.strict`. Either send what the action declared, or change the `answers` block to describe what it sends.
+
 ## api
 
 The JSON API layer: HAL answers, the health endpoints, the OpenAPI description of what an application exposes and the optional GraphQL engine.

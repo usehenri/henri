@@ -2,7 +2,7 @@ const { EXTERNAL_ID, hasExternalId } = require('./external-id');
 const { publish } = require('./references');
 const { check } = require('./arguments');
 const { stamp } = require('./errors');
-const { jsonType, noStore } = require('./headers');
+const { isInertiaPage, jsonType, noStore, seal } = require('./headers');
 const { linkHeader, pageLinks, paginate } = require('./pagination');
 
 /**
@@ -289,6 +289,11 @@ function routeType(res) {
 function send(req, res, body, status) {
   res.type(jsonType(req));
   noStore(req, res);
+
+  // Published and stripped already, by `toPublic()` above: the answer gate
+  // of a declared action must not describe this shape and must not walk it
+  // a second time (see base/answers.js)
+  seal(res);
 
   return res.status(status).json(body);
 }
@@ -646,25 +651,6 @@ function collection(henri, req, res, records, options = {}) {
 
     return send(req, res, body, status);
   })();
-}
-
-/**
- * Is this answer an Inertia page object rather than an API answer?
- *
- * The Inertia view engine answers a visit with `{ component, props, url,
- * version }`, a protocol of its own with no room for `_links`, and marks it
- * with the `X-Inertia` header. Such an answer is a rendered page, not JSON
- * the API guard below has anything to say about.
- *
- * @param {Express.Request} req the request
- * @param {Express.Response} res the response
- * @returns {boolean} true for an Inertia page object
- */
-function isInertiaPage(req, res) {
-  return Boolean(
-    (typeof res.getHeader === 'function' && res.getHeader('X-Inertia')) ||
-    (typeof req.get === 'function' && req.get('x-inertia'))
-  );
 }
 
 /**
