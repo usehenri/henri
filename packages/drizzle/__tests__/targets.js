@@ -1,3 +1,7 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
 const dialects = require('../dialects');
 
 /**
@@ -165,6 +169,21 @@ const databaseOf = (url) => {
   }
 };
 
+/** Where a keyed sqlite database goes: a directory of this run, not the cwd */
+const SQLITE_DIR = path.join(os.tmpdir(), `henri-sqlite-${RUN}`);
+
+/**
+ * The path of a keyed sqlite database
+ *
+ * @param {string} key The stable key
+ * @returns {string} An absolute path inside this run's directory
+ */
+const fileFor = (key) => {
+  fs.mkdirSync(SQLITE_DIR, { recursive: true });
+
+  return path.join(SQLITE_DIR, `${key}.sqlite`);
+};
+
 const target = {
   /**
    * Drops the databases this file created and closes the connection
@@ -230,9 +249,14 @@ const target = {
    */
   store: (key) => {
     if (!baseUrl) {
+      // A keyed sqlite target is a *file*, because the point of a key is
+      // that two stores can open the same database. A bare name would put
+      // it in whatever directory vitest was started from -- the repository
+      // root -- so it goes under a directory of this run instead, and the
+      // process cleans up after itself
       return {
         dialect: 'sqlite',
-        url: typeof key === 'undefined' ? ':memory:' : `file:${key}`,
+        url: typeof key === 'undefined' ? ':memory:' : `file:${fileFor(key)}`,
       };
     }
 
