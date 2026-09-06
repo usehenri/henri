@@ -135,6 +135,41 @@ describe('the storage seam', () => {
     expect(storage.url()).toBe('https://cdn.example.com');
   });
 
+  test('a backend name resolves the package henri ships it in', () => {
+    const cwd = workspace();
+
+    expect(() =>
+      createStorage(fakeHenri(cwd), {
+        root: 'storage/uploads',
+        storage: 's3',
+        storageOptions: { bucket: 'henri-uploads' },
+      })
+    ).toThrow(/needs @usehenri\/s3: pnpm add @usehenri\/s3/u);
+  });
+
+  test('the settings of the block reach the backend, and adapter does not', () => {
+    const cwd = workspace();
+
+    fs.writeFileSync(
+      path.join(cwd, 'store.js'),
+      `class Fake {
+         constructor(name, config) { this.name = name; this.config = config; }
+         async put() {}
+         url() { return this.config.options.bucket; }
+       }
+       module.exports = Fake;`
+    );
+
+    const storage = createStorage(fakeHenri(cwd), {
+      root: 'storage/uploads',
+      storage: './store.js',
+      storageOptions: { bucket: 'henri-uploads' },
+    });
+
+    expect(storage.url()).toBe('henri-uploads');
+    expect(storage.config.options.adapter).toBeUndefined();
+  });
+
   test('a module that is not a storage says so', () => {
     const cwd = workspace();
 

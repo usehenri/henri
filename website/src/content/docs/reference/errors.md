@@ -1681,6 +1681,34 @@ Usually:
 
 **Fix.** The trail holds field names, counts and public identifiers, never the values behind them: a record of who read personal data must not become a second copy of it. Record the name and the count, and name a person with `subject`, which henri digests.
 
+## upload
+
+The files @usehenri/uploads reads from a multipart body, the storage they are kept in and the urls that hand them back.
+
+### `HENRI_UPLOAD_STORAGE_FAILED`
+
+The storage could not carry out what it was asked to do.
+
+Usually:
+
+- the object store answered an error, or nothing at all
+- the network between this process and the store
+- a key that is not one henri generated
+
+**Fix.** Read the status and the code the store answered with, which are both in the message. A request that failed for a passing reason has already been made three times.
+
+### `HENRI_UPLOAD_STORAGE_MISCONFIGURED`
+
+The storage the configuration names cannot be used as it is described.
+
+Usually:
+
+- uploads.storage names no bucket, or one that is not a bucket name
+- no credentials: neither the block nor AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+- an endpoint that is not a url, or a region the bucket is not in
+
+**Fix.** Check uploads.storage: it needs an adapter, a bucket and a region, and credentials from the environment or from the block.
+
 ## user
 
 The user module: sessions, passwords, tokens and the CSRF protection.

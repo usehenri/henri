@@ -37,6 +37,39 @@ const DEFAULTS = {
 const METHODS = new Set(['PATCH', 'POST', 'PUT']);
 
 /**
+ * The storage an application named, split into the backend and its settings.
+ *
+ * Two forms, the way `config.stores.<name>` and `config.shared` already
+ * work: a string is a backend with nothing to configure (`"local"`,
+ * `"./lib/storage"`), and an object is a backend with settings, whose
+ * `adapter` names it and whose other keys are the backend's own. henri
+ * reads none of the latter -- a bucket, a region and an endpoint are
+ * `@usehenri/s3`'s business, not the framework's.
+ *
+ * @param {*} value what the configuration holds under `storage`
+ * @returns {{name: string, options: object}} the backend and its settings
+ */
+const storageOf = (value) => {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return { name: value.trim(), options: {} };
+  }
+
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const { adapter, ...options } = value;
+
+    return {
+      name:
+        typeof adapter === 'string' && adapter.trim()
+          ? adapter.trim()
+          : DEFAULTS.storage,
+      options,
+    };
+  }
+
+  return { name: DEFAULTS.storage, options: {} };
+};
+
+/**
  * A whole number above zero, `false`, or the fallback
  *
  * @param {*} value the value
@@ -113,6 +146,7 @@ function settings(config) {
 
   const uploads = objectOf(declared);
   const bodyLimit = bytes(get('bodyLimit', '1mb'), 1024 * 1024);
+  const storage = storageOf(uploads.storage);
 
   return {
     allow: allowList(uploads.allow),
@@ -133,8 +167,8 @@ function settings(config) {
     paths: pathList(uploads.paths),
     root: typeof uploads.root === 'string' ? uploads.root : DEFAULTS.root,
     sniff: uploads.sniff !== false,
-    storage:
-      typeof uploads.storage === 'string' ? uploads.storage : DEFAULTS.storage,
+    storage: storage.name,
+    storageOptions: storage.options,
   };
 }
 
@@ -161,4 +195,12 @@ function covers(req, paths) {
   );
 }
 
-module.exports = { DEFAULTS, METHODS, allowList, count, covers, settings };
+module.exports = {
+  DEFAULTS,
+  METHODS,
+  allowList,
+  count,
+  covers,
+  settings,
+  storageOf,
+};

@@ -1568,10 +1568,29 @@ const SCHEMA = {
             hint: 'false trusts the Content-Type the client sent, which is not evidence',
             type: 'boolean',
           },
-          storage: text({
+          storage: {
             default: 'local',
-            describe: "'local', or the module id of a HenriStorage",
-          }),
+            describe:
+              "a backend name ('local', 's3'), the module id of a HenriStorage, or an object naming one ({ adapter, ... })",
+            hint: 'A name that is not local resolves @usehenri/<name> from the application: pnpm add @usehenri/s3',
+            oneOf: [
+              text(),
+              {
+                keys: {
+                  adapter: {
+                    describe:
+                      "a backend name ('s3'), or the module id of a HenriStorage",
+                    required: true,
+                    type: 'string',
+                  },
+                },
+                // Everything else is the backend's own (a bucket, a region,
+                // an endpoint), which henri does not own and does not read
+                type: 'object',
+                unknown: 'near',
+              },
+            ],
+          },
         },
         type: 'object',
       },

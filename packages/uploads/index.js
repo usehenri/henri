@@ -17,7 +17,7 @@ const { DEFAULTS, settings } = require('./src/config');
 const { UploadError } = require('./src/errors');
 const { UploadedFile } = require('./src/file');
 const { bytes, format } = require('./src/bytes');
-const { contentDisposition, keyFor, safeName } = require('./src/names');
+const { contentDisposition, isKey, keyFor, safeName } = require('./src/names');
 const { createStorage } = require('./src/storage');
 const { extensionFor, sniff } = require('./src/sniff');
 
@@ -32,6 +32,7 @@ module.exports.contentDisposition = contentDisposition;
 module.exports.createStorage = createStorage;
 module.exports.extensionFor = extensionFor;
 module.exports.format = format;
+module.exports.isKey = isKey;
 module.exports.keyFor = keyFor;
 module.exports.safeName = safeName;
 module.exports.settings = settings;

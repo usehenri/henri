@@ -86,6 +86,10 @@
       "what": "the append-only record of who read or changed personal data"
     },
     {
+      "area": "upload",
+      "what": "the files @usehenri/uploads reads from a multipart body, the storage they are kept in and the urls that hand them back"
+    },
+    {
       "area": "user",
       "what": "the user module: sessions, passwords, tokens and the CSRF protection"
     },
@@ -979,8 +983,8 @@
       "area": "job",
       "causes": ["a job whose `perform()` never returned in time"],
       "code": "HENRI_JOB_TIMEOUT",
-      "fix": "Raise the job’s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
-      "what": "An attempt ran past the job’s timeout."
+      "fix": "Raise the job\u2019s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
+      "what": "An attempt ran past the job\u2019s timeout."
     },
     {
       "area": "job",
@@ -1505,6 +1509,28 @@
       "what": "Something tried to record a value in the access trail."
     },
     {
+      "area": "upload",
+      "causes": [
+        "the object store answered an error, or nothing at all",
+        "the network between this process and the store",
+        "a key that is not one henri generated"
+      ],
+      "code": "HENRI_UPLOAD_STORAGE_FAILED",
+      "fix": "Read the status and the code the store answered with, which are both in the message. A request that failed for a passing reason has already been made three times.",
+      "what": "The storage could not carry out what it was asked to do."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "uploads.storage names no bucket, or one that is not a bucket name",
+        "no credentials: neither the block nor AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY",
+        "an endpoint that is not a url, or a region the bucket is not in"
+      ],
+      "code": "HENRI_UPLOAD_STORAGE_MISCONFIGURED",
+      "fix": "Check uploads.storage: it needs an adapter, a bucket and a region, and credentials from the environment or from the block.",
+      "what": "The storage the configuration names cannot be used as it is described."
+    },
+    {
       "area": "user",
       "causes": [
         "the password does not match the hash of that account",
@@ -1735,7 +1761,7 @@
         "a receiver answering 410 Gone, which also disables the endpoint"
       ],
       "code": "HENRI_WEBHOOK_DELIVERY_FAILED",
-      "fix": "The delivery is a job: it is retried with the queue’s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
+      "fix": "The delivery is a job: it is retried with the queue\u2019s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
       "what": "A receiver refused a delivery."
     },
     {

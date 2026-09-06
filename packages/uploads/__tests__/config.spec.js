@@ -63,6 +63,7 @@ describe('the settings', () => {
       root: DEFAULTS.root,
       sniff: true,
       storage: 'local',
+      storageOptions: {},
     });
   });
 
@@ -114,6 +115,33 @@ describe('the settings', () => {
     expect(found.allow).toBeNull();
     expect(found.paths).toBeNull();
     expect(found.storage).toBe('local');
+  });
+
+  test('a storage block is a backend and its settings', () => {
+    const named = settings(
+      fakeHenri('/tmp', {
+        uploads: {
+          storage: {
+            adapter: 's3',
+            bucket: 'henri-uploads',
+            region: 'us-east-1',
+          },
+        },
+      }).config
+    );
+
+    expect(named.storage).toBe('s3');
+    expect(named.storageOptions).toEqual({
+      bucket: 'henri-uploads',
+      region: 'us-east-1',
+    });
+
+    // A block with no adapter is still the disk, rather than nothing
+    expect(
+      settings(
+        fakeHenri('/tmp', { uploads: { storage: { bucket: 'x' } } }).config
+      ).storage
+    ).toBe('local');
   });
 });
 

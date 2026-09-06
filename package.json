@@ -25,6 +25,7 @@
     "test:sql:postgres": "HENRI_TEST_SQL_DIALECT=postgres HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:${HENRI_POSTGRES_PORT:-5432}/henri_test vitest run --project sequelize --project mysql --project postgresql --project mssql --project drizzle --project jobs",
     "test:sql:live": "pnpm test:sql:postgres && pnpm test:sql:mysql",
     "test:redis": "HENRI_TEST_REDIS_URL=redis://127.0.0.1:${HENRI_REDIS_PORT:-6379} vitest run --project redis",
+    "test:s3": "HENRI_TEST_S3_URL=http://127.0.0.1:${HENRI_S3_PORT:-9000} vitest run --project s3",
     "test:showcase": "pnpm --filter @usehenri/showcase test",
     "changeset": "changeset",
     "changeset:version": "changeset version",

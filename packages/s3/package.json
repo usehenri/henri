@@ -1,0 +1,47 @@
+{
+  "name": "@usehenri/s3",
+  "version": "1.1.0",
+  "description": "henri uploads on an object store: one S3-compatible backend for S3, R2, Spaces and MinIO, with presigned urls",
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/s3"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "keywords": [
+    "henri",
+    "uploads",
+    "s3",
+    "storage",
+    "r2",
+    "minio",
+    "presigned"
+  ],
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "src",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "debug": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@usehenri/uploads": "workspace:^"
+  },
+  "devDependencies": {
+    "@usehenri/uploads": "workspace:^"
+  }
+}

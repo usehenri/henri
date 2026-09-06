@@ -1054,8 +1054,23 @@ declare namespace start {
     root?: string;
     /** Decide the type from the bytes (`true`). */
     sniff?: boolean;
-    /** `"local"`, or the module id of a storage. */
-    storage?: string;
+    /**
+     * The backend files are kept in: `"local"` for the disk, `"s3"` for an
+     * object store (`@usehenri/s3`), the module id of a `HenriStorage`, or
+     * an object naming one and carrying its settings.
+     */
+    storage?: string | UploadStorageConfig;
+  }
+
+  /**
+   * `config.uploads.storage` in its object form: `adapter` names the
+   * backend and every other key is the backend's own -- a bucket, a region,
+   * an endpoint -- which henri passes along without reading.
+   */
+  interface UploadStorageConfig {
+    /** `"local"`, `"s3"`, or the module id of a `HenriStorage`. */
+    adapter: string;
+    [key: string]: unknown;
   }
 
   /**
