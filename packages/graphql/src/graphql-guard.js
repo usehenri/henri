@@ -342,6 +342,33 @@ async function hasRoles(user, roles) {
  * @param {object} settings the settings built by graphqlConfig()
  * @returns {function} middleware
  */
+/**
+ * Refuses the request: through `res.boom` when core's middleware is in front
+ * of this one, and with the body it would have sent when it is not
+ *
+ * The guard used to reach for `res.boom` unguarded. Inside a henri boot that
+ * is always there, but this package is no longer the same package as the
+ * middleware that puts it there, and nothing declares the dependency. The
+ * fallback is byte-identical to `base/boom.js` (same status, same body, same
+ * key order), so it only ever fires where the alternative was a TypeError.
+ * `base/csrf.js` in core does the same thing for the same reason.
+ *
+ * @param {object} res the response
+ * @param {number} statusCode 401 or 403
+ * @param {string} error the status text
+ * @param {string} message why
+ * @returns {*} the response
+ */
+function refuse(res, statusCode, error, message) {
+  const method = statusCode === 401 ? 'unauthorized' : 'forbidden';
+
+  if (res.boom && typeof res.boom[method] === 'function') {
+    return res.boom[method](message);
+  }
+
+  return res.status(statusCode).json({ error, message, statusCode });
+}
+
 function accessGuard(settings) {
   const { authenticated, roles } = settings;
 
@@ -356,11 +383,11 @@ function accessGuard(settings) {
         : Boolean(req.user);
 
     if (!signedIn || !req.user) {
-      return res.boom.unauthorized('Authentication required');
+      return refuse(res, 401, 'Unauthorized', 'Authentication required');
     }
 
     if (roles.length > 0 && !(await hasRoles(req.user, roles))) {
-      return res.boom.forbidden('Insufficient roles');
+      return refuse(res, 403, 'Forbidden', 'Insufficient roles');
     }
 
     return next();

@@ -163,6 +163,78 @@ describe('accessGuard', () => {
     expect(passed).toBe(true);
     expect(allowed.answered).toEqual([]);
   });
+
+  // The guard used to reach for res.boom unguarded. Core always mounts it,
+  // but core is a different package now and nothing declares that, so the
+  // answer has to stand on its own -- and match base/boom.js byte for byte.
+  describe('without res.boom', () => {
+    /**
+     * A response with only what express itself gives you: chainable
+     * status(), and json() recording the body
+     *
+     * @returns {object} the response, with what it answered in `sent`
+     */
+    const bare = () => {
+      const sent = {};
+      const res = {
+        json: (body) => {
+          sent.body = body;
+
+          return res;
+        },
+        sent,
+        status: (statusCode) => {
+          sent.statusCode = statusCode;
+
+          return res;
+        },
+      };
+
+      return res;
+    };
+
+    test('falls back to a plain 401', async () => {
+      const res = bare();
+
+      await accessGuard(graphqlConfig({ authenticated: true }, '/x'))(
+        {},
+        res,
+        () => {
+          throw new Error('should not pass');
+        }
+      );
+
+      expect(res.sent).toEqual({
+        body: {
+          error: 'Unauthorized',
+          message: 'Authentication required',
+          statusCode: 401,
+        },
+        statusCode: 401,
+      });
+    });
+
+    test('falls back to a plain 403', async () => {
+      const res = bare();
+
+      await accessGuard(graphqlConfig({ roles: ['admin'] }, '/x'))(
+        { isAuthenticated: () => true, user: { roles: ['member'] } },
+        res,
+        () => {
+          throw new Error('should not pass');
+        }
+      );
+
+      expect(res.sent).toEqual({
+        body: {
+          error: 'Forbidden',
+          message: 'Insufficient roles',
+          statusCode: 403,
+        },
+        statusCode: 403,
+      });
+    });
+  });
 });
 
 describe('measuring a query', () => {
