@@ -63,6 +63,18 @@ const COLUMNS = [
 /** How many attempts of a job are kept in its history */
 const HISTORY_LIMIT = 10;
 
+/**
+ * Errors that mean the object was created by someone else in between.
+ *
+ * `CREATE TABLE IF NOT EXISTS` is not atomic against a concurrent creation
+ * on PostgreSQL: two processes booting together -- a web server and a
+ * runner, or two runners -- can both find the table missing and one of them
+ * then fails on the catalogue's own unique index. The install is idempotent
+ * by intent, so that failure means it is done, not that it broke.
+ */
+const ALREADY_THERE =
+  /already exists|duplicate key|duplicate table|there is already an object named/i;
+
 /** Errors that mean "another writer got there first, try again" */
 const RETRYABLE =
   /deadlock|lock wait timeout|database is locked|database table is locked|SQLITE_BUSY/i;
@@ -234,7 +246,17 @@ class SqlStore {
     const statements = install(this.dialect, this.tables);
 
     for (const statement of statements) {
-      await this.run(statement);
+      try {
+        await this.run(statement);
+      } catch (error) {
+        const message = `${(error && error.message) || ''} ${(error && error.parent && error.parent.message) || ''}`;
+
+        if (!ALREADY_THERE.test(message)) {
+          throw error;
+        }
+
+        debug('another process created it first: %s', error.message);
+      }
     }
 
     return statements;

@@ -47,6 +47,30 @@ describe(`claiming (${target.name}, ${RUNNERS} runners)`, () => {
     global.__henriJobsRuns = [];
   });
 
+  test('several processes may create the tables at the same time', async () => {
+    // `CREATE TABLE IF NOT EXISTS` is not atomic against a concurrent
+    // creation on PostgreSQL: a web server and a runner booting together
+    // used to race on the catalogue's own unique index
+    await queues[0].store.uninstall();
+
+    const installs = await Promise.all(
+      queues.map((queue) =>
+        queue.store.install().then(
+          () => true,
+          (error) => error
+        )
+      )
+    );
+
+    expect(installs).toEqual(queues.map(() => true));
+    expect(await queues[0].store.installed()).toBe(true);
+
+    // The queue still works afterwards
+    const job = await queues[0].perform('ok', { after: 'install' });
+
+    expect(await queues[RUNNERS - 1].get(job.id)).not.toBeNull();
+  }, 60000);
+
   test('every queue talks to the same database', async () => {
     await queues[0].perform('ok', { shared: true });
 
