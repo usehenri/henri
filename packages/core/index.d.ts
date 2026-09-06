@@ -163,9 +163,6 @@ declare namespace start {
     confirmation?: boolean | ConfirmationConfig;
   }
 
-  /** A duration: milliseconds, or `'1h'`, `'30m'`, `'3d'`. */
-  type Duration = number | string;
-
   /** `config.user.signup`. */
   interface SignupConfig {
     /** `false` leaves the endpoint unmounted. */
@@ -216,13 +213,12 @@ declare namespace start {
   }
 
   /** The normalized `config.user`, as `henri.user.settings`. */
-  interface UserSettings
-    extends Required<
-      Omit<
-        UserConfig,
-        'password' | 'lockout' | 'signup' | 'passwordReset' | 'confirmation'
-      >
-    > {
+  interface UserSettings extends Required<
+    Omit<
+      UserConfig,
+      'password' | 'lockout' | 'signup' | 'passwordReset' | 'confirmation'
+    >
+  > {
     password: PasswordPolicy;
     lockout: Required<LockoutConfig> | null;
   }
@@ -313,9 +309,9 @@ declare namespace start {
     /** `henri.user.passwordPolicy`: read `minLength` rather than hard-coding it. */
     policy(): PasswordPolicy;
     /** `henri.user.validatePassword()`, so one rule governs both flows. */
-    checkPassword(password: unknown): ReturnType<
-      UserModule['validatePassword']
-    >;
+    checkPassword(
+      password: unknown
+    ): ReturnType<UserModule['validatePassword']>;
     /** Creates an account; `roles` is never assignable here. */
     register(attributes: Record<string, unknown>): Promise<AccountResult>;
     /**

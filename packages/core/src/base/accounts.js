@@ -501,57 +501,25 @@ function accounts(henri) {
   const mail = (action, args) => message(action, args).deliverLater();
 
   /**
-   * The password policy, which the security floor owns. Older cores answer
-   * with the minimum `encrypt()` enforces, so a flow always has something to
-   * validate against.
+   * The password policy: `config.user.password`, normalized by the user
+   * module. Read `minLength` from it rather than hard-coding one, so a page
+   * and its tests follow the configuration.
    *
-   * @returns {object} `{ minLength }` at least
+   * @returns {object} `{ minLength, maxBytes, algorithm, ... }`
    */
-  const policy = () =>
-    henri.user.passwordPolicy || { maxBytes: 72, minLength: 6 };
+  const policy = () => henri.user.passwordPolicy;
 
   /**
-   * Checks a password against the policy
+   * Checks a password against the policy, without hashing it.
+   *
+   * One rule governs registration and the reset: this is the same call a
+   * controller makes, and the same one `encrypt()` makes before hashing.
+   * It never throws, so a form can put the message next to the box.
    *
    * @param {*} password the clear text password
-   * @returns {{valid: boolean, errors: Array<object>}} the answer
+   * @returns {{valid: boolean, errors: Array<object>, policy: object}} the answer
    */
-  const checkPassword = (password) => {
-    if (typeof henri.user.validatePassword === 'function') {
-      return henri.user.validatePassword(password);
-    }
-
-    const { maxBytes, minLength } = policy();
-
-    if (typeof password !== 'string' || password.length === 0) {
-      return {
-        errors: [{ code: 'missing', message: 'is required' }],
-        valid: false,
-      };
-    }
-
-    if (password.length < minLength) {
-      return {
-        errors: [
-          {
-            code: 'too_short',
-            message: `must be at least ${minLength} characters`,
-            minLength,
-          },
-        ],
-        valid: false,
-      };
-    }
-
-    if (Buffer.byteLength(password, 'utf8') > maxBytes) {
-      return {
-        errors: [{ code: 'too_long', maxBytes, message: 'is too long' }],
-        valid: false,
-      };
-    }
-
-    return { errors: [], valid: true };
-  };
+  const checkPassword = (password) => henri.user.validatePassword(password);
 
   /**
    * Creates an account

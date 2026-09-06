@@ -378,6 +378,7 @@ henri doctor --json    # problems as { check, level, message, file, hint }
 ```
 
 The checks are `config.invalid` (an error), `config.adapter` (an unknown store adapter) and `config.unknown` (a warning). Being a file check, it sees neither the environment nor the credentials; the boot does.
+
 ### The account flows
 
 Three more keys mount registration, the password reset and the address confirmation. Each is `true` for the defaults, `false` (or absent) to leave the endpoints unmounted, or an object of settings; `henri generate authentication` writes them along with the pages.
