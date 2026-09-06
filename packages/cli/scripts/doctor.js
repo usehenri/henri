@@ -1807,6 +1807,15 @@ const check = (dir = process.cwd()) => {
     needed.add('@usehenri/jobs');
   }
 
+  // And so is the OpenTelemetry interface, when the configuration says the
+  // application *requires* it rather than "instrument if you can". henri
+  // ships no SDK, so `@opentelemetry/api` is the one package it can name;
+  // `telemetry.enabled` absent means the package decides, and there is
+  // nothing to report (see website guides/telemetry.md)
+  if (config.telemetry && config.telemetry.enabled === true) {
+    needed.add('@opentelemetry/api');
+  }
+
   // And so is the shared store: `config.shared` names an adapter the way a
   // database store does, and `redis` means `@usehenri/redis`
   const sharedPackage = packageForShared(config.shared);

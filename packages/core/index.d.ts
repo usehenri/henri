@@ -735,6 +735,12 @@ declare namespace start {
     filterParameters?: string[] | false;
     /** What a log line looks like: `pretty`, `json`, or `auto`. */
     logs?: LogsConfig;
+    /**
+     * OpenTelemetry spans and metrics; `false` instruments nothing. henri
+     * ships no SDK and no exporter: `@opentelemetry/api` is a peer
+     * dependency the application installs, with the pipeline of its choice.
+     */
+    telemetry?: false | TelemetryConfig;
     encryption?: EncryptionConfig;
     privacy?: PrivacyConfig;
     /** How long the models keep their records, and what sweeps them. */
@@ -1027,6 +1033,60 @@ declare namespace start {
      * `filterParameters` and the `personal` marks say) and the error.
      */
     format?: 'auto' | 'json' | 'pretty';
+  }
+
+  /** The boundaries henri knows how to put a span around. */
+  type TelemetryBoundary =
+    'boot' | 'http' | 'jobs' | 'mail' | 'stores' | 'views' | 'webhooks';
+
+  /**
+   * `config.telemetry`: what henri instruments, when `@opentelemetry/api`
+   * is there. henri ships no SDK, no exporter and no sampler; those are the
+   * application's own. See [Telemetry](https://usehenri.io/guides/telemetry/).
+   */
+  interface TelemetryConfig {
+    /**
+     * Leave it out and telemetry is on when `@opentelemetry/api` resolves
+     * from the application and off when it does not, which is what makes
+     * installing the package the whole opt-in. `true` says the application
+     * requires it, and a boot without the package then fails with
+     * `HENRI_TELEMETRY_UNAVAILABLE` instead of going quiet.
+     */
+    enabled?: boolean;
+    /**
+     * Register the instruments (`true`): the request duration, the queue
+     * depth and the cache counters.
+     */
+    metrics?: boolean;
+    /**
+     * Write `traceparent` onto the requests henri makes for the application
+     * -- a webhook delivery (`true`). An incoming one is always honoured.
+     */
+    propagate?: boolean;
+    /**
+     * Which boundaries get a span: `"all"` (the default), `false` for none,
+     * or the list.
+     */
+    spans?: 'all' | false | TelemetryBoundary[];
+  }
+
+  /** What `henri.telemetry.span()` takes beside the function. */
+  interface SpanOptions {
+    /** Attributes, masked the way a log line's fields are. */
+    attributes?: Record<string, unknown>;
+    /**
+     * Which of henri's own boundaries this span belongs to, so
+     * `telemetry.spans` can turn it off. An application's span names none.
+     */
+    boundary?: TelemetryBoundary;
+    /** The span kind (`internal`). */
+    kind?: 'client' | 'consumer' | 'internal' | 'producer' | 'server';
+  }
+
+  /** What `henri.telemetry.histogram()` answers. */
+  interface TelemetryHistogram {
+    /** Record one measurement; does nothing when the metrics are off. */
+    record(value: number, attributes?: Record<string, unknown>): void;
   }
 
   /** `config.errors`: what henri does with the code of a failure. */
@@ -1942,6 +2002,70 @@ declare namespace start {
         status?: number;
       }
     ): Promise<boolean>;
+  }
+
+  /**
+   * `henri.telemetry`: the OpenTelemetry spans and metrics henri emits,
+   * when the application has `@opentelemetry/api`. henri ships no SDK and
+   * no exporter, and an application that has neither pays nothing: the
+   * instrumentation is never installed rather than tested per call.
+   *
+   * A span carries the method, the route pattern, the status and the
+   * request id, and nothing that came from the client -- no url, no query,
+   * no body, no headers, no user. See
+   * [Telemetry](https://usehenri.io/guides/telemetry/).
+   */
+  interface TelemetryModule {
+    name: 'telemetry';
+    /** Is a tracer or a meter there? */
+    readonly enabled: boolean;
+    /** The boundaries this application instruments. */
+    readonly spans: TelemetryBoundary[];
+    /** Is this boundary instrumented? */
+    on(boundary: TelemetryBoundary | string): boolean;
+    /**
+     * Run something inside a span. Without a tracer it calls the function
+     * and does nothing else. The span ends when the function returns or
+     * when the promise it answered settles; a failure is recorded and
+     * rethrown untouched.
+     */
+    span<T>(name: string, fn: () => T): T;
+    span<T>(name: string, options: SpanOptions, fn: () => T): T;
+    /**
+     * Write the current trace context (`traceparent`, `tracestate`) into an
+     * outgoing header bag. Writes nothing when telemetry is off, when
+     * `telemetry.propagate` is false, or when no span is active.
+     */
+    inject<T extends Record<string, unknown>>(carrier: T): T;
+    /**
+     * A histogram. Always answers a recorder, so a call site never
+     * branches: with the metrics off, `record()` does nothing.
+     */
+    histogram(
+      name: string,
+      options?: { description?: string; unit?: string }
+    ): TelemetryHistogram;
+    /**
+     * Register a callback the metrics pipeline asks for a value. Nothing is
+     * recorded while a request runs: the callback is only called when
+     * something is collecting.
+     */
+    observe(
+      name: string,
+      options: {
+        description?: string;
+        kind?: 'counter' | 'gauge';
+        unit?: string;
+      },
+      callback: (
+        observe: (value: number, attributes?: Record<string, unknown>) => void
+      ) => void
+    ): boolean;
+    /**
+     * The boot as spans, out of what `henri.analyze()` already measured.
+     * `henri.init()` is the one caller.
+     */
+    boot(analysis: unknown, error?: unknown): boolean;
   }
 
   /** `henri.user`. */
@@ -3358,6 +3482,12 @@ declare namespace start {
      * handler, `report(error, options)` adds the application's own.
      */
     reporter: Reporter;
+    /**
+     * OpenTelemetry, when the application has `@opentelemetry/api`. Always
+     * there and always safe to call: with no api, `span()` runs the
+     * function and `histogram()` answers a recorder that does nothing.
+     */
+    telemetry: TelemetryModule;
     mail: MailModule;
     /**
      * The GraphQL module, when the application depends on

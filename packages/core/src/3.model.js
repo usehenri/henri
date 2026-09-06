@@ -258,13 +258,60 @@ class Model extends BaseModule {
     const Pkg = this.loadStore(store, valid[store.adapter]);
 
     try {
-      this.stores[name] = new Pkg(name, store, this.henri);
+      this.stores[name] = this.instrument(new Pkg(name, store, this.henri));
     } catch (error) {
       pen.error('model', 'store', store.adapter, 'unable to load');
       throw error;
     }
 
     return this.stores[name];
+  }
+
+  /**
+   * Give the adapter's `query()` a span, when spans of stores are wanted
+   *
+   * `query()` is the one store call henri makes on its own behalf -- the
+   * queue's claim, the trail's insert, a webhook lookup -- and the one
+   * boundary here that does not need anybody's driver opened up. A model
+   * call an application makes is *not* covered, deliberately: that belongs
+   * to the ORM's own instrumentation package, and `base/telemetry.js` says
+   * so.
+   *
+   * The wrapping **is** the instrumentation: an application that is not
+   * tracing gets the adapter's own method, untouched, with nothing to test
+   * per call.
+   *
+   * The statement is never an attribute. It carries values.
+   *
+   * @param {object} store the adapter henri just built
+   * @returns {object} the same adapter
+   * @memberof Model
+   */
+  instrument(store) {
+    const { telemetry } = this.henri;
+
+    if (!telemetry || !telemetry.on('stores')) {
+      return store;
+    }
+
+    if (typeof store.query !== 'function') {
+      return store;
+    }
+
+    const query = store.query.bind(store);
+    const options = {
+      attributes: {
+        'db.system': store.dialect || store.adapterName || 'unknown',
+        'henri.store': store.name,
+      },
+      boundary: 'stores',
+      kind: 'client',
+    };
+
+    store.query = (...args) =>
+      telemetry.span('henri.store.query', options, () => query(...args));
+
+    return store;
   }
 
   /**

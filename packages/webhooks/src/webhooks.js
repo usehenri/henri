@@ -1003,62 +1003,30 @@ class Webhooks {
       }),
     };
 
-    const finish = this.tracked(row.url, args, headers);
+    const telemetry = this.henri && this.henri.telemetry;
+    const attempt = (context.job && context.job.attempt) || 1;
+    const send = () => this.send(row, args, headers, attempt);
 
-    try {
-      const answer = await deliver({
-        allowHttp: this.config.allowHttp,
-        allowPrivate: this.config.allowPrivate,
-        body: args.body,
-        headers,
-        timeout: this.config.timeout,
-        url: row.url,
-      });
-
-      finish({
-        meta: {
-          attempt: (context.job && context.job.attempt) || 1,
-          endpoint: row.id,
-          event: args.event,
-        },
-        status: answer.status,
-      });
-
-      this.log(
-        'info',
-        args.event,
-        args.id,
-        `-> ${row.url} ${answer.status} in ${answer.duration}ms`
-      );
-
-      return {
-        address: answer.address,
-        attempt: (context.job && context.job.attempt) || 1,
-        duration: answer.duration,
-        endpoint: row.id,
-        event: args.event,
-        id: args.id,
-        status: answer.status,
-      };
-    } catch (error) {
-      finish({
-        error: error.code || error.name,
-        meta: {
-          attempt: (context.job && context.job.attempt) || 1,
-          endpoint: row.id,
-          event: args.event,
-        },
-        status: error.status || null,
-      });
-
-      if (error.gone) {
-        await this.disable(row.id, {
-          reason: 'the receiver answered 410 Gone',
-        });
-      }
-
-      throw error;
+    if (!telemetry || typeof telemetry.span !== 'function') {
+      return send();
     }
+
+    // The endpoint is named by its id, never by its url: a url is registered
+    // by a tenant and may carry a token in its path, and the id is what
+    // `henri webhooks:show` takes anyway (see base/telemetry.js in core)
+    return telemetry.span(
+      'henri.webhook.deliver',
+      {
+        attributes: {
+          'henri.webhook.attempt': attempt,
+          'henri.webhook.endpoint': row.id,
+          'henri.webhook.event': args.event,
+        },
+        boundary: 'webhooks',
+        kind: 'client',
+      },
+      send
+    );
   }
 
   /**
@@ -1098,6 +1066,82 @@ class Webhooks {
       service: 'webhooks',
       url,
     });
+  }
+
+  /**
+   * The request itself, inside whatever span wraps it
+   *
+   * Split out so `traceparent` is written *inside* the span: what a receiver
+   * reads then names this delivery attempt, which is the only useful parent
+   * it could have. `inject()` writes nothing when henri is not tracing or
+   * when `telemetry.propagate` is false.
+   *
+   * @param {object} row The endpoint
+   * @param {object} args `{ body, endpoint, event, id }`
+   * @param {object} headers The headers, signature included
+   * @param {number} attempt Which attempt this is
+   * @returns {Promise<object>} What happened
+   * @throws {Error} Whatever the delivery failed with, `retryable` set
+   * @memberof Webhooks
+   */
+  async send(row, args, headers, attempt) {
+    const telemetry = this.henri && this.henri.telemetry;
+
+    if (telemetry && typeof telemetry.inject === 'function') {
+      telemetry.inject(headers);
+    }
+
+    // The outbound call log records the same attempt the span times, and
+    // records it here rather than in `perform` so that `traceparent` is
+    // already in the headers it holds
+    const finish = this.tracked(row.url, args, headers);
+
+    try {
+      const answer = await deliver({
+        allowHttp: this.config.allowHttp,
+        allowPrivate: this.config.allowPrivate,
+        body: args.body,
+        headers,
+        timeout: this.config.timeout,
+        url: row.url,
+      });
+
+      finish({
+        meta: { attempt, endpoint: row.id, event: args.event },
+        status: answer.status,
+      });
+
+      this.log(
+        'info',
+        args.event,
+        args.id,
+        `-> ${row.url} ${answer.status} in ${answer.duration}ms`
+      );
+
+      return {
+        address: answer.address,
+        attempt,
+        duration: answer.duration,
+        endpoint: row.id,
+        event: args.event,
+        id: args.id,
+        status: answer.status,
+      };
+    } catch (error) {
+      finish({
+        error: error.code || error.name,
+        meta: { attempt, endpoint: row.id, event: args.event },
+        status: error.status || null,
+      });
+
+      if (error.gone) {
+        await this.disable(row.id, {
+          reason: 'the receiver answered 410 Gone',
+        });
+      }
+
+      throw error;
+    }
   }
 
   /**

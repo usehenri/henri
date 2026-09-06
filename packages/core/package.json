@@ -65,6 +65,7 @@
     "validator": "^13.15.35"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
     "@seriousme/openapi-schema-validator": "^2.9.1",
     "@types/validator": "^13.15.10"
   },
@@ -73,5 +74,13 @@
   },
   "optionalDependencies": {
     "@node-rs/argon2": "^2.2.0"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
   }
 }

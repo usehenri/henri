@@ -54,6 +54,7 @@ const INTERFACES = {
   Request: 'req',
   Response: 'res',
   RetentionModule: 'henri.retention',
+  TelemetryModule: 'henri.telemetry',
   TrailModule: 'henri.trail',
   Utils: 'henri.utils',
 };

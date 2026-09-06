@@ -87,9 +87,46 @@ class CacheModule extends BaseModule {
 
     pen.info('cache', this.cache.name, this.cache.describe());
     this.warnUnshared();
+    this.instrument();
     debug('%s: %o', this.cache.name, this.settings);
 
     return this.name;
+  }
+
+  /**
+   * The one metric a cache is worth having: the hit rate.
+   *
+   * An **observable** counter, so nothing is recorded while a request runs:
+   * the callback reads the counters `stats()` already keeps and the
+   * pipeline asks for them when it collects. The rate itself is not a
+   * metric -- hits over hits plus misses is computed where it is read, and
+   * a rate henri averaged would be an average of averages.
+   *
+   * @returns {boolean} whether the instrument was registered
+   * @memberof CacheModule
+   */
+  instrument() {
+    const { telemetry } = this.henri;
+
+    if (!telemetry || !telemetry.enabled) {
+      return false;
+    }
+
+    return telemetry.observe(
+      'henri.cache.operations',
+      {
+        description: 'What the cache has been asked for, by outcome',
+        kind: 'counter',
+        unit: '{operation}',
+      },
+      (observe) => {
+        const found = this.stats();
+
+        for (const outcome of ['errors', 'hits', 'misses', 'writes']) {
+          observe(found[outcome] || 0, { 'henri.cache.outcome': outcome });
+        }
+      }
+    );
   }
 
   /**

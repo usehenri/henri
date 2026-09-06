@@ -548,6 +548,41 @@ describe('henri doctor', () => {
     expect(run(app).names).not.toContain('deps.declared');
   });
 
+  // The only package henri can ask for here is the interface, since it
+  // ships no SDK -- and only when the configuration says the application
+  // requires telemetry rather than "instrument if you can"
+  test('asks for @opentelemetry/api when telemetry.enabled is true', () => {
+    const restore = patchConfig(app, (config) => {
+      config.telemetry = { enabled: true };
+    });
+
+    const { problems } = run(app);
+
+    restore();
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.declared',
+        hint: expect.stringContaining('@opentelemetry/api'),
+        level: 'error',
+      })
+    );
+
+    expect(run(app).names).not.toContain('deps.declared');
+  });
+
+  test('and says nothing when telemetry only follows the package', () => {
+    const restore = patchConfig(app, (config) => {
+      config.telemetry = { spans: ['http'] };
+    });
+
+    const { names } = run(app);
+
+    restore();
+
+    expect(names).not.toContain('deps.declared');
+  });
+
   // `config.shared` names the backend the rate limit, the sign-in lockout
   // and the idempotency keys count in, the way a store names its adapter
   test('asks for @usehenri/redis when config.shared names it', () => {

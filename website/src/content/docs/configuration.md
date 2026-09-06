@@ -32,46 +32,47 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 
 ## Keys
 
-| Key                | Default       | Description                                                                                                                                                |
-| ------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `port`             | `3000`        | Port to listen on. In development a busy port is replaced by the next free one; under `NODE_ENV=test` the kernel assigns one.                              |
-| `host`             | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file.             |
-| `cors`             | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                                          |
-| `renderer`         | `template`    | View engine: `inertia`, `react` or `template` (Handlebars), whatever the case. `henri new` writes `inertia`. See [Views](/guides/views/).                  |
-| `inertia`          |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                                        |
-| `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                                       |
-| `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                                |
-| `secret`           |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                                     |
-| `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.                       |
-| `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                                 |
-| `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                                           |
-| `externalIds`      |               | What henri does with the internal identifier of a record: which one a lookup takes, and what a foreign key serializes as, below.                           |
-| `policies`         |               | Record-level authorization: what a refusal answers and whether an unasked policy is reported, see below. See [Policies](/guides/policies/).                |
-| `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.                      |
-| `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf); an object configures the origin check, below.                                                 |
-| `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint, or an object with its limits and access rules, below; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).            |
-| `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                                         |
-| `mailers`          |               | Defaults of the [mailers](/guides/mail/): `from`, `layout` and `previews`, see below.                                                                      |
-| `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                                |
-| `jobs`             |               | Settings of the [job queue](/guides/jobs/), see below; needs `@usehenri/jobs`. The queue also loads when `app/jobs` holds a file.                          |
-| `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                                          |
-| `shared`           |               | The backend the rate limit, the sign-in lockout and the idempotency keys count in, so two processes share one set, see below.                              |
-| `cache`            | on            | `henri.cache`: how long an entry lives, how much of it is kept and where, see below. `false` turns the cache off.                                          |
-| `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                           |
-| `csp`              | off           | Content Security Policy settings henri owns beside `helmet`: `nonce`, see below. See [Security](/guides/security/#content-security-policy).                |
-| `filterParameters` | see below     | Parameter names masked in the logs; `false` masks everything but `encryption`.                                                                             |
-| `logs`             | `auto`        | What a log line looks like: `format` is `pretty`, `json` or `auto` — json in production, the pretty lines everywhere else. See [Logs](/guides/logs/).      |
-| `encryption`       |               | The keys that open the fields the models marked `encrypted`, see below. See [Encrypted attributes](/guides/encryption/).                                   |
-| `privacy`          |               | What henri does with the fields the models marked `personal`, see below. See [Personal data](/guides/privacy/).                                            |
-| `retention`        |               | What runs the retention sweep and what it may do, see below. How long a model keeps its records is said in the model. See [Retention](/guides/retention/). |
-| `trail`            | off           | The append-only record of who read or changed personal data, see below. See [The access trail](/guides/trail/).                                            |
-| `calls`            | off           | The calls the application answered and the calls it made, joined by the request id, see below. See [Call logs](/guides/calls/).                            |
-| `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                                       |
-| `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                             |
-| `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                              |
-| `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                                  |
-| `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                                     |
-| `webhooks`         |               | Settings of the [outbound webhooks](/guides/webhooks/), see below; needs `@usehenri/webhooks`, which delivers through the queue.                           |
+| Key                | Default       | Description                                                                                                                                                             |
+| ------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `port`             | `3000`        | Port to listen on. In development a busy port is replaced by the next free one; under `NODE_ENV=test` the kernel assigns one.                                           |
+| `host`             | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file.                          |
+| `cors`             | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                                                       |
+| `renderer`         | `template`    | View engine: `inertia`, `react` or `template` (Handlebars), whatever the case. `henri new` writes `inertia`. See [Views](/guides/views/).                               |
+| `inertia`          |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                                                     |
+| `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                                                    |
+| `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                                             |
+| `secret`           |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                                                  |
+| `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.                                    |
+| `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                                              |
+| `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                                                        |
+| `externalIds`      |               | What henri does with the internal identifier of a record: which one a lookup takes, and what a foreign key serializes as, below.                                        |
+| `policies`         |               | Record-level authorization: what a refusal answers and whether an unasked policy is reported, see below. See [Policies](/guides/policies/).                             |
+| `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.                                   |
+| `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf); an object configures the origin check, below.                                                              |
+| `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint, or an object with its limits and access rules, below; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).                         |
+| `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                                                      |
+| `mailers`          |               | Defaults of the [mailers](/guides/mail/): `from`, `layout` and `previews`, see below.                                                                                   |
+| `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                                             |
+| `jobs`             |               | Settings of the [job queue](/guides/jobs/), see below; needs `@usehenri/jobs`. The queue also loads when `app/jobs` holds a file.                                       |
+| `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                                                       |
+| `shared`           |               | The backend the rate limit, the sign-in lockout and the idempotency keys count in, so two processes share one set, see below.                                           |
+| `cache`            | on            | `henri.cache`: how long an entry lives, how much of it is kept and where, see below. `false` turns the cache off.                                                       |
+| `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                                        |
+| `csp`              | off           | Content Security Policy settings henri owns beside `helmet`: `nonce`, see below. See [Security](/guides/security/#content-security-policy).                             |
+| `filterParameters` | see below     | Parameter names masked in the logs; `false` masks everything but `encryption`.                                                                                          |
+| `logs`             | `auto`        | What a log line looks like: `format` is `pretty`, `json` or `auto` — json in production, the pretty lines everywhere else. See [Logs](/guides/logs/).                   |
+| `telemetry`        | see below     | OpenTelemetry spans and metrics: `enabled`, `metrics`, `propagate`, `spans`, see below. On when `@opentelemetry/api` is installed. See [Telemetry](/guides/telemetry/). |
+| `encryption`       |               | The keys that open the fields the models marked `encrypted`, see below. See [Encrypted attributes](/guides/encryption/).                                                |
+| `privacy`          |               | What henri does with the fields the models marked `personal`, see below. See [Personal data](/guides/privacy/).                                                         |
+| `retention`        |               | What runs the retention sweep and what it may do, see below. How long a model keeps its records is said in the model. See [Retention](/guides/retention/).              |
+| `trail`            | off           | The append-only record of who read or changed personal data, see below. See [The access trail](/guides/trail/).                                                         |
+| `calls`            | off           | The calls the application answered and the calls it made, joined by the request id, see below. See [Call logs](/guides/calls/).                                         |
+| `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                                                    |
+| `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                                          |
+| `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                                           |
+| `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                                               |
+| `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                                                  |
+| `webhooks`         |               | Settings of the [outbound webhooks](/guides/webhooks/), see below; needs `@usehenri/webhooks`, which delivers through the queue.                                        |
 
 ## The `externalIds` object
 
@@ -265,6 +266,38 @@ A cache is a correctness hazard, not only a speed feature, so two things are sai
 | `logs.format`      | `"auto"`                                           | `"auto"` writes json in production and the pretty lines everywhere else; `"json"` and `"pretty"` say it outright. One object per line, with the module, the level and the request id as fields. See [Logs and error reporting](/guides/logs/).                          |
 | `bodyLimit`        | `"1mb"`                                            | Passed to the JSON and urlencoded body parsers; a string (`"1mb"`) or a number of bytes.                                                                                                                                                                                |
 | `requestTimeout`   | `30000`                                            | Milliseconds before a `503`; `false` disables the timeout.                                                                                                                                                                                                              |
+
+## The `telemetry` object
+
+OpenTelemetry spans and metrics. henri ships **no SDK, no exporter and no
+sampler**: `@opentelemetry/api` is a peer dependency the application
+installs, next to whichever pipeline the deployment already runs. See
+[Telemetry](/guides/telemetry/).
+
+Leave the key out and telemetry follows the package: on when
+`@opentelemetry/api` resolves from the application, off when it does not,
+and an application without it pays nothing -- the middleware is not mounted,
+the adapter is not wrapped and no instrument is created.
+
+```json
+{
+  "telemetry": {
+    "metrics": true,
+    "propagate": true,
+    "spans": ["http", "jobs", "stores"]
+  }
+}
+```
+
+| Key         | Default | Description                                                                                                                                                                                                                  |
+| ----------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`   |         | Absent means on when `@opentelemetry/api` is installed and off when it is not. `true` says the application requires it, and a boot without the package then fails with `HENRI_TELEMETRY_UNAVAILABLE` instead of going quiet. |
+| `metrics`   | `true`  | Register the instruments: the request duration, the queue depth and its claim latency, and the cache counters. `false` leaves the spans.                                                                                     |
+| `propagate` | `true`  | Write `traceparent` onto the requests henri makes for the application -- a webhook delivery. An incoming `traceparent` is always honoured, whatever this says.                                                               |
+| `spans`     | `"all"` | Which boundaries get a span: `"all"`, `false` for none, or a list of `boot`, `http`, `jobs`, `mail`, `stores`, `views` and `webhooks`.                                                                                       |
+
+`"telemetry": false` instruments nothing and never even looks for the
+package.
 
 ## The `encryption` object
 

@@ -1073,7 +1073,21 @@ class Router extends BaseModule {
         });
 
         return this.negotiate(req, res, {
-          html: () => this.henri.view.engine.render(req, res, route, opts),
+          // The view name is what the application declared, like a route
+          // pattern, so it is a span name; nothing of the data is
+          // (see base/telemetry.js)
+          html: () =>
+            this.henri.telemetry.span(
+              'henri.view.render',
+              {
+                attributes: {
+                  'henri.renderer': this.henri.view.renderer,
+                  'henri.view': route,
+                },
+                boundary: 'views',
+              },
+              () => this.henri.view.engine.render(req, res, route, opts)
+            ),
           json: () => this.renderJson(req, res, opts),
         });
       };

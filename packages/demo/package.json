@@ -16,6 +16,7 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
     "@usehenri/testing": "workspace:^",
     "vitest": "^5.0.0"
   },
