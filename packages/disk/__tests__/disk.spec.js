@@ -1,7 +1,9 @@
 const fs = require('fs');
+const net = require('net');
 const os = require('os');
 const path = require('path');
 const Disk = require('../index.js');
+const { CEILING, FLOOR, startingPort } = require('../port.js');
 
 /**
  * Builds a minimal henri stand-in for the adapter
@@ -145,6 +147,58 @@ describe('disk database adapter', () => {
       expect(relative.dataPath()).toBe(path.join('/srv/app', 'var', 'db'));
       expect(absolute.dataPath()).toBe('/var/lib/henri');
     });
+  });
+
+  describe('port', () => {
+    test('each store of a process starts from a port of its own', () => {
+      const ports = Array.from({ length: 8 }, () => startingPort());
+
+      expect(new Set(ports).size).toBe(ports.length);
+      for (const port of ports) {
+        expect(port).toBeGreaterThanOrEqual(FLOOR);
+        expect(port).toBeLessThan(CEILING);
+      }
+      // Below the ephemeral range of linux (32768) and macos (49152), so the
+      // kernel never hands one of these to something else meanwhile
+      expect(CEILING).toBeLessThanOrEqual(27017);
+    });
+
+    test('listens on the configured port', async () => {
+      const henri = fakeHenri();
+      const port = startingPort();
+      const store = new Disk('default', { adapter: 'disk', port }, henri);
+
+      await store.start();
+
+      try {
+        expect(store.mongoUri).toContain(`:${port}/`);
+        await expect(store.ping()).resolves.toBe(true);
+      } finally {
+        await store.stop();
+      }
+    }, 120000);
+
+    test('a configured port that is taken fails the boot, naming it', async () => {
+      const port = startingPort();
+      const squatter = net.createServer();
+
+      await new Promise((resolve) =>
+        squatter.listen(port, '127.0.0.1', resolve)
+      );
+
+      // The library prints the failure itself before throwing
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const store = new Disk('default', { port }, fakeHenri());
+
+      try {
+        // Never moved somewhere the application did not ask for
+        await expect(store.start()).rejects.toThrow(`Port "${port}" already`);
+        expect(store.mongoUri).toBe('');
+      } finally {
+        warn.mockRestore();
+        await new Promise((resolve) => squatter.close(resolve));
+      }
+    }, 120000);
   });
 
   describe('persistence', () => {

@@ -313,6 +313,14 @@ pnpm add @usehenri/disk
 
 The first boot downloads the MongoDB binary into `~/.cache/mongodb-binaries`.
 
+mongod listens on a port derived from the process id, between 20000 and 26999. That is below the ephemeral ports both Linux and macOS hand out, and it is per process, so several stores starting at the same moment — test workers, a suite running beside the application, a monorepo booting more than one application — never fight over the same port. Set `port` to pin one instead, to point a GUI or `mongosh` at the store:
+
+```json
+{ "stores": { "default": { "adapter": "disk", "port": 27100 } } }
+```
+
+A pinned port is used as given: the boot fails, naming the port, rather than moving the store somewhere the application did not say.
+
 ### MongoDB
 
 ```bash
