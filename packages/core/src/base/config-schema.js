@@ -158,7 +158,7 @@ const STORE = {
     },
     sync: {
       describe: 'true or false',
-      hint: 'drizzle: false stops a development boot from pushing the schema',
+      hint: 'SQL: false stops a development boot from bringing the schema up; on a Sequelize store true also lets a production boot create the tables that are missing, which it otherwise refuses to do',
       type: 'boolean',
     },
     url: text({ describe: 'a connection string' }),

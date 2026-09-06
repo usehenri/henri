@@ -9,6 +9,64 @@ henri 1.0 (2026) moved the framework to a current toolchain and 1.1 hardened it.
 
 ## From 1.2 to 1.3
 
+### A Sequelize store stops changing the production schema by itself
+
+Until 1.3 every SQL boot ran `sequelize.sync()`, in every environment. In development that is the point. In production it was DDL applied at boot, from whatever the models happened to say, with nobody reviewing it: it created the tables a typo named, and it stayed silent about every table that was already wrong, because `sync()` only ever creates what is missing and never alters what exists.
+
+**A production boot now changes nothing.** It reads the database back instead, compares it with the models, and warns about every difference:
+
+```
+warn  postgresql  store default and the models differ in 2 place(s); run
+                  "henri db:status" to see them, "henri db:status --sql" for
+                  the DDL that would close them
+warn  postgresql  tasks.priority: the column is missing
+warn  postgresql  invoices: the table is missing
+```
+
+Nothing changes in development, and nothing changes for the drizzle adapter, which already refused to push in production.
+
+**What you have to do.** If your deploy relied on the boot creating tables — a new model shipped and the table appeared — it no longer will, and the first query against the missing table is what will tell you. Two ways forward:
+
+- Keep the old behaviour, deliberately: `"sync": true` on the store in `config/production.json`. `henri audit` reports it as `schema.autosync` (ASVS V14.1.1, A05) so it stays a decision rather than a default.
+- Bring the schema up as part of the deploy and leave the boot out of it. `henri db:status --json` says whether the database matches before you cut over, and `henri db:status --sql` writes the DDL to review.
+
+### `henri db:status` reads a Sequelize store back
+
+The Sequelize adapters (`mysql`, `postgresql`, `mssql`) still have no migrations. What they gained is the ability to answer the question migrations exist to answer — _does this database match my models?_ — which until now no henri command could:
+
+```bash
+henri db:status              # what the database and the models disagree about
+henri db:status --sql        # the DDL that would close it, for you to review
+henri db:status --json       # `clean: false` and the differences, for CI
+```
+
+It reports a missing table, a missing column, a column whose type or nullability differs, a missing index, and a column that is in the database and in no model. It writes no `DROP` — a column henri does not recognize may hold the only copy of something — and it applies nothing at all: every statement is for you to read and run. On sqlite a column change is reported with no statement, because sqlite has no `ALTER COLUMN`.
+
+`henri db:generate`, `db:migrate` and `db:push` still belong to the drizzle adapter. On a Sequelize store they now answer `HENRI_CLI_MIGRATIONS_UNSUPPORTED` and say where to look instead of failing with "has no migrations".
+
+`henri doctor` gained two checks that read the files rather than the database: `schema.migrations-ignored` (there are migrations in `db/migrations` and the store's adapter can never apply them) and `schema.migrations-pending` (a drizzle store whose production configuration does not set `"migrate": true`, so a production boot warns and applies nothing).
+
+### Moving a Sequelize store to drizzle
+
+This is the supported way to get generated, versioned, reviewable migrations on SQL, and it starts from the database you already have — no dump, no reload, no dropped database.
+
+1. **Check that the database matches the models first.** `henri db:status` on the Sequelize store, and close whatever it reports. A move that starts from a drifted database inherits the drift.
+2. **Install the adapter and its driver**: `pnpm add @usehenri/drizzle pg` (or `mysql2`), and point the store at it: `"adapter": "drizzle"`, plus `"dialect": "postgres"` (or `"mysql"`).
+3. **Adopt the existing tables.** `henri db:generate --name=init` writes `db/migrations/0000_init.sql` from the models. Because the tables are already there and already match, henri records that migration as applied instead of running it, and says so:
+
+   ```
+   Wrote db/migrations/0000_init.sql (12 statement(s))
+   The database already matches: recorded as applied
+   ```
+
+   `henri db:status` then shows `0000_init` applied and nothing pending. From here on, a schema change is `henri db:generate` then `henri db:migrate`.
+
+4. **If it does not say "recorded as applied"**, the two adapters disagree about a column and `henri db:push` would show you the statements. Sequelize and drizzle do not spell every type identically — a Sequelize `STRING` is `VARCHAR(255)`, a drizzle `text()` is `TEXT` — so expect to adjust either the model or the column until a push has nothing to do, and only then generate. Do that on a copy of the database, not on production.
+
+The model files themselves change: the henri schema format (`type`, `required`, `default`, `enum`, `unique`, `index`) is the same on both adapters, but `options: { paranoid: true }`, Sequelize data types written out longhand, raw `sequelize.query()` calls and anything reaching for `Model.sequelize` are Sequelize's and have no drizzle equivalent. Read [Models](/guides/models/#drizzle) before you start, and move one store at a time.
+
+Nothing forces the move. The Sequelize adapters are supported, they keep getting fixes, and an application that changes its schema by hand and checks it with `henri db:status` is a perfectly good henri application.
+
 ### The numeric id stops resolving, and stops travelling inside a foreign key
 
 1.2 gave every record a public uuid and took its own primary key out of what leaves the server. It left two holes, and 1.3 closes both. See [Identifiers](/guides/models/#identifiers).
@@ -80,7 +138,7 @@ The migration:
   ALTER TABLE "tasks" ADD CONSTRAINT "tasks_external_id_unique" UNIQUE("external_id");
   ```
 
-- **Sequelize (`mysql`, `postgresql`, `mssql`)**: there are no migrations, and `sequelize.sync()` does not alter a table. Add the column yourself with the same three steps (`UUID()` on MySQL and MariaDB, `NEWID()` on MSSQL) before deploying.
+- **Sequelize (`mysql`, `postgresql`, `mssql`)**: there are no migrations, and `sequelize.sync()` does not alter a table. `henri db:status --sql` writes the `ADD COLUMN` for you to review (see [The schema of a Sequelize store](/guides/models/#the-schema-of-a-sequelize-store)); on a table that already holds rows, split it into the same three steps as above (`UUID()` on MySQL and MariaDB, `NEWID()` on MSSQL) before deploying.
 
 A model that must keep its old shape opts out, and then nothing above applies to it:
 

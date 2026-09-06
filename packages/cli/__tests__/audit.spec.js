@@ -265,6 +265,54 @@ describe('henri audit', () => {
     );
   });
 
+  test('reports a Sequelize store that changes the schema at boot', () => {
+    const sequelize = (file, sync) =>
+      withConfig(app, file, {
+        stores: {
+          default: {
+            adapter: 'postgresql',
+            sync,
+            url: 'postgres://db.example.test/app',
+          },
+        },
+      });
+
+    expect(sequelize('config/production.json', true).findings).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V14.1.1',
+        check: 'schema.autosync',
+        file: 'config/production.json',
+        owasp: 'A05:2021 Security Misconfiguration',
+        severity: 'medium',
+      })
+    );
+    expect(sequelize('config/default.json', true).names).toContain(
+      'schema.autosync'
+    );
+
+    // Not syncing is the new default, and development is where syncing
+    // belongs: neither is a finding
+    expect(sequelize('config/production.json', false).names).not.toContain(
+      'schema.autosync'
+    );
+    expect(sequelize('config/dev.json', true).names).not.toContain(
+      'schema.autosync'
+    );
+
+    // Drizzle never pushes in production, whatever `sync` says
+    expect(
+      withConfig(app, 'config/production.json', {
+        stores: {
+          default: {
+            adapter: 'drizzle',
+            sync: true,
+            url: 'postgres://db.example.test/app',
+          },
+        },
+      }).names
+    ).not.toContain('schema.autosync');
+  });
+
   // Henri never ships 'unsafe-inline' in a production script-src, so one
   // that is there was put there by the application
   test("reports a script-src the application opened to 'unsafe-inline'", () => {

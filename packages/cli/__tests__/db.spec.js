@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { CliError } = require('../scripts/errors');
-const { seed, sow } = require('../scripts/db');
+const { migrations, seed, sow, status } = require('../scripts/db');
 const { cleanup, exists, henri, scaffold, tmpdir } = require('./helpers');
 
 // A minimal application on a drizzle sqlite store: seeding it is a full
@@ -91,6 +91,118 @@ describe('henri db', () => {
       expect(error.code).toBe('HENRI_CLI_USAGE');
       expect(error.message).toBe('No seed file at db/seeds.js');
       expect(error.hint).toContain('db/seeds.js');
+    });
+  });
+
+  describe('the schema of a store', () => {
+    /**
+     * A booted henri stand-in holding one store
+     *
+     * @param {object} store The store adapter
+     * @returns {object} The instance
+     */
+    const booted = (store) => ({
+      model: { stores: { default: store } },
+      stop: async () => undefined,
+    });
+
+    test('db:status reports the migrations of a drizzle store', async () => {
+      const store = {
+        adapterName: 'drizzle',
+        dialect: { name: 'postgres' },
+        migrations: {
+          status: async () => ({
+            applied: ['0000_init'],
+            folder: '/app/db/migrations',
+            pending: ['0001_priority'],
+          }),
+        },
+        name: 'default',
+      };
+
+      expect(await status(store, {})).toEqual({
+        applied: ['0000_init'],
+        command: 'status',
+        dialect: 'postgres',
+        folder: '/app/db/migrations',
+        ok: true,
+        pending: ['0001_priority'],
+        schema: 'migrations',
+        store: 'default',
+      });
+    });
+
+    test('db:status reports the drift of a Sequelize store', async () => {
+      const difference = {
+        column: 'priority',
+        description: 'tasks.priority: the column is missing',
+        index: null,
+        kind: 'column-missing',
+        model: 'Task',
+        statement: 'ALTER TABLE "tasks" ADD COLUMN "priority" INTEGER;',
+        table: 'tasks',
+      };
+      const store = {
+        adapterName: 'postgresql',
+        drift: async () => ({
+          clean: false,
+          dialect: 'postgres',
+          differences: [difference],
+          statements: [difference.statement],
+          store: 'default',
+          unsupported: [],
+        }),
+        name: 'default',
+      };
+
+      expect(await status(store, { sql: true })).toEqual({
+        clean: false,
+        command: 'status',
+        dialect: 'postgres',
+        differences: [difference],
+        ok: true,
+        schema: 'models',
+        sql: true,
+        statements: [difference.statement],
+        store: 'default',
+        unsupported: [],
+      });
+    });
+
+    test('db:status has nothing to compare on a store with no schema', async () => {
+      const store = { adapterName: 'disk', name: 'default' };
+
+      await expect(status(store, {})).rejects.toMatchObject({
+        code: 'HENRI_CLI_MIGRATIONS_UNSUPPORTED',
+      });
+    });
+
+    test('the migration commands say what a Sequelize store can do instead', async () => {
+      const store = {
+        adapterName: 'postgresql',
+        drift: async () => ({ clean: true }),
+        name: 'default',
+      };
+
+      const error = await migrations(booted(store), 'default').catch(
+        (thrown) => thrown
+      );
+
+      expect(error).toBeInstanceOf(CliError);
+      expect(error.code).toBe('HENRI_CLI_MIGRATIONS_UNSUPPORTED');
+      expect(error.message).toContain('has no migrations');
+      expect(error.hint).toContain('henri db:status --sql');
+      expect(error.hint).toContain('drizzle');
+    });
+
+    test('and points a store that has neither at the drizzle adapter', async () => {
+      const store = { adapterName: 'mongoose', name: 'default' };
+      const error = await migrations(booted(store), 'default').catch(
+        (thrown) => thrown
+      );
+
+      expect(error.code).toBe('HENRI_CLI_MIGRATIONS_UNSUPPORTED');
+      expect(error.hint).toContain('@usehenri/drizzle');
     });
   });
 

@@ -465,6 +465,17 @@ Usually:
 
 **Fix.** Read the message. Run the command again with `--debug=henri:*` for the details, and with `--json` for the whole error object.
 
+### `HENRI_CLI_MIGRATIONS_UNSUPPORTED`
+
+The command needs migrations and the store's adapter has none.
+
+Usually:
+
+- `henri db:generate`, `db:migrate` or `db:push` on a store using a Sequelize adapter (mysql, postgresql, mssql)
+- `henri db:status` on a store whose adapter keeps no schema to read back (mongoose, disk)
+
+**Fix.** Migrations are the drizzle adapter's: set "adapter": "drizzle" on the store and install @usehenri/drizzle. The Sequelize adapters create the tables that are missing and never alter one, so `henri db:status` says what the database and the models disagree about and `henri db:status --sql` writes the DDL to review before you run it.
+
 ### `HENRI_CLI_NEEDS_TTY`
 
 The command needed an answer and stdin is not a terminal.

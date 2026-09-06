@@ -276,6 +276,11 @@ const COMMANDS = [
       '"sync": false; in production it applies the migrations when the store',
       'sets "migrate": true.',
       '',
+      'status answers on a Sequelize store too (mysql, postgresql, mssql),',
+      'which has no migrations: it reads the database back and reports what',
+      'it and the models disagree about. --sql writes the DDL that would',
+      'close it, for you to review; henri applies none of it.',
+      '',
       'create and drop are the database itself, which every other command',
       'assumes exists: they read the configuration without connecting to the',
       'store, then talk to the server with the driver the application',
@@ -328,6 +333,11 @@ const COMMANDS = [
           'push: apply statements that lose data; drop and reset: act in production',
         flag: '--force',
       },
+      {
+        description:
+          'status: print the DDL that would close the difference, for review',
+        flag: '--sql',
+      },
       { description: 'print the result as JSON', flag: '--json' },
     ],
     name: 'db',
@@ -352,7 +362,8 @@ const COMMANDS = [
         name: 'seed',
       },
       {
-        description: 'the applied and pending migrations of db/migrations',
+        description:
+          'the applied and pending migrations of db/migrations, or what a Sequelize store and the models disagree about (--sql for the DDL)',
         name: 'status',
       },
       {
@@ -368,7 +379,7 @@ const COMMANDS = [
       },
     ],
     usage: [
-      'henri db <command> [--store=<name>] [--name=<label>] [--file=<path>] [--force] [--json]',
+      'henri db <command> [--store=<name>] [--name=<label>] [--file=<path>] [--force] [--sql] [--json]',
       'henri db:<command>',
     ],
   },
