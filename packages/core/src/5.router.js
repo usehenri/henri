@@ -1063,11 +1063,18 @@ class Router extends BaseModule {
 
       // Absent unless the application translates something: a key that is
       // always there and usually says "en" is a key every page learns to
-      // read and every payload carries (see 1.i18n.js)
+      // read and every payload carries (see 1.i18n.js). Read when the page
+      // is built rather than now, like `query`, because a `before` hook may
+      // still call `req.setLocale()` between here and the render
       if (this.henri.i18n && this.henri.i18n.enabled) {
-        exposed.i18n = this.henri.i18n.view({
-          locale: req.locale,
-          source: req.localeSource,
+        Object.defineProperty(exposed, 'i18n', {
+          configurable: true,
+          enumerable: true,
+          get: () =>
+            this.henri.i18n.view({
+              locale: req.locale,
+              source: req.localeSource,
+            }),
         });
       }
 

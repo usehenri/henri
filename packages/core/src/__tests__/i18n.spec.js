@@ -841,6 +841,14 @@ describe('i18n (demo app, disk store)', () => {
     ).toEqual([]);
   });
 
+  test('a before hook decides it, and the render sees the new one', async () => {
+    const answer = await request.get('/fr/hello').set('Accept-Language', 'en');
+
+    expect(answer.headers['content-language']).toBe('fr');
+    expect(answer.text).toContain('<p id="lang">fr/explicit</p>');
+    expect(answer.text).toContain('Bonjour, Ada !');
+  });
+
   test('the values of a translation are escaped, the translation is not', async () => {
     const answer = await request.get('/hello?name=%3Cscript%3E');
 

@@ -12,6 +12,7 @@ module.exports = {
   'get /admin': { controller: 'user#admin', roles: ['admin'] },
   // A route asking for a policy that does not exist: refused, every time
   'get /ghost': { controller: 'main#version', policy: 'ghost' },
+  'get /fr/hello': 'main#frHello',
   'get /hello': 'main#hello',
   'get /limited': {
     controller: 'main#limited',

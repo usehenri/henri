@@ -1001,6 +1001,30 @@ const middleware = (henri) => {
   return (req, res, next) => {
     const decided = i18n.decide(req);
 
+    /**
+     * Stamps what this answer is in, and what a cache has to key on.
+     *
+     * Called again by `setLocale()`, because a `before` hook deciding the
+     * locale after the middleware ran must not leave the header saying what
+     * the middleware guessed (see guides/i18n.md).
+     *
+     * @param {string} source which step decided
+     * @returns {boolean} done
+     */
+    const stamp = (source) => {
+      if (res.headersSent) {
+        return false;
+      }
+
+      res.setHeader('Content-Language', req.locale);
+      // The header henri varies on is the one that decided: a shared cache
+      // that was not told would hand one visitor's language to the next
+      source === 'header' && res.vary('Accept-Language');
+      (source === 'cookie' || source === 'user') && res.vary('Cookie');
+
+      return true;
+    };
+
     req.locale = decided.locale;
     req.localeSource = decided.source;
 
@@ -1021,6 +1045,7 @@ const middleware = (henri) => {
       req._locale = locale;
       req.locale = locale;
       req.localeSource = 'explicit';
+      stamp('explicit');
 
       return locale;
     };
@@ -1036,13 +1061,7 @@ const middleware = (henri) => {
     req.t = (key, values = {}, options = {}) =>
       i18n.t(key, values, Object.assign({ locale: req.locale }, options));
 
-    // What a cache has to key on, and what a client can read back. The
-    // header henri varies on is the one that decided: a shared cache that
-    // was not told would hand one visitor's language to the next
-    res.setHeader('Content-Language', req.locale);
-    decided.source === 'header' && res.vary('Accept-Language');
-    (decided.source === 'cookie' || decided.source === 'user') &&
-      res.vary('Cookie');
+    stamp(decided.source);
 
     return next();
   };
