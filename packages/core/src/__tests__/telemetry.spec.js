@@ -857,6 +857,19 @@ describe('the metrics', () => {
     expect(tracer.spans).toHaveLength(1);
     expect(metrics.recorded).toEqual([]);
   });
+
+  // An application tracing only its jobs carries no middleware frame per
+  // request for a span it does not want and a metric it turned off
+  test('nothing to record is no middleware at all', () => {
+    expect(
+      wired({
+        settings: { metrics: false, spans: ['jobs'] },
+      }).telemetry.middleware()
+    ).toBeNull();
+    expect(
+      wired({ settings: { spans: ['jobs'] } }).telemetry.middleware()
+    ).toBeInstanceOf(Function);
+  });
 });
 
 describe('when the api misbehaves', () => {

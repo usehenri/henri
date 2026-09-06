@@ -947,17 +947,26 @@ class Telemetry {
    * only moment the pattern is known, and it is the same moment the status
    * is: one handler, at the end, reading `requestOf()`.
    *
-   * @returns {function} the middleware
+   * It answers **null** when there is nothing to do -- telemetry on, and
+   * neither the `http` boundary nor the metrics wanted -- so a
+   * configuration that only traces its jobs does not carry a middleware
+   * frame per request for nothing.
+   *
+   * @returns {?function} the middleware, or null
    * @memberof Telemetry
    */
   middleware() {
     const traced = this.on('http');
-    const duration = this.settings.metrics
+    const duration = this.meter
       ? this.histogram('http.server.request.duration', {
           description: 'How long henri took to answer a request',
           unit: 's',
         })
       : null;
+
+    if (!traced && !duration) {
+      return null;
+    }
 
     return (req, res, next) => {
       const method = methodOf(req.method);

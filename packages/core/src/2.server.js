@@ -401,10 +401,16 @@ class Server extends BaseModule {
     // what the rate limit, the body parser and the CSRF check refuse --
     // which are exactly the requests worth having in it. Neither is mounted
     // when nothing asked for it: an application without @opentelemetry/api
-    // has no telemetry middleware in its stack, and one that keeps no call
-    // log has no call-log middleware, not even one that returns
-    if (this.henri.telemetry && this.henri.telemetry.enabled) {
-      app.use(this.henri.telemetry.middleware());
+    // has no telemetry middleware in its stack, one recording no boundary
+    // has none either, and one that keeps no call log has no call-log
+    // middleware, not even one that returns
+    const traces =
+      this.henri.telemetry &&
+      this.henri.telemetry.enabled &&
+      this.henri.telemetry.middleware();
+
+    if (traces) {
+      app.use(traces);
     }
 
     if (callsConfig(config).inbound) {

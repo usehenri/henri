@@ -221,7 +221,7 @@ class TelemetryModule extends BaseModule {
   /**
    * The express middleware, one span and one measurement per request
    *
-   * @returns {function} the middleware
+   * @returns {?function} the middleware, or null when there is nothing to do
    * @memberof TelemetryModule
    */
   middleware() {
