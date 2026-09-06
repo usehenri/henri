@@ -29,14 +29,14 @@ module.exports = {
 };
 ```
 
-| Key                 | Description                                                                                                                              |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema`            | The fields, in the format below.                                                                                                         |
-| `options`           | `timestamps`, `paranoid` and `personal` (below), plus anything the ORM takes: handed to `new mongoose.Schema()` or `sequelize.define()`. |
-| `store`             | The store to use, `default` when omitted. The boot fails when the store is not configured.                                               |
-| `name`              | Collection name (Mongoose), table name (Drizzle) or `tableName` (Sequelize).                                                             |
-| `graphql`           | `{ types, resolvers }` merged into the application schema; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).                   |
-| `associate(models)` | Called once every model of the store exists, with the models keyed by global name. Declare relations there.                              |
+| Key                 | Description                                                                                                                                                                                                                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`            | The fields, in the format below.                                                                                                                                                                                                                                                              |
+| `options`           | `timestamps`, `paranoid`, `personal`, `retention` and `externalId` (below). A drizzle store takes those and refuses any other key at boot, naming what to write instead; Mongoose and an mssql store also pass what they do not recognize to `new mongoose.Schema()` or `sequelize.define()`. |
+| `store`             | The store to use, `default` when omitted. The boot fails when the store is not configured.                                                                                                                                                                                                    |
+| `name`              | Collection name (Mongoose), table name (Drizzle) or `tableName` (Sequelize).                                                                                                                                                                                                                  |
+| `graphql`           | `{ types, resolvers }` merged into the application schema; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).                                                                                                                                                                        |
+| `associate(models)` | Called once every model of the store exists, with the models keyed by global name. Declare relations there.                                                                                                                                                                                   |
 
 ```js
 // app/models/Comment.js

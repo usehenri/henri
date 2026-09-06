@@ -96,7 +96,7 @@ what arrived from outside. A model that opted out with
 `options: { externalId: false }` is unaffected by either key.
 
 Turning either of them off is reported by [`henri audit`](/guides/security/).
-See [Models](/guides/models/#public-identifiers) for what a foreign key has
+See [Models](/guides/models/#identifiers) for what a foreign key has
 to declare before henri can translate it.
 
 ## The `policies` object
@@ -179,7 +179,7 @@ The keys of the [JSON API](/guides/api/), all optional:
 
 ## The `shared` object
 
-Three guards keep a number per key: the rate limit, the [sign-in lockout](#userlockout) and the [idempotency keys](/guides/api/#idempotent-requests). Each accepts a store of its own, and each of them is kept in the process's memory when nothing names one — so an application running two processes silently gets two of everything: a rate limit that is twice what it says, a lockout an attacker escapes by being routed elsewhere, and an idempotency key that stops being idempotent.
+Three guards keep a number per key: the rate limit, the [sign-in lockout](#userlockout) and the [idempotency keys](/guides/api/#idempotency). Each accepts a store of its own, and each of them is kept in the process's memory when nothing names one — so an application running two processes silently gets two of everything: a rate limit that is twice what it says, a lockout an attacker escapes by being routed elsewhere, and an idempotency key that stops being idempotent.
 
 `shared` is the one place to say where they are counted instead:
 
