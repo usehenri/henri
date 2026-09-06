@@ -362,6 +362,9 @@ function peppered(password, key) {
     return password;
   }
 
+  // Not a password hash: bcrypt takes no key, so the pepper is applied by
+  // pre-hashing and the digest below is what bcrypt then hashes properly.
+  // codeql[js/insufficient-password-hash]
   return crypto.createHmac('sha256', key).update(password).digest('base64');
 }
 
