@@ -19,7 +19,8 @@
     "multipart",
     "files",
     "busboy",
-    "storage"
+    "storage",
+    "variants"
   ],
   "main": "index.js",
   "henri": {
@@ -43,11 +44,18 @@
     "debug": "^4.4.3"
   },
   "peerDependencies": {
-    "@usehenri/core": "workspace:^"
+    "@usehenri/core": "workspace:^",
+    "sharp": ">=0.33"
+  },
+  "peerDependenciesMeta": {
+    "sharp": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@usehenri/core": "workspace:^",
     "express": "^5.2.1",
+    "sharp": "^0.34.5",
     "supertest": "^7.2.2"
   }
 }

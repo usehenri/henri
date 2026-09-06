@@ -1511,6 +1511,16 @@
     {
       "area": "upload",
       "causes": [
+        "uploads.variants is configured and the application does not depend on sharp",
+        "sharp is declared but was not installed for this platform"
+      ],
+      "code": "HENRI_UPLOAD_NO_IMAGE_LIBRARY",
+      "fix": "Install it in the application: pnpm add sharp. henri ships no image library, because a native addon does not belong in the install of everyone who accepts a file.",
+      "what": "A variant was asked for and there is no image library to derive it with."
+    },
+    {
+      "area": "upload",
+      "causes": [
         "the object store answered an error, or nothing at all",
         "the network between this process and the store",
         "a key that is not one henri generated"
@@ -1561,6 +1571,37 @@
       "code": "HENRI_UPLOAD_URL_INVALID",
       "fix": "Ask the application for the link again rather than building one by hand: everything a signed url carries is covered by its signature.",
       "what": "A signed url did not verify."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "the file is not the image its first bytes said it was",
+        "it is larger than uploads.maxFileSize, or holds more pixels than a variant is derived from",
+        "the resize produced something other than the format it was asked for"
+      ],
+      "code": "HENRI_UPLOAD_VARIANT_FAILED",
+      "fix": "Read the message: it names what went wrong. Nothing is stored when a derivation fails, so asking again after fixing the source is safe.",
+      "what": "A variant could not be derived from the file it was asked for."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "the name is not one of config.uploads.variants",
+        "a typo, or a variant renamed in the configuration and not in the code"
+      ],
+      "code": "HENRI_UPLOAD_VARIANT_UNKNOWN",
+      "fix": "Declare it under uploads.variants. A variant name never comes from a request, so that one visitor cannot ask for ten thousand distinct sizes.",
+      "what": "A variant was asked for by a name the configuration does not declare."
+    },
+    {
+      "area": "upload",
+      "causes": [
+        "the file is not an image: its bytes said pdf, zip or anything else",
+        "it is an SVG, which is refused because it is text that carries script"
+      ],
+      "code": "HENRI_UPLOAD_VARIANT_UNSUPPORTED",
+      "fix": "Ask for a variant of an image henri recognized. The type comes from the bytes, so file.type is what decides, never the name or the Content-Type.",
+      "what": "A variant was asked for of something that is not an image one can be derived from."
     },
     {
       "area": "user",

@@ -658,6 +658,48 @@ describe('henri doctor', () => {
     expect(run(app).names).not.toContain('deps.declared');
   });
 
+  // The object store and the image library are named by the uploads block
+  // and shipped by nobody: `s3` is a package, a variant needs sharp
+  test('asks for @usehenri/s3 when the storage names it', () => {
+    const restore = patchConfig(app, (config) => {
+      config.uploads = {
+        storage: { adapter: 's3', bucket: 'henri-uploads' },
+      };
+    });
+
+    const { problems } = run(app);
+
+    restore();
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.declared',
+        hint: expect.stringContaining('@usehenri/s3'),
+        level: 'error',
+      })
+    );
+  });
+
+  test('asks for sharp when a variant is declared', () => {
+    const restore = patchConfig(app, (config) => {
+      config.uploads = { variants: { thumb: { width: 320 } } };
+    });
+
+    const { problems } = run(app);
+
+    restore();
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.declared',
+        hint: expect.stringContaining('sharp'),
+        level: 'error',
+      })
+    );
+
+    expect(run(app).names).not.toContain('deps.declared');
+  });
+
   // The only package henri can ask for here is the interface, since it
   // ships no SDK -- and only when the configuration says the application
   // requires telemetry rather than "instrument if you can"

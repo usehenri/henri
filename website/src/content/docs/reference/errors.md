@@ -1685,6 +1685,17 @@ Usually:
 
 The files @usehenri/uploads reads from a multipart body, the storage they are kept in and the urls that hand them back.
 
+### `HENRI_UPLOAD_NO_IMAGE_LIBRARY`
+
+A variant was asked for and there is no image library to derive it with.
+
+Usually:
+
+- uploads.variants is configured and the application does not depend on sharp
+- sharp is declared but was not installed for this platform
+
+**Fix.** Install it in the application: pnpm add sharp. henri ships no image library, because a native addon does not belong in the install of everyone who accepts a file.
+
 ### `HENRI_UPLOAD_STORAGE_FAILED`
 
 The storage could not carry out what it was asked to do.
@@ -1743,6 +1754,40 @@ Usually:
 - the object the link names is no longer in the storage
 
 **Fix.** Ask the application for the link again rather than building one by hand: everything a signed url carries is covered by its signature.
+
+### `HENRI_UPLOAD_VARIANT_FAILED`
+
+A variant could not be derived from the file it was asked for.
+
+Usually:
+
+- the file is not the image its first bytes said it was
+- it is larger than uploads.maxFileSize, or holds more pixels than a variant is derived from
+- the resize produced something other than the format it was asked for
+
+**Fix.** Read the message: it names what went wrong. Nothing is stored when a derivation fails, so asking again after fixing the source is safe.
+
+### `HENRI_UPLOAD_VARIANT_UNKNOWN`
+
+A variant was asked for by a name the configuration does not declare.
+
+Usually:
+
+- the name is not one of config.uploads.variants
+- a typo, or a variant renamed in the configuration and not in the code
+
+**Fix.** Declare it under uploads.variants. A variant name never comes from a request, so that one visitor cannot ask for ten thousand distinct sizes.
+
+### `HENRI_UPLOAD_VARIANT_UNSUPPORTED`
+
+A variant was asked for of something that is not an image one can be derived from.
+
+Usually:
+
+- the file is not an image: its bytes said pdf, zip or anything else
+- it is an SVG, which is refused because it is text that carries script
+
+**Fix.** Ask for a variant of an image henri recognized. The type comes from the bytes, so file.type is what decides, never the name or the Content-Type.
 
 ## user
 

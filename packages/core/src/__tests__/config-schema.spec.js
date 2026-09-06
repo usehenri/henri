@@ -214,6 +214,9 @@ describe('the configuration schema', () => {
           region: 'us-east-1',
         },
         urls: { expiresIn: 300, path: '/_uploads' },
+        variants: {
+          thumb: { fit: 'cover', format: 'webp', height: 320, width: 320 },
+        },
       },
       user: {
         afterLogin: '/',
@@ -490,6 +493,10 @@ describe('the schema, the declarations and the documentation', () => {
     [
       'UploadUrlsConfig',
       () => Object.keys(SCHEMA.uploads.oneOf[1].keys.urls.oneOf[1].keys),
+    ],
+    [
+      'UploadVariantConfig',
+      () => Object.keys(SCHEMA.uploads.oneOf[1].keys.variants.values.keys),
     ],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
     ['MailersConfig', () => Object.keys(SCHEMA.mailers.keys)],

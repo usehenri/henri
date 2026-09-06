@@ -1066,6 +1066,12 @@ declare namespace start {
      * none, and `henri.uploads.url()` refuses.
      */
     urls?: false | UploadUrlsConfig;
+    /**
+     * Derived images, by name: `henri.uploads.variant(record, "thumb")`.
+     * Each one is produced once, on demand, and needs `sharp` in the
+     * application -- henri ships no image library.
+     */
+    variants?: Record<string, UploadVariantConfig>;
   }
 
   /**
@@ -1099,6 +1105,36 @@ declare namespace start {
     /** `"local"`, `"s3"`, or the module id of a `HenriStorage`. */
     adapter: string;
     [key: string]: unknown;
+  }
+
+  /**
+   * One entry of `config.uploads.variants`: what a derived image looks
+   * like. A width, a height, or both.
+   */
+  interface UploadVariantConfig {
+    /** How the resize fills its box (`"cover"`). */
+    fit?: 'contain' | 'cover' | 'fill' | 'inside' | 'outside';
+    /** What it is written as (`"webp"`). */
+    format?: 'avif' | 'jpeg' | 'png' | 'webp';
+    /** Pixels, 1 to 8192. */
+    height?: number;
+    /** 1 to 100 (`80`). */
+    quality?: number;
+    /** Pixels, 1 to 8192. */
+    width?: number;
+  }
+
+  /** What `variant()` resolves with: a derived file, with a key of its own. */
+  interface VariantFile {
+    key: string;
+    /** The original name of the file it was derived from. */
+    name: string | null;
+    /** The key of the file it was derived from. */
+    of: string;
+    size: number;
+    storage: string;
+    type: string;
+    uploadedAt: string;
   }
 
   /**
@@ -3637,6 +3673,12 @@ declare namespace start {
         type?: string;
       }
     ): Promise<string>;
+    /**
+     * One declared variant of a stored image, derived once and then read
+     * back. Needs `sharp` in the application; without it this refuses with
+     * `HENRI_UPLOAD_NO_IMAGE_LIBRARY`.
+     */
+    variant(record: StoredFile | string, name: string): Promise<VariantFile>;
     /** A readable stream of a stored file. */
     get(record: StoredFile | string): Promise<NodeJS.ReadableStream>;
     /** Removes a stored file. */

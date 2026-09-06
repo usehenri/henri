@@ -11,6 +11,12 @@ const { createStorage } = require('./storage');
 const { downloads } = require('./download');
 const { format } = require('./bytes');
 const { middleware } = require('./multipart');
+const {
+  FORMATS,
+  SOURCES,
+  keyFor: variantKeyFor,
+  produce,
+} = require('./variants');
 
 /**
  * A key of the shape henri generates that names no object, for asking a
@@ -122,6 +128,18 @@ const PROBE = `${'0'.repeat(32)}.bin`;
  * `config.uploads.urls` says otherwise, because a signed url is a bearer
  * capability and that is a decision, not a default.
  *
+ * **Variants.** A derived file is a file with a key, so the storage seam was
+ * already the right shape for one: `variant(record, 'thumb')` answers a
+ * record like any other, and `send()`, `url()` and `delete()` take it
+ * unchanged. The key is the source's plus a digest of the variant's *terms*,
+ * so the work happens once, on demand, and every caller after that reads a
+ * stored object -- never in the request that uploaded, which would make
+ * every upload pay for every variant nobody looked at. `sharp` is an
+ * optional peer dependency the application installs: a native addon is not
+ * something to acquire by accepting a PDF, and without it `variant()`
+ * refuses with the install line rather than quietly answering the original.
+ * The reasoning is in `src/variants.js`.
+ *
  * **Nothing is kept by default.** A parsed file lives in the storage's
  * temporary area until a controller calls `store()`. Everything else is
  * removed when the response closes -- answered, refused, timed out or
@@ -181,12 +199,16 @@ class UploadsModule extends BaseModule {
     this.signer = null;
 
     this._mounted = false;
+    // One promise per derived key while the work runs, so a hundred
+    // concurrent misses in this process derive the variant once
+    this._deriving = new Map();
 
     this.init = this.init.bind(this);
     this.reload = this.reload.bind(this);
     this.stop = this.stop.bind(this);
     this.send = this.send.bind(this);
     this.url = this.url.bind(this);
+    this.variant = this.variant.bind(this);
   }
 
   /**
@@ -259,6 +281,14 @@ class UploadsModule extends BaseModule {
           'henri.uploads.url() will refuse: set HENRI_SECRET'
         );
       }
+    }
+
+    if (this.settings.variants) {
+      pen.info(
+        'uploads',
+        'variants',
+        `${Object.keys(this.settings.variants).join(', ')} (derived once, on demand; needs sharp)`
+      );
     }
 
     if (!this.settings.sniff) {
@@ -501,6 +531,96 @@ class UploadsModule extends BaseModule {
     }
 
     return this.signer.sign(file.key, asked);
+  }
+
+  /**
+   * A derived file: the record of one declared variant of a stored image.
+   *
+   * The work happens here, once, and only when somebody asks: the derived
+   * key is a digest of the variant's own terms, so an object that is
+   * already there is one `stat()` away and a hundred concurrent callers in
+   * one process derive it once. The result is a record with a key like any
+   * other, so `send()`, `url()` and `delete()` take it unchanged.
+   *
+   * What it needs is `sharp`, an optional peer dependency the application
+   * installs; without it this refuses with `HENRI_UPLOAD_NO_IMAGE_LIBRARY`
+   * and the install line, rather than quietly answering the original.
+   *
+   * @async
+   * @param {(object|string)} record what `store()` returned, or its key
+   * @param {string} name a variant declared in `config.uploads.variants`
+   * @returns {Promise<object>} `{ key, name, of, size, storage, type, uploadedAt }`
+   * @throws when the variant is unknown, the source cannot be one, or the
+   *   application has no image library
+   * @memberof UploadsModule
+   */
+  async variant(record, name) {
+    const file = typeof record === 'string' ? { key: record } : record || {};
+    const storage = this.ready();
+    const declared = this.settings.variants || {};
+    const spec = declared[name];
+
+    if (!file.key) {
+      throw new Error(
+        'henri.uploads.variant() needs the record store() returned'
+      );
+    }
+
+    if (!spec) {
+      throw coded(
+        'HENRI_UPLOAD_VARIANT_UNKNOWN',
+        `there is no variant called ${JSON.stringify(String(name))}${
+          Object.keys(declared).length > 0
+            ? `; this application declares ${Object.keys(declared).join(', ')}`
+            : ': declare one under uploads.variants'
+        }`,
+        { key: file.key, variant: name }
+      );
+    }
+
+    if (!SOURCES.has(file.type)) {
+      throw coded(
+        'HENRI_UPLOAD_VARIANT_UNSUPPORTED',
+        `${file.type || 'this file'} is not an image a variant can be derived from${
+          file.type === 'image/svg+xml'
+            ? ': an SVG is text that carries script, and rendering one means parsing it'
+            : ''
+        }`,
+        { key: file.key, type: file.type || null, variant: name }
+      );
+    }
+
+    const key = variantKeyFor(file.key, spec);
+    const found = await storage.stat(key);
+
+    if (found) {
+      return {
+        key,
+        name: file.name || null,
+        of: file.key,
+        size: found.size,
+        storage: storage.name,
+        type: FORMATS[spec.format],
+        uploadedAt: new Date(found.modifiedAt).toISOString(),
+      };
+    }
+
+    if (this._deriving.has(key)) {
+      return this._deriving.get(key);
+    }
+
+    const work = produce({
+      henri: this.henri,
+      key,
+      maxFileSize: this.settings.maxFileSize,
+      record: file,
+      spec,
+      storage,
+    }).finally(() => this._deriving.delete(key));
+
+    this._deriving.set(key, work);
+
+    return work;
   }
 
   /**

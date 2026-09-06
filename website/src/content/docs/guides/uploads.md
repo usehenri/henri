@@ -1,6 +1,6 @@
 ---
 title: Uploads
-description: Multipart parsing with limits that exist before the first byte, files typed by their content, generated names, a storage seam and cleanup that never leaves a temporary file behind.
+description: Multipart parsing with limits that exist before the first byte, files typed by their content, generated names, an object store, signed urls, variants and cleanup that never leaves a temporary file behind.
 sidebar:
   order: 10
 ---
@@ -87,6 +87,8 @@ async show(req, res) {
 
 `send()` streams it with `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, the type henri recognized and `Cache-Control: private`. `{ disposition: 'inline' }` is there for the types an application knows it can trust — an image it generated, a PDF it wrote — and is never the default: a file rendered on your own origin is a file that runs on your own origin. `henri.uploads.get(record)` gives the raw stream, and `henri.uploads.delete(record)` removes it.
 
+That is the right shape when _who may read this_ has to be decided per request. When it does not — a link in a page you already authorized, an image in a mail — [a signed url](#signed-urls) hands the file to the client without the bytes passing through the application at all.
+
 ## The limits
 
 Every one of these is handed to the parser, not checked afterwards. A size checked once the file is on disk has already let the disk fill.
@@ -159,7 +161,7 @@ The two scriptable types henri recognizes, `text/html` and `image/svg+xml`, are 
 
 ## Where the files go
 
-`storage/uploads` in the application, by default. Outside `app/views/public`, which `express.static` serves; outside `app/views`, which the Inertia dev server has for a root; outside `.henri`, which `henri clean` removes. The directory is created `0700`, every stored object `0600`, and a `.gitignore` is written into it the first time so uploads never reach a commit.
+`storage/uploads` in the application, by default, on the machine that is running. [An object store](#an-object-store) is one configuration key away, and is what a second machine needs. Outside `app/views/public`, which `express.static` serves; outside `app/views`, which the Inertia dev server has for a root; outside `.henri`, which `henri clean` removes. The directory is created `0700`, every stored object `0600`, and a `.gitignore` is written into it the first time so uploads never reach a commit.
 
 `henri audit` reports a `root` inside a directory the application serves (`uploads.root-served`), which is the mistake this default exists to avoid.
 
@@ -177,43 +179,195 @@ Runlevel 3, before the user module. It has to be: the `_csrf` field of a `multip
 
 The consequence is that an unauthenticated `POST` reaches the parser before it reaches a session, which is why every limit above is enforced before a byte is read, why `uploads.paths` exists, and why nothing is kept by default.
 
-## A storage of your own
+## Where the files live
 
-`HenriStorage` is to uploads what `HenriAdapter` is to the stores. henri ships the local disk and no client for anybody's object store — an S3 client is a dependency, a credential chain, a region, a retry policy and a bill, and none of that belongs in a framework that would then own its upgrades.
+`"storage": "local"` is the disk, and it is what an application that says nothing gets. It is also the assumption a second machine breaks: two processes behind a load balancer do not share a directory, and the Dockerfile the scaffold writes is an invitation to find that out in production.
 
-```js
-// lib/s3-storage.js
-class S3Storage {
-  constructor(name, config, henri) {}
-  async start() {}
-  async stop() {}
-  async temp() {} // { path }: a private local file to stream a part into
-  async put(source, key) {} // upload, remove the part, answer the key
-  async get(key) {} // a readable stream
-  async stat(key) {} // { size, modifiedAt } or null
-  async delete(key) {} // true when something was removed
-  url(key) {} // a public url, or null
-}
+### An object store
 
-module.exports = S3Storage;
+```bash
+npm install @usehenri/s3
 ```
 
 ```json
-{ "uploads": { "storage": "./lib/s3-storage" } }
+{
+  "uploads": {
+    "storage": {
+      "adapter": "s3",
+      "bucket": "henri-uploads",
+      "region": "us-east-1"
+    }
+  }
+}
 ```
 
-The module id is resolved from the application, the way [`rateLimit.store`](/configuration/#rate-limits) is, and it may export a class, a `(henri, { name, config }) => storage` factory, or an object that is already one.
+That is the whole change: `store()`, `send()`, `get()`, `delete()` and `url()` are the same calls, the record a model holds is the same record, and every rule on this page still holds — the type still comes from the bytes and becomes the object's `Content-Type`, the key is still generated and still refused if it is not, the original name is still metadata (`x-amz-meta-name`), and a part is still streamed to a private local file that only `store()` promotes.
 
-`temp()` is part of the contract because only the storage knows where a part should land so that keeping it is cheap: on the local disk it is a directory inside the root, so promoting a file is a rename on the same filesystem rather than a copy.
+The credentials come from `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` unless the block names them, because a key in a configuration file is a key in a repository.
+
+**One backend, not four.** S3, [R2](https://developers.cloudflare.com/r2/), [Spaces](https://www.digitalocean.com/products/spaces), [MinIO](https://min.io/) and GCS's interoperability mode all speak the same API; what tells them apart is an endpoint and a region:
+
+```json
+{
+  "uploads": {
+    "storage": {
+      "adapter": "s3",
+      "bucket": "henri-uploads",
+      "region": "auto",
+      "endpoint": "https://<account>.r2.cloudflarestorage.com"
+    }
+  }
+}
+```
+
+Everything else in the block reaches the backend: `pathStyle` (path style unless an endpoint is named otherwise), `publicEndpoint` (the host presigned urls are built against — a custom domain in front of an R2 bucket), `expiresIn`, `timeout` and `retries`. `henri doctor` reports the missing package when the storage names `s3`.
+
+The package carries no dependency but `debug`: [AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html) is two hundred lines of `node:crypto`, checked against the vectors AWS publishes, and the five requests it makes go out through `node:http`.
+
+**What it does not do.** One `PUT` per file, so no multipart upload and no resumable one: the bounds on this page cap a file at 10mb by default and a single `PUT` is good to 5gb. No bucket creation, no lifecycle rules, no listing, no replication, no server-side encryption settings — a bucket is infrastructure, and henri writes objects into one somebody else made.
+
+### A storage of your own
+
+`HenriStorage` is to uploads what `HenriAdapter` is to the stores, and it is deliberately narrow enough that the second implementation is a hundred lines rather than a fork:
+
+```js
+// lib/gcs-storage.js
+class GcsStorage {
+  constructor(name, config, henri) {} // config: { options, root, config }
+  async start() {}
+  async stop() {}
+  async temp() {} // { path }: a private local file to stream a part into
+  async put(source, key, meta) {} // upload, remove the part, answer the key
+  async get(key) {} // a readable stream
+  async stat(key) {} // { size, modifiedAt } or null
+  async delete(key) {} // true when something was removed
+  url(key, options) {} // a signed url, or null when there is no such thing
+}
+
+module.exports = GcsStorage;
+```
+
+```json
+{ "uploads": { "storage": "./lib/gcs-storage" } }
+```
+
+The module id is resolved from the application, the way [`rateLimit.store`](/configuration/#rate-limits) is, and it may export a class, a `(henri, { name, config, options }) => storage` factory, or an object that is already one. The object form of `storage` carries settings to it: `adapter` names the backend, everything else is the backend's own.
+
+`temp()` is part of the contract because only the storage knows where a part should land so that keeping it is cheap: on the local disk it is a directory inside the root, so promoting a file is a rename on the same filesystem rather than a copy. On an object store it is a local directory too — a part has to land somewhere before anything has authorized keeping it, and an upload that is going to be refused should not be paid for first.
+
+`meta` is `{ checksum, name, size, type }`: what the parser already measured on the way in, so a backend that keeps a content type and signs a digest does not read the bytes again to learn it.
+
+## Signed urls
+
+A signed url is a time-limited link that hands the bytes to the client without proxying them through the application. It is one call, and it means the same thing whichever backend is under it:
+
+```json
+{ "uploads": { "urls": { "expiresIn": 300 } } }
+```
+
+```js
+async show(req, res) {
+  const artwork = await Artwork.findById(req.params.id);
+
+  await req.authorize(artwork, 'show');
+
+  return res.render('/artworks/show', {
+    data: { artwork, scan: await henri.uploads.url(artwork.scan) },
+  });
+}
+```
+
+On an object store that is the provider's own signature and the bytes never reach this process. On the local disk it is henri's own — an HMAC over the key, the expiry, the disposition, the download name and the type — verified by a route mounted at `uploads.urls.path` (`/_uploads`) which streams the file. `url()` takes `{ expiresIn, disposition, filename, type }` and the record's own name and type fill in.
+
+### What the signature covers
+
+Both signatures cover **the key**, so a url for one object is not a url for another; **the expiry**, so the window cannot be widened; and **how the file is served** — the disposition, the download name and the media type — so a link to a download cannot be edited into an inline `text/html` page on your own origin. `text/html` and `image/svg+xml` are refused `inline` at signing time, which is the same rule that stores them under a `.bin` extension.
+
+Editing any of those changes the string the signature is of, and producing the right signature needs a key that never leaves the server. Past the expiry the verifier refuses it against **its own clock**, not against anything in the url.
+
+### What a signed url is, plainly
+
+Until it expires, it is a **bearer capability**: whoever holds the link holds the file, and no session, role or policy is consulted. That is what a signed url is for, it is what a presigned S3 url is, and it is the reason `uploads.urls` is off by default and `henri.uploads.url()` refuses with `HENRI_UPLOAD_URLS_DISABLED` rather than quietly answering `null`. Choose accordingly:
+
+| The question                             | The answer                                               |
+| ---------------------------------------- | -------------------------------------------------------- |
+| May _this viewer_ read it, right now?    | A controller, a policy and `henri.uploads.send()`.       |
+| May whoever I hand this link to read it? | `henri.uploads.url()`, with a window you are happy with. |
+
+Nothing is stored: there is no table of urls and no way to revoke one link. Rotating `HENRI_SECRET` invalidates every outstanding henri-signed url at once, and a shorter `expiresIn` bounds the next ones.
+
+### Behind a CDN
+
+`uploads.urls.cdn` is the base url henri's own signed urls are built against:
+
+```json
+{
+  "uploads": {
+    "urls": { "expiresIn": 3600, "cdn": "https://files.example.com" }
+  }
+}
+```
+
+The host is deliberately **outside** henri's signature, so a cache that forwards the path and the query forwards everything the signature is of. A provider-signed url is the opposite — SigV4 covers the host — so an object store names its public host in its own block (`storage.publicEndpoint`), and that host has to be one the provider itself answers on: an R2 custom domain or a MinIO behind a proxy, not an arbitrary cache in front of a bucket. A CDN with a signing scheme of its own (CloudFront key pairs, for instance) is that CDN's feature, and henri does not implement it.
+
+## Variants
+
+A derived file is a file with a key, so the storage seam was already the right shape for one. Declare what you want by name:
+
+```json
+{
+  "uploads": {
+    "variants": {
+      "thumb": { "width": 320, "height": 320, "fit": "cover" },
+      "hero": { "width": 1600, "format": "avif", "quality": 70 }
+    }
+  }
+}
+```
+
+```js
+const thumb = await henri.uploads.variant(artwork.scan, 'thumb');
+
+// A record like any other: a key, a type, a size
+await henri.uploads.url(thumb);
+await henri.uploads.send(res, thumb);
+```
+
+Each takes `width`, `height` (one of the two is required), `fit` (`cover`, `contain`, `fill`, `inside`, `outside`), `format` (`webp`, `avif`, `jpeg`, `png`) and `quality`. An image is never enlarged past its own size.
+
+### Where the work happens
+
+**On demand, once.** The derived key is the source's plus a digest of the variant's own _terms_, so it is the same key in every process and every environment: the first caller pays for the resize, everyone after that reads a stored object, and a variant that exists costs one `stat`. A hundred concurrent misses in one process derive it once.
+
+Not on write — every upload would then pay for every variant nobody looked at, in the request a person is watching. Not in a job either, though an application that wants that has it for free: the record has a key and `henri.jobs` is already there, so calling `variant()` from a job after `store()` warms it before the first viewer arrives.
+
+Nothing is invalidated, ever, because nothing needs to be: change a variant's terms and it is simply a different key that has not been written yet. The old objects stay until you delete them.
+
+### Without an image library
+
+henri ships none. `sharp` is a native addon — libvips, a platform binary, a build or a download at install time — and putting that in the install of everyone who accepts a PDF is exactly the weight this package exists on the right side of. So it is an **optional peer dependency**, resolved from the application the way `@opentelemetry/api` is for [telemetry](/guides/telemetry/):
+
+```bash
+npm install sharp
+```
+
+An application that has not installed it pays nothing at all — no require, no probe at boot, no branch on a hot path — and the first `variant()` call refuses with `HENRI_UPLOAD_NO_IMAGE_LIBRARY` and that install line. It does not quietly answer the original: a page that asked for a 320px thumbnail and got a 12mb photograph is a worse outcome than an error. `henri doctor` reports the missing dependency when `uploads.variants` is configured.
+
+### What is refused
+
+- **A name the configuration does not declare.** `variant(record, name)` reads `uploads.variants` and nothing else. An ad-hoc `{ width }` taken from a request would let one visitor ask for ten thousand distinct sizes — a decode, a resize and an object written for each — which is a denial of service with a storage bill attached.
+- **Anything that is not an image henri recognized**, by its bytes as everywhere else. `image/svg+xml` is refused outright: it is one of the two scriptable types, and rendering one means handing untrusted XML to a parser.
+- **A source past 50 megapixels**, one frame of an animated image (a ten thousand frame GIF is a bomb whatever its file size), and no metadata carried forward — a thumbnail does not inherit the source's GPS coordinates. The EXIF orientation is applied and then dropped.
+- **Bytes that are not what was asked for.** What comes back out of the resize is sniffed like anything else and compared with the format requested; a mismatch is `HENRI_UPLOAD_VARIANT_FAILED` rather than an object stored under a `.webp` key that is not one.
 
 ## Out of scope, on purpose
 
 These are all real, and each of them is a feature rather than half a feature. henri does none of them, and says so here rather than doing one badly:
 
-- **Image processing, variants and thumbnails.** A resize is a native dependency (sharp, libvips), a queue, a cache and a set of decisions about quality that belong to an application, not to a framework. Do it in a [job](/guides/jobs/) after `store()` — the record has the key, and the queue is already there.
-- **Direct-to-S3 signed uploads.** They are the right answer above a certain size, and they are the _opposite_ design: the bytes never reach the application, so none of the limits, the sniffing or the cleanup on this page apply. Getting that right means signing a policy, verifying the object afterwards and reconciling what was uploaded but never claimed. A storage that does it can be written against the seam above; henri does not pretend the two are the same feature.
-- **A CDN story.** `url()` exists in the contract for a storage that has public urls. What is cached where, for how long, and how a private file is signed for one viewer is a deployment decision.
+- **Direct-to-storage uploads.** A presigned `PUT` the browser writes to is the right answer above a certain size, and it is the _opposite_ design: the bytes never reach the application, so none of the limits, the sniffing or the cleanup on this page apply. Getting it right means bounding a policy, verifying the object afterwards and reconciling what was uploaded but never claimed. `@usehenri/s3` signs a `GET`, deliberately, and nothing else.
 - **Virus scanning.** It is a daemon (ClamAV) or a paid API, it is the sort of thing that must not run inside a request, and a scanner henri shipped would be a scanner henri kept up to date. Call one from a job before the file is shown to anyone else.
+- **Video and audio transcoding.** ffmpeg is not a library, it is a pipeline: a queue, a machine sized for it and a set of decisions no framework can make for you. `variant()` is images, and says so.
+- **A media library, an admin, or tracking which records point at which key.** An upload record is a column your model holds; what is orphaned and what is not is a question about your schema.
 
 ## Turning uploads off
 

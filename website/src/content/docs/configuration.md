@@ -495,6 +495,7 @@ nothing whatever this says. See [Model versions](/guides/versions/).
 | `uploads.urls.expiresIn`    | `300`               | How long a signed url lasts, in seconds. A week (`604800`) at most, which is what S3 honours.                                                                                                                                                                   |
 | `uploads.urls.path`         | `"/_uploads"`       | Where the route that verifies henri's own signed urls is mounted. Unused by a storage that signs its own, such as `s3`.                                                                                                                                         |
 | `uploads.urls.cdn`          |                     | A base url henri's own signed urls are built against. The host is outside henri's signature, so a cache may sit in front of the route.                                                                                                                          |
+| `uploads.variants`          |                     | Derived images, by name (`{ "thumb": { "width": 320, "height": 320 } }`); each takes `width`, `height`, `fit`, `format` and `quality`. Needs `sharp` in the application. See [the guide](/guides/uploads/#variants).                                            |
 
 ```json
 {

@@ -517,6 +517,15 @@ const trackedKeys = (dir) => {
 };
 
 /**
+ * A plain object, and not an array or null
+ *
+ * @param {*} value the value
+ * @returns {boolean} true when it is one
+ */
+const isObject = (value) =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/**
  * Does a model name look plural? (ends with an s that is not part of
  * -ss, -us or -is: Tasks yes, Status, Address and Analysis no)
  *
@@ -1967,6 +1976,26 @@ const check = (dir = process.cwd()) => {
   // means to accept a file, and without the package nothing reads one
   if (config.uploads !== false && typeof config.uploads !== 'undefined') {
     needed.add('@usehenri/uploads');
+  }
+
+  // The object store and the image library are the two things `uploads`
+  // names that henri does not ship: a storage block naming `s3` needs
+  // @usehenri/s3, and a `variants` block needs sharp, which is a native
+  // addon nobody should acquire by accepting a file
+  if (isObject(config.uploads)) {
+    const storage = config.uploads.storage;
+    const named =
+      typeof storage === 'string'
+        ? storage
+        : isObject(storage) && storage.adapter;
+
+    if (named === 's3') {
+      needed.add('@usehenri/s3');
+    }
+
+    if (isObject(config.uploads.variants)) {
+      needed.add('sharp');
+    }
   }
 
   // And so are the outbound webhooks. They deliver through the queue, so a

@@ -65,6 +65,7 @@ describe('the settings', () => {
       storage: 'local',
       storageOptions: {},
       urls: false,
+      variants: null,
     });
   });
 

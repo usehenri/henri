@@ -17,6 +17,7 @@
  */
 const { bytes } = require('./bytes');
 const { EXPIRES_IN, MAX_EXPIRES, PATH } = require('./signing');
+const { variantsOf } = require('./variants');
 
 /** The defaults, and the table the documentation prints */
 const DEFAULTS = {
@@ -33,6 +34,7 @@ const DEFAULTS = {
   sniff: true,
   storage: 'local',
   urls: false,
+  variants: null,
 };
 
 /** The methods a body is read from; anything else never carries an upload */
@@ -202,6 +204,7 @@ function settings(config) {
     storage: storage.name,
     storageOptions: storage.options,
     urls: urlsOf(uploads.urls),
+    variants: variantsOf(uploads.variants),
   };
 }
 
