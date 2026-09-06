@@ -65,23 +65,38 @@ const ORIGIN = '00000000-0000-0000-0000-000000000000';
 const DESTRUCTIVE = /\bDROP\s+(?:TABLE|COLUMN)\b/iu;
 
 /**
- * Does this statement drop one of the tables henri owns?
+ * Is this table one of henri's?
  *
  * The names are checked whole and quoted the way every dialect quotes them,
  * so a table called `henri_trail_archive` is nobody's business but the
- * application's.
+ * application's. The prefixes are the one exception and there is one of
+ * them: the partitions of a partitioned call log, whose names carry the day
+ * they cover and are therefore not a list anybody can write down
+ * (`Drizzle#reservedPrefixes`).
+ *
+ * @param {string} table A table name
+ * @param {Set<string>} reserved The table names henri owns
+ * @param {Array<string>} prefixes The prefixes henri owns
+ * @returns {boolean} true when a push must leave it alone
+ */
+const isReserved = (table, reserved, prefixes) =>
+  reserved.has(table) || prefixes.some((prefix) => table.startsWith(prefix));
+
+/**
+ * Does this statement drop one of the tables henri owns?
  *
  * @param {string} statement A DDL statement
  * @param {Set<string>} reserved The table names henri owns
+ * @param {Array<string>} prefixes The prefixes henri owns
  * @returns {boolean} true when the statement would drop one of them
  */
-const drops = (statement, reserved) => {
+const drops = (statement, reserved, prefixes) => {
   const match =
     /^\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?[["`]?([A-Za-z0-9_]+)/iu.exec(
       statement
     );
 
-  return Boolean(match) && reserved.has(match[1]);
+  return Boolean(match) && isReserved(match[1], reserved, prefixes);
 };
 
 /**
@@ -766,8 +781,12 @@ class Migrations {
   async plan({ interactive = false } = {}) {
     const { adapter } = this;
     const reserved = adapter.reservedTables();
+    const prefixes =
+      typeof adapter.reservedPrefixes === 'function'
+        ? adapter.reservedPrefixes()
+        : [];
     const existing = (await adapter.listTables()).filter(
-      (table) => !reserved.has(table)
+      (table) => !isReserved(table, reserved, prefixes)
     );
     const wanted = adapter.tableNames();
     const added = wanted.filter((table) => !existing.includes(table));
@@ -800,7 +819,7 @@ class Migrations {
     // application's job history or its audit trail with it
     const proposed = plan.statementsToExecute || [];
     const statements = proposed.filter(
-      (statement) => !drops(statement, reserved)
+      (statement) => !drops(statement, reserved, prefixes)
     );
     const result = {
       // The data loss drizzle-kit reported is the data loss of the

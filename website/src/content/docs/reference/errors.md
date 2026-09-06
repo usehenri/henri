@@ -469,6 +469,43 @@ Usually:
 
 **Fix.** The cache keeps what JSON keeps, plus `Date`. Store the plain shape you want back: `record.toJSON()`, or `henri.model.stores.default.toPlain(record)`. Cache `null` where you meant "there is nothing".
 
+## calls
+
+The call log of `henri.calls`: the table it owns, the store it lives in and the partitions it sweeps.
+
+### `HENRI_CALLS_DISABLED`
+
+The call log was read back and this application keeps none.
+
+Usually:
+
+- `config.calls` is absent or false
+- the call log could not be started
+
+**Fix.** Turn the call log on with `"calls": {}` in `config/<env>.json`; henri creates its table on the next boot. Recording is a no-op while it is off, but reading it back says so rather than answering with nothing.
+
+### `HENRI_CALLS_PARTITION_UNSUPPORTED`
+
+The call log was asked to partition its table in a store that cannot.
+
+Usually:
+
+- `config.calls.partition` is set on a sqlite, SQL Server or MongoDB store
+
+**Fix.** Only PostgreSQL and MySQL range-partition a table, which is what lets a sweep drop a period instead of deleting its rows. Everywhere else the sweep deletes in bounded batches: leave `calls.partition` out.
+
+### `HENRI_CALLS_UNSUPPORTED_STORE`
+
+The call log cannot be kept in the store it was pointed at.
+
+Usually:
+
+- `config.calls.store` names a store this application does not have
+- the store adapter has neither `query()` nor a MongoDB connection
+- the MongoDB store is not connected
+
+**Fix.** The call log owns a table in one of the application's stores. Point `config.calls.store` at a store backed by mongoose, drizzle or sequelize, or leave `config.calls` out to keep no call log at all.
+
 ## cli
 
 The henri command line: arguments, the project it runs in, the commands themselves.

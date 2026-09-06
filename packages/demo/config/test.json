@@ -44,5 +44,10 @@
   },
   "trail": {
     "keep": "1y"
+  },
+  "calls": {
+    "keep": "7d",
+    "maxBody": "2kb",
+    "ignore": ["/_henri/gql"]
   }
 }

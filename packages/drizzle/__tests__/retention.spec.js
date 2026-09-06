@@ -158,6 +158,7 @@ describe(`the access trail on ${target.name}`, () => {
     // Drizzle-kit compares the schema to the database and would offer to
     // drop a table it does not know; the trail's is not drizzle's to drop
     expect([...adapter.reservedTables()].sort()).toEqual([
+      'henri_calls',
       'henri_jobs',
       'henri_jobs_schedules',
       'henri_trail',
