@@ -953,6 +953,66 @@ const badCache: Configuration = {
   cache: { maxEntries: 'many' },
 };
 
+// --- i18n -------------------------------------------------------------------
+
+const i18nConfig: Configuration = {
+  i18n: {
+    client: 'auto',
+    default: 'en',
+    fallback: ['en'],
+    from: { cookie: false, header: true, query: 'lang', user: 'locale' },
+    locales: ['en', 'fr'],
+    missing: 'throw',
+    path: 'config/locales',
+    serverOnly: ['mailers'],
+  },
+};
+
+expectType<Configuration>(i18nConfig);
+expectType<Configuration>({ i18n: false });
+
+const wrongMissing: Configuration = {
+  // @ts-expect-error a missing key is never guessed at: there is no such mode
+  i18n: { missing: 'humanize' },
+};
+
+const wrongClient: Configuration = {
+  // @ts-expect-error the catalogue reaches a browser in one of three ways
+  i18n: { client: 'lazy' },
+};
+
+expectType<boolean>(henri.i18n.enabled);
+expectType<string[]>(henri.i18n.locales);
+expectType<string>(henri.i18n.fallback);
+expectType<string>(henri.i18n.t('nav.home'));
+expectType<string>(henri.i18n.t('greeting', { name: 'Ada' }));
+expectType<string>(
+  henri.i18n.t('notes', { count: 3 }, { locale: 'fr', ordinal: false })
+);
+expectType<string>(henri.i18n.t('nav.home', {}, { default: 'Home' }));
+expectType<boolean>(henri.i18n.has('nav.home', 'fr'));
+expectType<boolean>(henri.i18n.supports('fr'));
+expectType<string | null>(henri.i18n.forUser({ locale: 'fr' }));
+expectType<string | null>(henri.i18n.url('fr'));
+expectType<Array<{ key: string; locale: string; why: string }>>(
+  henri.i18n.missing()
+);
+
+// @ts-expect-error a key is a string, and the values come second
+henri.i18n.t(42);
+
+// The request half: the locale of this one, and what decided it
+const translating = (req: Request, res: Response) => {
+  expectType<string | undefined>(req.locale);
+  const said = req.t ? req.t('greeting', { name: 'Ada' }) : 'greeting';
+
+  req.setLocale && req.setLocale('fr');
+
+  return res.render('/hello', { data: { said } });
+};
+
+expectType<typeof translating>(translating);
+
 // --- logs and error reporting -----------------------------------------------
 
 expectType<Configuration>({ logs: { format: 'json' } });
