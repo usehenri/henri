@@ -1394,7 +1394,7 @@ declare namespace start {
   // ---------------------------------------------------------------------------
 
   /**
-   * What a module declares. Extend `@usehenri/core/src/base/module` and set
+   * What a module declares. Extend `@usehenri/core/module` and set
    * `name`, then say where you go: `needs` (the modules you cannot work
    * without), `after` and `before` (ordering only, ignored when the module is
    * not registered), or `runlevel` alone (the slot: after every lower level,

@@ -24,6 +24,7 @@
   "main": "src/index.js",
   "types": "index.d.ts",
   "files": [
+    "module.js",
     "src",
     "!src/__tests__",
     "index.d.ts",

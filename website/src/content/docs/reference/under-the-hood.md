@@ -42,13 +42,13 @@ The logger (`henri.pen`) and the registry (`henri.modules`) exist before level 0
 
 ## Writing a module
 
-A module extends `BaseModule`, has a unique `name`, says where it goes, and implements `init()` returning its name. Reloadable modules set `reloadable = true` and add `reload()`; a module holding something adds `stop()`, and `release()` when it should let go before a reload rebuilds what is under it; `consoleOnly = true` skips the module under `henri console`.
+A module extends `BaseModule` (`require('@usehenri/core/module')`, the supported path to it), has a unique `name`, says where it goes, and implements `init()` returning its name. Reloadable modules set `reloadable = true` and add `reload()`; a module holding something adds `stop()`, and `release()` when it should let go before a reload rebuilds what is under it; `consoleOnly = true` skips the module under `henri console`.
 
 Here is a real one. It adds a route of its own, so it has to run after the Express app exists and before the routes are mounted — which is exactly what it says:
 
 ```js
 // app/modules/metrics.js
-const BaseModule = require('@usehenri/core/src/base/module');
+const BaseModule = require('@usehenri/core/module');
 
 class Metrics extends BaseModule {
   constructor() {
@@ -106,7 +106,7 @@ itself takes the name of its file, so the shortest one there is is:
 
 ```js
 // app/modules/heartbeat.js
-const BaseModule = require('@usehenri/core/src/base/module');
+const BaseModule = require('@usehenri/core/module');
 
 module.exports = class extends BaseModule {
   async init() {
@@ -145,7 +145,7 @@ Depending on the package is then all an application has to do:
 
 ```js
 // node_modules/henri-audit-log/module.js
-const BaseModule = require('@usehenri/core/src/base/module');
+const BaseModule = require('@usehenri/core/module');
 
 class AuditLog extends BaseModule {
   constructor() {

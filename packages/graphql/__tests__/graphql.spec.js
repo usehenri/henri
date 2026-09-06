@@ -1,7 +1,7 @@
 const express = require('express');
 const supertest = require('supertest');
 
-const BaseModule = require('@usehenri/core/src/base/module');
+const BaseModule = require('@usehenri/core/module');
 
 const create = require('..');
 const { fakeHenri } = require('./helpers');

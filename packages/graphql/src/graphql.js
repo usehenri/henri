@@ -1,4 +1,4 @@
-const BaseModule = require('@usehenri/core/src/base/module');
+const BaseModule = require('@usehenri/core/module');
 const { mergeTypeDefs, mergeResolvers } = require('@graphql-tools/merge');
 const { makeExecutableSchema } = require('@graphql-tools/schema');
 const { ApolloServer } = require('@apollo/server');
