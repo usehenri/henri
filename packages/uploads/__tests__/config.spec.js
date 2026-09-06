@@ -26,6 +26,17 @@ describe('sizes', () => {
     expect(bytes(null)).toBeNull();
   });
 
+  test('a size with a long run of whitespace is refused in constant time', () => {
+    // `^\s*…\s*$` around an optional group is quadratic: the two star
+    // quantifiers share the run one position at a time, and 100k spaces
+    // took five seconds. The whitespace is trimmed before the match now.
+    const hostile = `9${' '.repeat(100000)}!`;
+    const started = process.hrtime.bigint();
+
+    expect(bytes(hostile, 42)).toBe(42);
+    expect(Number(process.hrtime.bigint() - started) / 1e6).toBeLessThan(50);
+  });
+
   test('and they print the way the documentation writes them', () => {
     expect(format(10 * MB)).toBe('10mb');
     expect(format(512 * 1024)).toBe('512kb');

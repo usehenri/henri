@@ -12,7 +12,15 @@
 const UNITS = { gb: 1024 * 1024 * 1024, kb: 1024, mb: 1024 * 1024 };
 
 /** A size: a number, with an optional unit */
-const SIZE = /^\s*(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?\s*$/iu;
+/**
+ * The written form: an amount, then a unit.
+ *
+ * The surrounding whitespace is trimmed before this runs rather than
+ * matched by it: `^\s*…\s*$` around an optional group is quadratic, and
+ * `'9' + ' '.repeat(100000) + '!'` took five seconds to refuse when the two
+ * star quantifiers had a run of spaces to share between them.
+ */
+const SIZE = /^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?$/iu;
 
 /**
  * A size in bytes
@@ -34,7 +42,7 @@ function bytes(value, fallback = null) {
     return fallback;
   }
 
-  const match = SIZE.exec(value);
+  const match = SIZE.exec(value.trim());
 
   if (!match) {
     return fallback;

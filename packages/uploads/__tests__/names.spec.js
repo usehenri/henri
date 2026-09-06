@@ -28,6 +28,18 @@ describe('the original name', () => {
     expect(safeName(given)).toBe(expected);
   });
 
+  test('a name that is one long run of whitespace is cleaned in constant time', () => {
+    // The filename is whatever the client sent, and it is cleaned before
+    // maxFilenameLength ever applies, so the cleaner is reachable with as
+    // much as a multipart header allows. Trimming the edges by matching
+    // `[\s.]+$` was quadratic: 100k tabs took 5.8 seconds.
+    const hostile = `${'\t'.repeat(100000)}x`;
+    const started = process.hrtime.bigint();
+
+    expect(safeName(hostile)).toBe('x');
+    expect(Number(process.hrtime.bigint() - started) / 1e6).toBeLessThan(50);
+  });
+
   test('a NUL byte, and everything else that is not printable, is removed', () => {
     expect(safeName('shell\u0000.png')).toBe('shell.png');
     expect(safeName('a\u0007b\u001bc.png')).toBe('abc.png');

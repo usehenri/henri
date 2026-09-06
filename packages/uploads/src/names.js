@@ -38,6 +38,33 @@ const RESERVED =
 const KEY = /^(?:[0-9a-z][0-9a-z-]{0,63}\/)*[0-9a-f]{32}\.[0-9a-z]{1,8}$/u;
 
 /**
+ * A name without the leading and trailing whitespace and dots.
+ *
+ * Scanned rather than matched: `[\s.]+$` is quadratic on a name that is a
+ * long run of whitespace followed by anything else, and a filename is
+ * whatever the client sent -- a hundred thousand tabs took five seconds
+ * here before this was two index walks.
+ *
+ * @param {string} value the name so far
+ * @returns {string} the name without its edges
+ */
+function trimmed(value) {
+  const strip = (char) => char === '.' || /\s/u.test(char);
+  let start = 0;
+  let end = value.length;
+
+  while (start < end && strip(value[start])) {
+    start += 1;
+  }
+
+  while (end > start && strip(value[end - 1])) {
+    end -= 1;
+  }
+
+  return value.slice(start, end);
+}
+
+/**
  * The original name, cleaned: safe to store, to print and to hand a browser
  *
  * @param {*} original what the client called the file
@@ -51,11 +78,7 @@ function safeName(original, max = MAX_NAME) {
 
   // Both separators, because a Windows client sends a Windows path
   const base = original.split(/[/\\]/u).pop() || '';
-  const cleaned = base
-    .replace(UNSAFE, '')
-    .replace(/^[\s.]+/u, '')
-    .replace(/[\s.]+$/u, '')
-    .trim();
+  const cleaned = trimmed(base.replace(UNSAFE, ''));
 
   if (cleaned.length === 0) {
     return FALLBACK;
