@@ -6,6 +6,14 @@
  * // or, without the middleware
  * const data = henri.params(req).permit(['title', 'year']);
  * ```
+ *
+ * An action that declared what it accepts (`params` in the controller, see
+ * `base/params-schema.js`) has had those fields checked and coerced before
+ * it ran: they are the last source merged here, so `req.permit('year')`
+ * answers the number and not the string it arrived as, and `req.permit()`
+ * with no field at all answers everything the declaration accepted. Without
+ * a declaration nothing changes: `permit()` answers `{}`, because nothing is
+ * permitted unless it is named.
  */
 const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -41,10 +49,12 @@ function merge(target, source) {
  */
 function params(req) {
   const merged = {};
+  const accepted = (req && req._accepted) || null;
 
   merge(merged, req && req.query);
   merge(merged, req && req.body);
   merge(merged, req && req.params);
+  merge(merged, accepted);
 
   return {
     /**
@@ -55,7 +65,9 @@ function params(req) {
     all: () => Object.assign({}, merged),
 
     /**
-     * Only the listed fields; missing ones are omitted, not set to undefined
+     * Only the listed fields; missing ones are omitted, not set to undefined.
+     * With no field at all: everything the action declared it accepts, which
+     * is the same list, already checked and coerced.
      *
      * @param {...(string|Array<string>)} fields allowed field names
      * @returns {object} a plain object containing only the permitted fields
@@ -63,6 +75,10 @@ function params(req) {
     permit: (...fields) => {
       const allowed = fields.flat(Infinity);
       const result = {};
+
+      if (allowed.length === 0 && accepted) {
+        return Object.assign({}, accepted);
+      }
 
       for (const field of allowed) {
         if (

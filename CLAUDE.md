@@ -590,11 +590,29 @@ perform|retry|discard` drive it. The module also registers
 - Controllers may export `before` (`base/hooks.js`): hooks the router runs
   between the role guard and the action, keyed by action (`all`,
   `'show,edit'`) or as `[fn, { run, only, except }]`; a hook that answers ends
-  the request, and `before` is the one export that is never an action. The
-  same module wraps every action so that returning without answering renders
-  `/<controller>/<action>` (`/<controller>` for `index`) with what it
-  returned. `req.flash()` (`base/flash.js`) keeps one-shot messages in the
+  the request, and `before` is one of the two exports that are never an
+  action. The same module wraps every action so that returning without
+  answering renders `/<controller>/<action>` (`/<controller>` for `index`)
+  with what it returned. `req.flash()` (`base/flash.js`) keeps one-shot messages in the
   express session and the views read them once through `flash`.
+- The other one is `params` (`base/params-schema.js`): what each action
+  accepts, in the same shape (`all`, `'index,search'`), one rule per field in
+  the henri schema vocabulary (`type`, `required`, `default`, `enum`) plus the
+  bounds a request needs (`min`/`max`, `minLength`/`maxLength`, `pattern`,
+  `of`, and `array` next to the model types). `2.controllers.js` compiles the
+  block at boot, so a rule henri cannot carry out fails the boot naming the
+  controller, the action and the key (`HENRI_PARAMS_DECLARATION_INVALID`)
+  rather than accepting everything; `controllers.accepts()`/`checks()` and
+  `5.router.js` put the check behind the role and policy guards and ahead of
+  the `before` hooks. The rule is the source: a textual source (the query
+  string, a path parameter, a form body) is **parsed** into the type, a JSON
+  body is **checked** and never parsed, so `{"page": "2"}` is refused. What is
+  accepted is written back where it came from -- `req.query.page` is the
+  number -- and `req.permit()` with no field answers the whole declaration;
+  an undeclared key is dropped, never refused. A request that does not match
+  answers 422 with `{ field: message }` and `HENRI_PARAMS_INVALID`, negotiated
+  like everything else (a browser that posted a form goes back to it with the
+  messages in the flash). An action with no declaration is untouched.
 - Mailers (`2.mailers.js`) are `app/mailers/*.js` loaded like controllers:
   every exported function is an action returning the message it wants sent
   (`to`, `subject`, `data`, and anything else nodemailer takes), `defaults`

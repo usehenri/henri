@@ -1287,7 +1287,9 @@ declare namespace start {
     _henri: ViewOptions;
     /**
      * The listed fields from the query string, body and path parameters
-     * (later sources win); missing fields are omitted.
+     * (later sources win); missing fields are omitted. With no field at all:
+     * everything the action declared it accepts (`params` in the controller),
+     * already checked and coerced -- and `{}` when it declared nothing.
      */
     permit(...fields: Array<string | string[]>): Record<string, unknown>;
     /**
@@ -1424,19 +1426,56 @@ declare namespace start {
    */
   type BeforeBlock = Record<string, Hook | Hook[]> | Array<Hook | HookSelector>;
 
+  /** The types a parameter rule may declare: the model types, plus lists. */
+  type ParamType = FieldType | 'array';
+
+  /**
+   * One field an action accepts. A textual source (the query string, a path
+   * parameter, a form body) is parsed into the type; a JSON body is checked
+   * against it and never parsed.
+   */
+  interface ParamRule {
+    type: ParamType;
+    /** The field has to be there. */
+    required?: boolean;
+    /** What an absent field is worth; a function is called per request. */
+    default?: unknown | (() => unknown);
+    /** The values accepted, checked after the coercion. */
+    enum?: unknown[];
+    /** The bounds of a number. */
+    min?: number;
+    max?: number;
+    /** The bounds of a length: characters of a string, items of a list. */
+    minLength?: number;
+    maxLength?: number;
+    /** A regular expression a string has to match. */
+    pattern?: RegExp;
+    /** The rule every item of a list follows. A list declares it. */
+    of?: ParamRule | ParamType;
+  }
+
+  /**
+   * The `params` block: what each action accepts, keyed by action the way
+   * `before` is (`all`, `'index,search'`), one rule per field. A rule may be
+   * the type itself (`year: 'integer'`).
+   */
+  type ParamsBlock = Record<string, Record<string, ParamRule | ParamType>>;
+
   /**
    * A controller file. Every exported function is an action (`tasks#index`);
-   * `before` is the only reserved key.
+   * `before` and `params` are the reserved keys.
    *
    *     /** @type {import('@usehenri/core').Controller} *\/
    *     module.exports = {
    *       before: { 'show,edit': loadTask },
+   *       params: { create: { title: { type: 'string', required: true } } },
    *       index: async (req, res) => ({ tasks: await Task.find() }),
    *     };
    */
   interface Controller {
     before?: BeforeBlock;
-    [action: string]: Action | BeforeBlock | undefined;
+    params?: ParamsBlock;
+    [action: string]: Action | BeforeBlock | ParamsBlock | undefined;
   }
 
   // ---------------------------------------------------------------------------
@@ -1812,6 +1851,10 @@ declare namespace start {
     get(key: string): Action | undefined;
     /** The `before` hooks of an action, as middlewares. */
     hooks(key: string): Array<(...args: any[]) => unknown>;
+    /** What an action declared it accepts, compiled; null when nothing is. */
+    accepts(key: string): Record<string, ParamRule> | null;
+    /** The parameter check of an action, as middlewares (none, or one). */
+    checks(key: string): Array<(...args: any[]) => unknown>;
     all(): Record<string, unknown>;
     size(): number;
   }
