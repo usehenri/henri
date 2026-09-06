@@ -300,9 +300,11 @@ class Model {
   }
 
   /**
-   * A row by id (null for a malformed id, like a stale session)
+   * A row by id: the public identifier (`externalId`, a uuid) or the
+   * primary key, whichever the caller holds. `null` for a malformed id,
+   * like a stale session.
    *
-   * @param {*} id The id
+   * @param {*} id An external id or a primary key
    * @param {object} [options={}] Options (`include`, `withHidden`)
    * @returns {Promise<?Model>} The instance or null
    * @memberof Model
