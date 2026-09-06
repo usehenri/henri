@@ -143,6 +143,15 @@ function errorHandler(henri) {
 
     record && record.error(err, { req, status });
 
+    // Reported once, from here: this handler is the only place a request
+    // failure is answered, so nothing else has to know about the seam. A
+    // 4xx is an answer, not a failure, and is not reported. Not awaited --
+    // the client is not kept waiting for somebody else's api
+    // (base/reporting.js)
+    if (status >= 500 && henri.reporter) {
+      henri.reporter.report(err, { req, source: 'request', status });
+    }
+
     if (res.headersSent) {
       return next(err);
     }

@@ -45,6 +45,12 @@ Henri {
   },
   "prefix": "./packages/demo",
   "release": "0.42.0",
+  "reporter": Reporter {
+    "_handler": null,
+    "_seen": WeakSet {},
+    "henri": [Circular],
+    "name": "reporter",
+  },
   "runlevel": 1,
   "settings": {
     "arch": "x64",

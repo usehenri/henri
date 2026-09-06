@@ -116,6 +116,28 @@ function redact(value, filters = DEFAULT_FILTER, options = {}) {
 }
 
 /**
+ * The masking of an instance, as one function
+ *
+ * `config.filterParameters` as substrings plus the personal field names
+ * exactly, which is what everything henri prints or hands out has to go
+ * through. `pen` and the error reporter (`base/reporting.js`) both take
+ * their masking from here, so "the structured line is masked the way the
+ * pretty one is" is a fact of the code rather than two implementations that
+ * agree today.
+ *
+ * @param {*} [inst] a henri instance (`global.henri` when there is none)
+ * @returns {function} `(value) => value`, redacted
+ */
+function redactor(inst) {
+  const instance = inst || global.henri;
+  const filters = filterParameters(instance && instance.config);
+  const keys =
+    (instance && instance.privacy && instance.privacy.keys) || undefined;
+
+  return (value) => redact(value, filters, { keys });
+}
+
+/**
  * A url with the values of the filtered query parameters masked
  *
  * @param {string} url a url or a path (`/login?token=abc`)
@@ -151,4 +173,5 @@ module.exports = {
   isFiltered,
   redact,
   redactUrl,
+  redactor,
 };

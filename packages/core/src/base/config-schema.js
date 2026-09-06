@@ -75,6 +75,9 @@ const ENCRYPTION_KEY = {
   type: 'string',
 };
 
+/** What `logs.format` accepts (`base/logs.js`, which owns the meaning) */
+const LOG_FORMATS = ['auto', 'json', 'pretty'];
+
 /** A string that is not empty */
 const text = (extra = {}) => ({ pattern: /\S/u, type: 'string', ...extra });
 
@@ -1106,6 +1109,20 @@ const SCHEMA = {
     oneOf: [{ const: false }, { of: text(), type: 'array' }],
   },
 
+  logs: {
+    describe: 'an object of log settings',
+    keys: {
+      format: {
+        default: 'auto',
+        describe: 'one of auto, json, pretty',
+        enum: LOG_FORMATS,
+        hint: 'auto is json in production and the pretty lines everywhere else; json writes one object per line, with the module, the level and the request id as fields',
+        type: 'string',
+      },
+    },
+    type: 'object',
+  },
+
   encryption: {
     describe: 'an object of encrypted attribute settings',
     hint: 'Which fields are encrypted is said in the models ({ encrypted: true }); this is the key that opens them',
@@ -1346,4 +1363,12 @@ const SCHEMA = {
   },
 };
 
-module.exports = { ADAPTERS, DIALECTS, READS, RENDERERS, SCHEMA, STORE };
+module.exports = {
+  ADAPTERS,
+  DIALECTS,
+  LOG_FORMATS,
+  READS,
+  RENDERERS,
+  SCHEMA,
+  STORE,
+};
