@@ -191,6 +191,20 @@ const mailer = ([name], ctx) => {
 };
 
 /**
+ * Removes a policy and its test
+ *
+ * @param {string[]} [name] Policy name (the model it is about)
+ * @param {object} ctx Context
+ * @return {void}
+ */
+const policy = ([name], ctx) => {
+  const lower = name.toLowerCase();
+
+  deleteOrBackup('policy', path.join('app', 'policies', `${lower}.js`), ctx);
+  deleteOrBackup('test', path.join('test', `${lower}-policy.test.js`), ctx);
+};
+
+/**
  * Removes a test file
  *
  * @param {string[]} [name] Test name
@@ -337,6 +351,7 @@ const destroyers = {
   job,
   mailer,
   model,
+  policy,
   route,
   scaffold,
   test,

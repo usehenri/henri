@@ -433,6 +433,63 @@ describe('henri generate', () => {
       expect(exists(app, 'app/views/mailers/alerts/notify.hbs')).toBe(true);
     });
 
+    test('writes a policy that refuses everything it was not told about', () => {
+      const { status } = henri(['g', 'policy', 'Proposal', 'speakerId'], {
+        cwd: app,
+      });
+
+      expect(status).toBe(0);
+      expect(() => parseFile(app, 'app/policies/proposal.js')).not.toThrow();
+
+      const policy = require(path.join(app, 'app/policies/proposal.js'));
+      const owner = { id: 7 };
+      const stranger = { id: 8 };
+      const proposal = { speakerId: 7 };
+
+      // The seven actions of a resource, all of them written: an action a
+      // policy leaves out is refused, so the stub leaves none out
+      for (const action of [
+        'index',
+        'new',
+        'create',
+        'show',
+        'edit',
+        'update',
+        'destroy',
+      ]) {
+        expect(typeof policy[action]).toBe('function');
+      }
+
+      expect(policy.update(owner, proposal)).toBe(true);
+      expect(policy.update(stranger, proposal)).toBe(false);
+      expect(policy.show(null, proposal)).toBe(false);
+      expect(policy.index(null)).toBe(false);
+      // The rules that need a record declare one, which is what keeps them
+      // from being answered without it
+      expect(policy.update.length).toBe(2);
+      expect(policy.index.length).toBe(1);
+      // The other half: which records a list may hold
+      expect(policy.scope(owner)).toEqual({ speakerId: 7 });
+
+      expect(() =>
+        parseFile(app, 'test/proposal-policy.test.js')
+      ).not.toThrow();
+      expect(read(app, 'test/proposal-policy.test.js')).toContain(
+        "henri.can(stranger, 'update'"
+      );
+    });
+
+    test('a policy defaults to a userId column', () => {
+      const { status } = henri(['g', 'policy', 'Note'], { cwd: app });
+
+      expect(status).toBe(0);
+
+      const policy = require(path.join(app, 'app/policies/note.js'));
+
+      expect(policy.show({ id: 3 }, { userId: 3 })).toBe(true);
+      expect(policy.show({ id: 4 }, { userId: 3 })).toBe(false);
+    });
+
     test('writes a test using @usehenri/testing', () => {
       const { status } = henri(['g', 'test', 'things'], { cwd: app });
 

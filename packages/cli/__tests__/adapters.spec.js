@@ -348,7 +348,7 @@ describe('the scaffolded resource follows the adapter', () => {
     expect(agents).toContain('henri db:generate|migrate|push|status');
     expect(agents).not.toContain('{{');
     // The budget of new.spec.js, on the store with the most to say
-    expect(agents.split('\n').length).toBeLessThan(170);
+    expect(agents.split('\n').length).toBeLessThan(185);
 
     const readme = read(app, 'README.md');
 

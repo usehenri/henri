@@ -423,6 +423,11 @@ const COMMANDS = [
           'delete app/mailers/<name>.js and app/views/mailers/<name>',
         name: 'mailer <name>',
       },
+      {
+        description:
+          'delete app/policies/<name>.js and test/<name>-policy.test.js',
+        name: 'policy <Name>',
+      },
       { description: 'delete test/<name>.test.js', name: 'test <name>' },
       { description: 'undo "generate crud"', name: 'crud <Name>' },
       { description: 'undo "generate scaffold"', name: 'scaffold <Name>' },
@@ -459,7 +464,8 @@ const COMMANDS = [
   {
     aliases: ['g'],
     description: [
-      'Writes models, controllers, routes, views, mailers, workers and tests',
+      'Writes models, controllers, routes, views, policies, mailers, workers',
+      'and tests',
       'in the henri layout. Existing files are skipped; --force overwrites',
       'them.',
       `Field types: ${FIELD_TYPES} (default: string).`,
@@ -498,6 +504,11 @@ const COMMANDS = [
         command: 'henri g mailer welcome confirm',
         description:
           'Creates app/mailers/welcome.js and app/views/mailers/welcome/confirm.hbs; preview it on /_mailers',
+      },
+      {
+        command: 'henri g policy HighScore playerId',
+        description:
+          'Creates app/policies/highscore.js and its test: who may read and write one record',
       },
       {
         command: 'henri g test highscores',
@@ -545,6 +556,11 @@ const COMMANDS = [
         description:
           'app/mailers/<name>.js, a mail view per action and the layout',
         name: 'mailer <name> [action ...]',
+      },
+      {
+        description:
+          'app/policies/<name>.js: who may read and write one record, and its test',
+        name: 'policy <Name> [ownerColumn]',
       },
       {
         description: 'test/<name>.test.js using @usehenri/testing',

@@ -10,6 +10,7 @@ const {
   controllerOf,
   expand,
   expandEntry,
+  singularize,
 } = require('@usehenri/core/src/base/routes');
 
-module.exports = { VERBS, controllerOf, expand, expandEntry };
+module.exports = { VERBS, controllerOf, expand, expandEntry, singularize };

@@ -9,6 +9,7 @@ const { readRoutes, validInstall } = require('./utils');
  */
 const table = (routes) => {
   const hasRoles = routes.some((route) => route.roles);
+  const hasPolicies = routes.some((route) => route.policy);
   const headers = ['Verb', 'Path', 'Controller', 'Helper'];
   const rows = routes.map((route) => [
     route.verb.toUpperCase(),
@@ -21,6 +22,20 @@ const table = (routes) => {
     headers.push('Roles');
     routes.forEach((route, index) =>
       rows[index].push(route.roles ? [].concat(route.roles).join(', ') : '')
+    );
+  }
+
+  // The two guards are printed apart because they answer different
+  // questions: the roles say who may reach the route, the policy who may
+  // act on the record behind it
+  if (hasPolicies) {
+    headers.push('Policy');
+    routes.forEach((route, index) =>
+      rows[index].push(
+        route.policy === true
+          ? route.controller.split('#')[0]
+          : String(route.policy || '')
+      )
     );
   }
 
