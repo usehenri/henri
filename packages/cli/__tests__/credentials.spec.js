@@ -214,6 +214,111 @@ fs.writeFileSync(
     ).toBe(before);
   });
 
+  test('rotate re-encrypts under a new key and keeps the values', () => {
+    edit();
+
+    const keyFile = path.join(app, 'config', 'credentials', 'dev.key');
+    const file = path.join(app, 'config', 'credentials', 'dev.json.enc');
+    const before = {
+      content: fs.readFileSync(file, 'utf8'),
+      key: fs.readFileSync(keyFile, 'utf8').trim(),
+    };
+
+    const { status, stdout } = run(['credentials:rotate', '--env', 'dev'], app);
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('Re-encrypted config/credentials/dev.json.enc');
+    expect(stdout).toContain('Wrote the new key to config/credentials/dev.key');
+    expect(stdout).not.toContain(SECRET);
+
+    const after = {
+      content: fs.readFileSync(file, 'utf8'),
+      key: fs.readFileSync(keyFile, 'utf8').trim(),
+    };
+
+    expect(after.key).toMatch(/^[0-9a-f]{64}$/);
+    expect(after.key).not.toBe(before.key);
+    expect(after.content).not.toBe(before.content);
+    expect(fs.statSync(keyFile).mode & 0o777).toBe(0o600);
+
+    // The values survived, and the old key opens nothing
+    const opened = run(['credentials:show', '--env', 'dev'], app);
+
+    expect(JSON.parse(opened.stdout).mail.auth.pass).toBe(SECRET);
+
+    fs.rmSync(keyFile);
+
+    const stale = henri(['credentials:show', '--env', 'dev', '--json'], {
+      cwd: app,
+      env: { ...process.env, HENRI_CREDENTIALS_KEY: before.key },
+    });
+
+    expect(stale.status).toBe(1);
+    expect(JSON.parse(stale.stderr).error.message).toContain(
+      'could not be decrypted'
+    );
+  });
+
+  test('rotate prints the new key when the environment held the old one', () => {
+    edit();
+
+    const keyFile = path.join(app, 'config', 'credentials', 'dev.key');
+    const old = fs.readFileSync(keyFile, 'utf8').trim();
+
+    fs.rmSync(keyFile);
+
+    const { status, stdout } = henri(['credentials:rotate', '--env', 'dev'], {
+      cwd: app,
+      env: { ...process.env, HENRI_CREDENTIALS_KEY: old },
+    });
+    const printed = (stdout.match(/[0-9a-f]{64}/u) || [])[0];
+
+    expect(status).toBe(0);
+    expect(printed).toBeDefined();
+    expect(printed).not.toBe(old);
+    // A deployment that has no key file is not given one
+    expect(fs.existsSync(keyFile)).toBe(false);
+
+    const opened = henri(['credentials:show', '--env', 'dev'], {
+      cwd: app,
+      env: { ...process.env, HENRI_CREDENTIALS_KEY: printed },
+    });
+
+    expect(JSON.parse(opened.stdout).mail.auth.pass).toBe(SECRET);
+
+    // --json never prints it
+    const asJson = henri(['credentials:rotate', '--env', 'dev', '--json'], {
+      cwd: app,
+      env: { ...process.env, HENRI_CREDENTIALS_KEY: printed },
+    });
+
+    expect(asJson.stdout).not.toMatch(/[0-9a-f]{64}/u);
+    expect(JSON.parse(asJson.stdout).command).toBe('rotate');
+  });
+
+  test('rotate needs the current key, and changes nothing without it', () => {
+    edit();
+
+    const file = path.join(app, 'config', 'credentials', 'dev.json.enc');
+    const before = fs.readFileSync(file, 'utf8');
+
+    fs.rmSync(path.join(app, 'config', 'credentials', 'dev.key'));
+
+    const { status, stderr } = henri(
+      ['credentials:rotate', '--env', 'dev', '--json'],
+      {
+        cwd: app,
+        env: { ...process.env, HENRI_CREDENTIALS_KEY: 'ab'.repeat(32) },
+      }
+    );
+
+    expect(status).toBe(1);
+    expect(JSON.parse(stderr).error.message).toContain(
+      'could not be decrypted'
+    );
+    expect(fs.readFileSync(file, 'utf8')).toBe(before);
+  });
+
   test('a wrong key says so without quoting anything', () => {
     edit();
 

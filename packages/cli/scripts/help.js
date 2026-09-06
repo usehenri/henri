@@ -208,7 +208,14 @@ const COMMANDS = [
       'edit decrypts into a file only you can read, opens EDITOR (or VISUAL)',
       'and encrypts what comes back; the plaintext is removed on every exit',
       'path. The first edit of an environment generates the key and the file.',
-      'Neither command prints a secret with --json.',
+      '',
+      'rotate re-encrypts the file under a fresh key, which is what to run',
+      'when a key may have leaked. The old key has to open the file first,',
+      'and the new file is read back before the new key is stored, so a',
+      'rotation cannot lose the contents. The new key is written to the key',
+      'file, or printed once when HENRI_CREDENTIALS_KEY held the old one.',
+      '',
+      'No command prints a secret with --json.',
     ],
     examples: [
       {
@@ -222,6 +229,10 @@ const COMMANDS = [
       {
         command: 'henri credentials:show --env production --json',
         description: 'The key paths the file holds, without their values',
+      },
+      {
+        command: 'henri credentials:rotate --env production',
+        description: 'Re-encrypts under a new key; the old one opens nothing',
       },
     ],
     flags: [
@@ -241,6 +252,10 @@ const COMMANDS = [
       {
         description: 'decrypt, open EDITOR, encrypt what comes back',
         name: 'edit',
+      },
+      {
+        description: 're-encrypt under a new key, keeping the values',
+        name: 'rotate',
       },
       {
         description: 'print the decrypted credentials on stdout',
