@@ -13,6 +13,7 @@ const PACKAGES = [
   '@usehenri/mssql',
   '@usehenri/react',
   '@usehenri/inertia',
+  '@usehenri/graphql',
   '@usehenri/testing',
   '@usehenri/mcp',
   'next',

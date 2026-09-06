@@ -1,0 +1,56 @@
+{
+  "name": "@usehenri/graphql",
+  "version": "1.1.0",
+  "description": "henri GraphQL: the types and resolvers of the models, merged and served by Apollo Server",
+  "license": "MIT",
+  "author": "Felix-Antoine Paradis",
+  "homepage": "https://usehenri.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehenri/henri.git",
+    "directory": "packages/graphql"
+  },
+  "bugs": {
+    "url": "https://github.com/usehenri/henri/issues"
+  },
+  "keywords": [
+    "henri",
+    "graphql",
+    "apollo",
+    "schema",
+    "resolvers"
+  ],
+  "main": "index.js",
+  "henri": {
+    "module": "./module.js"
+  },
+  "files": [
+    "index.js",
+    "module.js",
+    "src",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@apollo/server": "^5.2.0",
+    "@as-integrations/express5": "^1.1.2",
+    "@graphql-tools/merge": "^9.2.3",
+    "@graphql-tools/schema": "^10.1.0",
+    "debug": "^4.4.3",
+    "graphql": "^16.11.0"
+  },
+  "peerDependencies": {
+    "@usehenri/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@usehenri/core": "workspace:^",
+    "express": "^5.2.1",
+    "supertest": "^7.2.2"
+  }
+}

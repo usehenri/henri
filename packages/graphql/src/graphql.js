@@ -1,4 +1,4 @@
-const BaseModule = require('./base/module');
+const BaseModule = require('@usehenri/core/module');
 const { mergeTypeDefs, mergeResolvers } = require('@graphql-tools/merge');
 const { makeExecutableSchema } = require('@graphql-tools/schema');
 const { ApolloServer } = require('@apollo/server');
@@ -11,8 +11,8 @@ const {
   cancellation,
   graphqlConfig,
   queryLimits,
-} = require('./base/graphql-guard');
-const { loopbackOnly } = require('./base/http');
+} = require('./graphql-guard');
+const { loopbackOnly } = require('./loopback');
 
 /**
  * Build a GraphQLError subclass carrying an `extensions.code`
@@ -41,7 +41,15 @@ const ValidationError = errorWithCode('GRAPHQL_VALIDATION_FAILED');
 const SyntaxError = errorWithCode('GRAPHQL_PARSE_FAILED');
 
 /**
- * GraphQL module
+ * The GraphQL module of henri
+ *
+ * This package ships it (`"henri": { "module": "./module.js" }` in its
+ * package.json), so an application that depends on the package has it in the
+ * boot as `henri.graphql`, with nothing else to write. An application that
+ * does not never loads Apollo Server, and `henri.graphql` is undefined.
+ *
+ * It only needs the configuration: the schema is built from the models,
+ * which extract into it at their own level.
  *
  * @class Graphql
  * @extends {BaseModule}
@@ -49,16 +57,18 @@ const SyntaxError = errorWithCode('GRAPHQL_PARSE_FAILED');
 class Graphql extends BaseModule {
   /**
    * Creates an instance of Graphql.
+   *
+   * @param {object} [henri=null] A henri instance
    * @memberof Graphql
    */
-  constructor() {
+  constructor(henri = null) {
     super();
 
     this.reloadable = true;
     this.needs = ['config'];
     this.runlevel = 1;
     this.name = 'graphql';
-    this.henri = null;
+    this.henri = henri;
 
     this.typesList = [];
     this.resolversList = [];
@@ -173,7 +183,7 @@ class Graphql extends BaseModule {
         const guards = [];
 
         if (this.settings.loopbackOnly) {
-          guards.push(loopbackOnly());
+          guards.push(loopbackOnly(this.henri));
         }
 
         guards.push(accessGuard(this.settings));

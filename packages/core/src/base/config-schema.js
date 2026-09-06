@@ -408,6 +408,12 @@ const SCHEMA = {
     ],
   },
 
+  // Every key below is validated here without core reading any of it: the
+  // engine is a module @usehenri/graphql ships (see base/graphql.js).
+  // config/<env>.json is core's file, so an application that sets `graphql`
+  // must be told the shape is wrong rather than have the key pass unread.
+  // This node stays where it is -- it is not a stale reference to code that
+  // left.
   graphql: {
     default: '/_henri/gql',
     describe: 'a path starting with /, or an object ({ endpoint, ... })',

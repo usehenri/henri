@@ -25,14 +25,14 @@ The levels of henri's own modules:
 | Level | Modules                                                                                          |
 | ----- | ------------------------------------------------------------------------------------------------ |
 | 0     | `config`: `config/<env>.json`, `.env`, the credentials                                           |
-| 1     | `mail`, `graphql`                                                                                |
+| 1     | `mail` (and `graphql`, from `@usehenri/graphql`, when the application has it)                    |
 | 2     | `controllers`, `mailers` (`app/mailers`), `server` (the Express app is built, not listening yet) |
 | 3     | `model` (stores and model globals), `view` (the engine's `init()`)                               |
 | 4     | `user` (sessions, passport, CSRF, `req.permit()`), `jobs` (the queue)                            |
 | 5     | `router` (routes, the engine's `prepare()`, then the server listens), `workers`                  |
 | 6     | your own modules                                                                                 |
 
-They are also what they declare, which is what actually orders them: `model` needs `config` and `graphql`, `view` needs `config` and `server`, `user` needs `config`, `model` and `server`, `router` needs `config`, `controllers`, `server` and `user` and runs after `view` and `mailers`, `jobs` needs `config` and `model` and runs after `mailers`, `workers` needs `config` and `model` and runs after `user`. Nothing else separates them, so `mail`, `graphql`, `controllers` and `server` start together as soon as the configuration is read, and `mailers`, `model` and `view` follow as soon as each of them can.
+They are also what they declare, which is what actually orders them: `model` needs `config` and runs after `graphql`, `view` needs `config` and `server`, `user` needs `config`, `model` and `server`, `router` needs `config`, `controllers`, `server` and `user` and runs after `view` and `mailers`, `jobs` needs `config` and `model` and runs after `mailers`, `workers` needs `config` and `model` and runs after `user`. Nothing else separates them, so `mail`, `controllers` and `server` start together as soon as the configuration is read, and `mailers`, `model` and `view` follow as soon as each of them can. `graphql` is not one of henri's own: it arrives from `@usehenri/graphql` when the application depends on it, which is why `model` runs _after_ it rather than _needing_ it.
 
 The logger (`henri.pen`) and the registry (`henri.modules`) exist before level 0.
 
@@ -42,13 +42,13 @@ The logger (`henri.pen`) and the registry (`henri.modules`) exist before level 0
 
 ## Writing a module
 
-A module extends `BaseModule`, has a unique `name`, says where it goes, and implements `init()` returning its name. Reloadable modules set `reloadable = true` and add `reload()`; a module holding something adds `stop()`, and `release()` when it should let go before a reload rebuilds what is under it; `consoleOnly = true` skips the module under `henri console`.
+A module extends `BaseModule` (`require('@usehenri/core/module')`, the supported path to it), has a unique `name`, says where it goes, and implements `init()` returning its name. Reloadable modules set `reloadable = true` and add `reload()`; a module holding something adds `stop()`, and `release()` when it should let go before a reload rebuilds what is under it; `consoleOnly = true` skips the module under `henri console`.
 
 Here is a real one. It adds a route of its own, so it has to run after the Express app exists and before the routes are mounted — which is exactly what it says:
 
 ```js
 // app/modules/metrics.js
-const BaseModule = require('@usehenri/core/src/base/module');
+const BaseModule = require('@usehenri/core/module');
 
 class Metrics extends BaseModule {
   constructor() {
@@ -106,7 +106,7 @@ itself takes the name of its file, so the shortest one there is is:
 
 ```js
 // app/modules/heartbeat.js
-const BaseModule = require('@usehenri/core/src/base/module');
+const BaseModule = require('@usehenri/core/module');
 
 module.exports = class extends BaseModule {
   async init() {
@@ -145,7 +145,7 @@ Depending on the package is then all an application has to do:
 
 ```js
 // node_modules/henri-audit-log/module.js
-const BaseModule = require('@usehenri/core/src/base/module');
+const BaseModule = require('@usehenri/core/module');
 
 class AuditLog extends BaseModule {
   constructor() {
@@ -170,7 +170,9 @@ npm install henri-audit-log
 ```
 
 henri reads the `dependencies` and `devDependencies` of the application, and
-every package declaring `henri.module` is in the boot as `henri.audit`. Nothing
+every package declaring `henri.module` is in the boot as `henri.audit`.
+[`@usehenri/graphql`](/guides/graphql/) is one of henri's own packages doing
+exactly this: installing it is what puts `henri.graphql` in the boot. Nothing
 else is written on either side, which is what lets somebody publish a module
 and somebody else use it. The module file does not have to be in the package's
 `exports` map — henri resolves it from the package's own directory — but the
@@ -221,7 +223,7 @@ The graph is built before anything starts, so these fail at the boot, not halfwa
 
 ```text
 modules => "metrics" needs "srever", which no module provides.
-  Loaded modules: config (0), mail (1), graphql (1), controllers (2), mailers (2), server (2), model (3), view (3), user (4), router (5), workers (5), metrics (5)
+  Loaded modules: config (0), mail (1), controllers (2), mailers (2), server (2), model (3), view (3), user (4), router (5), workers (5), metrics (5)
   Did you mean: server?
 ```
 
@@ -261,7 +263,7 @@ henri analyze metrics
 In development the server watches `app/controllers`, `app/helpers`, `app/jobs`, `app/mailers`, `app/models`, `app/workers`, `app/views/partials`, `config` and `package.json`. Changes are debounced, every changed file is syntax checked first (an error is printed and nothing reloads), then `henri.reload()` runs in two passes over the same graph:
 
 1. **Release**, the graph backwards. Every module implementing `release()` is asked to let go of what it holds, before anything rebuilds under it. It is called on every module that has one, reloadable or not: a module that never reloads can still hold a connection the model module is about to replace.
-2. **Reload**, the graph forwards, like the boot. The application's own files are evicted from the require cache (nothing under `node_modules`), then every module with `reloadable = true` runs its `reload()` as soon as the reloadable modules it waits on are done: `config`, then `graphql`, `controllers`, `mailers` and `view`, then `model`, then `jobs`, `workers` and `router`. `server`, `mail` and `user` are not reloadable.
+2. **Reload**, the graph forwards, like the boot. The application's own files are evicted from the require cache (nothing under `node_modules`), then every module with `reloadable = true` runs its `reload()` as soon as the reloadable modules it waits on are done: `config`, then `controllers`, `mailers`, `view` (and `graphql`, when the application has it), then `model`, then `jobs`, `workers` and `router`. `server`, `mail` and `user` are not reloadable.
 
 A reload is not a shutdown followed by a boot: modules re-initialize in place and tear down what they own inside their own `reload()`. `release()` is the hook for what they do not own — something another module is about to replace. A module implementing neither sees no difference.
 

@@ -191,6 +191,19 @@ const definesAction = (source, action) =>
   new RegExp(`(^|[\\s,{])(async\\s+)?${action}\\s*[:(]`, 'm').test(source);
 
 /**
+ * Does a model source declare a `graphql` key?
+ *
+ * The types and resolvers of the models are merged and served by
+ * `@usehenri/graphql`, which the application installs itself; a model that
+ * declares them without it fails the boot.
+ *
+ * @param {string} source The model source
+ * @returns {boolean} Declared or not
+ */
+const definesGraphql = (source) =>
+  /(^|[\s,{])["']?graphql["']?\s*:/m.test(source);
+
+/**
  * Is a file ignored by a .gitignore? (whole-line match on the usual forms:
  * `.env`, `/.env`, `*.env`, `.env*`)
  *
@@ -621,6 +634,15 @@ const check = (dir = process.cwd()) => {
     }
   }
 
+  // The GraphQL engine is a package of its own: a model that declares types
+  // and resolvers, or a configured endpoint, needs it installed
+  if (
+    typeof config.graphql !== 'undefined' ||
+    models.some((model) => definesGraphql(read(`app/models/${model}.js`)))
+  ) {
+    needed.add('@usehenri/graphql');
+  }
+
   const undeclared = [...needed].filter((name) => !declared[name]);
 
   if (undeclared.length > 0) {
@@ -767,5 +789,6 @@ const main = async (args = {}) => {
 module.exports = main;
 module.exports.check = check;
 module.exports.definesAction = definesAction;
+module.exports.definesGraphql = definesGraphql;
 module.exports.ignores = ignores;
 module.exports.looksPlural = looksPlural;

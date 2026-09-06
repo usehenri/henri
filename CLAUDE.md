@@ -63,7 +63,7 @@ an app and is what core's tests boot.
 | --------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/henri`                        | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                                                  |
 | `packages/cli`                          | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `generate`, `destroy`, `build`, `test`, `db`, `jobs`, `doctor`, `audit`, `mcp`, `clean`, `about`, `analyze`; the app templates |
-| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, mail, GraphQL                                                                                                  |
+| `packages/core`                         | `@usehenri/core`      | The framework: modules, server, router, models, views, users, mail                                                                                                           |
 | `packages/mongoose`                     | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                                                 |
 | `packages/disk`                         | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                                         |
 | `packages/sequelize`                    | `@usehenri/sequelize` | Shared SQL adapter (Sequelize 6)                                                                                                                                             |
@@ -72,6 +72,7 @@ an app and is what core's tests boot.
 | `packages/react`                        | `@usehenri/react`     | Next.js 16 view engine (pages router), `withHenri`, `useHenri`, form components; supported and frozen                                                                        |
 | `packages/inertia`                      | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19; the default renderer of `henri new`                                                                                               |
 | `packages/jobs`                         | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1                                                     |
+| `packages/graphql`                      | `@usehenri/graphql`   | GraphQL: the models' types and resolvers merged and served by Apollo Server; left core in 1.2                                                                                |
 | `packages/testing`                      | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                            |
 | `packages/mcp`                          | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                         |
 | `packages/websocket`                    | private               | Not published, never wired into core                                                                                                                                         |
@@ -82,7 +83,9 @@ an app and is what core's tests boot.
 ## How core works
 
 - `Henri` (`packages/core/src/henri.js`) registers modules, each a class extending
-  `base/module.js` with a unique `name` and `init()`. A module says where it goes
+  `base/module.js` with a unique `name` and `init()`. Packages extend it through
+  `@usehenri/core/module` (`packages/core/module.js`), which is the supported
+  path and the only one to keep working if the file moves. A module says where it goes
   by name (`needs` for what it cannot work without, `after`/`before` for ordering
   only) or by number (`runlevel`: 0 config, 1 mail and graphql, 2 controllers,
   mailers and the Express app, 3 models and the view engine, 4 users and jobs,
@@ -189,6 +192,19 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   engine) or JSON. `res.boom.*` (`base/boom.js`) answers
   `{ statusCode, error, message, data }`; 404 and 500 are negotiated in
   `base/http.js`.
+- GraphQL lives in `@usehenri/graphql`. Core carries none of it: the package
+  ships the module itself (`"henri": { "module": "./module.js" }`, the
+  registration path of `0.modules.js`), so depending on the package is what
+  puts `henri.graphql` in the boot at runlevel 1 (`run`, `endpoint`, `active`,
+  the `GraphQLError` subclasses). The models' `graphql` keys are extracted at
+  runlevel 3 and merged into one executable schema, served by Apollo Server at
+  `config.graphql` (`/_henri/gql`); `3.model.js` declares `after: ['graphql']`,
+  not `needs`, because an application without the package has no such module.
+  The two places that reach for it go through `base/graphql.js`, which throws
+  with the install line: a model declaring a `graphql` key fails the boot, and
+  `res.render(view, { graphql })` fails the request. Everything else is
+  guarded, so an application without either is silent, and `henri doctor`
+  reports the missing dependency.
 - Background jobs live in `@usehenri/jobs`, which core loads from the app the
   way it loads a store adapter (`4.jobs.js`, runlevel 4, so `henri jobs` boots
   to that level and binds no port) and exposes as `henri.jobs`

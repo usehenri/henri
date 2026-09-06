@@ -6,7 +6,6 @@ const validator = require('validator');
 
 const Config = require('./0.config');
 const Mailer = require('./1.mailer');
-const Graphql = require('./1.graphql');
 const Controllers = require('./2.controllers');
 const Mailers = require('./2.mailers');
 const Server = require('./2.server');
@@ -65,7 +64,6 @@ class Henri extends HenriBase {
   async init() {
     this.modules.add(new Config());
     this.modules.add(new Mailer());
-    this.modules.add(new Graphql());
     this.modules.add(new Controllers());
     this.modules.add(new Mailers());
     this.modules.add(new Server());
@@ -204,7 +202,7 @@ class Henri extends HenriBase {
    * Helper method to help prettier parse ans indent Graphql calls
    *
    * @static
-   * @param {Graphql} ast Graphql statement to be evaluated
+   * @param {string} ast Graphql statement to be evaluated
    * @returns {string} same as 'ast' parameter
    * @memberof Henri
    */

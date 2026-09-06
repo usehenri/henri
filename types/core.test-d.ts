@@ -154,6 +154,21 @@ henri.jobs.list({ state: 'sleeping' });
 // @ts-expect-error a job file has to export a perform()
 const broken: JobDefinition = { queue: 'default' };
 
+// --- graphql ----------------------------------------------------------------
+
+// The module arrives from @usehenri/graphql, so an application that does not
+// depend on the package has none: reading it is a check, not a given
+expectType<boolean | undefined>(henri.graphql?.active);
+expectType<string | undefined>(henri.graphql?.endpoint);
+
+if (henri.graphql) {
+  expectType<boolean>(henri.graphql.active);
+  expectType<string>(henri.graphql.endpoint);
+}
+
+// @ts-expect-error `henri.graphql` may be undefined: check it first
+henri.graphql.run('{ tasks }');
+
 // --- request ----------------------------------------------------------------
 
 expectType<string>(req.id);
