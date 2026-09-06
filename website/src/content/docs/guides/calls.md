@@ -69,6 +69,11 @@ Turning this on does not give you an audit trail, and turning the trail on
 does not give you a call log. Reaching for the wrong one either makes a
 second copy of your personal data or produces a record that proves nothing.
 
+There is a third, and it is not this one either:
+[model versions](/guides/versions/) answer _what did this record used to
+say_. They hold values like a call log does, but completely rather than
+sampled, and for as long as you keep them rather than for days.
+
 ## The four bounds
 
 A table that grows without bound, written on the hot path, holding the one
