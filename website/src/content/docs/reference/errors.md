@@ -207,6 +207,35 @@ Usually:
 
 **Fix.** Pass one record (a model instance or a plain object) and use `res.collection()` for lists; outside a `resources` route name the type: `res.resource(record, { type: 'tasks' })`.
 
+## argument
+
+The arguments a public method of henri was called with.
+
+### `HENRI_ARGUMENT_INVALID`
+
+A public method of henri was called with something it cannot honour.
+
+Usually:
+
+- an argument of the wrong type, or one that is missing
+- null where an options object was meant, which no default fills in
+- a misspelled key in an options object (`stratgy` for `strategy`)
+- a value out of the bounds the method accepts
+
+**Fix.** The message names the method, the argument, what was expected and what arrived. Fix the call; the signature of every entry point is in packages/core/src/base/arguments.js and on the API reference page.
+
+### `HENRI_ARGUMENT_UNKNOWN_TARGET`
+
+A call named something to work on and this application has nothing by that name.
+
+Usually:
+
+- a typo in `retention.plan({ only })` or `retention.sweep({ only })`
+- a typo in `encryption.rotate({ model, field })`
+- a model or a rule that was renamed and not renamed here
+
+**Fix.** The hint lists what the option could have named. henri refuses rather than reporting a clean run over nothing, because an empty success is what makes somebody believe the work is done.
+
 ## boot
 
 The module graph and the boot sequence: registration, ordering, dependencies.

@@ -10,6 +10,10 @@
       "what": "the JSON API layer: HAL answers, the health endpoints, the OpenAPI description of what an application exposes and the optional GraphQL engine"
     },
     {
+      "area": "argument",
+      "what": "the arguments a public method of henri was called with"
+    },
+    {
       "area": "boot",
       "what": "the module graph and the boot sequence: registration, ordering, dependencies"
     },
@@ -207,6 +211,29 @@
       "code": "HENRI_API_INVALID_RESOURCE",
       "fix": "Pass one record (a model instance or a plain object) and use `res.collection()` for lists; outside a `resources` route name the type: `res.resource(record, { type: 'tasks' })`.",
       "what": "res.resource() was called with something it cannot turn into a HAL resource."
+    },
+    {
+      "area": "argument",
+      "causes": [
+        "an argument of the wrong type, or one that is missing",
+        "null where an options object was meant, which no default fills in",
+        "a misspelled key in an options object (`stratgy` for `strategy`)",
+        "a value out of the bounds the method accepts"
+      ],
+      "code": "HENRI_ARGUMENT_INVALID",
+      "fix": "The message names the method, the argument, what was expected and what arrived. Fix the call; the signature of every entry point is in packages/core/src/base/arguments.js and on the API reference page.",
+      "what": "A public method of henri was called with something it cannot honour."
+    },
+    {
+      "area": "argument",
+      "causes": [
+        "a typo in `retention.plan({ only })` or `retention.sweep({ only })`",
+        "a typo in `encryption.rotate({ model, field })`",
+        "a model or a rule that was renamed and not renamed here"
+      ],
+      "code": "HENRI_ARGUMENT_UNKNOWN_TARGET",
+      "fix": "The hint lists what the option could have named. henri refuses rather than reporting a clean run over nothing, because an empty success is what makes somebody believe the work is done.",
+      "what": "A call named something to work on and this application has nothing by that name."
     },
     {
       "area": "boot",
@@ -850,8 +877,8 @@
       "area": "job",
       "causes": ["a job whose `perform()` never returned in time"],
       "code": "HENRI_JOB_TIMEOUT",
-      "fix": "Raise the job\u2019s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
-      "what": "An attempt ran past the job\u2019s timeout."
+      "fix": "Raise the job’s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
+      "what": "An attempt ran past the job’s timeout."
     },
     {
       "area": "job",
@@ -1433,7 +1460,7 @@
         "a receiver answering 410 Gone, which also disables the endpoint"
       ],
       "code": "HENRI_WEBHOOK_DELIVERY_FAILED",
-      "fix": "The delivery is a job: it is retried with the queue\u2019s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
+      "fix": "The delivery is a job: it is retried with the queue’s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
       "what": "A receiver refused a delivery."
     },
     {
