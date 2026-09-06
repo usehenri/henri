@@ -18,6 +18,7 @@ pnpm install                          # whole workspace; builds @usehenri/react 
 pnpm test                             # vitest 5, all packages (rebuilds @usehenri/react first)
 pnpm test packages/core               # one package (path filter); `pnpm test:cover` for coverage
 pnpm test:sql                         # the SQL adapters only (sqlite; see below for a live server)
+pnpm test:types                       # the hand-written .d.ts: packaging, then tsc over types/
 pnpm lint                             # eslint 10 flat config, zero warnings in CI
 pnpm format                           # prettier 3 (`pnpm format:check` in CI)
 pnpm build                            # rollup build of @usehenri/react
@@ -181,7 +182,16 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
 
 - CommonJS everywhere except `packages/react/src` (ESM + JSX compiled by rollup
   to `dist/lib`), `packages/inertia/src` and `vite.mjs` (ESM consumed by Vite)
-  and `website` (Astro). No TypeScript.
+  and `website` (Astro). No TypeScript: the source is JavaScript and the type
+  declarations are hand-written `.d.ts` files, one per package
+  (`packages/core/index.d.ts`, `packages/react/{index,forms,engine}.d.ts`,
+  `packages/inertia/{src/index.d.mts,vite.d.mts,engine/index.d.ts}`,
+  `packages/testing/*.d.ts`), pointed at by `types` and shipped in `files`.
+  `pnpm test:types` (`scripts/check-types.mjs`) checks that every declaration
+  is published and runs `tsc --noEmit` over the fixtures in `types/`, whose
+  `@ts-expect-error` lines make the wrong calls part of the test. Changing a
+  signature means changing its `.d.ts` and, usually, `types/*.test-d.ts`.
+  eslint ignores `.d.ts`; prettier formats them.
 - pnpm links strictly: every module a package `require()`s must be in that
   package's `package.json`. Internal dependencies use `workspace:^`.
 - Apps that use the React renderer must depend on `next`, `react` and `react-dom`

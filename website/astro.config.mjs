@@ -53,7 +53,12 @@ export default defineConfig({
         },
         {
           label: 'Reference',
-          items: ['reference/cli', 'reference/api', 'reference/under-the-hood'],
+          items: [
+            'reference/cli',
+            'reference/api',
+            'reference/types',
+            'reference/under-the-hood',
+          ],
         },
       ],
     }),

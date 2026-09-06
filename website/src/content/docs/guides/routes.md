@@ -9,6 +9,8 @@ Routes are defined in `config/routes.js`. Any page in `app/views/pages` is also 
 
 A route is a key (a path, or an HTTP verb and a path) pointing to `controller#action`, or to an object with a `controller` and options (`roles`, `scope`, `only`, `except`, `member`, `collection`, `nested`).
 
+The keys and the options are typed: with the `/** @type {import('@usehenri/core').RoutesFile} */` line `henri new` writes, an editor completes them and refuses a verb or a resource action that does not exist. See [Types](/reference/types/).
+
 ```js
 // config/routes.js
 module.exports = {

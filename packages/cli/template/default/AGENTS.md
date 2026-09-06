@@ -2,7 +2,9 @@
 
 A [henri](https://usehenri.io) application: Rails-like MVC for Node.js, CommonJS
 on the server, renderer `{{renderer}}`, store `{{adapter}}`. Follow these rules instead of
-guessing; `henri doctor` checks most of them, the `henri` MCP server answers the rest.
+guessing; `henri doctor` checks most of them, the `henri` MCP server answers the rest. Types
+ship with every package and `jsconfig.json` points at them, so keep the `/** @type ... */` line
+the generators write above `module.exports` (`req`, `res` and `henri` complete; models are `any`).
 
 ## Layout and naming
 
@@ -40,6 +42,7 @@ is given; `--json` prints the files written or removed. Generators rewrite
 ## Models
 
 ```js
+/** @type {import('@usehenri/core').ModelFile} */
 module.exports = {
   schema: {
     title: { type: 'string', required: true, unique: true, index: true },
@@ -80,6 +83,7 @@ json: () => res.resource(post) })`: the page for browsers, HAL for API
 ## Routes
 
 ```js
+/** @type {import('@usehenri/core').RoutesFile} */
 module.exports = {
   root: 'main#home', // GET /, like 'get /': 'main#home'
   'resources posts': { only: ['index', 'show'], member: ['post archive'] },

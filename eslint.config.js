@@ -40,6 +40,11 @@ module.exports = [
   {
     ignores: [
       '**/node_modules/**',
+      // Type declarations: hand-written TypeScript, checked by
+      // `pnpm test:types` (tsc) and formatted by prettier, not linted here
+      '**/*.d.ts',
+      '**/*.d.mts',
+      '**/*.d.cts',
       '.claude/**',
       '.tmp/**',
       '**/dist/**',
@@ -191,6 +196,16 @@ module.exports = [
       '**/types.js',
     ],
     rules: {
+      'sort-keys': 'off',
+    },
+  },
+  {
+    // The type-test fixture is a henri application in miniature: type-checked
+    // by `pnpm test:types`, never run. Its key order mirrors a routes file and
+    // a controller, where the order is load-bearing rather than alphabetical.
+    files: ['types/**/*.js'],
+    rules: {
+      'no-unused-vars': 'off',
       'sort-keys': 'off',
     },
   },

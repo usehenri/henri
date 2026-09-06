@@ -1,5 +1,7 @@
 // Models are autoloaded from app/models and exposed globally (here: `Task`).
 // The schema is handed to the store adapter (mongoose for disk/mongodb).
+
+/** @type {import('@usehenri/core').ModelFile} */
 module.exports = {
   options: {
     timestamps: true,

@@ -2,7 +2,7 @@
 title: Under the hood
 description: The module system, the boot sequence, reloads and shutdown.
 sidebar:
-  order: 3
+  order: 4
 ---
 
 ## Modules

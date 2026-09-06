@@ -9,6 +9,8 @@ Controllers live in `app/controllers`. Every `.js` file there is loaded on boot,
 
 A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
 
+A `/** @type {import('@usehenri/core').Controller} */` line above `module.exports` is what gives `req` and `res` completion in an editor; the generators write it for you. See [Types](/reference/types/).
+
 ```js
 // app/controllers/tasks.js
 const FIELDS = ['name', 'category', 'done'];

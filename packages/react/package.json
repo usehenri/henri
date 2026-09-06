@@ -22,12 +22,17 @@
     "url": "https://github.com/usehenri/henri/issues"
   },
   "main": "index.js",
+  "types": "index.d.ts",
   "files": [
     "dist",
     "engine",
+    "engine.d.ts",
     "engine.js",
+    "forms.d.ts",
     "forms.js",
+    "index.d.ts",
     "index.js",
+    "withHenri.d.ts",
     "withHenri.js",
     "CHANGELOG.md",
     "LICENSE",

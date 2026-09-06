@@ -1,3 +1,4 @@
+/** @type {import('@usehenri/core').RoutesFile} */
 module.exports = {
   'get /': 'main#home',
   'get /tasks': 'tasks#index',
