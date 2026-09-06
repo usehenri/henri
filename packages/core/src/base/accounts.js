@@ -171,7 +171,10 @@ function section(name, raw, defaults) {
   }
 
   settings.enabled = raw.enabled !== false;
-  settings.expiresIn = duration(settings.expiresIn, defaults.expiresIn);
+
+  if (typeof defaults.expiresIn !== 'undefined') {
+    settings.expiresIn = duration(settings.expiresIn, defaults.expiresIn);
+  }
 
   if (Array.isArray(settings.fields)) {
     settings.fields = settings.fields.filter(

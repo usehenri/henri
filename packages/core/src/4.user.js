@@ -327,6 +327,9 @@ class User extends BaseModule {
 
     this.settings = userConfig(config, { isTest: this.henri.isTest });
     this.henri.params = params;
+    // The service exists whether or not this application has a user model;
+    // only its endpoints are conditional (see below)
+    this.henri.accounts = accounts(this.henri);
 
     if (server && server.app) {
       server.app.set(
@@ -459,8 +462,6 @@ class User extends BaseModule {
         )
       );
     }
-
-    this.henri.accounts = accounts(this.henri);
 
     this.henri.addMiddleware('login', (app) => {
       app.post('/login', this.login);
