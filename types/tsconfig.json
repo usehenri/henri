@@ -1,0 +1,20 @@
+{
+  "//": "The type test: `pnpm test:types` runs tsc over this project. See README.md next to it.",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "exactOptionalPropertyTypes": false,
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": false,
+    "strict": true,
+    "target": "ES2023",
+    "types": ["@usehenri/core"]
+  },
+  "include": ["**/*.ts", "**/*.tsx", "**/*.js"]
+}

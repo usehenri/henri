@@ -60,6 +60,9 @@ jobs:
 
       - run: pnpm lint --max-warnings 0
 
+      # The hand-written .d.ts files: packaging, then tsc over types/
+      - run: pnpm test:types
+
       - run: pnpm test:ci
         env:
           NODE_ENV: test

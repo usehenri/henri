@@ -28,7 +28,8 @@
     "changeset:publish": "pnpm sync-readme && pnpm build && changeset publish",
     "db:up": "docker compose up --detach --wait",
     "db:down": "docker compose down",
-    "db:reset": "docker compose down --volumes"
+    "db:reset": "docker compose down --volumes",
+    "test:types": "node scripts/check-types.mjs"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.1",
@@ -36,6 +37,12 @@
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
     "@eslint/js": "^10.0.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@usehenri/core": "workspace:*",
+    "@usehenri/inertia": "workspace:*",
+    "@usehenri/react": "workspace:*",
+    "@usehenri/testing": "workspace:*",
     "@vitest/coverage-v8": "^5.0.0",
     "@vitest/eslint-plugin": "^1.6.27",
     "eslint": "^10.10.0",
@@ -44,6 +51,7 @@
     "lint-staged": "^17.4.1",
     "prettier": "^3.9.6",
     "supertest": "^7.2.2",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.0"
   },
   "lint-staged": {
