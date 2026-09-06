@@ -174,6 +174,36 @@ afterLogin, sessionMaxAge, signup, passwordReset, confirmation }`),
   source and `website/src/content/docs/reference/errors.md`: a new code goes
   in the catalogue, gets raised somewhere, and the page is regenerated with
   `node scripts/error-codes-page.mjs`.
+- `henri.pen` has two formats (`base/logs.js`, `config.logs.format`): the
+  pretty lines a terminal reads, and one JSON object per line -- `time`,
+  `level`, `module`, `requestId` (the one `base/request-id.js` threads),
+  `msg`, `data` and `err` with its code and its `cause` chain -- for
+  everywhere else. `auto`, the default, is json in production and pretty
+  everywhere else; the environment decides it, not whether stdout is a tty.
+  Every object argument is masked on the way in by the one redactor of
+  `base/redact.js` (`filterParameters` as substrings, the `personal` field
+  names exactly), because a structured logger serializes faithfully what the
+  pretty format used to summarize; a message is not masked, in either
+  format. No logging dependency: the format is one file. The API of `pen`
+  did not change and the pretty output is what it was.
+- `henri.reporter` (`base/reporting.js`) is where an application hears about
+  the failures henri catches. `onError(fn)` -- the shape of
+  `henri.mailers.onDeliverLater()`, one handler, `null` removes it --
+  registers it, and the three places henri answers a failure instead of the
+  application report through it once each: the boot (`henri.init()` rejects,
+  awaited), a 5xx in `base/http.js` (never awaited) and an unhandled
+  rejection. A 4xx is an answer rather than a failure; `pen.fatal()` does not
+  report, because it hands back an Error and the caller is the one who knows
+  what it ends; a dead job does not either, since the queue's own row is the
+  durable record. The handler gets
+  `{ at, code, error, meta, request, requestId, source }` where `request` is
+  the method, the _route pattern_ and the status and nothing else -- no url,
+  no query, no body, no params, no headers, no user -- and `meta` is masked
+  like a log line. A handler that throws or hangs is logged and abandoned
+  (two seconds), the same Error is reported once, and no handler at all costs
+  a property read. Not a module: it is built with the instance, because the
+  first failure worth reporting is a module that would not start. The guide
+  is `guides/logs.md`.
 - `henri audit` (`packages/cli/scripts/audit.js`) checks an application
   against the checkable ASVS 4.0.3 requirements from its files only: the
   `CHECKS` catalogue is the mapping (requirement, level, Top 10 category) and
