@@ -582,6 +582,39 @@ describe('henri audit', () => {
     ).not.toContain('uploads.limits-disabled');
   });
 
+  test('reports a detector that raises in production, and only there', () => {
+    // Failing a test suite on an N+1 is the point of `raise`. Failing a
+    // real visitor's request is not: the page was slow, and now it is 500
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      { queries: { detect: { raise: true } } }
+    );
+
+    expect(names).toContain('queries.raise-in-production');
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V14.1.1',
+        check: 'queries.raise-in-production',
+        file: 'config/production.json',
+        message: expect.stringContaining('500'),
+        severity: 'medium',
+      })
+    );
+
+    // Where it belongs, and what henri says nothing about
+    expect(
+      withConfig(app, 'config/test.json', {
+        queries: { detect: { raise: true } },
+      }).names
+    ).not.toContain('queries.raise-in-production');
+    expect(
+      withConfig(app, 'config/production.json', {
+        queries: { enabled: true, detect: { threshold: 10 } },
+      }).names
+    ).not.toContain('queries.raise-in-production');
+  });
+
   test('reports the webhook escape hatches, and only in production', () => {
     // A url an application was handed is the classic way into the metadata
     // service: turning the address rules off in production is a hole with a

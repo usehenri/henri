@@ -378,6 +378,16 @@ false` (`calls.kept-forever`: a [call log](/guides/calls/) holds the bodies
 users sent, so a copy of them that nothing ever sweeps is not a setting but
 an accumulation).
 
+**A development instrument left on where it answers a visitor** --
+`queries.detect.raise: true` in a configuration a production boot reads
+(`queries.raise-in-production`). Raising on the fifth repeat of a model call
+is what makes a test suite fail on an N+1, which is what it is for; in
+production the first page that loops answers `500` to a real visitor, and a
+slow page has become a broken one. Counting in production is not reported:
+`queries.enabled: true` costs time and tells nobody's secrets, so it is a
+decision an application is allowed to make quietly. See
+[N+1 detection](/guides/queries/).
+
 **A client address the configuration cannot support** — a
 [`calls.address.from`](/guides/calls/#the-clients-address) covering every
 address (`calls.address-from-any`), which says "believe this header from
