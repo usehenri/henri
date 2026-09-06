@@ -88,13 +88,26 @@
  * - `jobs` -- one span per job run, in `@usehenri/jobs`.
  * - `webhooks` -- one span per delivery attempt, in `@usehenri/webhooks`.
  *
- * **A model call an application makes is not one of them**, and that is the
- * honest gap: covering it means wrapping Drizzle, Mongoose and Sequelize
- * from the outside, which is what their own instrumentation packages exist
- * for. An application that wants it registers
- * `@opentelemetry/instrumentation-pg` (or its ORM's) in the same SDK
- * bootstrap, and those spans land under henri's request span, because the
- * context is already active when the query runs.
+ * **A model call an application makes is not one of them**, and it is worth
+ * saying where that line now sits, because henri does see those calls and
+ * still does not trace them.
+ *
+ * Tracing a statement means wrapping Drizzle, Mongoose and Sequelize from the
+ * outside, which is what their own instrumentation packages exist for. An
+ * application that wants it registers `@opentelemetry/instrumentation-pg` (or
+ * its ORM's) in the same SDK bootstrap, and those spans land under henri's
+ * request span, because the context is already active when the query runs.
+ * henri writing its own would double-count against exactly the applications
+ * that did the right thing, and would be the worse of the two.
+ *
+ * What henri does instead is **count** model calls, which is a different
+ * question with a different answer: `henri.queries` (`base/queries.js`) emits
+ * one event per model call so the N+1 detector can say that `Proposal.findById`
+ * ran forty times in one request and name the line. That is advice, not a
+ * trace, and it is deliberately not plumbed into a span -- **telemetry does
+ * not consume that seam**, and no model call becomes a span through it. The
+ * two meet at `adapter.query()` (`3.model.js`), which gets one span from here
+ * and one event from there, and nowhere else.
  *
  * ## Propagation, and which identifier wins
  *

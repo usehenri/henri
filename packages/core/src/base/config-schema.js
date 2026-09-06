@@ -1567,6 +1567,78 @@ const SCHEMA = {
     ],
   },
 
+  queries: {
+    describe:
+      'an object of query seam settings, or false to record no model call',
+    hint: 'What the adapters report running, and the repeated model calls the detector counts. On in development and in test, off in production, unless "enabled" says otherwise',
+    oneOf: [
+      { const: false },
+      {
+        keys: {
+          callsites: {
+            describe: 'true or false',
+            hint: 'Whether an event carries the line the model call was made on. It costs an Error allocation per call, so it follows the detector unless this says otherwise',
+            type: 'boolean',
+          },
+          detect: {
+            default: {},
+            describe:
+              'an object of detector settings, or false to detect nothing',
+            hint: 'false keeps the events and reports nothing; the seam is still there for onQuery()',
+            oneOf: [
+              { const: false },
+              {
+                keys: {
+                  header: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'X-Henri-Queries on the answer, in development only: the counts and the names of the repeated calls, never a value',
+                    type: 'boolean',
+                  },
+                  ignore: {
+                    default: [],
+                    describe:
+                      'a list of Model, Model.operation or *.operation names',
+                    hint: 'Calls the detector never counts. An operation is one of count, delete, insert, other, raw, select, update',
+                    of: text(),
+                    type: 'array',
+                  },
+                  log: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'One warning per request naming the call, the count, the line and what to do instead',
+                    type: 'boolean',
+                  },
+                  raise: {
+                    default: false,
+                    describe: 'true or false',
+                    hint: 'Throw HENRI_QUERIES_N_PLUS_ONE the moment the threshold is crossed, so the stack names the call. This is what makes a test suite fail on an N+1',
+                    type: 'boolean',
+                  },
+                  threshold: {
+                    default: 5,
+                    describe: 'a whole number, at least 2',
+                    hint: 'How many times the same model call has to run in one request before it is reported. It counts model calls, never statements',
+                    integer: true,
+                    min: 2,
+                    type: 'number',
+                  },
+                },
+                type: 'object',
+              },
+            ],
+          },
+          enabled: {
+            describe: 'true or false',
+            hint: 'Absent means on outside production. true is the production opt-in: every model call is timed and counted',
+            type: 'boolean',
+          },
+        },
+        type: 'object',
+      },
+    ],
+  },
+
   versions: {
     default: {},
     describe: 'an object of model versioning settings',

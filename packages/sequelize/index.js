@@ -4,6 +4,7 @@ const { Drift, describeDifference } = require('./drift');
 const { decorateAttributes, decorateModel } = require('./encryption');
 const { decorateModel: decorateVersions } = require('./versions');
 const { lookup, paginate, publicId } = require('./plugins');
+const { instrument: instrumentQueries } = require('./queries');
 const { normalizeSchema } = require('./schema');
 const {
   EXTERNAL_ID,
@@ -293,6 +294,10 @@ class Sql {
     if (keepsVersions) {
       decorateVersions(instance, this.henri);
     }
+
+    // Last, so that what is wrapped is the model as every other decorator
+    // left it: an application that is not counting gets an untouched model
+    instrumentQueries(instance, this);
 
     this.definitions[model.globalId] = { model, user };
     this.models[model.globalId] = instance;

@@ -805,6 +805,12 @@ declare namespace start {
      */
     calls?: false | CallsConfig;
     /**
+     * What the adapters report running, and the repeated model calls the
+     * detector counts. On in development and in test, off in production;
+     * `false` records nothing anywhere.
+     */
+    queries?: false | QueriesConfig;
+    /**
      * Where the history of the versioned models lives and how long it is
      * kept. It does not turn versioning on: a model does, with
      * `options: { versioned: true }`.
@@ -989,6 +995,56 @@ declare namespace start {
      * believed only when the peer is one of `from`. henri names none.
      */
     header?: string;
+  }
+
+  /** `config.queries`: the query seam and the N+1 detector on top of it. */
+  interface QueriesConfig {
+    /**
+     * Whether an event carries the line the model call was made on. It
+     * costs an `Error` allocation per call, so it follows the detector
+     * unless this says otherwise.
+     */
+    callsites?: boolean;
+    /**
+     * The N+1 detector; `false` keeps the events and reports nothing, so
+     * `onQuery()` still works.
+     */
+    detect?: false | QueriesDetectConfig;
+    /**
+     * Absent means on outside production. `true` is the production opt-in:
+     * every model call is timed and counted.
+     */
+    enabled?: boolean;
+  }
+
+  /** `config.queries.detect`: what a repeated model call does. */
+  interface QueriesDetectConfig {
+    /**
+     * `X-Henri-Queries` on the answer, in development only (`true`): the
+     * counts and the names of the repeated calls, never a value.
+     */
+    header?: boolean;
+    /**
+     * Calls the detector never counts: `Model`, `Model.operation` or
+     * `*.operation`.
+     */
+    ignore?: string[];
+    /**
+     * One warning per request naming the call, the count, the line and
+     * what to do instead (`true`).
+     */
+    log?: boolean;
+    /**
+     * Throw `HENRI_QUERIES_N_PLUS_ONE` the moment the threshold is crossed,
+     * so the stack names the call (`false`). This is what makes a test
+     * suite fail on an N+1.
+     */
+    raise?: boolean;
+    /**
+     * How many times the same model call has to run in one request before
+     * it is reported (`5`). It counts **model calls, never statements**.
+     */
+    threshold?: number;
   }
 
   interface CallsConfig {
@@ -2284,6 +2340,67 @@ declare namespace start {
    * A handler that throws or hangs never takes the request or the boot with
    * it, and no handler at all costs nothing.
    */
+  /**
+   * One model call, as an adapter reported it.
+   *
+   * Names and numbers only: no statement, no filter values, no bound
+   * parameters, no rows, no person and nothing from the client. `keys` is the
+   * filter's column **names**.
+   */
+  interface QueryEvent {
+    /** Which adapter ran it. */
+    adapter: string;
+    /** When it finished, in epoch milliseconds. */
+    at: number;
+    /** The first frame of the application's own files, when captured. */
+    callsite: { column: number; file: number | string; line: number } | null;
+    /** The SQL dialect, or `null` on MongoDB. */
+    dialect: string | null;
+    /** How long the call took, in milliseconds. */
+    duration: number;
+    /** The filter's column names, never what they were compared against. */
+    keys: string[];
+    /** The adapter's own name for the call (`findById`, `paginate`). */
+    method: string;
+    /** The model, or `null` for a raw `adapter.query()`. */
+    model: string | null;
+    /** One vocabulary across the three adapters. */
+    operation:
+      'count' | 'delete' | 'insert' | 'other' | 'raw' | 'select' | 'update';
+    /** The request this happened in, or `null` outside one. */
+    requestId: string | null;
+    /** How many rows came back, or `null` when it cannot be told. */
+    rows: number | null;
+    /** A digest of (adapter, model, operation, keys): what "the same call" means. */
+    shape: string;
+    /** Whether henri asked on its own behalf, or the application did. */
+    source: 'application' | 'henri';
+    /** The store it went to. */
+    store: string | null;
+  }
+
+  /** `henri.queries`: the query seam and the N+1 detector. */
+  interface QueriesModule {
+    /** Whether an event carries the line the call was made on. */
+    readonly callsites: boolean;
+    /** Whether anything is recorded at all. Off means nothing is installed. */
+    readonly enabled: boolean;
+    /**
+     * Register the handler every query event is given to, replacing any
+     * previous one; `null` removes it. Follows `henri.reporter.onError()`.
+     * It is called synchronously, inside the call it describes.
+     */
+    onQuery(handler: ((event: QueryEvent) => unknown) | null): boolean;
+    /** What has been seen since the boot. */
+    stats(): {
+      detecting: boolean;
+      enabled: boolean;
+      events: number;
+      findings: number;
+      requests: number;
+    };
+  }
+
   interface Reporter {
     /** Is a handler registered? */
     readonly enabled: boolean;
@@ -4081,6 +4198,12 @@ declare namespace start {
      * the request id. Off unless `config.calls` says otherwise.
      */
     calls: CallsModule;
+    /**
+     * What the adapters report running, and the N+1 detector on top of it.
+     * On outside production; `enabled` is false when nothing is counted, and
+     * then nothing is installed either.
+     */
+    queries: QueriesModule;
     /**
      * The history of the models that asked for one. `enabled` is false
      * until a model says `options: { versioned: true }`, and nothing is

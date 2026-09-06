@@ -1512,6 +1512,32 @@ Usually:
 
 **Fix.** Name the person by email address, by external id or by primary key. An erased person no longer answers to their address: look their receipt up by digest instead.
 
+## queries
+
+The query seam of `henri.queries`: what the adapters report running, and the repeated model calls the detector counts.
+
+### `HENRI_QUERIES_INVALID_DETECT`
+
+The N+1 detector was configured with something it cannot use.
+
+Usually:
+
+- config.queries.detect.threshold is not a whole number of at least two
+- config.queries.detect.ignore holds something that is not a model or a Model.operation name
+
+**Fix.** A threshold is a whole number of at least two, because a call that ran once is not a repetition. An `ignore` entry is `Model`, `Model.operation` or `*.operation`, where the operation is one of count, delete, insert, other, raw, select, update.
+
+### `HENRI_QUERIES_N_PLUS_ONE`
+
+The same model call ran enough times in one request for the detector to call it an N+1.
+
+Usually:
+
+- a loop made one model call per record where one call for the whole set would do
+- a view or a serializer read an association the query that fetched the parents did not include
+
+**Fix.** Load the records together: one `Model.find({ id: [...] })` for the whole set, or `include()` on the query that fetched the parents. `config.queries.detect.raise` is what turned this into an error rather than a warning; `config.queries.detect.threshold` is how many repeats it takes, and `detect.ignore` silences a model or an operation.
+
 ## retention
 
 How long the models say they keep their records, and the sweep that enforces it.

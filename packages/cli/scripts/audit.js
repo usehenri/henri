@@ -284,6 +284,13 @@ const CHECKS = [
     what: 'a model holds a field that is about a person and does not say so, so henri cannot redact, export or erase it',
   },
   {
+    asvs: 'V14.1.1',
+    check: 'queries.raise-in-production',
+    level: 1,
+    owasp: 'A05',
+    what: '"queries": { "detect": { "raise": true } } in a production configuration: a repeated model call answers 500 to a real visitor',
+  },
+  {
     asvs: 'V2.2.1',
     check: 'rate-limit.auth-disabled',
     level: 1,
@@ -1099,6 +1106,27 @@ const configFindings = (config, { file, hasUser }) => {
       '"trustProxy": true means a forwarded address could have been sent by anyone, so the call log records no client address at all and says "unverified": the column an incident is read with will be empty',
       `Set trustProxy to the number of proxies in front of henri in ${file} ("trustProxy": 1), or to false when nothing is, and the address becomes believable`,
       null
+    );
+  }
+
+  // The N+1 detector is a development instrument. Counting in production is
+  // a decision an application is allowed to make (`queries.enabled`), and
+  // henri says nothing about it: it costs time and tells nobody's secrets.
+  // Raising is different -- it turns a page that loops into a 500 for a real
+  // visitor, which is a worse outage than the slow page it was reporting.
+  if (
+    isObject(config.queries) &&
+    isObject(config.queries.detect) &&
+    config.queries.detect.raise === true &&
+    PRODUCTION_CONFIGS.includes(file)
+  ) {
+    add(
+      'medium',
+      'queries.raise-in-production',
+      OWASP.A05,
+      'queries.detect.raise is true, so the first request that makes the same model call often enough throws HENRI_QUERIES_N_PLUS_ONE and answers 500: a page that was merely slow now fails',
+      `Remove "raise": true from ${file} and keep it in config/test.json, where failing the suite on an N+1 is the point`,
+      'V14.1.1'
     );
   }
 
