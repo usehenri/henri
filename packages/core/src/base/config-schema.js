@@ -56,6 +56,9 @@ const RENDERERS = ['inertia', 'react', 'template', 'vue'];
 /** The dialects `stores.<name>.dialect` accepts on the drizzle adapter */
 const DIALECTS = ['mysql', 'postgres', 'sqlite'];
 
+/** What `privacy.onErase` accepts (the strategies of `base/erasure.js`) */
+const ON_ERASE = ['anonymize', 'delete', 'orphan', 'retain'];
+
 /** A string that is not empty */
 const text = (extra = {}) => ({ pattern: /\S/u, type: 'string', ...extra });
 
@@ -960,6 +963,33 @@ const SCHEMA = {
     default: ['password', 'token', 'secret', 'authorization'],
     describe: 'a list of parameter names to mask, or false',
     oneOf: [{ const: false }, { of: text(), type: 'array' }],
+  },
+
+  privacy: {
+    describe: 'an object of personal data settings',
+    hint: 'Which fields are personal is said in the models ({ personal: true }); this is what henri does with the mark',
+    keys: {
+      expose: {
+        default: true,
+        describe: 'true or false',
+        hint: 'false keeps every personal field out of the answers henri builds, unless the field says { personal: { expose: true } }',
+        type: 'boolean',
+      },
+      onErase: {
+        default: 'anonymize',
+        describe: `one of ${ON_ERASE.join(', ')}`,
+        enum: ON_ERASE,
+        hint: 'What happens to the records of an erased person, for the models that do not say it themselves',
+        type: 'string',
+      },
+      receipts: {
+        default: 'privacy',
+        describe: 'a directory, or false to keep no receipt',
+        hint: 'Where henri privacy:erase writes the proof that it ran; false leaves only what the command printed',
+        oneOf: [{ const: false }, text()],
+      },
+    },
+    type: 'object',
   },
 
   bodyLimit: {

@@ -38,6 +38,10 @@
       "what": "the model files of app/models and the schema the adapters normalize"
     },
     {
+      "area": "privacy",
+      "what": "the personal data marked in the models, the export of one person and the erasure of them"
+    },
+    {
       "area": "route",
       "what": "config/routes.js and the router"
     },
@@ -802,6 +806,69 @@
       "code": "HENRI_MODEL_UNKNOWN_TYPE",
       "fix": "henri's types are `string`, `text`, `number`, `integer`, `float`, `boolean`, `date`, `json` and `uuid`. The adapter maps them to the ORM's own.",
       "what": "A model field asks for a type henri does not have."
+    },
+    {
+      "area": "privacy",
+      "causes": [
+        "a store adapter that is not mongoose, sequelize or drizzle",
+        "a model that is not the one the adapter registered"
+      ],
+      "code": "HENRI_PRIVACY_ADAPTER_UNSUPPORTED",
+      "fix": "The export and the erasure are driven through the model API of the three adapters henri ships. An adapter of your own answers them by implementing the same statics: `find`, `update` and `destroy`.",
+      "what": "A model holding personal data belongs to an adapter henri cannot export or erase through."
+    },
+    {
+      "area": "privacy",
+      "causes": [
+        "a field marked `erase: clear` on a column that cannot hold null",
+        "records to orphan whose link to the person is `required`",
+        "the person is to be deleted while another model keeps its records"
+      ],
+      "code": "HENRI_PRIVACY_ERASE_REFUSED",
+      "fix": "The message names every problem at once. Say what should happen to those records with `options: { personal: { onErase } }`, or mark the field `erase: 'anonymize'`. Nothing was written: the plan is checked before the first write.",
+      "what": "An erasure was refused before it wrote anything, because the plan cannot be carried out."
+    },
+    {
+      "area": "privacy",
+      "causes": [
+        "`personal` given something other than `true`, `false` or an object",
+        "`personal.erase` given a strategy that does not exist",
+        "`options.personal.onErase` given a strategy that does not exist"
+      ],
+      "code": "HENRI_PRIVACY_INVALID_MARK",
+      "fix": "A field is marked `personal: true` or `personal: { expose, export, erase }`, where `erase` is `clear`, `anonymize` or `retain`. A model's `options.personal.onErase` is `anonymize`, `delete`, `orphan` or `retain`.",
+      "what": "A model marks a field personal in a way henri does not understand."
+    },
+    {
+      "area": "privacy",
+      "causes": [
+        "the application has no user model",
+        "`config.user.model` names a model that is not in app/models"
+      ],
+      "code": "HENRI_PRIVACY_NO_SUBJECT",
+      "fix": "henri's notion of a person is the user model (`config.user.model`). Add one -- `henri generate authentication` writes it -- or point `config.user.model` at the model that is a person.",
+      "what": "An export or an erasure was asked for and the application has no model that is a person."
+    },
+    {
+      "area": "privacy",
+      "causes": [
+        "the directory of `config.privacy.receipts` cannot be created",
+        "the process cannot write where the receipts go"
+      ],
+      "code": "HENRI_PRIVACY_RECEIPT_UNWRITABLE",
+      "fix": "The erasure happened; what failed is the proof of it, which is the half you have to keep. Make the directory writable, point `config.privacy.receipts` somewhere else, or set it to false and keep the receipt the command printed.",
+      "what": "An erasure was carried out and its receipt could not be written."
+    },
+    {
+      "area": "privacy",
+      "causes": [
+        "a misspelled email address",
+        "an external id that belongs to another model",
+        "the person was erased already, and their address with them"
+      ],
+      "code": "HENRI_PRIVACY_UNKNOWN_SUBJECT",
+      "fix": "Name the person by email address, by external id or by primary key. An erased person no longer answers to their address: look their receipt up by digest instead.",
+      "what": "The person an export or an erasure was asked about does not exist."
     },
     {
       "area": "route",

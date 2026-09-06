@@ -53,8 +53,13 @@ module.exports = {
 };
 ```
 
-Field keys: `type`, `required`, `default`, `enum`, `unique`, `index`; any other
-key is handed to the adapter as is. Every store adds `createdAt`/`updatedAt`,
+Field keys: `type`, `required`, `default`, `enum`, `unique`, `index`,
+`personal`; any other key is handed to the adapter as is. `personal: true`
+says a field is about a person (`User.name`, `bio`, `company`): henri masks it
+in the logs, exports it and erases it. `User.phone` is
+`personal: { expose: false }`, so it never leaves the server unless a render
+names it in `include` -- only `accounts#show` does. Run `henri privacy` for
+the map. Every store adds `createdAt`/`updatedAt`,
 `Model.paginate({ page, perPage })` -> `{ records, page, perPage, total, pages }`,
 `henri.model.errors(error)` -> `{ field: message }` (`null` otherwise) and `db/seeds.js`, run by `henri db:seed`.
 Every model also carries `externalId`, a uuid that is unique and not null in the

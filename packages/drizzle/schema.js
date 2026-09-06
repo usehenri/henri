@@ -13,6 +13,8 @@ const KNOWN_KEYS = new Set([
   'maxLength',
   'min',
   'minLength',
+  // Metadata, not a column: what henri redacts, exports and erases
+  'personal',
   'primaryKey',
   'references',
   'required',

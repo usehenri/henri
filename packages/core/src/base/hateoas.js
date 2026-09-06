@@ -69,6 +69,21 @@ function identify(record) {
 }
 
 /**
+ * A record on its way out: a plain object with its public identifier, and
+ * without the fields the models marked `personal: { expose: false }`
+ *
+ * @param {Henri} henri the henri instance
+ * @param {*} record a model instance or a plain object
+ * @param {Array<string>} [include=[]] the private fields the action asked for
+ * @returns {object} a copy
+ */
+function sendable(henri, record, include = []) {
+  const plain = toPlain(record);
+
+  return henri.privacy ? henri.privacy.strip(plain, include) : plain;
+}
+
+/**
  * A record as a plain object with its public identifier
  *
  * Model instances are serialized through their own `toJSON()` (Mongoose,
@@ -374,6 +389,8 @@ async function enforce(henri, req, res, record) {
  * @param {number} [options.status=200] status (201 also sets `Location`)
  * @param {*} [options.subject] what the policy is asked about, when the
  *   answer is a presentation of the record rather than the record
+ * @param {Array<string>} [options.include] the fields marked
+ *   `personal: { expose: false }` this answer is allowed to carry
  * @returns {Express.Response} the response
  * @throws {TypeError} when the record is not an object or the type is unknown
  */
@@ -382,7 +399,7 @@ function resource(
   req,
   res,
   record,
-  { type, links, status = 200, subject } = {}
+  { type, links, status = 200, subject, include = [] } = {}
 ) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     throw stamp(
@@ -414,7 +431,7 @@ function resource(
       return res;
     }
 
-    const plain = toPlain(record);
+    const plain = sendable(henri, record, include);
     const paths = henri.router.pathForRoles(req.user);
     const merged = await allowed(
       henri,
@@ -466,6 +483,8 @@ function resource(
  * @param {number} [options.status=200] status
  * @param {*} [options.subject] what the policies are asked about: a record,
  *   an array parallel to `records`, or `(item, index) => record`
+ * @param {Array<string>} [options.include] the fields marked
+ *   `personal: { expose: false }` this answer is allowed to carry
  * @returns {Express.Response} the response
  * @throws {TypeError} when records is not an array or the type is unknown
  */
@@ -474,7 +493,16 @@ function collection(
   req,
   res,
   records,
-  { type, page, perPage, total, links, status = 200, subject } = {}
+  {
+    type,
+    page,
+    perPage,
+    total,
+    links,
+    status = 200,
+    subject,
+    include = [],
+  } = {}
 ) {
   if (!Array.isArray(records)) {
     throw stamp(
@@ -505,7 +533,7 @@ function collection(
     const items = [];
 
     for (const [index, record] of records.entries()) {
-      const plain = toPlain(record);
+      const plain = sendable(henri, record, include);
 
       items.push(
         Object.assign({ _links: null }, plain, {
@@ -667,5 +695,6 @@ module.exports = {
   resource,
   resourceLinks,
   routeType,
+  sendable,
   toPlain,
 };

@@ -380,12 +380,17 @@ const model = () => `// The store adds \`email\` (unique, lowercased), \`passwor
 // selected), \`roles\` (never mass-assignable), \`confirmedAt\` and
 // \`passwordChangedAt\`. Everything below is yours; list in
 // config.user.signup.fields the ones a signup form may set.
+//
+// \`personal: true\` is what tells henri a field is about a person: it is
+// masked in the logs, it is in what \`henri privacy:export\` hands back and
+// it is erased by \`henri privacy:erase\`. Add it to every field that is.
+// https://usehenri.io/guides/privacy/
 
 /** @type {import('@usehenri/core').ModelFile} */
 module.exports = {
   options: { timestamps: true },
   schema: {
-    name: { type: 'string' },
+    name: { personal: true, type: 'string' },
   },
   store: 'default',
 };

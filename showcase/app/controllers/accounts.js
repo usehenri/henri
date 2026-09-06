@@ -13,7 +13,15 @@
 // side), and what the pages look like.
 
 /** Attributes the profile form may set (not the email, not the password) */
-const PROFILE = ['bio', 'company', 'name'];
+const PROFILE = ['bio', 'company', 'name', 'phone'];
+
+/**
+ * `phone` is marked `personal: { expose: false }` in app/models/User.js, so
+ * henri drops it from every answer it builds -- a page, an API resource, a
+ * collection -- unless the render says this one may carry it. This page is
+ * the person's own, and it is the only one that says so.
+ */
+const PRIVATE = ['phone'];
 
 module.exports = {
   confirm: (req, res) =>
@@ -58,10 +66,12 @@ module.exports = {
           email: req.user.email,
           externalId: req.user.externalId,
           name: req.user.name,
+          phone: req.user.phone,
           roles: req.user.roles,
         },
         counts: { proposals, reviews },
       },
+      include: PRIVATE,
     });
   },
 
@@ -82,6 +92,7 @@ module.exports = {
           account: { ...req.user.toJSON(), ...req.permit(...PROFILE) },
           counts: null,
         },
+        include: PRIVATE,
       });
     }
 

@@ -21,6 +21,13 @@
       "tag": "0002_account_flows",
       "version": "7",
       "when": 1788667306497
+    },
+    {
+      "breakpoints": true,
+      "idx": 3,
+      "tag": "0003_personal_phone",
+      "version": "7",
+      "when": 1788684713279
     }
   ],
   "version": "7"

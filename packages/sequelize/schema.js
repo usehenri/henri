@@ -10,6 +10,9 @@ const HENRI_KEYS = {
   default: 'defaultValue',
   enum: 'DataTypes.ENUM or validate.isIn',
   index: 'options.indexes',
+  // Metadata, not a column: henri reads it back through the model file
+  // (base/privacy.js), so the attribute never carries it
+  personal: 'henri.privacy',
   required: 'allowNull: false',
   type: 'type',
   unique: 'unique',
@@ -175,6 +178,8 @@ const normalizeField = (field, definition, dialect, indexes) => {
       attribute.defaultValue = value === Date.now ? DataTypes.NOW : value;
     } else if (key === 'enum' || key === 'index') {
       // Handled below, they depend on the resolved type
+    } else if (key === 'personal') {
+      // A mark for henri, and nothing Sequelize has to know about
     } else if (KNOWN_KEYS.has(key)) {
       attribute[key] = value;
     } else {

@@ -177,15 +177,15 @@ function bound(text, max = LIMITS.message) {
  * whatever the configuration says
  *
  * @param {*} value anything
- * @param {Array<string>} filters the filters (`config.filterParameters`)
+ * @param {{filters: Array<string>, keys: Set<string>}} redaction what to mask
  * @returns {*} the redacted copy
  */
-function scrub(value, filters) {
+function scrub(value, { filters, keys }) {
   const all = filters.includes('password')
     ? filters
     : filters.concat(['password']);
 
-  return redact(value, all);
+  return redact(value, all, { keys });
 }
 
 /**
@@ -200,27 +200,46 @@ function filtersOf(henri) {
 }
 
 /**
+ * What an instance masks: the substring filters of the configuration, and
+ * the fields its models marked personal, matched exactly
+ * (`base/privacy.js`)
+ *
+ * @param {Henri} henri the henri instance
+ * @returns {{filters: Array<string>, keys: Set<string>}} what to mask
+ */
+function redactionOf(henri) {
+  return {
+    filters: filtersOf(henri),
+    keys: (henri && henri.privacy && henri.privacy.keys) || new Set(),
+  };
+}
+
+/**
  * One argument of a log line, as text: objects are inspected once redacted,
  * strings lose their colours and their filtered query values
  *
  * @param {*} value the argument
- * @param {Array<string>} filters the filters
+ * @param {{filters: Array<string>, keys: Set<string>}} redaction what to mask
  * @returns {string} the text
  */
-function line(value, filters) {
+function line(value, redaction) {
   if (value instanceof Error) {
     return value.message;
   }
 
   if (typeof value === 'string') {
-    return redactUrl(value.replace(ANSI, ''), filters);
+    return redactUrl(
+      value.replace(ANSI, ''),
+      redaction.filters,
+      redaction.keys
+    );
   }
 
   if (value === null || typeof value !== 'object') {
     return String(value);
   }
 
-  return util.inspect(scrub(value, filters), {
+  return util.inspect(scrub(value, redaction), {
     breakLength: Infinity,
     colors: false,
     depth: 3,
@@ -247,10 +266,10 @@ function frames(error) {
  * What is worth keeping of the request an error happened in
  *
  * @param {Express.Request} req the request
- * @param {Array<string>} filters the filters
+ * @param {{filters: Array<string>, keys: Set<string>}} redaction what to mask
  * @returns {?object} the request, redacted
  */
-function requested(req, filters) {
+function requested(req, redaction) {
   if (!req) {
     return null;
   }
@@ -269,15 +288,19 @@ function requested(req, filters) {
   const user = req.user;
 
   return {
-    body: scrub(req.body || {}, filters),
+    body: scrub(req.body || {}, redaction),
     controller:
       (route && route.controller && `${route.controller}#${route.action}`) ||
       null,
     headers,
     method: req.method,
-    params: scrub(req.params || {}, filters),
-    query: scrub(req.query || {}, filters),
-    url: redactUrl(req.originalUrl || req.url || '', filters),
+    params: scrub(req.params || {}, redaction),
+    query: scrub(req.query || {}, redaction),
+    url: redactUrl(
+      req.originalUrl || req.url || '',
+      redaction.filters,
+      redaction.keys
+    ),
     user: user
       ? { id: String(user.id || user._id || ''), roles: user.roles || null }
       : null,
@@ -312,13 +335,13 @@ class Recorder {
    * @memberof Recorder
    */
   log(name, level, args) {
-    const filters = filtersOf(this.henri);
+    const redaction = redactionOf(this.henri);
     const entry = {
       at: new Date().toISOString(),
       level,
       // ` => ` is pen's own separator: a recorded line reads like the
       // printed one, minus the colours
-      message: bound(args.map((arg) => line(arg, filters)).join(' => ')),
+      message: bound(args.map((arg) => line(arg, redaction)).join(' => ')),
       name: String(name).trim(),
       requestId: currentRequestId(),
     };
@@ -342,12 +365,12 @@ class Recorder {
    * @memberof Recorder
    */
   error(error, { req = null, status = 500 } = {}) {
-    const filters = filtersOf(this.henri);
+    const redaction = redactionOf(this.henri);
     const entry = {
       at: new Date().toISOString(),
       message: bound(String((error && error.message) || error)),
       name: (error && error.name) || 'Error',
-      request: requested(req, filters),
+      request: requested(req, redaction),
       requestId: (req && req.id) || currentRequestId(),
       stack: frames(error),
       status,
@@ -490,10 +513,10 @@ function rowsOf(answer) {
  * A record as a plain object, redacted, without its password
  *
  * @param {*} record a model instance
- * @param {Array<string>} filters the filters
+ * @param {{filters: Array<string>, keys: Set<string>}} redaction what to mask
  * @returns {?object} the record
  */
-function plain(record, filters) {
+function plain(record, redaction) {
   if (record === null || typeof record === 'undefined') {
     return null;
   }
@@ -503,7 +526,7 @@ function plain(record, filters) {
       ? record.toJSON()
       : Object.assign({}, record);
 
-  return scrub(value, filters);
+  return scrub(value, redaction);
 }
 
 /**
@@ -751,14 +774,14 @@ async function records(henri, body = {}) {
     };
   }
 
-  const filters = filtersOf(henri);
+  const redaction = redactionOf(henri);
 
   if (typeof body.id !== 'undefined' && body.id !== null) {
     const found = await Model.findById(body.id);
 
     return {
       model: definition.globalId,
-      record: plain(found, filters),
+      record: plain(found, redaction),
       store: definition.store || 'default',
     };
   }
@@ -782,7 +805,7 @@ async function records(henri, body = {}) {
     page: answer.page,
     pages: answer.pages,
     perPage: answer.perPage,
-    records: (answer.records || []).map((record) => plain(record, filters)),
+    records: (answer.records || []).map((record) => plain(record, redaction)),
     store: definition.store || 'default',
     total: answer.total,
     truncated: (answer.records || []).length < answer.total,
@@ -867,14 +890,14 @@ async function query(henri, body = {}) {
   }
 
   const found = rowsOf(answered);
-  const filters = filtersOf(henri);
+  const redaction = redactionOf(henri);
 
   return {
     adapter: store.adapterName,
     count: Math.min(found.length, limit),
     limit,
     ms: Date.now() - started,
-    rows: found.slice(0, limit).map((row) => scrub(row, filters)),
+    rows: found.slice(0, limit).map((row) => scrub(row, redaction)),
     store: name,
     truncated: found.length > limit,
   };

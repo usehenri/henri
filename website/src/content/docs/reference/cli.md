@@ -261,6 +261,24 @@ Without a command, `henri jobs` runs a worker: it claims jobs, performs up to `-
 
 `--wait` is a global flag (it belongs to `--inspect`), which is why the delay of an enqueue is `--in`.
 
+## `privacy`
+
+```bash
+henri privacy [--json]
+henri privacy:export <who> [--out=<file>] [--json]
+henri privacy:erase <who> [--dry-run] [--strategy=<name>] [--yes] [--json]
+```
+
+The [personal data](/guides/privacy/) of the application, and the two operations a person may ask for. All three boot to the user module (runlevel 4, like `db:seed`): no port is bound and no route is registered. `who` is an email address, an `externalId` or a primary key.
+
+| Command        | What it does                                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)         | Prints the map: which fields of which models are marked `personal`, which of them never leave the server, how each model reaches the person and what an erasure would do. |
+| `export <who>` | Everything held about one person: their record and every record of every model linked to them, soft-deleted rows included. `--out` writes the document to a file.         |
+| `erase <who>`  | Erases them. Asks first (`--yes` in a script, exit `4` without a terminal), refuses before writing anything when the plan cannot be carried out, and leaves a receipt.    |
+
+`--dry-run` prints the plan and writes nothing. `--strategy` is the default for the models that do not declare one (`anonymize`, `delete`, `orphan`, `retain`); a model that decided keeps its answer. The receipt goes to `config.privacy.receipts` (`privacy/`), and holds an HMAC of the identity rather than the identity.
+
 ## `doctor`
 
 ```bash

@@ -753,6 +753,84 @@ const COMMANDS = [
   },
   {
     description: [
+      'The personal data of this application: which fields of which models',
+      'are marked `personal`, which of them never leave the server, how each',
+      'model reaches the person, and what an erasure would do to it. Without',
+      'a command it prints that map, the way henri routes prints the routes.',
+      '',
+      'export writes everything the application holds about one person, in',
+      'one document they can read: their own record and every record of',
+      'every model linked to them, soft deleted ones included.',
+      '',
+      'erase removes them. The default is to anonymize the person in place',
+      'rather than delete the row, so the records that reference them stay',
+      'consistent and their own personal fields are erased too; a model says',
+      'otherwise with options: { personal: { onErase } }. A soft delete is',
+      'never an erasure: the walk reaches the stamped rows and a delete is a',
+      'real one. It refuses before writing anything when the plan cannot be',
+      'carried out, asks for confirmation, and leaves a receipt naming every',
+      'record it touched, with an HMAC of the identity instead of the',
+      'identity (config.privacy.receipts, "privacy" by default).',
+      '',
+      'The person is named by email address, external id or id, and all',
+      'three commands boot the models only: no port is bound.',
+    ],
+    examples: [
+      {
+        command: 'henri privacy',
+        description: 'What this application says is personal',
+      },
+      {
+        command: 'henri privacy:export ada@example.com --out ada.json',
+        description: 'Everything held about one person',
+      },
+      {
+        command: 'henri privacy:erase ada@example.com --dry-run',
+        description: 'What an erasure would do, without doing it',
+      },
+    ],
+    flags: [
+      {
+        description: 'export: write the document to this file too',
+        flag: '--out=<file>',
+      },
+      {
+        description: 'erase: print the plan and write nothing',
+        flag: '--dry-run',
+      },
+      {
+        description:
+          'erase: anonymize, delete, orphan or retain, for the models that do not say it themselves',
+        flag: '--strategy=<name>',
+      },
+      { alias: '-y', description: 'erase: do not ask', flag: '--yes' },
+      JSON_FLAG,
+    ],
+    name: 'privacy',
+    summary:
+      'the personal data of this application, and the export and erasure of one person',
+    targets: [
+      {
+        description: 'the personal fields, model by model (the default)',
+        name: 'map',
+      },
+      {
+        description: 'everything held about one person',
+        name: 'export <who>',
+      },
+      {
+        description: 'erase one person, and leave a receipt',
+        name: 'erase <who>',
+      },
+    ],
+    usage: [
+      'henri privacy [--json]',
+      'henri privacy:export <who> [--out=<file>] [--json]',
+      'henri privacy:erase <who> [--dry-run] [--strategy=<name>] [--yes] [--json]',
+    ],
+  },
+  {
+    description: [
       'Starts the MCP server of @usehenri/mcp on stdio for the application',
       'in the current directory. Claude Code reads it from .mcp.json, Cursor',
       'from .cursor/mcp.json (both: { "command": "henri", "args": ["mcp"] }).',

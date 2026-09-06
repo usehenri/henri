@@ -126,6 +126,24 @@ describe('schema normalizer', () => {
     expect(fields.secret.hidden).toBe(true);
   });
 
+  test('keeps the personal mark as metadata, not as a column', () => {
+    const fields = normalizeSchema({
+      name: { personal: true, type: 'string' },
+      phone: { personal: { expose: false }, type: 'string' },
+    });
+
+    expect(fields.name).toEqual({ personal: true, type: 'string' });
+    expect(fields.phone.personal).toEqual({ expose: false });
+
+    // And the table it compiles to has the two columns and nothing else
+    const { columns } = compileTable(
+      { fields, key: 'User', tableName: 'users' },
+      dialects.get('sqlite')
+    );
+
+    expect(Object.keys(columns).sort()).toEqual(['id', 'name', 'phone']);
+  });
+
   test('throws on unknown keys, unknown types and bad enums', () => {
     expect(() =>
       normalizeSchema({ name: { type: 'string', typo: 1 } })

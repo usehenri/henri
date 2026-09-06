@@ -28,10 +28,20 @@ module.exports = {
     });
   },
 
+  options: {
+    // A review is the committee's record of a decision, so the row and the
+    // score stay; the comment is the reviewer's own words about a talk, so
+    // it goes with them. `anonymize` is both of those at once.
+    personal: { onErase: 'anonymize' },
+  },
+
   schema: {
     comment: {
       maxLength: 2000,
       minLength: 10,
+      // Erased with the reviewer, not with the speaker: the link henri
+      // follows is `reviewerId`, the one that points at a person
+      personal: { erase: 'anonymize' },
       required: true,
       type: 'text',
     },

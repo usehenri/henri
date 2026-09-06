@@ -719,11 +719,16 @@ class Router extends BaseModule {
    *
    * @param {Express.Request} req the request
    * @param {Express.Response} res the response
-   * @param {object} [extras={}] `data` and/or a `graphql` query
+   * @param {object} [extras={}] `data` and/or a `graphql` query, and the
+   *   `include` of the personal fields this page is allowed to carry
    * @returns {Promise<object>} the view options
    * @memberof Router
    */
-  async viewOptions(req, res, { data = {}, graphql = null } = {}) {
+  async viewOptions(
+    req,
+    res,
+    { data = {}, graphql = null, include = [] } = {}
+  ) {
     let payload = data;
     let errors = null;
 
@@ -746,8 +751,12 @@ class Router extends BaseModule {
     const opts = {
       csrf: req.csrfToken || null,
       // The last gate on the way to a page: a record carrying a public
-      // identifier leaves its primary key here (see base/external-id.js)
-      data: stripInternalIds(payload),
+      // identifier leaves its primary key here (see base/external-id.js),
+      // and a field marked `personal: { expose: false }` leaves the payload
+      // altogether unless this render asked for it (see base/privacy.js)
+      data: this.henri.privacy
+        ? this.henri.privacy.strip(stripInternalIds(payload), include)
+        : stripInternalIds(payload),
       // A handler that refused a form and redirected leaves its errors in the
       // flash (`req.flash('errors', { email: 'is required' })`), which is how
       // post/redirect/get reaches the page: they arrive where a rendered
@@ -882,11 +891,13 @@ class Router extends BaseModule {
 
       res.render = async (route, extras = {}) => {
         let { data = {}, graphql = null } = extras;
+        const include = Array.isArray(extras.include) ? extras.include : [];
 
         if (
           Object.keys(extras).length > 0 &&
           typeof extras.data === 'undefined' &&
-          typeof extras.graphql === 'undefined'
+          typeof extras.graphql === 'undefined' &&
+          typeof extras.include === 'undefined'
         ) {
           this.henri.isDev &&
             this.henri.pen.warn(
@@ -918,7 +929,11 @@ class Router extends BaseModule {
           }
         }
 
-        const opts = await this.viewOptions(req, res, { data, graphql });
+        const opts = await this.viewOptions(req, res, {
+          data,
+          graphql,
+          include,
+        });
 
         return this.negotiate(req, res, {
           html: () => this.henri.view.engine.render(req, res, route, opts),

@@ -18,8 +18,10 @@ import type {
   Job,
   JobDefinition,
   JobStats,
+  ErasureReceipt,
   ModelFile,
   Page,
+  PersonalExport,
   Pagination,
   Policy,
   PoliciesModule,
@@ -375,12 +377,18 @@ const badNamespace: RoutesFile = {
 const model: ModelFile = {
   store: 'default',
   name: 'tasks',
-  options: { paranoid: true, timestamps: true },
+  options: {
+    paranoid: true,
+    timestamps: true,
+    personal: { onErase: 'anonymize', subject: 'ownerId' },
+  },
   schema: {
     title: { type: 'string', required: true, unique: true },
     body: 'text',
     status: { type: 'string', enum: ['todo', 'done'], default: 'todo' },
     meta: { type: 'json' },
+    author: { type: 'string', personal: true },
+    phone: { type: 'string', personal: { expose: false, erase: 'retain' } },
   },
   associate(models) {
     expectType<Record<string, unknown>>(models);
@@ -395,6 +403,56 @@ const badModel: ModelFile = {
     title: { type: 'varchar', required: true },
   },
 };
+
+const badMark: ModelFile = {
+  schema: {
+    // @ts-expect-error a personal field is erased, anonymized or retained
+    title: { type: 'string', personal: { erase: 'shred' } },
+  },
+};
+
+const badStrategy: ModelFile = {
+  // @ts-expect-error the records of an erased person go one of four ways
+  options: { personal: { onErase: 'burn' } },
+  schema: { title: 'string' },
+};
+
+// --- personal data ----------------------------------------------------------
+
+expectType<Set<string>>(henri.privacy.keys);
+expectType<Set<string>>(henri.privacy.private);
+expectType<string | null>(henri.privacy.subjectModel);
+expectType<{ name: string; phone: string }>(
+  henri.privacy.strip({ name: 'Ada', phone: '555' })
+);
+expectType<{ name: string }>(henri.privacy.strip({ name: 'Ada' }, ['phone']));
+
+declare const receipt: ErasureReceipt;
+expectType<string>(receipt.subject.digest);
+expectType<'anonymize' | 'delete' | 'orphan' | 'retain'>(
+  receipt.records[0].action
+);
+
+async function erasing(): Promise<void> {
+  const document: PersonalExport = await henri.privacy.export('ada@x.test');
+
+  expectType<Record<string, number>>(document.counts);
+  expectType<ErasureReceipt>(await henri.privacy.erase('ada@x.test'));
+  expectType<ErasureReceipt>(
+    await henri.privacy.erase('ada@x.test', { dryRun: true })
+  );
+
+  // @ts-expect-error `henri.privacy.erase()` needs somebody to erase
+  await henri.privacy.erase();
+}
+
+expectType<Promise<void>>(erasing());
+
+// The private fields of a payload are dropped unless the answer asks
+res.render('/account', { data: { user: {} }, include: ['phone'] });
+res.resource({ id: '1' }, { include: ['phone'] });
+// @ts-expect-error `include` names fields, not a boolean
+res.resource({ id: '1' }, { include: true });
 
 declare const page: Page<{ id: string }>;
 expectType<{ id: string }[]>(page.records);

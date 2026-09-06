@@ -235,7 +235,8 @@ class Pen extends BaseModule {
   /**
    * A copy of a value with the filtered parameters masked
    * (`config.filterParameters`, `password`, `token`, `secret` and
-   * `authorization` by default)
+   * `authorization` by default), and with the fields the models marked
+   * personal masked by name (`henri.privacy`, see `base/privacy.js`)
    *
    * @param {*} value anything
    * @returns {*} the redacted copy
@@ -244,7 +245,9 @@ class Pen extends BaseModule {
   redact(value) {
     const inst = this.henri || global.henri;
 
-    return redact(value, filterParameters(inst && inst.config));
+    return redact(value, filterParameters(inst && inst.config), {
+      keys: (inst && inst.privacy && inst.privacy.keys) || undefined,
+    });
   }
 
   /**

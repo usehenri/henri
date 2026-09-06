@@ -278,6 +278,18 @@ describe('mongoose adapter', () => {
       expect(definition.tags).toEqual([String]);
       expect(definition.tasks).toEqual({});
     });
+
+    test('keeps the personal mark out of the mongoose definition', () => {
+      const definition = normalizeSchema({
+        name: { personal: true, trim: true, type: 'string' },
+        phone: { personal: { expose: false }, type: 'string' },
+      });
+
+      // It is a mark for henri (core's base/privacy.js), which reads it from
+      // the model file; Mongoose never sees it
+      expect(definition.name).toEqual({ trim: true, type: String });
+      expect(definition.phone).toEqual({ type: String });
+    });
   });
 
   describe('models', () => {

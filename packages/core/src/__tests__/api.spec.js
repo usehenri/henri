@@ -765,7 +765,9 @@ describe('api (demo app, disk store)', () => {
           password_confirmation: 'hunter2',
         })
       ).toEqual({
-        email: 'grace@usehenri.io',
+        // The user model's email is personal, so it is masked by name
+        // (henri.privacy.keys, see base/privacy.js)
+        email: '[FILTERED]',
         list: [{ secret: '[FILTERED]' }],
         nested: { ok: 1, token: '[FILTERED]' },
         password: '[FILTERED]',

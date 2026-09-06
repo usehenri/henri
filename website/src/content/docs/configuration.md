@@ -56,6 +56,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `cache`            | on            | `henri.cache`: how long an entry lives, how much of it is kept and where, see below. `false` turns the cache off.                               |
 | `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                |
 | `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                      |
+| `privacy`          |               | What henri does with the fields the models marked `personal`, see below. See [Personal data](/guides/privacy/).                                 |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                            |
 | `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                  |
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                   |
@@ -223,6 +224,28 @@ A cache is a correctness hazard, not only a speed feature, so two things are sai
 | `filterParameters` | `["password", "token", "secret", "authorization"]` | Substrings of the parameter names masked in everything `henri.pen` prints; `false` masks nothing.                                                                                                                                                                 |
 | `bodyLimit`        | `"1mb"`                                            | Passed to the JSON and urlencoded body parsers; a string (`"1mb"`) or a number of bytes.                                                                                                                                                                          |
 | `requestTimeout`   | `30000`                                            | Milliseconds before a `503`; `false` disables the timeout.                                                                                                                                                                                                        |
+
+## The `privacy` object
+
+What henri does with the fields the models marked `personal`. Which fields
+those are is said in the models themselves; see
+[Personal data](/guides/privacy/).
+
+```json
+{
+  "privacy": {
+    "expose": true,
+    "onErase": "anonymize",
+    "receipts": "privacy"
+  }
+}
+```
+
+| Key        | Default       | Description                                                                                                                                                                                       |
+| ---------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `expose`   | `true`        | Whether a personal field may leave the server in an answer henri builds. `false` drops every one of them unless the field says `personal: { expose: true }`.                                      |
+| `onErase`  | `"anonymize"` | What happens to the records of an erased person, for the models that do not say it themselves: `anonymize`, `delete`, `orphan` or `retain`.                                                       |
+| `receipts` | `"privacy"`   | The directory `henri privacy:erase` writes its receipt to -- the proof that it ran, holding an HMAC of the identity rather than the identity. `false` keeps none beyond what the command printed. |
 
 ## Uploads
 
