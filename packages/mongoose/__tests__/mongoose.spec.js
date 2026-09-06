@@ -101,7 +101,15 @@ const sessions = (store) => ({
 });
 
 beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
+  // A starting port of this worker's own, the way @usehenri/disk picks one
+  // (packages/disk/port.js): left to itself the library probes a free port,
+  // closes the probe and launches mongod on it, so two workers starting
+  // together land on the same one and the second dies. This package cannot
+  // depend on the disk adapter -- the adapter depends on this one -- so the
+  // range and the formula are repeated here.
+  const port = 20000 + ((process.pid * 4) % 7000);
+
+  mongod = await MongoMemoryServer.create({ instance: { port } });
 }, 120000);
 
 afterAll(async () => {
