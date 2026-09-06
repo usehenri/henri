@@ -13,7 +13,9 @@ henri generate job welcome        # writes app/jobs/welcome.js
 henri jobs                        # a worker process that performs them
 ```
 
-The queue lives in [`@usehenri/jobs`](https://www.npmjs.com/package/@usehenri/jobs). Install it and henri exposes it as `henri.jobs`; an application that has neither `app/jobs` nor a `jobs` configuration never loads it.
+The queue lives in [`@usehenri/jobs`](https://www.npmjs.com/package/@usehenri/jobs). The package [ships a henri module](/reference/under-the-hood/#where-it-goes-a-module-that-arrives-from-a-package), so depending on it is all there is to do: it is in the boot as `henri.jobs`, at level 4. An application that does not depend on it has no `henri.jobs` at all — `henri new` does not install it, because most applications never enqueue anything. `henri doctor` asks for it as soon as `app/jobs` holds a file or the configuration has a `jobs` block, and `henri jobs` says the same.
+
+Installing the package is not the same as using it: an application that has neither `app/jobs` nor a `jobs` configuration keeps the module inert, creates no table, and every call says so. The queue was loaded by `@usehenri/core` until 1.2 — see [Upgrading](/upgrading/#the-queue-registers-itself).
 
 ## Defining a job
 
@@ -201,7 +203,7 @@ An expression henri cannot read, or one that can never come round (`0 0 30 2 *`)
 
 ## Delivering mail through the queue
 
-`henri.mailers` renders a message and, with `deliverLater()`, hands it over instead of sending it inline. Installing `@usehenri/jobs` is what makes that a real queue: henri registers the delivery handler, and the rendered message becomes a job on the `mailers` queue (`jobs.mailQueue`).
+`henri.mailers` renders a message and, with `deliverLater()`, hands it over instead of sending it inline. Installing `@usehenri/jobs` is what makes that a real queue: the module registers the delivery handler, and the rendered message becomes a job on the `mailers` queue (`jobs.mailQueue`). Without the package the message is sent out of band, which is not a queue and cannot hold anything back: `deliverLater({ wait: '5m' })` is refused, and says to install the package rather than sending the mail now.
 
 ```js
 await henri.mailers.welcome.confirm(user).deliverLater();
