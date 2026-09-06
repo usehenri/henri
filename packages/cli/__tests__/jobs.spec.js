@@ -109,8 +109,10 @@ describe('henri jobs', () => {
       expect(error.message).toBe('This application has no job queue');
       expect(error.hint).toContain('@usehenri/jobs');
     });
-  });
+  }, 300000);
 
+  // Every test here spawns at least one `henri` process, each of them a full
+  // boot: the default timeout is not a useful bound on a loaded machine
   describe('a real application', () => {
     const report = path.join(fixture, '.henri', 'performed.log');
 
@@ -331,5 +333,5 @@ describe('henri jobs', () => {
       expect(answer.stdout).toContain('Recurring:');
       expect(answer.stdout).toContain('nightly -> ping');
     });
-  });
+  }, 300000);
 });
