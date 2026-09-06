@@ -135,11 +135,16 @@ describe('user model overload', () => {
     expect(await adapter.findUserById(424242)).toBeNull();
     expect(await adapter.findUserById(null)).toBeNull();
 
+    // The public identifier finds the user too, and is the only one that
+    // ever leaves the server
+    const byExternalId = await adapter.findUserById(created.externalId);
+
+    expect(byExternalId.email).toBe('grace@usehenri.io');
     expect(adapter.userId(byId)).toBe(String(created.id));
     expect(adapter.toPlain(byEmail)).toEqual({
       createdAt: expect.any(Date),
       email: 'grace@usehenri.io',
-      id: created.id,
+      externalId: created.externalId,
       name: 'Grace',
       roles: ['member'],
       updatedAt: expect.any(Date),

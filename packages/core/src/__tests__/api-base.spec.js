@@ -20,6 +20,11 @@ const {
   toPlain,
 } = require('../base/hateoas');
 const {
+  hasExternalId,
+  isUuid,
+  stripInternalIds,
+} = require('../base/external-id');
+const {
   MemoryStore,
   fingerprint,
   scopeOf,
@@ -431,6 +436,29 @@ describe('hateoas helpers', () => {
     expect(identify({})).toBeNull();
   });
 
+  test('toPlain drops the internal ids of a record that has a public one', () => {
+    const external = '0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11';
+
+    // A `.lean()` document: no toJSON of its own to do the job
+    expect(toPlain({ _id: 42, externalId: external, title: 't' })).toEqual({
+      externalId: external,
+      title: 't',
+    });
+    expect(
+      toPlain({
+        toJSON: () => ({
+          author: { externalId: external, id: 9 },
+          externalId: external,
+          id: 3,
+        }),
+      })
+    ).toEqual({
+      author: { externalId: external },
+      externalId: external,
+    });
+    expect(identify({ externalId: external, id: 3 })).toBe(external);
+  });
+
   test('resourceLinks only contains the paths the user may follow', () => {
     expect(
       resourceLinks({ id: '1', paths: TASK_PATHS, type: 'tasks' })
@@ -465,6 +493,59 @@ describe('hateoas helpers', () => {
       new: { href: '/tasks/new' },
     });
     expect(collectionLinks({ paths: {}, type: 'tasks' })).toEqual({});
+  });
+});
+
+describe('external ids', () => {
+  const external = '0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11';
+
+  test('a uuid is never confused with a primary key', () => {
+    expect(isUuid(external)).toBe(true);
+    expect(isUuid(external.toUpperCase())).toBe(true);
+    expect(isUuid('42')).toBe(false);
+    expect(isUuid(42)).toBe(false);
+    // A MongoDB object id: 24 hex characters, no dashes
+    expect(isUuid('6a9cc1ae7276eaea0bf93cfe')).toBe(false);
+    expect(hasExternalId({ externalId: external })).toBe(true);
+    expect(hasExternalId({ externalId: '' })).toBe(false);
+    expect(hasExternalId({ id: 1 })).toBe(false);
+    expect(hasExternalId(null)).toBe(false);
+  });
+
+  test('stripInternalIds walks the whole payload', () => {
+    const author = { externalId: 'a', id: 7 };
+    const posts = [
+      { author, externalId: 'p1', id: 1 },
+      { author, externalId: 'p2', id: 2 },
+    ];
+
+    // The same record twice: both copies lose the id
+    expect(stripInternalIds(posts)).toEqual([
+      { author: { externalId: 'a' }, externalId: 'p1' },
+      { author: { externalId: 'a' }, externalId: 'p2' },
+    ]);
+    // A record without a public id is left exactly as it was
+    expect(stripInternalIds({ id: 3, name: 'kept' })).toEqual({
+      id: 3,
+      name: 'kept',
+    });
+  });
+
+  test('stripInternalIds leaves dates, buffers and cycles alone', () => {
+    const when = new Date('2026-01-02T03:04:05.000Z');
+    const buffer = Buffer.from('x');
+    const cyclic = { externalId: 'c', id: 1 };
+
+    cyclic.self = cyclic;
+
+    const walked = stripInternalIds({ buffer, record: cyclic, when });
+
+    expect(walked.when).toBe(when);
+    expect(walked.buffer).toBe(buffer);
+    expect(walked.record.id).toBeUndefined();
+    expect(walked.record.self).toBe(walked.record);
+    expect(stripInternalIds('a string')).toBe('a string');
+    expect(stripInternalIds(null)).toBeNull();
   });
 });
 

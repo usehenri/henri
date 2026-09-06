@@ -91,9 +91,10 @@ describe('auth (demo app, disk store)', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.status).toBe('ok');
+      // The public user carries the external id, never the document id
       expect(res.body.user).toEqual({
         email,
-        id: expect.any(String),
+        externalId: expect.any(String),
         name: 'Ada',
         roles: ['member'],
       });
@@ -161,7 +162,12 @@ describe('auth (demo app, disk store)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
-        user: { email, id: expect.any(String), name: 'Ada', roles: ['member'] },
+        user: {
+          email,
+          externalId: expect.any(String),
+          name: 'Ada',
+          roles: ['member'],
+        },
       });
 
       const line = cookieLine(res, 'henri.sid');
@@ -203,7 +209,7 @@ describe('auth (demo app, disk store)', () => {
       expect(res.status).toBe(200);
       expect(res.body.user).toEqual({
         email,
-        id: expect.any(String),
+        externalId: expect.any(String),
         name: 'Ada',
         roles: ['member'],
       });
@@ -255,8 +261,8 @@ describe('auth (demo app, disk store)', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.title).toBe('Notes');
-      expect(res.body._links.self.href).toBe(`/artwork/${res.body.id}`);
-      expect(res.headers.location).toBe(`/artwork/${res.body.id}`);
+      expect(res.body._links.self.href).toBe(`/artwork/${res.body.externalId}`);
+      expect(res.headers.location).toBe(`/artwork/${res.body.externalId}`);
     });
 
     test('accepts the token in the _csrf body field', async () => {

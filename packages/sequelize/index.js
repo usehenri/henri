@@ -1,7 +1,15 @@
 const Sequelize = require('sequelize');
 const debug = require('debug')('henri:sequelize');
-const { paginate } = require('./plugins');
+const { lookup, paginate, serialize } = require('./plugins');
 const { normalizeSchema } = require('./schema');
+const {
+  EXTERNAL_ID,
+  EXTERNAL_ID_COLUMN,
+  isUuid,
+  uuidv7,
+  wantsExternalId,
+  withoutInternalIds,
+} = require('./external-id');
 const { fatal, normalizeEmail, redact } = require('./utils');
 
 const { DataTypes } = Sequelize;
@@ -187,6 +195,10 @@ class Sql {
     });
     // Rails has timestamps on every table: `timestamps: false` opts out
     const options = { timestamps: true, ...(model.options || {}) };
+    const external = wantsExternalId(model);
+
+    // `externalId` is a henri option, not a Sequelize one
+    delete options.externalId;
 
     if (model.name && !options.tableName) {
       options.tableName = model.name;
@@ -198,13 +210,22 @@ class Sql {
 
     debug('adding model %s', model.globalId);
 
+    if (external) {
+      this.addExternalId(attributes);
+    }
+
     if (isUser) {
       this.overload(attributes, options, model);
     }
 
-    const instance = paginate(
-      connector.define(model.globalId, attributes, options)
+    const instance = lookup(
+      paginate(connector.define(model.globalId, attributes, options)),
+      external
     );
+
+    if (external) {
+      serialize(instance);
+    }
 
     if (isUser) {
       this.decorateUser(instance);
@@ -216,6 +237,36 @@ class Sql {
     this.models[model.globalId] = instance;
 
     return instance;
+  }
+
+  /**
+   * Adds the `externalId` attribute (the `external_id` column): the public
+   * identifier of every record, a uuid v7 generated on insert, NOT NULL and
+   * UNIQUE in the database. The primary key stays internal.
+   *
+   * `options: { externalId: false }` on the model file opts out.
+   *
+   * @param {object} attributes The Sequelize attributes
+   * @returns {object} The attributes
+   * @memberof Sql
+   */
+  addExternalId(attributes) {
+    if (attributes[EXTERNAL_ID]) {
+      return attributes;
+    }
+
+    attributes[EXTERNAL_ID] = {
+      allowNull: false,
+      // A function default is generated per row and never reaches the DDL
+      // (sequelize's defaultValueSchemable), which is what we want: the
+      // column has no server side default, every insert brings its own
+      defaultValue: uuidv7,
+      field: EXTERNAL_ID_COLUMN,
+      type: DataTypes.UUID,
+      unique: true,
+    };
+
+    return attributes;
   }
 
   /**
@@ -511,11 +562,16 @@ class Sql {
       return null;
     }
 
-    if (type instanceof DataTypes.INTEGER && !/^\d+$/.test(String(id))) {
+    // A uuid is a public identifier, not a malformed primary key
+    if (
+      !isUuid(id) &&
+      type instanceof DataTypes.INTEGER &&
+      !/^\d+$/.test(String(id))
+    ) {
       return null;
     }
 
-    return Model.findByPk(id);
+    return Model.findById(id);
   }
 
   /**
@@ -544,7 +600,8 @@ class Sql {
 
     delete plain.password;
 
-    return plain;
+    // The primary key never leaves the server when there is a public one
+    return withoutInternalIds(plain);
   }
 
   /**

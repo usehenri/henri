@@ -7,6 +7,7 @@ const { createModel } = require('./model');
 const { compileTable, normalizeSchema } = require('./schema');
 const { SESSION_FIELDS, createStore } = require('./session');
 const { ValidationError } = require('./validation');
+const { EXTERNAL_ID, uuidv7, wantsExternalId } = require('./external-id');
 const { fatal, normalizeEmail, redact, toRoles } = require('./utils');
 
 /**
@@ -138,6 +139,8 @@ class Drizzle {
 
     debug('adding model %s', model.globalId);
 
+    this.addExternalId(definition);
+
     if (isUser) {
       this.overload(definition);
     }
@@ -156,6 +159,31 @@ class Drizzle {
     this.dirty = true;
 
     return Model;
+  }
+
+  /**
+   * Adds the `externalId` column: the public identifier of every record, a
+   * uuid v7 generated on insert, unique and not null in the database. The
+   * primary key stays internal. `options: { externalId: false }` opts out.
+   *
+   * @param {object} definition The model file (copied)
+   * @returns {object} The definition
+   * @memberof Drizzle
+   */
+  addExternalId(definition) {
+    if (!wantsExternalId(definition) || definition.schema[EXTERNAL_ID]) {
+      return definition;
+    }
+
+    definition.schema[EXTERNAL_ID] = {
+      default: uuidv7,
+      lowercase: true,
+      required: true,
+      type: 'uuid',
+      unique: true,
+    };
+
+    return definition;
   }
 
   /**
@@ -372,7 +400,7 @@ class Drizzle {
    */
   toPlain(user) {
     const plain =
-      typeof user.toObject === 'function' ? user.toObject() : { ...user };
+      typeof user.toJSON === 'function' ? user.toJSON() : { ...user };
 
     delete plain.password;
 

@@ -161,9 +161,15 @@ describe('api (demo app, disk store)', () => {
         .send({ title: 'Nocturne', year: 1875 });
 
       expect(res.status).toBe(201);
-      id = res.body.id;
+      // The public identifier is what the payload and the links carry; the
+      // document id stays on the server
+      id = res.body.externalId;
       url = `/api/v1/artworks/${id}`;
-      expect(id).toEqual(expect.any(String));
+      expect(id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/
+      );
+      expect(res.body.id).toBeUndefined();
+      expect(res.body._id).toBeUndefined();
       expect(res.headers.location).toBe(url);
       expect(res.headers['content-type']).toMatch(/^application\/json/);
       expect(res.body).toMatchObject({ title: 'Nocturne', year: 1875 });
@@ -257,8 +263,10 @@ describe('api (demo app, disk store)', () => {
       expect(res.body).toMatchObject({ count: 5, page: 2, perPage: 5, total });
       expect(res.body._embedded.artworks).toHaveLength(5);
       expect(res.body._embedded.artworks[0]._links.self.href).toMatch(
-        /^\/api\/v1\/artworks\/[0-9a-f]{24}$/
+        /^\/api\/v1\/artworks\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
       );
+      expect(res.body._embedded.artworks[0].id).toBeUndefined();
+      expect(res.body._embedded.artworks[0]._id).toBeUndefined();
       expect(res.body._links).toEqual({
         create: { href: '/api/v1/artworks', method: 'POST' },
         first: { href: '/api/v1/artworks?page=1&per_page=5' },

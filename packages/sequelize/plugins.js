@@ -1,6 +1,14 @@
+const {
+  EXTERNAL_ID,
+  isUuid,
+  normalizeExternalId,
+  withoutInternalIds,
+} = require('./external-id');
+
 /**
  * The Rails behaviours henri adds to every Sequelize model. Soft deletes
- * are Sequelize's own `paranoid` option, so only `paginate()` is added here.
+ * are Sequelize's own `paranoid` option, so `paginate()`, `findById()` and
+ * the public identifier are what is added here.
  */
 
 /**
@@ -66,4 +74,69 @@ const paginate = (Model) => {
   return Model;
 };
 
-module.exports = { paginate };
+/**
+ * Adds `Model.findById()`: the Sequelize name is `findByPk`, and henri
+ * wants one lookup that takes whatever `req.params.id` holds.
+ *
+ * With a public identifier (`external-id.js`) a uuid is looked up on
+ * `externalId` and anything else on the primary key, which can never be
+ * confused: a uuid is 36 characters with dashes, a primary key is not.
+ * `findByPk()` accepts both too, so existing code keeps working.
+ *
+ * @param {object} Model A Sequelize model
+ * @param {boolean} external Does the model carry a public identifier?
+ * @returns {object} The model
+ */
+const lookup = (Model, external) => {
+  const findByPk = Model.findByPk;
+
+  /**
+   * A row by id: the public identifier or the primary key
+   *
+   * @param {*} value An external id or a primary key
+   * @param {object} [options] findByPk/findOne options
+   * @returns {Promise<?object>} The row or null
+   */
+  Model.findById = function findById(value, options) {
+    if (external && isUuid(value)) {
+      return this.findOne({
+        ...options,
+        where: {
+          ...((options && options.where) || {}),
+          [EXTERNAL_ID]: normalizeExternalId(value),
+        },
+      });
+    }
+
+    return findByPk.call(this, value, options);
+  };
+
+  Model.findByPk = function findByPkOrExternalId(value, options) {
+    return this.findById(value, options);
+  };
+
+  return Model;
+};
+
+/**
+ * The primary key never leaves the server on a model carrying a public
+ * identifier: `toJSON()` (and everything built on it) answers with
+ * `externalId` instead.
+ *
+ * @param {object} Model A Sequelize model
+ * @returns {object} The model
+ */
+const serialize = (Model) => {
+  /**
+   * The row as JSON, without its primary key
+   *
+   * @returns {object} A plain object
+   */
+  Model.prototype.toJSON = function toJSON() {
+    return withoutInternalIds(this.get({ plain: true }));
+  };
+
+  return Model;
+};
+
+module.exports = { lookup, paginate, serialize };

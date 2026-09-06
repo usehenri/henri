@@ -97,7 +97,7 @@ describe('auth (sequelize sqlite store)', () => {
     expect(res.status).toBe(201);
     expect(res.body.user).toEqual({
       email: 'grace@usehenri.io',
-      id: expect.any(String),
+      externalId: expect.any(String),
       name: 'Grace',
       roles: ['member'],
     });
@@ -133,7 +133,7 @@ describe('auth (sequelize sqlite store)', () => {
     expect(login.status).toBe(200);
     expect(login.body.user).toEqual({
       email: 'grace@usehenri.io',
-      id: expect.any(String),
+      externalId: expect.any(String),
       name: 'Grace',
       roles: ['member'],
     });

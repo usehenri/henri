@@ -187,6 +187,11 @@ describe('DDL per dialect (drizzle-kit, no server)', () => {
     expect(sql).toContain('`done` integer DEFAULT false');
     expect(sql).toContain('`created_at` integer NOT NULL');
     expect(sql).toContain('CREATE UNIQUE INDEX `users_email_unique`');
+    // The public identifier is not null and unique in the database itself
+    expect(sql).toContain('`external_id` text NOT NULL');
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX `tasks_external_id_unique` ON `tasks` (`external_id`)'
+    );
     expect(sql).toContain('CREATE TABLE `henri_sessions`');
     expect(sql).toMatchSnapshot();
   });
@@ -201,6 +206,10 @@ describe('DDL per dialect (drizzle-kit, no server)', () => {
     expect(sql).toContain('"roles" jsonb');
     expect(sql).toContain('"created_at" timestamp with time zone NOT NULL');
     expect(sql).toContain('CONSTRAINT "users_email_unique" UNIQUE("email")');
+    expect(sql).toContain('"external_id" uuid NOT NULL');
+    expect(sql).toContain(
+      'CONSTRAINT "tasks_external_id_unique" UNIQUE("external_id")'
+    );
     expect(sql).toMatchSnapshot();
   });
 
@@ -212,6 +221,10 @@ describe('DDL per dialect (drizzle-kit, no server)', () => {
     expect(sql).toContain('`roles` json');
     expect(sql).toContain('`created_at` datetime(3) NOT NULL');
     expect(sql).toContain('CONSTRAINT `users_email_unique` UNIQUE(`email`)');
+    expect(sql).toContain('`external_id` varchar(36) NOT NULL');
+    expect(sql).toContain(
+      'CONSTRAINT `tasks_external_id_unique` UNIQUE(`external_id`)'
+    );
     expect(sql).toMatchSnapshot();
   });
 

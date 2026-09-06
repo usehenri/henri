@@ -1,5 +1,11 @@
 const { eq } = require('drizzle-orm');
 const { Relation } = require('./relation');
+const {
+  EXTERNAL_ID,
+  isUuid,
+  normalizeExternalId,
+  withoutInternalIds,
+} = require('./external-id');
 const { normalizeField } = require('./schema');
 const { ValidationError, failure, validate } = require('./validation');
 const {
@@ -26,6 +32,10 @@ const HOOKS = [
 
 // Fields never taken from mass-assigned attributes
 const PROTECTED = ['createdAt', 'deletedAt', 'updatedAt'];
+
+// The public identifier is written once, on the insert, and never again: it
+// is what every url and every link of a record is made of
+const IMMUTABLE = [EXTERNAL_ID];
 
 // Keys that make a first argument an options object instead of a condition
 const OPTION_KEYS = new Set([
@@ -298,11 +308,44 @@ class Model {
    * @memberof Model
    */
   static async findById(id, options = {}) {
+    if (this.externalId && isUuid(id)) {
+      return this.relation(
+        { [EXTERNAL_ID]: normalizeExternalId(id) },
+        options
+      ).first();
+    }
+
     if (!this.isValidId(id)) {
       return null;
     }
 
     return this.relation({ id: this.castId(id) }, options).first();
+  }
+
+  /**
+   * The primary key behind a public identifier: `id` accepts an external id
+   * (a uuid) as well as the internal one, so a controller can hand it
+   * `req.params.id` whatever it holds
+   *
+   * @param {*} id An external id or a primary key
+   * @returns {Promise<*>} The primary key, or null when there is no such row
+   * @memberof Model
+   */
+  static async internalId(id) {
+    if (this.externalId && isUuid(id)) {
+      // A primary key lookup never cared about the soft deletes, so this
+      // one does not either: `findByIdAndUpdate()` reaches a withdrawn row
+      const [found] = await this.query()
+        .where({ [EXTERNAL_ID]: normalizeExternalId(id) })
+        .withDeleted()
+        .select('id')
+        .limit(1)
+        .toArray();
+
+      return found ? found.id : null;
+    }
+
+    return this.isValidId(id) ? this.castId(id) : null;
   }
 
   /**
@@ -526,12 +569,14 @@ class Model {
    * @memberof Model
    */
   static async findByIdAndUpdate(id, attrs, options = {}) {
-    if (!this.isValidId(id)) {
+    const key = await this.internalId(id);
+
+    if (key === null) {
       return null;
     }
 
     const values = await this.prepare('update', attrs, options, null);
-    const row = await this.run(() => this.updateById(this.castId(id), values));
+    const row = await this.run(() => this.updateById(key, values));
 
     if (!row) {
       return null;
@@ -796,8 +841,12 @@ class Model {
    */
   static selection({ hidden = false, select = null } = {}) {
     const { table } = this;
+    // The public identifier travels with the primary key: a selection that
+    // carries the internal id but not the external one could not be
+    // serialized without leaking it
+    const keys = this.externalId ? ['id', EXTERNAL_ID] : ['id'];
     const fields = select
-      ? ['id', ...select].filter((field) => table[field])
+      ? [...keys, ...select].filter((field) => table[field])
       : Object.keys(table).filter(
           (field) => table[field] && (hidden || !this.hidden.includes(field))
         );
@@ -916,7 +965,7 @@ class Model {
 
     let values = validate(this.modelName, this.fields, data, {
       partial: kind === 'update',
-      skip: PROTECTED,
+      skip: kind === 'update' ? [...PROTECTED, ...IMMUTABLE] : PROTECTED,
     });
 
     if (kind === 'create' && data.id !== undefined && this.isValidId(data.id)) {
@@ -1404,13 +1453,17 @@ class Model {
   }
 
   /**
-   * JSON representation (hidden fields removed)
+   * JSON representation: the hidden fields are removed and so is the
+   * primary key, which never leaves the server when the model carries an
+   * external id (`options: { externalId: false }` keeps the old shape)
    *
    * @returns {object} The plain object
    * @memberof Model
    */
   toJSON() {
-    return this.toObject();
+    const plain = this.toObject();
+
+    return this.Model.externalId ? withoutInternalIds(plain) : plain;
   }
 }
 
@@ -1476,6 +1529,8 @@ const createModel = (adapter, definition, fields) => {
     adapter,
     associations: [],
     definition,
+    // Does this model carry a public identifier? (see external-id.js)
+    externalId: Boolean(fields[EXTERNAL_ID]),
     fields,
     hooks,
     internalHooks,
