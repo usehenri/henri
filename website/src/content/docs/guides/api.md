@@ -97,6 +97,35 @@ Routes expanded from `resources` and `crud` are expected to answer HAL: a JSON a
 
 [`Model.paginate()`](/guides/models/#pagination) is the other half: `await Task.paginate(req.pagination())` answers `{ records, page, perPage, total, pages }` on every adapter, so an index action is one query instead of a find and a count.
 
+The paging links are built from the url as it was requested and only ever set `page` and `per_page`, so everything else it carries — a filter, a sort — rides along and page two of a filtered list is page two of the same list.
+
+## Filtering and sorting
+
+An index action declares what a client may narrow and order its list by, in a `filters` block next to `params`, and everything else is a `422` before the action runs:
+
+```js
+filters: {
+  index: {
+    where: { state: { enum: ['submitted', 'accepted'], type: 'string' } },
+    sort: ['submittedAt', 'title'],
+    default: '-submittedAt',
+  },
+},
+
+index: async (req, res) => {
+  const { order, where } = await req.filter();
+  const { page, perPage, records, total } = await Task.paginate({
+    ...req.pagination(),
+    order,
+    where,
+  });
+
+  return res.collection(records, { page, perPage, total });
+},
+```
+
+`?filter[state]=accepted&filter[submittedAt][gte]=2026-01-01&sort=-submittedAt` is the request. `req.filter()` intersects it with what [the policy says the list is](/guides/policies/#scoping-a-list), so a filter narrows a list and can never widen it, and it appends the record's `externalId` to the order so paging is exact. The whole of it — the operators, what can never be declared, and why a substring search is opt-in per field — is in [Filtering and sorting](/guides/filtering/).
+
 ## Idempotency
 
 Clients retrying a `POST`, `PUT`, `PATCH` or `DELETE` send an `Idempotency-Key` header (1 to 255 printable ASCII characters, otherwise a `400` carrying `HENRI_API_IDEMPOTENCY_KEY_INVALID`), with the same semantics as Stripe:

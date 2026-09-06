@@ -26,6 +26,7 @@ Everything below comes from the application, never from a convention henri hopes
 | The paths and the verbs           | `config/routes.js`, expanded by [`base/routes.js`](/guides/routes/) — the same table `henri routes` prints                                                                |
 | The path parameters               | The `:id` of the route, typed as the record's `externalId` when the model carries one                                                                                     |
 | The query and body parameters     | The [`params`](/guides/controllers/#params-what-an-action-accepts) an action declared, where it declared any — the types, the bounds, the enums and what is required      |
+| The `filter[...]` and `sort`      | The [`filters`](/guides/filtering/) an action declared: one parameter per comparison, and the columns a client may order by                                               |
 | The schemas                       | `app/models`, plus the columns the adapters add (`externalId`, `createdAt`/`updatedAt`, `deletedAt`, and the user's `email`, `roles`, `confirmedAt`, `passwordChangedAt`) |
 | The HAL envelopes                 | [`res.resource()` and `res.collection()`](/guides/api/#answering-hal), for the routes expanded from `resources` and `crud`                                                |
 | The error envelope                | [`res.boom.*`](/guides/api/) and the 404/500 handlers, with the `code` of the [error catalogue](/reference/errors/)                                                       |
@@ -36,7 +37,7 @@ Everything below comes from the application, never from a convention henri hopes
 | The identity endpoints            | `config.user.identities`: the providers are the `enum` of the path parameter, and every refusal is described by the `data.reason` it carries                              |
 | `/livez`, `/readyz`, `/healthz`   | Always: every henri application answers them                                                                                                                              |
 
-Every operation also carries `x-henri.enforced`, a list naming what henri actually checks on that route — `_links` on the ones expanded from `resources` and `crud`, `params` on the ones whose action declared any, `answers` on the ones whose action declared what it sends — as opposed to what it expects.
+Every operation also carries `x-henri.enforced`, a list naming what henri actually checks on that route — `_links` on the ones expanded from `resources` and `crud`, `params` on the ones whose action declared any, `answers` on the ones whose action declared what it sends, `filters` on the ones that declared those — as opposed to what it expects.
 
 A field marked `personal: { expose: false }` is in **no** schema, because [privacy](/guides/privacy/) strips that name from every answer henri builds, at every depth. Neither is `password`. A declared foreign key is typed as the `externalId` of the row it names, because that is what [`base/references.js`](/guides/models/#identifiers) publishes — and `null`, because a key that names no row resolves to nothing.
 
@@ -61,6 +62,21 @@ That last one is the reason this exists. The check is registered next to the gua
 | `ValidationFailed`    | A value one of the account endpoints henri mounts refused (a duplicate address, say) |
 
 A generated client reading a parameter refusal as a replayed key is exactly the kind of drift this document exists not to have.
+
+### And what a list may be filtered and ordered by
+
+The [`filters`](/guides/filtering/) block is the same kind of statement about the same request, so it is described the same way: one query parameter per comparison, named the way a client writes it.
+
+```json
+{ "name": "filter[state]", "in": "query", "schema": { "type": "string", "enum": ["submitted", "accepted"] } },
+{ "name": "filter[submittedAt][gte]", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+{ "name": "filter[state][in]", "in": "query", "style": "form", "explode": false,
+  "schema": { "type": "array", "items": { "type": "string", "enum": ["submitted", "accepted"] } } }
+```
+
+A list operator (`in`, `nin`, `between`) is an array in the `form` style with no explode, which _is_ the comma-separated spelling a query string uses; `between` carries `minItems: 2, maxItems: 2`. The order is one `sort` parameter whose enum holds both spellings of every declared column (`title`, `-title`) and whose `maxItems` is `config.api.maxSort`.
+
+`x-henri.filters` carries the same thing as a summary — the model, the sortable columns, and the operators of each field — and the operation answers the `InvalidParameters` 422 above, with `HENRI_FILTER_INVALID` as its code.
 
 ### Where the declarations are read
 
