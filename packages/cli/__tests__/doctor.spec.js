@@ -2,15 +2,22 @@ const fs = require('fs');
 const path = require('path');
 
 const {
+  agentsClaim,
   check,
   definesAction,
   definesGraphql,
+  exportsOf,
   ignores,
   looksPlural,
+  mailerActions,
+  moduleDeclaration,
   packageForShared,
+  policyFor,
   reach,
+  schema,
+  storeOf,
 } = require('../scripts/doctor');
-const { cleanup, henri, scaffold } = require('./helpers');
+const { cleanup, henri, linkAdapter, scaffold, tmpdir } = require('./helpers');
 
 /**
  * The problems of a check, keyed by check name
@@ -100,6 +107,89 @@ describe('doctor helpers', () => {
     expect(packageForShared(undefined)).toBeNull();
   });
 
+  test('reads the top level of a module.exports object', () => {
+    const source = `/** @type {import('@usehenri/core').ModelFile} */
+module.exports = {
+  schema: { store: { type: 'string' }, title: { type: 'string' } },
+  options: {},
+  store: 'reporting',
+  async show(req, res) {},
+  home: async (req, res) => {},
+};`;
+
+    expect([...exportsOf(source).keys()]).toEqual([
+      'schema',
+      'options',
+      'store',
+      'show',
+      'home',
+    ]);
+    expect(exportsOf(source).get('store')).toEqual({
+      kind: 'string',
+      value: 'reporting',
+    });
+    expect(exportsOf(source).get('show').kind).toBe('function');
+    // A `store` inside the schema is a column, not the model's store
+    expect(storeOf(source)).toBe('reporting');
+    expect(storeOf(`module.exports = { schema: { store: {} } };`)).toBeNull();
+    // Anything it cannot read answers with nothing rather than a guess
+    expect(storeOf(`module.exports = { store: NAMES.reporting };`)).toBeNull();
+    expect(storeOf(`exports.store = 'reporting';`)).toBeNull();
+    expect([...exportsOf(`// module.exports = { store: 'x' }`).keys()]).toEqual(
+      []
+    );
+  });
+
+  test('tells a mailer action from a key that describes the mailer', () => {
+    const source = `module.exports = {
+  defaults: { from: 'a@b.c' },
+  previews: { confirm: () => [{}] },
+  async confirm(user) { return { to: user.email }; },
+  welcome: async (user) => ({ to: user.email }),
+  identity: 'welcome',
+};`;
+
+    expect(mailerActions(source)).toEqual(['confirm', 'welcome']);
+  });
+
+  test('reads what an app/modules file declares about itself', () => {
+    expect(
+      moduleDeclaration(
+        `class Search extends Module {
+  constructor() { super(); this.name = 'search'; this.needs = ['model']; }
+}`,
+        'metrics'
+      )
+    ).toEqual({ name: 'search', named: true, needs: ['model'] });
+
+    // A module that names itself nothing takes the file name (0.modules.js)
+    expect(moduleDeclaration('module.exports = class {};', 'metrics')).toEqual({
+      name: 'metrics',
+      named: false,
+      needs: [],
+    });
+  });
+
+  test('resolves a policy the way henri.policies resolves one', () => {
+    const policies = new Set(['task', 'admin/proposal']);
+
+    expect(policyFor('tasks', policies)).toBe('task');
+    expect(policyFor('Task', policies)).toBe('task');
+    // The namespace is kept: admin/proposals never borrows proposal
+    expect(policyFor('admin/proposals', policies)).toBe('admin/proposal');
+    expect(policyFor('proposals', policies)).toBeNull();
+    expect(policyFor('', policies)).toBeNull();
+  });
+
+  test('reads what AGENTS.md claims the application is', () => {
+    expect(
+      agentsClaim(
+        'CommonJS\non the server, renderer `inertia`, store `drizzle`. Follow'
+      )
+    ).toEqual({ renderer: 'inertia', store: 'drizzle' });
+    expect(agentsClaim('# My app\n\nNothing to read here')).toBeNull();
+  });
+
   test('finds a graphql key in a model source', () => {
     expect(definesGraphql(`module.exports = { graphql: { types: '' } };`)).toBe(
       true
@@ -140,6 +230,7 @@ describe('henri doctor', () => {
       problems: [
         {
           check: 'deps.installed',
+          code: null,
           file: null,
           hint: expect.stringMatching(/install$/),
           level: 'warning',
@@ -630,10 +721,711 @@ describe('henri doctor', () => {
     restore();
   });
 
+  // --- the things that break a boot ----------------------------------------
+
+  test('reports a model whose store the configuration does not hold', () => {
+    const file = path.join(app, 'app/models/Task.js');
+    const original = fs.readFileSync(file, 'utf8');
+
+    fs.writeFileSync(file, original.replace("'default'", "'reporting'"));
+
+    const { ok, problems } = run(app);
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'models.store',
+        code: 'HENRI_MODEL_UNKNOWN_STORE',
+        file: 'app/models/Task.js',
+        hint: expect.stringContaining('"default"'),
+        level: 'error',
+      })
+    );
+
+    // A model that names no store needs a default one to exist
+    fs.writeFileSync(
+      file,
+      original.replace(/\n\s+store: 'default',[^\n]*/, '')
+    );
+
+    const restore = patchConfig(app, (configuration) => {
+      configuration.stores = { reporting: configuration.stores.default };
+    });
+
+    expect(run(app).problems).toContainEqual(
+      expect.objectContaining({
+        check: 'models.store',
+        code: 'HENRI_MODEL_NO_STORE',
+        level: 'error',
+      })
+    );
+
+    restore();
+    fs.writeFileSync(file, original);
+    expect(run(app).names).not.toContain('models.store');
+  });
+
+  test('reports a jobs, webhooks or trail block naming a store that is not there', () => {
+    const restore = patchConfig(app, (configuration) => {
+      configuration.trail = { enabled: true, store: 'audit' };
+    });
+
+    const { ok, problems } = run(app);
+
+    restore();
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'config.store',
+        code: 'HENRI_TRAIL_UNSUPPORTED_STORE',
+        level: 'error',
+        message: expect.stringContaining('"trail.store" is "audit"'),
+      })
+    );
+    expect(run(app).names).not.toContain('config.store');
+  });
+
+  // Every environment is a whole configuration of its own, so the adapter
+  // only config/production.json names is the one that fails on the deploy
+  test('reports an adapter another environment configures and nothing installs', () => {
+    const production = path.join(app, 'config/production.json');
+
+    fs.writeFileSync(
+      production,
+      JSON.stringify({
+        renderer: 'inertia',
+        stores: { default: { adapter: 'postgresql', url: 'postgres://a/b' } },
+      })
+    );
+
+    const { ok, problems } = run(app);
+
+    fs.unlinkSync(production);
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.declared',
+        code: 'HENRI_STORE_ADAPTER_NOT_INSTALLED',
+        level: 'error',
+        message: expect.stringContaining('config/production.json asks for it'),
+      })
+    );
+    expect(run(app).names).not.toContain('deps.declared');
+  });
+
+  test('reports a route asking for a policy that does not exist', () => {
+    const routes = path.join(app, 'config/routes.js');
+    const original = fs.readFileSync(routes, 'utf8');
+
+    fs.writeFileSync(
+      routes,
+      original.replace(
+        'module.exports = {',
+        "module.exports = {\n  'get /guarded': { controller: 'main#home', policy: 'task' },"
+      )
+    );
+
+    const { ok, problems } = run(app);
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'routes.policy',
+        file: 'config/routes.js',
+        hint: expect.stringContaining('henri generate policy task'),
+        level: 'error',
+        message: expect.stringContaining('app/policies/task.js'),
+      })
+    );
+
+    // Written, and the route is fine: the plural of the controller finds it
+    fs.mkdirSync(path.join(app, 'app/policies'), { recursive: true });
+    fs.writeFileSync(
+      path.join(app, 'app/policies/task.js'),
+      'module.exports = { show: (user, record) => Boolean(record) };\n'
+    );
+
+    expect(run(app).names).not.toContain('routes.policy');
+
+    fs.rmSync(path.join(app, 'app/policies'), { recursive: true });
+    fs.writeFileSync(routes, original);
+  });
+
+  test('reports a file of app/jobs that is not a job', () => {
+    const file = path.join(app, 'app/jobs/welcome.js');
+
+    fs.writeFileSync(file, 'module.exports = { queue: "mailers" };\n');
+
+    const { ok, problems } = run(app);
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'jobs.perform',
+        code: 'HENRI_JOB_INVALID_DEFINITION',
+        file: 'app/jobs/welcome.js',
+        level: 'error',
+      })
+    );
+
+    fs.writeFileSync(
+      file,
+      'module.exports = { queue: "mailers", perform: async () => null };\n'
+    );
+    expect(run(app).names).not.toContain('jobs.perform');
+    fs.rmSync(file);
+  });
+
+  // The quiet one: nothing fails, the runner logs once and the work never
+  // happens again
+  test('reports a recurring schedule naming a job that is not there', () => {
+    const restore = patchConfig(app, (configuration) => {
+      configuration.jobs = {
+        recurring: { nightly: { cron: '0 3 * * *', job: 'cleanup' } },
+      };
+    });
+
+    expect(run(app).problems).toContainEqual(
+      expect.objectContaining({
+        check: 'jobs.recurring',
+        code: 'HENRI_JOB_INVALID_SCHEDULE',
+        level: 'error',
+        message: expect.stringContaining('app/jobs/cleanup.js'),
+      })
+    );
+
+    const file = path.join(app, 'app/jobs/cleanup.js');
+
+    fs.writeFileSync(file, 'module.exports = { perform: async () => null };\n');
+    expect(run(app).names).not.toContain('jobs.recurring');
+    fs.rmSync(file);
+
+    // A job henri defines itself is not a job app/jobs has to hold
+    restore();
+
+    const builtin = patchConfig(app, (configuration) => {
+      configuration.jobs = {
+        recurring: { sweep: { every: '1d', job: 'henri/retention' } },
+      };
+    });
+
+    expect(run(app).names).not.toContain('jobs.recurring');
+    builtin();
+  });
+
+  test('reports a mailer action with no view, and leaves one it cannot read alone', () => {
+    const mailer = path.join(app, 'app/mailers/welcome.js');
+
+    fs.mkdirSync(path.dirname(mailer), { recursive: true });
+    fs.writeFileSync(
+      mailer,
+      `module.exports = {
+  defaults: { from: 'a@b.c' },
+  confirm: async (user) => ({ subject: 'Hi', to: user.email }),
+};
+`
+    );
+
+    const { ok, problems } = run(app);
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'mailers.view',
+        code: 'HENRI_MAIL_VIEW_MISSING',
+        file: 'app/mailers/welcome.js',
+        level: 'error',
+        message: expect.stringContaining(
+          'app/views/mailers/welcome/confirm.hbs'
+        ),
+      })
+    );
+
+    const view = path.join(app, 'app/views/mailers/welcome/confirm.hbs');
+
+    fs.mkdirSync(path.dirname(view), { recursive: true });
+    fs.writeFileSync(view, '<p>Hi</p>\n');
+    expect(run(app).names).not.toContain('mailers.view');
+    fs.rmSync(path.join(app, 'app/views/mailers'), { recursive: true });
+
+    // An action that hands back its own html reads no view at all, and a
+    // file cannot say which action does: the whole mailer is left alone
+    fs.writeFileSync(
+      mailer,
+      `module.exports = {
+  confirm: async (user) => ({ html: '<p>Hi</p>', to: user.email }),
+};
+`
+    );
+    expect(run(app).names).not.toContain('mailers.view');
+    fs.rmSync(path.join(app, 'app/mailers'), { recursive: true });
+  });
+
+  test('reports an app/modules file whose name is taken, and a needs nothing provides', () => {
+    const modules = path.join(app, 'app/modules');
+
+    fs.mkdirSync(modules, { recursive: true });
+    // No name of its own: the loader takes the file name, and `config` is
+    // core's own module
+    fs.writeFileSync(
+      path.join(modules, 'config.js'),
+      'module.exports = class Metrics {};\n'
+    );
+
+    expect(run(app).problems).toContainEqual(
+      expect.objectContaining({
+        check: 'modules.name',
+        code: 'HENRI_BOOT_DUPLICATE_MODULE',
+        file: 'app/modules/config.js',
+        level: 'error',
+      })
+    );
+
+    fs.rmSync(path.join(modules, 'config.js'));
+    fs.writeFileSync(
+      path.join(modules, 'metrics.js'),
+      `class Metrics {
+  constructor() {
+    this.name = 'metrics';
+    this.needs = ['model', 'search'];
+  }
+}
+module.exports = Metrics;
+`
+    );
+
+    expect(run(app).problems).toContainEqual(
+      expect.objectContaining({
+        check: 'modules.needs',
+        code: 'HENRI_BOOT_MISSING_DEPENDENCY',
+        file: 'app/modules/metrics.js',
+        level: 'error',
+        message: expect.stringContaining('"search"'),
+      })
+    );
+
+    fs.writeFileSync(
+      path.join(modules, 'metrics.js'),
+      `class Metrics {
+  constructor() {
+    this.name = 'metrics';
+    this.needs = ['model'];
+  }
+}
+module.exports = Metrics;
+`
+    );
+
+    const clean = run(app).names;
+
+    expect(clean).not.toContain('modules.needs');
+    expect(clean).not.toContain('modules.name');
+    fs.rmSync(modules, { recursive: true });
+  });
+
+  // --- what AGENTS.md claims -------------------------------------------------
+
+  test('reports an AGENTS.md describing another renderer or another store', () => {
+    const file = path.join(app, 'AGENTS.md');
+    const original = fs.readFileSync(file, 'utf8');
+
+    fs.writeFileSync(
+      file,
+      original.replace(
+        'renderer `inertia`, store `drizzle`',
+        'renderer `react`, store `mongoose`'
+      )
+    );
+
+    const { ok, problems } = run(app);
+
+    fs.writeFileSync(file, original);
+
+    // Wrong, but nothing an application cannot run: a warning
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'agents.stale',
+        file: 'AGENTS.md',
+        hint: expect.stringContaining('henri generate agents --force'),
+        level: 'warning',
+        message: expect.stringContaining('the renderer is "inertia"'),
+      })
+    );
+    expect(
+      problems.find((entry) => entry.check === 'agents.stale').message
+    ).toContain('the default store is "drizzle"');
+    expect(run(app).names).not.toContain('agents.stale');
+  });
+
+  test('reports a page written for the renderer the configuration does not name', () => {
+    const page = path.join(app, 'app/views/pages/tasks/show.jsx');
+    const original = fs.readFileSync(page, 'utf8');
+
+    fs.writeFileSync(
+      page,
+      `import { useHenri } from '@usehenri/react';\n${original}`
+    );
+
+    expect(run(app).problems).toContainEqual(
+      expect.objectContaining({
+        check: 'views.renderer',
+        file: 'app/views/pages/tasks/show.jsx',
+        level: 'error',
+        message: expect.stringContaining('@usehenri/react'),
+      })
+    );
+
+    fs.writeFileSync(page, original);
+
+    // And a page the Inertia glob (./pages/**/*.jsx) will never resolve
+    fs.renameSync(page, page.replace(/\.jsx$/, '.js'));
+
+    const { names, problems } = run(app);
+
+    fs.renameSync(page.replace(/\.jsx$/, '.js'), page);
+
+    expect(names).not.toContain('views.pages');
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'views.renderer',
+        hint: expect.stringContaining('.jsx'),
+        level: 'error',
+      })
+    );
+    expect(run(app).ok).toBe(true);
+  });
+
   test('refuses to run outside of a project', () => {
     const { status, stderr } = henri(['doctor', '--json'], { cwd: dir });
 
     expect(status).toBe(3);
     expect(JSON.parse(stderr).error.code).toBe('HENRI_CLI_NOT_A_PROJECT');
+  });
+});
+
+/**
+ * A henri application with nothing in it: enough for `isProject`, and the
+ * `template` renderer so no view engine, no page and no renderer package is
+ * asked for. What each test adds is the one thing it is about.
+ *
+ * @param {object} [config={}] What to write in config/default.json
+ * @param {object} [pkg={}] What to write in package.json
+ * @returns {string} The application directory
+ */
+const minimal = (config = {}, pkg = {}) => {
+  const app = tmpdir('henri-doctor-');
+
+  fs.mkdirSync(path.join(app, 'app/views/pages'), { recursive: true });
+  fs.mkdirSync(path.join(app, 'config'), { recursive: true });
+  fs.writeFileSync(path.join(app, 'app/views/pages/index.hbs'), '<p>hi</p>\n');
+  fs.writeFileSync(
+    path.join(app, 'config/routes.js'),
+    'module.exports = {};\n'
+  );
+  fs.writeFileSync(
+    path.join(app, 'config/default.json'),
+    JSON.stringify({ renderer: 'template', ...config }, null, 2)
+  );
+  fs.writeFileSync(
+    path.join(app, 'package.json'),
+    JSON.stringify(
+      { henri: '1.0.0', name: 'minimal', private: true, ...pkg },
+      null,
+      2
+    )
+  );
+
+  return app;
+};
+
+/**
+ * Put a package in an application's node_modules: a real one from the
+ * workspace, or a manifest of the test's own
+ *
+ * @param {string} app The application directory
+ * @param {string} name The package name
+ * @param {object|string} what A package.json to write, or a directory to link
+ * @returns {void}
+ */
+const install = (app, name, what) => {
+  const target = path.join(app, 'node_modules', ...name.split('/'));
+
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+
+  if (typeof what === 'string') {
+    fs.symlinkSync(what, target, 'junction');
+
+    return;
+  }
+
+  fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(
+    path.join(target, 'package.json'),
+    JSON.stringify({ name, version: '1.0.0', ...what }, null, 2)
+  );
+};
+
+describe('henri doctor: the packages an application installed', () => {
+  let app;
+
+  afterEach(() => cleanup(app));
+
+  test('reports a package that ships a module whose file is not there', () => {
+    app = minimal({}, { dependencies: { 'acme-search': '^1.0.0' } });
+    install(app, 'acme-search', { henri: { module: './module.js' } });
+
+    expect(run(app).problems).toContainEqual(
+      expect.objectContaining({
+        check: 'modules.package',
+        file: 'package.json',
+        level: 'error',
+        message: expect.stringContaining('acme-search ships a module'),
+      })
+    );
+
+    fs.writeFileSync(
+      path.join(app, 'node_modules/acme-search/module.js'),
+      'module.exports = class {};\n'
+    );
+    expect(run(app).names).not.toContain('modules.package');
+  });
+
+  // A package outside the table of the modules henri ships registers a name
+  // doctor cannot learn without loading it, so the `needs` check stops
+  test('says nothing about a needs when an unknown package ships a module', () => {
+    app = minimal({}, { dependencies: { 'acme-search': '^1.0.0' } });
+    install(app, 'acme-search', { henri: { module: './module.js' } });
+    fs.writeFileSync(
+      path.join(app, 'node_modules/acme-search/module.js'),
+      'module.exports = class {};\n'
+    );
+    fs.mkdirSync(path.join(app, 'app/modules'), { recursive: true });
+    fs.writeFileSync(
+      path.join(app, 'app/modules/metrics.js'),
+      "module.exports = class { constructor() { this.needs = ['search']; } };\n"
+    );
+
+    expect(run(app).names).not.toContain('modules.needs');
+  });
+
+  test('reports the henri packages installed at two different versions', () => {
+    const dependencies = {
+      '@usehenri/core': '^1.1.0',
+      '@usehenri/jobs': '^1.0.0',
+    };
+
+    app = minimal({}, { dependencies });
+    install(app, '@usehenri/core', { version: '1.1.0' });
+    install(app, '@usehenri/jobs', { version: '1.0.0' });
+
+    const { ok, problems } = run(app);
+
+    // A half-finished upgrade, not a broken application: a warning
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.version',
+        file: 'package.json',
+        level: 'warning',
+        message: expect.stringContaining('@usehenri/jobs 1.0.0'),
+      })
+    );
+
+    // One version everywhere, and there is nothing to say (a second
+    // directory: `require` holds on to the manifests it has read)
+    const agreeing = minimal({}, { dependencies });
+
+    install(agreeing, '@usehenri/core', { version: '1.1.0' });
+    install(agreeing, '@usehenri/jobs', { version: '1.1.0' });
+    expect(run(agreeing).names).not.toContain('deps.version');
+    cleanup(agreeing);
+  });
+});
+
+describe('henri doctor: the schema of a store', () => {
+  const drizzle = path.resolve(__dirname, '../../drizzle');
+  const sqlite = path.dirname(
+    require.resolve('better-sqlite3/package.json', { paths: [drizzle] })
+  );
+  let app;
+
+  /**
+   * An application with one drizzle store on a sqlite file of its own, and
+   * one migration written but not applied
+   *
+   * @param {object} [store] What to write as the default store
+   * @returns {string} The application directory
+   */
+  const migrating = (store = undefined) => {
+    const made = minimal(
+      {
+        stores: {
+          default: store || {
+            adapter: 'drizzle',
+            dialect: 'sqlite',
+            url: 'file:PLACEHOLDER',
+          },
+        },
+      },
+      {
+        dependencies: {
+          '@usehenri/core': '^1.1.0',
+          '@usehenri/drizzle': '^1.1.0',
+          'better-sqlite3': '^13.0.3',
+        },
+      }
+    );
+    const config = path.join(made, 'config/default.json');
+
+    fs.writeFileSync(
+      config,
+      fs
+        .readFileSync(config, 'utf8')
+        .replace('PLACEHOLDER', path.join(made, 'app.db'))
+    );
+    fs.mkdirSync(path.join(made, 'db/migrations/meta'), { recursive: true });
+    fs.writeFileSync(
+      path.join(made, 'db/migrations/0000_init.sql'),
+      'CREATE TABLE tasks (id integer primary key);\n'
+    );
+    fs.writeFileSync(
+      path.join(made, 'db/migrations/meta/_journal.json'),
+      JSON.stringify({
+        dialect: 'sqlite',
+        entries: [
+          {
+            breakpoints: true,
+            idx: 0,
+            tag: '0000_init',
+            version: '7',
+            when: 1788651338666,
+          },
+        ],
+        version: '7',
+      })
+    );
+    linkAdapter(made, 'core', 'drizzle');
+    install(made, 'better-sqlite3', sqlite);
+
+    return made;
+  };
+
+  /**
+   * The schema step of `henri doctor`, on its own
+   *
+   * @param {string} where The application directory
+   * @returns {Promise<Array<object>>} The problems it added
+   */
+  const ask = async (where) => {
+    const report = {
+      ok: true,
+      problems: [],
+      summary: { errors: 0, warnings: 0 },
+    };
+
+    await schema(where, report);
+
+    return report.problems;
+  };
+
+  afterEach(() => cleanup(app));
+
+  test('says how far behind db/migrations a store that answers is', async () => {
+    app = migrating();
+
+    expect(await ask(app)).toContainEqual(
+      expect.objectContaining({
+        check: 'schema.behind',
+        file: 'db/migrations',
+        hint: expect.stringContaining('henri db:migrate'),
+        level: 'warning',
+        message: expect.stringContaining('behind db/migrations by 1 migration'),
+      })
+    );
+  });
+
+  // The one that matters: a store that is down and a store that is behind
+  // are different problems, and doctor never reports one as the other
+  test('says it could not tell when the store does not answer', async () => {
+    app = migrating();
+
+    // A url whose folder cannot be made: the driver never opens anything
+    fs.writeFileSync(path.join(app, 'blocked'), 'not a directory');
+
+    const config = path.join(app, 'config/default.json');
+
+    fs.writeFileSync(
+      config,
+      fs
+        .readFileSync(config, 'utf8')
+        .replace(
+          JSON.stringify(path.join(app, 'app.db')).slice(1, -1),
+          `${path.join(app, 'blocked')}/app.db`
+        )
+    );
+
+    const problems = await ask(app);
+
+    expect(problems.map((entry) => entry.check)).toEqual([
+      'schema.unreachable',
+    ]);
+    expect(problems[0]).toMatchObject({
+      hint: expect.stringContaining('henri db:status'),
+      level: 'warning',
+      message: expect.stringContaining('could not tell'),
+    });
+  });
+
+  test('says nothing when the store holds every migration', async () => {
+    app = migrating();
+
+    const Drizzle = require(path.join(app, 'node_modules/@usehenri/drizzle'));
+    const store = JSON.parse(
+      fs.readFileSync(path.join(app, 'config/default.json'), 'utf8')
+    ).stores.default;
+    const adapter = new Drizzle('default', store, {
+      config: { get: () => undefined, has: () => false },
+      cwd: () => app,
+      isDev: false,
+      isProduction: false,
+      isTest: false,
+      pen: {
+        debug: () => null,
+        error: () => null,
+        fatal: (name, message) => new Error(message),
+        info: () => null,
+        warn: () => null,
+      },
+    });
+
+    process.env.HENRI_SKIP_SYNC = 'true';
+    await adapter.start();
+    await adapter.migrations.migrate();
+    await adapter.stop();
+    delete process.env.HENRI_SKIP_SYNC;
+
+    expect(await ask(app)).toEqual([]);
+  });
+
+  test('asks nothing at all without a migration written', async () => {
+    app = migrating();
+
+    fs.rmSync(path.join(app, 'db'), { recursive: true });
+
+    expect(await ask(app)).toEqual([]);
+    // And the database was never opened: nothing here writes
+    expect(fs.existsSync(path.join(app, 'app.db'))).toBe(false);
+  });
+
+  // A store whose adapter keeps no migration history is compared with the
+  // models instead, and that needs them loaded: `henri db:status` is that
+  // command, and doctor says nothing rather than half of it
+  test('leaves a store with no migrations to henri db:status', async () => {
+    app = migrating({ adapter: 'disk' });
+
+    expect(await ask(app)).toEqual([]);
   });
 });

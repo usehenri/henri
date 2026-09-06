@@ -316,7 +316,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Checks the application against the henri conventions (naming, routes vs controllers vs pages, secrets, .env, AGENTS.md, dependencies) and reports the environment: node, package manager, henri packages, stores, whether a development server is running. Problems have a level (error fails, warning does not), a check name, a file and a hint.',
+        'Checks the application against the henri conventions (naming, routes vs controllers vs pages and policies, secrets, .env, AGENTS.md, dependencies) and what would fail a boot: a model naming a store that is not configured, an adapter another environment asks for, a job with no perform, a recurring schedule naming a job that is not there, a mailer action with no view, an app/modules file whose name is taken or whose needs nothing provides. It also reports the environment: node, package manager, henri packages, stores, whether a development server is running. Problems have a level (error fails, warning does not), a check name, a file, a hint and, when the check predicts a failure henri has a name for, the error code the boot would raise. Run it after every change.',
       inputSchema: {},
       title: 'Doctor',
     },
