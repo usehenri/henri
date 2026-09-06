@@ -282,6 +282,24 @@ const COMMANDS = [
       'reports what it and the models disagree about. --sql writes the DDL',
       'that would close it, for you to review; henri applies none of it.',
       '',
+      'rollback undoes the last migration, or the last --step=<n>. The',
+      'inverse is computed from the snapshots in db/migrations/meta, so',
+      'there is no down file to write and none to forget. It refuses a',
+      'migration that dropped a table or a column, since putting them back',
+      'empty is not undoing anything, and refuses without --force when the',
+      'rows it would drop are actually there -- counted first, so undoing a',
+      'migration nothing was written into needs no flag.',
+      '',
+      'schema:dump reads the database back into db/schema.sql: the shape of',
+      'the database, ordered so two runs give the same bytes, headed with',
+      'the migration it was taken at. It needs a database to read, so it is',
+      'written where one is. schema:load creates all of it in an empty',
+      'database and records the migrations through that one as applied,',
+      'which is how a test database is built without replaying the chain.',
+      'It refuses a table it is about to create that is already there, and',
+      'there is no flag: db:drop and db:create are how a database is',
+      'emptied.',
+      '',
       'create and drop are the database itself, which every other command',
       'assumes exists: they read the configuration without connecting to the',
       'store, then talk to the server with the driver the application',
@@ -315,6 +333,14 @@ const COMMANDS = [
         description:
           'Applies the pending migrations to the production database',
       },
+      {
+        command: 'henri db:rollback --step=2',
+        description: 'Undoes the last two migrations, if nothing is lost',
+      },
+      {
+        command: 'henri db:schema:dump',
+        description: 'Writes db/schema.sql from the database',
+      },
     ],
     flags: [
       {
@@ -326,12 +352,17 @@ const COMMANDS = [
         flag: '--name=<label>',
       },
       {
-        description: 'seed: the file to run (default: db/seeds.js)',
+        description:
+          'seed: the file to run (default: db/seeds.js); schema:dump and schema:load: the dump (default: db/schema.sql)',
         flag: '--file=<path>',
       },
       {
+        description: 'rollback: how many migrations to undo (default: 1)',
+        flag: '--step=<n>',
+      },
+      {
         description:
-          'push: apply statements that lose data; drop and reset: act in production',
+          'push and rollback: act although data would be lost; drop and reset: act in production',
         flag: '--force',
       },
       {
@@ -375,12 +406,26 @@ const COMMANDS = [
       { description: 'apply the pending migrations', name: 'migrate' },
       {
         description:
+          'undo the last migration, or the last --step=<n> (--force when rows would be lost)',
+        name: 'rollback',
+      },
+      {
+        description:
           'make the database match the models without a migration (--force applies statements that lose data)',
         name: 'push',
       },
+      {
+        description: 'write db/schema.sql from the database',
+        name: 'schema:dump',
+      },
+      {
+        description:
+          'create the schema of db/schema.sql in an empty database and record its migrations',
+        name: 'schema:load',
+      },
     ],
     usage: [
-      'henri db <command> [--store=<name>] [--name=<label>] [--file=<path>] [--force] [--sql] [--json]',
+      'henri db <command> [--store=<name>] [--name=<label>] [--file=<path>] [--step=<n>] [--force] [--sql] [--json]',
       'henri db:<command>',
     ],
   },

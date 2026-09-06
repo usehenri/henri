@@ -512,8 +512,9 @@ The command needs migrations and the store's adapter has none.
 
 Usually:
 
-- `henri db:generate`, `db:migrate` or `db:push` on a store using a Sequelize adapter (mysql, postgresql, mssql)
+- `henri db:generate`, `db:migrate`, `db:rollback` or `db:push` on a store using a Sequelize adapter (mssql)
 - `henri db:status` on a store whose adapter keeps no schema to read back (mongoose, disk)
+- `henri db:schema:dump` or `db:schema:load` on a store whose adapter has no schema to write down (mongoose, disk)
 
 **Fix.** Migrations are the drizzle adapter's: set "adapter": "drizzle" on the store and install @usehenri/drizzle. The Sequelize adapters create the tables that are missing and never alter one, so `henri db:status` says what the database and the models disagree about and `henri db:status --sql` writes the DDL to review before you run it.
 
@@ -1084,6 +1085,85 @@ Usually:
 - its name does not match the action
 
 **Fix.** Write app/views/mailers/<mailer>/<action>.hbs. A `<action>.text.hbs` next to it replaces the plain text part, which is otherwise derived from the html.
+
+## migration
+
+The migrations of db/migrations and the schema dump of a drizzle store.
+
+### `HENRI_MIGRATION_DATABASE_NOT_EMPTY`
+
+A schema load was asked for on a database that is not empty.
+
+Usually:
+
+- `henri db:schema:load` into a database that already holds the application tables
+
+**Fix.** A schema load starts from an empty database, because it creates every table the dump describes and will not decide on its own which of the existing ones to remove. Empty it first (`henri db:drop` then `henri db:create`, or `henri db:reset` for the whole cycle), or pass --force to load into what is there.
+
+### `HENRI_MIGRATION_DESTRUCTIVE`
+
+Rolling back would take rows away.
+
+Usually:
+
+- `henri db:rollback` whose inverse would drop a table holding rows, or a column holding values
+- `henri db:rollback` on a table henri could not count
+
+**Fix.** The rows are counted before anything runs, so this is data that exists rather than a statement that looks dangerous. Run it again with --force when losing them is what you meant; the same rollback on a table where nothing was written needs no flag.
+
+### `HENRI_MIGRATION_DUMP_UNKNOWN`
+
+There is no schema dump to load, or it does not belong to this migration folder.
+
+Usually:
+
+- `henri db:schema:load` with no db/schema.sql
+- a dump taken at a migration that is not in db/migrations, usually from another branch
+
+**Fix.** Write the dump with `henri db:schema:dump`, which needs a database it can reach. A dump naming a migration this checkout does not have is the wrong dump for this branch: take a new one, or check out the branch that has that migration.
+
+### `HENRI_MIGRATION_EDITED`
+
+A migration file is not the one the database applied.
+
+Usually:
+
+- the .sql of a migration was edited after it ran
+- a migration file replaced by one from another branch
+
+**Fix.** The database records the sha256 of the file it applied and it no longer matches, so henri does not know what ran and will not invert a guess. Put the file back the way it was, or roll the change forward with a new migration.
+
+### `HENRI_MIGRATION_IRREVERSIBLE`
+
+The migration removed something a rollback cannot put back.
+
+Usually:
+
+- `henri db:rollback` on a migration that dropped a table or a column
+
+**Fix.** There is no flag for this one. The inverse would recreate the table or the column empty, which is not what was dropped, and undoing a destructive migration is a restore from a backup. Restore, or write a new migration that adds what you want back and fills it.
+
+### `HENRI_MIGRATION_NOT_APPLIED`
+
+There is no applied migration to roll back, or not that many.
+
+Usually:
+
+- `henri db:rollback` with nothing applied
+- `henri db:rollback --step=<n>` with fewer than n migrations applied
+
+**Fix.** A rollback undoes migrations the database says it applied. `henri db:status` lists them; ask for no more than that.
+
+### `HENRI_MIGRATION_SNAPSHOT_MISSING`
+
+The snapshot a migration left the schema at is missing from meta/.
+
+Usually:
+
+- meta/NNNN_snapshot.json deleted or never committed
+- a db/migrations folder assembled by hand
+
+**Fix.** The snapshots next to the migrations are what a rollback reads to compute the inverse, and drizzle-kit needs them to generate the next migration too: they belong in the repository. Restore meta/ from version control.
 
 ## model
 

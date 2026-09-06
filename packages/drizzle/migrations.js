@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const debug = require('debug')('henri:drizzle:migrations');
-const { quiet } = require('./utils');
+const { coded, quiet } = require('./utils');
 
 const BREAKPOINT = '\n--> statement-breakpoint\n';
 const MIGRATIONS_TABLE = '__drizzle_migrations';
@@ -16,6 +16,48 @@ const ORIGIN = '00000000-0000-0000-0000-000000000000';
  * drizzle-orm's migrator. The folder follows drizzle-kit's layout
  * (`NNNN_name.sql`, `meta/NNNN_snapshot.json`, `meta/_journal.json`) so
  * the drizzle-kit CLI can read it too.
+ *
+ * ## Rolling back
+ *
+ * drizzle-kit generates forward-only SQL: there is no `down` in a
+ * migration, and three ways to get one. A hand-written `down.sql` puts the
+ * work on the person least able to check it -- the inverse of a diff a tool
+ * computed -- and rots silently, because nothing ever runs it until the
+ * day it matters. Writing a `down.sql` at `db:generate` time is the same
+ * inverse, frozen: the folder invites hand-edits (drizzle-kit's own answer
+ * to a rename is "edit the generated SQL"), and a frozen inverse of an
+ * edited migration is wrong in the one direction nobody checks. Refusing
+ * outright and shipping only the dump is honest but throws away the case
+ * that actually happens, which is undoing the migration you applied a
+ * minute ago on a database with nothing in it yet.
+ *
+ * So the inverse is **computed at rollback time**, from the two snapshots
+ * the folder already holds (`meta/NNNN_snapshot.json`), by handing them to
+ * drizzle-kit backwards: `diff(after, before)` where `db:generate` asked
+ * for `diff(before, after)`. Nothing new is stored, nothing can go stale,
+ * and what runs is the inverse of the schema `db:status` believes in.
+ *
+ * Three things it refuses, because a rollback that quietly does something
+ * else is worse than no rollback at all:
+ *
+ * - **A migration that removed a table or a column.** Its inverse would
+ *   recreate them empty, and an empty column is not the column that was
+ *   dropped. There is no flag for this: undoing a destructive migration is
+ *   a restore from a backup, and henri will not pretend otherwise
+ *   (`HENRI_MIGRATION_IRREVERSIBLE`).
+ * - **A migration whose `.sql` changed since it was applied.** The database
+ *   records the sha256 of the file it ran; when the file on disk hashes to
+ *   something else, henri does not know what ran and will not guess
+ *   (`HENRI_MIGRATION_EDITED`).
+ * - **A rollback that would drop rows that exist.** Not "a statement that
+ *   matches DROP" -- the tables and columns the inverse removes are
+ *   counted first, and a rollback that takes nothing away runs without
+ *   ceremony. One that takes 412 rows away says so and needs `--force`,
+ *   the precedent `henri db:push` set (`HENRI_MIGRATION_DESTRUCTIVE`).
+ *
+ * The `.sql` and the snapshot stay on disk: rolling back moves the
+ * database, not the folder, so `db:status` reports the migration pending
+ * again and `db:migrate` applies it again.
  *
  * @class Migrations
  */
@@ -40,6 +82,50 @@ const drops = (statement, reserved) => {
     );
 
   return Boolean(match) && reserved.has(match[1]);
+};
+
+/**
+ * What one schema loses on the way from `before` to `after`: the tables of
+ * `before` that `after` has no key for, and the columns of the tables both
+ * of them have.
+ *
+ * The keys are drizzle-kit's own (`public.tasks` on postgres, `tasks`
+ * everywhere else) and never leave this function; the names that come out
+ * are the table and column names of the database.
+ *
+ * @param {object} before A drizzle-kit snapshot
+ * @param {object} after Another one
+ * @returns {{ columns: Array<{ column: string, table: string }>, tables: Array<string> }}
+ *   What `before` has and `after` does not, sorted
+ */
+const removals = (before, after) => {
+  const next = after.tables || {};
+  const columns = [];
+  const tables = [];
+
+  for (const [key, table] of Object.entries(before.tables || {})) {
+    if (!next[key]) {
+      tables.push(table.name);
+      continue;
+    }
+
+    const kept = next[key].columns || {};
+
+    for (const column of Object.keys(table.columns || {})) {
+      if (!kept[column]) {
+        columns.push({ column, table: table.name });
+      }
+    }
+  }
+
+  return {
+    columns: columns.sort(
+      (one, two) =>
+        one.table.localeCompare(two.table) ||
+        one.column.localeCompare(two.column)
+    ),
+    tables: tables.sort(),
+  };
 };
 
 class Migrations {
@@ -142,6 +228,34 @@ class Migrations {
   }
 
   /**
+   * The snapshot a journal index left the schema at
+   *
+   * @param {number} idx A journal index; below zero is the empty schema
+   *   every folder starts from
+   * @returns {Promise<object>} The snapshot
+   * @throws {Error} HENRI_MIGRATION_SNAPSHOT_MISSING when the file is gone
+   * @memberof Migrations
+   */
+  async snapshotAt(idx) {
+    if (idx < 0) {
+      return { ...(await this.snapshot({})), id: ORIGIN };
+    }
+
+    const name = `${String(idx).padStart(4, '0')}_snapshot.json`;
+    const file = path.join(this.folder, 'meta', name);
+
+    if (!fs.existsSync(file)) {
+      throw coded(
+        'HENRI_MIGRATION_SNAPSHOT_MISSING',
+        `drizzle: ${path.join('meta', name)} is missing from ${this.folder}`,
+        'The snapshots next to the migrations belong in version control: restore meta/ from it'
+      );
+    }
+
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  }
+
+  /**
    * The last snapshot of the folder, or an empty one
    *
    * @param {object} journal The journal
@@ -151,17 +265,7 @@ class Migrations {
   async lastSnapshot(journal) {
     const last = journal.entries[journal.entries.length - 1];
 
-    if (!last) {
-      return { ...(await this.snapshot({})), id: ORIGIN };
-    }
-
-    const file = path.join(
-      this.folder,
-      'meta',
-      `${String(last.idx).padStart(4, '0')}_snapshot.json`
-    );
-
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
+    return this.snapshotAt(last ? last.idx : -1);
   }
 
   /**
@@ -214,11 +318,19 @@ class Migrations {
     debug('wrote %s (%d statements)', file, statements.length);
 
     // A development database was pushed to this schema already: record the
-    // migration so db:status and db:migrate agree with it
+    // migration so db:status and db:migrate agree with it. `drifted` is the
+    // mysql half of the same question -- a push there creates the tables
+    // that are missing and reports the ones whose columns no longer match
+    // instead of altering them, so a plan with no statements is not on its
+    // own the database agreeing with the schema
     let recorded = [];
 
-    if (adapter.db && (await this.plan()).statements.length === 0) {
-      recorded = await this.markApplied();
+    if (adapter.db) {
+      const plan = await this.plan();
+
+      if (plan.statements.length === 0 && (plan.drifted || []).length === 0) {
+        recorded = await this.markApplied();
+      }
     }
 
     return { file, recorded, statements, tag };
@@ -261,19 +373,26 @@ class Migrations {
   }
 
   /**
-   * The `created_at` of every migration recorded in the database
+   * Every migration recorded in the database, with the sha256 of the file
+   * that ran. drizzle's own migrator hashes the whole `.sql`, and so does
+   * `markApplied()`, so the two agree and a rollback can tell whether the
+   * file on disk is still the one that was applied.
    *
-   * @returns {Promise<Array<number>>} Timestamps (empty without the table)
+   * @returns {Promise<Array<{ hash: string, when: number }>>} The rows
+   *   (empty when the table is not there yet)
    * @memberof Migrations
    */
-  async applied() {
+  async appliedRows() {
     const { adapter } = this;
     const { ref } = adapter.dialect.migrations;
 
     try {
-      const rows = await adapter.query(`SELECT created_at FROM ${ref}`);
+      const rows = await adapter.query(`SELECT hash, created_at FROM ${ref}`);
 
-      return rows.map((row) => Number(row.created_at));
+      return rows.map((row) => ({
+        hash: String(row.hash),
+        when: Number(row.created_at),
+      }));
     } catch (error) {
       debug('no migrations table yet: %s', error.message);
 
@@ -282,17 +401,51 @@ class Migrations {
   }
 
   /**
-   * Records the journal entries as applied without running them: after a
-   * push the database already matches the schema they lead to
+   * The `created_at` of every migration recorded in the database
    *
+   * @returns {Promise<Array<number>>} Timestamps (empty without the table)
+   * @memberof Migrations
+   */
+  async applied() {
+    return (await this.appliedRows()).map((row) => row.when);
+  }
+
+  /**
+   * The sha256 drizzle's migrator records for a migration file
+   *
+   * @param {string} tag The migration tag
+   * @returns {string} The digest of the file, as it is stored
+   * @memberof Migrations
+   */
+  digestOf(tag) {
+    return crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(path.join(this.folder, `${tag}.sql`), 'utf8'))
+      .digest('hex');
+  }
+
+  /**
+   * Records journal entries as applied without running them: after a push
+   * the database already matches the schema they lead to, and after
+   * `db:schema:load` it matches the schema the dump was taken at.
+   *
+   * @param {object} [options={}] `through` stops at that tag (inclusive),
+   *   which is how a dump taken at 0002 leaves 0003 pending
    * @returns {Promise<Array<string>>} The tags recorded
    * @memberof Migrations
    */
-  async markApplied() {
+  async markApplied({ through = null } = {}) {
     const { adapter } = this;
     const journal = this.journal();
+    const wanted =
+      through === null
+        ? journal.entries
+        : journal.entries.slice(
+            0,
+            journal.entries.findIndex((entry) => entry.tag === through) + 1
+          );
 
-    if (journal.entries.length === 0) {
+    if (wanted.length === 0) {
       return [];
     }
 
@@ -306,22 +459,16 @@ class Migrations {
     const known = await this.applied();
     const recorded = [];
 
-    for (const entry of journal.entries) {
+    for (const entry of wanted) {
       if (known.includes(entry.when)) {
         continue;
       }
-
-      const file = path.join(this.folder, `${entry.tag}.sql`);
-      const hash = crypto
-        .createHash('sha256')
-        .update(fs.readFileSync(file, 'utf8'))
-        .digest('hex');
 
       await adapter.query(
         `INSERT INTO ${dialect.migrations.ref} (hash, created_at) VALUES (${dialect.placeholder(
           1
         )}, ${dialect.placeholder(2)})`,
-        [hash, entry.when]
+        [this.digestOf(entry.tag), entry.when]
       );
       recorded.push(entry.tag);
     }
@@ -350,6 +497,219 @@ class Migrations {
     const after = await this.status();
 
     return { applied: before.pending, pending: after.pending };
+  }
+
+  /**
+   * The journal entries the database says are applied, oldest first
+   *
+   * @param {object} journal The journal
+   * @param {Array<{ hash: string, when: number }>} rows What the database
+   *   recorded
+   * @returns {Array<object>} The entries
+   * @memberof Migrations
+   */
+  appliedEntries(journal, rows) {
+    const last =
+      rows.length > 0 ? Math.max(...rows.map((row) => row.when)) : null;
+
+    return last === null
+      ? []
+      : journal.entries.filter((entry) => entry.when <= last);
+  }
+
+  /**
+   * What rolling back the last migrations would do, without doing it
+   *
+   * The inverse of a migration is the diff of its two snapshots, read
+   * backwards; the rows it would take away are counted in the database, so
+   * that a rollback which loses nothing is not gated on a flag. Everything
+   * is planned before anything runs: `n` steps refuse together or apply
+   * together.
+   *
+   * @param {object} [options={}] `steps`, how many to undo (newest first)
+   * @returns {Promise<Array<object>>} One entry per migration, newest
+   *   first: `tag`, `when`, `statements` and the `removes` they act on
+   * @throws {Error} HENRI_MIGRATION_NOT_APPLIED, HENRI_MIGRATION_EDITED,
+   *   HENRI_MIGRATION_IRREVERSIBLE
+   * @memberof Migrations
+   */
+  async rollbackPlan({ steps = 1 } = {}) {
+    const journal = this.journal();
+    const rows = await this.appliedRows();
+    const entries = this.appliedEntries(journal, rows);
+    const count = Math.max(1, Math.trunc(steps) || 1);
+
+    if (entries.length < count) {
+      throw coded(
+        'HENRI_MIGRATION_NOT_APPLIED',
+        entries.length === 0
+          ? `drizzle: store ${this.adapter.name} has no applied migration to roll back`
+          : `drizzle: store ${this.adapter.name} has ${entries.length} applied migration(s), ${count} were asked for`,
+        'Run "henri db:status" for what is applied and what is pending'
+      );
+    }
+
+    const plan = [];
+
+    for (const entry of entries.slice(-count).reverse()) {
+      plan.push(await this.step(journal, rows, entry));
+    }
+
+    return plan;
+  }
+
+  /**
+   * One step of a rollback plan
+   *
+   * @param {object} journal The journal
+   * @param {Array<object>} rows What the database recorded
+   * @param {object} entry The journal entry to undo
+   * @returns {Promise<object>} The step
+   * @throws {Error} HENRI_MIGRATION_EDITED, HENRI_MIGRATION_IRREVERSIBLE
+   * @memberof Migrations
+   */
+  async step(journal, rows, entry) {
+    const position = journal.entries.indexOf(entry);
+    const recorded = rows.find((row) => row.when === entry.when);
+
+    if (recorded && recorded.hash !== this.digestOf(entry.tag)) {
+      throw coded(
+        'HENRI_MIGRATION_EDITED',
+        `drizzle: ${entry.tag}.sql is not the file the database applied`,
+        'Put the file back the way it was, or roll the change forward with a new migration'
+      );
+    }
+
+    const after = await this.snapshotAt(entry.idx);
+    const before = await this.snapshotAt(
+      position > 0 ? journal.entries[position - 1].idx : -1
+    );
+    const lost = removals(before, after);
+
+    if (lost.tables.length > 0 || lost.columns.length > 0) {
+      const named = [
+        ...lost.tables,
+        ...lost.columns.map(({ column, table }) => `${table}.${column}`),
+      ].join(', ');
+
+      throw coded(
+        'HENRI_MIGRATION_IRREVERSIBLE',
+        `drizzle: ${entry.tag} removed ${named}; rolling it back would put them back empty`,
+        'There is no --force for this: undoing a destructive migration is a restore from a backup'
+      );
+    }
+
+    return {
+      removes: await this.countRemovals(removals(after, before)),
+      statements: await this.diff(after, before),
+      tag: entry.tag,
+      when: entry.when,
+    };
+  }
+
+  /**
+   * How many rows the tables and columns a rollback removes hold today
+   *
+   * A table henri cannot count is not an empty one: it is reported with a
+   * null count, which reads as data loss everywhere the count is asked
+   * about.
+   *
+   * @param {object} gone What removals() answered
+   * @returns {Promise<Array<object>>} `kind`, `table`, `column` and `rows`
+   * @memberof Migrations
+   */
+  async countRemovals(gone) {
+    const { adapter } = this;
+    const { quote } = adapter.dialect;
+    const out = [];
+
+    for (const table of gone.tables) {
+      out.push({
+        column: null,
+        kind: 'table',
+        rows: await this.count(
+          `SELECT COUNT(*) AS henri_rows FROM ${quote(table)}`
+        ),
+        table,
+      });
+    }
+
+    for (const { column, table } of gone.columns) {
+      out.push({
+        column,
+        kind: 'column',
+        rows: await this.count(
+          `SELECT COUNT(*) AS henri_rows FROM ${quote(table)} WHERE ${quote(column)} IS NOT NULL`
+        ),
+        table,
+      });
+    }
+
+    return out;
+  }
+
+  /**
+   * Runs a COUNT(*), or answers null when the database cannot
+   *
+   * @param {string} statement The query
+   * @returns {Promise<?number>} The count, or null
+   * @memberof Migrations
+   */
+  async count(statement) {
+    try {
+      const rows = await this.adapter.query(statement);
+      const [row] = Array.isArray(rows) ? rows : [];
+
+      return row ? Number(Object.values(row)[0]) : null;
+    } catch (error) {
+      debug('could not count: %s', error.message);
+
+      return null;
+    }
+  }
+
+  /**
+   * Undoes the last migrations (`henri db:rollback`)
+   *
+   * @param {object} [options={}] `steps` (default 1) and `force`, which is
+   *   what a rollback taking rows away needs
+   * @returns {Promise<{ applied: boolean, plan: Array<object>, rolledBack: Array<string> }>}
+   *   What happened; `applied: false` is the refusal, with nothing run
+   * @memberof Migrations
+   */
+  async rollback({ force = false, steps = 1 } = {}) {
+    const { adapter } = this;
+    const plan = await this.rollbackPlan({ steps });
+    const loses = plan.some((step) =>
+      step.removes.some((entry) => entry.rows === null || entry.rows > 0)
+    );
+
+    if (loses && !force) {
+      return { applied: false, plan, rolledBack: [] };
+    }
+
+    const db = adapter.rawDatabase();
+    const { ref } = adapter.dialect.migrations;
+    const rolledBack = [];
+
+    // One migration at a time, and its row is deleted only once its
+    // statements ran: mysql commits every DDL statement on its own, so
+    // there is no transaction to hide a half-finished rollback in. What a
+    // failure leaves behind is what really happened
+    for (const step of plan) {
+      for (const statement of step.statements) {
+        debug('rollback: %s', statement);
+        await adapter.dialect.exec(db, statement);
+      }
+
+      await adapter.query(
+        `DELETE FROM ${ref} WHERE created_at = ${adapter.dialect.placeholder(1)}`,
+        [step.when]
+      );
+      rolledBack.push(step.tag);
+    }
+
+    return { applied: true, plan, rolledBack };
   }
 
   /**
@@ -576,4 +936,4 @@ class Migrations {
   }
 }
 
-module.exports = { BREAKPOINT, MIGRATIONS_TABLE, Migrations };
+module.exports = { BREAKPOINT, MIGRATIONS_TABLE, Migrations, removals };

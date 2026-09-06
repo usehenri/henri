@@ -499,10 +499,125 @@ Migrations live in `db/migrations` in the drizzle-kit layout, and `henri db` dri
 henri db:status                          # applied and pending migrations
 henri db:generate --name=add-priority    # writes db/migrations/0001_add_priority.sql from the models
 henri db:migrate                         # applies the pending migrations
+henri db:rollback                        # undoes the last one (--step=<n> for more)
 henri db:push                            # makes the database match the models, no migration (development)
+henri db:schema:dump                     # writes db/schema.sql from the database
+henri db:schema:load                     # creates that schema in an empty database
 ```
 
 In development the boot pushes the schema unless the store sets `"sync": false`; in production the boot applies the pending migrations when the store sets `"migrate": true` and warns about them otherwise. `henri db:push` refuses statements that lose data unless `--force` is passed; every command accepts `--store=<name>` and `--json`. `henri db:seed` is the exception: it runs [`db/seeds.js`](#seeds) on any adapter.
+
+#### Rolling back
+
+drizzle-kit generates forward-only SQL: a migration has no `down`. henri does
+not ask you to write one, and does not write one at `db:generate` time either.
+The inverse is computed when you roll back, by handing drizzle-kit the two
+snapshots `db/migrations/meta` already holds in the other order -- so nothing
+is stored that could go stale, and what runs is the inverse of the schema
+`henri db:status` believes in.
+
+```bash
+henri db:rollback              # the last migration
+henri db:rollback --step=2     # the last two, newest first
+henri db:rollback --force      # and yes, drop the rows it names
+```
+
+Rolling back moves the database, not `db/migrations`: the `.sql` and its
+snapshot stay where they are, `db:status` reports the migration pending again,
+and `db:migrate` applies it again.
+
+It refuses three things, because a rollback that quietly does something else
+is worse than no rollback at all:
+
+- **A migration that removed a table or a column** (`HENRI_MIGRATION_IRREVERSIBLE`).
+  Its inverse would recreate them empty, and an empty column is not the column
+  that was dropped. There is no flag for this one: undoing a destructive
+  migration is a restore from a backup, and henri will not pretend otherwise.
+- **A migration whose `.sql` changed since it was applied** (`HENRI_MIGRATION_EDITED`).
+  The database records the sha256 of the file it ran; when the file on disk
+  hashes to something else, henri does not know what ran and will not guess.
+- **A rollback that would drop rows that are there** (`HENRI_MIGRATION_DESTRUCTIVE`).
+  Not "a statement that matches `DROP`": the tables and columns the inverse
+  removes are counted first. Undoing the migration you applied a minute ago on
+  a database nothing was written into needs no flag; one that would take 412
+  rows away says so and needs `--force`, the way `db:push` does.
+
+Every dialect commits DDL differently -- MySQL commits each statement on its
+own -- so a rollback of several migrations applies them one at a time and
+removes each one's row only once its statements ran. A failure half way
+through leaves the database and `db:status` agreeing about what really
+happened.
+
+#### The schema dump
+
+`henri db:schema:dump` writes `db/schema.sql`: the shape of the database as
+one file, the way Rails' `db/schema.rb` is. What a new developer loads instead
+of replaying every migration, and what a reviewer reads to see what the
+database actually looks like.
+
+It is **read from the database**, not from the migration chain. A dump built
+from the chain would agree with the chain by construction -- it would be a
+second copy of files already in the repository, and it could never be the
+thing that catches an `ALTER` somebody ran by hand or a `henri db:push` that
+was never turned into a migration. The cost is that a dump is written where a
+database is reachable: a developer's machine, or a CI job with a service
+container, never a checkout alone.
+
+Two runs against the same schema produce the same bytes. Tables are ordered by
+name, types, indexes and foreign keys by their statements, and columns by the
+position the database keeps them in -- the order a `SELECT *` answers in.
+Nothing carries a timestamp, a row count or a sequence value; MySQL is read
+through `information_schema` rather than `SHOW CREATE TABLE`, which prints the
+table's `AUTO_INCREMENT` counter and would move the file on every insert.
+
+The header names the migration the database was at, so the dump and
+`henri db:status` cannot disagree:
+
+```sql
+-- henri schema dump
+--
+-- The shape of the database, not its data. Written by
+-- "henri db:schema:dump" and read by "henri db:schema:load"; it is
+-- generated, so change the schema with a migration and dump again.
+--
+-- dialect: postgres
+-- migration: 0003_speakers
+```
+
+**Loading it is supported.** `henri db:schema:load` creates everything the
+dump describes and records the migrations up to the one it names as applied,
+leaving anything newer pending for `henri db:migrate` -- which is how a test
+database is built without replaying the chain:
+
+```bash
+NODE_ENV=test henri db:drop && NODE_ENV=test henri db:create
+NODE_ENV=test henri db:schema:load
+```
+
+A load refuses a table it is about to create that already exists
+(`HENRI_MIGRATION_DATABASE_NOT_EMPTY`), and never empties a database to get
+its way: `henri db:drop` and `henri db:create` are the commands that do that,
+and there is no `--force` here. A table the dump says nothing about -- one
+another tool owns in the same database -- is left alone rather than being in
+the way.
+
+The dump describes tables, columns with their types, defaults and
+nullability, primary keys, unique and check constraints, indexes, foreign
+keys, and the enum types and plain sequences of PostgreSQL. It does not
+describe views, triggers, stored routines, grants, partitions, extensions, or
+any data: a database that uses more than the first list is not fully described
+by its dump. The tables henri owns without a model -- the job queue's, the
+access trail's, the webhook endpoints', drizzle's own record of what it
+applied -- are left out, because they are not the application's schema and the
+code that owns them creates them. `henri_sessions` is in, because it is part
+of the store's schema.
+
+An `mssql` store answers neither command: it is on Sequelize, it has no
+migration history for a dump to name, and `henri db:status` is what reads it
+back instead. A `mongoose` store has no schema of its own to write down. Both
+exit with `1` and `HENRI_CLI_MIGRATIONS_UNSUPPORTED`.
+
+#### Pushing to MySQL
 
 On MySQL a push only creates the tables that do not exist yet: drizzle-kit does not alter a MySQL table on a push, so a table whose columns no longer match the model is reported (`the columns of the database and of the schema differ`) and left alone rather than altered or truncated. Change a MySQL schema with `henri db:generate` and `henri db:migrate`, which work on every dialect. sqlite and PostgreSQL push the whole diff.
 
@@ -621,7 +736,7 @@ This adapter has no migrations, and henri does not pretend otherwise: `sequelize
 
 **In production** the boot changes nothing. It reads the database back instead, compares it with the models and warns about every difference it finds. A store that really wants the old behaviour asks for it with `"sync": true`, and `henri audit` reports that as [`schema.autosync`](/guides/security/): it is DDL applied at boot, from whatever the models happen to say, with nobody reviewing it.
 
-**`henri db:status`** is the same comparison on demand, and the one command of the `db:` family this store answers:
+**`henri db:status`** is the same comparison on demand, and the one command of the `db:` family this store answers. `db:generate`, `db:migrate`, `db:rollback`, `db:push`, `db:schema:dump` and `db:schema:load` all exit with `1` and [`HENRI_CLI_MIGRATIONS_UNSUPPORTED`](/reference/errors/#henri_cli_migrations_unsupported) here, saying so rather than doing half of it: there is no migration history to roll back, and no migration for a dump to name.
 
 ```bash
 henri db:status              # what the database and the models disagree about

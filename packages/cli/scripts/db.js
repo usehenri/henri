@@ -13,9 +13,17 @@ const COMMANDS = [
   'migrate',
   'push',
   'reset',
+  'rollback',
+  'schema:dump',
+  'schema:load',
   'seed',
   'status',
 ];
+
+// `henri db:schema:dump` arrives as one word, because the colon routing of
+// index.js only splits on the first one; `henri db schema dump` arrives as
+// two. Both mean the same command
+const SCHEMA = ['dump', 'load'];
 
 // Rails' db/seeds.rb
 const SEEDS = path.join('db', 'seeds.js');
@@ -301,6 +309,41 @@ const migrations = async (henri, name) => {
 };
 
 /**
+ * The store of a schema command
+ *
+ * The dump is read from the database, so it needs an adapter that can be
+ * read back into DDL. That is the drizzle one: an mssql store keeps no
+ * migration history for the dump to name, and MongoDB has no schema of its
+ * own to write down at all.
+ *
+ * @param {object} henri A booted instance
+ * @param {string} name The store name
+ * @returns {Promise<object>} The store adapter
+ * @throws {CliError} USAGE when the store is unknown, MIGRATIONS_UNSUPPORTED
+ *   when the adapter has no schema to dump
+ */
+const dumps = async (henri, name) => {
+  const store = await storeOf(henri, name);
+
+  if (!store.dump) {
+    const drifts = typeof store.drift === 'function';
+
+    await henri.stop();
+    throw new CliError(
+      'MIGRATIONS_UNSUPPORTED',
+      `Store "${name}" (${store.adapterName}) has no schema to dump`,
+      {
+        hint: drifts
+          ? 'A schema dump names the migration it was taken at, and this adapter keeps no migrations. "henri db:status" reads the database back and reports what it and the models disagree about, and "--sql" writes the DDL to review'
+          : 'MongoDB has no schema of its own to write down: the models are the schema. A dump needs a SQL store on the drizzle adapter',
+      }
+    );
+  }
+
+  return store;
+};
+
+/**
  * Requires db/seeds.js and awaits what it exports (a function receives the
  * henri instance; a promise is awaited as is)
  *
@@ -413,6 +456,22 @@ const run = async (command, store, args) => {
     return { ...base, applied: result.applied };
   }
 
+  if (command === 'rollback') {
+    const steps = Number(args.step);
+    const result = await migrations.rollback({
+      force: args.force === true,
+      steps: Number.isFinite(steps) && steps > 0 ? steps : 1,
+    });
+
+    return {
+      ...base,
+      // A refusal is `ok: false` and nothing ran, the shape db:push uses
+      ok: result.applied,
+      plan: result.plan,
+      rolledBack: result.rolledBack,
+    };
+  }
+
   const result = await migrations.push({
     force: args.force === true,
     interactive: args.json !== true,
@@ -424,6 +483,51 @@ const run = async (command, store, args) => {
     ok: result.applied,
     statements: result.statements,
     warnings: result.warnings,
+  };
+};
+
+/**
+ * Runs `henri db:schema:dump` or `henri db:schema:load`
+ *
+ * @param {string} command schema:dump or schema:load
+ * @param {object} store The store adapter
+ * @param {object} args CLI arguments (`file` moves the dump)
+ * @returns {Promise<object>} The result
+ */
+const schema = async (command, store, args) => {
+  // --file wins over `schemaFile` for this one run: the store reads the
+  // path back out of its own configuration
+  if (typeof args.file === 'string') {
+    store.config.schemaFile = args.file;
+  }
+
+  const base = {
+    command,
+    dialect: store.dialect.name,
+    ok: true,
+    store: store.name,
+  };
+
+  if (command === 'schema:dump') {
+    const result = await store.dump.write();
+
+    return {
+      ...base,
+      at: result.at,
+      file: result.file,
+      statements: result.statements,
+      tables: result.tables,
+    };
+  }
+
+  const result = await store.dump.load();
+
+  return {
+    ...base,
+    at: result.at,
+    file: result.file,
+    recorded: result.recorded,
+    statements: result.statements,
   };
 };
 
@@ -596,6 +700,48 @@ const print = (result) => {
     }
   }
 
+  if (result.command === 'rollback') {
+    result.plan.forEach((step) => {
+      console.log(`  ${step.tag}`);
+      step.statements.forEach((statement) =>
+        console.log(`    ${statement.replace(/\n/gu, '\n    ')}`)
+      );
+      step.removes
+        .filter((entry) => entry.rows !== 0)
+        .forEach((entry) =>
+          console.log(
+            `    ! ${entry.column ? `${entry.table}.${entry.column}` : entry.table}: ${
+              entry.rows === null
+                ? 'henri could not count what is there'
+                : `${entry.rows} row(s) would be lost`
+            }`
+          )
+        );
+    });
+    console.log('');
+    console.log(
+      result.ok
+        ? `  Rolled back ${result.rolledBack.length} migration(s); they are pending again`
+        : '  Nothing was rolled back: the statements above would lose data'
+    );
+  }
+
+  if (result.command === 'schema:dump') {
+    console.log(
+      `  Wrote ${result.file} (${result.tables.length} table(s), ${result.statements} statement(s))`
+    );
+    console.log(`  Taken at ${result.at || 'no migration'}`);
+  }
+
+  if (result.command === 'schema:load') {
+    console.log(`  Loaded ${result.file} (${result.statements} statement(s))`);
+    console.log(
+      result.recorded.length === 0
+        ? `  Recorded nothing: the dump was taken at ${result.at || 'no migration'}`
+        : `  Recorded ${result.recorded.length} migration(s) as applied, through ${result.at}`
+    );
+  }
+
   if (result.command === 'push') {
     result.warnings.forEach((warning) => console.log(`  ! ${warning}`));
 
@@ -628,7 +774,9 @@ const print = (result) => {
  * @throws {CliError} USAGE without a command, FAILED when push refused to act
  */
 const main = async (args) => {
-  const [command] = args._;
+  const [first, second] = args._;
+  const command =
+    first === 'schema' && SCHEMA.includes(second) ? `schema:${second}` : first;
 
   if (!command || !COMMANDS.includes(command)) {
     if (!args.json) {
@@ -668,6 +816,11 @@ const main = async (args) => {
       const store = await storeOf(henri, name);
 
       result = await status(store, args).finally(() => henri.stop());
+    } else if (command.startsWith('schema:')) {
+      const henri = await boot();
+      const store = await dumps(henri, name);
+
+      result = await schema(command, store, args).finally(() => henri.stop());
     } else {
       const henri = await boot();
       const store = await migrations(henri, name);
@@ -690,6 +843,16 @@ const main = async (args) => {
     });
   }
 
+  if (result.command === 'rollback' && !result.ok) {
+    throw new CliError(
+      'HENRI_MIGRATION_DESTRUCTIVE',
+      'Rollback refused: it would take rows away',
+      {
+        hint: 'The rows were counted, so this is data that exists. Run again with --force when losing it is what you meant',
+      }
+    );
+  }
+
   // The drivers are closed by henri.stop(); leave nothing behind
   process.exit(0);
 };
@@ -698,9 +861,11 @@ module.exports = main;
 module.exports.COMMANDS = COMMANDS;
 module.exports.create = create;
 module.exports.drop = drop;
+module.exports.dumps = dumps;
 module.exports.migrations = migrations;
 module.exports.reset = reset;
 module.exports.run = run;
+module.exports.schema = schema;
 module.exports.seed = seed;
 module.exports.sow = sow;
 module.exports.status = status;

@@ -53,9 +53,11 @@ const normalizeEmail = (email) =>
  *
  * @param {string} code The henri error code (HENRI_MODEL_UNKNOWN_TYPE, ...)
  * @param {string} message What went wrong
+ * @param {string} [hint] What to do about it, for the command line
  * @returns {Error} The error to throw
  */
-const coded = (code, message) => Object.assign(new Error(message), { code });
+const coded = (code, message, hint) =>
+  Object.assign(new Error(message), hint ? { code, hint } : { code });
 
 /**
  * Logs a fatal error through henri's pen and returns the Error to throw

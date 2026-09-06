@@ -305,6 +305,24 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   singlestore, gel). Everything an mssql store does differently -- no
   migrations, `sequelize.sync()` in development, `henri db:status` for the
   drift -- follows from that.
+- **The migration story is `db/migrations` plus `db/schema.sql`**
+  (`packages/drizzle/{migrations,dump}.js`). `db:generate` writes
+  forward-only drizzle-kit SQL, and `db:rollback` computes the inverse when
+  it is asked for, from the two `meta/NNNN_snapshot.json` the folder already
+  holds handed to drizzle-kit backwards -- so no `down` file is stored and
+  none can go stale. It refuses a migration that dropped a table or a column
+  (`HENRI_MIGRATION_IRREVERSIBLE`, no flag lifts it), one whose `.sql` no
+  longer hashes to what the database recorded (`HENRI_MIGRATION_EDITED`),
+  and, without `--force`, one whose inverse would drop rows that exist --
+  counted first, so undoing a migration nothing was written into is quiet.
+  Rolling back moves the database, never the folder. `db:schema:dump` reads
+  the **database** back into `db/schema.sql` (not the chain, which would
+  agree with itself by construction and never catch a hand-run `ALTER`),
+  ordered so two runs are byte identical, headed with the migration it was
+  taken at; `db:schema:load` creates it in an empty database and records the
+  migrations through that one. The codes are the `migration` area of
+  `error-codes.json`, and an adapter without either says so
+  (`HENRI_CLI_MIGRATIONS_UNSUPPORTED`).
 - **The drizzle model refuses what it cannot honour** rather than dropping
   it, because the Sequelize spellings it does not share used to run and mean
   something else. `Model.update(values, { where })` (Sequelize's argument
