@@ -231,7 +231,9 @@ afterLogin, sessionMaxAge, signup, passwordReset, confirmation }`),
   times turns telemetry off for the process. It is the one module that is
   not reloadable, because an observable instrument is registered once by
   name. `@usehenri/jobs` and `@usehenri/webhooks` add their own boundary
-  through it. The guide is `guides/telemetry.md`.
+  through it, and `henri doctor` reports `deps.declared` when
+  `telemetry.enabled` is true and the package is in no `package.json`. The
+  guide is `guides/telemetry.md`.
 - `henri audit` (`packages/cli/scripts/audit.js`) checks an application
   against the checkable ASVS 4.0.3 requirements from its files only: the
   `CHECKS` catalogue is the mapping (requirement, level, Top 10 category) and

@@ -233,6 +233,8 @@ henri.telemetry.observe(
 
 `"telemetry": false` instruments nothing and never looks for the package.
 
+`henri doctor` reports `deps.declared` when `enabled` is `true` and `@opentelemetry/api` is in no `package.json`, so the boot failure is one a check catches first.
+
 `config.telemetry` is read once, at boot: telemetry is the one module a reload leaves alone, because an observable instrument is registered by name against a process-wide meter and rebuilding it would count everything twice.
 
 ## What this is not
