@@ -54,6 +54,11 @@ const ALIASES = [
  * log line, a boot report or a validation message is a key that has to be
  * rotated. A path here is masked wherever it is printed, and so is
  * everything under it.
+ *
+ * This covers the paths henri prints itself. What an application prints --
+ * `pen.info('boot', henri.config.get())`, which a structured line
+ * serializes faithfully -- is covered by the `ALWAYS_MASKED` of
+ * `base/redact.js`, the same names as a substring rule over any object.
  */
 const ALWAYS_MASKED = ['encryption.keys'];
 

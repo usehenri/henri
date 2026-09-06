@@ -10,6 +10,32 @@
  * `passwordConfirmation` because whoever wrote it meant a family of names,
  * but a `name` column marked personal has no business filtering `filename`
  * or `modelName`. `henri.privacy.keys` holds them (see `base/privacy.js`).
+ *
+ * ## What no configuration can unmask
+ *
+ * `ALWAYS_MASKED` is the `ALWAYS_MASKED` of `0.config.js`, one level down:
+ * the same names, matched the same way, but here they cover *anything*
+ * printed rather than only a configuration report. It exists because
+ * `config.filterParameters` **replaces** the default list, so an
+ * application that adds `apiKey` to it, or sets it to `false`, would
+ * otherwise take the protection away by widening it.
+ *
+ * The one entry is `encryption`, and it is there for `config.encryption.keys`
+ * (`1.encryption.js`): the key that opens every encrypted column, which
+ * henri already refuses to print through its own paths and which an
+ * application hands straight to `pen` the moment it logs its own
+ * configuration. A substring is the right shape -- it masks the whole
+ * `encryption` object, keys and all, rather than one name inside it -- and
+ * the cost is that a field called `encryptionStatus` is masked too. That is
+ * the same collateral `password` already takes on `passwordChangedAt`, and
+ * the two failures are not comparable: a masked status word costs a
+ * debugging round trip, a printed key costs the database.
+ *
+ * There is deliberately no setting that empties this list. A name is not
+ * maskable when it carries no name of its own -- `pen.info(config.get(
+ * 'encryption'))` hands over a bare `{ keys }` -- which is why
+ * `henri.encryption` never returns key material and the guide tells an
+ * application to log a key id instead.
  */
 const DEFAULT_FILTER = Object.freeze([
   'password',
@@ -17,6 +43,10 @@ const DEFAULT_FILTER = Object.freeze([
   'secret',
   'authorization',
 ]);
+
+/** Substrings masked whatever `config.filterParameters` says */
+const ALWAYS_MASKED = Object.freeze(['encryption']);
+
 const MASK = '[FILTERED]';
 const MAX_DEPTH = 8;
 
@@ -52,6 +82,10 @@ const NO_KEYS = new Set();
 /**
  * Should a key be filtered?
  *
+ * `ALWAYS_MASKED` is checked before the filters and not taken from them, so
+ * that every caller gets it whatever it passed -- the configured list, the
+ * defaults, or the empty list `filterParameters: false` returns.
+ *
  * @param {string} key a key
  * @param {Array<string>} filters the filters (substring match)
  * @param {Set<string>} [keys=NO_KEYS] the personal field names (exact match)
@@ -59,6 +93,10 @@ const NO_KEYS = new Set();
  */
 function isFiltered(key, filters, keys = NO_KEYS) {
   const lower = String(key).toLowerCase();
+
+  if (ALWAYS_MASKED.some((filter) => lower.includes(filter))) {
+    return true;
+  }
 
   if (keys && keys.size > 0 && keys.has(String(key))) {
     return true;
@@ -166,7 +204,29 @@ function redactUrl(url, filters = DEFAULT_FILTER, keys = NO_KEYS) {
   return changed ? `${text.slice(0, index)}?${params.toString()}` : text;
 }
 
+/**
+ * The masking of a url for an instance, as one function
+ *
+ * `redactor()` for the other half of a log line. A url reaches `pen` from
+ * several places -- the error handler, the request timeout -- and every one
+ * of them wants the *application's* filters and personal field names rather
+ * than the defaults, which is what calling `redactUrl()` with one argument
+ * quietly settles for.
+ *
+ * @param {*} [inst] a henri instance (`global.henri` when there is none)
+ * @returns {function} `(url) => url`, redacted
+ */
+function urlRedactor(inst) {
+  const instance = inst || global.henri;
+  const filters = filterParameters(instance && instance.config);
+  const keys =
+    (instance && instance.privacy && instance.privacy.keys) || undefined;
+
+  return (url) => redactUrl(url, filters, keys || NO_KEYS);
+}
+
 module.exports = {
+  ALWAYS_MASKED,
   DEFAULT_FILTER,
   MASK,
   filterParameters,
@@ -174,4 +234,5 @@ module.exports = {
   redact,
   redactUrl,
   redactor,
+  urlRedactor,
 };

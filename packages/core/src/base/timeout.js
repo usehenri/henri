@@ -1,10 +1,15 @@
 const { negotiate } = require('./http');
+const { urlRedactor } = require('./redact');
 
 /**
  * Request timeout: a request still without an answer after
  * `config.requestTimeout` ms (30s by default) gets a 503. Nothing happens
  * once the headers are out (streams, server-sent events): only `req.timedout`
  * is set, so a long handler can check it before doing more work.
+ *
+ * The url of the line goes through `urlRedactor()`, like the one the error
+ * handler writes: a request that times out is not a request that gets to
+ * print `?token=...` because nobody answered it.
  *
  * @param {Henri} henri the henri instance
  * @param {number} ms the timeout (ms)
@@ -19,9 +24,11 @@ function requestTimeout(henri, ms) {
         return;
       }
 
+      const where = urlRedactor(henri)(req.originalUrl || req.url || '');
+
       henri.pen.warn(
         'server',
-        `${req.method} ${req.originalUrl || req.url}`,
+        `${req.method} ${where}`,
         `timed out after ${ms}ms`
       );
       res.set('Connection', 'close');

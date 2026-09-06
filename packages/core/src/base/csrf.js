@@ -1,6 +1,7 @@
 const { stamp } = require('./errors');
 const crypto = require('crypto');
 const debug = require('debug')('henri:csrf');
+const { urlRedactor } = require('./redact');
 
 /**
  * Double-submit CSRF protection, with an origin check.
@@ -317,10 +318,12 @@ function csrf({
     }
 
     if (checkOrigin && originAllowed(req, trusted) === false) {
+      // DEBUG=henri:csrf is still a log: the url is masked like every
+      // other one henri writes (base/redact.js)
       debug(
         'refused %s %s from %s (%s)',
         req.method,
-        req.originalUrl || req.url,
+        urlRedactor()(req.originalUrl || req.url || ''),
         header(req, 'origin'),
         header(req, 'sec-fetch-site')
       );

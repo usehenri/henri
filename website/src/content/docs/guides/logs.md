@@ -96,9 +96,16 @@ henri.pen.info('signup', {
 }
 ```
 
-That is the whole risk of structured logs, said out loud: a logger is a machine for faithfully serializing whatever object it was handed, and the pretty format used to summarize that object into a line nobody parsed. Two consequences worth knowing:
+That is the whole risk of structured logs, said out loud: a logger is a machine for faithfully serializing whatever object it was handed, and the pretty format used to summarize that object into a line nobody parsed. Three consequences worth knowing:
 
-- `filterParameters: false` masks nothing **by name** — in both formats, as it always has. The `personal` marks are separate and still hold, so a field a model called personal stays masked even then.
+- `filterParameters: false` masks nothing **by name** — in both formats, as it always has, with the one exception below. The `personal` marks are separate and still hold, so a field a model called personal stays masked even then.
+- One name is masked whatever `filterParameters` says, `false` included: anything containing `encryption`. Setting the list _replaces_ the defaults, so an application that adds `apiKey` to it would otherwise take the protection off the key that opens every [encrypted column](/guides/encryption/) — and logging your own configuration is the ordinary way that object reaches `pen`. It is a substring, so it masks the whole `encryption` block rather than one name inside it, and it masks an `encryptionStatus` field along the way. There is no setting that turns it off.
+
+  ```js
+  henri.pen.info('boot', henri.config.get());
+  // { "…": "…", "data": [{ "encryption": "[FILTERED]", "port": 3000 }] }
+  ```
+
 - A _message_ is not masked, in either format. henri does not write most of them and cannot know what a call site put in a string; fields are what changes when the output becomes structured, so fields are what the rule governs. A string you build yourself is yours to keep clean.
 
 ## `henri.reporter`

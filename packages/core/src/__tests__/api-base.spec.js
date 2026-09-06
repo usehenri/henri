@@ -36,7 +36,12 @@ const {
 } = require('../base/idempotency');
 const { linkHeader, pageLinks, paginate } = require('../base/pagination');
 const { authLimiter, limiter, shutdown } = require('../base/rate-limit');
-const { redact, redactUrl } = require('../base/redact');
+const {
+  ALWAYS_MASKED,
+  redact,
+  redactUrl,
+  urlRedactor,
+} = require('../base/redact');
 const { context, currentRequestId, requestId } = require('../base/request-id');
 
 /**
@@ -172,6 +177,7 @@ describe('server middlewares (stubbed henri)', () => {
     ({ app } = server);
     app.post('/echo', (req, res) => res.json(req.body));
     app.get('/slow', () => {});
+    app.get('/slower', () => {});
     app.get('/page', (req, res) => res.json(req.pagination()));
     app.use(notFound(server.henri));
     app.use(errorHandler(server.henri));
@@ -212,6 +218,30 @@ describe('server middlewares (stubbed henri)', () => {
       statusCode: 503,
     });
     expect(res.headers.connection).toBe('close');
+  });
+
+  test('the line a timeout writes masks the query, like the 500 does', async () => {
+    const { warn } = server.henri.pen;
+    const lines = [];
+
+    server.henri.pen.warn = (...args) => lines.push(args.join(' '));
+
+    try {
+      const res = await supertest(app)
+        .get('/slower?token=sk-live-1&page=2')
+        .set('Accept', 'application/json');
+
+      expect(res.status).toBe(503);
+    } finally {
+      server.henri.pen.warn = warn;
+    }
+
+    const timedOut = lines.filter((line) => /timed out/.test(line));
+
+    expect(timedOut).toHaveLength(1);
+    expect(timedOut[0]).not.toContain('sk-live-1');
+    expect(timedOut[0]).toContain('page=2');
+    expect(timedOut[0]).toContain('GET /slower');
   });
 
   test('the health check answers without stores', async () => {
@@ -1094,5 +1124,40 @@ describe('request id and redaction', () => {
     );
     expect(redactUrl('/tasks?page=2')).toBe('/tasks?page=2');
     expect(redactUrl('/tasks')).toBe('/tasks');
+  });
+
+  test('the encryption key is masked whatever filterParameters says', () => {
+    const key = 'deadbeef'.repeat(8);
+
+    // `config.filterParameters` *replaces* the list, so the protection
+    // cannot live in it: ALWAYS_MASKED is checked before the filters are
+    expect(ALWAYS_MASKED).toEqual(['encryption']);
+    expect(redact({ encryption: { keys: [key] } }, [])).toEqual({
+      encryption: '[FILTERED]',
+    });
+    expect(redact({ encryption: { keys: [key] } }, ['ssn'])).toEqual({
+      encryption: '[FILTERED]',
+    });
+    expect(redactUrl('/x?encryption=abc&page=2', [])).toBe(
+      '/x?encryption=%5BFILTERED%5D&page=2'
+    );
+    // The substring rule, with what it costs: a status word goes too
+    expect(redact({ encryptionStatus: 'ok' })).toEqual({
+      encryptionStatus: '[FILTERED]',
+    });
+  });
+
+  test('urlRedactor masks with the application filters and personal names', () => {
+    const henri = fakeHenri({ filterParameters: ['apiKey'] });
+
+    henri.privacy = { keys: new Set(['email']) };
+
+    expect(urlRedactor(henri)('/x?apiKey=k&email=a@b.io&page=2')).toBe(
+      '/x?apiKey=%5BFILTERED%5D&email=%5BFILTERED%5D&page=2'
+    );
+    // No instance, no configuration: the defaults, and nothing throws
+    expect(urlRedactor(null)('/login?token=abc')).toBe(
+      '/login?token=%5BFILTERED%5D'
+    );
   });
 });

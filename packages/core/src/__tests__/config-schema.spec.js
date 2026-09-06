@@ -350,6 +350,20 @@ describe('the configuration schema', () => {
       )
     ).toBe('[FILTERED]');
 
+    // A whole block set at once (HENRI_CONFIG_JSON__encryption) arrives
+    // under the path `encryption`, which is not the path ALWAYS_MASKED
+    // names: the substring rule of base/redact.js is what covers it
+    expect(
+      display(
+        {
+          key: 'encryption',
+          value: { keys: [key] },
+          variable: 'HENRI_CONFIG_JSON__encryption',
+        },
+        []
+      )
+    ).toBe('[FILTERED]');
+
     // And a validation failure over a key with a typo in it: the value is
     // still a key, so it is named by its type
     const { errors } = validate(

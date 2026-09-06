@@ -74,6 +74,15 @@ by its **id** -- eight hexadecimal characters of a digest -- and never by its
 value. A key with a typo in it is still a key, so even the "this is not a
 key" message says only that a string arrived.
 
+That holds for what _you_ print too. A name containing `encryption` is
+masked in everything `henri.pen` writes, whatever
+[`filterParameters`](/guides/logs/#masking-is-not-optional) says and even
+when it is `false`, so `henri.pen.info('boot', henri.config.get())` writes
+`"encryption": "[FILTERED]"` rather than the key. There is no setting that
+turns that off. It works by name, so a value handed over without one --
+`pen.info(config.get('encryption').keys[0])` -- is yours to keep out of the
+line; log `henri.encryption.keys` instead, which is the ids.
+
 ## Randomised or deterministic
 
 This is the choice, and henri makes the consequence of getting it wrong a
