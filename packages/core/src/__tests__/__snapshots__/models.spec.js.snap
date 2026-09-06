@@ -10,6 +10,7 @@ Model {
   "checkStoreOrDie": [Function],
   "configure": [Function],
   "consoleOnly": false,
+  "extractGraphql": [Function],
   "getStore": [Function],
   "henri": null,
   "ids": [],

@@ -8,6 +8,7 @@ const debug = require('debug')('henri:model');
 const { userConfig } = require('./base/auth');
 const { modelErrors } = require('./base/model-errors');
 const { engine: graphqlEngine } = require('./base/graphql');
+const { blocksOf: graphqlBlocks } = require('./base/graphql-schema');
 const {
   build: buildReferences,
   publish: publishRecords,
@@ -48,6 +49,7 @@ class Model extends BaseModule {
     this.referenceTable = { classes: new Map(), models: {} };
 
     this.configure = this.configure.bind(this);
+    this.extractGraphql = this.extractGraphql.bind(this);
     this.reset = this.reset.bind(this);
     this.loadStore = this.loadStore.bind(this);
     this.getStore = this.getStore.bind(this);
@@ -113,10 +115,12 @@ class Model extends BaseModule {
         this.models.push(model);
 
         if (model.graphql) {
+          // Asked here so the failure names the model that reached for the
+          // package; what it extracts is built once the models are all in
           graphqlEngine(
             this.henri,
             `${model.globalId} declares graphql types and resolvers`
-          ).extract(model);
+          );
         }
       } catch (error) {
         this.henri.pen.error(
@@ -129,11 +133,55 @@ class Model extends BaseModule {
       }
     }
 
+    this.extractGraphql();
+
     // Without @usehenri/graphql there is nothing to merge, and nothing to
     // say: only a model reaching for it above is worth an error
     this.henri.graphql && this.henri.graphql.merge();
 
     return configuration;
+  }
+
+  /**
+   * Hands the GraphQL engine what every model that asked for it declares.
+   *
+   * A model writing `graphql: { types, resolvers }` is extracted exactly as
+   * it wrote it; one saying `graphql: true` gets the definition derived
+   * from its own schema (`base/graphql-schema.js`), which is why this runs
+   * once the models are all loaded rather than one at a time: the privacy
+   * map that decides which fields may leave the server is built from all of
+   * them at once, the way `base/openapi.js` builds it.
+   *
+   * @returns {Array<string>} the models henri generated a definition for
+   * @throws HENRI_API_GRAPHQL_INVALID_DECLARATION on a `graphql` key henri cannot read
+   * @memberof Model
+   */
+  extractGraphql() {
+    const generated = [];
+
+    if (!this.henri.graphql) {
+      return generated;
+    }
+
+    for (const block of graphqlBlocks(this.henri, this.models)) {
+      this.henri.graphql.extract(block);
+
+      if (block.description.generate) {
+        generated.push(block.globalId);
+      }
+    }
+
+    if (generated.length > 0) {
+      this.henri.pen.info(
+        'graphql',
+        `derived from ${generated.length} model${generated.length === 1 ? '' : 's'}`,
+        generated.join(', ')
+      );
+    }
+
+    debug('graphql derived for %o', generated);
+
+    return generated;
   }
 
   /**

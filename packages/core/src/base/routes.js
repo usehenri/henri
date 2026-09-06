@@ -157,6 +157,50 @@ function singularize(word) {
 }
 
 /**
+ * Irregular plurals worth knowing about. Everything else follows the four
+ * rules below, which is enough for the names a resource, a model or a
+ * generated GraphQL field is given.
+ */
+const IRREGULAR = Object.freeze({
+  child: 'children',
+  man: 'men',
+  person: 'people',
+  woman: 'women',
+});
+
+/**
+ * The plural of a resource name (`task` -> `tasks`, `category` ->
+ * `categories`, `box` -> `boxes`, `person` -> `people`)
+ *
+ * The case of the word is kept, so `blogPost` pluralizes to `blogPosts`:
+ * the generated GraphQL fields are named from a model, which is not
+ * lowercase. Callers that want a lowercase plural lowercase first.
+ *
+ * @param {string} word the singular
+ * @returns {string} its plural
+ */
+function pluralize(word) {
+  const name = String(word);
+  const irregular = IRREGULAR[name.toLowerCase()];
+
+  if (irregular) {
+    return name === name.toLowerCase()
+      ? irregular
+      : irregular.charAt(0).toUpperCase() + irregular.slice(1);
+  }
+
+  if (/(?:s|x|z|ch|sh)$/iu.test(name)) {
+    return `${name}es`;
+  }
+
+  if (/[^aeiou]y$/iu.test(name)) {
+    return `${name.slice(0, -1)}ies`;
+  }
+
+  return `${name}s`;
+}
+
+/**
  * The controller name (without the action) a route entry points to
  *
  * @param {string|object} value the value of a config/routes.js entry
@@ -562,6 +606,7 @@ module.exports = {
   expand,
   expandEntry,
   normalize,
+  pluralize,
   singularize,
   table,
 };

@@ -4,6 +4,14 @@
 // to its author, so erasing the author erases the memos, where a proposal or
 // an invoice would have survived them.
 module.exports = {
+  // GraphQL is derived: the type, the queries, the mutations and the
+  // resolvers come from the schema below (base/graphql-schema.js). `body` is
+  // personal
+  // and exposed, so it is a field and never an argument; `ownerId` is a
+  // declared reference, so it travels as the owner's externalId in both
+  // directions; and everything a client may see is what app/policies/memo.js
+  // says it is
+  graphql: { generate: true, mutations: true },
   options: {
     personal: { onErase: 'delete', subject: 'ownerId' },
     // A memo is kept for thirty days after it was archived, and an archived

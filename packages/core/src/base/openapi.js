@@ -2519,9 +2519,11 @@ function build({
 
 module.exports = {
   DIALECT,
+  GENERATED,
   OPENAPI_VERSION,
   build,
   columnsOf,
+  referenceOf,
   ruleSchema,
   settingsOf,
   template,
