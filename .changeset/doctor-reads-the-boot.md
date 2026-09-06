@@ -1,0 +1,42 @@
+---
+'@usehenri/cli': minor
+'@usehenri/mcp': minor
+---
+
+`henri doctor` reads what would fail a boot. It checked the conventions and
+stopped short of the failures that only show up when something starts, which
+is rarely a good moment — and is exactly what a coding agent cannot see.
+
+Eleven checks more, all of them from the files: a model naming a store the
+configuration does not hold (`models.store`); `jobs.store`, `webhooks.store`
+or `trail.store` naming a store that is not next to it (`config.store`); a
+store adapter another environment configures and nothing installs, since an
+environment file replaces `default.json` whole and `deps.declared` now reads
+every one of them and names the file that asked; a route asking for a policy
+`app/policies` does not hold, which the policies refuse rather than allow
+(`routes.policy`); a file of `app/jobs` with no `perform` (`jobs.perform`); a
+recurring schedule naming a job that is not there, which fails nothing and
+simply never runs (`jobs.recurring`); a mailer action with no view
+(`mailers.view`); an `app/modules` file whose name a core module already has,
+whose `needs` nothing provides, or a dependency whose `"henri": { "module" }`
+points at a file that is gone (`modules.name`, `modules.needs`,
+`modules.package`); and the henri packages installed at two versions, which
+are published together (`deps.version`).
+
+Two more keep the application's own description honest: `agents.stale` when
+`AGENTS.md` names a renderer or a store the configuration no longer names —
+an agent that trusts it writes code this application cannot run — and
+`views.renderer` when a page imports the other view engine or carries an
+extension the configured one does not resolve.
+
+The schema of a store is the one question asked over a connection, next to
+the shared store and behind the same `--no-reach`: `schema.behind` when a
+store answers and `db/migrations` holds migrations it has not applied, and
+`schema.unreachable` when it did not answer. A store that is down and a store
+that is behind are different problems with different fixes, and doctor never
+reports one as the other; drift against the models stays with
+`henri db:status`, which boots the application to compare them.
+
+Every problem gains a `code`: the henri error code the boot would raise, and
+`null` where the convention is doctor's own. The rest of the `--json` shape,
+the check names and the exit codes are unchanged.
