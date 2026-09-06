@@ -189,7 +189,7 @@ henri db:seed [--file=<path>]
 henri db:status | db:generate [--name=<label>] | db:migrate | db:push [--force]   [--store=<name>] [--json]
 ```
 
-Seeds and migrations, in the Rails `db:` style (`henri db seed` works too). Every command boots the models only, without views or workers, so they run anywhere the database is reachable, and every one of them accepts `--json`.
+Seeds and migrations, in the Rails `db:` style (`henri db seed` works too). Every command boots without the views, the router or the workers, so they run anywhere the database is reachable, and every one of them accepts `--json`. The migration commands stop at the models; `db:seed` also loads the user module, so a seed file can create users (their passwords are hashed by `henri.user.encrypt()`).
 
 `db:seed` is Rails' `rails db:seed`: it requires `db/seeds.js` and awaits what it exports, with the models and the henri instance available (a function is called with the instance). `--file=<path>` runs another file. A missing seed file is a usage error (exit code `2`) reported before anything boots. It works on every adapter; write the seeds idempotently, `find` then `create`, because they run again on every machine. See [Seeds](/guides/models/#seeds).
 

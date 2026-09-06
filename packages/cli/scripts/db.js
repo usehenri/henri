@@ -27,17 +27,21 @@ const resolveHenri = () => {
 };
 
 /**
- * Boots henri with the models only (runlevel 3, no views, no workers)
+ * Boots henri without the views, the router or the workers
  *
- * The migration commands skip the schema sync of the boot (they are the
- * ones driving it); `henri db:seed` keeps it, so the tables a seed writes
- * to exist, exactly like a `henri server` boot would.
+ * The migration commands stop at the models (runlevel 3) and skip the schema
+ * sync of the boot, since they are the ones driving it. `henri db:seed` keeps
+ * the sync, so the tables a seed writes to exist exactly like a `henri
+ * server` boot would, and goes one level further (runlevel 4, the user
+ * module): creating a user hashes its password with `henri.user.encrypt()`,
+ * so seeds could not write one without it.
  *
  * @param {object} [options={}] Options
  * @param {boolean} [options.sync=false] Let the adapter sync the schema
+ * @param {number} [options.runlevel=3] The level to boot to
  * @returns {Promise<object>} The henri instance
  */
-const boot = async ({ sync = false } = {}) => {
+const boot = async ({ sync = false, runlevel = 3 } = {}) => {
   process.env.SKIP_WORKERS = 'true';
   process.env.CONSOLE_ONLY = 'true';
 
@@ -48,7 +52,7 @@ const boot = async ({ sync = false } = {}) => {
   }
 
   const Henri = require(resolveHenri());
-  const henri = new Henri({ runlevel: 3 });
+  const henri = new Henri({ runlevel });
 
   await henri.init();
 
@@ -137,7 +141,7 @@ const seed = async (args) => {
   }
 
   const started = Date.now();
-  const henri = await boot({ sync: true });
+  const henri = await boot({ runlevel: 4, sync: true });
 
   try {
     await sow(henri, file);
