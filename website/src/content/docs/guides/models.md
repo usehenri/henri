@@ -323,11 +323,11 @@ It works on every adapter (the migration commands of `henri db` do not: those ne
 
 When a model matches the configured `user` name (`user` by default, so `app/models/User.js`), the adapter adds three fields to it, on top of the `externalId` every model gets:
 
-| Field      | Behaviour                                                                                                                                                                                                                                 |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `email`    | Required, unique, trimmed and lowercased on write, validated as an email address.                                                                                                                                                         |
-| `password` | Required. Hashed with bcrypt before every write, including `updateOne()`, `findByIdAndUpdate()` and bulk operations. Not selected by default: `User.findOne(query).select('+password')` on Mongoose, `User.scope('withPassword')` on SQL. |
-| `roles`    | A list of strings, `config.baseRole` for a new user. Dropped from mass-assigned creates and updates: `User.create(req.body)` cannot grant a role. On SQL it is a `JSON` column (`TEXT` with a JSON getter on MSSQL).                      |
+| Field      | Behaviour                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `email`    | Required, unique, trimmed and lowercased on write, validated as an email address.                                                                                                                                                                                                                                                                |
+| `password` | Required. Hashed (argon2id, or bcrypt) before every write, including `updateOne()`, `findByIdAndUpdate()` and bulk operations, and checked against `config.user.password` first. Not selected by default: `User.findOne(query).select('+password')` on Mongoose, `User.scope('withPassword')` on SQL. See [Passwords](/guides/users/#passwords). |
+| `roles`    | A list of strings, `config.baseRole` for a new user. Dropped from mass-assigned creates and updates: `User.create(req.body)` cannot grant a role. On SQL it is a `JSON` column (`TEXT` with a JSON getter on MSSQL).                                                                                                                             |
 
 and three methods:
 
@@ -339,7 +339,7 @@ await User.setRoles(id, ['admin']); // same, by id (null when not found)
 
 An operation flagged unsafe may write `roles` directly: `doc.save({ unsafe: true })`, `User.create([doc], { unsafe: true })`, `User.updateOne(filter, update, { unsafe: true })`, or `doc.$locals.unsafe = true` before a save (Mongoose).
 
-Server side, `henri.user.findByEmail(email)` (lowercases its argument and returns the instance with its password hash), `henri.user.findById(id)` (without the hash), `henri.user.publicUser(user)`, `henri.user.encrypt(password)` and `henri.user.compare(password, hash)` work the same on every adapter. Login, sessions, CSRF and roles are described in [Users](/guides/users/).
+Server side, `henri.user.findByEmail(email)` (lowercases its argument and returns the instance with its password hash), `henri.user.findById(id)` (without the hash), `henri.user.publicUser(user)`, `henri.user.validatePassword(password)`, `henri.user.encrypt(password)` and `henri.user.compare(password, hash)` work the same on every adapter. Login, sessions, CSRF and roles are described in [Users](/guides/users/).
 
 ## Adapters
 

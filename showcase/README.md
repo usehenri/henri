@@ -31,7 +31,7 @@ pnpm start                          # henri server, http://localhost:3000
 
 `pnpm db:setup` is the three database steps in one.
 
-Sign in with any of the seeded accounts; the password is always `showcase`.
+Sign in with any of the seeded accounts; the password is always `lineup-showcase`.
 `ada@lineup.dev` and `grace@lineup.dev` are on the program committee, so they
 see `/admin`; `bruno@lineup.dev` and the twenty-one others are speakers.
 

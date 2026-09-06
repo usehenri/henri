@@ -15,6 +15,8 @@ User {
   "henri": null,
   "init": [Function],
   "key": null,
+  "locked": [Function],
+  "lockout": null,
   "login": [Function],
   "logout": [Function],
   "name": "user",
@@ -25,10 +27,12 @@ User {
   ],
   "passport": null,
   "publicUser": [Function],
+  "rehash": [Function],
   "reloadable": false,
   "runlevel": 4,
   "sessionStore": null,
   "settings": null,
   "stop": [Function],
+  "validatePassword": [Function],
 }
 `;

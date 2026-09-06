@@ -32,7 +32,7 @@ describe('authentication', () => {
         company: 'Test Co',
         email: 'newcomer@example.test',
         name: 'A Newcomer',
-        password: 'showcase',
+        password: 'lineup-showcase',
       });
 
     expect(answer.status).toBe(302);
@@ -60,7 +60,7 @@ describe('authentication', () => {
       .send({
         email: 'newcomer@example.test',
         name: 'Somebody Else',
-        password: 'showcase',
+        password: 'lineup-showcase',
       });
 
     expect(answer.status).toBe(200);
@@ -79,7 +79,7 @@ describe('authentication', () => {
       .send({
         email: 'sneaky@example.test',
         name: 'Sneaky',
-        password: 'showcase',
+        password: 'lineup-showcase',
         roles: ['admin'],
       });
 
@@ -144,7 +144,7 @@ describe('authentication', () => {
     const good = await request()
       .post('/login')
       .set('Accept', 'application/json')
-      .send({ email: user.email, password: 'showcase' });
+      .send({ email: user.email, password: 'lineup-showcase' });
 
     expect(good.status).toBe(200);
     expect(good.body.user.email).toBe('api@example.test');

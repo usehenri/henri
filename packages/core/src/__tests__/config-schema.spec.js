@@ -19,6 +19,15 @@ const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 /** The keys of the `user` object form, the second branch of its union */
 const userKeys = () => Object.keys(SCHEMA.user.oneOf[1].keys);
 
+/** The keys of `user.password`, and of `user.lockout`'s object form */
+const passwordKeys = () => Object.keys(SCHEMA.user.oneOf[1].keys.password.keys);
+const lockoutKeys = () =>
+  Object.keys(SCHEMA.user.oneOf[1].keys.lockout.oneOf[1].keys);
+
+/** The keys of the object forms of `csrf` and `graphql` */
+const csrfKeys = () => Object.keys(SCHEMA.csrf.oneOf[1].keys);
+const graphqlKeys = () => Object.keys(SCHEMA.graphql.oneOf[1].keys);
+
 /** The keys of the `rateLimit` object form */
 const rateLimitKeys = () => Object.keys(SCHEMA.rateLimit.oneOf[1].keys);
 
@@ -166,7 +175,13 @@ describe('the configuration schema', () => {
         legacy: { adapter: 'mysql', logging: false, pool: { max: 5 } },
       },
       trustProxy: 2,
-      user: { afterLogin: '/', model: 'user', public: ['name'] },
+      user: {
+        afterLogin: '/',
+        lockout: { max: 10, windowMs: 900000 },
+        model: 'user',
+        password: { minLength: 16, pepper: { current: 'a-key' } },
+        public: ['name'],
+      },
     });
 
     expect(errors).toEqual([]);
@@ -347,6 +362,10 @@ describe('the schema, the declarations and the documentation', () => {
     ['Configuration', () => Object.keys(SCHEMA)],
     ['StoreConfig', () => Object.keys(STORE.keys)],
     ['UserConfig', userKeys],
+    ['PasswordConfig', passwordKeys],
+    ['LockoutConfig', lockoutKeys],
+    ['CsrfConfig', csrfKeys],
+    ['GraphqlConfig', graphqlKeys],
     ['ApiConfig', () => Object.keys(SCHEMA.api.keys)],
     ['RateLimitConfig', rateLimitKeys],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],

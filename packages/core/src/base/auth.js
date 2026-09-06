@@ -12,12 +12,19 @@
  *     "public": ["name"],
  *     "loginPath": "/login",
  *     "afterLogin": "/",
- *     "sessionMaxAge": 2592000000
+ *     "sessionMaxAge": 2592000000,
+ *     "password": { "minLength": 12 },
+ *     "lockout": { "max": 10, "windowMs": 900000 }
  *   }
  * }
  * ```
+ *
+ * The password policy and the hashing parameters live in `base/password.js`,
+ * the per-account sign-in lockout in `base/lockout.js`.
  */
 const { EXTERNAL_ID, hasExternalId } = require('./external-id');
+const { lockoutConfig } = require('./lockout');
+const { passwordPolicy } = require('./password');
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
@@ -33,11 +40,17 @@ const DEFAULTS = Object.freeze({
  * Normalizes the `user` configuration key
  *
  * @param {object} config henri's config module (or anything with get/has)
- * @returns {{model: string, public: Array<string>, loginPath: string, afterLogin: string, sessionMaxAge: number}} settings
+ * @param {object} [options={}] options
+ * @param {boolean} [options.isTest=false] cheap hashing parameters
+ * @returns {{model: string, public: Array<string>, loginPath: string, afterLogin: string, sessionMaxAge: number, password: object, lockout: ?object}} settings
  * @throws {TypeError} when `config.user` is neither a string nor an object
  */
-function userConfig(config) {
-  const settings = Object.assign({}, DEFAULTS, { public: [] });
+function userConfig(config, { isTest = false } = {}) {
+  const settings = Object.assign({}, DEFAULTS, {
+    lockout: lockoutConfig(undefined),
+    password: passwordPolicy({}, { isTest }),
+    public: [],
+  });
 
   if (!config || typeof config.has !== 'function' || !config.has('user')) {
     return settings;
@@ -53,7 +66,7 @@ function userConfig(config) {
 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new TypeError(
-      'config.user must be a string (model name) or an object ({ model, public, loginPath, afterLogin, sessionMaxAge })'
+      'config.user must be a string (model name) or an object ({ model, public, loginPath, afterLogin, sessionMaxAge, password, lockout })'
     );
   }
 
@@ -73,6 +86,12 @@ function userConfig(config) {
     settings.public = raw.public.filter(
       (field) => typeof field === 'string' && field !== 'password'
     );
+  }
+  if (typeof raw.password !== 'undefined') {
+    settings.password = passwordPolicy(raw.password, { isTest });
+  }
+  if (typeof raw.lockout !== 'undefined') {
+    settings.lockout = lockoutConfig(raw.lockout);
   }
 
   return settings;

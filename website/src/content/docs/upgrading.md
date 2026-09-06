@@ -68,6 +68,61 @@ What this means for an existing application:
 
 Add `options: { timestamps: false }` to any model that should keep its old shape. `options: { timestamps: true }` still works and is now redundant: `henri generate model` no longer writes it.
 
+### The minimum password length moves from 6 to 12
+
+`henri.user.encrypt()` used to refuse anything shorter than 6 characters. It now refuses anything shorter than **12**, and anything longer than 72 bytes (bcrypt's ceiling, past which it silently ignores the rest rather than telling you).
+
+**Nobody is locked out by this.** The policy governs _setting_ a password: signing in never applies it, so an account created with a six character password keeps signing in with it, and its hash is quietly upgraded when it does. What changes is registration and password changes.
+
+What to check before deploying:
+
+- **Your own interface.** If your signup form, its validation, or the copy next to it advertises a shorter minimum, it will start refusing passwords you told people were acceptable. Update the form, or set the minimum you actually want.
+- **Seeds and fixtures.** Anything creating a user with a short password (`db/seeds.js`, test helpers) now throws. The showcase application's seeded password moved from `showcase` to `lineup-showcase` for exactly this reason.
+
+`config.user.password.minLength` sets it. It will not go below 8 — the floor every comparable framework sits at:
+
+```json
+{ "user": { "password": { "minLength": 8 } } }
+```
+
+`henri.user.validatePassword(password)` is the same rule without the hashing, and answers `{ valid, errors: [{ code, message }] }` so a form can say what is wrong. See [Passwords](/guides/users/#passwords).
+
+### Passwords are hashed with argon2id, and old hashes are upgraded on sign-in
+
+New hashes use **argon2id** when `@node-rs/argon2` resolves — it is an `optionalDependency` of `@usehenri/core`, so `pnpm install` picks up a prebuilt binary on every platform Node runs on and skips it silently anywhere it cannot. Where it is missing, bcrypt is used, at **cost 12** instead of 10.
+
+Nothing to do, and nothing to migrate: bcrypt hashes still verify, and each one is written again in the current format the next time its owner signs in successfully. Two things worth knowing:
+
+- **A hash written under argon2id needs argon2id to verify.** If some of your machines have the binding and others do not, they will disagree. Pin `"password": { "algorithm": "bcrypt" }` if you need every deployment to be interchangeable, or `"argon2id"` to fail the boot rather than silently fall back.
+- **Cost.** bcrypt at 12 is about four times cost 10 (a quarter second per sign-in with the pure-JS bcrypt henri ships); argon2id at the OWASP parameters is faster than that and uses 19 MiB per hash.
+
+`config.user.password` configures all of it, including an optional [pepper](/guides/users/#the-pepper).
+
+### Sign-in attempts are capped per account
+
+Ten failures against one account inside fifteen minutes and it stops accepting sign-in attempts for the rest of the window, whoever is sending them. This is new: the rate limit only ever counted per address, so a slow attempt spread across many addresses was unbounded.
+
+What to check: anything that signs in repeatedly with the wrong credentials — a health check pointed at `POST /login`, a test suite that asserts many failures for one account — now meets a `429` where it used to get a `401`. Failures are counted for unknown emails too, so the answer is the same whether the account exists or not.
+
+`"lockout": { "max": 20, "windowMs": 300000 }` under `user` retunes it, `"lockout": false` turns it off. The counter is in memory and per process; `store` takes a shared express-rate-limit store. See [Sign-in lockout](/guides/users/#sign-in-lockout).
+
+### CSRF also checks where the request came from
+
+The double-submit token is unchanged. On top of it, an unsafe request carrying a session cookie must now come from an origin this application recognizes: `Sec-Fetch-Site: same-origin` or `none`, or an `Origin` matching the host or listed in `csrf.trustedOrigins`. A sibling subdomain is refused, which is the case the token alone never covered.
+
+What to check:
+
+- **A browser client on another origin that sends cookies.** It needs its origin trusted. Whatever `config.cors.origin` already allows is trusted for you, so an application that configured CORS properly needs no change.
+- **A reverse proxy that rewrites the `Host` header** and sets neither `X-Forwarded-Host` nor `X-Forwarded-Proto` will make the computed origin disagree with the browser's. henri reads both when `config.trustProxy` allows it (it is `true` by default); check the setting is right for your setup.
+
+Nothing changes for a client that sends no session cookie, or one authenticated with a bearer token. `"csrf": { "origin": false }` restores the token-only behaviour.
+
+### The GraphQL endpoint has depth, alias and complexity limits
+
+Only applies if a model of yours declares `graphql`. A query is now refused when it nests more than 10 levels, uses more than 15 aliases, selects more than 1000 fields (fragments expanded) or holds more than 5000 tokens. A page's own query is nowhere near any of these; a generated or machine-built query might be.
+
+Each limit is a key of `config.graphql`, which is now an object as well as a path, and `false` lifts one. The same object adds `authenticated`, `roles` and `loopbackOnly`, because the endpoint has never had a guard of its own. See [Bounding the endpoint](/guides/graphql/#bounding-the-endpoint).
+
 ### New in 1.2
 
 Nothing below breaks anything, they are additions:
@@ -76,6 +131,7 @@ Nothing below breaks anything, they are additions:
 - `Model.paginate({ page, perPage })` answers `{ records, page, perPage, total, pages }` on every adapter: `await Task.paginate(req.pagination())` replaces a find and a count. See [Pagination](/guides/models/#pagination).
 - `henri.model.errors(error)` turns any adapter's validation failure into `{ field: message }`, and answers `null` for anything else. The controllers written by `henri generate scaffold` and `crud` use it and `Model.paginate()`, so regenerate them (`--force`) to pick both up. See [Validation errors](/guides/models/#validation-errors).
 - `henri db:seed` runs `db/seeds.js` with the models loaded, on any adapter. `henri new` scaffolds the file. See [Seeds](/guides/models/#seeds).
+- `config.user.password.pepper` mixes a server-side key into every hash, so a stolen table cannot be cracked offline. It is off by default, it is its own key rather than `config.secret`, and **losing it makes every peppered password unverifiable**. See [The pepper](/guides/users/#the-pepper).
 
 ## Toolchain
 

@@ -6,6 +6,14 @@ const { expressMiddleware } = require('@as-integrations/express5');
 const { GraphQLError } = require('graphql');
 const debug = require('debug')('henri:graphql');
 
+const {
+  accessGuard,
+  cancellation,
+  graphqlConfig,
+  queryLimits,
+} = require('./base/graphql-guard');
+const { loopbackOnly } = require('./base/http');
+
 /**
  * Build a GraphQLError subclass carrying an `extensions.code`
  *
@@ -59,6 +67,8 @@ class Graphql extends BaseModule {
     this.resolvers = null;
     this.schema = null;
     this.endpoint = '/_henri/gql';
+    /** Normalized `config.graphql`: the endpoint, the limits, the access rules */
+    this.settings = graphqlConfig(null, this.endpoint);
     this.active = false;
 
     this.graphqlServer = null;
@@ -99,9 +109,13 @@ class Graphql extends BaseModule {
    * @memberof Graphql
    */
   async init() {
-    if (this.henri.config.has('graphql')) {
-      this.endpoint = this.henri.config.get('graphql');
-    }
+    const { config } = this.henri;
+
+    this.settings = graphqlConfig(
+      config.has('graphql') ? config.get('graphql') : null,
+      this.endpoint
+    );
+    this.endpoint = this.settings.endpoint;
 
     if (this.schema !== null && !this.graphqlServer) {
       await this.createServer();
@@ -123,9 +137,19 @@ class Graphql extends BaseModule {
    * @memberof Graphql
    */
   createServer() {
+    const { introspection, maxTokens } = this.settings;
     const server = new ApolloServer({
-      introspection: !this.henri.isProduction,
+      // Apollo's own simple-request protection: a POST must be
+      // `application/json` or carry `apollo-require-preflight`, so a form on
+      // another site cannot reach the endpoint. On by default; named here so
+      // it stays that way.
+      csrfPrevention: true,
+      introspection:
+        introspection === null ? !this.henri.isProduction : introspection,
+      parseOptions: Number.isFinite(maxTokens) ? { maxTokens } : {},
+      plugins: [cancellation()],
       schema: this.schema,
+      validationRules: [queryLimits(this.settings)],
     });
 
     this.graphqlServer = server;
@@ -146,7 +170,15 @@ class Graphql extends BaseModule {
     if (!this._middlewareRegistered) {
       this._middlewareRegistered = true;
       this.henri.addMiddleware('graphql', (app) => {
-        app.use(this.endpoint, (req, res, next) => {
+        const guards = [];
+
+        if (this.settings.loopbackOnly) {
+          guards.push(loopbackOnly());
+        }
+
+        guards.push(accessGuard(this.settings));
+
+        app.use(this.endpoint, ...guards, (req, res, next) => {
           if (!this.active || !this._handler) {
             return next();
           }

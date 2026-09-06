@@ -6,6 +6,11 @@ const supertest = require('supertest');
 // suite boots the fixture application on this store and runs the login
 // flow of packages/core/src/__tests__/auth-sqlite.spec.js against it
 const Henri = require('../../core/src/henri');
+const {
+  hashPassword,
+  needsRehash,
+  passwordPolicy,
+} = require('../../core/src/base/password');
 
 const fixture = path.join(__dirname, 'fixtures', 'auth-app');
 const password = 'compiler-1952';
@@ -151,6 +156,37 @@ describe('auth (core on the drizzle sqlite store)', () => {
     expect(profile.body.user).toEqual(login.body.user);
     expect(profile.body.user.password).toBeUndefined();
     expect((await agent.get('/admin')).status).toBe(403);
+  });
+
+  test('upgrades a stale hash on a successful sign-in', async () => {
+    // A user registered before the defaults moved: bcrypt at a low cost, and
+    // a password shorter than today's minimum
+    const legacy = 'sixchr';
+    const stale = await hashPassword(
+      legacy,
+      passwordPolicy({ algorithm: 'bcrypt' }, { isTest: true })
+    );
+
+    await henri._user.create(
+      { email: 'legacy@usehenri.io', name: 'Legacy', password: stale },
+      { passwordsHashed: true }
+    );
+
+    expect(needsRehash(stale, henri.user.passwordPolicy)).toBe(true);
+
+    const res = await supertest(app)
+      .post('/login')
+      .send({ email: 'legacy@usehenri.io', password: legacy });
+
+    expect(res.status).toBe(200);
+
+    const after = await henri.user.findByEmail('legacy@usehenri.io');
+
+    expect(after.password).not.toBe(stale);
+    expect(needsRehash(after.password, henri.user.passwordPolicy)).toBe(false);
+    await expect(henri.user.compare(legacy, after.password)).resolves.toBe(
+      true
+    );
   });
 
   test('finds a user by id without its password', async () => {

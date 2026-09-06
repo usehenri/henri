@@ -59,6 +59,13 @@ const DIALECTS = ['mysql', 'postgres', 'sqlite'];
 /** A string that is not empty */
 const text = (extra = {}) => ({ pattern: /\S/u, type: 'string', ...extra });
 
+/** One bound of the graphql endpoint: a whole number, or false to lift it */
+const limit = (value) => ({
+  default: value,
+  describe: 'a whole number above zero, or false',
+  oneOf: [{ const: false }, { above: 0, integer: true, type: 'number' }],
+});
+
 /** A number strictly above zero */
 const positive = (extra = {}) => ({
   above: 0,
@@ -218,7 +225,7 @@ const SCHEMA = {
 
   user: {
     describe:
-      'the name of the user model, or an object ({ model, public, loginPath, afterLogin, sessionMaxAge })',
+      'the name of the user model, or an object ({ model, public, loginPath, afterLogin, sessionMaxAge, password, lockout })',
     oneOf: [
       text(),
       {
@@ -227,11 +234,122 @@ const SCHEMA = {
             default: '/',
             describe: 'a path to land on after a form login',
           }),
+          lockout: {
+            default: '{ max: 10, windowMs: 900000 }',
+            describe: 'false, or an object ({ max, windowMs, store })',
+            hint: 'false lets one account receive unlimited sign-in attempts',
+            oneOf: [
+              { const: false },
+              {
+                keys: {
+                  max: {
+                    default: 10,
+                    describe: 'a number of failed attempts, above zero',
+                    integer: true,
+                    min: 1,
+                    type: 'number',
+                  },
+                  store: {
+                    describe:
+                      'the module id of an express-rate-limit store, or of a (henri, { name }) => store factory',
+                    hint: 'defaults to rateLimit.store; without one the count is per process',
+                    oneOf: [{ const: null }, text()],
+                  },
+                  windowMs: positive({
+                    default: 900000,
+                    describe: 'a window in milliseconds',
+                  }),
+                },
+                type: 'object',
+              },
+            ],
+          },
           loginPath: text({
             default: '/login',
             describe: 'a path to send denied browsers to',
           }),
           model: text({ default: 'user', describe: 'the user model name' }),
+          password: {
+            describe: 'the password policy and the hashing parameters',
+            keys: {
+              algorithm: text({
+                default: 'auto',
+                describe: 'one of auto, argon2id, bcrypt',
+                enum: ['auto', 'argon2id', 'bcrypt'],
+                hint: 'auto uses argon2id when @node-rs/argon2 is installed',
+              }),
+              bcryptRounds: {
+                default: 12,
+                describe: 'a bcrypt work factor, at least 10',
+                integer: true,
+                min: 10,
+                type: 'number',
+              },
+              maxBytes: {
+                default: 72,
+                describe: 'a length in bytes, at least 8',
+                hint: 'bcrypt ignores everything past 72 bytes',
+                integer: true,
+                min: 8,
+                type: 'number',
+              },
+              memoryCost: {
+                default: 19456,
+                describe: 'argon2id memory in kibibytes, at least 8',
+                integer: true,
+                min: 8,
+                type: 'number',
+              },
+              minLength: {
+                default: 12,
+                describe: 'a password length, at least 8',
+                integer: true,
+                min: 8,
+                type: 'number',
+              },
+              parallelism: {
+                default: 1,
+                describe: 'a number of argon2id lanes, at least 1',
+                integer: true,
+                min: 1,
+                type: 'number',
+              },
+              pepper: {
+                describe:
+                  'a key, or an object ({ current, previous, allowUnpeppered })',
+                hint: 'Set it with HENRI_PASSWORD_PEPPER, never in config/; losing it makes every peppered password unverifiable',
+                oneOf: [
+                  text(),
+                  {
+                    keys: {
+                      allowUnpeppered: {
+                        default: true,
+                        describe: 'true or false',
+                        hint: 'false refuses hashes written before the pepper',
+                        type: 'boolean',
+                      },
+                      current: text({ describe: 'the key in force' }),
+                      previous: {
+                        describe: 'a list of keys it replaced',
+                        of: text(),
+                        type: 'array',
+                      },
+                    },
+                    required: ['current'],
+                    type: 'object',
+                  },
+                ],
+              },
+              timeCost: {
+                default: 2,
+                describe: 'a number of argon2id iterations, at least 1',
+                integer: true,
+                min: 1,
+                type: 'number',
+              },
+            },
+            type: 'object',
+          },
           public: {
             describe: 'a list of field names',
             hint: 'externalId, email and roles are always public',
@@ -266,16 +384,73 @@ const SCHEMA = {
 
   csrf: {
     default: true,
-    describe: 'true or false',
-    hint: 'false disables the double-submit CSRF protection',
-    type: 'boolean',
+    describe: 'true, false, or an object ({ origin, trustedOrigins })',
+    hint: 'false disables the double-submit CSRF protection entirely',
+    oneOf: [
+      { type: 'boolean' },
+      {
+        keys: {
+          origin: {
+            default: true,
+            describe: 'true or false',
+            hint: 'false keeps the token check without the Sec-Fetch-Site and Origin check',
+            type: 'boolean',
+          },
+          trustedOrigins: {
+            describe: 'a list of origins (https://admin.example.com)',
+            hint: 'whatever cors.origin allows is trusted already',
+            of: text(),
+            type: 'array',
+          },
+        },
+        type: 'object',
+      },
+    ],
   },
 
-  graphql: text({
+  graphql: {
     default: '/_henri/gql',
-    describe: 'a path starting with /',
-    pattern: /^\//u,
-  }),
+    describe: 'a path starting with /, or an object ({ endpoint, ... })',
+    oneOf: [
+      text({ pattern: /^\//u }),
+      {
+        keys: {
+          authenticated: {
+            default: false,
+            describe: 'true or false',
+            hint: 'true answers 401 to anonymous requests',
+            type: 'boolean',
+          },
+          endpoint: text({
+            default: '/_henri/gql',
+            describe: 'a path starting with /',
+            pattern: /^\//u,
+          }),
+          introspection: {
+            describe: 'true or false',
+            hint: 'on outside production by default',
+            type: 'boolean',
+          },
+          loopbackOnly: {
+            default: false,
+            describe: 'true or false',
+            hint: 'true answers 404 to anything but the loopback interface',
+            type: 'boolean',
+          },
+          maxAliases: limit(15),
+          maxComplexity: limit(1000),
+          maxDepth: limit(10),
+          maxTokens: limit(5000),
+          roles: {
+            describe: 'a role name, or a list of them',
+            hint: 'asking for a role implies authenticated',
+            oneOf: [text(), { of: text(), type: 'array' }],
+          },
+        },
+        type: 'object',
+      },
+    ],
+  },
 
   mail: {
     describe: 'a nodemailer transport object, or "test"',
