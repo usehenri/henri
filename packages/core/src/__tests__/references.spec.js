@@ -2,6 +2,8 @@
 const supertest = require('supertest');
 const Henri = require('../henri');
 const { build, publish, settings } = require('../base/references');
+const { toPublic } = require('../base/hateoas');
+const { stripPersonal } = require('../base/privacy');
 
 const password = 'difference-engine';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -419,6 +421,51 @@ describe('base/references', () => {
 
       expect(answer.when).toBe(when);
       expect(answer.blob).toBe(bytes);
+    });
+
+    test('a foreign key marked expose: false leaves as neither of the two', async () => {
+      // The seam between the two exit gates: publishing resolves the key
+      // into the public identifier of the row it names, and the privacy
+      // strip runs after, so a field that must not leave cannot leave
+      // carrying whatever it resolved to
+      const store = storeOf({ User: { 4812: 'u-4812' } });
+      const henri = fake(table, store);
+
+      henri.privacy = {
+        strip: (value, include = []) =>
+          stripPersonal(value, new Set(['authorId']), include),
+      };
+
+      const post = Object.assign(new Post(), {
+        authorId: 4812,
+        externalId: 'p-1',
+        id: 7,
+      });
+      const answer = await toPublic(henri, post);
+
+      expect(answer.authorId).toBeUndefined();
+      expect(JSON.stringify(answer)).not.toContain('4812');
+      expect(JSON.stringify(answer)).not.toContain('u-4812');
+      expect(answer.externalId).toBe('p-1');
+    });
+
+    test('a field the answer asked for by name survives the strip', async () => {
+      const store = storeOf({ User: { 4812: 'u-4812' } });
+      const henri = fake(table, store);
+
+      henri.privacy = {
+        strip: (value, include = []) =>
+          stripPersonal(value, new Set(['authorId']), include),
+      };
+
+      const post = Object.assign(new Post(), {
+        authorId: 4812,
+        externalId: 'p-1',
+      });
+
+      expect((await toPublic(henri, post, ['authorId'])).authorId).toBe(
+        'u-4812'
+      );
     });
 
     test('publishes nothing when there is no table at all', async () => {

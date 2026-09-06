@@ -347,6 +347,22 @@ describe('what leaves the server (no application)', () => {
     expect(copy.at).toBe(at);
     expect(copy.gender).toBeUndefined();
   });
+
+  test('a __proto__ field is a field, never the prototype of the copy', () => {
+    // This strip is the last thing that touches a payload on its way out,
+    // so it is the one that decides. A JSON column is somewhere an attacker
+    // can put this key, and `copy.__proto__ = x` would replace the
+    // prototype of the answer with whatever they wrote
+    const payload = JSON.parse('{"meta":{"__proto__":{"polluted":true}}}');
+    const copy = stripPersonal(payload, new Set(['gender']));
+
+    expect(Object.getPrototypeOf(copy.meta)).toBe(Object.prototype);
+    expect(copy.meta.polluted).toBeUndefined();
+    expect({}.polluted).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(copy.meta, '__proto__')).toBe(
+      true
+    );
+  });
 });
 
 describe('the values an erasure writes (no application)', () => {

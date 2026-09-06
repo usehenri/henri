@@ -542,7 +542,24 @@ function stripPersonal(value, names, keep = [], seen = new WeakMap()) {
       continue;
     }
 
-    copy[key] = stripPersonal(plain[key], names, keep, seen);
+    const entry = stripPersonal(plain[key], names, keep, seen);
+
+    // `copy.__proto__ = x` runs the setter of Object.prototype and replaces
+    // the copy's prototype instead of adding a field. This strip is the last
+    // thing that touches a payload on its way out, so it is the one that
+    // decides: the value is defined rather than assigned, which keeps it a
+    // field (see base/references.js, which does the same on the way in)
+    if (key === '__proto__') {
+      Object.defineProperty(copy, key, {
+        configurable: true,
+        enumerable: true,
+        value: entry,
+        writable: true,
+      });
+      continue;
+    }
+
+    copy[key] = entry;
   }
 
   return copy;
