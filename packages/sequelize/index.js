@@ -1,6 +1,6 @@
 const Sequelize = require('sequelize');
 const debug = require('debug')('henri:sequelize');
-const { lookup, paginate, serialize } = require('./plugins');
+const { lookup, paginate, publicId } = require('./plugins');
 const { normalizeSchema } = require('./schema');
 const {
   EXTERNAL_ID,
@@ -224,7 +224,7 @@ class Sql {
     );
 
     if (external) {
-      serialize(instance);
+      publicId(instance);
     }
 
     if (isUser) {

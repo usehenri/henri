@@ -81,6 +81,17 @@ describe(`external id (${target.name})`, () => {
     expect(await Task.findById(uuidv7())).toBeNull();
   });
 
+  test('it is written once and never changes', async () => {
+    const task = await Task.create({ name: 'stable' });
+    const { externalId } = task;
+
+    await task.update({ externalId: uuidv7(), name: 'still stable' });
+    await Task.update({ externalId: uuidv7() }, { where: { id: task.id } });
+
+    expect(task.externalId).toBe(externalId);
+    expect((await Task.findById(task.id)).externalId).toBe(externalId);
+  });
+
   test('the primary key never leaves the server', async () => {
     const task = await Task.create({ name: 'serialized' });
     const json = JSON.parse(JSON.stringify(task));

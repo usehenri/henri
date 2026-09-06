@@ -119,14 +119,15 @@ const lookup = (Model, external) => {
 };
 
 /**
- * The primary key never leaves the server on a model carrying a public
- * identifier: `toJSON()` (and everything built on it) answers with
- * `externalId` instead.
+ * The two halves of the public identifier on a model that carries one: the
+ * primary key stops leaving the server (`toJSON()`, and everything built on
+ * it, answers with `externalId` instead), and the public identifier is
+ * written once, on the insert, so the urls of a record never move.
  *
  * @param {object} Model A Sequelize model
  * @returns {object} The model
  */
-const serialize = (Model) => {
+const publicId = (Model) => {
   /**
    * The row as JSON, without its primary key
    *
@@ -136,7 +137,25 @@ const serialize = (Model) => {
     return withoutInternalIds(this.get({ plain: true }));
   };
 
+  Model.addHook('beforeUpdate', 'henriExternalId', (record) => {
+    if (record.changed(EXTERNAL_ID)) {
+      record.set(EXTERNAL_ID, record.previous(EXTERNAL_ID));
+      record.changed(EXTERNAL_ID, false);
+    }
+  });
+
+  Model.addHook('beforeBulkUpdate', 'henriExternalId', (options = {}) => {
+    const values = options.attributes || {};
+
+    if (EXTERNAL_ID in values) {
+      delete values[EXTERNAL_ID];
+      options.fields = (options.fields || []).filter(
+        (field) => field !== EXTERNAL_ID
+      );
+    }
+  });
+
   return Model;
 };
 
-module.exports = { lookup, paginate, serialize };
+module.exports = { lookup, paginate, publicId };

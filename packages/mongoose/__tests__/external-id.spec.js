@@ -116,6 +116,17 @@ describe('external id (mongoose)', () => {
     expect(await Task.findById(task.externalId)).toBeNull();
   });
 
+  test('it is written once and never changes', async () => {
+    const task = await Task.create({ name: 'stable' });
+    const { externalId } = task;
+
+    task.externalId = uuidv7();
+    await task.save();
+    await Task.updateOne({ _id: task._id }, { externalId: uuidv7() });
+
+    expect((await Task.findById(task._id)).externalId).toBe(externalId);
+  });
+
   test('the document id never leaves the server', async () => {
     const task = await Task.create({ name: 'serialized' });
     const json = JSON.parse(JSON.stringify(task));

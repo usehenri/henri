@@ -145,6 +145,16 @@ application in the worker and binds supertest to it. The suite needs the
 PostgreSQL of `compose.yaml`, which is why it is **not** part of the
 monorepo's `pnpm test`: `vitest.config.mjs` at the root excludes `showcase/`.
 
+The boot pushes the schema, which creates the tables of a fresh test database
+by itself. A test database created before a migration that adds a `NOT NULL`
+column to a table already holding rows is a different matter: drizzle-kit asks
+before doing that and there is no terminal to ask, so the boot fails. Migrate
+it once, or drop it and let the next run build it again:
+
+```bash
+NODE_ENV=test henri db:migrate     # from showcase/
+```
+
 The five files cover the flows above: `auth.test.js` (sign up, sign in, sign
 out, CSRF), `roles.test.js` (the guard and the filtered path helpers),
 `proposals.test.js` (before hooks, `req.permit`, flash, the state transitions,
