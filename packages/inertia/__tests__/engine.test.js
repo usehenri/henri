@@ -75,6 +75,44 @@ describe('inertia engine', () => {
     });
   });
 
+  describe('stylesheets of the entry', () => {
+    test('reads the relative css imports of the browser entry', () => {
+      const { engine, henri } = ready();
+
+      dirs.push(henri.cwd());
+      fs.mkdirSync(path.join(engine.dir, 'styles'), { recursive: true });
+      fs.writeFileSync(
+        path.join(engine.dir, 'main.jsx'),
+        [
+          "import { createInertiaApp } from '@inertiajs/react';",
+          "import './styles/index.css';",
+          "import './styles/print.scss';",
+          // Not relative: vite resolves it, we cannot turn it into a url
+          "import 'some-package/dist/x.css';",
+          "import { resolvePage } from '@usehenri/inertia';",
+        ].join('\n')
+      );
+
+      expect(engine.entryStylesheets()).toEqual([
+        '/styles/index.css',
+        '/styles/print.scss',
+      ]);
+    });
+
+    test('is empty when the entry imports none, or cannot be read', () => {
+      const { engine, henri } = ready();
+
+      dirs.push(henri.cwd());
+      fs.mkdirSync(engine.dir, { recursive: true });
+      fs.writeFileSync(path.join(engine.dir, 'main.jsx'), 'const a = 1;\n');
+
+      expect(engine.entryStylesheets()).toEqual([]);
+
+      fs.rmSync(path.join(engine.dir, 'main.jsx'));
+      expect(engine.entryStylesheets()).toEqual([]);
+    });
+  });
+
   describe('page object', () => {
     test('has the Inertia shape and the henri props contract', () => {
       const { engine, henri } = ready();

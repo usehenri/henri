@@ -88,6 +88,17 @@ describe('inertia shell helpers', () => {
     );
   });
 
+  test('devTags() links the stylesheets before the entry runs', () => {
+    const tags = shell.devTags('main.jsx', ['/styles/index.css']);
+
+    // ?direct asks vite for the css itself: without it the dev server hands
+    // over a javascript module and the document paints unstyled first
+    expect(tags).toContain(
+      '<link rel="stylesheet" href="/styles/index.css?direct">'
+    );
+    expect(tags.indexOf('stylesheet')).toBeLessThan(tags.indexOf('<script'));
+  });
+
   test('hash() is stable', () => {
     expect(shell.hash('a')).toBe(shell.hash('a'));
     expect(shell.hash('a')).not.toBe(shell.hash('b'));

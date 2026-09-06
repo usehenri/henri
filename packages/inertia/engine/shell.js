@@ -75,8 +75,19 @@ function clientBody(id, page) {
  * @param {string} entry the entry file (relative to app/views)
  * @returns {string} html
  */
-function devTags(entry) {
-  return `<script type="module" src="/${entry}"></script>`;
+function devTags(entry, stylesheets = []) {
+  // Vite serves a stylesheet as a javascript module that injects it once the
+  // entry has run, so a server rendered document would paint unstyled first.
+  // `?direct` asks the dev server for the compiled css itself, which the
+  // browser can load from a <link> before it paints. The module still runs
+  // and still owns hot updates; the rules it injects are the same ones.
+  const links = stylesheets.map(
+    (href) => `<link rel="stylesheet" href="${escapeHtml(href)}?direct">`
+  );
+
+  return links
+    .concat(`<script type="module" src="/${entry}"></script>`)
+    .join('\n    ');
 }
 
 /**
