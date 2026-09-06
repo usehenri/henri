@@ -166,7 +166,7 @@ config ✏ from the environment => stores.default.url = postgres://henri:[FILTER
 config ✏ from the environment => port = 8080 => HENRI_CONFIG__port
 ```
 
-A key whose name matches `filterParameters` (`password`, `token`, `secret`, `authorization` by default) is masked, and so is the password of a connection string, which no filter list would ever name. `henri.config.fromEnv` holds the same list as `{ key, variable }` pairs — the paths and the variable names, never the values.
+A key whose name matches `filterParameters` (`password`, `token`, `secret`, `authorization` by default) is masked, and so is the password of a connection string, which no filter list would ever name. The match is the same substring rule as everywhere else in the logs, so a key the defaults do not cover — `mail.auth.pass`, an `apiKey` — belongs in `filterParameters` if it is to be masked here too. `henri.config.fromEnv` holds the same list as `{ key, variable }` pairs — the paths and the variable names, never the values.
 
 ## Encrypted credentials
 
