@@ -349,6 +349,45 @@ const helpHeader = () =>
   `;
 
 /**
+ * Prefer the `@usehenri/core` the project depends on, and fall back to the
+ * one shipped with this CLI
+ *
+ * @returns {string} Resolved path of the Henri class
+ */
+const resolveHenri = () => {
+  try {
+    return require.resolve('@usehenri/core/src/henri', {
+      paths: [process.cwd()],
+    });
+  } catch {
+    return require.resolve('@usehenri/core/src/henri');
+  }
+};
+
+/**
+ * Boots the application to a runlevel, without a port.
+ *
+ * Runlevel 4 is what `henri db:seed`, `henri jobs`, `henri privacy`,
+ * `henri retention` and `henri trail` all boot to: the models and the user
+ * module are there, no route is registered and nothing is listening.
+ *
+ * @param {object} [options={}] Options
+ * @param {number} [options.runlevel=4] How far up to boot
+ * @returns {Promise<object>} The henri instance
+ */
+const boot = async ({ runlevel = 4 } = {}) => {
+  process.env.SKIP_WORKERS = 'true';
+  process.env.CONSOLE_ONLY = 'true';
+
+  const Henri = require(resolveHenri());
+  const henri = new Henri({ runlevel });
+
+  await henri.init();
+
+  return henri;
+};
+
+/**
  * Formats code with prettier using the henri house style
  *
  * @param {string} code Source code
@@ -425,6 +464,7 @@ module.exports = {
   PACKAGE_MANAGERS,
   RENDERERS,
   abort,
+  boot,
   capitalize,
   check,
   commands,
@@ -441,6 +481,7 @@ module.exports = {
   readRoutes,
   rendererOf,
   resolveFrom,
+  resolveHenri,
   resolvePackageJson,
   validInstall,
   version,

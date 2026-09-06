@@ -234,6 +234,20 @@ module.exports = [
     },
   },
   {
+    // The access trail owns a table too: a row is the snake_case columns of
+    // base/trail-store.js. And a retention period is written in the units a
+    // person writes one in, which are single letters (d, w, y)
+    files: [
+      'packages/core/src/base/retention.js',
+      'packages/core/src/base/trail.js',
+      'packages/core/src/base/trail-store.js',
+    ],
+    rules: {
+      camelcase: 'off',
+      'id-length': 'off',
+    },
+  },
+  {
     // A job file reads as a definition: its options first, `perform` last
     files: ['**/app/jobs/**/*.js'],
     rules: {

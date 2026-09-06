@@ -1001,6 +1001,37 @@ class Drizzle {
   }
 
   /**
+   * The tables that live in this database and are not drizzle's.
+   *
+   * `@usehenri/jobs` and the access trail of core own tables of their own
+   * and create them through raw SQL, because both have to work on a store
+   * that has no models at all. drizzle-kit compares the schema to the
+   * database and would offer to drop them; a push that did would take an
+   * application's job history, or its audit trail, with it.
+   *
+   * @returns {Set<string>} The table names a push must leave alone
+   * @memberof Drizzle
+   */
+  reservedTables() {
+    const config = (this.henri && this.henri.config) || null;
+    const read = (key) =>
+      config && config.has && config.has(key) ? config.get(key) : null;
+    const block = (value) =>
+      value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const jobs = block(read('jobs'));
+    const trail = block(read('trail'));
+    const name = (value, fallback) =>
+      typeof value === 'string' && value !== '' ? value : fallback;
+    const queue = name(jobs.table, 'henri_jobs');
+
+    return new Set([
+      queue,
+      `${queue}_schedules`,
+      name(trail.table, 'henri_trail'),
+    ]);
+  }
+
+  /**
    * Makes the schema and the database agree after a connection
    *
    * Development: pushes the schema unless `config.sync === false` (the

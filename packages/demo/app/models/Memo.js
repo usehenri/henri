@@ -6,9 +6,17 @@
 module.exports = {
   options: {
     personal: { onErase: 'delete', subject: 'ownerId' },
+    // A memo is kept for thirty days after it was archived, and an archived
+    // memo is the only kind that ages: `from` is what says so. Measuring
+    // from `createdAt` would take a memo somebody still uses (see
+    // base/retention.js)
+    retention: { after: '30d', from: 'archivedAt' },
     timestamps: true,
   },
   schema: {
+    // When the author put it away. Null while they have not: a memo whose
+    // clock never started is never swept
+    archivedAt: { type: 'date' },
     body: { personal: true, type: 'text' },
     // Who wrote it: everything app/policies/memo.js decides comes from here.
     // `ref` is what makes it a foreign key henri can see: without it this is

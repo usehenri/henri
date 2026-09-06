@@ -444,6 +444,16 @@ function resource(
     }
 
     const plain = await toPublic(henri, record, include);
+
+    // The read half of the access trail: one entry naming the model, the
+    // record and who asked, and never a value (see base/trail.js). Off
+    // unless `config.trail.reads` asks for it.
+    //
+    // `asked` is here for the same reason the policies read it: a controller
+    // answering with a presentation of a record hands over a plain object,
+    // which carries no model, and `subject` is where the record itself is
+    henri.trail && (await henri.trail.seen(req, [record, asked]));
+
     const paths = henri.router.pathForRoles(req.user);
     const merged = await allowed(
       henri,
@@ -546,6 +556,15 @@ function collection(
     // The whole page at once: publishing record by record would make one
     // lookup per foreign key per row (see base/references.js)
     const published = await toPublic(henri, records, include);
+
+    // One entry for the page, not one per row: what was read is the answer.
+    // `subject` carries the records themselves when the page is a list of
+    // presentations of them (see `resource()` above)
+    henri.trail &&
+      (await henri.trail.seen(req, [
+        records,
+        Array.isArray(subject) ? subject : null,
+      ]));
 
     for (const [index, record] of records.entries()) {
       const plain = published[index];

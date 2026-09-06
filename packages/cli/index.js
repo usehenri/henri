@@ -71,7 +71,7 @@ module.exports = (pkg, args) => {
   let command = argv._.shift();
 
   // Rails style: `henri db:migrate` is `henri db migrate`
-  for (const group of ['credentials', 'db', 'privacy']) {
+  for (const group of ['credentials', 'db', 'privacy', 'retention', 'trail']) {
     if (command && command.startsWith(`${group}:`)) {
       argv._.unshift(command.slice(group.length + 1));
       command = group;

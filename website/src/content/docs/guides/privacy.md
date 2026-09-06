@@ -339,6 +339,17 @@ and their like on any model, and `name`, `address`, `phone`, `gender` and the
 rest on the model that _is_ a person. It reads the model files, so a field
 built at runtime is not looked at.
 
+## What follows from the mark
+
+Two features are built on the same map and have guides of their own:
+
+- **[Retention](/guides/retention/)** -- how long a model keeps its records,
+  and the sweep that deletes, hides or anonymizes them when the time is up.
+  It is the erasure nobody asked for, on a schedule.
+- **[The access trail](/guides/trail/)** -- the append-only, hash-chained
+  record of who read or changed personal data. It is what answers "prove the
+  erasure happened" three years from now.
+
 ## What this is not
 
 - It is not encryption. The values are stored the way they always were; a

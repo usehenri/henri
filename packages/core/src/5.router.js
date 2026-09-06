@@ -796,6 +796,10 @@ class Router extends BaseModule {
       errors = result && result.errors;
     }
 
+    // The read half of the access trail, for the pages: the same entry the
+    // JSON answers get, one per model the payload carries (base/trail.js)
+    this.henri.trail && (await this.henri.trail.seen(req, payload));
+
     // Read once per request: rendering a page consumes the messages
     const messages = flash.consume(req);
     const allowed = this.pathForRoles(req.user);

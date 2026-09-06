@@ -309,6 +309,40 @@ The [personal data](/guides/privacy/) of the application, and the two operations
 
 `--dry-run` prints the plan and writes nothing. `--strategy` is the default for the models that do not declare one (`anonymize`, `delete`, `orphan`, `retain`); a model that decided keeps its answer. The receipt goes to `config.privacy.receipts` (`privacy/`), and holds an HMAC of the identity rather than the identity.
 
+## `retention`
+
+```bash
+henri retention [--json]
+henri retention:sweep [--only=<name>] [--yes] [--json]
+```
+
+How long the models say they keep their records, and the sweep that enforces it. See [Retention](/guides/retention/). Both boot to the user module (runlevel 4, like `db:seed`): no port is bound and no route is registered.
+
+| Command | What it does                                                                                                                                                                        |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)  | Prints every rule -- what it does, what its clock is measured from, and the token that approves it -- and the line to paste into `config/<env>.json` for the ones that are pending. |
+| `sweep` | Runs it. Without `--yes` it plans, counts and prints, and writes nothing. `--only=<Model>` or `--only=<Model>:<rule>` narrows it.                                                   |
+
+A rule whose token is not in `config.retention.approved` writes nothing however the sweep was run, so a new rule cannot delete anything until a person approved it. `config.retention.batch` (`1000`) bounds one run; the rest is reported and taken by the next. The receipt goes to `config.retention.receipts` (`privacy/`).
+
+With `@usehenri/jobs` installed and `config.retention.schedule` set, the same sweep runs as the recurring `henri/retention` job. Without the package, this command is what a cron line runs, and the boot log says so.
+
+## `trail`
+
+```bash
+henri trail [--action=<name>] [--model=<name>] [--actor=<id>] [--since=<date>] [--until=<date>] [--limit=<n>] [--json]
+henri trail:about <who> [--json]
+henri trail:verify [--json]
+```
+
+The append-only record of who read or changed personal data, read back. See [The access trail](/guides/trail/). It is off until `config.trail` says otherwise.
+
+| Command       | What it does                                                                                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)        | The latest entries, newest first.                                                                                                                                    |
+| `about <who>` | Everything recorded about one person. The address is not in the table -- henri digests what you asked about -- so this still answers after the erasure took it away. |
+| `verify`      | Walks the hash chain and says whether a row was edited or removed, and where. Exits `1` on a break.                                                                  |
+
 ## `doctor`
 
 ```bash

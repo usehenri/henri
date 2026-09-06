@@ -181,4 +181,4 @@ const normalize = (config = {}) => {
   };
 };
 
-module.exports = { DEFAULTS, normalize, queues, table };
+module.exports = { DEFAULTS, normalize, queues, recurring, table };

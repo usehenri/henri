@@ -7,7 +7,7 @@ const { deserialize, serialize } = require('./serialize');
 const { keep } = require('./keys');
 const { duration, runAt } = require('./duration');
 const { load, validate } = require('./definitions');
-const { normalize } = require('./config');
+const { normalize, recurring } = require('./config');
 const { storeFor } = require('./store');
 const { toNumber, HISTORY_LIMIT } = require('./store/sql');
 
@@ -23,6 +23,17 @@ const STATES = ['pending', 'running', 'done', 'dead'];
  * transport) writes `app/jobs/henri/mail.js` and it wins over this one.
  */
 const MAIL_JOB = 'henri/mail';
+
+/**
+ * The name of the job that sweeps what the models say they keep.
+ *
+ * Retention lives in core (`base/retention.js`) and needs nothing
+ * installed; this is the queue's half of it, so an application that has
+ * `@usehenri/jobs` gets the recurring sweep for free and one that does not
+ * runs `henri retention:sweep` from cron. Like the mail job, an application
+ * that wants its own writes `app/jobs/henri/retention.js`.
+ */
+const RETENTION_JOB = 'henri/retention';
 
 /**
  * A moment, as the API hands it out
@@ -226,7 +237,53 @@ class Jobs {
         },
         this.config
       ),
+      [RETENTION_JOB]: validate(
+        RETENTION_JOB,
+        {
+          /**
+           * Sweeps the retention rules of the models
+           *
+           * @param {object} args What the schedule carries (`only`)
+           * @param {object} context The job context
+           * @returns {Promise<object>} The receipt of the sweep
+           */
+          perform: (args, context) =>
+            context.henri.retention.sweep({
+              ...(args || {}),
+              source: 'job',
+            }),
+        },
+        this.config
+      ),
     };
+  }
+
+  /**
+   * Adds a recurring schedule the configuration did not write.
+   *
+   * This is how a framework module asks for something to happen on a
+   * schedule without an application having to copy a cron expression into
+   * `config.jobs.recurring` (`henri.retention` is the one that does). An
+   * entry the application declared under the same name wins: what is in
+   * `config/<env>.json` is never quietly replaced.
+   *
+   * @param {string} name The name of the schedule
+   * @param {object} entry `cron` or `every`, plus `job`, `args`, `queue`
+   * @returns {boolean} false when the configuration already names it
+   * @throws {Error} HENRI_JOB_INVALID_SCHEDULE on an unreadable expression
+   * @memberof Jobs
+   */
+  recur(name, entry) {
+    if (this.config.recurring.some((schedule) => schedule.name === name)) {
+      return false;
+    }
+
+    this.config.recurring.push(recurring(name, entry));
+    this.config.recurring.sort((one, other) =>
+      one.name.localeCompare(other.name)
+    );
+
+    return true;
   }
 
   /**
@@ -950,4 +1007,4 @@ class Jobs {
   }
 }
 
-module.exports = { Jobs, MAIL_JOB, STATES, toJob };
+module.exports = { Jobs, MAIL_JOB, RETENTION_JOB, STATES, toJob };

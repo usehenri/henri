@@ -3,7 +3,7 @@ const path = require('path');
 
 const { CliError } = require('./errors');
 const { usage } = require('./help');
-const { validInstall } = require('./utils');
+const { boot, validInstall } = require('./utils');
 
 /**
  * `henri privacy`: the personal data of an application, and the two
@@ -27,50 +27,16 @@ const { validInstall } = require('./utils');
 const COMMANDS = ['erase', 'export', 'map'];
 
 /**
- * Prefer the @usehenri/core the project depends on and fall back to the
- * one shipped with this CLI
- *
- * @returns {string} resolved path of the Henri class
- */
-const resolveHenri = () => {
-  try {
-    return require.resolve('@usehenri/core/src/henri', {
-      paths: [process.cwd()],
-    });
-  } catch {
-    return require.resolve('@usehenri/core/src/henri');
-  }
-};
-
-/**
- * Boots the models and the user module, and nothing above them.
- *
- * Runlevel 4, like `henri db:seed` and `henri jobs`: no port is bound and no
- * route is registered, and the user module is there because writing over a
- * password goes through the same hooks a sign-up does.
- *
- * @returns {Promise<object>} The henri instance
- */
-const boot = async () => {
-  process.env.SKIP_WORKERS = 'true';
-  process.env.CONSOLE_ONLY = 'true';
-
-  const Henri = require(resolveHenri());
-  const henri = new Henri({ runlevel: 4 });
-
-  await henri.init();
-
-  return henri;
-};
-
-/**
  * Runs one operation against a booted application and stops it again
  *
  * @param {function} work `(henri) => result`
  * @returns {Promise<*>} What the work resolved with
  */
 const withHenri = async (work) => {
-  const henri = await boot();
+  // Runlevel 4, like `henri db:seed` and `henri jobs`: no port is bound and
+  // no route is registered, and the user module is there because writing
+  // over a password goes through the same hooks a sign-up does
+  const henri = await boot({ runlevel: 4 });
 
   try {
     return await work(henri);

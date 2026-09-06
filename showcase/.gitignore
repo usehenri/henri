@@ -17,8 +17,9 @@ app/views/dist
 # Files henri destroy moves aside
 .backup/
 
-# Erasure receipts: what henri privacy:erase leaves behind as proof it ran
-# (config.privacy.receipts). They belong wherever this application keeps its
-# operational records, not in the repository.
+# Receipts: what henri privacy:erase and henri retention:sweep leave behind
+# as proof they ran (config.privacy.receipts, config.retention.receipts).
+# They belong wherever this application keeps its operational records, not in
+# the repository.
 /privacy/
 .tmp/

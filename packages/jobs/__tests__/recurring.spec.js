@@ -274,3 +274,70 @@ describe(`recurring (${target.name})`, () => {
     ).rejects.toThrow('pick one');
   });
 });
+
+describe(`a schedule a module asks for (${target.name})`, () => {
+  const adapters = [];
+
+  afterAll(() => close(adapters));
+
+  /**
+   * A queue with a configuration of its own
+   *
+   * @param {object} [config={}] The `jobs` configuration
+   * @returns {Promise<object>} The queue
+   */
+  const queue = async (config = {}) => {
+    const adapter = await adapterFor();
+
+    adapters.push(adapter);
+
+    return (await build({ adapter, config })).jobs;
+  };
+
+  test('recur adds what the configuration did not write', async () => {
+    const jobs = await queue();
+
+    expect(jobs.recur('henri/retention', { cron: '0 3 * * *' })).toBe(true);
+    expect(jobs.config.recurring.map((entry) => entry.name)).toEqual([
+      'henri/retention',
+    ]);
+    expect(jobs.config.recurring[0].job).toBe('henri/retention');
+    expect(jobs.config.recurring[0].spec).toBe('cron:0 3 * * *');
+  });
+
+  test('an entry the application declared wins', async () => {
+    const jobs = await queue({
+      recurring: { 'henri/retention': { every: '6h', job: 'ok' } },
+    });
+
+    expect(jobs.recur('henri/retention', { cron: '0 3 * * *' })).toBe(false);
+    expect(jobs.config.recurring).toHaveLength(1);
+    expect(jobs.config.recurring[0].job).toBe('ok');
+  });
+
+  test('the sweep is a job the package ships', async () => {
+    const jobs = await queue();
+    const swept = [];
+
+    jobs.henri = {
+      ...jobs.henri,
+      retention: {
+        /**
+         * Stands in for `henri.retention.sweep()`
+         *
+         * @param {object} options What the job passed
+         * @returns {Promise<object>} A receipt
+         */
+        sweep: async (options) => {
+          swept.push(options);
+
+          return { rules: [] };
+        },
+      },
+    };
+
+    await jobs.performNow('henri/retention', { only: 'Memo' });
+
+    expect(swept).toEqual([{ only: 'Memo', source: 'job' }]);
+  });
+});

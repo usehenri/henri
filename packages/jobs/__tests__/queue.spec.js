@@ -26,11 +26,13 @@ describe(`queue (${target.name})`, () => {
 
   describe('definitions', () => {
     test('loads app/jobs, keeping the path of a subdirectory', () => {
-      // `henri/mail` is the job the package ships for the mailers
+      // `henri/mail` and `henri/retention` are the jobs the package ships,
+      // for the mailers and for `henri.retention`
       expect(jobs.names()).toEqual([
         'boom',
         'counter',
         'henri/mail',
+        'henri/retention',
         'mailers',
         'nested/deep',
         'ok',

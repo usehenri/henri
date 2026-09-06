@@ -695,6 +695,10 @@ declare namespace start {
     /** Parameter names masked in the logs; `false` masks nothing. */
     filterParameters?: string[] | false;
     privacy?: PrivacyConfig;
+    /** How long the models keep their records, and what sweeps them. */
+    retention?: RetentionConfig;
+    /** The access trail; absent or `false` keeps none. */
+    trail?: false | TrailConfig;
     /** Maximum size of a JSON or form body (`"1mb"`). */
     bodyLimit?: string | number;
     /**
@@ -730,6 +734,64 @@ declare namespace start {
      * `false` keeps none beyond what the command printed.
      */
     receipts?: string | false;
+  }
+
+  /**
+   * `config.retention`: what runs the retention sweep, and what it is
+   * allowed to do. How long a model keeps its records is said in the model
+   * itself (`options: { retention }`).
+   */
+  interface RetentionConfig {
+    /**
+     * Whether a rule has to be approved before it writes anything
+     * (`true`). A rule that is not in `approved` is planned, counted and
+     * reported, and it writes nothing.
+     */
+    approve?: boolean;
+    /**
+     * The tokens of the approved rules (`"Proposal:drafts:9f3c1a2b4d5e"`).
+     * `henri retention` prints them; a rule whose terms change gets a new
+     * one and is pending again.
+     */
+    approved?: string[];
+    /**
+     * How many records one rule may take in one sweep (`1000`); `false`
+     * lifts the bound. What is left over is reported and taken next run.
+     */
+    batch?: number | false;
+    /**
+     * Where a sweep writes the proof that it ran (`"privacy"`); `false`
+     * keeps none beyond what the command printed.
+     */
+    receipts?: string | false;
+    /**
+     * A cron expression (`"0 3 * * *"`) or an interval (`"1d"`) the
+     * `henri/retention` job runs on; needs `@usehenri/jobs`. `false` (the
+     * default) means the sweep is run by `henri retention:sweep`.
+     */
+    schedule?: string | false;
+  }
+
+  /**
+   * `config.trail`: the append-only record of who read or changed personal
+   * data. Absent (or `false`) keeps none, and no table is created.
+   */
+  interface TrailConfig {
+    /**
+     * How long an entry is kept (`"1y"`); `false` keeps them forever. A
+     * trail of who touched personal data is itself personal data.
+     */
+    keep?: string | number | false;
+    /**
+     * Which reads are recorded: `"personal"` for the answers carrying a
+     * model with a personal field, `"all"` for every answer henri
+     * serializes, `false` (the default) for none.
+     */
+    reads?: 'all' | 'personal' | false;
+    /** Which of `config.stores` the table lives in (`"default"`). */
+    store?: string;
+    /** The table henri creates and appends to (`"henri_trail"`). */
+    table?: string;
   }
 
   /**
@@ -1950,6 +2012,205 @@ declare namespace start {
     ): Promise<ErasureReceipt>;
   }
 
+  /** One retention rule of one model, as `henri retention` prints it. */
+  interface RetentionRule {
+    model: string;
+    /** The name of the rule (`"default"` for a model's only one). */
+    rule: string;
+    action: 'anonymize' | 'delete' | 'soft-delete';
+    /** How long the records are kept, in milliseconds. */
+    after: number;
+    /** The date column the clock starts on. */
+    from: string;
+    /** The condition picking the class of records this rule is about. */
+    where: Record<string, unknown>;
+    /** `Model:rule:<digest>`, what `config.retention.approved` holds. */
+    token: string;
+    approved: boolean;
+  }
+
+  /** What one rule did, or would do, in a sweep. */
+  interface RetentionStep {
+    model: string;
+    rule: string;
+    action: 'anonymize' | 'delete' | 'soft-delete';
+    /** The moment a record has to be older than. */
+    cutoff: string;
+    /** How many records are past it. */
+    matched: number;
+    /** How many the batch allows this run. */
+    would: number;
+    /** How many were actually written. */
+    written: number;
+    /** What the next run will find. */
+    remaining: number;
+    /** Records whose `from` column is null: their clock never started. */
+    waiting: number;
+    /** The fields an `anonymize` writes over. */
+    fields: string[];
+    /** Up to twenty public identifiers, as a sample and never an index. */
+    sample: string[];
+    token: string;
+    /** Why nothing was written: `"not approved"`, `"dry run"`, a problem. */
+    skipped?: string | null;
+    /** The message of the failure, when the rule threw. */
+    failed?: string;
+  }
+
+  /** What a retention sweep leaves behind as proof that it ran. */
+  interface RetentionReceipt {
+    version: number;
+    id: string;
+    at: string;
+    application: string | null;
+    dryRun: boolean;
+    /** True when a rule threw: the others still ran. */
+    interrupted: boolean;
+    /** How many rules wrote nothing because nobody approved them. */
+    pending: number;
+    rules: RetentionStep[];
+    /** Where the receipt was written, relative to the application. */
+    file?: string | null;
+  }
+
+  /**
+   * `henri.retention`: how long each model keeps its records, and the sweep
+   * that enforces it.
+   */
+  interface RetentionModule {
+    name: 'retention';
+    /** `config.retention`, normalized. */
+    settings: {
+      approve: boolean;
+      approved: string[];
+      batch: number | false;
+      receipts: string | false;
+      schedule: string | false;
+    };
+    /** Every rule of every model, each with its token. */
+    rules: Array<Omit<RetentionRule, 'approved'>>;
+    /** The rules and the settings, as data: what `henri retention` prints. */
+    describe(): {
+      rules: RetentionRule[];
+      settings: RetentionModule['settings'];
+    };
+    /** What a sweep would do, without doing it. */
+    plan(options?: { only?: string; now?: Date | string | number }): Promise<{
+      at: string;
+      pending: number;
+      steps: Array<Record<string, unknown>>;
+      problems: Array<{ model: string; problem: string; message: string }>;
+    }>;
+    /** Sweeps every rule, writes the receipt and records what happened. */
+    sweep(options?: {
+      only?: string;
+      now?: Date | string | number;
+      dryRun?: boolean;
+      source?: 'app' | 'cli' | 'http' | 'job';
+    }): Promise<RetentionReceipt>;
+  }
+
+  /** One entry of the access trail. */
+  interface TrailEntry {
+    id: string;
+    /** One more than the entry before it, under a unique index. */
+    seq: number;
+    at: string;
+    /** `privacy.export`, `retention.sweep`, `record.read`, `app.<yours>`. */
+    action: string;
+    outcome: 'ok' | 'refused' | 'failed';
+    source: 'app' | 'cli' | 'http' | 'job';
+    model: string | null;
+    records: number;
+    /** Field *names*, never values. */
+    fields: string[];
+    /** Public identifiers of the records the entry is about. */
+    ids: string[];
+    /** The `externalId` of whoever did it. */
+    actor: string | null;
+    actorDigest: string | null;
+    /** The `externalId` of the person the data is about. */
+    subject: string | null;
+    /** HMAC of that person's address, keyed with `config.secret`. */
+    subjectDigest: string | null;
+    requestId: string | null;
+    route: string | null;
+    /** Names and counts that passed the guard; never a value. */
+    meta: Record<string, string | number | boolean | null> | null;
+    /** The hash of the entry before it. */
+    prev: string | null;
+    hash: string;
+  }
+
+  /**
+   * `henri.trail`: the append-only record of who read or changed personal
+   * data. Off unless `config.trail` says otherwise.
+   */
+  interface TrailModule {
+    name: 'trail';
+    /** `config.trail`, normalized. */
+    settings: {
+      enabled: boolean;
+      keep: number | null;
+      reads: 'all' | 'personal' | false;
+      store: string;
+      table: string;
+    };
+    /** Whether anything is being recorded. */
+    enabled: boolean;
+    /**
+     * Appends one entry. A disabled trail answers `null` and does nothing;
+     * a `meta` holding something personal is refused.
+     */
+    record(event: {
+      action: string;
+      model?: string;
+      records?: number;
+      fields?: string[];
+      ids?: Array<string | null>;
+      actor?: string | null;
+      subject?: string | null;
+      outcome?: 'ok' | 'refused' | 'failed';
+      source?: 'app' | 'cli' | 'http' | 'job';
+      route?: string | null;
+      requestId?: string | null;
+      meta?: Record<string, string | number | boolean | null>;
+    }): Promise<TrailEntry | null>;
+    /** The entries matching a filter, newest first. */
+    list(filter?: {
+      action?: string;
+      model?: string;
+      actor?: string;
+      subject?: string;
+      digest?: string;
+      outcome?: string;
+      since?: Date | string | number;
+      until?: Date | string | number;
+      limit?: number;
+      offset?: number;
+    }): Promise<TrailEntry[]>;
+    count(filter?: Record<string, unknown>): Promise<number>;
+    /** Everything recorded about one person. */
+    about(
+      who: string | object,
+      filter?: Record<string, unknown>
+    ): Promise<TrailEntry[]>;
+    /** Walks the chain and says where, if anywhere, it parts company. */
+    verify(): Promise<{
+      ok: boolean;
+      entries: number;
+      from: number | null;
+      to: number | null;
+      broken: { seq: number; reason: string; after: number | null } | null;
+    }>;
+    /** Takes the entries past `config.trail.keep` away, and checkpoints. */
+    prune(options?: { now?: number }): Promise<{
+      removed: number;
+      before: number | null;
+      checkpoint: TrailEntry | null;
+    }>;
+  }
+
   /** `henri.model`. */
   interface ModelModule {
     name: 'model';
@@ -2404,6 +2665,10 @@ declare namespace start {
     policies: PoliciesModule;
     /** The fields the models marked `personal`, and what follows from it. */
     privacy: PrivacyModule;
+    /** How long the models keep their records, and the sweep that runs. */
+    retention: RetentionModule;
+    /** The append-only record of who read or changed personal data. */
+    trail: TrailModule;
     /**
      * The queue, when the application depends on `@usehenri/jobs`. It is
      * `undefined` when it does not -- core carries no queue of its own --

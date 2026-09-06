@@ -47,6 +47,30 @@ module.exports = {
     // here is marked `personal`: a title and an abstract are the talk, and
     // the person is one join away.
     personal: { onErase: 'anonymize' },
+    // How long the conference keeps a proposal, and what happens then. Two
+    // classes of record, two clocks, two verbs:
+    //
+    // - a draft nobody ever submitted is deleted six months after it was
+    //   written, because there is nothing here worth keeping and the
+    //   speaker's words are the only thing in it;
+    // - a decided proposal goes into the trash two years *after the
+    //   decision*, not after it was written: `submittedAt` and `createdAt`
+    //   are the wrong clocks for a promise made about a decision. Soft,
+    //   because this model is paranoid and an admin restoring one is the
+    //   whole point of that.
+    //
+    // Neither is `anonymize`: nothing here is marked personal, so there
+    // would be nothing to write over, and henri refuses that rule rather
+    // than reporting a sweep that touched no field.
+    retention: [
+      {
+        action: 'soft-delete',
+        after: '2y',
+        from: 'decidedAt',
+        name: 'decided',
+      },
+      { after: '180d', name: 'drafts', where: { state: 'draft' } },
+    ],
   },
 
   schema: {

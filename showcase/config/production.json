@@ -33,5 +33,15 @@
       "sync": false,
       "migrate": true
     }
-  }
+  },
+  "retention": {
+    "approved": [
+      "Proposal:decided:da3cbf9e5565",
+      "Proposal:drafts:b03757619b48",
+      "Review:default:a21cf07bcf3f"
+    ],
+    "receipts": "privacy",
+    "schedule": false
+  },
+  "trail": {}
 }

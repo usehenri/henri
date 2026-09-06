@@ -30,40 +30,42 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 
 ## Keys
 
-| Key                | Default       | Description                                                                                                                                     |
-| ------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `port`             | `3000`        | Port to listen on. In development a busy port is replaced by the next free one; under `NODE_ENV=test` the kernel assigns one.                   |
-| `host`             | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file.  |
-| `cors`             | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                               |
-| `renderer`         | `template`    | View engine: `inertia`, `react` or `template` (Handlebars), whatever the case. `henri new` writes `inertia`. See [Views](/guides/views/).       |
-| `inertia`          |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                             |
-| `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                            |
-| `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                     |
-| `secret`           |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                          |
-| `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.            |
-| `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                      |
-| `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                                |
-| `externalIds`      |               | What henri does with the internal identifier of a record: which one a lookup takes, and what a foreign key serializes as, below.                |
-| `policies`         |               | Record-level authorization: what a refusal answers and whether an unasked policy is reported, see below. See [Policies](/guides/policies/).     |
-| `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.           |
-| `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf); an object configures the origin check, below.                                      |
-| `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint, or an object with its limits and access rules, below; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/). |
-| `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                              |
-| `mailers`          |               | Defaults of the [mailers](/guides/mail/): `from`, `layout` and `previews`, see below.                                                           |
-| `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                     |
-| `jobs`             |               | Settings of the [job queue](/guides/jobs/), see below; needs `@usehenri/jobs`. The queue also loads when `app/jobs` holds a file.               |
-| `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                               |
-| `shared`           |               | The backend the rate limit, the sign-in lockout and the idempotency keys count in, so two processes share one set, see below.                   |
-| `cache`            | on            | `henri.cache`: how long an entry lives, how much of it is kept and where, see below. `false` turns the cache off.                               |
-| `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                |
-| `csp`              | off           | Content Security Policy settings henri owns beside `helmet`: `nonce`, see below. See [Security](/guides/security/#content-security-policy).     |
-| `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                      |
-| `privacy`          |               | What henri does with the fields the models marked `personal`, see below. See [Personal data](/guides/privacy/).                                 |
-| `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                            |
-| `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                  |
-| `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                   |
-| `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                       |
-| `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                          |
+| Key                | Default       | Description                                                                                                                                                |
+| ------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `port`             | `3000`        | Port to listen on. In development a busy port is replaced by the next free one; under `NODE_ENV=test` the kernel assigns one.                              |
+| `host`             | see below     | Interface to bind: `127.0.0.1` outside production, `0.0.0.0` in production. `HENRI_HOST` (what `henri server --host` sets) wins over the file.             |
+| `cors`             | off           | `true` enables [cors](https://github.com/expressjs/cors) with its defaults; an object is passed to it as options.                                          |
+| `renderer`         | `template`    | View engine: `inertia`, `react` or `template` (Handlebars), whatever the case. `henri new` writes `inertia`. See [Views](/guides/views/).                  |
+| `inertia`          |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                                        |
+| `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                                       |
+| `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                                |
+| `secret`           |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                                     |
+| `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.                       |
+| `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                                 |
+| `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                                           |
+| `externalIds`      |               | What henri does with the internal identifier of a record: which one a lookup takes, and what a foreign key serializes as, below.                           |
+| `policies`         |               | Record-level authorization: what a refusal answers and whether an unasked policy is reported, see below. See [Policies](/guides/policies/).                |
+| `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.                      |
+| `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf); an object configures the origin check, below.                                                 |
+| `graphql`          | `/_henri/gql` | Path of the GraphQL endpoint, or an object with its limits and access rules, below; needs `@usehenri/graphql`. See [GraphQL](/guides/graphql/).            |
+| `mail`             |               | Nodemailer transport options, or `"test"` for an Ethereal test account. See [Mail](/guides/mail/).                                                         |
+| `mailers`          |               | Defaults of the [mailers](/guides/mail/): `from`, `layout` and `previews`, see below.                                                                      |
+| `api`              |               | Pagination, strict HAL and idempotency settings of the [JSON API](/guides/api/), see below.                                                                |
+| `jobs`             |               | Settings of the [job queue](/guides/jobs/), see below; needs `@usehenri/jobs`. The queue also loads when `app/jobs` holds a file.                          |
+| `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                                          |
+| `shared`           |               | The backend the rate limit, the sign-in lockout and the idempotency keys count in, so two processes share one set, see below.                              |
+| `cache`            | on            | `henri.cache`: how long an entry lives, how much of it is kept and where, see below. `false` turns the cache off.                                          |
+| `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                           |
+| `csp`              | off           | Content Security Policy settings henri owns beside `helmet`: `nonce`, see below. See [Security](/guides/security/#content-security-policy).                |
+| `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                                 |
+| `privacy`          |               | What henri does with the fields the models marked `personal`, see below. See [Personal data](/guides/privacy/).                                            |
+| `retention`        |               | What runs the retention sweep and what it may do, see below. How long a model keeps its records is said in the model. See [Retention](/guides/retention/). |
+| `trail`            | off           | The append-only record of who read or changed personal data, see below. See [The access trail](/guides/trail/).                                            |
+| `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                                       |
+| `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                             |
+| `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                              |
+| `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                                  |
+| `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                                     |
 
 ## The `externalIds` object
 
@@ -276,6 +278,56 @@ those are is said in the models themselves; see
 | `expose`   | `true`        | Whether a personal field may leave the server in an answer henri builds. `false` drops every one of them unless the field says `personal: { expose: true }`.                                      |
 | `onErase`  | `"anonymize"` | What happens to the records of an erased person, for the models that do not say it themselves: `anonymize`, `delete`, `orphan` or `retain`.                                                       |
 | `receipts` | `"privacy"`   | The directory `henri privacy:erase` writes its receipt to -- the proof that it ran, holding an HMAC of the identity rather than the identity. `false` keeps none beyond what the command printed. |
+
+## The `retention` object
+
+How long a model keeps its records is said in the model
+(`options: { retention }`); this is what runs the sweep and what it is
+allowed to do. See [Retention](/guides/retention/).
+
+```json
+{
+  "retention": {
+    "approve": true,
+    "approved": ["Proposal:drafts:9f3c1a2b4d5e"],
+    "batch": 1000,
+    "receipts": "privacy",
+    "schedule": "0 3 * * *"
+  }
+}
+```
+
+| Key        | Default     | Description                                                                                                                                                                    |
+| ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `approve`  | `true`      | Whether a rule has to be approved before it writes anything. An unapproved rule is planned, counted and reported, and writes nothing. `false` makes the deployment the review. |
+| `approved` | `[]`        | The tokens of the approved rules. `henri retention` prints one per rule; a rule whose `after`, `from`, `action` or `where` changes gets a new token and is pending again.      |
+| `batch`    | `1000`      | How many records one rule may take in one sweep. What is left over is reported as `remaining` and taken by the next run. `false` lifts the bound.                              |
+| `receipts` | `"privacy"` | The directory a sweep writes its receipt to. `false` keeps none beyond what the command printed.                                                                               |
+| `schedule` | off         | A cron expression (`"0 3 * * *"`) or an interval (`"1d"`) the `henri/retention` job runs on; needs `@usehenri/jobs`. Without it, run `henri retention:sweep --yes` from cron.  |
+
+## The `trail` object
+
+The append-only record of who read or changed personal data. It is off until
+this key says otherwise, and off means no table is created and no statement
+is issued. See [The access trail](/guides/trail/).
+
+```json
+{
+  "trail": {
+    "keep": "1y",
+    "reads": "personal",
+    "store": "default",
+    "table": "henri_trail"
+  }
+}
+```
+
+| Key     | Default         | Description                                                                                                                                                                               |
+| ------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keep`  | `"1y"`          | How long an entry is kept. A trail of who touched personal data is itself personal data, so it has its own retention; `false` keeps them forever, which is a decision to make on purpose. |
+| `reads` | off             | `"personal"` records the answers carrying a model with a personal field, `"all"` every answer henri serializes, `false` none. Every recorded read costs a round trip and an insert.       |
+| `store` | `"default"`     | Which of `stores` the table lives in.                                                                                                                                                     |
+| `table` | `"henri_trail"` | The table henri creates at boot and only ever `INSERT`s into and `SELECT`s from.                                                                                                          |
 
 ## Uploads
 
