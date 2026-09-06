@@ -474,6 +474,34 @@ describe('the module, in the demo application', () => {
     expect(JSON.stringify(call)).not.toMatch(/sk_live/u);
   });
 
+  test('the route is the pattern, and the person is a public identifier', async () => {
+    const agent = supertest.agent(henri.server.app);
+    const email = 'called@demo.test';
+    const password = 'difference-engine';
+
+    await agent.post('/register').send({ email, name: 'Called', password });
+    await agent.post('/login').send({ email, password });
+
+    const id = `spec-actor-${Date.now()}`;
+
+    await agent.get('/profile').set('X-Request-Id', id);
+    await henri.calls.flush();
+
+    const [call] = await henri.calls.about(id);
+
+    // The pattern rather than the path, which is what makes a listing of
+    // the slow calls of one endpoint add up
+    expect(call.route).toBe('/profile');
+    // The public identifier, and nothing else: not the primary key, and
+    // not the address the session was opened with
+    expect(call.actor).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
+    );
+    expect(JSON.stringify(call)).not.toMatch(/called@demo\.test/u);
+    // ... and the session cookie the request carried is not in it either
+    expect(call.request.headers.cookie).toBe('[FILTERED]');
+  });
+
   test('the health probes are not in it', async () => {
     await request.get('/livez');
     await henri.calls.flush();
