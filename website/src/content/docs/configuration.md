@@ -53,6 +53,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `jobs`             |               | Settings of the [job queue](/guides/jobs/), see below; needs `@usehenri/jobs`. The queue also loads when `app/jobs` holds a file.               |
 | `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                               |
 | `shared`           |               | The backend the rate limit, the sign-in lockout and the idempotency keys count in, so two processes share one set, see below.                   |
+| `cache`            | on            | `henri.cache`: how long an entry lives, how much of it is kept and where, see below. `false` turns the cache off.                               |
 | `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                |
 | `filterParameters` | see below     | Parameter names masked in the logs; `false` masks nothing.                                                                                      |
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                            |
@@ -182,6 +183,37 @@ Either way it is said out loud: every fallthrough is logged, at most once every 
 ### Sessions stay in the database
 
 `shared` does not touch the sessions. They go through the store adapter (`connect-mongo`, `connect-session-sequelize`, or the drizzle session table), which every process already reads and writes, so they were never one of the counters this closes. Moving them would trade a store that is durable for one that is faster and empties on a restart, and would make signing in depend on Redis being up — a real trade, and one a deployment makes for itself with `express-session`, not one henri makes for it.
+
+## The `cache` object
+
+`henri.cache` is there in every application, with nothing to configure: this process's memory, bounded, with a five minute default lifetime. Naming a backend in [`shared`](#the-shared-object) moves it there — one block for the counters and the cache both — and `cache` is what tunes it. See [Caching](/guides/caching/).
+
+```json
+{
+  "cache": {
+    "ttl": "5m",
+    "maxEntries": 1000,
+    "maxSize": "32mb",
+    "maxEntrySize": "256kb"
+  }
+}
+```
+
+| Key            | Default   | Description                                                                                                                                                                                 |
+| -------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ttl`          | `"5m"`    | How long an entry lives when a call does not say. Every entry has one: there is no way to keep a value forever, by accident or on purpose.                                                  |
+| `maxEntries`   | `1000`    | Entries the memory backend may hold; the least recently used goes first. Nothing to do with a shared backend, which has its own memory policy.                                              |
+| `maxSize`      | `"32mb"`  | Everything the memory backend may hold, encoded. It evicts to stay under this and under `maxEntries`, so the cache cannot become a leak.                                                    |
+| `maxEntrySize` | `"256kb"` | What one value may weigh, encoded, on any backend. A bigger one is not cached: `set` answers `false`, it is logged once, nothing is truncated, and the entry it was replacing is forgotten. |
+| `store`        |           | Module exporting a `{ get, set, delete }` store (or a `(henri, { name }) => store` factory) for whoever wants the cache somewhere the counters are not. Wins over `shared`.                 |
+| `enabled`      | `true`    | `false` keeps the block and turns the cache off: every `fetch` then runs its function, which is what `HENRI_CONFIG__cache__enabled=false` is for.                                           |
+
+`false` in place of the object does the same as `enabled: false`.
+
+A cache is a correctness hazard, not only a speed feature, so two things are said out loud rather than left to be discovered:
+
+- **A backend that is down is a miss**, whatever `shared.onError` says. The counters block because a guard that cannot count is not a guard; the cache holds no truth, so refusing a request over a copy would turn an optimization into an outage. Every fallthrough is logged, at most once every ten seconds.
+- **henri invalidates nothing.** No model callback, no query cache, no route. A value stays until its TTL runs out or something calls `henri.cache.delete()` — and with the memory backend that delete reaches one process, which is the reason a deployment running several of them wants `shared`.
 
 ## Headers, logs and limits
 

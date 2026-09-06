@@ -9,6 +9,8 @@ import type {
   AccountSettings,
   BootAnalysis,
   Boom,
+  Cache,
+  CacheStats,
   Configuration,
   Controller,
   Henri,
@@ -526,7 +528,48 @@ const namelessShared: Configuration = {
   shared: { url: 'redis://127.0.0.1:6379' },
 };
 
+// --- the cache --------------------------------------------------------------
+
+const cacheConfig: Configuration = {
+  cache: { maxEntries: 500, maxEntrySize: '128kb', ttl: '30s' },
+};
+
+expectType<Configuration>(cacheConfig);
+expectType<Configuration>({ cache: false });
+
+expectType<Promise<unknown>>(henri.cache.get('top'));
+expectType<Promise<number | undefined>>(henri.cache.get<number>('visits'));
+expectType<Promise<boolean>>(henri.cache.set(['user', 1], { name: 'ada' }));
+expectType<Promise<boolean>>(henri.cache.set('top', [1, 2], { ttl: '2h' }));
+expectType<Promise<boolean>>(henri.cache.delete(['user', 1]));
+expectType<Promise<number>>(henri.cache.clear());
+expectType<CacheStats>(henri.cache.stats());
+expectType<number>(henri.cache.settings.ttl);
+
+// `fetch` answers what the function answers, with or without options
+expectType<Promise<number>>(henri.cache.fetch('visits', () => 12));
+expectType<Promise<string[]>>(
+  henri.cache.fetch('tags', { ttl: '5m' }, async () => ['a'])
+);
+expectType<Promise<number>>(
+  henri.cache.scope('reports').fetch('daily', { force: true }, () => 1)
+);
+expectType<Cache>(henri.cache.scope('reports'));
+
+const badCache: Configuration = {
+  // @ts-expect-error `maxEntries` is a number of entries
+  cache: { maxEntries: 'many' },
+};
+
+// @ts-expect-error `fetch` needs a function to run on a miss
+henri.cache.fetch('visits');
+
+// @ts-expect-error a cache key is not built out of nothing
+henri.cache.get(null);
+
 export {
+  badCache,
+  cacheConfig,
   badConfig,
   badFlow,
   badPolicies,

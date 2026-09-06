@@ -490,6 +490,23 @@ describe('one backend, three counters', () => {
     expect(await two.get('key')).toEqual({ state: 'pending' });
   });
 
+  test('the cache takes the same backend, without the failure policy', async () => {
+    const store = shared({ onError: 'closed' });
+    const kept = store.unguarded('cache', { raw: true });
+
+    // Named after the adapter, so whoever takes it can say where it is
+    expect(kept.name).toBe('fake');
+
+    await kept.set('memo', '{"id":1}', 1000);
+    expect(await kept.get('memo')).toBe('{"id":1}');
+
+    // And nothing between it and the backend: a cache that cannot read is a
+    // miss, which is the cache's decision to make (base/cache.js), not a 503
+    store.backend.fail();
+    await expect(kept.get('memo')).rejects.toThrow(/connection refused/u);
+    expect(store.stores).toContain(kept);
+  });
+
   test('a named store still wins over the shared backend', () => {
     const henri = fakeHenri({
       api: { idempotency: { store: './idempotency-store' } },

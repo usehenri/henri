@@ -285,16 +285,19 @@ class RedisBackend {
   }
 
   /**
-   * A `{ get, set, add, delete }` store, one key space per feature
+   * A `{ get, set, add, delete, clear }` store, one key space per feature
    *
-   * @param {string} feature what the keys are for (`idempotency`)
+   * @param {string} feature what the keys are for (`idempotency`, `cache`)
+   * @param {object} [options={}] `raw` stores the string it is handed as it
+   *   is, for a caller that has serialized already (the cache)
    * @returns {KeyValueStore} the store
    * @memberof RedisBackend
    */
-  keyValueStore(feature) {
+  keyValueStore(feature, options = {}) {
     return new KeyValueStore({
       client: this.connected,
       prefix: `${this.prefix}kv:${feature}:`,
+      raw: options.raw === true,
     });
   }
 

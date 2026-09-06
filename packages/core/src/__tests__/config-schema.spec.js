@@ -398,6 +398,7 @@ describe('the schema, the declarations and the documentation', () => {
     ['PoliciesConfig', () => Object.keys(SCHEMA.policies.keys)],
     ['RateLimitConfig', rateLimitKeys],
     ['SharedConfig', () => Object.keys(SCHEMA.shared.keys)],
+    ['CacheConfig', () => Object.keys(SCHEMA.cache.oneOf[1].keys)],
     ['ShutdownConfig', () => Object.keys(SCHEMA.shutdown.keys)],
     ['UploadsConfig', uploadsKeys],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
