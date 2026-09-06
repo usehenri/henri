@@ -96,6 +96,9 @@ The mark is a name, and a name is global: mark `title` personal on one model
 and every `title` is masked everywhere, in every log line of every model.
 Mark the field that is personal, not the column name half your models share.
 
+What a masked line looks like, and what is never masked, is
+[Logs and error reporting](/guides/logs/).
+
 ## What the mark does to what leaves the server
 
 **Marking a field personal does not change what your application sends.**

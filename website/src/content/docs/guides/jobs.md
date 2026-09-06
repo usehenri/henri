@@ -141,6 +141,8 @@ A job that throws goes back to its queue with an exponential backoff â€” `base Ã
 
 After `maxAttempts` the job is **dead**. It is kept, not deleted, with its last error, its stack and the history of every attempt (`{ attempt, at, duration, message, runner }`). That is the dead letter queue: the place you look when something has been failing all night.
 
+A buried job does not reach [`henri.reporter`](/guides/logs/): the row already holds the arguments, every attempt and the error, and `henri jobs:dead` reads it back, so a second copy would be one more thing to keep in step. What would change that is one call where the queue buries a row -- the payload of a job is application data, so what of it may leave the process is this package's decision to make.
+
 ```bash
 henri jobs:dead                  # what died
 henri jobs:dead --json           # the same, for a script
