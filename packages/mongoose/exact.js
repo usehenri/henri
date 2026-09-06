@@ -146,7 +146,7 @@ function plain(literal) {
     return null;
   }
 
-  const whole = parts.whole.replace(/^0+(?=\d)/u, '');
+  const whole = withoutLeadingZeros(parts.whole);
   const sign = parts.negative && !isZero(parts) ? '-' : '';
 
   return `${sign}${whole}${parts.fraction === '' ? '' : `.${parts.fraction}`}`;
@@ -217,6 +217,46 @@ const settingsOf = (field) => ({
 });
 
 /**
+ * The digits without their trailing zeros, and without their leading ones.
+ *
+ * Walked rather than matched. `/0+$/` is quadratic on a fraction that is a
+ * long run of zeros followed by a digit -- `0.000…0001`, which is a decimal
+ * a request may legitimately carry -- and 200,000 of them took 17 seconds
+ * here before this was two index walks. The same shape has been fixed twice
+ * elsewhere in this repository (`uploads/src/names.js`, the cdn base of
+ * `uploads/src/signing.js`), and the rule is the one those state: a value
+ * that reaches a pattern from a request is walked.
+ *
+ * @param {string} digits the fraction, as written
+ * @returns {string} the same without trailing zeros
+ */
+function withoutTrailingZeros(digits) {
+  let end = digits.length;
+
+  while (end > 0 && digits[end - 1] === '0') {
+    end -= 1;
+  }
+
+  return digits.slice(0, end);
+}
+
+/**
+ * The whole part without its leading zeros, keeping one digit
+ *
+ * @param {string} digits the whole part, as written
+ * @returns {string} the same without leading zeros
+ */
+function withoutLeadingZeros(digits) {
+  let start = 0;
+
+  while (start < digits.length - 1 && digits[start] === '0') {
+    start += 1;
+  }
+
+  return digits.slice(start);
+}
+
+/**
  * What is wrong with the `precision` and `scale` a field declares, if
  * anything. An adapter raises its own coded error with the sentence.
  *
@@ -269,7 +309,7 @@ function canonical(value, settings) {
     return { error: 'must be a decimal number' };
   }
 
-  const fraction = parts.fraction.replace(/0+$/u, '');
+  const fraction = withoutTrailingZeros(parts.fraction);
 
   if (fraction.length > scale) {
     return {
@@ -282,7 +322,7 @@ function canonical(value, settings) {
     };
   }
 
-  const whole = parts.whole.replace(/^0+(?=\d)/u, '');
+  const whole = withoutLeadingZeros(parts.whole);
   const digits = precision - scale;
 
   if (whole !== '0' && whole.length > digits) {
@@ -390,8 +430,8 @@ const isZero = (parts) =>
  * @returns {number} -1, 0 or 1
  */
 function magnitude(first, second) {
-  const left = first.whole.replace(/^0+(?=\d)/u, '');
-  const right = second.whole.replace(/^0+(?=\d)/u, '');
+  const left = withoutLeadingZeros(first.whole);
+  const right = withoutLeadingZeros(second.whole);
 
   if (left.length !== right.length) {
     return left.length < right.length ? -1 : 1;
