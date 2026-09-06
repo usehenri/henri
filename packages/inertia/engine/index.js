@@ -322,6 +322,7 @@ class InertiaEngine {
 
     // Development: the vite dev server. Production: the static handler
     this.vite = null;
+    this.styles = [];
     this.serve = null;
     // (page) => Promise<{ head: string[], body: string }>, null without ssr
     this.ssr = null;
@@ -580,10 +581,52 @@ class InertiaEngine {
   }
 
   /**
-   * Read the html shell
+   * The stylesheets the browser entry imports, as urls under app/views
+   *
+   * In development Vite hands a stylesheet over as a javascript module that
+   * injects it once the entry has run, so a server rendered document paints
+   * unstyled until then. Linking them in the head fixes that. Only relative
+   * imports of the entry are read: a stylesheet imported by a component is
+   * still injected by its module, as before.
+   *
+   * @returns {Array<string>} urls, empty when the entry imports no stylesheet
+   * @memberof InertiaEngine
+   */
+  entryStylesheets() {
+    const file = path.join(this.dir, this.options.entry);
+    const relative =
+      /^\s*import\s+['"](\.[^'"]+\.(?:css|scss|sass|less))['"]/gm;
+    const found = [];
+
+    try {
+      const source = fs.readFileSync(file, 'utf8');
+
+      let match = relative.exec(source);
+
+      for (; match !== null; match = relative.exec(source)) {
+        const href = path.posix.normalize(
+          path.posix.join('/', path.posix.dirname(this.options.entry), match[1])
+        );
+
+        if (!found.includes(href)) {
+          found.push(href);
+        }
+      }
+    } catch (error) {
+      this.henri.pen.warn(
+        'view',
+        `unable to read ${this.options.entry} for its stylesheets`,
+        error.message
+      );
+    }
+
+    return found;
+  }
+
+  /**
+   * Reads the html template of the application
    *
    * @returns {string} the template
-   * @throws when app/views/index.html is missing
    * @memberof InertiaEngine
    */
   readTemplate() {
@@ -710,6 +753,7 @@ class InertiaEngine {
     }
 
     this.template = this.readTemplate();
+    this.styles = this.entryStylesheets();
 
     if (this.options.ssr !== false) {
       // Loaded on every render so hot updates of the pages apply
@@ -920,7 +964,7 @@ class InertiaEngine {
     }
 
     const assets = this.vite
-      ? shell.devTags(this.options.entry)
+      ? shell.devTags(this.options.entry, this.styles)
       : shell.assetTags(this.manifest, this.options.entry);
 
     return shell.inject(template, {
