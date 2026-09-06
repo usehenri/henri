@@ -201,6 +201,30 @@ if [ "$adapter" = drizzle ]; then
     echo "henri db:generate wrote no migration" >&2
     exit 1
   }
+
+  # The rest of the chain, on the packed install: the dump is read from the
+  # database, and rolling back and applying again leaves it saying the same
+  # thing. A file missing from a package's `files` shows up here and nowhere
+  # else in this script
+  log "henri db:schema:dump, db:rollback and back again"
+  pnpm exec henri db:schema:dump
+  grep -q -- '-- migration: 0000_init' "$app/db/schema.sql" || {
+    echo "henri db:schema:dump did not name the migration it was taken at" >&2
+    exit 1
+  }
+  cp "$app/db/schema.sql" "$app/db/schema.first.sql"
+
+  # Nothing has been written yet, so undoing the migration loses nothing and
+  # needs no --force
+  pnpm exec henri db:rollback
+  pnpm exec henri db:migrate
+  pnpm exec henri db:schema:dump
+  cmp -s "$app/db/schema.first.sql" "$app/db/schema.sql" || {
+    echo "the schema dump moved across a rollback and a migrate" >&2
+    diff "$app/db/schema.first.sql" "$app/db/schema.sql" >&2 || true
+    exit 1
+  }
+  rm "$app/db/schema.first.sql"
 fi
 
 if [ ! -e "$app/$build_marker" ]; then
