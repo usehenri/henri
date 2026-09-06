@@ -145,6 +145,8 @@ const model = async (name, attributes = [], opts = {}) => {
 // Types: ${TYPES.join(', ')}.
 // Keys: type, required, default, enum, unique, index (anything else is
 // handed to the adapter as is).
+
+/** @type {import('@usehenri/core').ModelFile} */
 module.exports = {
   options: { timestamps: true },
   schema: ${util.inspect(schema, { depth: 6 })},
@@ -502,7 +504,12 @@ const addRoutes = async (entries, opts = {}) => {
 
   fs.outputFileSync(
     location,
-    await format(`module.exports = ${util.inspect(actual, { depth: 6 })};`)
+    await format(
+      `/** @type {import('@usehenri/core').RoutesFile} */\nmodule.exports = ${util.inspect(
+        actual,
+        { depth: 6 }
+      )};`
+    )
   );
 
   for (const key of Object.keys(entries)) {

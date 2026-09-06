@@ -1,0 +1,18 @@
+{
+  "//": "The pages: ESM and JSX, bundled by Vite. `components/nav` and the other aliases of vite.config.mjs resolve through `paths`.",
+  "compilerOptions": {
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "target": "es2023",
+    "paths": {
+      "assets/*": ["./assets/*"],
+      "components/*": ["./components/*"],
+      "helpers/*": ["./helpers/*"],
+      "styles/*": ["./styles/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

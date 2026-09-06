@@ -239,6 +239,7 @@ const FLAVOURS = { drizzle, mongoose, sequelize };
 // --- the actions ------------------------------------------------------------
 
 const header = (opts) => `${of('helpers', opts)}${of('load', opts)}
+/** @type {import('@usehenri/core').Controller} */
 module.exports = {`;
 
 const footer = () => `};`;

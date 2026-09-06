@@ -4,6 +4,7 @@
 // page the controller redirects to.
 const list = () => Task.find().sort({ createdAt: -1 }).lean();
 
+/** @type {import('@usehenri/core').Controller} */
 module.exports = {
   index: async (req, res) => {
     res.render('/tasks/index', { data: { tasks: await list() } });

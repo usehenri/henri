@@ -608,6 +608,8 @@ const sampleResource = async (force) => {
 // Types: string, text, number, integer, float, boolean, date, json, uuid.
 // Keys: type, required, default, enum, unique (anything else is handed to
 // the adapter as is).
+
+/** @type {import('@usehenri/core').ModelFile} */
 module.exports = {
   options: { timestamps: true },
   schema: {

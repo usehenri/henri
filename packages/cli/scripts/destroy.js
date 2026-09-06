@@ -251,7 +251,12 @@ const editRoutes = async (matches, ctx, label) => {
 
   fs.outputFileSync(
     location,
-    await format(`module.exports = ${util.inspect(actual, { depth: 6 })};`)
+    await format(
+      `/** @type {import('@usehenri/core').RoutesFile} */\nmodule.exports = ${util.inspect(
+        actual,
+        { depth: 6 }
+      )};`
+    )
   );
 };
 
