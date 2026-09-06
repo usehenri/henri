@@ -695,10 +695,12 @@ Inside a store this is the only unknown-key warning there is: everything a store
 
 ```bash
 henri doctor
-henri doctor --json    # problems as { check, level, message, file, hint }
+henri doctor --json    # problems as { check, level, code, message, file, hint }
 ```
 
 The checks are `config.invalid` (an error), `config.adapter` (an unknown store adapter) and `config.unknown` (a warning). Being a file check, it sees neither the environment nor the credentials; the boot does.
+
+Two more read one file against the others, which the schema cannot: `config.store`, when `jobs.store`, `webhooks.store` or `trail.store` names a store that is not in the same file, and `deps.declared`, when a store adapter one environment configures is in no `package.json` — an environment file replaces `default.json` whole, so each one has to hold together on its own, and the one that does not is usually `production.json`.
 
 ### The account flows
 

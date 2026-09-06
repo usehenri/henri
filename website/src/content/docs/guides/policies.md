@@ -288,4 +288,8 @@ describe('the proposal policy', () => {
 `henri generate policy` writes that file for you. `henri audit` reports a
 policy that nothing asks — the rules written and the gate forgotten looks
 exactly like having solved the problem, so it is worth a finding
-(`policies.unenforced`, see [Security](/guides/security/)).
+(`policies.unenforced`, see [Security](/guides/security/)). The other way
+round is [`henri doctor`](/reference/cli/#doctor): a route declaring
+`policy: true` with no file behind it refuses every request, because the
+policies fail closed, and `routes.policy` says so before anyone finds out
+from a 404.

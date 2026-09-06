@@ -401,12 +401,41 @@ The append-only record of who read or changed personal data, read back. See [The
 ## `doctor`
 
 ```bash
-henri doctor [--json]
+henri doctor [--json] [--no-reach]
 ```
 
-Checks the application against the conventions without starting it: no database, no views, nothing booted. Reports the Node version, the syntax of every `config/*.json` and each one run through [henri's configuration schema](/configuration/#validation) (`config.invalid`, `config.adapter` and `config.unknown`, the last one for a key henri does not own), the secret and the `.env` holding it, the git ignore rules, the credentials keys (not ignored, or already in the git index), the routes and each route's controller and action, controller and model naming, the page files a `resources` route needs, the test configuration, the declared and installed dependencies, and `AGENTS.md`. Exits with `1` when it finds an error. See [Coding agents](/guides/agents/).
+Checks that the application is coherent, without starting it: no boot, no views, and no database except for the one question below. Exits with `1` when it finds an error; warnings do not fail. See [Coding agents](/guides/agents/).
 
-It also runs the static checks of [`audit`](#audit) and, when they find something, adds one `security.findings` warning naming the count and the worst severity, instead of repeating them.
+Every problem carries a stable `check` name to branch on, a `level` (`error` or `warning`), the `file` to open, a `hint` saying what to run next and a `code` — the [henri error code](/reference/errors/) the boot would raise, when the check is predicting a failure the framework already has a name for, and `null` when the convention is this command's own.
+
+**The conventions.** The Node version; the syntax of every `config/*.json` and each one run through [henri's configuration schema](/configuration/#validation) (`config.invalid`, `config.adapter`, `config.unknown` for a key henri does not own); the secret and the `.env` holding it; the git ignore rules; the credentials keys (not ignored, or already in the git index); the routes and each route's controller and action; controller and model naming; the page files a `resources` route needs; the test configuration; the declared and installed dependencies; `AGENTS.md`.
+
+**What would fail a boot.** These are the ones that only show up when something starts, which is rarely a good moment:
+
+| Check             | What it means                                                                                                                      | Code                                                |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `models.store`    | A model names a `store` the configuration does not hold, or names none where there is no `default` one.                            | `HENRI_MODEL_UNKNOWN_STORE`, `HENRI_MODEL_NO_STORE` |
+| `config.store`    | `jobs.store`, `webhooks.store` or `trail.store` names a store that is not in the same file.                                        | one of the three `*_STORE_MISSING`                  |
+| `deps.declared`   | A package the application needs is not in `package.json`. Every `config/*.json` is read, and the message names the one that asked. | `HENRI_STORE_ADAPTER_NOT_INSTALLED`                 |
+| `routes.policy`   | A route asks for a policy `app/policies` does not hold. Policies fail closed, so that route refuses every request.                 | —                                                   |
+| `jobs.perform`    | A file of `app/jobs` exports no `perform(args, context)`. The queue loads every one of them at boot.                               | `HENRI_JOB_INVALID_DEFINITION`                      |
+| `jobs.recurring`  | A recurring schedule names a job that is not in `app/jobs`. Nothing fails: the work never happens.                                 | `HENRI_JOB_INVALID_SCHEDULE`                        |
+| `mailers.view`    | A mailer action has no view under `app/views/mailers`, so the request that sends the mail fails.                                   | `HENRI_MAIL_VIEW_MISSING`                           |
+| `modules.name`    | An `app/modules` file registers a name a core module or another module already has.                                                | `HENRI_BOOT_DUPLICATE_MODULE`                       |
+| `modules.needs`   | An `app/modules` file needs a module nothing provides.                                                                             | `HENRI_BOOT_MISSING_DEPENDENCY`                     |
+| `modules.package` | A dependency declares `"henri": { "module": … }` and the file is not there.                                                        | —                                                   |
+| `deps.version`    | The henri packages installed are not all at one version (a warning): they are published together.                                  | —                                                   |
+
+**What `AGENTS.md` and the views claim.** `agents.stale` (a warning) when `AGENTS.md` names a renderer or a store the configuration no longer names — an agent reading it would write pages and controllers this application cannot run — and `views.renderer` when a page imports the other view engine, or is named with an extension the configured one does not resolve (the Inertia engine globs `pages/**/*.jsx`, so a `.js` page there is never found).
+
+**The schema of a store.** One question is asked over a connection, and `--no-reach` skips it along with the shared store: `schema.behind` when the store answers and `db/migrations` holds migrations it has not applied, and `schema.unreachable` when it did not answer — because a store that is down and a store that is behind are different problems with different fixes. Drift itself, what a database and the models disagree about column by column, needs the models loaded and stays with [`db:status`](#db). Two file-only checks sit next to it: `schema.migrations-ignored` (migrations next to a store whose adapter can never apply them) and `schema.migrations-pending` (a drizzle store whose production configuration does not set `"migrate": true`).
+
+| Flag         | Effect                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `--json`     | `{ ok, problems: [{ check, level, code, file, message, hint }], summary }`.                                        |
+| `--no-reach` | Skip the two checks that open a connection: the shared store of `config.shared`, and the migrations a store holds. |
+
+It also runs the static checks of [`audit`](#audit) and, when they find something, adds one `security.findings` warning naming the count and the worst severity, instead of repeating them. That is the line between the two: `audit` weighs what an application chose, against the ASVS; `doctor` reports what it cannot have meant, and nothing here has a severity because there is nothing to weigh.
 
 ## `audit`
 
