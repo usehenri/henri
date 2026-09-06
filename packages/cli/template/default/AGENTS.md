@@ -8,20 +8,20 @@ the generators write above `module.exports` (`req`, `res` and `henri` complete; 
 
 ## Layout and naming
 
-| Path                         | What goes there                                                                                                                                                                  |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/models/Task.js`         | One model per file, singular PascalCase; loaded on boot and exposed as the global `Task`                                                                                         |
-| `app/controllers/tasks.js`   | Plain objects of `async (req, res)` actions; lowercase, plural for resources (`tasks#index`)                                                                                     |
-| `config/routes.js`           | The routes: `'get /': 'main#home'`, `'resources tasks': 'tasks'`                                                                                                                 |
-| `app/views/pages/tasks/`     | {{#if react}}next.js pages (`.js`): `index`, `new`, `show`, `edit`, `_form`; `pages/tasks/index.js` is `/tasks`{{/if}}{{#if inertia}}Inertia pages (`.jsx`, Vite + React){{/if}} |
-| `app/views/components/`      | Shared components (`import Nav from 'components/nav'`); `assets/` and `public/` next to it                                                                                       |
-| `app/views/styles/index.css` | The Tailwind CSS v4 entry point, and the only stylesheet of the application                                                                                                      |
-| `app/jobs/welcome.js`        | `{ queue, maxAttempts, timeout, perform(args, context) }`, run by `henri jobs` (needs `@usehenri/jobs`)                                                                          |
-| `app/workers/cleanup.js`     | `{ name, start(henri), stop(henri) }`, started with the server (`--skip-workers` to skip)                                                                                        |
-| `config/default.json`        | Committed configuration: `stores`, `renderer`, `user`, `baseRole`, `port`, `graphql`, `mail`                                                                                     |
-| `config/<NODE_ENV>.json`     | `dev.json`, `production.json` or `test.json` replaces `default.json` as a whole (keys are not merged)                                                                            |
-| `.env`                       | `HENRI_SECRET` and machine secrets, loaded on boot; never committed                                                                                                              |
-| `test/tasks.test.js`         | Vitest tests run by `henri test`                                                                                                                                                 |
+| Path                         | What goes there                                                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `app/models/Task.js`         | One model per file, singular PascalCase; loaded on boot and exposed as the global `Task`                        |
+| `app/controllers/tasks.js`   | Plain objects of `async (req, res)` actions; lowercase, plural for resources (`tasks#index`)                    |
+| `config/routes.js`           | The routes: `'get /': 'main#home'`, `'resources tasks': 'tasks'`                                                |
+| `app/views/pages/tasks/`     | {{engine}} pages (`.{{ext}}`): `index`, `new`, `show`, `edit`, `_form`; `pages/tasks/index.{{ext}}` is `/tasks` |
+| `app/views/components/`      | Shared components (`import Nav from 'components/nav'`); `assets/` and `public/` next to it                      |
+| `app/views/styles/index.css` | The Tailwind CSS v4 entry point, and the only stylesheet of the application                                     |
+| `app/jobs/welcome.js`        | `{ queue, maxAttempts, timeout, perform(args, context) }`, run by `henri jobs` (needs `@usehenri/jobs`)         |
+| `app/workers/cleanup.js`     | `{ name, start(henri), stop(henri) }`, started with the server (`--skip-workers` to skip)                       |
+| `config/default.json`        | Committed configuration: `stores`, `renderer`, `user`, `baseRole`, `port`, `graphql`, `mail`                    |
+| `config/<NODE_ENV>.json`     | `dev.json`, `production.json` or `test.json` replaces `default.json` as a whole (keys are not merged)           |
+| `.env`                       | `HENRI_SECRET` and machine secrets, loaded on boot; never committed                                             |
+| `test/tasks.test.js`         | Vitest tests run by `henri test`                                                                                |
 
 ## Generate, do not hand-write
 
@@ -100,21 +100,7 @@ Values are `'controller#action'` or `{ controller, roles, scope, only, except, m
 
 ## Views ({{renderer}})
 
-{{#if react}}
-Pages are next.js pages (pages router) exported through `withHenri` from
-`@usehenri/react`; they receive `data`, `user`, `paths`, `getRoute`, `pathFor`,
-`fetch` and `hydrate`. Nested components call `useHenri()`. Forms come from
-`@usehenri/react/forms`. `app/views/next.config.js` is generated: extend
-next.js from `config/next.js` (`module.exports = { next: (config) => config }`).
-{{/if}}
-{{#if inertia}}
-Pages are `.jsx` files rendered by Inertia (Vite + React); `res.render('/tasks')`
-resolves `pages/tasks/index.jsx`. `useHenri()` from `@usehenri/inertia` gives
-`data`, `user`, `paths`, `errors`, `csrf`, `getRoute`, `pathFor`, `fetch`, `hydrate`;
-`Form` (POST by default, CSRF field injected), `Link`, `Head`, `router`, `usePage`
-and `useForm` come from the same package. `res.inertia.errors({ field: 'msg' })`
-before rendering again hands validation errors to the page; `res.inertia.location(url)` redirects outside the app.
-{{/if}}
+{{#if react}}Pages are next.js pages (pages router; the app router is not supported) exported through `withHenri` from `@usehenri/react`. They receive `data`, `user`, `paths`, `errors`, `flash`, `csrf`, `getRoute`, `pathFor`, `fetch`, `hydrate` and `router`; nested components read the same values with `useHenri()`. Forms come from `@usehenri/react/forms` and show the `422` a controller answers with, field by field. `app/views/next.config.js` is generated: extend next.js from `config/next.js` (`module.exports = { next: (config) => config }`).{{/if}}{{#if inertia}}Pages are `.jsx` components bundled by Vite and swapped by Inertia without a document reload: `res.render('/tasks')` resolves `pages/tasks/index.jsx`, `res.render('/tasks/show')` resolves `pages/tasks/show.jsx`. `useHenri()` from `@usehenri/inertia` gives `data`, `user`, `paths`, `errors`, `flash`, `csrf`, `getRoute`, `pathFor`, `fetch` and `hydrate`; `Form` (POST by default, the CSRF field injected, children as a render prop receiving `{ errors, processing }`), `Link`, `Head`, `router`, `usePage` and `useForm` come from the same package. A form submits, the controller redirects and the client renders the page it lands on; to refuse a write, `res.inertia.errors({ field: 'msg' })` then render the page again, and `res.inertia.location(url)` redirects outside the app.{{/if}}
 
 ## Styling: Tailwind CSS v4
 

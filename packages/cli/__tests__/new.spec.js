@@ -35,11 +35,12 @@ describe('henri new', () => {
       'config/default.json',
       'config/routes.js',
       'app/controllers/main.js',
-      'app/views/pages/index.js',
-      'app/views/pages/_app.js',
-      'app/views/next.config.js',
+      'app/views/pages/index.jsx',
+      'app/views/index.html',
+      'app/views/main.jsx',
+      'app/views/ssr.jsx',
+      'app/views/vite.config.mjs',
       'app/views/jsconfig.json',
-      'app/views/postcss.config.mjs',
       'app/views/styles/index.css',
       'eslint.config.js',
     ]) {
@@ -48,6 +49,9 @@ describe('henri new', () => {
 
     // The old Tasks model is gone, the sample resource is a scaffold
     expect(exists(app, 'app/models/Tasks.js')).toBe(false);
+    // Nothing from the next.js template
+    expect(exists(app, 'app/views/next.config.js')).toBe(false);
+    expect(exists(app, 'app/views/pages/_app.js')).toBe(false);
   });
 
   test('always writes pnpm-workspace.yaml (npm and yarn ignore it)', () => {
@@ -70,6 +74,9 @@ describe('henri new', () => {
     expect(readme.startsWith('# app\n')).toBe(true);
     expect(readme).toContain('henri server');
     expect(readme).toContain('HENRI_SECRET');
+    expect(readme).toContain('Inertia (React) pages');
+    expect(readme).toContain('`.jsx` pages');
+    expect(readme).toContain('henri destroy scaffold Task');
   });
 
   test('keeps the secret out of the committed config', () => {
@@ -78,7 +85,7 @@ describe('henri new', () => {
 
     expect(config).toEqual({
       baseRole: 'guest',
-      renderer: 'react',
+      renderer: 'inertia',
       stores: { default: { adapter: 'disk' } },
       user: 'user',
     });
@@ -92,19 +99,22 @@ describe('henri new', () => {
     expect(ignored).not.toContain('/config/*.json');
   });
 
-  test('scaffolds the sample Task resource', () => {
+  test('scaffolds the sample Task resource as Inertia pages', () => {
     for (const file of [
       'app/models/Task.js',
       'app/controllers/tasks.js',
-      'app/views/pages/tasks/index.js',
-      'app/views/pages/tasks/new.js',
-      'app/views/pages/tasks/edit.js',
-      'app/views/pages/tasks/show.js',
-      'app/views/pages/tasks/_form.js',
+      'app/views/pages/tasks/index.jsx',
+      'app/views/pages/tasks/new.jsx',
+      'app/views/pages/tasks/edit.jsx',
+      'app/views/pages/tasks/show.jsx',
+      'app/views/pages/tasks/_form.jsx',
       'test/tasks.test.js',
     ]) {
       expect(exists(app, file)).toBe(true);
     }
+
+    // No .js page next to them: the renderer picks one extension
+    expect(exists(app, 'app/views/pages/tasks/index.js')).toBe(false);
 
     const model = require(path.join(app, 'app/models/Task.js'));
 
@@ -122,10 +132,52 @@ describe('henri new', () => {
       'resources tasks': 'tasks',
     });
 
-    expect(read(app, 'test/tasks.test.js')).toContain(
+    expect(read(app, 'app/controllers/main.js')).toContain('Task.find()');
+  });
+
+  test('the sample pages read the controller data through useHenri', () => {
+    const index = read(app, 'app/views/pages/tasks/index.jsx');
+
+    expect(index).toContain("from '@usehenri/inertia'");
+    expect(index).toContain('const { data, getRoute } = useHenri();');
+    expect(index).toContain('const tasks = data.tasks || [];');
+    // An Inertia visit, not a fetch(): the controller redirects afterwards
+    expect(index).toContain(
+      "router.delete(getRoute('destroy_tasks_path', id))"
+    );
+    expect(index).not.toContain('withHenri');
+    expect(index).not.toContain("from 'next/link'");
+  });
+
+  test('the sample form shows the errors the controller renders with', () => {
+    const form = read(app, 'app/views/pages/tasks/_form.jsx');
+    const controller = read(app, 'app/controllers/tasks.js');
+
+    expect(form).toContain("import { Form } from '@usehenri/inertia';");
+    expect(form).toContain('{({ errors, processing }) => (');
+    expect(form).toContain('<p className={message}>{errors.name}</p>');
+
+    // A failed write renders the page again with res.inertia.errors(), and
+    // still answers a 422 to an API client
+    expect(controller).toContain('res.inertia.errors(errors)');
+    expect(controller).toContain("invalid(res, error, '/tasks/new')");
+    expect(controller).toContain(
+      "invalid(res, error, '/tasks/edit', { task: req.task })"
+    );
+    expect(controller).toContain('res.boom.badData(error.message, { errors })');
+  });
+
+  test('writes a test that checks the page and the HAL answers', () => {
+    const test = read(app, 'test/tasks.test.js');
+
+    expect(test).toContain(
       "const { request, setup } = require('@usehenri/testing');"
     );
-    expect(read(app, 'app/controllers/main.js')).toContain('Task.find()');
+    expect(test).toContain("set('X-Inertia', 'true')");
+    expect(test).toContain("expect(response.body.component).toBe('tasks');");
+    expect(test).toContain(
+      "expect(response.body._links.self.href).toBe('/tasks')"
+    );
   });
 
   test('writes the files coding agents read', () => {
@@ -135,9 +187,10 @@ describe('henri new', () => {
     expect(agents.startsWith('# app: conventions for coding agents')).toBe(
       true
     );
-    expect(agents).toContain('renderer `react`');
-    expect(agents).toContain('next.js pages');
-    expect(agents).not.toContain('Inertia');
+    expect(agents).toContain('renderer `inertia`');
+    expect(agents).toContain('Inertia pages (`.jsx`)');
+    expect(agents).toContain('@usehenri/inertia');
+    expect(agents).not.toContain('next.js pages');
     expect(agents).not.toContain('{{');
     // A budget, not a target: AGENTS.md is read on every task, so it stays
     // short. Compress before raising it again.
@@ -175,20 +228,24 @@ describe('henri new', () => {
   test('pins the versions of the view dependencies', () => {
     const pkg = JSON.parse(read(app, 'package.json'));
 
-    expect(pkg.dependencies.next).toMatch(/^\^16\./);
+    expect(pkg.dependencies['@inertiajs/react']).toMatch(/^\^3\./);
+    expect(pkg.dependencies.vite).toMatch(/^\^8\./);
+    expect(pkg.dependencies['@vitejs/plugin-react']).toMatch(/^\^6\./);
     expect(pkg.dependencies.react).toMatch(/^\^19\./);
     expect(pkg.dependencies['react-dom']).toMatch(/^\^19\./);
+    expect(pkg.dependencies.next).toBeUndefined();
     expect(pkg.devDependencies.eslint).toMatch(/^\^9\./);
   });
 
-  test('wires tailwind css through postcss for next.js', () => {
+  test('wires tailwind css through the vite plugin', () => {
     const pkg = JSON.parse(read(app, 'package.json'));
 
     expect(pkg.dependencies.tailwindcss).toMatch(/^\^4\./);
-    expect(pkg.dependencies['@tailwindcss/postcss']).toMatch(/^\^4\./);
+    expect(pkg.dependencies['@tailwindcss/vite']).toMatch(/^\^4\./);
+    expect(pkg.dependencies['@tailwindcss/postcss']).toBeUndefined();
 
-    expect(read(app, 'app/views/postcss.config.mjs')).toContain(
-      "'@tailwindcss/postcss': {}"
+    expect(read(app, 'app/views/vite.config.mjs')).toContain(
+      "import tailwindcss from '@tailwindcss/vite'"
     );
 
     const css = read(app, 'app/views/styles/index.css');
@@ -196,18 +253,18 @@ describe('henri new', () => {
     expect(css).toContain("@import 'tailwindcss'");
     expect(css).toContain("@source '../pages/**/*.{js,jsx}'");
 
-    // The stylesheet is loaded once, from _app (next.js global styles rule)
-    expect(read(app, 'app/views/pages/_app.js')).toContain(
-      "import '../styles/index.css'"
+    // The stylesheet is loaded once, from the browser entry
+    expect(read(app, 'app/views/main.jsx')).toContain(
+      "import './styles/index.css'"
     );
     expect(exists(app, 'app/views/styles/index.scss')).toBe(false);
   });
 
   test('styles the sample pages, dark mode included', () => {
     for (const page of [
-      'app/views/pages/index.js',
-      'app/views/pages/tasks/index.js',
-      'app/views/pages/tasks/_form.js',
+      'app/views/pages/index.jsx',
+      'app/views/pages/tasks/index.jsx',
+      'app/views/pages/tasks/_form.jsx',
     ]) {
       expect(read(app, page)).toMatch(/className=.*dark:|dark:[a-z]/);
     }
@@ -284,54 +341,6 @@ describe('henri new options', () => {
     expect(stderr).toContain('Missing folder');
   });
 
-  test('keeps the sample of the inertia template and describes inertia in AGENTS.md', () => {
-    const { status, stdout } = henri(
-      ['new', 'inertia', '--skip-install', '--no-git', '--renderer', 'inertia'],
-      { cwd: dir }
-    );
-    const app = path.join(dir, 'inertia');
-
-    expect(status).toBe(0);
-    expect(stdout).not.toContain('Scaffolding the sample Task resource');
-    // The template's own sample, nothing scaffolded next to it
-    expect(fs.readdirSync(path.join(app, 'app/models'))).toHaveLength(1);
-    expect(exists(app, 'app/views/pages/tasks/index.js')).toBe(false);
-    expect(exists(app, 'app/views/pages/tasks/index.jsx')).toBe(true);
-    expect(routesOf(app)['resources tasks']).toBeUndefined();
-    expect(JSON.parse(read(app, 'config/default.json')).renderer).toBe(
-      'inertia'
-    );
-
-    const agents = read(app, 'AGENTS.md');
-
-    expect(agents).toContain('renderer `inertia`');
-    expect(agents).toContain('@usehenri/inertia');
-    expect(agents).not.toContain('next.js pages');
-    expect(agents).not.toContain('{{');
-    expect(exists(app, '.mcp.json')).toBe(true);
-  });
-
-  test('wires tailwind css through the vite plugin for inertia', () => {
-    const app = path.join(dir, 'inertia');
-    const pkg = JSON.parse(read(app, 'package.json'));
-
-    expect(pkg.dependencies.tailwindcss).toMatch(/^\^4\./);
-    expect(pkg.dependencies['@tailwindcss/vite']).toMatch(/^\^4\./);
-    expect(pkg.dependencies['@tailwindcss/postcss']).toBeUndefined();
-
-    expect(read(app, 'app/views/vite.config.mjs')).toContain(
-      "import tailwindcss from '@tailwindcss/vite'"
-    );
-    expect(read(app, 'app/views/styles/index.css')).toContain(
-      "@import 'tailwindcss'"
-    );
-    expect(read(app, 'app/views/main.jsx')).toContain(
-      "import './styles/index.css'"
-    );
-    expect(exists(app, 'app/views/styles/index.scss')).toBe(false);
-    expect(read(app, 'app/views/pages/tasks/index.jsx')).toContain('dark:');
-  });
-
   test('rejects an unknown renderer', () => {
     const { status, stderr } = henri(
       ['new', 'vue', '--skip-install', '--no-git', '--renderer', 'vue'],
@@ -386,62 +395,146 @@ describe('henri init', () => {
   });
 });
 
-describe('henri new --renderer inertia', () => {
+// The Next.js engine is frozen, not removed: `--renderer react` keeps
+// scaffolding a working application, with the same resource in `.js` pages.
+describe('henri new --renderer react', () => {
   let dir;
   let app;
 
   beforeAll(() => {
-    ({ app, dir } = scaffold(['--no-git', '--renderer', 'inertia']));
+    ({ app, dir } = scaffold(['--no-git', '--renderer', 'react']));
   });
 
   afterAll(() => {
     cleanup(dir);
   });
 
-  test('keeps the sample of the inertia template only', () => {
-    expect(JSON.parse(read(app, 'config/default.json')).renderer).toBe(
-      'inertia'
-    );
+  test('scaffolds the next.js structure', () => {
+    for (const file of [
+      'app/views/pages/index.js',
+      'app/views/pages/_app.js',
+      'app/views/next.config.js',
+      'app/views/postcss.config.mjs',
+      'app/views/jsconfig.json',
+      'vitest.config.js',
+    ]) {
+      expect(exists(app, file)).toBe(true);
+    }
 
+    // Nothing from the inertia template
+    for (const file of [
+      'app/views/main.jsx',
+      'app/views/ssr.jsx',
+      'app/views/vite.config.mjs',
+    ]) {
+      expect(exists(app, file)).toBe(false);
+    }
+
+    expect(JSON.parse(read(app, 'config/default.json')).renderer).toBe('react');
+  });
+
+  test('scaffolds the same Task resource as next.js pages', () => {
     for (const file of [
       'app/models/Task.js',
       'app/controllers/tasks.js',
-      'app/views/pages/tasks/index.jsx',
-      'app/views/vite.config.mjs',
-      'vitest.config.js',
-      // The template ships its own test, so `henri test` is green at once
+      'app/views/pages/tasks/index.js',
+      'app/views/pages/tasks/new.js',
+      'app/views/pages/tasks/edit.js',
+      'app/views/pages/tasks/show.js',
+      'app/views/pages/tasks/_form.js',
       'test/tasks.test.js',
     ]) {
       expect(exists(app, file)).toBe(true);
     }
 
-    // Nothing from the react scaffold generator
-    for (const file of [
-      'app/models/Tasks.js',
+    expect(exists(app, 'app/views/pages/tasks/index.jsx')).toBe(false);
+
+    expect(routesOf(app)).toEqual({
+      'get /': 'main#home',
+      'resources tasks': 'tasks',
+    });
+
+    const index = read(app, 'app/views/pages/tasks/index.js');
+
+    expect(index).toContain("import withHenri from '@usehenri/react';");
+    expect(index).toContain("fetch(pathFor('destroy_tasks_path'");
+    expect(index).not.toContain('@usehenri/inertia');
+  });
+
+  test('answers a failed write with a 422 the forms read', () => {
+    const controller = read(app, 'app/controllers/tasks.js');
+
+    expect(controller).toContain('return invalid(res, error);');
+    expect(controller).toContain('res.boom.badData(error.message, { errors })');
+    expect(controller).not.toContain('res.inertia');
+    expect(read(app, 'app/views/pages/tasks/_form.js')).toContain(
+      "from '@usehenri/react/forms'"
+    );
+  });
+
+  test('writes a HAL test, without the Inertia page object', () => {
+    const test = read(app, 'test/tasks.test.js');
+
+    expect(test).toContain(
+      "expect(response.body._links.self.href).toBe('/tasks')"
+    );
+    expect(test).not.toContain('X-Inertia');
+  });
+
+  test('describes react in AGENTS.md and the README', () => {
+    const agents = read(app, 'AGENTS.md');
+
+    expect(agents).toContain('renderer `react`');
+    expect(agents).toContain('next.js pages (`.js`)');
+    expect(agents).toContain('@usehenri/react');
+    expect(agents).not.toContain('Inertia');
+    expect(agents).not.toContain('{{');
+    expect(agents.split('\n').length).toBeLessThan(170);
+    expect(exists(app, '.mcp.json')).toBe(true);
+
+    const readme = read(app, 'README.md');
+
+    expect(readme).toContain('React pages rendered by next.js');
+    expect(readme).toContain('`.js` pages');
+  });
+
+  test('pins the next.js dependencies and wires tailwind through postcss', () => {
+    const pkg = JSON.parse(read(app, 'package.json'));
+
+    expect(pkg.dependencies.next).toMatch(/^\^16\./);
+    expect(pkg.dependencies.react).toMatch(/^\^19\./);
+    expect(pkg.dependencies['react-dom']).toMatch(/^\^19\./);
+    expect(pkg.dependencies['@inertiajs/react']).toBeUndefined();
+    expect(pkg.devDependencies.eslint).toMatch(/^\^9\./);
+
+    expect(pkg.dependencies.tailwindcss).toMatch(/^\^4\./);
+    expect(pkg.dependencies['@tailwindcss/postcss']).toMatch(/^\^4\./);
+    expect(pkg.dependencies['@tailwindcss/vite']).toBeUndefined();
+
+    expect(read(app, 'app/views/postcss.config.mjs')).toContain(
+      "'@tailwindcss/postcss': {}"
+    );
+
+    const css = read(app, 'app/views/styles/index.css');
+
+    expect(css).toContain("@import 'tailwindcss'");
+    expect(css).toContain("@source '../pages/**/*.{js,jsx}'");
+
+    // The stylesheet is loaded once, from _app (next.js global styles rule)
+    expect(read(app, 'app/views/pages/_app.js')).toContain(
+      "import '../styles/index.css'"
+    );
+    expect(exists(app, 'app/views/styles/index.scss')).toBe(false);
+  });
+
+  test('styles the sample pages, dark mode included', () => {
+    for (const page of [
+      'app/views/pages/index.js',
       'app/views/pages/tasks/index.js',
       'app/views/pages/tasks/_form.js',
     ]) {
-      expect(exists(app, file)).toBe(false);
+      expect(read(app, page)).toMatch(/className=.*dark:|dark:[a-z]/);
     }
-
-    expect(read(app, 'test/tasks.test.js')).toContain(
-      "set('X-Inertia', 'true')"
-    );
-
-    expect(routesOf(app)).toEqual({
-      'delete /tasks/:id': 'tasks#destroy',
-      'get /': 'main#home',
-      'get /tasks': 'tasks#index',
-      'post /tasks': 'tasks#create',
-    });
-  });
-
-  test('writes a README that matches the template', () => {
-    const readme = read(app, 'README.md');
-
-    expect(readme).toContain('app/views/pages/tasks/index.jsx');
-    expect(readme).toContain('Inertia (React) pages');
-    expect(readme).not.toContain('destroy scaffold Task');
   });
 
   test('rejects an unknown renderer with the usage exit code', () => {

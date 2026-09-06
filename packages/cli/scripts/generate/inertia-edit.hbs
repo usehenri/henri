@@ -1,0 +1,45 @@
+import { Link, useHenri } from '@usehenri/inertia';
+import {{doc}}Form from './_form';
+
+// Rendered by the `edit` action with `data: { {{lower}}: {...} }`. The form
+// submits to the `update` action with the method of the route helper, and the
+// page moves to the {{lower}} once the controller redirected.
+const back = 'text-sm text-zinc-500 hover:underline dark:text-zinc-400';
+
+const Edit = () => {
+  const { data, getRoute, pathFor } = useHenri();
+  const item = data.{{lower}};
+
+  if (!item) {
+    return (
+      <main className="mx-auto w-full max-w-lg px-6 py-12">
+        <h1 className="text-2xl font-semibold tracking-tight">{{doc}} not found</h1>
+        <Link className={`mt-4 inline-block ${back}`} href={getRoute('index_{{plural}}_path')}>
+          &larr; Back
+        </Link>
+      </main>
+    );
+  }
+
+  // The public identifier: a url never carries the numeric id of a record
+  const id = item.externalId;
+
+  return (
+    <main className="mx-auto w-full max-w-lg px-6 py-12">
+      <Link className={back} href={getRoute('show_{{plural}}_path', id)}>
+        &larr; Back to the {{lower}}
+      </Link>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Edit {{doc}}</h1>
+
+      <div className="mt-8 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+        <{{doc}}Form
+          action={pathFor('update_{{plural}}_path', { id })}
+          data={item}
+          button="Update"
+        />
+      </div>
+    </main>
+  );
+};
+
+export default Edit;

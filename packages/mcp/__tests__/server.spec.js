@@ -343,7 +343,7 @@ describe('henri mcp', () => {
       controllers: 2,
       errors: 0,
       models: 1,
-      renderer: 'react',
+      renderer: 'inertia',
       routes: 9,
     });
     expect(structuredContent.environment.node).toBe(process.version);
@@ -379,11 +379,11 @@ describe('henri mcp', () => {
     expect(generated.structuredContent.created).toEqual([
       'app/models/Post.js',
       'app/controllers/posts.js',
-      'app/views/pages/posts/index.js',
-      'app/views/pages/posts/_form.js',
-      'app/views/pages/posts/new.js',
-      'app/views/pages/posts/edit.js',
-      'app/views/pages/posts/show.js',
+      'app/views/pages/posts/index.jsx',
+      'app/views/pages/posts/_form.jsx',
+      'app/views/pages/posts/new.jsx',
+      'app/views/pages/posts/edit.jsx',
+      'app/views/pages/posts/show.jsx',
     ]);
     expect(fs.existsSync(path.join(app, 'app/models/Post.js'))).toBe(true);
 
@@ -468,7 +468,7 @@ describe('henri mcp', () => {
     });
 
     expect(conventions.contents[0].text).toContain('## Do not');
-    expect(conventions.contents[0].text).toContain('renderer `react`');
+    expect(conventions.contents[0].text).toContain('renderer `inertia`');
 
     const routes = await client.readResource({ uri: 'henri://routes' });
 

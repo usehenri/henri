@@ -78,7 +78,7 @@ describe('henri destroy without git', () => {
       true
     );
     expect(
-      fs.existsSync(path.join(backup, 'app/views/pages/posts/index.js'))
+      fs.existsSync(path.join(backup, 'app/views/pages/posts/index.jsx'))
     ).toBe(true);
     expect(fs.existsSync(path.join(backup, 'config/routes.js'))).toBe(true);
   });

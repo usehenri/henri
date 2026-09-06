@@ -1,0 +1,41 @@
+import { Form } from '@usehenri/inertia';
+
+// Shared by new and edit: `action` is a pathFor() result ({ method, route })
+// or a route string, and `data` prefills the fields. The form submits through
+// Inertia's router, so the controller answers with a redirect on success, or
+// renders this page again after `res.inertia.errors()`; those messages arrive
+// as `errors` below, keyed by field name.
+// The className props style the fields with Tailwind CSS (see
+// app/views/styles/index.css).
+const field =
+  'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100 dark:focus:ring-zinc-100/10';
+const submit =
+  'inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200';
+const caption = 'text-xs font-medium text-zinc-500 dark:text-zinc-400';
+const message = 'text-sm text-red-600 dark:text-red-400';
+
+const {{doc}}Form = ({ action, data = {}, button = 'Create' }) => (
+  <Form action={action} className="flex flex-col gap-4">
+    {({ errors, processing }) => (
+      <>
+        {{#each keys}}
+        <label className="flex flex-col gap-1">
+          <span className={caption}>{{this}}</span>
+          <input
+            className={field}
+            defaultValue={data.{{this}} ?? ''}
+            name="{{this}}"
+            placeholder="{{this}}"
+          />
+          {errors.{{this}} ? <p className={message}>{errors.{{this}} }</p> : null}
+        </label>
+        {{/each}}
+        <button className={submit} disabled={processing} type="submit">
+          {button} {{doc}}
+        </button>
+      </>
+    )}
+  </Form>
+);
+
+export default {{doc}}Form;

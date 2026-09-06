@@ -471,7 +471,7 @@ const COMMANDS = [
       },
       { description: 'do not run "git init"', flag: '--no-git' },
       {
-        description: 'react (default) or inertia',
+        description: 'inertia (default) or react',
         flag: '--renderer <name>',
       },
       {
@@ -630,7 +630,7 @@ const COMMANDS = [
       },
       { description: 'do not run "git init"', flag: '--no-git' },
       {
-        description: 'react (default) or inertia',
+        description: 'inertia (default) or react',
         flag: '--renderer <name>',
       },
       {

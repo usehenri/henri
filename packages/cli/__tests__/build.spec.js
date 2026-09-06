@@ -72,9 +72,9 @@ describe('henri build', () => {
     });
   });
 
-  test('fails clearly when the react engine is not installed', () => {
+  test('fails clearly when the engine is not installed', () => {
     // A clean environment: the test runner's own NODE_OPTIONS/NODE_PATH
-    // would let the child resolve the workspace's @usehenri/react
+    // would let the child resolve the workspace's @usehenri/inertia
     const { status, stderr } = henri(['build'], {
       cwd: app,
       env: { HOME: process.env.HOME, PATH: process.env.PATH },
@@ -82,28 +82,11 @@ describe('henri build', () => {
 
     expect(status).toBe(1);
     expect(stderr).toContain(
-      '@usehenri/react is not installed in this project'
+      '@usehenri/inertia is not installed in this project'
     );
   });
 
-  test('calls the react engine build without booting henri', () => {
-    fakeEngine(app, '@usehenri/react/engine', 'function');
-
-    const { status, stderr } = henri(['build'], { cwd: app });
-
-    expect(stderr).toBe('');
-    expect(status).toBe(0);
-
-    const call = JSON.parse(read(app, 'build.json'));
-
-    expect(call.name).toBe('@usehenri/react/engine');
-    expect(fs.realpathSync(call.cwd)).toBe(fs.realpathSync(app));
-    expect(call.config.renderer).toBe('react');
-    expect(call.env).toBe('production');
-  });
-
-  test('calls the inertia engine static build', () => {
-    setRenderer(app, 'inertia');
+  test('calls the inertia engine static build without booting henri', () => {
     fakeEngine(app, '@usehenri/inertia/engine', 'static');
 
     const { status, stderr } = henri(['build'], { cwd: app });
@@ -114,7 +97,24 @@ describe('henri build', () => {
     const call = JSON.parse(read(app, 'build.json'));
 
     expect(call.name).toBe('@usehenri/inertia/engine');
+    expect(fs.realpathSync(call.cwd)).toBe(fs.realpathSync(app));
     expect(call.config.renderer).toBe('inertia');
+    expect(call.env).toBe('production');
+  });
+
+  test('calls the react engine build', () => {
+    setRenderer(app, 'react');
+    fakeEngine(app, '@usehenri/react/engine', 'function');
+
+    const { status, stderr } = henri(['build'], { cwd: app });
+
+    expect(stderr).toBe('');
+    expect(status).toBe(0);
+
+    const call = JSON.parse(read(app, 'build.json'));
+
+    expect(call.name).toBe('@usehenri/react/engine');
+    expect(call.config.renderer).toBe('react');
   });
 
   test('has nothing to do for the template renderer', () => {
