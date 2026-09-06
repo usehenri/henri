@@ -35,7 +35,7 @@ Everything below comes from the application, never from a convention henri hopes
 | `POST /login`, the account flows  | `config.user`: they are in the document only when henri actually mounts them                                                                                              |
 | `/livez`, `/readyz`, `/healthz`   | Always: every henri application answers them                                                                                                                              |
 
-Every operation also carries `x-henri.enforced`, a list naming what henri actually checks on that route — `_links` on the ones expanded from `resources` and `crud`, `params` on the ones whose action declared any — as opposed to what it expects.
+Every operation also carries `x-henri.enforced`, a list naming what henri actually checks on that route — `_links` on the ones expanded from `resources` and `crud`, `params` on the ones whose action declared any, `answers` on the ones whose action declared what it sends — as opposed to what it expects.
 
 A field marked `personal: { expose: false }` is in **no** schema, because [privacy](/guides/privacy/) strips that name from every answer henri builds, at every depth. Neither is `password`. A declared foreign key is typed as the `externalId` of the row it names, because that is what [`base/references.js`](/guides/models/#identifiers) publishes — and `null`, because a key that names no row resolves to nothing.
 
@@ -90,6 +90,10 @@ A hand-written route (`get /about`), a `member` or `collection` route of a resou
 
 `{}` is the JSON Schema for "any value". It is the only correct answer, and the operation's `x-henri.known` is `false` so a reader — a person or an agent — never has to work that out from prose.
 
+### An operation that said what it answers
+
+There is one way to move an operation out of that column without changing what it answers: the action declares it. An [`answers`](/guides/controllers/#answers-what-an-action-answers) block is a description of what leaves, which is exactly what this document could not know, so an operation that has one carries a `200` built from it — a field naming a model `$ref`s that model's record schema, a field naming a column carries that column's schema, and `additionalProperties` is `false` because henri drops what the action did not declare. `x-henri.known` is then `true`, `x-henri.answers` lists the fields and `x-henri.enforced` names `answers`. The `default` response stays, for the statuses the action chooses itself.
+
 ### Which of two shapes a guarded route answers
 
 The routes expanded from `resources` and `crud` are the ones henri does guard — but what it guards is `_links`, and nothing else. Two of henri's own answers carry them: the HAL envelope of `res.resource()` and `res.collection()`, and the page options of `res.render()` and of the implicit render (an action that returns an object without answering). A `resources` route that renders a page answers the second one, and it is a perfectly ordinary thing to do — the showcase's `events#index` does it.
@@ -135,7 +139,7 @@ OpenAPI 3.1.0 for @usehenri/showcase 0.0.0
     ...
 ```
 
-Twenty of forty-seven is not a failure of the tool: it is what an application with pages, member routes and form actions actually looks like. Moving an operation from one column to the other is a matter of answering it with `res.resource()` or `res.collection()` from a `resources` route, which is what henri asks for anyway.
+Twenty of forty-seven is not a failure of the tool: it is what an application with pages, member routes and form actions actually looks like. Moving an operation from one column to the other is a matter of answering it with `res.resource()` or `res.collection()` from a `resources` route, which is what henri asks for anyway — or of declaring its answer, for the ones that legitimately send something else.
 
 ## Where the document lives
 

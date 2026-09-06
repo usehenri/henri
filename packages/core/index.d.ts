@@ -1940,21 +1940,66 @@ declare namespace start {
    */
   type ParamsBlock = Record<string, Record<string, ParamRule | ParamType>>;
 
+  /** The types an answer rule may declare: the model types, plus lists and
+   * a record of a model. */
+  type AnswerType = ParamType | 'record';
+
+  /**
+   * One field an action answers. Every JSON answer of a controller is
+   * published and stripped whether or not it was declared; what a
+   * declaration adds is the shape, the model of a hand-built object and the
+   * column a value came from.
+   */
+  interface AnswerRule {
+    /** The shape. Implied by `model` (a record) and by `from` (`json`). */
+    type?: AnswerType;
+    /**
+     * The model whose records this field holds: one record on its own, a
+     * list of them with `type: 'array'`. It is what lets an object that
+     * never was a record have its foreign keys published.
+     */
+    model?: string;
+    /**
+     * `'User.gender'`: the column this value came from. It makes the field
+     * obey that column's marks under whatever name the answer gives it, and
+     * `henri openapi` types the field from it.
+     */
+    from?: string;
+    /** The rule every item of a list of scalars follows. */
+    of?: AnswerRule | AnswerType;
+    /** The field has to be in the answer. */
+    required?: boolean;
+    /**
+     * This action may carry a field marked `personal: { expose: false }`:
+     * the declared form of the `include` `res.resource()` takes.
+     */
+    expose?: boolean;
+  }
+
+  /**
+   * The `answers` block: what each action answers, keyed by action the way
+   * `params` is. A rule may be the type itself (`total: 'integer'`).
+   */
+  type AnswersBlock = Record<string, Record<string, AnswerRule | AnswerType>>;
+
   /**
    * A controller file. Every exported function is an action (`tasks#index`);
-   * `before` and `params` are the reserved keys.
+   * `before`, `params` and `answers` are the reserved keys.
    *
    *     /** @type {import('@usehenri/core').Controller} *\/
    *     module.exports = {
    *       before: { 'show,edit': loadTask },
    *       params: { create: { title: { type: 'string', required: true } } },
+   *       answers: { index: { tasks: { model: 'Task', type: 'array' } } },
    *       index: async (req, res) => ({ tasks: await Task.find() }),
    *     };
    */
   interface Controller {
     before?: BeforeBlock;
     params?: ParamsBlock;
-    [action: string]: Action | BeforeBlock | ParamsBlock | undefined;
+    answers?: AnswersBlock;
+    [action: string]:
+      Action | BeforeBlock | ParamsBlock | AnswersBlock | undefined;
   }
 
   // ---------------------------------------------------------------------------
@@ -2583,6 +2628,8 @@ declare namespace start {
     hooks(key: string): Array<(...args: any[]) => unknown>;
     /** What an action declared it accepts, compiled; null when nothing is. */
     accepts(key: string): Record<string, ParamRule> | null;
+    /** What an action declared it answers, compiled; null when nothing is. */
+    answers(key: string): Record<string, AnswerRule> | null;
     /** The parameter check of an action, as middlewares (none, or one). */
     checks(key: string): Array<(...args: any[]) => unknown>;
     all(): Record<string, unknown>;

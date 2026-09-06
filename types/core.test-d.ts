@@ -7,6 +7,7 @@
 import type {
   AccountResult,
   AccountSettings,
+  AnswerRule,
   BootAnalysis,
   Boom,
   Cache,
@@ -556,9 +557,51 @@ expectType<Controller>(badParams);
 expectType<Controller>(badRule);
 expectType<Controller>(badKey);
 
+const answering: Controller = {
+  answers: {
+    all: { total: 'integer' },
+    index: {
+      // a list of records: the model is what publishes a hand-built row
+      rows: { model: 'Task', type: 'array' },
+      // a column of a model, under a name of its own
+      who: { from: 'User.email', type: 'string' },
+    },
+    show: {
+      task: { model: 'Task' },
+      tags: { type: 'array', of: 'string' },
+      // the declared form of `res.resource(record, { include })`
+      gender: { from: 'User.gender', type: 'string', expose: true },
+    },
+  },
+  index: async (req, res) => res.json({ rows: [], total: 0 }),
+  show: async (req, res) => res.json({ tags: [], task: {}, total: 1 }),
+};
+
+expectType<Controller>(answering);
+
+const badAnswer: Controller = {
+  answers: {
+    // @ts-expect-error a rule names a type henri has
+    index: { total: { type: 'intger' } },
+  },
+};
+
+const badAnswerKey: Controller = {
+  answers: {
+    // @ts-expect-error an answer rule takes no `default`
+    index: { total: { type: 'integer', default: 0 } },
+  },
+};
+
+expectType<Controller>(badAnswer);
+expectType<Controller>(badAnswerKey);
+
 // `henri.controllers` answers what an action declared
 expectType<Record<string, ParamRule> | null>(
   henri.controllers.accepts('tasks#create')
+);
+expectType<Record<string, AnswerRule> | null>(
+  henri.controllers.answers('tasks#index')
 );
 
 // --- routes -----------------------------------------------------------------

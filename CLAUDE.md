@@ -917,12 +917,12 @@ disposition, filename, type })` is one call whatever the backend -- the
 - Controllers may export `before` (`base/hooks.js`): hooks the router runs
   between the role guard and the action, keyed by action (`all`,
   `'show,edit'`) or as `[fn, { run, only, except }]`; a hook that answers ends
-  the request, and `before` is one of the two exports that are never an
+  the request, and `before` is one of the three exports that are never an
   action. The same module wraps every action so that returning without
   answering renders `/<controller>/<action>` (`/<controller>` for `index`)
   with what it returned. `req.flash()` (`base/flash.js`) keeps one-shot messages in the
   express session and the views read them once through `flash`.
-- The other one is `params` (`base/params-schema.js`): what each action
+- The second one is `params` (`base/params-schema.js`): what each action
   accepts, in the same shape (`all`, `'index,search'`), one rule per field in
   the henri schema vocabulary (`type`, `required`, `default`, `enum`) plus the
   bounds a request needs (`min`/`max`, `minLength`/`maxLength`, `pattern`,
@@ -940,8 +940,46 @@ disposition, filename, type })` is one call whatever the backend -- the
   answers 422 with `{ field: message }` and `HENRI_PARAMS_INVALID`, negotiated
   like everything else (a browser that posted a form goes back to it with the
   messages in the flash). An action with no declaration is untouched.
-- The third boundary is every entry point an application calls
-  (`base/arguments.js`), after the configuration and the request: the
+- The third is `answers` (`base/answers.js`), the same idea pointing out:
+  what each action **answers**, in the same block shape and the same
+  vocabulary. It exists because the two directions were not equally
+  guarded -- `res.render()`, `res.resource()` and `res.collection()` all
+  went through `toPublic()` (publish the foreign keys, then strip what the
+  models marked `personal: { expose: false }`) and `res.json()` went
+  through nothing, so a hand-built object -- an Inertia page's props
+  assembled in the controller, a total next to a list -- carried both out.
+  Two things, and the difference matters: **the floor** is that publish and
+  that strip on **every JSON answer of every controller action**, declared
+  or not, with no setting that turns it off, and **the declaration** is
+  opt-in per action. A rule is `{ type, model, from, of, required, expose }`
+  or the type itself: `model` names the model whose records a field holds,
+  which is the only way an object that never was a record can have its
+  foreign keys published; `from` is `'User.gender'`, the column a value came
+  from, which binds it to that column's marks under whatever name the answer
+  gives it (the one leak a name-based strip cannot see) and fails the boot
+  when that column says `expose: false` without `expose: true` next to it;
+  and `expose: true` is the declared form of the `include` that
+  `res.resource()` takes. **What is not declared does not leave** --
+  `req.permit()`'s rule in the other direction, and the safe half -- while a
+  declared field that is missing or of another type is a mistake in the
+  declaration rather than a leak, so it is reported once per route and only
+  refused (500, `HENRI_ANSWERS_MISMATCH`) with `config.api.strict`, the knob
+  that already means that for the HAL links. `2.controllers.js` compiles the
+  block (`HENRI_ANSWERS_DECLARATION_INVALID`) and `5.router.js` checks it
+  against the models at registration, because a controller loads at runlevel
+  2 and the models at 3. The gate wraps `res.json()` per route, so henri's
+  own endpoints never see it, and it stays **synchronous** unless a foreign
+  key nobody eager loaded needs a lookup (`references.prepare()`/`settle()`
+  is that split); what henri built itself -- `res.resource`, `res.render`'s
+  JSON, `res.boom`, the 404 and 500 pages, an Inertia page object -- is
+  marked with `headers.seal()` and passes through untouched. `henri openapi`
+  reads it: an operation whose body a controller writes carried
+  `x-henri.known: false` and no success status, and one that declares its
+  answer now carries the schema. The guide is
+  `guides/controllers.md` (`#answers-what-an-action-answers`).
+- The fourth boundary is every entry point an application calls
+  (`base/arguments.js`), after the configuration, the request and the
+  answer: the
   signature of roughly fifty of them, as data, in the same node vocabulary
   `config-schema.js` uses -- `config-validate.js` exports `problems()` so
   there is one walker and no second schema language, and it

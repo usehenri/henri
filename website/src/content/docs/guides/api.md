@@ -89,7 +89,7 @@ Options: `type` names the controller when it is not the route's (`res.resource(u
 
 `res.negotiate({ html, json })` runs `html` for browsers (and clients accepting `*/*`) and `json` for `application/json`, `application/hal+json` and the versioned media type below. `res.render()` keeps answering `{ data, user, paths, ... }` to JSON clients and now adds `_links` too.
 
-Routes expanded from `resources` and `crud` are expected to answer HAL: a JSON answer without `_links` on one of them is reported once per route in the log, and refused with a `500` when `config.api.strict` is `true`. The page object the [Inertia](/guides/views/#inertia) engine answers a client-side visit with (`X-Inertia`) is a rendered page, not an API answer, and is never checked. `henri generate scaffold` and `henri generate crud` write controllers in the shape above, and `henri generate test <name>` asserts the links when the name has a `resources` or `crud` route.
+Routes expanded from `resources` and `crud` are expected to answer HAL: a JSON answer without `_links` on one of them is reported once per route in the log, and refused with a `500` when `config.api.strict` is `true` — which is also what refuses an answer that does not match what the action [declared it answers](/guides/controllers/#answers-what-an-action-answers). The page object the [Inertia](/guides/views/#inertia) engine answers a client-side visit with (`X-Inertia`) is a rendered page, not an API answer, and is never checked. `henri generate scaffold` and `henri generate crud` write controllers in the shape above, and `henri generate test <name>` asserts the links when the name has a `resources` or `crud` route.
 
 ## Pagination
 
