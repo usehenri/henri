@@ -17,9 +17,16 @@ updates:
           - minor
           - patch
     ignore:
-      # string-width is ESM only from 5. Core is CommonJS and requires it in
-      # the logger, so a major would break the boot. Revisit with an ESM core.
+      # ESM only from their next major, and core and the CLI are CommonJS, so
+      # `require()` of either would throw ERR_REQUIRE_ESM at boot: string-width
+      # from 5, chalk from 5. Their exports maps have no `require` condition at
+      # all, which is what distinguishes them from a package that merely sets
+      # `"type": "module"` and still ships a CommonJS build. Both come off with
+      # an ESM core, together.
       - dependency-name: string-width
+        update-types:
+          - version-update:semver-major
+      - dependency-name: chalk
         update-types:
           - version-update:semver-major
       # @apollo/server 5 declares `graphql: ^16.11.0` as its peer, up to and

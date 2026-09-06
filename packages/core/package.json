@@ -52,7 +52,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "8.7.0",
     "express-session": "^1.19.0",
-    "glob": "^11.0.3",
+    "glob": "^13.0.6",
     "handlebars": "^4.7.9",
     "helmet": "8.3.0",
     "nodemailer": "^10.0.0",
