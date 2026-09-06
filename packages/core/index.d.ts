@@ -744,8 +744,12 @@ declare namespace start {
     user: PublicUser | null;
     /** What the action passed to `res.render({ data })`. */
     data?: Record<string, unknown>;
-    /** The GraphQL errors, when the page was rendered from a query. */
-    errors?: readonly unknown[] | null;
+    /**
+     * The GraphQL errors when the page was rendered from a query, or the
+     * messages a redirecting handler left in the flash (`req.flash('errors',
+     * { email: 'is required' })`), keyed by field.
+     */
+    errors?: readonly unknown[] | Record<string, unknown> | null;
     graphql?: { endpoint: string | false; query: string | false };
   }
 

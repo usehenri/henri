@@ -36,8 +36,11 @@ export interface HenriView {
   data: Record<string, any>;
   /** The last hydrate or fetch error, when there was one. */
   error: Error | HenriError | null;
-  /** The GraphQL errors, when the page was rendered from a query. */
-  errors: Record<string, any> | null;
+  /**
+   * The GraphQL errors when the page was rendered from a query, or the
+   * messages a redirecting handler left in the flash, keyed by field.
+   */
+  errors: Record<string, any> | readonly unknown[] | null;
   /** Flash messages by type; reading them on the server consumed them. */
   flash: Record<string, unknown[]>;
   graphql: any | null;
