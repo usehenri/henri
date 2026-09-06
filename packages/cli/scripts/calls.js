@@ -132,6 +132,32 @@ const took = (duration) =>
   duration === null ? '     -' : `${String(duration).padStart(4)}ms`;
 
 /**
+ * Where a call came from, as one note.
+ *
+ * A client address henri could not believe is printed as `unverified`
+ * rather than left out: an operator reading a call log to answer "who did
+ * this" has to be able to tell "nobody was recorded" from "the
+ * configuration could not support an answer". The peer is shown next to it
+ * whenever it is not the client itself, because it is the hop that can.
+ *
+ * @param {?object} address What the row holds (`client`, `peer`, `source`)
+ * @returns {?string} The note, or null for an outbound call
+ */
+const addressOf = (address) => {
+  if (!address || (!address.client && !address.peer)) {
+    return null;
+  }
+
+  if (!address.client) {
+    return address.peer ? `from unverified, peer ${address.peer}` : null;
+  }
+
+  return address.peer && address.peer !== address.client
+    ? `from ${address.client} through ${address.peer}`
+    : `from ${address.client}`;
+};
+
+/**
  * Prints a listing
  *
  * @param {object} result What list() answered
@@ -169,6 +195,7 @@ const printList = ({ calls, requestId }) => {
     const notes = [
       call.service ? `service ${call.service}` : null,
       call.actor ? `actor ${call.actor}` : null,
+      addressOf(call.address),
       call.error ? `error ${call.error}` : null,
       call.truncated.length > 0
         ? `truncated ${call.truncated.join(', ')}`
@@ -330,6 +357,7 @@ const main = async (args) => {
 
 module.exports = main;
 module.exports.COMMANDS = COMMANDS;
+module.exports.addressOf = addressOf;
 module.exports.list = list;
 module.exports.stats = stats;
 module.exports.sweep = sweep;

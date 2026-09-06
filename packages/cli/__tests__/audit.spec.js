@@ -675,6 +675,95 @@ describe('henri audit', () => {
     ).not.toContain('calls.kept-forever');
   });
 
+  test('reports a client address the configuration cannot verify', () => {
+    // This is henri's own default. It records no client address rather
+    // than a forged one, which is the point -- but an empty column nobody
+    // was told about is a surprise in an incident
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      { calls: {}, trustProxy: true }
+    );
+
+    expect(names).toContain('calls.address-unverified');
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        check: 'calls.address-unverified',
+        file: 'config/production.json',
+        message: expect.stringContaining('unverified'),
+        owasp: 'A09:2021 Security Logging and Monitoring Failures',
+        severity: 'low',
+      })
+    );
+
+    // A hop count is the fix, no call log is nothing to report, an address
+    // nobody asked to record is nobody's problem, and a named header is
+    // its own mechanism with its own rules
+    for (const config of [
+      { calls: {}, trustProxy: 1 },
+      { calls: {}, trustProxy: false },
+      { trustProxy: true },
+      { calls: { address: false }, trustProxy: true },
+      {
+        calls: {
+          address: { from: ['10.0.0.0/8'], header: 'cf-connecting-ip' },
+        },
+        trustProxy: true,
+      },
+    ]) {
+      expect(
+        withConfig(app, 'config/production.json', config).names
+      ).not.toContain('calls.address-unverified');
+    }
+
+    // A laptop is not a deployment
+    expect(
+      withConfig(app, 'config/dev.json', { calls: {}, trustProxy: true }).names
+    ).not.toContain('calls.address-unverified');
+  });
+
+  test('reports a header believed from anybody, which is the dangerous one', () => {
+    // This is the shape that lets a client choose the address its own
+    // requests are recorded under, so an operator asking "who did this"
+    // reads back what the client typed
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      {
+        calls: {
+          address: { from: ['10.0.0.0/8', '0.0.0.0/0'], header: 'x-real-ip' },
+        },
+      }
+    );
+
+    expect(names).toContain('calls.address-from-any');
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        check: 'calls.address-from-any',
+        message: expect.stringContaining('x-real-ip'),
+        owasp: 'A05:2021 Security Misconfiguration',
+        severity: 'high',
+      })
+    );
+
+    // ... in a development configuration too: a header believed from
+    // anywhere is wrong wherever it is written
+    expect(
+      withConfig(app, 'config/dev.json', {
+        calls: { address: { from: ['::/0'], header: 'x-real-ip' } },
+      }).names
+    ).toContain('calls.address-from-any');
+
+    // Real ranges are the whole point of the setting
+    expect(
+      withConfig(app, 'config/production.json', {
+        calls: {
+          address: { from: ['173.245.48.0/20'], header: 'cf-connecting-ip' },
+        },
+      }).names
+    ).not.toContain('calls.address-from-any');
+  });
+
   test('reports password hashes that are not bound to their row', () => {
     // An application that turned the binding off is telling anyone who can
     // write its database that a hash copied onto another row still works
