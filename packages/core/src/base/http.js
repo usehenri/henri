@@ -55,6 +55,7 @@ const reason = (status) => {
  * @param {object} [extra={}] extra json data (dev only details)
  * @param {string} [details=''] preformatted html details (dev only)
  * @param {?string} [code=null] the henri error code of the failure
+ * @param {?string} [redirect=null] where a browser goes instead of the page
  * @returns {void}
  */
 function negotiate(
@@ -63,7 +64,8 @@ function negotiate(
   message,
   extra = {},
   details = '',
-  code = null
+  code = null,
+  redirect = null
 ) {
   const title = reason(status);
   const body = { error: title, message, statusCode: status };
@@ -79,7 +81,13 @@ function negotiate(
   res.status(status);
 
   return res.format({
-    html: () => res.type('html').send(page(status, title, details, code)),
+    // An error may name somewhere a browser is better off: the login page,
+    // when a policy refused an anonymous visitor. API clients still get the
+    // status and the body, which is the only thing they can act on
+    html: () =>
+      redirect
+        ? res.redirect(redirect)
+        : res.type('html').send(page(status, title, details, code)),
     json: () => res.json(body),
     // Escaped as well: static analyzers treat every send() as an html sink
     // eslint-disable-next-line sort-keys
@@ -145,7 +153,15 @@ function errorHandler(henri) {
     const extra = henri.isDev || henri.isTest ? { stack: err.stack } : {};
     const details = henri.isDev || henri.isTest ? err.stack || err.message : '';
 
-    return negotiate(res, status, message, extra, details, coded(err));
+    return negotiate(
+      res,
+      status,
+      message,
+      extra,
+      details,
+      coded(err),
+      status < 500 && typeof err.redirect === 'string' ? err.redirect : null
+    );
   };
 }
 

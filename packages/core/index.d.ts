@@ -397,6 +397,26 @@ declare namespace start {
         };
   }
 
+  /**
+   * `config.policies`: what henri does with the answer of a policy in
+   * `app/policies`. Writing the file is what turns policies on; this key
+   * only holds the two decisions an application may differ on.
+   */
+  interface PoliciesConfig {
+    /**
+     * What a refusal answers a signed-in user (`404`). `403` says the
+     * record is there and off limits; `404` says nothing at all. An
+     * anonymous visitor always gets a `401` and, in a browser, the login
+     * page.
+     */
+    status?: 403 | 404;
+    /**
+     * Report a route that declared a policy henri could not answer without
+     * the record, whose action then answered without ever asking (`true`).
+     */
+    verify?: boolean;
+  }
+
   /** `config.rateLimit`: `false` disables every limit. */
   interface RateLimitConfig {
     /** The window of the global limit (`60000`). */
@@ -540,6 +560,8 @@ declare namespace start {
     user?: string | UserConfig;
     /** Role, or roles, given to every new user. */
     baseRole?: string | string[];
+    /** What a refused policy answers, and whether an unasked one is reported. */
+    policies?: PoliciesConfig;
     /** Express `trust proxy` (`true`). */
     trustProxy?: boolean | number | string;
     /** `false` disables the CSRF protection. */
@@ -669,6 +691,12 @@ declare namespace start {
     rateLimit?: { windowMs?: number; max?: number };
     /** `false` opts a mutating route out of `Idempotency-Key`. */
     idempotent?: boolean;
+    /**
+     * Guard the route with a policy from `app/policies`: `true` names it
+     * after the controller (`proposals` -> `proposal`), a string names
+     * another one. Composes with `roles` rather than replacing it.
+     */
+    policy?: boolean | string;
     [key: string]: unknown;
   }
 
@@ -821,6 +849,12 @@ declare namespace start {
     links?: Record<string, string | { href: string; method?: string }>;
     /** `201` also sets `Location`. */
     status?: number;
+    /**
+     * What the policies are asked about, when the answer is a presentation
+     * of the record rather than the record: a presenter that drops the
+     * owner column leaves the rules nothing to read.
+     */
+    subject?: unknown;
   }
 
   /** Options of `res.collection()`. */
@@ -829,6 +863,11 @@ declare namespace start {
     perPage?: number;
     /** Total number of records; without it there is no `last` link. */
     total?: number;
+    /**
+     * The records the policies are asked about: an array parallel to the
+     * one being sent, or `(item, index) => record`.
+     */
+    subject?: unknown[] | ((item: unknown, index: number) => unknown);
   }
 
   /**
@@ -886,6 +925,31 @@ declare namespace start {
      * (later sources win); missing fields are omitted.
      */
     permit(...fields: Array<string | string[]>): Record<string, unknown>;
+    /**
+     * May the signed-in user take this action on this record? The policy
+     * comes from the record, or from the route when the record cannot say.
+     */
+    can(
+      action: string,
+      record?: any,
+      options?: string | { policy?: string; type?: string }
+    ): Promise<boolean>;
+    /**
+     * The same, refusing when the answer is no: it rejects with an error
+     * carrying `config.policies.status` (404 by default), which henri
+     * answers as the negotiated page or the boom body. Resolves with the
+     * record, so it reads as one line.
+     */
+    authorize<T>(
+      action: string,
+      record?: T,
+      options?: string | { policy?: string; type?: string; status?: number }
+    ): Promise<T>;
+    /**
+     * What a list of records should be filtered by, from the policy's
+     * `scope`. The name defaults to what the route is about.
+     */
+    scope(name?: string, context?: object): Promise<any>;
     /** `{ page, perPage, skip, limit, offset }`, bounded by `config.api`. */
     pagination(overrides?: {
       perPage?: number;
@@ -1321,6 +1385,139 @@ declare namespace start {
     shutdown(signal: string): Promise<void>;
   }
 
+  /**
+   * The context a policy rule receives as its third argument: what is being
+   * asked, of which policy, and the request when there is one.
+   */
+  interface PolicyContext {
+    action: string;
+    policy: string;
+    user: any;
+    req: Request | null;
+    henri: Henri;
+  }
+
+  /**
+   * One rule of a policy.
+   *
+   * Only the boolean `true` allows: anything else -- a truthy string, a
+   * record, `undefined`, an exception -- is a no. A rule that declares the
+   * record parameter is never asked without a record, which is what tells
+   * `index`, `new` and `create` apart from `show`, `edit`, `update` and
+   * `destroy`.
+   */
+  type PolicyRule<TUser = any, TRecord = any> = (
+    user: TUser | null,
+    record: TRecord | null,
+    context: PolicyContext
+  ) => boolean | Promise<boolean>;
+
+  /**
+   * A policy's `before`: a boolean is the answer of the whole policy,
+   * anything else falls through to the rule of the action.
+   */
+  type PolicyBefore<TUser = any, TRecord = any> = (
+    user: TUser | null,
+    record: TRecord | null,
+    context: PolicyContext
+  ) => boolean | undefined | Promise<boolean | undefined>;
+
+  /** A policy's `scope`: what a list of these records is filtered by. */
+  type PolicyScope<TUser = any> = (
+    user: TUser | null,
+    context: PolicyContext
+  ) => unknown;
+
+  /**
+   * `app/policies/<model>.js`: who may do what to one record.
+   *
+   * Every exported function is the rule of the action of the same name;
+   * `before` runs first and short-circuits the policy when it answers a
+   * boolean, and `scope` says what a list of these records should be
+   * filtered by (henri hands the value back untouched).
+   */
+  interface Policy<TUser = any, TRecord = any> {
+    /** The seven actions of a resource, and the shape of every other one. */
+    index?: PolicyRule<TUser, TRecord>;
+    new?: PolicyRule<TUser, TRecord>;
+    create?: PolicyRule<TUser, TRecord>;
+    show?: PolicyRule<TUser, TRecord>;
+    edit?: PolicyRule<TUser, TRecord>;
+    update?: PolicyRule<TUser, TRecord>;
+    destroy?: PolicyRule<TUser, TRecord>;
+    /**
+     * Runs before every rule. A boolean is the answer and the rules are
+     * never reached; anything else falls through to them.
+     */
+    before?: PolicyBefore<TUser, TRecord>;
+    /**
+     * What a list of these records should be filtered by. henri hands the
+     * value back untouched: it is a `where` for the ORM the application
+     * chose, never something henri builds a query from.
+     */
+    scope?: PolicyScope<TUser>;
+    /** Any other action of the controller (`submit`, `archive`, ...). */
+    [action: string]:
+      | PolicyRule<TUser, TRecord>
+      | PolicyBefore<TUser, TRecord>
+      | PolicyScope<TUser>
+      | undefined;
+  }
+
+  /**
+   * `henri.policies`: the loaded `app/policies`, and the one question
+   * behind `henri.can()`, `req.can()` and `req.authorize()`.
+   */
+  interface PoliciesModule {
+    name: 'policies';
+    /** `config.policies`, normalized. */
+    settings: { status: 403 | 404; verify: boolean };
+    /** The names of the loaded policies. */
+    names(): string[];
+    size(): number;
+    /** The policy a model, controller or policy name means, or `null`. */
+    resolve(word: string): string | null;
+    get(name: string): Policy | null;
+    has(name: string): boolean;
+    /** The rule a policy has for an action, or `null`. */
+    rule(name: string, action: string): PolicyRule | null;
+    can(
+      user: any,
+      action: string,
+      record?: any,
+      options?: string | { policy?: string; type?: string; req?: Request }
+    ): Promise<boolean>;
+    /** Resolves with the record, or rejects with a `POLICY_DENIED` error. */
+    authorize<T>(
+      user: any,
+      action: string,
+      record?: T,
+      options?:
+        | string
+        | {
+            policy?: string;
+            type?: string;
+            req?: Request;
+            status?: number;
+          }
+    ): Promise<T>;
+    /**
+     * What a list of these records should be filtered by. Rejects when
+     * there is no policy, or when it declares no `scope`: "everything they
+     * may see" has no safe default.
+     */
+    scope(user: any, name: string, context?: object): Promise<any>;
+    /** The links of `_links` the user may follow. */
+    links(
+      user: any,
+      links: object,
+      record: any,
+      options?: { type?: string; req?: Request; cache?: Map<string, boolean> }
+    ): Promise<object>;
+    /** The path helpers a rule that needs no record leaves. */
+    paths(user: any, paths: Paths, options?: { req?: Request }): Promise<Paths>;
+  }
+
   /** `henri.model`. */
   interface ModelModule {
     name: 'model';
@@ -1604,6 +1801,8 @@ declare namespace start {
     view: ViewModule;
     user: UserModule;
     router: RouterModule;
+    /** `app/policies`, and the record-level authorization built on them. */
+    policies: PoliciesModule;
     /**
      * The queue, when the application depends on `@usehenri/jobs`. It is
      * `undefined` when it does not -- core carries no queue of its own --
@@ -1616,6 +1815,18 @@ declare namespace start {
     accounts: AccountsService;
     /** The passport instance (also `henri.user.passport`). */
     passport: any;
+    /**
+     * May this user take this action on this record? The one way to ask,
+     * wherever the answer is needed; `req.can()` is the same question with
+     * the user of the request filled in. It answers `false` for everything
+     * it cannot answer `true` for.
+     */
+    can(
+      user: any,
+      action: string,
+      record?: any,
+      options?: string | { policy?: string; type?: string }
+    ): Promise<boolean>;
     /** `.permit(...fields)` and `.all()`, the helper behind `req.permit()`. */
     params(req: Request | ExpressRequest): {
       all(): Record<string, unknown>;

@@ -33,6 +33,7 @@ const GENERATORS = [
   'crud',
   'job',
   'mailer',
+  'policy',
   'worker',
   'test',
   'authentication',
@@ -50,6 +51,7 @@ const TARGETS = [
   'view',
   'job',
   'mailer',
+  'policy',
   'worker',
   'test',
 ];

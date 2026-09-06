@@ -3,7 +3,7 @@ const BaseModule = require('./base/module');
 const path = require('path');
 const fs = require('fs');
 const debug = require('debug')('henri:router');
-const { loopbackOnly } = require('./base/http');
+const { loopbackOnly, negotiate: answer } = require('./base/http');
 const runtime = require('./base/runtime');
 const { respond, userConfig } = require('./base/auth');
 const {
@@ -21,6 +21,7 @@ const { limiter, shutdown } = require('./base/rate-limit');
 const { table } = require('./base/routes');
 const flash = require('./base/flash');
 const { implicit, track } = require('./base/hooks');
+const { needsRecord } = require('./base/policies');
 
 /** Verbs of the routes that change something (idempotency applies) */
 const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
@@ -307,52 +308,200 @@ class Router extends BaseModule {
     const hooks = this.hooks(controller);
     const handler = implicit(action, controllerName, controllerAction);
 
-    if (!roles) {
+    const helper = `${controllerAction}_${controllerName}_path`;
+    // The guards, in the order a request meets them: the role decides
+    // whether this kind of person may reach the endpoint at all, the policy
+    // whether this person may take this action (see policyGuard)
+    const guards = [];
+
+    if (roles) {
+      if (!Array.isArray(roles)) {
+        roles = [roles];
+      }
+
+      if (!this.henri._user) {
+        this.henri.pen.warn(
+          'router',
+          name,
+          'requires roles but no user model is loaded; requests will be denied'
+        );
+      }
+
+      for (const role of roles) {
+        if (typeof this._roles[role] === 'undefined') {
+          this._roles[role] = {};
+        }
+
+        this._roles[role][helper] = { method: verb, roles, route };
+      }
+
+      guards.push(this.roleGuard(roles, name));
+    } else {
       if (typeof this._roles['guest'] === 'undefined') {
         this._roles['guest'] = {};
       }
 
-      this._roles['guest'][`${controllerAction}_${controllerName}_path`] = {
-        method: verb,
-        roles,
-        route,
-      };
-
-      return this.handler[verb](route, ...before, ...after, ...hooks, handler);
+      this._roles['guest'][helper] = { method: verb, roles, route };
     }
 
-    if (!Array.isArray(roles)) {
-      roles = [roles];
-    }
-
-    if (!this.henri._user) {
-      this.henri.pen.warn(
-        'router',
-        name,
-        'requires roles but no user model is loaded; requests will be denied'
+    if (opts && opts.policy) {
+      guards.push(
+        this.policyGuard({
+          action: controllerAction,
+          controller: controllerName,
+          name,
+          policy: opts.policy,
+        })
       );
     }
 
-    roles.map((role) => {
-      if (typeof this._roles[role] === 'undefined') {
-        this._roles[role] = {};
-      }
-
-      this._roles[role][`${controllerAction}_${controllerName}_path`] = {
-        method: verb,
-        roles,
-        route,
-      };
-    });
-
-    this.handler[verb](
+    return this.handler[verb](
       route,
       ...before,
-      this.roleGuard(roles, name),
+      ...guards,
       ...after,
       ...hooks,
       handler
     );
+  }
+
+  /**
+   * Middleware refusing a route to a user the policy says no to.
+   *
+   * It composes with the role guard rather than replacing it: the role
+   * decides who may reach the endpoint, the policy who may act on the
+   * record, and a route may declare both. `policy: true` uses the policy
+   * named after the controller (`proposals` -> `app/policies/proposal.js`),
+   * a string names another one.
+   *
+   * There is a limit to what a gate can decide, and it is worth being
+   * precise about: the record is not loaded yet. So the gate answers the
+   * questions that have no record -- `index`, `new`, `create`, and any rule
+   * that declares no record parameter -- and, for the rest, records what
+   * the route asked for so `res.resource()` enforces it on the way out and
+   * `config.policies.verify` reports an action that answered without ever
+   * asking (see `verify`).
+   *
+   * A missing policy or a missing rule refuses, like everywhere else.
+   *
+   * @param {object} route `{ action, controller, name, policy }`
+   * @returns {function} express middleware
+   * @memberof Router
+   */
+  policyGuard({ action, controller, name, policy }) {
+    const wanted = policy === true ? controller : policy;
+
+    return async (req, res, next) => {
+      const { policies } = this.henri;
+
+      try {
+        const target = policies.resolve(wanted);
+        const user =
+          (typeof req.isAuthenticated === 'function' &&
+            req.isAuthenticated() &&
+            req.user) ||
+          null;
+
+        if (!target) {
+          policies.once(
+            `route:${name}`,
+            name,
+            `asks for the "${wanted}" policy, which does not exist: refused`,
+            `henri generate policy ${wanted}`
+          );
+
+          return this.refuse(
+            req,
+            res,
+            policies.refusal(user, action, null, {})
+          );
+        }
+
+        const rule = policies.rule(target, action);
+
+        if (rule && needsRecord(rule)) {
+          // Undecidable here: remembered so the answer is checked
+          req._policy = { action, name: target, route: name };
+          this.verify(req, res, name);
+
+          return next();
+        }
+
+        if (await policies.can(user, action, null, { policy: target, req })) {
+          return next();
+        }
+
+        debug('denied %s: %s#%s said no', name, target, action);
+
+        return this.refuse(
+          req,
+          res,
+          policies.refusal(user, action, null, { policy: target })
+        );
+      } catch (error) {
+        return next(error);
+      }
+    };
+  }
+
+  /**
+   * Answers a refusal: the negotiated status for a signed-in user, the
+   * login page (or a 401) for an anonymous one
+   *
+   * @param {Express.Request} req the request
+   * @param {Express.Response} res the response
+   * @param {PolicyError} error the refusal
+   * @returns {*} the response
+   * @memberof Router
+   */
+  refuse(req, res, error) {
+    this.henri.pen.warn('policies', 'denied', req.method, req.path);
+
+    if (error.redirect) {
+      return respond(res, {
+        html: () => res.redirect(error.redirect),
+        json: () => res.boom.unauthorized(error.message),
+      });
+    }
+
+    return answer(res, error.status, error.message);
+  }
+
+  /**
+   * Reports a route that declared a policy and answered without ever asking
+   * it.
+   *
+   * The gate could not decide (the rule needs the record, which only the
+   * action has), so the action is the one that has to authorize. When it
+   * answers successfully without having asked, the route is unguarded and
+   * nobody would know: this is the line that says so, once per route.
+   * `config.policies.verify: false` turns it off.
+   *
+   * @param {Express.Request} req the request
+   * @param {Express.Response} res the response
+   * @param {string} name the route name
+   * @returns {void}
+   * @memberof Router
+   */
+  verify(req, res, name) {
+    const { policies } = this.henri;
+
+    if (!policies.settings.verify) {
+      return;
+    }
+
+    res.on('finish', () => {
+      if (req._policyAsked.has(req._policy.action) || res.statusCode >= 400) {
+        return;
+      }
+
+      policies.once(
+        `verify:${name}`,
+        name,
+        `declares a policy its action never asked: ${req._policy.name}#${req._policy.action} decided nothing`,
+        'call req.authorize(action, record) once the record is loaded'
+      );
+    });
   }
 
   /**
@@ -405,6 +554,7 @@ class Router extends BaseModule {
       action,
       controller,
       name,
+      policy: opts.policy || null,
       resource: Boolean(opts.resource),
       roles: roles ? [].concat(roles) : null,
       route,
@@ -527,6 +677,27 @@ class Router extends BaseModule {
   }
 
   /**
+   * The options a request-scoped policy question carries: the request
+   * itself, and what the route is about when the caller named nothing
+   *
+   * @param {Express.Request} req the request
+   * @param {Express.Response} res the response
+   * @param {(object|string)} [options={}] what the caller passed
+   * @returns {object} the options
+   * @memberof Router
+   */
+  policyOptions(req, res, options = {}) {
+    const info = res.locals.route || {};
+    const given = typeof options === 'string' ? { policy: options } : options;
+
+    return Object.assign(
+      { req, type: info.controller || null },
+      info.policy && info.policy !== true ? { policy: info.policy } : {},
+      given
+    );
+  }
+
+  /**
    * The representation of the current user that can leave the server
    *
    * @param {object} user `req.user` (model instance) or null
@@ -570,6 +741,7 @@ class Router extends BaseModule {
 
     // Read once per request: rendering a page consumes the messages
     const messages = flash.consume(req);
+    const allowed = this.pathForRoles(req.user);
 
     const opts = {
       csrf: req.csrfToken || null,
@@ -583,7 +755,12 @@ class Router extends BaseModule {
       errors: errors || flash.bag(messages.errors),
       flash: messages,
       localUrl: this.henri.server.url,
-      paths: this.pathForRoles(req.user),
+      // Filtered twice: by the roles, then by the policies that can answer
+      // without a record. A page that cannot link where the reader may not
+      // go is what stops the leak (see 3.policies.js)
+      paths: this.henri.policies
+        ? await this.henri.policies.paths(req.user || null, allowed, { req })
+        : allowed,
       query: req.query,
       user: this.publicUser(req.user),
     };
@@ -748,6 +925,44 @@ class Router extends BaseModule {
           json: () => this.renderJson(req, res, opts),
         });
       };
+
+      // The actions this request asked the policy about. It is what tells
+      // an action that decided from one that forgot, and `res.resource()`
+      // trusts it: the controller has the record, a presenter's output may
+      // not carry what the rule reads (see base/hateoas.js)
+      req._policyAsked = new Set();
+
+      // The one way to ask, with the user of this request already filled
+      // in (see 3.policies.js). Asking is also what tells the verify check
+      // that the action did not forget
+      req.can = (action, record = null, options = {}) => {
+        req._policyAsked.add(action);
+
+        return this.henri.policies.can(
+          req.user || null,
+          action,
+          record,
+          this.policyOptions(req, res, options)
+        );
+      };
+
+      req.authorize = (action, record = null, options = {}) => {
+        req._policyAsked.add(action);
+
+        return this.henri.policies.authorize(
+          req.user || null,
+          action,
+          record,
+          this.policyOptions(req, res, options)
+        );
+      };
+
+      req.scope = (name, context = {}) =>
+        this.henri.policies.scope(
+          req.user || null,
+          name || this.policyOptions(req, res, {}).type,
+          Object.assign({ req }, context)
+        );
 
       // HAL answers for the JSON api (see base/hateoas.js)
       res.resource = (record, options) =>

@@ -114,7 +114,7 @@ describe('utils', () => {
     test('loads a directory with identity and globalId', () => {
       const models = utils.loadModules(path.join(demo, 'models'));
 
-      expect(Object.keys(models).sort()).toEqual(['artwork', 'user']);
+      expect(Object.keys(models).sort()).toEqual(['artwork', 'memo', 'user']);
       expect(models.artwork.identity).toBe('artwork');
       expect(models.artwork.globalId).toBe('Artwork');
       expect(models.user.globalId).toBe('User');
@@ -132,6 +132,7 @@ describe('utils', () => {
         'artworks',
         'comments',
         'main',
+        'memos',
         'notes',
         'user',
       ]);
