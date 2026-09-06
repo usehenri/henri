@@ -195,8 +195,10 @@ describe('what a process that was killed left behind', () => {
   test('is swept when the storage starts', async () => {
     const { uploads } = await application();
     const stale = path.join(uploads.storage.tmp, 'deadbeef.part');
+    const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
     fs.writeFileSync(stale, 'left by a SIGKILL');
+    fs.utimesSync(stale, old, old);
     fs.writeFileSync(path.join(uploads.storage.tmp, 'not-a-part.txt'), 'kept');
 
     expect(temporaries(uploads)).toHaveLength(2);
@@ -204,5 +206,19 @@ describe('what a process that was killed left behind', () => {
     await uploads.storage.start();
 
     expect(temporaries(uploads)).toEqual(['not-a-part.txt']);
+  });
+
+  test('a part being written right now is left alone', async () => {
+    const { uploads } = await application();
+    const live = path.join(uploads.storage.tmp, 'inflight.part');
+
+    // The root is shared: another process -- or another test file -- may be
+    // streaming into this directory while this one boots, and its part must
+    // survive the sweep
+    fs.writeFileSync(live, 'a part of a request in flight');
+
+    await uploads.storage.start();
+
+    expect(temporaries(uploads)).toEqual(['inflight.part']);
   });
 });

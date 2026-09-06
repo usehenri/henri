@@ -28,7 +28,9 @@ module.exports = defineConfig({
 The setup file boots henri (`NODE_ENV=test`, `config/test.json`, a free port,
 workers skipped) before each test file and stops it after, inside the test
 worker: `henri` and the models are globals in the tests, exactly like in the
-app. `fileParallelism: false` keeps one server and one database at a time.
+app. `fileParallelism: false` keeps one server and one database at a time --
+drop it only when each file gets a database of its own, which is what the disk
+adapter does under `NODE_ENV=test`.
 
 ## Writing tests
 
@@ -58,6 +60,45 @@ beforeAll(() => setup());
 afterAll(() => teardown());
 ```
 
+## Factories
+
+A factory makes a valid record with the fields the test does not care about
+already filled in. It lives in `test/factories/<name>.js`, is named after its
+file and writes to the model of that name.
+
+```js
+// test/factories/task.js
+module.exports = {
+  attributes: {
+    name: ({ sequence }) => `Task ${sequence}`,
+    ownerId: async ({ create }) => (await create('user')).id,
+  },
+
+  traits: {
+    done: { completedAt: () => new Date(), state: 'done' },
+  },
+};
+```
+
+```js
+const { build, create, createList } = require('@usehenri/testing');
+
+await create('task'); // saved, with an owner
+await create('task', 'done'); // with the trait
+await create('task', { ownerId: me.id }); // no second user is made
+await createList('task', 3, 'done');
+await build('task'); // the attributes, unsaved
+```
+
+A value is a literal or a function of the build context (`attrs`, `build`,
+`create`, `sequence`, `traits`, `uid`), and fields resolve on demand: reading
+`await attrs.eventId` from another field resolves that one first. An override
+always wins, and the definition's value is then not evaluated at all.
+
+`after(record, context)` runs on the saved record and may replace it, which is
+how a factory grants roles the model will not mass assign.
+`defineFactory(name, definition)` declares one from a test file.
+
 ## API
 
 - `setup({ workers = false })` boots henri for the app in `process.cwd()` and
@@ -65,6 +106,11 @@ afterAll(() => teardown());
 - `teardown()` stops it.
 - `request()` a supertest request bound to the running server.
 - `agent()` a supertest agent (keeps cookies between requests).
+- `create(name, ...traits, overrides)` a saved record from a factory.
+- `build(name, ...traits, overrides)` the attributes, without saving.
+- `createList(name, count, ...traits, overrides)` several of them.
+- `defineFactory(name, definition)` a factory without a file.
+- `resetFactories()` forgets the definitions and the sequences.
 - `henri` the running instance (also `global.henri`).
 - `supertest` the underlying module.
 

@@ -6,9 +6,7 @@
 // `personal` is a failure here, and `henri audit` reports it too.
 const {
   PASSWORD,
-  createEvent,
-  createProposal,
-  createUser,
+  create,
   inertiaVersion,
   page,
   request,
@@ -86,7 +84,7 @@ describe('personal data', () => {
 
   describe('what leaves the server', () => {
     test('the account page carries the phone, because it asked for it', async () => {
-      const speaker = await createUser({
+      const speaker = await create('user', {
         name: 'Ada Okonjo',
         phone: '+1-555-0100',
       });
@@ -101,19 +99,13 @@ describe('personal data', () => {
     });
 
     test('no other answer carries it, whoever is asking', async () => {
-      const speaker = await createUser({
+      const speaker = await create('user', {
         name: 'Bruno Sato',
         phone: '+1-555-0101',
       });
-      const admin = await createUser({ roles: ['speaker', 'admin'] });
-      const { event, track } = await createEvent();
+      const admin = await create('user', 'admin');
 
-      await createProposal({
-        eventId: event.id,
-        speakerId: speaker.id,
-        state: 'submitted',
-        trackId: track.id,
-      });
+      await create('proposal', 'submitted', { speakerId: speaker.id });
 
       const { browser } = await signIn(admin);
       const list = await page(browser, '/admin/users');
@@ -135,7 +127,7 @@ describe('personal data', () => {
     });
 
     test('the signed-in user of every page has no phone either', async () => {
-      const speaker = await createUser({ phone: '+1-555-0102' });
+      const speaker = await create('user', { phone: '+1-555-0102' });
       const { browser } = await signIn(speaker);
       const res = await page(browser, '/proposals/mine');
 
@@ -147,26 +139,24 @@ describe('personal data', () => {
 
   describe('henri privacy:export', () => {
     test('hands back everything held about one person', async () => {
-      const speaker = await createUser({
+      const speaker = await create('user', {
         bio: 'Runs the platform team.',
         company: 'Kestrel',
         name: 'Ada Okonjo',
         phone: '+1-555-0100',
       });
-      const reviewer = await createUser({ roles: ['speaker', 'admin'] });
-      const { event, track } = await createEvent();
-      const proposal = await createProposal({
-        eventId: event.id,
+      const reviewer = await create('user', 'admin');
+      const proposal = await create('proposal', {
         speakerId: speaker.id,
         title: 'What a database owes you',
-        trackId: track.id,
       });
 
-      await Review.create({
+      await create('review', {
+        // The words the export is checked for below: what a test asserts on
+        // belongs in the test, and everything else in the factory
         comment: 'A good talk, and the speaker can deliver it.',
         proposalId: proposal.id,
         reviewerId: reviewer.id,
-        score: 2,
       });
 
       const document = await henri.privacy.export(speaker.email);
@@ -203,13 +193,10 @@ describe('personal data', () => {
     });
 
     test("a withdrawn proposal is still the speaker's", async () => {
-      const speaker = await createUser({});
-      const { event, track } = await createEvent();
-      const proposal = await createProposal({
-        eventId: event.id,
+      const speaker = await create('user');
+      const proposal = await create('proposal', {
         speakerId: speaker.id,
         title: 'Withdrawn but written',
-        trackId: track.id,
       });
 
       // Soft deleted: hidden from every query, and still in the database
@@ -226,34 +213,26 @@ describe('personal data', () => {
 
   describe('henri privacy:erase', () => {
     test('anonymizes the speaker and keeps the programme', async () => {
-      const speaker = await createUser({
+      const speaker = await create('user', {
         bio: 'Runs the platform team.',
         company: 'Kestrel',
         name: 'Ada Okonjo',
         phone: '+1-555-0100',
       });
-      const reviewer = await createUser({ roles: ['speaker', 'admin'] });
-      const { event, track } = await createEvent();
-      const accepted = await createProposal({
-        eventId: event.id,
+      const reviewer = await create('user', 'admin');
+      const accepted = await create('proposal', 'accepted', {
         speakerId: speaker.id,
-        state: 'accepted',
         title: 'What a database owes you',
-        trackId: track.id,
       });
-      const withdrawn = await createProposal({
-        eventId: event.id,
+      const withdrawn = await create('proposal', {
         speakerId: speaker.id,
         title: 'A talk that was withdrawn',
-        trackId: track.id,
       });
 
       await withdrawn.destroy();
-      await Review.create({
-        comment: 'A good talk, and the speaker can deliver it.',
+      await create('review', {
         proposalId: accepted.id,
         reviewerId: reviewer.id,
-        score: 2,
       });
 
       const email = speaker.email;
@@ -303,16 +282,10 @@ describe('personal data', () => {
     });
 
     test("erases the reviewer's words with the reviewer", async () => {
-      const speaker = await createUser({});
-      const reviewer = await createUser({ roles: ['speaker', 'admin'] });
-      const { event, track } = await createEvent();
-      const proposal = await createProposal({
-        eventId: event.id,
-        speakerId: speaker.id,
-        trackId: track.id,
-      });
+      const reviewer = await create('user', 'admin');
+      const proposal = await create('proposal');
 
-      await Review.create({
+      await create('review', {
         comment: 'What one committee member thought of it.',
         proposalId: proposal.id,
         reviewerId: reviewer.id,
@@ -332,7 +305,10 @@ describe('personal data', () => {
     });
 
     test('a dry run says what would happen and changes nothing', async () => {
-      const speaker = await createUser({ name: 'Grace', phone: '+1-555-0199' });
+      const speaker = await create('user', {
+        name: 'Grace',
+        phone: '+1-555-0199',
+      });
       const receipt = await henri.privacy.erase(speaker.email, {
         dryRun: true,
       });

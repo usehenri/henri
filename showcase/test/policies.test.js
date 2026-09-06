@@ -7,9 +7,7 @@
 // policy would refuse; and a policy that does not exist, does not answer, or
 // throws, all mean the same thing.
 const {
-  createEvent,
-  createProposal,
-  createUser,
+  create,
   inertiaVersion,
   page,
   request,
@@ -31,28 +29,28 @@ describe('policies', () => {
     await reset();
     await inertiaVersion();
 
-    speaker = await createUser({
+    speaker = await create('user', {
       email: 'owner@policies.test',
       name: 'Owner',
     });
-    other = await createUser({ email: 'other@policies.test', name: 'Other' });
-    admin = await createUser({
+    other = await create('user', {
+      email: 'other@policies.test',
+      name: 'Other',
+    });
+    admin = await create('user', 'admin', {
       email: 'committee@policies.test',
-      roles: ['speaker', 'admin'],
     });
 
-    ({ event } = await createEvent({ name: 'Policy Conf' }));
+    event = await create('event', { name: 'Policy Conf' });
 
-    draft = await createProposal({
+    draft = await create('proposal', {
       eventId: event.id,
       speakerId: speaker.id,
-      state: 'draft',
       title: 'A draft nobody else may read',
     });
-    submitted = await createProposal({
+    submitted = await create('proposal', 'submitted', {
       eventId: event.id,
       speakerId: speaker.id,
-      state: 'submitted',
       title: 'A submitted proposal anybody may read',
     });
   });

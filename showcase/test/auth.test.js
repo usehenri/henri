@@ -9,7 +9,7 @@
 const {
   PASSWORD,
   agent,
-  createUser,
+  create,
   inertiaVersion,
   page,
   request,
@@ -181,7 +181,7 @@ describe('authentication', () => {
 
   describe('password reset', () => {
     test('answers the same for an address that exists and one that does not', async () => {
-      const user = await createUser({ email: 'forgetful@example.test' });
+      const user = await create('user', { email: 'forgetful@example.test' });
       const known = await request()
         .post('/password/forgot')
         .send({ email: user.email });
@@ -203,7 +203,7 @@ describe('authentication', () => {
     });
 
     test('the link changes the password once and signs the other sessions out', async () => {
-      const user = await createUser({ email: 'reset@example.test' });
+      const user = await create('user', { email: 'reset@example.test' });
       const { browser: elsewhere } = await signIn(user);
 
       expect((await page(elsewhere, '/account')).status).toBe(200);
@@ -286,7 +286,7 @@ describe('authentication', () => {
     });
 
     test('an address change waits for the new address to be confirmed', async () => {
-      const user = await createUser({ email: 'moving@example.test' });
+      const user = await create('user', { email: 'moving@example.test' });
       const { browser, csrf } = await signIn(user);
 
       mails.length = 0;
@@ -315,7 +315,7 @@ describe('authentication', () => {
   });
 
   test('signing in redirects a browser and reaches the pages as req.user', async () => {
-    const user = await createUser({
+    const user = await create('user', {
       email: 'signin@example.test',
       name: 'Signed In',
     });
@@ -336,7 +336,7 @@ describe('authentication', () => {
   });
 
   test('the public user never carries the password hash', async () => {
-    const user = await createUser({ email: 'private@example.test' });
+    const user = await create('user', { email: 'private@example.test' });
     const { browser } = await signIn(user);
     const home = await page(browser, '/');
 
@@ -345,7 +345,7 @@ describe('authentication', () => {
   });
 
   test('signing in with a wrong password sends the browser back', async () => {
-    const user = await createUser({ email: 'wrong@example.test' });
+    const user = await create('user', { email: 'wrong@example.test' });
     const browser = agent();
     const start = await browser.get('/login').set('Accept', 'text/html');
     const answer = await browser
@@ -359,7 +359,7 @@ describe('authentication', () => {
   });
 
   test('an API client gets 401 and the public user, not a redirect', async () => {
-    const user = await createUser({ email: 'api@example.test' });
+    const user = await create('user', { email: 'api@example.test' });
     const bad = await request()
       .post('/login')
       .set('Accept', 'application/json')
@@ -378,7 +378,7 @@ describe('authentication', () => {
   });
 
   test('signing out empties the session', async () => {
-    const user = await createUser({ email: 'bye@example.test' });
+    const user = await create('user', { email: 'bye@example.test' });
     const { browser, csrf } = await signIn(user);
 
     expect((await page(browser, '/')).body.props.user).toBeTruthy();
@@ -400,7 +400,7 @@ describe('authentication', () => {
 
   describe('CSRF', () => {
     test('a request with a session but no token is refused', async () => {
-      const user = await createUser({ email: 'csrf@example.test' });
+      const user = await create('user', { email: 'csrf@example.test' });
       const { browser } = await signIn(user);
       const answer = await browser
         .post('/proposals')
@@ -412,7 +412,7 @@ describe('authentication', () => {
     });
 
     test('the same request with the token gets through to the action', async () => {
-      const user = await createUser({ email: 'csrf-ok@example.test' });
+      const user = await create('user', { email: 'csrf-ok@example.test' });
       const { browser, csrf } = await signIn(user);
       const answer = await browser
         .post('/proposals')
@@ -426,7 +426,7 @@ describe('authentication', () => {
     });
 
     test('a token from another session is refused', async () => {
-      const user = await createUser({ email: 'csrf-other@example.test' });
+      const user = await create('user', { email: 'csrf-other@example.test' });
       const { browser } = await signIn(user);
       const other = await agent().get('/login').set('Accept', 'text/html');
       const answer = await browser

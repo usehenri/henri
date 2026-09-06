@@ -3,7 +3,12 @@
 // Every test file boots the application once (`@usehenri/testing/setup-file`)
 // against the PostgreSQL of config/test.json, so the tables are shared: each
 // file empties them and creates the records it needs.
-const { agent, request } = require('@usehenri/testing');
+//
+// The records themselves come from `test/factories` -- `create('proposal',
+// 'submitted')` makes the speaker, the edition and the track it needs -- so
+// what is left here is the HTTP part: emptying the tables, reading the
+// Inertia asset version, signing in and finding the CSRF token.
+const { agent, create, request } = require('@usehenri/testing');
 
 /** The password every account created here uses */
 const PASSWORD = 'lineup-showcase';
@@ -95,74 +100,10 @@ const token = (response) => {
   return found ? decodeURIComponent(found.split('=')[1].split(';')[0]) : null;
 };
 
-/**
- * Creates a user
- *
- * @param {object} [attributes={}] Overrides
- * @returns {Promise<object>} The user
- */
-const createUser = async (attributes = {}) => {
-  const user = await User.create({
-    email: `speaker-${Math.random().toString(36).slice(2, 10)}@example.test`,
-    name: 'A Speaker',
-    password: PASSWORD,
-    ...attributes,
-  });
-
-  if (attributes.roles) {
-    await User.setRoles(user.externalId, attributes.roles);
-
-    // The row it just wrote: a primary key, so the key lookup
-    return User.findByKey(user.id);
-  }
-
-  return user;
-};
-
-/**
- * Creates an edition with one track
- *
- * @param {object} [attributes={}] Overrides of the edition
- * @returns {Promise<object>} `{ event, track }`
- */
-const createEvent = async (attributes = {}) => {
-  const event = await Event.create({
-    city: 'Testville',
-    name: 'Test Conf',
-    slug: `test-${Math.random().toString(36).slice(2, 8)}`,
-    state: 'open',
-    year: 2026,
-    ...attributes,
-  });
-  const track = await Track.create({
-    eventId: event.id,
-    name: 'Backend',
-    slug: 'backend',
-  });
-
-  return { event, track };
-};
-
-/**
- * Creates a proposal
- *
- * @param {object} attributes The attributes (speakerId and eventId required)
- * @returns {Promise<object>} The proposal
- */
-const createProposal = (attributes) =>
-  Proposal.create({
-    abstract:
-      'An abstract that is comfortably longer than the sixty characters the model asks for.',
-    title: 'A proposal with a long enough title',
-    ...attributes,
-  });
-
 module.exports = {
   PASSWORD,
   agent,
-  createEvent,
-  createProposal,
-  createUser,
+  create,
   inertiaVersion,
   page,
   request,

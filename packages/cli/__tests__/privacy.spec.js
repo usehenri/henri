@@ -3,31 +3,11 @@ const path = require('path');
 
 const { CliError } = require('../scripts/errors');
 const { erase, exportOne } = require('../scripts/privacy');
-const { cleanup, henri, tmpdir } = require('./helpers');
+const { cleanup, henri, linkAdapter, tmpdir } = require('./helpers');
 
 // The same minimal application `henri db` runs against: a drizzle store, a
 // Task and a User whose fields say what they are
 const fixture = path.join(__dirname, 'fixtures', 'seed-app');
-
-/**
- * Core resolves `@usehenri/drizzle` from the application directory: link
- * the workspace package into the fixture's node_modules (ignored by git)
- *
- * @returns {void}
- */
-const linkAdapter = () => {
-  const target = path.join(fixture, 'node_modules', '@usehenri', 'drizzle');
-
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-
-  if (!fs.existsSync(target)) {
-    fs.symlinkSync(
-      path.resolve(__dirname, '../../drizzle'),
-      target,
-      'junction'
-    );
-  }
-};
 
 describe('henri privacy', () => {
   describe('usage', () => {
@@ -50,7 +30,7 @@ describe('henri privacy', () => {
     let seeded;
 
     beforeAll(() => {
-      linkAdapter();
+      linkAdapter(fixture, 'drizzle');
       dir = tmpdir('henri-privacy-');
       receipts = path.join(dir, 'receipts');
       env = {

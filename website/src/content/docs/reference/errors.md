@@ -661,6 +661,57 @@ Usually:
 
 **Fix.** The boot prints every path it tried. Create config/default.json, or fix the JSON of the file that is there.
 
+## factory
+
+The test factories of `@usehenri/testing`: `test/factories`, the records they make and the traits they apply.
+
+### `HENRI_FACTORY_DEPTH`
+
+Factories nested into each other until it had to be called a cycle.
+
+Usually:
+
+- two factories that make each other, with nothing to end the chain
+- two fields of one factory that read each other through `attrs`
+
+**Fix.** End the chain by giving the association an id in the overrides: `create("proposal", { speakerId: someone.id })`.
+
+### `HENRI_FACTORY_INVALID`
+
+A factory definition cannot be used as one.
+
+Usually:
+
+- the file exports something other than `{ attributes }`
+- `model` names a model the application does not have
+- the file itself throws when it is loaded
+
+**Fix.** A factory exports `{ attributes }`, optionally with `model`, `traits` and `after`. Name the model with `model:` when the file is not called after it.
+
+### `HENRI_FACTORY_UNKNOWN`
+
+A test asked for a factory nothing declares.
+
+Usually:
+
+- a typo in the name given to `create()` or `build()`
+- the factory file is not in `test/factories`
+- the tests run from a directory that is not the application
+
+**Fix.** Add `test/factories/<name>.js`, or declare it in the test file with `defineFactory(name, definition)`. The message lists the factories that were found.
+
+### `HENRI_FACTORY_UNKNOWN_TRAIT`
+
+A test asked for a trait the factory does not declare.
+
+Usually:
+
+- a typo in a trait name
+- the trait belongs to another factory
+- an override object was passed as a string
+
+**Fix.** Declare the trait in the `traits` of the factory, or pass an override object instead. The message lists the traits it does have.
+
 ## job
 
 The background job queue of @usehenri/jobs.

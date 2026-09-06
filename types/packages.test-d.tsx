@@ -38,9 +38,16 @@ import globalSetup from '@usehenri/testing/global-setup';
 import '@usehenri/testing/setup-file';
 import {
   agent,
+  build as buildRecord,
+  create,
+  createList,
+  defineFactory,
   request as testRequest,
+  resetFactories,
   setup,
   teardown,
+  type FactoryAttributes,
+  type FactoryContext,
 } from '@usehenri/testing';
 import type { Henri } from '@usehenri/core';
 
@@ -159,6 +166,31 @@ setup({ port: 3000 });
 
 // @ts-expect-error `teardown()` takes nothing
 teardown(true);
+
+expectType<Promise<FactoryAttributes>>(buildRecord('proposal'));
+expectType<Promise<unknown>>(create('proposal'));
+expectType<Promise<unknown>>(
+  create('proposal', 'accepted', { title: 'A talk' })
+);
+expectType<Promise<unknown[]>>(createList('proposal', 3, 'accepted'));
+expectType<void>(resetFactories());
+defineFactory('proposal', {
+  after: async (record: { id: number }, { traits }: FactoryContext) =>
+    traits.length > 0 ? record : undefined,
+  attributes: {
+    speakerId: async ({ create: nested }: FactoryContext) =>
+      (await nested('user')).id,
+    title: ({ sequence }: FactoryContext) => `A proposal ${sequence}`,
+  },
+  model: 'Proposal',
+  traits: { accepted: { state: 'accepted' } },
+});
+
+// @ts-expect-error a factory needs its `attributes`
+defineFactory('proposal', { model: 'Proposal' });
+
+// @ts-expect-error `createList()` counts with a number
+createList('proposal', 'three');
 
 // --- the subpaths, so that every shipped declaration is compiled -----------
 

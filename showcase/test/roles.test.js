@@ -1,9 +1,7 @@
 // The role guard: what a browser gets, what an API client gets, and what the
 // path helpers a page receives hold.
 const {
-  createEvent,
-  createProposal,
-  createUser,
+  create,
   inertiaVersion,
   page,
   request,
@@ -29,21 +27,9 @@ describe('roles', () => {
     await reset();
     await inertiaVersion();
 
-    speaker = await createUser({ email: 'speaker@example.test' });
-    admin = await createUser({
-      email: 'admin@example.test',
-      name: 'An Admin',
-      roles: ['speaker', 'admin'],
-    });
-
-    const { event, track } = await createEvent();
-
-    proposal = await createProposal({
-      eventId: event.id,
-      speakerId: speaker.id,
-      state: 'submitted',
-      trackId: track.id,
-    });
+    speaker = await create('user', { email: 'speaker@example.test' });
+    admin = await create('user', 'admin', { email: 'admin@example.test' });
+    proposal = await create('proposal', 'submitted', { speakerId: speaker.id });
   });
 
   describe('a browser', () => {
