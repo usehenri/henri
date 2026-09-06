@@ -92,6 +92,7 @@ class View extends BaseModule {
       ).join(' ')}
       `,
         null,
+        null,
         'HENRI_VIEW_UNKNOWN_RENDERER'
       );
     }
