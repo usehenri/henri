@@ -233,8 +233,14 @@ jobs:
       - run: pnpm --filter @usehenri/website build
 
   scaffold:
-    name: Scaffold
+    name: Scaffold (${{ matrix.renderer }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The default renderer, and the frozen Next.js one: a scaffold that
+        # quietly stopped building is what this job is for
+        renderer: [inertia, react]
     steps:
       - uses: actions/checkout@v7
 
@@ -266,3 +272,5 @@ jobs:
       # henri new, install from the packed workspace packages, eslint,
       # henri build, henri server --production, GET / must answer 200
       - run: scripts/smoke.sh
+        env:
+          SMOKE_RENDERER: ${{ matrix.renderer }}
