@@ -241,6 +241,12 @@ class Drizzle {
       type: 'json',
     };
 
+    // The account flows (base/accounts.js): when the address was confirmed,
+    // and when the password last changed. The second one is what retires the
+    // sessions that were open when a password was reset.
+    definition.schema.confirmedAt = { type: 'date' };
+    definition.schema.passwordChangedAt = { type: 'date' };
+
     return definition;
   }
 

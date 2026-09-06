@@ -142,10 +142,12 @@ describe('user model overload', () => {
     expect(byExternalId.email).toBe('grace@usehenri.io');
     expect(adapter.userId(byId)).toBe(String(created.id));
     expect(adapter.toPlain(byEmail)).toEqual({
+      confirmedAt: null,
       createdAt: expect.any(Date),
       email: 'grace@usehenri.io',
       externalId: created.externalId,
       name: 'Grace',
+      passwordChangedAt: null,
       roles: ['member'],
       updatedAt: expect.any(Date),
     });

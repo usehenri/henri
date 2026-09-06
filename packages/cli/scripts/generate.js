@@ -40,7 +40,7 @@ const PAGE_EXTENSIONS = { inertia: 'jsx', react: 'js' };
 /**
  * Generators that take no name
  */
-const NAMELESS = ['agents'];
+const NAMELESS = ['agents', 'authentication'];
 
 /**
  * Initial function
@@ -287,6 +287,140 @@ const mailer = async (name, actions = [], opts = {}) => {
     'mailer.text.hbs',
     templates.textLayout(),
     { ...opts, force: false, raw: true }
+  );
+
+  return written;
+};
+
+/**
+ * Turns the account flows on in every `config/*.json` that does not already
+ * mention them, and answers the files it changed
+ *
+ * @param {object} [opts] { report }
+ * @returns {Array<string>} The relative paths of the files that changed
+ */
+const enableAccounts = (opts = {}) => {
+  const report = opts.report || new Report();
+  const dir = path.join(process.cwd(), 'config');
+  const changed = [];
+  let files;
+
+  try {
+    files = fs.readdirSync(dir).filter((file) => file.endsWith('.json'));
+  } catch {
+    return changed;
+  }
+
+  for (const file of files) {
+    const location = path.join(dir, file);
+    const config = fs.readJsonSync(location);
+    // `user` is either the model name or its settings; both get the blocks
+    const user =
+      typeof config.user === 'string'
+        ? { model: config.user }
+        : Object.assign({ model: 'user' }, config.user);
+    const missing = ['confirmation', 'passwordReset', 'signup'].filter(
+      (key) => typeof user[key] === 'undefined'
+    );
+
+    if (missing.length === 0) {
+      continue;
+    }
+
+    for (const key of missing) {
+      user[key] = key === 'signup' ? { fields: ['name'] } : true;
+    }
+
+    config.user = user;
+    fs.writeJsonSync(location, config, { spaces: 2 });
+
+    const relative = path.join('config', file);
+
+    changed.push(relative);
+    report.add('updated', relative);
+    report.log(`> turned the account flows on @ ${relative}`);
+  }
+
+  return changed;
+};
+
+/**
+ * Generates the account flows: the pages of registration, password reset and
+ * address confirmation, the controller rendering them, the mailer and its
+ * views, a user model when there is none, and the tests.
+ *
+ * The endpoints are henri's own (`config.user.signup`, `passwordReset` and
+ * `confirmation`), which this turns on; nothing written here reimplements a
+ * token, a hash or a session.
+ *
+ * @param {string} [name] Unused (there is only one set of these)
+ * @param {string[]} [rest] Unused
+ * @param {object} [opts] { force, report }
+ * @return {Promise<boolean>} True when something was written
+ */
+const authentication = async (name, rest = [], opts = {}) => {
+  const templates = require('./generate/authentication');
+  const cwd = process.cwd();
+  // The same fork the resource generator takes: the renderer of the
+  // application, and the page extension that goes with it
+  const renderer = rendererOf(cwd);
+  const extension = PAGE_EXTENSIONS[renderer];
+  const actions = ['confirm', 'forgot', 'login', 'new', 'reset'];
+  let written = false;
+
+  enableAccounts(opts);
+
+  // A user model is what the flows write to; only written when missing
+  await output('model', 'app/models', 'User.js', templates.model(), {
+    ...opts,
+    force: false,
+  });
+
+  written =
+    (await output(
+      'controller',
+      'app/controllers',
+      'accounts.js',
+      templates.controller(),
+      opts
+    )) || written;
+
+  for (const action of actions) {
+    await output(
+      'view',
+      'app/views/pages/accounts',
+      `${action}.${extension}`,
+      templates.view({ action, renderer }),
+      opts
+    );
+  }
+
+  await output('mailer', 'app/mailers', 'auth.js', templates.mailer(), opts);
+
+  for (const [action, body] of Object.entries(templates.MAIL_VIEWS)) {
+    await output('view', 'app/views/mailers/auth', `${action}.hbs`, body, {
+      ...opts,
+      raw: true,
+    });
+  }
+
+  await output(
+    'test',
+    'test',
+    'authentication.test.js',
+    templates.test(),
+    opts
+  );
+
+  await addRoutes(
+    {
+      'get /confirm': 'accounts#confirm',
+      'get /login': 'accounts#login',
+      'get /password/forgot': 'accounts#forgot',
+      'get /password/reset': 'accounts#reset',
+      'get /signup': 'accounts#new',
+    },
+    opts
   );
 
   return written;
@@ -612,6 +746,7 @@ const output = async (type, dir, file, code, opts = {}) => {
 
 const generators = {
   agents,
+  authentication,
   controller,
   crud,
   job,

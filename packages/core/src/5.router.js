@@ -559,14 +559,20 @@ class Router extends BaseModule {
       errors = result && result.errors;
     }
 
+    // Read once per request: rendering a page consumes the messages
+    const messages = flash.consume(req);
+
     const opts = {
       csrf: req.csrfToken || null,
       // The last gate on the way to a page: a record carrying a public
       // identifier leaves its primary key here (see base/external-id.js)
       data: stripInternalIds(payload),
-      errors,
-      // Read once per request: rendering a page consumes the messages
-      flash: flash.consume(req),
+      // A handler that refused a form and redirected leaves its errors in the
+      // flash (`req.flash('errors', { email: 'is required' })`), which is how
+      // post/redirect/get reaches the page: they arrive where a rendered
+      // error would, so a page reads `errors` whichever way it was answered
+      errors: errors || flash.bag(messages.errors),
+      flash: messages,
       localUrl: this.henri.server.url,
       paths: this.pathForRoles(req.user),
       query: req.query,

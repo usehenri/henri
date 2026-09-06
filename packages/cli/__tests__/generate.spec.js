@@ -445,6 +445,146 @@ describe('henri generate', () => {
     });
   });
 
+  describe('authentication', () => {
+    let auth;
+    let authDir;
+
+    beforeAll(() => {
+      ({ app: auth, dir: authDir } = scaffold());
+      global.henri.accounts = {
+        policy: () => ({ maxBytes: 72, minLength: 12 }),
+        settings: { signup: { fields: ['name'] } },
+      };
+
+      const { status, stdout, stderr } = henri(['g', 'authentication'], {
+        cwd: auth,
+      });
+
+      if (status !== 0) {
+        throw new Error(`henri g authentication failed: ${stdout}${stderr}`);
+      }
+    }, 120000);
+
+    afterAll(() => {
+      cleanup(authDir);
+      delete global.henri.accounts;
+    });
+
+    test('turns the three flows on in the configuration', () => {
+      const config = JSON.parse(read(auth, 'config/default.json'));
+
+      expect(config.user).toMatchObject({
+        confirmation: true,
+        model: 'user',
+        passwordReset: true,
+        signup: { fields: ['name'] },
+      });
+    });
+
+    test('writes the model, the controller, the pages, the mailer and the tests', () => {
+      const files = [
+        'app/models/User.js',
+        'app/controllers/accounts.js',
+        'app/views/pages/accounts/login.jsx',
+        'app/views/pages/accounts/new.jsx',
+        'app/views/pages/accounts/forgot.jsx',
+        'app/views/pages/accounts/reset.jsx',
+        'app/views/pages/accounts/confirm.jsx',
+        'app/mailers/auth.js',
+        'app/views/mailers/auth/confirm.hbs',
+        'app/views/mailers/auth/reset.hbs',
+        'app/views/mailers/auth/emailChange.hbs',
+        'test/authentication.test.js',
+      ];
+
+      for (const file of files) {
+        expect(exists(auth, file)).toBe(true);
+      }
+
+      for (const file of files.filter((one) => !one.endsWith('.hbs'))) {
+        expect(() => parseFile(auth, file)).not.toThrow();
+      }
+    });
+
+    test('routes the pages, and leaves the endpoints to henri', () => {
+      const routes = routesOf(auth);
+
+      expect(routes['get /login']).toBe('accounts#login');
+      expect(routes['get /signup']).toBe('accounts#new');
+      expect(routes['get /password/forgot']).toBe('accounts#forgot');
+      expect(routes['get /password/reset']).toBe('accounts#reset');
+      expect(routes['get /confirm']).toBe('accounts#confirm');
+      // The mutating half is mounted by the user module, not by the app
+      expect(routes['post /signup']).toBeUndefined();
+      expect(routes['post /password/forgot']).toBeUndefined();
+    });
+
+    test('the forms post to the endpoints henri mounts', () => {
+      expect(read(auth, 'app/views/pages/accounts/new.jsx')).toContain(
+        'action="/signup"'
+      );
+      expect(read(auth, 'app/views/pages/accounts/forgot.jsx')).toContain(
+        'action="/password/forgot"'
+      );
+      expect(read(auth, 'app/views/pages/accounts/reset.jsx')).toContain(
+        'action="/password/reset"'
+      );
+      expect(read(auth, 'app/views/pages/accounts/login.jsx')).toContain(
+        'action="/login"'
+      );
+    });
+
+    test('the controller only renders, and reads the policy for the form', () => {
+      const accounts = require(path.join(auth, 'app/controllers/accounts.js'));
+
+      expect(accounts.new()).toEqual({ fields: ['name'], minLength: 12 });
+      expect(accounts.reset()).toEqual({ minLength: 12 });
+      expect(accounts.confirm({})).toEqual({ email: null });
+      expect(accounts.create).toBeUndefined();
+      expect(accounts.update).toBeUndefined();
+    });
+
+    test('the mailer replaces henri.s messages action by action', () => {
+      const mailer = require(path.join(auth, 'app/mailers/auth.js'));
+      const message = mailer.reset({ email: 'ada@example.com' }, 'https://x/y');
+
+      expect(message.to).toBe('ada@example.com');
+      expect(message.data.url).toBe('https://x/y');
+      expect(Object.keys(mailer.previews).sort()).toEqual([
+        'confirm',
+        'emailChange',
+        'reset',
+      ]);
+    });
+
+    test('the pages take the renderer of the application', () => {
+      // The default renderer, above: Inertia pages reading useHenri()
+      expect(read(auth, 'app/views/pages/accounts/new.jsx')).toContain(
+        "from '@usehenri/inertia'"
+      );
+
+      const { app: other, dir: otherDir } = scaffold([
+        '--no-git',
+        '--renderer',
+        'react',
+      ]);
+
+      try {
+        expect(henri(['g', 'authentication'], { cwd: other }).status).toBe(0);
+        expect(exists(other, 'app/views/pages/accounts/new.js')).toBe(true);
+        expect(exists(other, 'app/views/pages/accounts/new.jsx')).toBe(false);
+        expect(read(other, 'app/views/pages/accounts/new.js')).toContain(
+          "from '@usehenri/react'"
+        );
+        expect(() =>
+          parseFile(other, 'app/views/pages/accounts/new.js')
+        ).not.toThrow();
+      } finally {
+        cleanup(otherDir);
+      }
+    }, 120000);
+  });
+
   describe('scaffold', () => {
     const files = [
       'app/models/Post.js',

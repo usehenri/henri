@@ -40,6 +40,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                            |
 | `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                     |
 | `secret`           |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                          |
+| `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.            |
 | `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                      |
 | `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                                |
 | `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.           |
@@ -221,6 +222,8 @@ config ✏ from the credentials => secret, mail.auth.pass => key: HENRI_CREDENTI
 
 `henri.config.fromCredentials` holds the same paths.
 
+**Rotating `secret`** — in the credentials or in `HENRI_SECRET` — signs every session out, because the session cookies are signed with it. It also invalidates every password reset and email confirmation link that has not been used yet: those links carry a token signed with the same secret rather than a row in a table (see [Users](/guides/users/#the-tokens)). Neither is a reason not to rotate it; both are a reason to expect the support mail, and to rotate at a quiet hour.
+
 ## The `jobs` object
 
 Everything the [job queue](/guides/jobs/) reads, all of it optional. It only loads when this key is there or when `app/jobs` holds a file.
@@ -375,6 +378,40 @@ henri doctor --json    # problems as { check, level, message, file, hint }
 ```
 
 The checks are `config.invalid` (an error), `config.adapter` (an unknown store adapter) and `config.unknown` (a warning). Being a file check, it sees neither the environment nor the credentials; the boot does.
+
+### The account flows
+
+Three more keys mount registration, the password reset and the address confirmation. Each is `true` for the defaults, `false` (or absent) to leave the endpoints unmounted, or an object of settings; `henri generate authentication` writes them along with the pages.
+
+```json
+{
+  "user": {
+    "model": "user",
+    "signup": { "fields": ["name"], "after": "/" },
+    "passwordReset": { "expiresIn": "1h" },
+    "confirmation": { "required": true }
+  }
+}
+```
+
+| Key                            | Default          | Description                                                                                    |
+| ------------------------------ | ---------------- | ---------------------------------------------------------------------------------------------- |
+| `signup.path`                  | `/signup`        | Where `POST` creates an account.                                                               |
+| `signup.fields`                | `[]`             | Attributes a signup form may set besides `email` and `password`. `roles` is never one of them. |
+| `signup.after`                 | `/`              | Where a browser lands after a successful signup.                                               |
+| `signup.login`                 | `true`           | Open a session for the new account.                                                            |
+| `passwordReset.path`           | `/password`      | Prefix of `<path>/forgot`, `<path>/reset/:token` and `<path>/reset`.                           |
+| `passwordReset.expiresIn`      | `1h`             | How long a reset link stays valid. Milliseconds, or `'1h'`, `'30m'`, `'3d'`.                   |
+| `passwordReset.after`          | `/`              | Where a browser lands once the password changed.                                               |
+| `passwordReset.login`          | `true`           | Sign the account in after the reset.                                                           |
+| `confirmation.path`            | `/confirm`       | `GET <path>/:token` confirms, `POST <path>` mails the link again.                              |
+| `confirmation.emailPath`       | `/account/email` | Where a signed-in account asks to change its address.                                          |
+| `confirmation.expiresIn`       | `3d`             | How long a confirmation link stays valid.                                                      |
+| `confirmation.after`           | `/`              | Where a browser lands once the address is confirmed.                                           |
+| `confirmation.required`        | `false`          | Keep unconfirmed accounts from opening a session.                                              |
+| `confirmation.requirePassword` | `true`           | Ask for the current password before mailing an address change.                                 |
+
+The links these flows mail carry signed tokens rather than stored ones, so **rotating `secret` invalidates every link that has not been used yet** (and every session, which is signed with the same secret). See [Users](/guides/users/#the-tokens).
 
 ## Reading the configuration in your code
 

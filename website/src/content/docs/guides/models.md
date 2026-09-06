@@ -321,13 +321,15 @@ It works on every adapter (the migration commands of `henri db` do not: those ne
 
 ## The user model
 
-When a model matches the configured `user` name (`user` by default, so `app/models/User.js`), the adapter adds three fields to it, on top of the `externalId` every model gets:
+When a model matches the configured `user` name (`user` by default, so `app/models/User.js`), the adapter adds five fields to it, on top of the `externalId` every model gets:
 
-| Field      | Behaviour                                                                                                                                                                                                                                                                                                                                        |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `email`    | Required, unique, trimmed and lowercased on write, validated as an email address.                                                                                                                                                                                                                                                                |
-| `password` | Required. Hashed (argon2id, or bcrypt) before every write, including `updateOne()`, `findByIdAndUpdate()` and bulk operations, and checked against `config.user.password` first. Not selected by default: `User.findOne(query).select('+password')` on Mongoose, `User.scope('withPassword')` on SQL. See [Passwords](/guides/users/#passwords). |
-| `roles`    | A list of strings, `config.baseRole` for a new user. Dropped from mass-assigned creates and updates: `User.create(req.body)` cannot grant a role. On SQL it is a `JSON` column (`TEXT` with a JSON getter on MSSQL).                                                                                                                             |
+| Field               | Behaviour                                                                                                                                                                                                                                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `email`             | Required, unique, trimmed and lowercased on write, validated as an email address.                                                                                                                                                                                                                                                                |
+| `password`          | Required. Hashed (argon2id, or bcrypt) before every write, including `updateOne()`, `findByIdAndUpdate()` and bulk operations, and checked against `config.user.password` first. Not selected by default: `User.findOne(query).select('+password')` on Mongoose, `User.scope('withPassword')` on SQL. See [Passwords](/guides/users/#passwords). |
+| `roles`             | A list of strings, `config.baseRole` for a new user. Dropped from mass-assigned creates and updates: `User.create(req.body)` cannot grant a role. On SQL it is a `JSON` column (`TEXT` with a JSON getter on MSSQL).                                                                                                                             |
+| `confirmedAt`       | When the address was confirmed, `null` until it is. Written by the [confirmation flow](/guides/users/#email-confirmation); never mass-assignable.                                                                                                                                                                                                |
+| `passwordChangedAt` | When the password last changed, `null` until it does. Every session opened before it stops resolving to a user, which is how a [reset](/guides/users/#the-password-reset) signs the other devices out.                                                                                                                                           |
 
 and three methods:
 
@@ -487,7 +489,7 @@ await henri.model.stores.default.transaction(async () => {
 });
 ```
 
-Validation failures throw a `ValidationError` whose `errors[field].message` is what the generated controllers read, unique violations included. Models can export `beforeValidate`, `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDestroy` and `afterDestroy` hooks, and `associate(models)` declares `belongsTo`, `hasMany` and `hasOne` associations that `include()` loads eagerly. The user model gets the same email, password and roles behaviour as the other adapters, and sessions are stored in a `henri_sessions` table.
+Validation failures throw a `ValidationError` whose `errors[field].message` is what the generated controllers read, unique violations included. Models can export `beforeValidate`, `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDestroy` and `afterDestroy` hooks, and `associate(models)` declares `belongsTo`, `hasMany` and `hasOne` associations that `include()` loads eagerly. The user model gets the same email, password, roles, `confirmedAt` and `passwordChangedAt` behaviour as the other adapters, and sessions are stored in a `henri_sessions` table.
 
 Migrations live in `db/migrations` in the drizzle-kit layout, and `henri db` drives them like `rails db`:
 

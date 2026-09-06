@@ -149,11 +149,75 @@ declare namespace start {
     password?: PasswordConfig;
     /** Per-account sign-in lockout; `false` turns it off. */
     lockout?: false | LockoutConfig;
+    /** Registration: `POST /signup`. Off unless the application asks. */
+    signup?: boolean | SignupConfig;
+    /**
+     * The password reset: `POST /password/forgot`,
+     * `GET /password/reset/:token` and `POST /password/reset`.
+     */
+    passwordReset?: boolean | PasswordResetConfig;
+    /**
+     * The address confirmation: `GET /confirm/:token`, `POST /confirm` and
+     * `POST /account/email`.
+     */
+    confirmation?: boolean | ConfirmationConfig;
+  }
+
+  /** `config.user.signup`. */
+  interface SignupConfig {
+    /** `false` leaves the endpoint unmounted. */
+    enabled?: boolean;
+    /** Where the endpoint is mounted (`/signup`). */
+    path?: string;
+    /**
+     * Attributes a signup form may set, besides `email` and `password`.
+     * `roles`, `confirmedAt` and `passwordChangedAt` are never assignable.
+     */
+    fields?: string[];
+    /** Where a browser lands after a successful signup (`/`). */
+    after?: string;
+    /** Open a session for the new account (`true`). */
+    login?: boolean;
+  }
+
+  /** `config.user.passwordReset`. */
+  interface PasswordResetConfig {
+    /** `false` leaves the endpoints unmounted. */
+    enabled?: boolean;
+    /** Prefix of the three endpoints (`/password`). */
+    path?: string;
+    /** How long a link stays valid (`'1h'`). */
+    expiresIn?: Duration;
+    /** Where a browser lands after a successful reset (`/`). */
+    after?: string;
+    /** Sign the account in once the password changed (`true`). */
+    login?: boolean;
+  }
+
+  /** `config.user.confirmation`. */
+  interface ConfirmationConfig {
+    /** `false` leaves the endpoints unmounted. */
+    enabled?: boolean;
+    /** Prefix of the confirmation endpoints (`/confirm`). */
+    path?: string;
+    /** Where an address change is asked for (`/account/email`). */
+    emailPath?: string;
+    /** How long a link stays valid (`'3d'`). */
+    expiresIn?: Duration;
+    /** Where a browser lands after a confirmation (`/`). */
+    after?: string;
+    /** Keep unconfirmed accounts from opening a session (`false`). */
+    required?: boolean;
+    /** Ask for the current password before changing an address (`true`). */
+    requirePassword?: boolean;
   }
 
   /** The normalized `config.user`, as `henri.user.settings`. */
   interface UserSettings extends Required<
-    Omit<UserConfig, 'password' | 'lockout'>
+    Omit<
+      UserConfig,
+      'password' | 'lockout' | 'signup' | 'passwordReset' | 'confirmation'
+    >
   > {
     password: PasswordPolicy;
     lockout: Required<LockoutConfig> | null;
@@ -203,6 +267,94 @@ declare namespace start {
     maxAliases: number;
     maxComplexity: number;
     maxTokens: number;
+  }
+
+  /** `henri.accounts.settings`: the three blocks of `config.user`, normalized. */
+  interface AccountSettings {
+    signup: Required<SignupConfig>;
+    passwordReset: Required<Omit<PasswordResetConfig, 'expiresIn'>> & {
+      expiresIn: number;
+    };
+    confirmation: Required<Omit<ConfirmationConfig, 'expiresIn'>> & {
+      expiresIn: number;
+    };
+  }
+
+  /** What a token is allowed to do; it is part of what the token signs. */
+  interface AccountPurposes {
+    confirmation: 'confirmation';
+    emailChange: 'email-change';
+    reset: 'password-reset';
+  }
+
+  /** What a flow answers: the record, and a message per field when it refused. */
+  interface AccountResult {
+    ok: boolean;
+    /** `{ email: 'is already registered' }`; empty when it went through. */
+    errors: Record<string, string>;
+    /** `malformed`, `purpose`, `signature`, `expired`, `unknown`, `taken`. */
+    reason?: string | null;
+    user: any;
+  }
+
+  /**
+   * `henri.accounts`: registration, the password reset and the address
+   * confirmation. The endpoints of `config.user` call this, and so can a
+   * controller that would rather answer them itself.
+   */
+  interface AccountsService {
+    PURPOSE: AccountPurposes;
+    /** The normalized `config.user.signup`, `passwordReset`, `confirmation`. */
+    readonly settings: AccountSettings;
+    /** `henri.user.passwordPolicy`: read `minLength` rather than hard-coding it. */
+    policy(): PasswordPolicy;
+    /** `henri.user.validatePassword()`, so one rule governs both flows. */
+    checkPassword(
+      password: unknown
+    ): ReturnType<UserModule['validatePassword']>;
+    /** Creates an account; `roles` is never assignable here. */
+    register(attributes: Record<string, unknown>): Promise<AccountResult>;
+    /**
+     * Answers nothing about the address: the lookup and the mail run after
+     * the caller's own answer is written.
+     */
+    requestPasswordReset(email: string): Promise<void>;
+    /** Changes the password, retires the other sessions, spends the token. */
+    resetPassword(token: string, password: unknown): Promise<AccountResult>;
+    requestConfirmation(email: string): Promise<void>;
+    /** Confirms an address, or applies an `email-change` token. */
+    confirm(token: string): Promise<AccountResult>;
+    /** Mails a link; the address changes only when it is followed. */
+    requestEmailChange(
+      user: unknown,
+      email: string
+    ): Promise<{ ok: boolean; errors: Record<string, string> }>;
+    /** Mints a token for a user; mostly useful in tests. */
+    tokenFor(
+      user: unknown,
+      purpose: string,
+      options?: { data?: unknown; expiresIn?: number }
+    ): Promise<string | null>;
+    /** Verifies a token and loads the account it names. */
+    consume(
+      token: string,
+      purpose: string
+    ): Promise<{
+      ok: boolean;
+      payload: Record<string, unknown> | null;
+      reason: string | null;
+      user: any;
+    }>;
+    sendConfirmation(user: unknown): Promise<string | null>;
+    sendReset(user: unknown): Promise<string | null>;
+    /** May this account open a session? (`confirmation.required`) */
+    allowed(user: unknown): boolean;
+    /** The public identifier a token names the account by. */
+    identify(user: unknown): string | null;
+    /** The absolute url of a path, for the links inside the mails. */
+    urlFor(path: string): string;
+    /** Waits for the work the flows started after their answers. */
+    drain(): Promise<boolean>;
   }
 
   /** `config.api`: the JSON API. */
@@ -353,6 +505,13 @@ declare namespace start {
     stores?: Record<string, StoreConfig>;
     /** Session and token secret; usually provided by `HENRI_SECRET`. */
     secret?: string;
+    /**
+     * The canonical address of the application (`https://example.com`), used
+     * for the links inside the mails henri sends. Without one the running
+     * server's own url is used, which is right in development and wrong
+     * behind a proxy.
+     */
+    url?: string;
     /** Name of the user model, or its settings. */
     user?: string | UserConfig;
     /** Role, or roles, given to every new user. */
@@ -581,8 +740,12 @@ declare namespace start {
     user: PublicUser | null;
     /** What the action passed to `res.render({ data })`. */
     data?: Record<string, unknown>;
-    /** The GraphQL errors, when the page was rendered from a query. */
-    errors?: readonly unknown[] | null;
+    /**
+     * The GraphQL errors when the page was rendered from a query, or the
+     * messages a redirecting handler left in the flash (`req.flash('errors',
+     * { email: 'is required' })`), keyed by field.
+     */
+    errors?: readonly unknown[] | Record<string, unknown> | null;
     graphql?: { endpoint: string | false; query: string | false };
   }
 
@@ -1346,6 +1509,8 @@ declare namespace start {
     jobs: JobsModule;
     workers: WorkersModule;
     api: ApiNamespace;
+    /** Registration, the password reset and the address confirmation. */
+    accounts: AccountsService;
     /** The passport instance (also `henri.user.passport`). */
     passport: any;
     /** `.permit(...fields)` and `.all()`, the helper behind `req.permit()`. */

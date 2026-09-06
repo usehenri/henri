@@ -456,6 +456,11 @@ const COMMANDS = [
         description: 'Creates test/highscores.test.js using @usehenri/testing',
       },
       {
+        command: 'henri g authentication',
+        description:
+          'Registration, password reset and email confirmation: the pages, the controller, the mailer and the tests',
+      },
+      {
         command: 'henri g agents',
         description:
           'Writes AGENTS.md, CLAUDE.md and .mcp.json in an existing application',
@@ -505,6 +510,11 @@ const COMMANDS = [
         description:
           'model, resources controller, resources routes and the pages',
         name: 'scaffold <Name> [field:type[!] ...]',
+      },
+      {
+        description:
+          'the account flows: turns config.user.signup, passwordReset and confirmation on, and writes the pages, the controller, the mailer, the user model and the tests around the endpoints henri mounts',
+        name: 'authentication',
       },
       {
         description:

@@ -101,6 +101,17 @@ app/views/mailers/layouts/mailer.text.hbs    the layout of the plain part
 
 An action that sets `text` itself wins over both.
 
+## The mails henri sends itself
+
+One mailer ships with henri: `auth`, the three messages of the [account flows](/guides/users/#the-mails) — confirm an address, reset a password, confirm a new address. It is registered only in an application that turned one of those flows on, and it is an ordinary mailer otherwise: it shows up on `/_mailers`, its views live behind yours, and it is overridden in the two usual ways.
+
+- `app/views/mailers/auth/reset.hbs` (and `reset.text.hbs`) replaces one view. henri's own views sit behind the application's, so writing this file is enough.
+- `app/mailers/auth.js` replaces the subjects, the sender or the data. An action it leaves out keeps henri's, so a file with only `reset` in it still confirms addresses.
+
+`henri generate authentication` writes both, which is the usual way to change the wording.
+
+The same fallback applies to the layout: an application with no `app/views/mailers/layouts/mailer.hbs` gets henri's, a plain centered shell, rather than an unwrapped body.
+
 ## Previews
 
 While the server runs in development, `http://localhost:3000/_mailers` lists every mailer and every action, and renders one with the sample data declared in its `previews`. Nothing is delivered.

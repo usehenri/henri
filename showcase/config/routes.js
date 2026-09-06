@@ -17,8 +17,16 @@ module.exports = {
   // POST /login and POST /logout are mounted by henri; the page is ours
   'get /login': 'sessions#new',
 
+  // The account flows are henri's: POST /signup, POST /password/forgot,
+  // GET /password/reset/:token, POST /password/reset, GET /confirm/:token,
+  // POST /confirm and POST /account/email are mounted by the user module
+  // because config.user turned them on. What is left for the application is
+  // the pages those forms live on.
   'get /signup': 'accounts#new',
-  'post /signup': 'accounts#create',
+
+  'get /confirm': 'accounts#confirm',
+  'get /password/forgot': 'accounts#forgot',
+  'get /password/reset': 'accounts#reset',
 
   // A plain route behind a role: every signed-in speaker may edit their own
   // profile, an anonymous visitor is redirected to the login page

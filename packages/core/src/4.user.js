@@ -19,12 +19,19 @@ const {
   verifyPassword,
 } = require('./base/password');
 const Lockout = require('./base/lockout');
+const accounts = require('./base/accounts');
 const csrf = require('./base/csrf');
 const { csrfConfig } = csrf;
 const SessionStoreProxy = require('./base/session-store');
 
 const SESSION_COOKIE = 'henri.sid';
 const CSRF_COOKIE = 'henri.csrf';
+
+/**
+ * What separates the identifier of a session from the moment it was opened.
+ * Neither a primary key, a uuid nor a MongoDB ObjectId contains it.
+ */
+const ISSUED_AT = '|';
 
 /**
  * Tells if a store adapter owns a model
@@ -320,6 +327,9 @@ class User extends BaseModule {
 
     this.settings = userConfig(config, { isTest: this.henri.isTest });
     this.henri.params = params;
+    // The service exists whether or not this application has a user model;
+    // only its endpoints are conditional (see below)
+    this.henri.accounts = accounts(this.henri);
 
     if (server && server.app) {
       server.app.set(
@@ -379,6 +389,9 @@ class User extends BaseModule {
       )
     );
 
+    // The moment the session was opened travels with the identifier, so a
+    // password change can retire the sessions that predate it without a
+    // second read on every request (see stale())
     this.passport.serializeUser((user, done) => {
       const id = this.adapter().userId(user);
 
@@ -386,14 +399,20 @@ class User extends BaseModule {
         return done(new Error('unable to serialize the user: missing id'));
       }
 
-      return done(null, id);
+      return done(null, `${id}${ISSUED_AT}${Date.now()}`);
     });
 
-    this.passport.deserializeUser(async (id, done) => {
+    this.passport.deserializeUser(async (serialized, done) => {
+      const { id, issuedAt } = User.session(serialized);
+
       try {
         const user = await this.findById(id);
 
-        return done(null, user || false);
+        if (!user || this.stale(user, issuedAt)) {
+          return done(null, false);
+        }
+
+        return done(null, user);
       } catch (error) {
         return done(error);
       }
@@ -448,6 +467,12 @@ class User extends BaseModule {
       app.post('/login', this.login);
     });
 
+    // Registration, password reset and address confirmation: mounted when
+    // `config.user` asks for them (see base/accounts.js)
+    this.henri.addMiddleware('accounts', (app) => {
+      app.use(accounts.router(this.henri));
+    });
+
     this.henri.addMiddleware('logout', (app) => {
       app.post('/logout', this.logout);
       app.get('/logout', this.deprecatedLogout);
@@ -488,6 +513,65 @@ class User extends BaseModule {
     }
 
     return null;
+  }
+
+  /**
+   * Reads what serializeUser() wrote: the identifier of the user and the
+   * moment the session was opened. A session written by an older henri
+   * carries the identifier alone and never goes stale.
+   *
+   * @static
+   * @param {*} serialized what passport kept in the session
+   * @returns {{id: string, issuedAt: ?number}} the pair
+   * @memberof User
+   */
+  static session(serialized) {
+    const value = String(serialized === null ? '' : serialized);
+    const at = value.lastIndexOf(ISSUED_AT);
+
+    if (at < 0) {
+      return { id: value, issuedAt: null };
+    }
+
+    const issuedAt = Number(value.slice(at + 1));
+
+    return {
+      id: value.slice(0, at),
+      issuedAt: Number.isFinite(issuedAt) ? issuedAt : null,
+    };
+  }
+
+  /**
+   * Was this session opened before the password of the account changed?
+   *
+   * That is how a password reset signs the other devices out: the reset
+   * stamps `passwordChangedAt`, and every session older than the stamp stops
+   * deserializing on its next request. Which matters, because the usual
+   * reason someone resets a password is that they believe someone else has
+   * it.
+   *
+   * @param {object} user the user the session names
+   * @param {?number} issuedAt when the session was opened
+   * @returns {boolean} true when the session must be refused
+   * @memberof User
+   */
+  stale(user, issuedAt) {
+    const plain = this.adapter().toPlain(user) || {};
+    const changed = plain.passwordChangedAt
+      ? new Date(plain.passwordChangedAt).getTime()
+      : null;
+
+    if (!changed || Number.isNaN(changed) || issuedAt === null) {
+      return false;
+    }
+
+    if (issuedAt < changed) {
+      debug('session opened before the password changed: refused');
+
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -630,8 +714,23 @@ class User extends BaseModule {
         });
       }
 
+      // The credentials were right, whatever happens next: the counter is
+      // cleared before the confirmation gate, so an unconfirmed account
+      // trying its own correct password cannot lock itself out
       if (this.lockout && account) {
         await this.lockout.succeed(account).catch(() => false);
+      }
+
+      // `config.user.confirmation.required`: an address nobody has proved
+      // they can read does not open a session
+      if (this.henri.accounts && !this.henri.accounts.allowed(user)) {
+        return respond(res, {
+          html: () => res.redirect(`${loginPath}?error=unconfirmed`),
+          json: () =>
+            res.boom.forbidden('Confirm your email address to sign in', {
+              reason: 'unconfirmed',
+            }),
+        });
       }
 
       return req.logIn(user, (loginError) => {
@@ -746,6 +845,11 @@ class User extends BaseModule {
    * @memberof User
    */
   async stop() {
+    // The account flows answer before they mail: wait for what is in flight
+    if (this.henri.accounts) {
+      await this.henri.accounts.drain();
+    }
+
     if (this.lockout) {
       this.lockout.shutdown();
       this.lockout = null;
@@ -763,5 +867,6 @@ class User extends BaseModule {
 }
 
 module.exports = User;
-module.exports.SESSION_COOKIE = SESSION_COOKIE;
 module.exports.CSRF_COOKIE = CSRF_COOKIE;
+module.exports.ISSUED_AT = ISSUED_AT;
+module.exports.SESSION_COOKIE = SESSION_COOKIE;

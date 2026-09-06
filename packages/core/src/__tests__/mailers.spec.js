@@ -331,7 +331,9 @@ describe('mailers', () => {
 
         expect(module.names()).toEqual([]);
         expect(module.tree()).toEqual({});
-        expect(new MailViews(fakeHenri({ cwd })).layouts()).toEqual([]);
+        // The `mailer` layout henri ships sits behind the application's, so
+        // a mailer written before any template exists still renders
+        expect(new MailViews(fakeHenri({ cwd })).layouts()).toEqual(['mailer']);
       } finally {
         fs.rmSync(cwd, { force: true, recursive: true });
       }
@@ -592,7 +594,9 @@ describe('mailers', () => {
     }, 60000);
 
     test('henri.mailers is loaded and delivers through the test transport', async () => {
-      expect(henri.mailers.names()).toEqual(['welcome']);
+      // `auth` is henri's own: the demo application turned the account flows
+      // on, so the mails they send are registered next to the demo's mailer
+      expect(henri.mailers.names()).toEqual(['auth', 'welcome']);
 
       const info = await henri.mailers.welcome.confirm(ada).deliver();
       const message = JSON.parse(info.message);

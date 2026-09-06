@@ -23,6 +23,16 @@ export default function Login() {
           view.
         </p>
 
+        {data.unconfirmed && (
+          <p className="mt-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            Confirm your email address first.{' '}
+            <Link className="underline" href="/confirm">
+              Ask for the message again
+            </Link>
+            .
+          </p>
+        )}
+
         {data.failed && (
           <p className="mt-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
             That email and password did not match.
@@ -74,7 +84,10 @@ export default function Login() {
           <Link className="underline" href={getRoute('new_accounts_path')}>
             Create one
           </Link>
-          .
+          {' · '}
+          <Link className="underline" href="/password/forgot">
+            Forgot your password?
+          </Link>
         </p>
       </div>
     </Layout>

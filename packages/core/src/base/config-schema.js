@@ -223,9 +223,15 @@ const SCHEMA = {
     hint: 'Set it with HENRI_SECRET or the credentials, never in config/',
   }),
 
+  url: text({
+    default: 'the url of the running server',
+    describe: 'the canonical address of the application',
+    hint: 'https://example.com, used for the links inside the mails henri sends',
+  }),
+
   user: {
     describe:
-      'the name of the user model, or an object ({ model, public, loginPath, afterLogin, sessionMaxAge, password, lockout })',
+      'the name of the user model, or an object ({ model, public, loginPath, afterLogin, sessionMaxAge, password, lockout, signup, passwordReset, confirmation })',
     oneOf: [
       text(),
       {
@@ -234,6 +240,54 @@ const SCHEMA = {
             default: '/',
             describe: 'a path to land on after a form login',
           }),
+          confirmation: {
+            default: false,
+            describe:
+              'true, false, or an object ({ path, emailPath, expiresIn, after, required, requirePassword })',
+            hint: 'mounts GET /confirm/:token, POST /confirm and POST /account/email',
+            oneOf: [
+              { type: 'boolean' },
+              {
+                keys: {
+                  after: text({
+                    default: '/',
+                    describe: 'a path to land on once the address is confirmed',
+                  }),
+                  emailPath: text({
+                    default: '/account/email',
+                    describe: 'where an account asks to change its address',
+                  }),
+                  enabled: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'false leaves the endpoints unmounted',
+                    type: 'boolean',
+                  },
+                  expiresIn: duration({
+                    default: '3d',
+                    describe: 'how long a confirmation link stays valid',
+                  }),
+                  path: text({
+                    default: '/confirm',
+                    describe: 'the prefix of the confirmation endpoints',
+                  }),
+                  required: {
+                    default: false,
+                    describe: 'true or false',
+                    hint: 'true keeps unconfirmed accounts from signing in; backfill confirmedAt first',
+                    type: 'boolean',
+                  },
+                  requirePassword: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'false lets a signed-in account change its address without its password',
+                    type: 'boolean',
+                  },
+                },
+                type: 'object',
+              },
+            ],
+          },
           lockout: {
             default: '{ max: 10, windowMs: 900000 }',
             describe: 'false, or an object ({ max, windowMs, store })',
@@ -350,6 +404,44 @@ const SCHEMA = {
             },
             type: 'object',
           },
+          passwordReset: {
+            default: false,
+            describe:
+              'true, false, or an object ({ path, expiresIn, after, login })',
+            hint: 'mounts POST <path>/forgot, GET <path>/reset/:token and POST <path>/reset',
+            oneOf: [
+              { type: 'boolean' },
+              {
+                keys: {
+                  after: text({
+                    default: '/',
+                    describe: 'a path to land on once the password changed',
+                  }),
+                  enabled: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'false leaves the endpoints unmounted',
+                    type: 'boolean',
+                  },
+                  expiresIn: duration({
+                    default: '1h',
+                    describe: 'how long a reset link stays valid',
+                  }),
+                  login: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'false sends the browser to the login page instead',
+                    type: 'boolean',
+                  },
+                  path: text({
+                    default: '/password',
+                    describe: 'the prefix of the reset endpoints',
+                  }),
+                },
+                type: 'object',
+              },
+            ],
+          },
           public: {
             describe: 'a list of field names',
             hint: 'externalId, email and roles are always public',
@@ -360,6 +452,46 @@ const SCHEMA = {
             default: 2592000000,
             describe: 'a session lifetime in milliseconds',
           }),
+          signup: {
+            default: false,
+            describe:
+              'true, false, or an object ({ path, fields, after, login })',
+            hint: 'mounts POST /signup',
+            oneOf: [
+              { type: 'boolean' },
+              {
+                keys: {
+                  after: text({
+                    default: '/',
+                    describe: 'a path to land on after a signup',
+                  }),
+                  enabled: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'false leaves the endpoint unmounted',
+                    type: 'boolean',
+                  },
+                  fields: {
+                    describe: 'a list of field names a signup form may set',
+                    hint: 'email and password are always permitted; roles never is',
+                    of: text(),
+                    type: 'array',
+                  },
+                  login: {
+                    default: true,
+                    describe: 'true or false',
+                    hint: 'false creates the account without opening a session',
+                    type: 'boolean',
+                  },
+                  path: text({
+                    default: '/signup',
+                    describe: 'where the endpoint is mounted',
+                  }),
+                },
+                type: 'object',
+              },
+            ],
+          },
         },
         type: 'object',
       },

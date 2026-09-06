@@ -229,6 +229,12 @@ class Mongoose {
     schema.add({ password: { required: true, select: false, type: String } });
     schema.add({ roles: { default: () => [...baseRoles], type: [String] } });
 
+    // The account flows (base/accounts.js): when the address was confirmed,
+    // and when the password last changed. The second one is what retires the
+    // sessions that were open when a password was reset.
+    schema.add({ confirmedAt: { default: null, type: Date } });
+    schema.add({ passwordChangedAt: { default: null, type: Date } });
+
     const encrypt = (password) => thisHenri.user.encrypt(password);
 
     /**

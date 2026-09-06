@@ -18,6 +18,7 @@ class Report {
     this.name = null;
     this.backup = null;
     this.created = [];
+    this.updated = [];
     this.skipped = [];
     this.removed = [];
     this.missing = [];
@@ -39,7 +40,7 @@ class Report {
   /**
    * Record a file (or a route) change
    *
-   * @param {('created'|'skipped'|'removed'|'missing'|'routes.added'|'routes.removed')} kind What happened
+   * @param {('created'|'updated'|'skipped'|'removed'|'missing'|'routes.added'|'routes.removed')} kind What happened
    * @param {string} value The relative path, or the route key
    * @returns {void}
    */
@@ -78,6 +79,7 @@ class Report {
       name: this.name,
       routes: { added: this.routes.added },
       skipped: this.skipped,
+      updated: this.updated,
     };
   }
 

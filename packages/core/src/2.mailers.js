@@ -3,6 +3,7 @@ const BaseModule = require('./base/module');
 const path = require('path');
 const debug = require('debug')('henri:mailers');
 
+const { accountsConfig } = require('./base/accounts');
 const { loadModules } = require('./utils');
 const MailViews = require('./base/mail-view');
 const Message = require('./base/mail-message');
@@ -16,6 +17,17 @@ const RESERVED = new Set(['defaults', 'globalId', 'identity', 'previews']);
 
 /** Where the previews are mounted, in development only */
 const PREVIEW_PATH = '/_mailers';
+
+/**
+ * The mailers henri ships, for the mails it sends itself.
+ *
+ * `auth` holds the account flows (`base/accounts.js`). An application
+ * overrides it action by action by writing `app/mailers/auth.js`, or view by
+ * view by writing `app/views/mailers/auth/<action>.hbs`; whatever it does not
+ * write keeps working, which is what lets a fresh application reset a
+ * password before anyone has written a template.
+ */
+const BUILTINS = Object.freeze({ auth: require('./mailers/auth') });
 
 /**
  * Mailers module
@@ -94,6 +106,39 @@ class Mailers extends BaseModule {
   }
 
   /**
+   * Puts henri's own mailers behind the application's: an action the
+   * application declares wins, one it left out falls back to henri's
+   *
+   * @static
+   * @param {object} mailers the mailers loaded from app/mailers
+   * @param {boolean} [wanted=true] false when the application asked for none
+   *   of the flows they belong to, so nothing is registered
+   * @returns {object} the mailers, by name
+   * @memberof Mailers
+   */
+  static merge(mailers, wanted = true) {
+    const merged = Object.assign({}, mailers);
+
+    if (!wanted) {
+      return merged;
+    }
+
+    for (const [name, builtin] of Object.entries(BUILTINS)) {
+      const own = merged[name];
+
+      merged[name] =
+        own && typeof own === 'object'
+          ? Object.assign({}, builtin, own, {
+              defaults: Object.assign({}, builtin.defaults, own.defaults),
+              previews: Object.assign({}, builtin.previews, own.previews),
+            })
+          : builtin;
+    }
+
+    return merged;
+  }
+
+  /**
    * Module initialization
    * Called after being loaded by Modules
    *
@@ -105,8 +150,15 @@ class Mailers extends BaseModule {
   async init() {
     this.views = new MailViews(this.henri);
 
+    // The `auth` mailer only exists in an application that turned one of the
+    // account flows on: nothing else has a use for it
+    const flows = accountsConfig(this.henri.config);
+
     this.configure(
-      await Mailers.load(path.join(this.henri.cwd(), 'app/mailers'))
+      Mailers.merge(
+        await Mailers.load(path.join(this.henri.cwd(), 'app/mailers')),
+        Object.values(flows).some((block) => block.enabled)
+      )
     );
 
     const count = this._mailers.size;
@@ -484,5 +536,6 @@ class Mailers extends BaseModule {
 }
 
 module.exports = Mailers;
+module.exports.BUILTINS = BUILTINS;
 module.exports.PREVIEW_PATH = PREVIEW_PATH;
 module.exports.RESERVED = RESERVED;

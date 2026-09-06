@@ -138,7 +138,7 @@ describe('the cli', () => {
       expect(stderr).toContain(
         'henri generate failed: Unknown generator "nope"'
       );
-      expect(stderr).toContain('Available: agents, controller');
+      expect(stderr).toContain('Available: agents, authentication');
       expect(stdout).not.toContain('Usage');
     });
 

@@ -152,6 +152,7 @@ describe('--json', () => {
         name: 'Post',
         routes: { added: ['resources posts'] },
         skipped: [],
+        updated: [],
       });
     });
 
@@ -253,7 +254,7 @@ describe('--json', () => {
           code: 'USAGE',
           command: 'generate',
           exitCode: 2,
-          hint: expect.stringContaining('Available: agents, controller'),
+          hint: expect.stringContaining('Available: agents, authentication'),
           message: 'Unknown generator "nope"',
         },
       });
