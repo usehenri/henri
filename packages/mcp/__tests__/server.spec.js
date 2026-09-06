@@ -189,6 +189,7 @@ describe('henri mcp', () => {
     const { tools } = await client.listTools();
 
     expect(tools.map((tool) => tool.name).sort()).toEqual([
+      'audit',
       'config',
       'controllers',
       'destroy',
@@ -332,6 +333,20 @@ describe('henri mcp', () => {
     } finally {
       fs.writeFileSync(file, original);
     }
+  });
+
+  test('audit: the security findings, with their category', async () => {
+    const { isError, structuredContent } = await call(client, 'audit');
+
+    expect(isError).toBe(false);
+    expect(structuredContent.ok).toBe(true);
+    expect(structuredContent.findings).toEqual([]);
+    expect(structuredContent.summary).toMatchObject({
+      failOn: 'medium',
+      findings: 0,
+      high: 0,
+      standards: { asvs: '4.0.3', owasp: 'Top 10:2021' },
+    });
   });
 
   test('doctor: the conventions check and the environment', async () => {

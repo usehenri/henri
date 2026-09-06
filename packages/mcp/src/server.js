@@ -48,7 +48,7 @@ const TARGETS = [
   'test',
 ];
 
-const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor and test.`;
+const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor, audit and test.`;
 
 /**
  * A tool result carrying JSON (as text for every client, structured for
@@ -218,6 +218,25 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
       title: 'Configuration',
     },
     async ({ env }) => ok(app.config(env))
+  );
+
+  server.registerTool(
+    'audit',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        "Checks the application against the OWASP Top 10 (2021) and the checkable parts of the ASVS 4.0.3, from its files only: a protection turned off in config/*.json, a secret or a credentials key that reached a commit, a model write that takes the whole request body instead of req.permit(), a resource action left without a role where its siblings have one, a raw query built by interpolation, unescaped output in a view. Findings carry a severity (high, medium, low), the check name, the OWASP category, the ASVS requirement, the file and the line. It reports what the application says, never henri's own defaults, which are secure. Set deps to true to also ask the package manager about the known advisories of the production dependencies; that step reaches the network.",
+      inputSchema: {
+        deps: zod
+          .boolean()
+          .optional()
+          .describe(
+            'Also check the production dependencies against the advisory database (reaches the network; false by default)'
+          ),
+      },
+      title: 'Security audit',
+    },
+    async ({ deps }) => ok(app.audit({ deps: deps === true }))
   );
 
   server.registerTool(
