@@ -69,7 +69,7 @@ export default function TasksIndex() {
         )}
         {tasks.map((task) => (
           <li
-            key={String(task._id ?? task.id)}
+            key={task.externalId}
             className="flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-3 last:border-0 dark:border-zinc-800"
           >
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -79,10 +79,7 @@ export default function TasksIndex() {
               {task.category}
             </span>
             <Form
-              action={pathFor(
-                'destroy_tasks_path',
-                String(task._id ?? task.id)
-              )}
+              action={pathFor('destroy_tasks_path', task.externalId)}
               method="delete"
             >
               <button

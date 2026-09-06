@@ -53,23 +53,23 @@ const Index = ({ data: { {{plural}} = [] }, fetch, getRoute, hydrate, pathFor })
             )}
             { {{plural}}.map((item) => (
               <tr
-                key={String(item._id ?? item.id)}
+                key={item.externalId}
                 className="hover:bg-zinc-50 dark:hover:bg-zinc-900"
               >
                 {{#each keys}}
                 <td className={cell}>{String(item.{{this}} ?? '')}</td>
                 {{/each}}
                 <td className={`${cell} space-x-4 whitespace-nowrap text-right`}>
-                  <Link className={link} href={getRoute('show_{{plural}}_path', String(item._id ?? item.id))}>
+                  <Link className={link} href={getRoute('show_{{plural}}_path', item.externalId)}>
                     Show
                   </Link>
-                  <Link className={link} href={getRoute('edit_{{plural}}_path', String(item._id ?? item.id))}>
+                  <Link className={link} href={getRoute('edit_{{plural}}_path', item.externalId)}>
                     Edit
                   </Link>
                   <button
                     className="text-sm text-red-600 hover:underline dark:text-red-400"
                     type="button"
-                    onClick={() => destroy(item._id ?? item.id)}
+                    onClick={() => destroy(item.externalId)}
                   >
                     Destroy
                   </button>

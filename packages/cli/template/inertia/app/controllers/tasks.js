@@ -27,7 +27,8 @@ module.exports = {
   },
 
   destroy: async (req, res) => {
-    await Task.deleteOne({ _id: req.params.id });
+    // `:id` is the public identifier of the task, its externalId
+    await Task.findByIdAndDelete(req.params.id);
 
     res.redirect('/tasks');
   },

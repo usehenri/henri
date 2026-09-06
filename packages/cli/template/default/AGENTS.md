@@ -58,6 +58,9 @@ Field keys: `type`, `required`, `default`, `enum`, `unique`, `index`; any other
 key is handed to the adapter as is. Every store adds `createdAt`/`updatedAt`,
 `Model.paginate({ page, perPage })` -> `{ records, page, perPage, total, pages }`,
 `henri.model.errors(error)` -> `{ field: message }` (`null` otherwise) and `db/seeds.js`, run by `henri db:seed`.
+Every model also carries `externalId`, a uuid that is unique and not null in the
+database and the only identifier that leaves the server: routes, links and payloads
+carry it, the numeric id stays internal, `Model.findById()` takes either of the two, and `options: { externalId: false }` opts a model out.
 The global is the model of the `{{adapter}}` store, and what the generators write: {{#if mongoose}}Mongoose (`find`, `findById`, `create`, then `doc.set()`, `doc.save()` and `doc.deleteOne()`), documents carry `_id`.{{/if}}{{#if drizzle}}the drizzle model (`where`, `order`, `include`, `findById`, `create`, then `row.update()` and `row.destroy()`), rows carry `id`. Migrations live in `db/migrations`: `henri db:generate|migrate|push|status`, generate and commit one after a model change.{{/if}}{{#if sequelize}}Sequelize (`findAll`, `findByPk`, `create`, then `row.update()` and `row.destroy()`), rows carry `id`. There are no migrations: the boot runs `sequelize.sync()` and creates or extends the tables from the models.{{/if}}
 
 ## Controllers

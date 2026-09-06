@@ -5,14 +5,16 @@ import { messageFor } from './input';
 import { warnOutsideForm } from './warn';
 
 /**
- * The value of a choice: its `_id`/`id` for objects, itself otherwise
+ * The value of a choice: its public identifier for records (`externalId`,
+ * what a record carries once the internal id stops leaving the server),
+ * its `_id`/`id`/`value` otherwise, itself when it is not an object
  *
  * @param {*} item a choice
  * @returns {string} its value
  */
 const valueOf = (item) => {
   if (item && typeof item === 'object') {
-    return String(item._id ?? item.id ?? item.value ?? '');
+    return String(item.externalId ?? item._id ?? item.id ?? item.value ?? '');
   }
 
   return String(item ?? '');

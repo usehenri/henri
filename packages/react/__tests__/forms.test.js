@@ -213,6 +213,22 @@ describe('forms', () => {
       expect(empty).toContain('<option value="" selected="">Pick one</option>');
     });
 
+    test('Select picks the public identifier of a record', () => {
+      const choices = [
+        { externalId: 'aaa', name: 'Alpha' },
+        { externalId: 'bbb', name: 'Beta' },
+      ];
+      const html = renderToString(
+        h(
+          Form,
+          { data: { owner: { externalId: 'bbb', name: 'Beta' } } },
+          h(Select, { choices, name: 'owner' })
+        )
+      );
+
+      expect(html).toContain('<option value="bbb" selected="">Beta</option>');
+    });
+
     test('Editor renders a textarea on the server', () => {
       const html = renderToString(
         h(Form, { data: { body: '<p>hi</p>' } }, h(Editor, { name: 'body' }))

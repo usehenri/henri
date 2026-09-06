@@ -41,6 +41,21 @@ describe('tasks', () => {
     expect(response.body.props.errors).toEqual({});
   });
 
+  test('the page carries the public id of a task and not its internal one', async () => {
+    await request()
+      .post('/tasks')
+      .set('X-Inertia', 'true')
+      .send({ category: 'low', name: 'Has a public id' });
+
+    const [task] = (await page('/tasks')).body.props.data.tasks;
+
+    expect(task.externalId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    );
+    expect(task.id).toBeUndefined();
+    expect(task._id).toBeUndefined();
+  });
+
   test('GET / answers a document to a browser', async () => {
     const response = await request().get('/');
 

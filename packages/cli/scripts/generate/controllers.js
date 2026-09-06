@@ -19,6 +19,11 @@
  * the pages and redirects (scaffold only). `res.negotiate({ html, json })`
  * picks one from the Accept header.
  *
+ * `:id` is the public identifier of the record, its `externalId`: a uuid on
+ * every store. `Model.findById()` takes it (and the internal id too), and a
+ * redirect is built from `record.externalId`, never from the numeric id,
+ * which does not leave the server.
+ *
  * Two things do not need a flavour: `Model.paginate()` answers the same
  * `{ records, page, perPage, total, pages }` on the three model APIs, and
  * `henri.model.errors()` normalizes what any of them throws on an invalid
@@ -133,6 +138,9 @@ const mongoose = {
 /**
  * Run a query by id, null when the id is malformed
  *
+ * The id in the url is the \`externalId\` of the document (a uuid), but a
+ * document id works too; anything else is not a document.
+ *
  * @param {Promise} query A mongoose query
  * @returns {Promise<object|null>} The document or null
  */
@@ -188,7 +196,7 @@ const drizzle = {
 };
 
 // --- sequelize (mysql, postgresql, mssql) -----------------------------------
-// Sequelize has no findByIdAndUpdate/Delete: a row is loaded with findByPk
+// Sequelize has no findByIdAndUpdate/Delete: a row is loaded with findById
 // then updated or destroyed, and its errors carry an array of items.
 
 const sequelize = {
@@ -206,14 +214,17 @@ const sequelize = {
 `,
   helpers: ({ doc, keys }) => `${fields({ keys })}
 /**
- * Load a row by primary key, null when the id is malformed
+ * Load a row by id, null when the id is malformed
+ *
+ * The id in the url is the \`externalId\` of the row (a uuid), but the
+ * primary key works too; anything else is not a row.
  *
  * @param {*} id The id from the route
  * @returns {Promise<object|null>} The row or null
  */
 const byId = async (id) => {
   try {
-    return await ${doc}.findByPk(id);
+    return await ${doc}.findById(id);
   } catch (error) {
     if (error.name === 'SequelizeDatabaseError') {
       return null;
@@ -286,7 +297,7 @@ const create = (opts) => `
     ${of('create', opts)}
     // 201 with a Location header pointing at the new ${opts.lower}
     return res.negotiate({
-      html: () => res.redirect(\`/${opts.plural}/\${${opts.lower}.id}\`),
+      html: () => res.redirect(\`/${opts.plural}/\${${opts.lower}.externalId}\`),
       json: () => res.resource(${opts.lower}, { status: 201 }),
     });
   },`;
@@ -319,7 +330,8 @@ const update = (opts) => `
   update: async (req, res) => {
     ${of('update', opts)}
     return res.negotiate({
-      html: () => res.redirect(\`/${opts.plural}/\${req.${opts.lower}.id}\`),
+      html: () =>
+        res.redirect(\`/${opts.plural}/\${req.${opts.lower}.externalId}\`),
       json: () => res.resource(req.${opts.lower}),
     });
   },`;
@@ -392,6 +404,8 @@ const crud = (opts) =>
 const inertia = (opts) => {
   const { doc, plural } = opts;
   const api = apiOf(opts);
+  // `req.params.id` is the public identifier of the record (its uuid), so
+  // the delete goes through findById rather than a where on the primary key
   const queries = {
     drizzle: {
       list: `${doc}.order('createdAt desc')`,
@@ -399,11 +413,15 @@ const inertia = (opts) => {
     },
     mongoose: {
       list: `${doc}.find().sort({ createdAt: -1 }).lean()`,
-      remove: `await ${doc}.deleteOne({ _id: req.params.id });`,
+      remove: `await ${doc}.findByIdAndDelete(req.params.id);`,
     },
     sequelize: {
       list: `${doc}.findAll({ order: [['createdAt', 'DESC']] })`,
-      remove: `await ${doc}.destroy({ where: { id: req.params.id } });`,
+      remove: `const found = await ${doc}.findById(req.params.id);
+
+    if (found) {
+      await found.destroy();
+    }`,
     },
   }[api];
 
