@@ -170,6 +170,8 @@ The two deliberate exceptions:
 
 Once each, and once per error: the same `Error` object is never reported twice, so a failure that travels through two of those paths is one report. A **4xx is not reported** — it is an answer, not a failure.
 
+The **request timeout** does not report. It answers a 503 from its own middleware because a deadline passed, and there is no error to hand anybody — the handler is still running, and a fabricated Error would be reporting something that did not happen.
+
 `pen.fatal()` does not report. It returns an Error for the caller to throw, and whoever throws it is the one who knows whether it ends a boot, a request, or nothing at all.
 
 A **dead job does not report** either. `@usehenri/jobs` buries a job in its own [dead letter queue](/guides/jobs/#retries-and-the-dead-letter-queue) with the arguments, every attempt and the error; that row is durable and `henri jobs:dead` reads it back, so a second copy in a reporter would be one more thing to keep in step. What would change it is one call where the queue buries a row — the payload of a job is application data, so what of it may leave the process is that package's decision to make.

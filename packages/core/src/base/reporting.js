@@ -78,6 +78,13 @@
  * every failure that also fails the boot. `report()` is public, so an
  * application reports its own (`source: 'application'`).
  *
+ * The request timeout (`base/timeout.js`) does not report. It answers 503
+ * from its own middleware because a deadline passed, and there is no error
+ * to hand anybody: the handler is still running, and henri fabricating an
+ * Error to report would be reporting something that did not happen. The log
+ * line and the status are the whole story. What would change it is a
+ * timeout that carried a real failure, which is a different feature.
+ *
  * A dead job does not report either. `@usehenri/jobs` buries a job in its
  * own dead letter queue, with the arguments, every attempt and the error:
  * that row is durable, `henri jobs:dead` and `jobs:show` read it back, and
