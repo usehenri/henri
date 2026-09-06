@@ -564,12 +564,6 @@ const definesAction = (source, action) =>
 const definesGraphql = (source) =>
   /(^|[\s,{])["']?graphql["']?\s*:/m.test(source);
 
-/** Comments blanked out, line numbers kept, so a scanner reads code only */
-const uncommented = (source) =>
-  source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (comment) =>
-    comment.replace(/[^\n]/g, ' ')
-  );
-
 /**
  * The end of the string literal that starts at `at` (the index just past
  * its closing quote), or the length of the source when it never closes
@@ -595,6 +589,55 @@ const endOfString = (source, at) => {
   }
 
   return source.length;
+};
+
+/**
+ * Comments blanked out, line numbers and offsets kept, so a scanner reads
+ * code only.
+ *
+ * It has to know about strings to do that. A regular expression over
+ * `//[^\n]*` blanks the rest of the line from the `//` inside
+ * `url: 'https://example.com'`, which leaves an unterminated quote behind
+ * and takes everything after it with it -- so a `store` key further down
+ * the file simply stops existing, in that one application and no other.
+ * That is the shape of failure this command cannot have.
+ *
+ * @param {string} source The file source
+ * @returns {string} The source with every comment turned into spaces
+ */
+const uncommented = (source) => {
+  const blank = (text) => text.replace(/[^\n]/g, ' ');
+  const out = [];
+  let at = 0;
+  let kept = 0;
+
+  while (at < source.length) {
+    const char = source[at];
+
+    if (char === '"' || char === "'" || char === '`') {
+      at = endOfString(source, at);
+      continue;
+    }
+
+    if (char !== '/' || (source[at + 1] !== '/' && source[at + 1] !== '*')) {
+      at += 1;
+      continue;
+    }
+
+    const line = source[at + 1] === '/';
+    const end = line
+      ? (source.indexOf('\n', at) + 1 || source.length + 1) - 1
+      : (source.indexOf('*/', at + 2) + 2 || source.length + 2) - 0;
+    const stop = Math.min(end, source.length);
+
+    out.push(source.slice(kept, at), blank(source.slice(at, stop)));
+    at = stop;
+    kept = stop;
+  }
+
+  out.push(source.slice(kept));
+
+  return out.join('');
 };
 
 /** A key of an object literal: `show:`, `'show':`, `show(`, `async show(` */
@@ -706,7 +749,21 @@ const exportsOf = (source) => {
 };
 
 /**
- * The store a model file names, when it names one as a literal
+ * A `store` key at the left margin: the top level of a formatted file, where
+ * a nested one sits at four spaces or more
+ */
+const TOP_LEVEL_STORE =
+  /^ {0,2}["']?store["']?\s*:\s*(['"])([^'"\n]*)\1\s*[,}]?\s*$/mu;
+
+/**
+ * The store a model file names, when it names one as a literal.
+ *
+ * Two readings, and either one answering is enough. The scanner is the
+ * precise one and knows a `store` column of the schema from the model's own
+ * `store`; the second is a line at the left margin, which is where prettier
+ * puts a top level key and nowhere else. A file neither can read answers
+ * null, and the check then says nothing -- but a check that cannot fire is
+ * worse than no check, so it takes two ways of missing rather than one.
  *
  * @param {string} source The model source
  * @returns {?string} The store name, or null when there is none to read
@@ -714,7 +771,19 @@ const exportsOf = (source) => {
 const storeOf = (source) => {
   const store = exportsOf(source).get('store');
 
-  return store && store.kind === 'string' ? store.value : null;
+  if (store && store.kind === 'string') {
+    return store.value;
+  }
+
+  // Only when the scanner found no `store` at all: one that found it nested
+  // in the schema has already answered, and correctly
+  if (store) {
+    return null;
+  }
+
+  const line = TOP_LEVEL_STORE.exec(uncommented(source));
+
+  return line ? line[2] : null;
 };
 
 /**
@@ -981,9 +1050,23 @@ const check = (dir = process.cwd()) => {
   // left out of `config/production.json` boots every machine but the one
   // that matters.
   //
-  // A configuration with no store at all is `config.missing` or
-  // `config.invalid`, which has already said the useful thing: only the
-  // files that do configure one are compared with.
+  //
+  // A model and no store anywhere is the same failure with nothing to name,
+  // and it is reported rather than skipped: a check that goes quiet when its
+  // inputs are not what it expected is a check nobody can rely on.
+  if (models.length > 0 && configured.length === 0 && environments.size > 0) {
+    problem(
+      'error',
+      'models.store',
+      `app/models holds ${models.length} model${models.length === 1 ? '' : 's'} and no config/*.json configures a store`,
+      {
+        code: 'HENRI_MODEL_NO_STORE',
+        file: 'config/default.json',
+        hint: '{ "stores": { "default": { "adapter": "drizzle", "dialect": "sqlite", "url": "file:.henri/app.db" } } }',
+      }
+    );
+  }
+
   for (const model of configured.length > 0 ? models : []) {
     const file = `app/models/${model}.js`;
     const store = storeOf(read(file));
@@ -1137,27 +1220,12 @@ const check = (dir = process.cwd()) => {
         continue;
       }
 
-      const resolved = (RESOLVES[renderer] || PAGE_EXTENSIONS).some((ext) =>
-        exists(`app/views/pages/${controller}/${page}${ext}`)
-      );
+      // Whether a file is there at all. Whether it is one the renderer
+      // resolves is `views.renderer`, which walks every page below rather
+      // than only the ones a route names
       const found = PAGE_EXTENSIONS.some((ext) =>
         exists(`app/views/pages/${controller}/${page}${ext}`)
       );
-
-      // A page written for the other renderer: the file is there and the
-      // engine this application configured will never resolve it
-      if (found && !resolved) {
-        problem(
-          'error',
-          'views.renderer',
-          `"${key}" renders app/views/pages/${controller}/${page}, which exists but not as ${(RESOLVES[renderer] || []).join(' or ')}`,
-          {
-            file: `app/views/pages/${controller}`,
-            hint: `The ${renderer} engine only resolves ${(RESOLVES[renderer] || []).join(' and ')} pages (app/views/main.jsx globs them): rename it to ${page}${PAGE_EXTENSION[renderer]}`,
-          }
-        );
-        continue;
-      }
 
       if (!found) {
         problem(
@@ -1180,13 +1248,35 @@ const check = (dir = process.cwd()) => {
   // Inertia app, and `useHenri` from `@usehenri/inertia` is not a thing a
   // next.js page can call -- so the import alone says which engine the page
   // was written for, and the renderer says which one will render it.
+  //
+  // The extension is the other half, and the quieter one: the Inertia engine
+  // resolves a page through `import.meta.glob('./pages/**/*.jsx')` in
+  // app/views/main.jsx, so a `.js` file under app/views/pages is a page
+  // nothing ever finds -- no error, no log line, a 404 or a blank render.
+  // Every file there is walked, not only the ones a `resources` route names,
+  // because that is exactly where such a page hides.
   const theirs = RENDERER_PACKAGE[renderer === 'inertia' ? 'react' : 'inertia'];
   const ours = RENDERER_PACKAGE[renderer];
+  const resolves = RESOLVES[renderer];
 
   for (const page of ours
     ? listSources(path.join(dir, 'app', 'views', 'pages'), PAGE_EXTENSIONS)
     : []) {
     const file = `app/views/pages/${page}`;
+    const other = renderer === 'inertia' ? 'react' : 'inertia';
+
+    if (resolves && !resolves.includes(path.extname(page))) {
+      problem(
+        'error',
+        'views.renderer',
+        `${file} is a page the ${renderer} engine does not resolve (it reads ${resolves.join(' and ')})`,
+        {
+          file,
+          hint: `Rename it to ${page.replace(/\.[^.]+$/u, PAGE_EXTENSION[renderer])}. app/views/main.jsx globs pages/**/*${PAGE_EXTENSION[renderer]}, so this file is never loaded and never says so; a component that is not a page belongs in app/views/components`,
+        }
+      );
+      continue;
+    }
 
     if (!imports(read(file), theirs)) {
       continue;
@@ -1198,7 +1288,7 @@ const check = (dir = process.cwd()) => {
       `${file} imports ${theirs} and the configured renderer is "${renderer}"`,
       {
         file,
-        hint: `Rewrite it for ${ours}, or set "renderer": "${renderer === 'inertia' ? 'react' : 'inertia'}" in the configuration. henri generate scaffold <Name> --force writes the pages of the renderer this application names`,
+        hint: `Rewrite it for ${ours}, or set "renderer": "${other}" in the configuration. henri generate scaffold <Name> --force writes the pages of the renderer this application names`,
       }
     );
   }
@@ -1333,8 +1423,16 @@ const check = (dir = process.cwd()) => {
         'schema.migrations-pending',
         `store "${name}" does not apply db/migrations on a production boot`,
         {
-          file: 'config/production.json',
-          hint: `Set "stores": { "${name}": { "migrate": true } } in config/production.json, or run "henri db:migrate" as part of the deploy; without either, the boot only warns that migrations are pending`,
+          // Only when there is one to open: this check reads the production
+          // configuration whether or not the file exists, and pointing at a
+          // path that is not there reads as "create it", which is the wrong
+          // move (see the hint)
+          file: exists('config/production.json')
+            ? 'config/production.json'
+            : null,
+          hint: exists('config/production.json')
+            ? `Run "henri db:migrate" as part of the deploy, or set "stores": { "${name}": { "migrate": true } } in config/production.json`
+            : `Run "henri db:migrate" as part of the deploy. The other way is "migrate": true on the store in config/production.json -- and that file does not exist here: it would replace config/default.json whole rather than merge into it, so it has to carry the entire "stores" block, not the flag alone`,
         }
       );
     }
@@ -2252,3 +2350,4 @@ module.exports.mailerActions = mailerActions;
 module.exports.moduleDeclaration = moduleDeclaration;
 module.exports.policyFor = policyFor;
 module.exports.storeOf = storeOf;
+module.exports.uncommented = uncommented;

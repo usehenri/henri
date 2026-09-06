@@ -28,7 +28,12 @@ Two more keep the application's own description honest: `agents.stale` when
 `AGENTS.md` names a renderer or a store the configuration no longer names —
 an agent that trusts it writes code this application cannot run — and
 `views.renderer` when a page imports the other view engine or carries an
-extension the configured one does not resolve.
+extension the configured one does not resolve. Every file under
+`app/views/pages` is read for the second one, not only the pages a
+`resources` route names: the Inertia engine resolves through
+`import.meta.glob('./pages/**/*.jsx')`, so a `.js` file there is loaded by
+nothing and says so nowhere — and the page no route points at is exactly
+where that hides.
 
 The schema of a store is the one question asked over a connection, next to
 the shared store and behind the same `--no-reach`: `schema.behind` when a
@@ -41,3 +46,14 @@ reports one as the other; drift against the models stays with
 Every problem gains a `code`: the henri error code the boot would raise, and
 `null` where the convention is doctor's own. The rest of the `--json` shape,
 the check names and the exit codes are unchanged.
+
+Two older behaviours are corrected on the way. `schema.migrations-pending`
+reported itself against `config/production.json` whether or not that file
+existed, and told the reader to put `"migrate": true` in it — an environment
+file replaces `config/default.json` whole rather than merging into it, so
+someone who created it for the flag alone would lose the store block and get
+the boot failure `models.store` is there to catch. It now names the file only
+when there is one to open, and says the deploy first. And the comment
+stripper the file readers share blanked from a `//` inside a string literal,
+so a model or a mailer carrying a url could silently stop being read past
+that line; it knows strings now.

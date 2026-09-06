@@ -16,6 +16,7 @@ const {
   reach,
   schema,
   storeOf,
+  uncommented,
 } = require('../scripts/doctor');
 const { cleanup, henri, linkAdapter, scaffold, tmpdir } = require('./helpers');
 
@@ -138,6 +139,88 @@ module.exports = {
     expect([...exportsOf(`// module.exports = { store: 'x' }`).keys()]).toEqual(
       []
     );
+  });
+
+  // The stripper feeds every reader here -- the object scanner, the mailer
+  // actions, the module declarations, the renderer imports -- so it is worth
+  // its own test rather than only the checks built on it
+  test('blanks comments and leaves strings alone', () => {
+    const source = `const url = 'https://example.com/a'; // the site
+/* a block */ const two = "b/*c*/d";`;
+    const clean = uncommented(source);
+
+    expect(clean).toContain("'https://example.com/a'");
+    expect(clean).toContain('"b/*c*/d"');
+    expect(clean).not.toContain('the site');
+    expect(clean).not.toContain('a block');
+    // Offsets and lines are kept, so a scanner reads the same positions
+    expect(clean).toHaveLength(source.length);
+    expect(clean.split('\n')).toHaveLength(source.split('\n').length);
+  });
+
+  // What the stripper protects, with nothing to fall back on: a mailer whose
+  // `defaults` carries a url would otherwise have no actions at all, and
+  // `mailers.view` would quietly stop looking
+  test('finds the actions of a mailer whose defaults carry a url', () => {
+    expect(
+      mailerActions(`module.exports = {
+  defaults: { from: 'a@b.c', replyTo: 'https://acme.example/x' },
+  confirm: async (user) => ({ subject: 'Hi', to: user.email }),
+};`)
+    ).toEqual(['confirm']);
+  });
+
+  // A `//` inside a string is not a comment. Blanking it leaves an
+  // unterminated quote, and a scanner that then swallows the rest of the
+  // file stops seeing `store` -- in one application and not another, which
+  // is the worst way for a check to be wrong
+  test('reads past a string that carries a url, and past every comment', () => {
+    const withUrl = `module.exports = {
+  schema: { home: { type: 'string', default: 'https://example.com/a' } },
+  store: 'warehouse',
+};`;
+
+    expect(storeOf(withUrl)).toBe('warehouse');
+    expect(
+      storeOf(`module.exports = {
+  /* the columns of the table */
+  schema: {},
+  store: 'warehouse', // a store name
+};`)
+    ).toBe('warehouse');
+    expect(
+      storeOf(`module.exports = {
+  // don't touch this one
+  store: 'warehouse',
+};`)
+    ).toBe('warehouse');
+    // A key inside a comment is still not a key
+    expect(
+      storeOf(`module.exports = {
+  // store: 'warehouse',
+  schema: {},
+};`)
+    ).toBeNull();
+  });
+
+  // Two ways of reading it, because one way of missing is one too many
+  test('falls back to a store key at the left margin', () => {
+    const frozen = `module.exports = Object.freeze({
+  schema: {},
+  store: 'warehouse',
+});`;
+
+    // The scanner cannot read that shape at all
+    expect([...exportsOf(frozen).keys()]).toEqual([]);
+    expect(storeOf(frozen)).toBe('warehouse');
+    // And a nested one is still not the model's store: the scanner answered
+    expect(
+      storeOf(`module.exports = {
+  schema: {
+    store: 'nested',
+  },
+};`)
+    ).toBeNull();
   });
 
   test('tells a mailer action from a key that describes the mailer', () => {
@@ -695,18 +778,9 @@ describe('henri doctor', () => {
     });
 
     const drizzle = run(app);
-
-    expect(drizzle.names).not.toContain('schema.migrations-ignored');
-    expect(drizzle.problems).toContainEqual(
-      expect.objectContaining({
-        check: 'schema.migrations-pending',
-        level: 'warning',
-      })
-    );
-
-    // With "migrate": true in the production configuration, it is applied
     const production = path.join(app, 'config/production.json');
 
+    // With "migrate": true in the production configuration, it is applied
     fs.writeFileSync(
       production,
       JSON.stringify({
@@ -714,11 +788,42 @@ describe('henri doctor', () => {
       })
     );
 
-    expect(run(app).names).not.toContain('schema.migrations-pending');
+    const applied = run(app).names;
+
+    // Without it, and with the file there, that file is the one to open
+    fs.writeFileSync(
+      production,
+      JSON.stringify({ stores: { default: { adapter: 'drizzle' } } })
+    );
+
+    const named = run(app).problems;
 
     fs.unlinkSync(production);
     fs.rmSync(folder, { recursive: true });
     restore();
+
+    expect(drizzle.names).not.toContain('schema.migrations-ignored');
+    // There is no config/production.json in the first run, so the finding
+    // names none -- and the hint says the deploy first, because that file
+    // replaces config/default.json whole and a reader who creates it for
+    // the flag alone loses the store block with it
+    expect(drizzle.problems).toContainEqual(
+      expect.objectContaining({
+        check: 'schema.migrations-pending',
+        file: null,
+        hint: expect.stringContaining('entire "stores" block'),
+        level: 'warning',
+      })
+    );
+    expect(applied).not.toContain('schema.migrations-pending');
+    expect(named).toContainEqual(
+      expect.objectContaining({
+        check: 'schema.migrations-pending',
+        file: 'config/production.json',
+        hint: expect.stringContaining('henri db:migrate'),
+        level: 'warning',
+      })
+    );
   });
 
   // --- the things that break a boot ----------------------------------------
@@ -763,6 +868,62 @@ describe('henri doctor', () => {
         check: 'models.store',
         code: 'HENRI_MODEL_NO_STORE',
         level: 'error',
+      })
+    );
+    expect(run(app).names).not.toContain('models.store');
+  });
+
+  // The same thing end to end, on the file `henri new` writes rather than a
+  // hand-written one, with a url in it: this is the regression test for the
+  // comment stripper above
+  test('reports the store of a scaffolded model that carries a url', () => {
+    const file = path.join(app, 'app/models/Task.js');
+    const original = fs.readFileSync(file, 'utf8');
+
+    fs.writeFileSync(
+      file,
+      original
+        .replace(
+          "done: { type: 'boolean', default: false },",
+          "done: { type: 'boolean', default: false },\n    link: { type: 'string', default: 'https://example.com/a' },"
+        )
+        .replace("'default'", "'warehouse'")
+    );
+
+    const { ok, problems } = run(app);
+
+    fs.writeFileSync(file, original);
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'models.store',
+        code: 'HENRI_MODEL_UNKNOWN_STORE',
+        file: 'app/models/Task.js',
+        level: 'error',
+        message: expect.stringContaining('"warehouse"'),
+      })
+    );
+    expect(run(app).names).not.toContain('models.store');
+  });
+
+  // A model and no store anywhere: reported, rather than a check that goes
+  // quiet because its inputs were not what it expected
+  test('reports models with no store configured anywhere', () => {
+    const restore = patchConfig(app, (configuration) => {
+      delete configuration.stores;
+    });
+    const { ok, problems } = run(app);
+
+    restore();
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'models.store',
+        code: 'HENRI_MODEL_NO_STORE',
+        level: 'error',
+        message: expect.stringContaining('no config/*.json configures a store'),
       })
     );
     expect(run(app).names).not.toContain('models.store');
@@ -1130,6 +1291,32 @@ module.exports = Metrics;
       })
     );
     expect(run(app).ok).toBe(true);
+  });
+
+  // The page no route names, which is where such a file hides: nothing
+  // renders it, nothing loads it and nothing says so
+  test('reports a page no route names that the renderer cannot resolve', () => {
+    const orphan = path.join(app, 'app/views/pages/Orphan.js');
+
+    fs.writeFileSync(orphan, 'export default function Orphan() {}\n');
+
+    const { ok, problems } = run(app);
+
+    expect(ok).toBe(false);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'views.renderer',
+        file: 'app/views/pages/Orphan.js',
+        hint: expect.stringContaining('app/views/components'),
+        level: 'error',
+        message: expect.stringContaining('does not resolve'),
+      })
+    );
+
+    // The same file with the extension the engine reads is a page
+    fs.renameSync(orphan, orphan.replace(/\.js$/, '.jsx'));
+    expect(run(app).names).not.toContain('views.renderer');
+    fs.rmSync(orphan.replace(/\.js$/, '.jsx'));
   });
 
   test('refuses to run outside of a project', () => {
