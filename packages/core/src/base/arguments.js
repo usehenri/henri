@@ -560,7 +560,9 @@ const SIGNATURES = {
     },
   ],
 
-  'req.permit': [{ name: 'fields', of: NAME, type: 'array' }],
+  // `permit()` with no field at all answers everything the action declared,
+  // so the list may be empty -- and `params.js` always hands one over
+  'req.permit': [{ name: 'fields', of: NAME, optional: true, type: 'array' }],
 
   'res.boom': [
     {
@@ -616,7 +618,9 @@ const SIGNATURES = {
 /**
  * The public methods that are checked somewhere else, or that are right as
  * they are -- and why. `src/__tests__/arguments.spec.js` reads this, so a
- * new public method has to land in one table or the other.
+ * new public method has to land in one table or the other -- unless it
+ * takes no argument at all, which that test exempts on its own rather than
+ * making a list of methods with nothing to check.
  */
 const UNCHECKED = {
   'henri.addMiddleware':
@@ -628,11 +632,9 @@ const UNCHECKED = {
   'henri.config.has': 'answers false for anything that is not a key',
   'henri.encryption.decrypt':
     'checked by hand in 1.encryption.js, with three typeofs and no allocation: the three adapters call it once per row per encrypted column, which is the one place a walk is not worth it',
-  'henri.encryption.describe': 'takes no argument',
   'henri.encryption.encrypt': 'the same, on the write path',
   'henri.encryption.isEnvelope': 'a total function of unknown',
   'henri.encryption.keyIdIn': 'a total function of unknown',
-  'henri.encryption.status': 'takes no argument',
   'henri.gql': 'a tagged template that answers a string, whatever it is given',
   'henri.mailers.onDeliverLater':
     'says so and answers false, which is its documented contract',
@@ -640,26 +642,26 @@ const UNCHECKED = {
     'answers null for anything that is not a validation failure, which is its documented contract',
   'henri.model.publish':
     'its contract is anything: it is what res.render hands whatever a controller returned',
+  'henri.params':
+    'the helper behind req.permit(), whose fields are checked there; what it is given a request for is read with optional chaining and answers {}',
   'henri.pen': 'a logger that throws is worse than a wrong log line',
   'henri.policies.get': 'documented to answer null',
   'henri.policies.has': 'documented to answer false',
-  'henri.policies.names': 'takes no argument',
   'henri.policies.resolve': 'documented to answer null',
   'henri.policies.rule': 'documented to answer null',
-  'henri.policies.size': 'takes no argument',
-  'henri.privacy.describe': 'takes no argument',
   'henri.reporter.onError':
     'says so and answers false, which is its documented contract',
   'henri.reporter.report':
     'the one entry point that must not refuse: it runs on a failure path, so throwing would lose the failure it was called about. A wrong source is coerced and a wrong options is read as none, deliberately',
-  'henri.retention.describe': 'takes no argument',
   'henri.trail.record':
     'HENRI_TRAIL_INVALID_EVENT and the meta refusals already say what is wrong',
-  'henri.trail.verify': 'takes no argument',
   'henri.utils': 'node resolution answers for itself',
   'req.authorize': 'the one implementation is henri.policies.authorize',
   'req.can': 'the one implementation is henri.policies.can',
   'req.file': 'answers null for anything that is not a field name',
+  'req.logIn': "passport's, not henri's",
+  'req.logOut': "passport's, not henri's",
+  'req.logout': "passport's, not henri's",
   'req.permitFiles': 'the same list req.permit takes, checked there',
   'req.scope': 'the one implementation is henri.policies.scope',
   'res.hbs': 'the same arguments as res.render, checked there',
