@@ -1,5 +1,6 @@
 const { adapterFor, build, close, sharedKey, target } = require('./helpers');
 const { Runner } = require('../src/runner');
+const { slot } = require('../src/keys');
 
 const HOUR = 3600000;
 
@@ -209,6 +210,56 @@ describe(`recurring (${target.name})`, () => {
     // Said once, not once a second, and the schedule is never recorded
     expect(runner.warned.has('nowhere')).toBe(true);
     expect(await jobs.store.schedule('nowhere')).toBeNull();
+  });
+
+  test('a slot keeps its key once its job has finished', async () => {
+    // The slot is enqueued before the schedule moves on, so the row in the
+    // queue is what stops a second runner enqueuing the same slot. If the
+    // job finished and freed the key in that gap, the slot would run twice
+    const jobs = await withSchedule({ often: { every: '1h', job: 'ok' } });
+    const runner = new Runner(jobs);
+
+    await runner.schedule(Date.now());
+    await jobs.store.resetSchedule({
+      name: 'often',
+      next: Date.now() - 1000,
+      now: Date.now(),
+      spec: 'every:3600000',
+    });
+
+    const [job] = await runner.schedule(Date.now());
+
+    expect(job.uniqueKey).toMatch(/^recurring:often:/);
+
+    await new Runner(jobs).once();
+
+    const performed = await jobs.get(job.id);
+
+    expect(performed.state).toBe('done');
+    expect(performed.uniqueKey).toBe(job.uniqueKey);
+
+    // The same slot, enqueued again, is the job that already ran
+    const again = await jobs.perform('ok', null, { unique: job.uniqueKey });
+
+    expect(again.id).toBe(job.id);
+    expect(await jobs.count()).toBe(1);
+  });
+
+  test('a slot that died keeps its key too', async () => {
+    const jobs = await withSchedule({ often: { every: '1h', job: 'boom' } });
+    const key = slot('often', 1);
+    const job = await jobs.perform('boom', null, {
+      maxAttempts: 1,
+      unique: key,
+    });
+
+    await new Runner(jobs).once();
+
+    const dead = await jobs.get(job.id);
+
+    expect(dead.state).toBe('dead');
+    expect(dead.uniqueKey).toBe(key);
+    expect((await jobs.perform('boom', null, { unique: key })).id).toBe(job.id);
   });
 
   test('refuses a schedule with neither cron nor every', async () => {

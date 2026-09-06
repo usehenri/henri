@@ -85,7 +85,7 @@ await henri.jobs.perform(
 );
 ```
 
-`unique` is enforced by a unique index, so two requests racing to enqueue the same work end up with one job: the second call answers the job that already exists instead of failing. The key belongs to the job only while it is **waiting or running** — once it is done, or once it has died, the key is free and the same work may be enqueued again.
+`unique` is enforced by a unique index, so two requests racing to enqueue the same work end up with one job: the second call answers the job that already exists instead of failing. The key belongs to the job only while it is **waiting or running** — once it is done, or once it has died, the key is free and the same work may be enqueued again. (The keys the recurring scheduler writes for itself are the one exception; they are kept for the life of the row, which is what stops an occurrence being enqueued twice.)
 
 A name with no file under `app/jobs` is refused on the spot, with the list of the jobs there are — a typo never becomes a row nobody performs.
 

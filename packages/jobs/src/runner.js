@@ -3,6 +3,7 @@ const { randomUUID: uuid } = require('crypto');
 const debug = require('debug')('henri:jobs:runner');
 
 const { next: nextRun } = require('./cron');
+const { slot } = require('./keys');
 
 /** What a schedule waits before it looks again at an expression */
 const MINUTE = 60000;
@@ -607,7 +608,7 @@ class Runner {
       id,
       priority: entry.priority === null ? undefined : entry.priority,
       queue: entry.queue || undefined,
-      unique: `recurring:${entry.name}:${due}`,
+      unique: slot(entry.name, due),
     });
 
     // Now that the slot is in the queue the schedule may move on; if another

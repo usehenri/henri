@@ -1,6 +1,7 @@
 const debug = require('debug')('henri:jobs:mongo');
 
 const { JobStoreError } = require('../errors');
+const { keep } = require('../keys');
 
 /**
  * The MongoDB backend of the queue.
@@ -357,6 +358,9 @@ class MongoStore {
 
     for (const row of rows) {
       const dead = (row.attempts || 0) >= (row.max_attempts || 0);
+      // A dead job holds its unique key no longer, unless the queue wrote it
+      // for itself (see ../keys.js)
+      const held = dead ? keep(row.unique_key) : row.unique_key;
 
       await this.jobs().updateOne(
         { _id: row.id, claim_token: row.claim_token, state: 'running' },
@@ -368,11 +372,9 @@ class MongoStore {
             state: dead ? 'dead' : 'pending',
             updated_at: now,
           },
-          // A dead job holds its unique key no longer: the same work may be
-          // enqueued again while this one sits in the dead letter queue
-          $unset: dead
-            ? { claim_token: '', unique_key: '' }
-            : { claim_token: '' },
+          $unset: held
+            ? { claim_token: '' }
+            : { claim_token: '', unique_key: '' },
         }
       );
     }

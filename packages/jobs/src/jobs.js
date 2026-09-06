@@ -4,6 +4,7 @@ const debug = require('debug')('henri:jobs');
 
 const { JobError, JobStoreError, JobTimeoutError } = require('./errors');
 const { deserialize, serialize } = require('./serialize');
+const { keep } = require('./keys');
 const { duration, runAt } = require('./duration');
 const { load, validate } = require('./definitions');
 const { normalize } = require('./config');
@@ -795,8 +796,9 @@ class Jobs {
         error_stack: null,
         finished_at: finished,
         state: 'done',
-        // A finished job holds its unique key no longer
-        unique_key: null,
+        // A finished job holds its unique key no longer, unless the queue
+        // wrote it for itself (see ./keys.js)
+        unique_key: keep(row.unique_key),
         updated_at: finished,
       },
       row.claim_token
@@ -893,7 +895,7 @@ class Jobs {
         state: dead ? 'dead' : 'pending',
         // A dead job holds its unique key no longer: the same work may be
         // enqueued again while this one waits in the dead letter queue
-        unique_key: dead ? null : row.unique_key,
+        unique_key: dead ? keep(row.unique_key) : row.unique_key,
         updated_at: now,
       },
       row.claim_token

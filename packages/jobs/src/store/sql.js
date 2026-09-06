@@ -2,6 +2,7 @@ const debug = require('debug')('henri:jobs:sql');
 
 const { JobStoreError } = require('../errors');
 const { install, uninstall } = require('./schema');
+const { keep } = require('../keys');
 
 /**
  * The SQL backend of the queue.
@@ -553,7 +554,7 @@ class SqlStore {
           now,
           // A dead job holds its unique key no longer: the same work may be
           // enqueued again while this one sits in the dead letter queue
-          dead ? null : row.unique_key,
+          dead ? keep(row.unique_key) : row.unique_key,
           `the runner ${row.claimed_by} stopped answering while performing this job`,
           dead ? now : null,
           now,
