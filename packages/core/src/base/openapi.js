@@ -107,6 +107,10 @@ const { identitiesConfig } = require('./identities');
 const { userConfig } = require('./auth');
 const { mapOf, privacyConfig } = require('./privacy');
 const { DEFAULTS: PAGE_DEFAULTS } = require('./pagination');
+const {
+  DEFAULTS: FILTER_DEFAULTS,
+  OPERATORS: FILTER_OPERATORS,
+} = require('./filters');
 
 /** The version of the specification this builder writes */
 const OPENAPI_VERSION = '3.1.0';
@@ -275,10 +279,16 @@ function settingsOf(config) {
     host: read('host', null),
     idempotency: api.idempotency !== false,
     lookup: externalIds.lookup === 'any' ? 'any' : 'external',
+    maxFilters:
+      Number(api.maxFilters) > 0
+        ? Number(api.maxFilters)
+        : FILTER_DEFAULTS.maxFilters,
     maxPerPage:
       Number(api.maxPerPage) > 0
         ? Number(api.maxPerPage)
         : PAGE_DEFAULTS.maxPerPage,
+    maxSort:
+      Number(api.maxSort) > 0 ? Number(api.maxSort) : FILTER_DEFAULTS.maxSort,
     perPage:
       Number(api.perPage) > 0 ? Number(api.perPage) : PAGE_DEFAULTS.perPage,
     policyStatus: policies.status === 403 ? 403 : 404,
@@ -831,6 +841,134 @@ function declaredParameters(rules, context) {
     description: declaredDescription('query', context),
     schema: ruleSchema(rules[name]),
   }));
+}
+
+/**
+ * What one comparison of a declared filter carries.
+ *
+ * `in`, `nin` and `between` take a list, which a query string writes out
+ * with commas -- OpenAPI's `form` style, not exploded, which is exactly
+ * that -- and `null` takes a boolean. Everything else is one value of the
+ * declared type.
+ *
+ * @param {object} field the compiled filter
+ * @param {string} operator the operator
+ * @returns {object} `{ schema, style, explode }` for the parameter
+ */
+function filterShape(field, operator) {
+  const { shape } = FILTER_OPERATORS[operator];
+
+  if (shape === 'flag') {
+    return { schema: { type: 'boolean' } };
+  }
+
+  if (shape === 'one') {
+    return { schema: ruleSchema(field.rule) };
+  }
+
+  const items = ruleSchema(field.rule);
+  const bounded = shape === 'pair' ? { maxItems: 2, minItems: 2 } : {};
+
+  return {
+    explode: false,
+    schema: { type: 'array', items, ...bounded },
+    style: 'form',
+  };
+}
+
+/**
+ * The sentence one filter parameter says about itself
+ *
+ * @param {object} context `{ action, controller, field, model, operator }`
+ * @returns {string} the description
+ */
+function filterDescription({ action, controller, field, model, operator }) {
+  const said = {
+    between: 'is between the two values, inclusive',
+    contains: 'holds the value, anywhere',
+    ends: 'ends with the value',
+    eq: 'is the value',
+    gt: 'is above the value',
+    gte: 'is the value or above',
+    in: 'is one of the values',
+    lt: 'is below the value',
+    lte: 'is the value or below',
+    ne: 'is not the value',
+    nin: 'is none of the values',
+    null: 'has no value (`true`) or has one (`false`)',
+    starts: 'starts with the value',
+  };
+  const text = FILTER_OPERATORS[operator].text
+    ? ' The value is a literal: `%` and `_` are refused rather than read as wildcards.'
+    : '';
+
+  return [
+    `Keeps the ${model} rows whose \`${field.column}\` ${said[operator]}.`,
+    `Declared by \`${controller}#${action}\` (the \`filters\` export): nothing undeclared is filterable, and a name or an operator this action did not declare is a 422 (\`HENRI_FILTER_INVALID\`).`,
+    `The result is intersected with what the policy says the list is, so a filter can only ever narrow it.${text}`,
+  ].join(' ');
+}
+
+/**
+ * The `filter[...]` and `sort` parameters an action declared.
+ *
+ * One parameter per comparison, spelled the way a client writes it, so the
+ * document says exactly what the endpoint accepts rather than describing a
+ * shape a generator would have to guess at.
+ *
+ * @param {object} declared the compiled declaration
+ * @param {object} context `{ action, controller, settings }`
+ * @returns {Array<object>} the parameter objects
+ */
+function filterParameters(declared, { action, controller, settings }) {
+  const model = declared.model || 'matching';
+  const parameters = [];
+
+  for (const name of Object.keys(declared.where).sort()) {
+    const field = declared.where[name];
+
+    for (const operator of field.operators) {
+      parameters.push({
+        name:
+          operator === 'eq'
+            ? `filter[${name}]`
+            : `filter[${name}][${operator}]`,
+        in: 'query',
+        required: false,
+        description: filterDescription({
+          action,
+          controller,
+          field,
+          model,
+          operator,
+        }),
+        ...filterShape(field, operator),
+      });
+    }
+  }
+
+  const names = Object.keys(declared.sort).sort();
+
+  if (names.length > 0) {
+    parameters.push({
+      name: 'sort',
+      in: 'query',
+      required: false,
+      description: `The order of the page, most significant first; \`-\` is descending. At most ${settings.maxSort} of them, and henri appends the record's \`externalId\` so paging is stable. A column this action did not declare is a 422.`,
+      style: 'form',
+      explode: false,
+      schema: {
+        type: 'array',
+        maxItems: settings.maxSort,
+        items: {
+          type: 'string',
+          enum: names.flatMap((name) => [name, `-${name}`]),
+        },
+      },
+    });
+  }
+
+  return parameters;
 }
 
 /**
@@ -1829,6 +1967,17 @@ function operationFor(route, context) {
     ...declaredParameters(declared.query, { action, controller })
   );
 
+  // What a client may narrow and order this list by, spelled the way it
+  // writes it (see base/filters.js). Nothing undeclared is filterable, so
+  // this is the whole of it
+  const narrows = context.filtered(route.controller);
+
+  if (narrows) {
+    parameters.push(
+      ...filterParameters(narrows, { action, controller, settings })
+    );
+  }
+
   if (answer === 'collection') {
     // The paging parameters, unless the action declared one of them itself:
     // two parameters of the same name in the same place is not a document,
@@ -1890,7 +2039,8 @@ function operationFor(route, context) {
   const enforced = []
     .concat(described || answer === 'page' ? ['_links'] : [])
     .concat(params.rules ? ['params'] : [])
-    .concat(declaredAnswers ? ['answers'] : []);
+    .concat(declaredAnswers ? ['answers'] : [])
+    .concat(narrows ? ['filters'] : []);
   const marks = prune({
     fields: params.rules ? Object.keys(params.rules).sort() : undefined,
     read: params.read === false ? false : undefined,
@@ -1918,6 +2068,17 @@ function operationFor(route, context) {
         : undefined,
       controller,
       enforced: enforced.length > 0 ? enforced : undefined,
+      filters: narrows
+        ? {
+            model: narrows.model,
+            sort: Object.keys(narrows.sort).sort(),
+            where: Object.fromEntries(
+              Object.keys(narrows.where)
+                .sort()
+                .map((name) => [name, narrows.where[name].operators.slice()])
+            ),
+          }
+        : undefined,
       known: known !== false && (described || Boolean(declaredAnswers)),
       model: answer !== 'unknown' && model ? model.globalId : undefined,
       params: Object.keys(marks).length > 0 ? marks : undefined,
@@ -2638,6 +2799,10 @@ function overview(settings) {
  * @param {?Array<string>} [input.policies=null] the names of `app/policies`,
  *   so a route asking for one that does not exist is reported; null when the
  *   caller could not find out
+ * @param {?object} [input.filters=null] what each action lets a client
+ *   narrow and order its list by, compiled, as `{ 'tasks#index': declaration }`
+ *   -- the bound declarations of a booted application, `declarations()` over
+ *   the controller files otherwise (see base/filters.js)
  * @param {object} [input.info={}] `title`, `version` and `description`
  * @param {Array<object>} [input.servers] the servers, when the caller knows
  *   better than the configuration
@@ -2648,6 +2813,7 @@ function build({
   actions = null,
   answers = null,
   config = {},
+  filters = null,
   info = {},
   models = [],
   policies = null,
@@ -2689,6 +2855,19 @@ function build({
 
       return Object.keys(rules).length > 0 ? rules : null;
     },
+
+    /**
+     * What an action lets a client filter and order its list by
+     *
+     * @param {string} controller the `controller#action` key
+     * @returns {?object} the declaration, or null when there is none
+     */
+    filtered: (controller) =>
+      (filters &&
+        typeof filters === 'object' &&
+        Object.prototype.hasOwnProperty.call(filters, controller) &&
+        filters[controller]) ||
+      null,
     /**
      * What an action declared it accepts, and whether henri got to read it
      *

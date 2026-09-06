@@ -180,6 +180,7 @@
 const { kindOf } = require('./erasure');
 const { fail } = require('./errors');
 const { coerce, rule: compileRule, refuse } = require('./params-schema');
+const { singularize } = require('./routes');
 
 /** The controller exports that are never actions (see base/hooks.js) */
 const RESERVED = new Set(['filters']);
@@ -922,6 +923,34 @@ function verify(compiled, { columns, hidden = new Set(), model, where }) {
 }
 
 /**
+ * The model a declaration is about: the one it named, or the one the
+ * controller is named after (`proposals` -> `Proposal`), which is how
+ * `base/openapi.js` and `3.policies.js` resolve it.
+ *
+ * @param {Array<object>} models the model files
+ * @param {object} compiled the compiled declaration
+ * @param {string} controller the controller name (`proposals`)
+ * @returns {?object} the model file, or null
+ */
+function modelFor(models, compiled, controller) {
+  const wanted = compiled.model ? String(compiled.model).toLowerCase() : null;
+  const last = String(controller).split('/').pop().toLowerCase();
+  const singular = singularize(last);
+  const named = (model) =>
+    String(model.globalId).toLowerCase() === wanted ||
+    String(model.identity || '').toLowerCase() === wanted;
+  const guessed = (model) =>
+    [singular, last].includes(
+      String(model.identity || model.globalId).toLowerCase()
+    );
+
+  return (
+    (models || []).find((model) => (wanted ? named(model) : guessed(model))) ||
+    null
+  );
+}
+
+/**
  * The filter a query key names, walked rather than matched.
  *
  * Express 5 parses a query string with `querystring`, so `filter[a][b]`
@@ -1537,6 +1566,7 @@ module.exports = {
   encryptionOf,
   escapeRegex,
   guard,
+  modelFor,
   narrow,
   orderFor,
   parseKey,

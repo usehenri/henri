@@ -104,34 +104,50 @@ const scanActions = (source) => {
  * boot, is marked `null` here: the builder says so in the document rather
  * than describing an action as accepting nothing.
  *
+ * The declared filters are read the same way and bound to their model here
+ * rather than at runlevel 5: what a `filter[...]` parameter says depends on
+ * the columns, so a declaration the boot would refuse is one more thing this
+ * command could not read.
+ *
  * @param {string} cwd The application directory
- * @returns {{accepts: ?object, actions: ?object, answers: ?object}} the
- *   declarations, by `controller#action`
+ * @param {Array<object>} [models=[]] The model files, for the filters
+ * @returns {{accepts: ?object, actions: ?object, answers: ?object, filters:
+ *   ?object}} the declarations, by `controller#action`
  */
-const controllersOf = (cwd) => {
+const controllersOf = (cwd, models = []) => {
   const dir = path.join(cwd, 'app', 'controllers');
 
   if (!fs.existsSync(dir)) {
-    return { accepts: null, actions: null, answers: null };
+    return { accepts: null, actions: null, answers: null, filters: null };
   }
 
   const params = fromCore('src/base/params-schema', cwd);
   const hooks = fromCore('src/base/hooks', cwd);
-  const declared = fromCore('src/base/answers', cwd);
+  const answered = fromCore('src/base/answers', cwd);
+  const declared = fromCore('src/base/filters', cwd);
+  const openapi = fromCore('src/base/openapi', cwd);
+  const privacy = fromCore('src/base/privacy', cwd);
   const reserved = new Set([
     ...hooks.RESERVED,
     ...params.RESERVED,
+    ...answered.RESERVED,
     ...declared.RESERVED,
   ]);
+  const settings = openapi.settingsOf(readConfig(cwd, undefined));
+  const hidden = new Set(
+    privacy.mapOf(models, { settings: settings.privacy, subject: null }).private
+  );
   const accepts = {};
   const answers = {};
   const actions = {};
+  const filters = {};
 
   for (const name of listing(dir)) {
-    const file = path.join(dir, `${name}.js`);
+    const file = path.join(cwd, 'app', 'controllers', `${name}.js`);
     let names;
     let rules = null;
-    let answered = null;
+    let shapes = null;
+    let narrows = null;
 
     try {
       delete require.cache[require.resolve(file)];
@@ -151,9 +167,21 @@ const controllersOf = (cwd) => {
       }
 
       try {
-        answered = declared.declarations(loaded, name, names);
+        shapes = answered.declarations(loaded, name, names);
       } catch {
-        answered = null;
+        shapes = null;
+      }
+
+      try {
+        narrows = bindFilters(declared, openapi, loaded, {
+          hidden,
+          models,
+          name,
+          names,
+          settings,
+        });
+      } catch {
+        narrows = null;
       }
     } catch {
       // A controller that cannot be loaded outside a booted application:
@@ -167,11 +195,42 @@ const controllersOf = (cwd) => {
       // `null`, not `{}`: a file that would not load outside a booted
       // application declares nothing henri could read, which is not the
       // same fact as an action that declares nothing
-      answers[`${name}#${action}`] = answered ? answered[action] || {} : null;
+      answers[`${name}#${action}`] = shapes ? shapes[action] || {} : null;
+      filters[`${name}#${action}`] = (narrows && narrows[action]) || null;
     }
   }
 
-  return { accepts, actions, answers };
+  return { accepts, actions, answers, filters };
+};
+
+/**
+ * The filter declarations of one controller, bound to their model the way
+ * the router binds them at boot
+ *
+ * @param {object} declared `src/base/filters` of the application's core
+ * @param {object} openapi `src/base/openapi` of the same
+ * @param {object} loaded The controller module
+ * @param {object} context `{ hidden, models, name, names, settings }`
+ * @returns {object} The bound declarations, by action
+ */
+const bindFilters = (declared, openapi, loaded, context) => {
+  const { hidden, models, name, names, settings } = context;
+  const bound = {};
+
+  for (const [action, compiled] of Object.entries(
+    declared.declarations(loaded, name, names)
+  )) {
+    const model = declared.modelFor(models, compiled, name);
+
+    bound[action] = declared.verify(compiled, {
+      columns: openapi.columnsOf(model || {}, settings),
+      hidden,
+      model: model && model.globalId,
+      where: `${name}#${action}`,
+    });
+  }
+
+  return bound;
 };
 
 /**
@@ -213,15 +272,17 @@ const identity = (cwd) => {
 const describe = (cwd = process.cwd()) => {
   const { build } = fromCore('src/base/openapi', cwd);
   const { loadModules } = fromCore('src/utils', cwd);
-  const { accepts, actions, answers } = controllersOf(cwd);
+  const models = Object.values(loadModules(path.join(cwd, 'app', 'models')));
+  const { accepts, actions, answers, filters } = controllersOf(cwd, models);
 
   return build({
     accepts,
     actions,
     answers,
     config: readConfig(cwd, undefined),
+    filters,
     info: identity(cwd),
-    models: Object.values(loadModules(path.join(cwd, 'app', 'models'))),
+    models,
     policies: listing(path.join(cwd, 'app', 'policies')),
     routes: expand(readRoutes(cwd)),
   });

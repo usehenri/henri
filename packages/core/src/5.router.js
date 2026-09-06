@@ -22,7 +22,7 @@ const { jsonTypes, noStore, seal, versionGuard } = require('./base/headers');
 const { idempotency } = require('./base/idempotency');
 const { limiter, shutdown } = require('./base/rate-limit');
 const openapi = require('./base/openapi');
-const { singularize, table } = require('./base/routes');
+const { table } = require('./base/routes');
 const flash = require('./base/flash');
 const { implicit, track } = require('./base/hooks');
 const { CLIENT_PATH, middleware: locales } = require('./base/i18n');
@@ -266,6 +266,7 @@ class Router extends BaseModule {
     const accepts = {};
     const answers = {};
     const actions = {};
+    const narrows = {};
     let info = {};
 
     for (const route of Object.values(this.routes)) {
@@ -276,6 +277,9 @@ class Router extends BaseModule {
       // fact here rather than something henri could not find out
       accepts[route.controller] = controllers.accepts(route.controller) || {};
       answers[route.controller] = controllers.answers(route.controller) || {};
+      // ... and the declaration bound to its model, which is what says
+      // which model the `filter[...]` parameters are about
+      narrows[route.controller] = this._narrows.get(route.controller) || null;
     }
 
     try {
@@ -297,6 +301,7 @@ class Router extends BaseModule {
       actions,
       answers,
       config,
+      filters: narrows,
       info,
       models: (model && model.models) || [],
       policies: policies ? policies.names() : null,
@@ -725,7 +730,11 @@ class Router extends BaseModule {
     }
 
     const [name] = String(controller).split('#');
-    const model = this.modelFor(declared, name);
+    const model = filters.modelFor(
+      (this.henri.model && this.henri.model.models) || [],
+      declared,
+      name
+    );
 
     if (!model) {
       throw fail(
