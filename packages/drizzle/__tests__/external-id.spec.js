@@ -94,17 +94,58 @@ describe(`external id (${target.name})`, () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  test('findById takes the public id or the primary key', async () => {
+  test('findById takes the public id and nothing else', async () => {
     const task = await Task.create({ name: 'lookup' });
 
     expect((await Task.findById(task.externalId)).id).toBe(task.id);
-    expect((await Task.findById(task.id)).id).toBe(task.id);
-    expect((await Task.findById(String(task.id))).id).toBe(task.id);
-    // A number is never read as a uuid, and a uuid is never cast to a number
+    // The primary key does not name a row from outside any more: this is
+    // what stops GET /tasks/4812 from answering next to the uuid
+    expect(await Task.findById(task.id)).toBeNull();
+    expect(await Task.findById(String(task.id))).toBeNull();
+    // The refusal is the same null an unknown uuid gets, so nothing in
+    // the answer says which of the two it was
     expect(await Task.findById(uuidv7())).toBeNull();
     expect(await Task.findById('not-an-id')).toBeNull();
     expect(await Task.findById(424242)).toBeNull();
     expect(await Task.findById(null)).toBeNull();
+  });
+
+  test('findByKey takes the primary key and nothing else', async () => {
+    const task = await Task.create({ name: 'server side' });
+
+    expect((await Task.findByKey(task.id)).id).toBe(task.id);
+    expect((await Task.findByKey(String(task.id))).id).toBe(task.id);
+    expect(await Task.findByKey(task.externalId)).toBeNull();
+    expect(await Task.findByKey(424242)).toBeNull();
+    expect(await Task.findByKey(null)).toBeNull();
+    // `findByPk` is the Sequelize name of the same door
+    expect((await Task.findByPk(task.id)).id).toBe(task.id);
+  });
+
+  test('externalIds.lookup "any" restores the primary key', async () => {
+    const { adapter } = build({ externalIds: { lookup: 'any' } });
+
+    adapter.addModel(
+      { globalId: 'Loose', identity: 'loose', schema: { name: 'string' } },
+      'user'
+    );
+    await adapter.start();
+
+    const Loose = adapter.models.Loose;
+    const row = await Loose.create({ name: 'permissive' });
+
+    expect((await Loose.findById(row.id)).id).toBe(row.id);
+    expect((await Loose.findById(row.externalId)).id).toBe(row.id);
+
+    await adapter.stop();
+  });
+
+  test('findByIdAndUpdate is not the door findById stopped being', async () => {
+    const task = await Task.create({ name: 'no back door' });
+
+    expect(await Task.findByIdAndUpdate(task.id, { name: 'x' })).toBeNull();
+    expect(await Task.findByIdAndDelete(task.id)).toBeNull();
+    expect((await Task.findByKey(task.id)).name).toBe('no back door');
   });
 
   test('findByIdAndUpdate and findByIdAndDelete take it too', async () => {
@@ -130,7 +171,7 @@ describe(`external id (${target.name})`, () => {
     await task.update({ externalId: uuidv7(), name: 'still stable' });
 
     expect(task.externalId).toBe(externalId);
-    expect((await Task.findById(task.id)).externalId).toBe(externalId);
+    expect((await Task.findByKey(task.id)).externalId).toBe(externalId);
   });
 
   test('the primary key never leaves the server', async () => {
@@ -162,6 +203,7 @@ describe(`external id (${target.name})`, () => {
       id: note.id,
     });
     expect((await Note.findById(note.id)).body).toBe('no public id here');
+    expect((await Note.findByKey(note.id)).body).toBe('no public id here');
     expect(await Note.findById(uuidv7())).toBeNull();
   });
 });

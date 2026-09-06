@@ -30,6 +30,9 @@ const { DataTypes } = Sequelize;
  *   selected by default) and `roles` (only writable through `setRoles()` or
  *   with `{ unsafe: true }`).
  * @method getModels() All ORM models by global id
+ * @method references() The declared foreign keys, by model
+ * @method async externalIdsOf(model, keys) The public identifiers of rows,
+ *   by primary key
  * @method async start() Connects (and, on SQL, syncs the schema); calls the
  *   `associate(models)` export of each model file once every model exists
  * @method async stop() Disconnects; `start()` may be called again
@@ -222,7 +225,8 @@ class Sql {
 
     const instance = lookup(
       paginate(connector.define(model.globalId, attributes, options)),
-      external
+      external,
+      this.henri
     );
 
     if (external) {
@@ -572,7 +576,9 @@ class Sql {
      * @returns {Promise<(object|null)>} The user, or null when not found
      */
     Model.setRoles = async (id, roles) => {
-      const user = await Model.findByPk(id);
+      const user = isUuid(id)
+        ? await Model.findByExternalId(id)
+        : await Model.findByKey(id);
 
       return user ? user.setRoles(roles) : null;
     };
@@ -586,6 +592,111 @@ class Sql {
    */
   getModels() {
     return this.models || {};
+  }
+
+  /**
+   * What this store can state about its foreign keys, for core's exit gate
+   * (`base/references.js`).
+   *
+   * Two sources, both of them things a model file said out loud:
+   * `Model.associations`, which is what `belongsTo()` in `associate(models)`
+   * built, and `rawAttributes[field].references`, which is what a field
+   * declaring `references: { model: 'Event' }` built. A column that points
+   * at a row without declaring it is not here, and henri does not guess at
+   * it from its name.
+   *
+   * @returns {object} `{ [globalId]: { externalId, references } }`
+   * @memberof Sql
+   */
+  references() {
+    const described = {};
+    const tables = {};
+
+    for (const globalId of Object.keys(this.models)) {
+      tables[this.models[globalId].getTableName()] = globalId;
+      tables[globalId] = globalId;
+    }
+
+    for (const globalId of Object.keys(this.models)) {
+      const Model = this.models[globalId];
+      const references = {};
+
+      for (const association of Object.values(Model.associations || {})) {
+        // Only the side holding the key: a hasMany puts nothing on this row
+        if (
+          association.associationType !== 'BelongsTo' ||
+          !association.foreignKey ||
+          !association.target
+        ) {
+          continue;
+        }
+
+        references[association.foreignKey] = {
+          as: association.as || null,
+          target: association.target.name,
+        };
+      }
+
+      for (const field of Object.keys(Model.rawAttributes || {})) {
+        const declared = (Model.rawAttributes[field] || {}).references;
+        const named =
+          declared &&
+          (typeof declared.model === 'string'
+            ? declared.model
+            : (declared.model || {}).name);
+        const target = named && tables[named];
+
+        if (target && !references[field]) {
+          references[field] = { as: null, target };
+        }
+      }
+
+      described[globalId] = {
+        externalId: Boolean(
+          Model.rawAttributes && Model.rawAttributes[EXTERNAL_ID]
+        ),
+        references,
+      };
+    }
+
+    return described;
+  }
+
+  /**
+   * The public identifiers of rows named by their primary key: one
+   * statement for the whole set, which is what keeps a page of records from
+   * costing a query per foreign key.
+   *
+   * Deleted rows included (`paranoid: false`): a proposal pointing at a
+   * withdrawn track still has to publish an identifier for it rather than
+   * fall back to the number.
+   *
+   * @param {string} modelName The global id of the model
+   * @param {Array} keys The primary keys
+   * @returns {Promise<Map<string, string>>} externalId by primary key
+   * @memberof Sql
+   */
+  async externalIdsOf(modelName, keys) {
+    const Model = this.models[modelName];
+    const found = new Map();
+
+    if (!Model || !Model.rawAttributes[EXTERNAL_ID] || keys.length === 0) {
+      return found;
+    }
+
+    const primary = Model.primaryKeyAttribute;
+    const rows = await Model.findAll({
+      attributes: [primary, EXTERNAL_ID],
+      paranoid: false,
+      raw: true,
+      where: { [primary]: keys },
+    });
+
+    for (const row of rows) {
+      found.set(String(row[primary]), row[EXTERNAL_ID]);
+    }
+
+    return found;
   }
 
   /**
@@ -639,16 +750,19 @@ class Sql {
       return null;
     }
 
-    // A uuid is a public identifier, not a malformed primary key
-    if (
-      !isUuid(id) &&
-      type instanceof DataTypes.INTEGER &&
-      !/^\d+$/.test(String(id))
-    ) {
+    if (isUuid(id)) {
+      return Model.findByExternalId(id);
+    }
+
+    // A malformed primary key (a stale session, a token from another
+    // deployment) is not a user
+    if (type instanceof DataTypes.INTEGER && !/^\d+$/.test(String(id))) {
       return null;
     }
 
-    return Model.findById(id);
+    // The subject of a session is a primary key henri wrote itself, so this
+    // is a key lookup and never the strict `findById()` a url goes through
+    return Model.findByKey(id);
   }
 
   /**

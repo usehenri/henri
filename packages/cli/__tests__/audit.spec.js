@@ -323,6 +323,50 @@ describe('henri audit', () => {
     );
   });
 
+  test('reports what an application weakened about the public identifiers', () => {
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      { externalIds: { lookup: 'any', references: false } }
+    );
+
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'externalIds.lookup-any',
+        'externalIds.references-disabled',
+      ])
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V4.2.1',
+        check: 'externalIds.lookup-any',
+        file: 'config/production.json',
+        message: expect.stringContaining('/records/4812'),
+        severity: 'medium',
+      })
+    );
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V4.2.1',
+        check: 'externalIds.references-disabled',
+        message: expect.stringContaining('primary key of the row it points'),
+        severity: 'medium',
+      })
+    );
+
+    // The defaults are the safe pair, and writing them down is not a finding
+    expect(
+      withConfig(app, 'config/production.json', {
+        externalIds: { lookup: 'external', references: true },
+      }).names
+    ).not.toEqual(
+      expect.arrayContaining([
+        'externalIds.lookup-any',
+        'externalIds.references-disabled',
+      ])
+    );
+  });
+
   test('reports what an application weakened about uploads', () => {
     const { findings: found, names } = withConfig(
       app,

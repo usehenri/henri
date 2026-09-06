@@ -27,9 +27,10 @@
  * get the same `422` either way.
  *
  * `:id` is the public identifier of the record, its `externalId`: a uuid on
- * every store. `Model.findById()` takes it (and the internal id too), and a
- * redirect is built from `record.externalId`, never from the numeric id,
- * which does not leave the server.
+ * every store. `Model.findById()` takes it and nothing else -- a primary key
+ * in the url answers the same `null` an unknown uuid answers, which is the
+ * 404 below -- and a redirect is built from `record.externalId`, never from
+ * the numeric id, which does not leave the server.
  *
  * Two things do not need a flavour: `Model.paginate()` answers the same
  * `{ records, page, perPage, total, pages }` on the three model APIs, and
@@ -298,10 +299,11 @@ const sequelize = {
 `,
   helpers: (opts) => `${fields(opts)}
 /**
- * Load a row by id, null when the id is malformed
+ * Load a row by its public identifier, null when there is no such row
  *
- * The id in the url is the \`externalId\` of the row (a uuid), but the
- * primary key works too; anything else is not a row.
+ * The id in the url is the \`externalId\` of the row (a uuid). A primary
+ * key does not name a row from outside: it answers the same \`null\` an
+ * unknown uuid answers, and \`findByKey()\` is the lookup for one you hold.
  *
  * @param {*} id The id from the route
  * @returns {Promise<object|null>} The row or null

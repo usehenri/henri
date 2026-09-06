@@ -145,8 +145,8 @@ describe(`model API (${target.name})`, () => {
       ]);
 
       expect(created).toHaveLength(2);
-      expect((await Task.findById(created[0].id)).tags).toEqual(['x', 'y']);
-      expect((await Task.findById(created[1].id)).tags).toEqual({
+      expect((await Task.findByKey(created[0].id)).tags).toEqual(['x', 'y']);
+      expect((await Task.findByKey(created[1].id)).tags).toEqual({
         nested: true,
       });
     });
@@ -163,8 +163,11 @@ describe(`model API (${target.name})`, () => {
       ).toEqual([two.id]);
       expect((await Task.findOne({ name: 'one' })).id).toBe(one.id);
       expect(await Task.findOne({ name: 'three' })).toBeNull();
-      expect((await Task.findById(String(two.id))).name).toBe('two');
+      expect((await Task.findByKey(String(two.id))).name).toBe('two');
       expect((await Task.findByPk(two.id)).name).toBe('two');
+      // The primary key is not an identifier from outside any more
+      expect(await Task.findById(two.id)).toBeNull();
+      expect((await Task.findById(two.externalId)).name).toBe('two');
       expect(await Task.findById('abc')).toBeNull();
       expect(await Task.findById(999)).toBeNull();
       expect((await Task.all()).length).toBe(2);
@@ -282,7 +285,7 @@ describe(`model API (${target.name})`, () => {
       await new Promise((resolve) => setTimeout(resolve, 5));
 
       const updated = await Task.findByIdAndUpdate(
-        String(task.id),
+        task.externalId,
         { done: 'true', name: 'final' },
         { new: true, runValidators: true }
       );
@@ -306,10 +309,10 @@ describe(`model API (${target.name})`, () => {
       expect(task.changed()).toEqual(['name']);
       await task.save();
       expect(task.changed()).toEqual([]);
-      expect((await Task.findById(task.id)).name).toBe('edited');
+      expect((await Task.findByKey(task.id)).name).toBe('edited');
 
       await task.update({ priority: 4 });
-      expect((await Task.findById(task.id)).priority).toBe(4);
+      expect((await Task.findByKey(task.id)).priority).toBe(4);
 
       const built = Task.build({ name: 'built' });
 
@@ -346,8 +349,8 @@ describe(`model API (${target.name})`, () => {
       const task = await Task.create({ name: 'gone' });
       const other = await Task.create({ name: 'other' });
 
-      expect((await Task.findByIdAndDelete(String(task.id))).name).toBe('gone');
-      expect(await Task.findByIdAndDelete(task.id)).toBeNull();
+      expect((await Task.findByIdAndDelete(task.externalId)).name).toBe('gone');
+      expect(await Task.findByIdAndDelete(task.externalId)).toBeNull();
       expect(await Task.findByIdAndRemove('abc')).toBeNull();
       expect((await Task.findOneAndDelete({ name: 'other' })).id).toBe(
         other.id
@@ -408,6 +411,8 @@ describe(`model API (${target.name})`, () => {
     });
 
     test('coerces and checks numbers, dates, lengths, patterns and custom validators', async () => {
+      const existing = await Task.create({ name: 'to update' });
+
       await expect(
         Task.create({ name: 'x', priority: 'abc' })
       ).rejects.toMatchObject({
@@ -439,7 +444,7 @@ describe(`model API (${target.name})`, () => {
         errors: { weight: { message: 'must be a number' } },
       });
       await expect(
-        Task.findByIdAndUpdate(1, { name: '' })
+        Task.findByIdAndUpdate(existing.externalId, { name: '' })
       ).rejects.toMatchObject({
         errors: { name: { message: 'is required' } },
       });
@@ -518,7 +523,7 @@ describe(`model API (${target.name})`, () => {
 
       expect(nested[0].author.posts).toHaveLength(2);
       expect(
-        (await Post.findById(post.id, { include: 'author' })).author.id
+        (await Post.findByKey(post.id, { include: 'author' })).author.id
       ).toBe(ada.id);
       expect(
         await Post.where({ authorId: bob.id }).include('author').count()

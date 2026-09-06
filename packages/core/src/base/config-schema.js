@@ -547,6 +547,28 @@ const SCHEMA = {
     oneOf: [text(), { of: text(), type: 'array' }],
   },
 
+  externalIds: {
+    describe:
+      'an object of public identifier settings ({ lookup, references })',
+    hint: 'Every model carries an externalId unless it opts out; this says what henri does with the internal one (see base/references.js)',
+    keys: {
+      lookup: {
+        default: 'external',
+        describe: "'external' or 'any'",
+        enum: ['any', 'external'],
+        hint: "'any' lets Model.findById() resolve a primary key again, so /tasks/4812 answers next to the uuid and guessing a number works",
+        type: 'string',
+      },
+      references: {
+        default: true,
+        describe: 'true or false',
+        hint: 'false sends a declared foreign key as the database holds it, so a record carries another row primary key',
+        type: 'boolean',
+      },
+    },
+    type: 'object',
+  },
+
   policies: {
     describe: 'an object of policy settings ({ status, verify })',
     hint: 'Policies live in app/policies; the key only says what a refusal answers',

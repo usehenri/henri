@@ -118,21 +118,88 @@ The values are [UUID version 7](https://www.rfc-editor.org/rfc/rfc9562): the fir
 
 ### Looking a record up
 
-`Model.findById()` takes either identifier, so a controller hands it `req.params.id` and does not care which one is in the url:
+`Model.findById()` takes the public identifier, and only the public identifier. A primary key answers `null`:
 
 ```js
-await Task.findById('0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11'); // the public id
-await Task.findById(42); // the primary key
-await Task.findById('42'); // the primary key, as a string
+await Task.findById('0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11'); // the record
+await Task.findById(42); // null
+await Task.findById('42'); // null
+await Task.findById('0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c99'); // null
 ```
 
-The two can never be confused: a uuid is 36 characters with four dashes, and neither a number nor a 24 character `ObjectId` can look like one. `findByIdAndUpdate()`, `findByIdAndDelete()` and, on the Sequelize adapters, `findByPk()` take both as well.
+That `null` is what makes `/tasks/42` a 404 in an application whose controller was already written to answer one, and it is the _same_ `null` an unknown uuid gets: nothing in the answer distinguishes "no such row" from "not that kind of identifier", because a 404 that says which one it was is a lookup oracle. `findByIdAndUpdate()` and `findByIdAndDelete()` refuse the same values, so neither is the door `findById()` stopped being.
 
-Because both work, `/tasks/42` still answers as long as somebody types it. A controller that must refuse the internal id looks the record up on the column instead:
+Server-side code that legitimately holds a primary key -- the row you just wrote, a join you just made, the subject of a session -- calls `findByKey()`:
 
 ```js
-const task = await Task.findOne({ externalId: req.params.id });
+const task = await Task.findByKey(42); // the record
+const task = await Task.findByKey(created.id); // the row you just wrote
+await Task.findByKey('0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11'); // null
 ```
+
+`findByExternalId()` is the other half, explicitly. On the Sequelize adapters and on Drizzle, `findByPk()` is an alias of `findByKey()`.
+
+The two identifiers can never be confused: a uuid is 36 characters with four dashes, and neither a number nor a 24 character `ObjectId` can look like one.
+
+:::caution[Upgrading from 1.2]
+`findById()` used to take both. Anywhere your code hands it a value it read
+from the database -- `Model.findById(record.id)` -- change it to
+`findByKey()`; anywhere it hands it `req.params.id`, leave it alone, that is
+the case this is for. [`externalIds.lookup: "any"`](/configuration/#the-externalids-object)
+restores the old behaviour wholesale for an application whose links already
+carry numbers, and `henri audit` reports it.
+:::
+
+### Foreign keys
+
+A record hid its own primary key from the start. It hid somebody else's from 1.3: a foreign key leaves as the `externalId` of the row it names.
+
+```js
+const proposal = await Proposal.findById(req.params.id);
+
+proposal.speakerId; // 4812, on the server
+JSON.stringify(await henri.model.publish(proposal));
+// {"externalId":"0199a5c1-...","speakerId":"0199a4f2-...", ...}
+```
+
+henri only does this for a foreign key the model **declared**, and it never reads a field name to decide:
+
+| Adapter   | What makes a field a foreign key                                                       |
+| --------- | -------------------------------------------------------------------------------------- |
+| Sequelize | `belongsTo()` in `associate(models)`, or `references: { model: 'Event' }` on the field |
+| Drizzle   | `belongsTo()` in `associate(models)`, or `references: { model: 'Event' }` on the field |
+| Mongoose  | `ref: 'User'` on the path, or on the entries of an array of them                       |
+
+What henri **cannot know, and therefore does not guess**:
+
+- a column holding an id and saying nothing (`ownerId: { type: 'string' }`) is an opaque string, whatever it is called;
+- a Mongoose `refPath`, or a `ref` given as a function: the target collection is named per document, and resolving it against the wrong one would publish the identifier of an unrelated row;
+- a polymorphic pair (`subjectType` + `subjectId`): two undeclared columns, as far as every ORM here is concerned;
+- a plain object that never was a record -- a `.lean()` query, a row from `adapter.query()`, an object a controller built by hand -- because it carries no model. Its internal ids are still removed; its foreign keys are yours.
+
+A key that names no row is `null`, never the number: an answer that cannot be resolved fails closed.
+
+The cost is bounded. One call covers a whole answer -- `res.render()`'s payload, `res.resource()`'s record, `res.collection()`'s entire page -- and it takes what an eager-loaded association already holds (checking that the loaded record really is the row the key names) before asking for the rest in **one statement per target model**, with the keys deduplicated inside it.
+
+Measured on the showcase against PostgreSQL, on a page of 25 proposals carrying 75 foreign keys across three models:
+
+| The answer                                                                 | Statements                                         |
+| -------------------------------------------------------------------------- | -------------------------------------------------- |
+| `GET /proposals?per_page=25` with `include: ['event', 'speaker', 'track']` | 3 for the whole request, none of them a resolution |
+| The same 25 records published with nothing included                        | 3, one per target model                            |
+| The naive shape, one lookup per key                                        | 75                                                 |
+
+### Presenting a record
+
+A controller that builds a new object out of its records hands `res.resource()` a plain object, and a plain object carries no model. Publish first, present second:
+
+```js
+const published = await henri.model.publish(records);
+
+return res.collection(published.map(present), { subject: records });
+```
+
+`henri.model.publish()` is the same gate `res.render()`, `res.resource()` and `res.collection()` run on their way out, with the same batching.
 
 ### The column, and opting out
 
@@ -148,7 +215,11 @@ module.exports = {
 
 Nothing else changes when a model opts out: it is the one escape hatch, for a lookup table or a legacy table you do not own.
 
-The foreign keys are unaffected. `belongsTo` and `hasMany` keep pointing at the primary key, `include()` and `populate()` are unchanged, and a `taskId` column still holds a number. What a page or an API client sees of an association is the associated record with its own `externalId`.
+Nothing changes for a model that opted out, in either direction: its records have no `externalId`, so their `id` is left where it always was; its `findById()` still takes the primary key, because there is no other identifier to prefer; and a foreign key _pointing at_ it stays the number it is, because the row it names has nothing else to give.
+
+In the database, the foreign keys are unaffected. `belongsTo` and `hasMany` keep pointing at the primary key, `include()` and `populate()` are unchanged, and a `taskId` column still holds a number: only what leaves the server changes. A form that posts one back posts the `externalId`, and `findById()` on the target is what turns it into the key the column wants.
+
+[`externalIds`](/configuration/#the-externalids-object) holds both switches, and `henri audit` reports either of them turned off.
 
 ## Soft deletes
 

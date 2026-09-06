@@ -24,11 +24,15 @@ module.exports = {
       )
     );
 
+    // Published, not serialized by hand: `eventId` leaves as the public
+    // identifier of the edition rather than its primary key
+    const published = await henri.model.publish(tracks);
+
     return res.render('/tracks/index', {
       data: {
-        event: req.event.toJSON(),
-        tracks: tracks.map((track, index) => ({
-          ...track.toJSON(),
+        event: await henri.model.publish(req.event),
+        tracks: published.map((track, index) => ({
+          ...track,
           accepted: counts[index],
         })),
       },

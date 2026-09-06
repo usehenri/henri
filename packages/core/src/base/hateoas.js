@@ -1,8 +1,5 @@
-const {
-  EXTERNAL_ID,
-  hasExternalId,
-  stripInternalIds,
-} = require('./external-id');
+const { EXTERNAL_ID, hasExternalId } = require('./external-id');
+const { publish } = require('./references');
 const { stamp } = require('./errors');
 const { jsonType, noStore } = require('./headers');
 const { linkHeader, pageLinks, paginate } = require('./pagination');
@@ -69,48 +66,14 @@ function identify(record) {
 }
 
 /**
- * A record on its way out: a plain object with its public identifier, and
- * without the fields the models marked `personal: { expose: false }`
+ * Gives a published copy its public identifier back when it has no
+ * `externalId` of its own (a model that opted out, a hand-built object)
  *
- * @param {Henri} henri the henri instance
- * @param {*} record a model instance or a plain object
- * @param {Array<string>} [include=[]] the private fields the action asked for
- * @returns {object} a copy
+ * @param {*} plain a published record
+ * @returns {*} the record
  */
-function sendable(henri, record, include = []) {
-  const plain = toPlain(record);
-
-  return henri.privacy ? henri.privacy.strip(plain, include) : plain;
-}
-
-/**
- * A record as a plain object with its public identifier
- *
- * Model instances are serialized through their own `toJSON()` (Mongoose,
- * Sequelize, Drizzle) so the schema options (hidden fields, virtuals) apply.
- *
- * @param {*} record a model instance or a plain object
- * @returns {object} a copy
- */
-function toPlain(record) {
-  if (!record || typeof record !== 'object') {
-    return record;
-  }
-
-  let plain = record;
-
-  if (typeof record.toJSON === 'function') {
-    plain = record.toJSON();
-  } else if (typeof record.toObject === 'function') {
-    plain = record.toObject();
-  }
-
-  // A record carrying a public identifier answers with it and nothing else:
-  // the primary key is dropped here and at every depth (a `.lean()` query or
-  // a hand-built object never went through a model's own toJSON)
-  plain = Object.assign({}, stripInternalIds(plain));
-
-  if (hasExternalId(plain)) {
+function withId(plain) {
+  if (!plain || typeof plain !== 'object' || hasExternalId(plain)) {
     return plain;
   }
 
@@ -121,6 +84,48 @@ function toPlain(record) {
   }
 
   return plain;
+}
+
+/**
+ * A record as a plain object with its public identifier
+ *
+ * Model instances are serialized through their own `toJSON()` (Mongoose,
+ * Sequelize, Drizzle) so the schema options (hidden fields, virtuals)
+ * apply, the internal ids are dropped at every depth (a `.lean()` query or
+ * a hand-built object never went through a model's own toJSON) and the
+ * foreign keys leave as the public identifier of the row they name.
+ *
+ * One call covers one whole answer: `records` is published together so the
+ * lookups behind the foreign keys are batched once for the page rather
+ * than once per record (see base/references.js).
+ *
+ * @param {Henri} henri the henri instance
+ * @param {*} records a model instance, a plain object, or a list of either
+ * @returns {Promise<*>} the copy
+ */
+async function toPublic(henri, records, include = []) {
+  const published = await publish(henri, records);
+  // Privacy has the last word: publishing resolves a foreign key into the
+  // public identifier of the row it names, and a field the model marked
+  // `personal: { expose: false }` must not leave whatever it resolved to
+  const kept =
+    henri && henri.privacy
+      ? henri.privacy.strip(published, include)
+      : published;
+
+  if (Array.isArray(kept)) {
+    return kept.map((entry) =>
+      withId(
+        entry && typeof entry === 'object' ? Object.assign({}, entry) : entry
+      )
+    );
+  }
+
+  if (!kept || typeof kept !== 'object') {
+    return kept;
+  }
+
+  return withId(Object.assign({}, kept));
 }
 
 /**
@@ -431,7 +436,7 @@ function resource(
       return res;
     }
 
-    const plain = sendable(henri, record, include);
+    const plain = await toPublic(henri, record, include);
     const paths = henri.router.pathForRoles(req.user);
     const merged = await allowed(
       henri,
@@ -531,9 +536,12 @@ function collection(
     const cache = new Map();
     const user = req.user || null;
     const items = [];
+    // The whole page at once: publishing record by record would make one
+    // lookup per foreign key per row (see base/references.js)
+    const published = await toPublic(henri, records, include);
 
     for (const [index, record] of records.entries()) {
-      const plain = sendable(henri, record, include);
+      const plain = published[index];
 
       items.push(
         Object.assign({ _links: null }, plain, {
@@ -695,6 +703,5 @@ module.exports = {
   resource,
   resourceLinks,
   routeType,
-  sendable,
-  toPlain,
+  toPublic,
 };

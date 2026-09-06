@@ -84,7 +84,7 @@ describe('timestamps, soft deletes and paginate (sqlite in memory)', () => {
       expect(task.deletedAt).toBeInstanceOf(Date);
       expect(task.isNew).toBe(false);
       expect(await Task.count()).toBe(0);
-      expect(await Task.findById(task.id)).toBeNull();
+      expect(await Task.findByKey(task.id)).toBeNull();
       expect(await Task.find()).toEqual([]);
       expect(await Task.exists({ name: 'archived' })).toBe(false);
       expect(hooks).toEqual([
@@ -101,7 +101,7 @@ describe('timestamps, soft deletes and paginate (sqlite in memory)', () => {
 
       expect(await Task.withDeleted().count()).toBe(2);
       expect(await Task.onlyDeleted().pluck('name')).toEqual(['gone']);
-      expect((await Task.findById(gone.id, { withDeleted: true })).name).toBe(
+      expect((await Task.findByKey(gone.id, { withDeleted: true })).name).toBe(
         'gone'
       );
 
@@ -141,7 +141,7 @@ describe('timestamps, soft deletes and paginate (sqlite in memory)', () => {
       expect(await Task.update({}, { category: 'high' })).toBe(1);
       expect(await Task.countDocuments()).toBe(1);
       expect(
-        (await Task.findById(task.id, { withDeleted: true })).category
+        (await Task.findByKey(task.id, { withDeleted: true })).category
       ).toBe('low');
     });
 

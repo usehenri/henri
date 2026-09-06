@@ -16,7 +16,7 @@ const {
   privacyConfig,
   stripPersonal,
 } = require('../base/privacy');
-const { sendable } = require('../base/hateoas');
+const { toPublic } = require('../base/hateoas');
 const {
   anonymousValue,
   digestOf,
@@ -561,7 +561,9 @@ describe('privacy (demo app, disk store)', () => {
     // The memos are gone, the person is a row that is nobody
     expect(await Memo.find({ ownerId: owner })).toHaveLength(0);
 
-    const erased = await User.findById(user._id).select('+password');
+    // A primary key read back from the database goes through findByKey(),
+    // because findById() takes the public identifier (see base/references.js)
+    const erased = await User.findByKey(user._id).select('+password');
 
     expect(erased).toBeTruthy();
     expect(erased.email).toMatch(/^erased-[0-9a-f]+@erased\.invalid$/u);
@@ -622,11 +624,11 @@ describe('privacy (demo app, disk store)', () => {
     // options of res.render() (5.router.js) and the plain object of
     // res.resource() (base/hateoas.js)
     const record = await User.findOne({ email: 'page@usehenri.io' });
-    const sent = sendable(henri, record);
+    const sent = await toPublic(henri, record);
 
     expect(sent.name).toBe('Ada Lovelace');
     expect(sent.gender).toBeUndefined();
-    expect(sendable(henri, record, ['gender']).gender).toBe('f');
+    expect((await toPublic(henri, record, ['gender'])).gender).toBe('f');
 
     await henri.privacy.erase('page@usehenri.io');
   });

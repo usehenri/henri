@@ -89,7 +89,10 @@ module.exports = {
 
       return res.render('/account', {
         data: {
-          account: { ...req.user.toJSON(), ...req.permit(...PROFILE) },
+          account: {
+            ...(await henri.model.publish(req.user)),
+            ...req.permit(...PROFILE),
+          },
           counts: null,
         },
         include: PRIVATE,

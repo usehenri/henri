@@ -158,7 +158,7 @@ describe('roles', () => {
       .set('X-CSRF-Token', csrf)
       .send({ name: 'Renamed', roles: ['admin'] });
 
-    const reloaded = await User.findById(speaker.id);
+    const reloaded = await User.findByKey(speaker.id);
 
     expect(reloaded.name).toBe('Renamed');
     expect(reloaded.roles).toEqual(['speaker']);
@@ -174,7 +174,7 @@ describe('roles', () => {
 
     expect(answer.status).toBe(302);
 
-    const reloaded = await User.findById(speaker.id);
+    const reloaded = await User.findByKey(speaker.id);
 
     expect(reloaded.roles).toEqual(['speaker', 'admin']);
 

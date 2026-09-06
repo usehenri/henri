@@ -7,6 +7,10 @@ const debug = require('debug')('henri:model');
 const { userConfig } = require('./base/auth');
 const { modelErrors } = require('./base/model-errors');
 const { engine: graphqlEngine } = require('./base/graphql');
+const {
+  build: buildReferences,
+  publish: publishRecords,
+} = require('./base/references');
 
 /**
  * Model module
@@ -33,6 +37,11 @@ class Model extends BaseModule {
     this.ids = [];
     this.models = [];
     this.stores = {};
+    // Which fields are foreign keys, which models carry a public
+    // identifier, and which constructor belongs to which model (see
+    // base/references.js). Rebuilt every time the stores start, because
+    // the associations only exist once `associate()` has run.
+    this.referenceTable = { classes: new Map(), models: {} };
 
     this.configure = this.configure.bind(this);
     this.reset = this.reset.bind(this);
@@ -139,6 +148,7 @@ class Model extends BaseModule {
     this.stores = {};
     this.ids = [];
     this.models = [];
+    this.referenceTable = { classes: new Map(), models: {} };
     debug('done resetting');
 
     return true;
@@ -273,6 +283,14 @@ class Model extends BaseModule {
 
       throw stamp(error, 'HENRI_STORE_START_FAILED');
     }
+    // The associations exist now: `associate(models)` ran inside start()
+    this.referenceTable = buildReferences(this.stores);
+    debug(
+      'reference table: %d models, %d classes',
+      Object.keys(this.referenceTable.models).length,
+      this.referenceTable.classes.size
+    );
+
     if (this.ids.length > 0) {
       this.addToEslintRc();
     }
@@ -310,6 +328,7 @@ class Model extends BaseModule {
 
     this.ids = [];
     this.stores = {};
+    this.referenceTable = { classes: new Map(), models: {} };
     debug('stop done');
 
     return true;
@@ -435,6 +454,35 @@ class Model extends BaseModule {
     }
 
     return connector;
+  }
+
+  /**
+   * The public form of a record, a list of records, or anything holding
+   * some: no internal id anywhere, and every declared foreign key replaced
+   * by the public identifier of the row it names.
+   *
+   * `res.render()`, `res.resource()` and `res.collection()` call this on
+   * their way out, so an application never has to. It is exposed for the
+   * one case they cannot cover: a controller that presents its records --
+   * builds a new object out of them -- hands those calls a plain object,
+   * and a plain object carries no model, so nothing downstream can tell a
+   * foreign key from any other number. Publish first, present second.
+   *
+   * ```js
+   * const published = await henri.model.publish(records);
+   *
+   * return res.collection(published.map(present), { subject: records });
+   * ```
+   *
+   * One call covers one whole answer: the lookups behind the foreign keys
+   * are batched, one statement per target model (see base/references.js).
+   *
+   * @param {*} value a record, a list of records, or anything else
+   * @returns {Promise<*>} the value, published
+   * @memberof Model
+   */
+  publish(value) {
+    return publishRecords(this.henri, value);
   }
 
   /**

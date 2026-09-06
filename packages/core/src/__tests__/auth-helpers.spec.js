@@ -80,7 +80,7 @@ describe('userAdapter', () => {
       toPlain: (user) => ({ plain: true, ...user }),
       userId: (user) => `id:${user.id}`,
     };
-    const adapter = userAdapter(store, { findByPk: () => null });
+    const adapter = userAdapter(store, { findAndCountAll: () => null });
 
     expect(adapter.native).toBe(true);
     expect(await adapter.findUserByEmail('a@b.c')).toEqual({ email: 'a@b.c' });
@@ -96,8 +96,8 @@ describe('userAdapter', () => {
   test('falls back to mongoose calls', async () => {
     const queries = [];
     const model = {
-      findById: async (id, projection) => {
-        queries.push(['findById', id, projection]);
+      findByKey: async (id, projection) => {
+        queries.push(['findByKey', id, projection]);
         if (id === 'bad') {
           const error = new Error('Cast to ObjectId failed');
 
@@ -129,16 +129,22 @@ describe('userAdapter', () => {
     });
     expect(queries).toEqual([
       ['findOne', { email: 'a@b.c' }, '+password'],
-      ['findById', 'abc', { password: 0 }],
-      ['findById', 'bad', { password: 0 }],
+      ['findByKey', 'abc', { password: 0 }],
+      ['findByKey', 'bad', { password: 0 }],
     ]);
   });
 
   test('falls back to sequelize calls', async () => {
     const queries = [];
     const model = {
-      findByPk: async (id, options) => {
-        queries.push(['findByPk', id, options]);
+      findAndCountAll: () => null,
+      findByExternalId: async (id, options) => {
+        queries.push(['findByExternalId', id, options]);
+
+        return { id };
+      },
+      findByKey: async (id, options) => {
+        queries.push(['findByKey', id, options]);
 
         return { id };
       },
@@ -149,17 +155,23 @@ describe('userAdapter', () => {
       },
     };
     const adapter = userAdapter(null, model);
+    const external = '0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11';
 
     expect(await adapter.findUserByEmail('a@b.c')).toEqual({
       email: 'a@b.c',
       id: 1,
     });
+    // The subject of a session is a primary key, and it goes through the
+    // key lookup, never through the findById() a url goes through
     expect(await adapter.findUserById(1)).toEqual({ id: 1 });
+    // A token minted with the public identifier still resolves
+    expect(await adapter.findUserById(external)).toEqual({ id: external });
     expect(adapter.userId({ id: 1 })).toBe('1');
     expect(adapter.toPlain({ toJSON: () => ({ id: 1 }) })).toEqual({ id: 1 });
     expect(queries).toEqual([
       ['findOne', { where: { email: 'a@b.c' } }],
-      ['findByPk', 1, { attributes: { exclude: ['password'] } }],
+      ['findByKey', 1, { attributes: { exclude: ['password'] } }],
+      ['findByExternalId', external, { attributes: { exclude: ['password'] } }],
     ]);
   });
 

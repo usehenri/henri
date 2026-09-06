@@ -9,6 +9,12 @@ const { randomFillSync } = require('node:crypto');
  * identifier routes, links and payloads carry, so nothing outside can see or
  * guess a sequential number.
  *
+ * A primary key does not resolve in a lookup any more: `findById()` on a
+ * model carrying an external id answers a uuid and nothing else, and
+ * `findByKey()` is the door for the code that legitimately holds a key (the
+ * subject of a session, a reload). `externalIds.lookup: 'any'` restores the
+ * old behaviour. The reasoning is in core's `base/references.js`.
+ *
  * The values are UUID version 7 (RFC 9562): 48 bits of Unix time in
  * milliseconds, then a 12 bit counter, then randomness. Version 4 would do
  * as an identifier, but this column is unique, indexed and written on every
@@ -151,11 +157,40 @@ const withoutInternalIds = (value) => {
   return copy;
 };
 
+/**
+ * Does this application still let a primary key resolve through
+ * `findById()`? Only `externalIds.lookup: "any"` does; anything else --
+ * including no configuration at all -- means the public identifier is the
+ * only identifier a lookup takes.
+ *
+ * @param {object} henri The henri instance (or a stand-in)
+ * @returns {boolean} true when a primary key still resolves
+ */
+const resolvesKeys = (henri) => {
+  const config = henri && henri.config;
+
+  if (!config || typeof config.get !== 'function') {
+    return false;
+  }
+
+  try {
+    const settings = config.get('externalIds');
+
+    return Boolean(
+      settings && typeof settings === 'object' && settings.lookup === 'any'
+    );
+  } catch {
+    // A key the application never wrote is a key with the safe default
+    return false;
+  }
+};
+
 module.exports = {
   EXTERNAL_ID,
   EXTERNAL_ID_COLUMN,
   isUuid,
   normalizeExternalId,
+  resolvesKeys,
   uuidv7,
   wantsExternalId,
   withoutInternalIds,

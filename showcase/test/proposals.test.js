@@ -179,7 +179,7 @@ describe('proposals', () => {
         .send({ title: 'Hijacked, obviously' });
 
       expect(answer.status).toBe(403);
-      expect((await Proposal.findById(theirs.id)).title).toBe(
+      expect((await Proposal.findByKey(theirs.id)).title).toBe(
         'Not yours to edit'
       );
     });
@@ -258,7 +258,7 @@ describe('proposals', () => {
       expect(answer.status).toBe(302);
       expect(answer.headers.location).toBe(`/proposals/${draft.externalId}`);
 
-      const reloaded = await Proposal.findById(draft.id);
+      const reloaded = await Proposal.findByKey(draft.id);
 
       expect(reloaded.state).toBe('submitted');
       expect(reloaded.submittedAt).toBeInstanceOf(Date);
@@ -309,7 +309,7 @@ describe('proposals', () => {
         .set('X-CSRF-Token', csrf);
 
       expect(answer.status).toBe(409);
-      expect((await Proposal.findById(draft.id)).state).toBe('draft');
+      expect((await Proposal.findByKey(draft.id)).state).toBe('draft');
     });
 
     test('a submitted proposal can no longer be edited', async () => {
@@ -356,7 +356,7 @@ describe('proposals', () => {
       expect(answer.headers.location).toBe('/proposals/mine');
 
       // Gone from every ordinary query
-      expect(await Proposal.findById(proposal.id)).toBeNull();
+      expect(await Proposal.findByKey(proposal.id)).toBeNull();
       expect(await Proposal.count({ id: proposal.id })).toBe(0);
 
       const gone = await request()
@@ -401,7 +401,7 @@ describe('proposals', () => {
         .set('X-CSRF-Token', csrf);
 
       expect(answer.status).toBe(302);
-      expect(await Proposal.findById(proposal.id)).toBeTruthy();
+      expect(await Proposal.findByKey(proposal.id)).toBeTruthy();
     });
   });
 
@@ -466,7 +466,7 @@ describe('proposals', () => {
 
       expect(decision.status).toBe(302);
 
-      const decided = await Proposal.findById(proposal.id);
+      const decided = await Proposal.findByKey(proposal.id);
 
       expect(decided.state).toBe('accepted');
       expect(decided.decidedAt).toBeInstanceOf(Date);
@@ -487,7 +487,7 @@ describe('proposals', () => {
         .send({ state: 'maybe' });
 
       expect(answer.status).toBe(422);
-      expect((await Proposal.findById(proposal.id)).state).toBe('submitted');
+      expect((await Proposal.findByKey(proposal.id)).state).toBe('submitted');
     });
   });
 });

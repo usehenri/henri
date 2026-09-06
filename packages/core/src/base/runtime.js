@@ -777,7 +777,14 @@ async function records(henri, body = {}) {
   const redaction = redactionOf(henri);
 
   if (typeof body.id !== 'undefined' && body.id !== null) {
-    const found = await Model.findById(body.id);
+    // The console and the MCP server are the developer's own tools, sitting
+    // where the server sits: both identifiers name a row here, which is why
+    // this asks for the key when the public identifier does not answer
+    const found =
+      (await Model.findById(body.id)) ||
+      (typeof Model.findByKey === 'function'
+        ? await Model.findByKey(body.id)
+        : null);
 
     return {
       model: definition.globalId,

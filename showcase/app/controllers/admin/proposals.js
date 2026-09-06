@@ -3,7 +3,7 @@
 // Everything here is behind `roles: ['admin']` in config/routes.js. The path
 // helpers a page receives are filtered by the same roles, so a speaker's page
 // never even holds a link to these routes.
-const { INCLUDE, averageScore, present } = require('../../helpers/proposals');
+const { INCLUDE, averageScore, presented } = require('../../helpers/proposals');
 
 /** What a decision may set: nothing else, whatever the form posts */
 const DECISIONS = ['accepted', 'rejected'];
@@ -95,16 +95,19 @@ module.exports = {
       where,
     });
     const scores = await scoresOf(records);
+    // One publish for the whole page: the lookups behind the foreign keys
+    // are batched there, and doing it per row would undo that
+    const proposals = await presented(records);
 
     return res.render('/admin/proposals/index', {
       data: {
         page,
         pages,
         perPage,
-        proposals: records.map((proposal) => ({
-          ...present(proposal),
-          reviews: scores[proposal.id].count,
-          score: scores[proposal.id].average,
+        proposals: proposals.map((proposal, index) => ({
+          ...proposal,
+          reviews: scores[records[index].id].count,
+          score: scores[records[index].id].average,
         })),
         state: where.state,
         total,
@@ -135,7 +138,7 @@ module.exports = {
         mine: reviews.some(
           (review) => String(review.reviewerId) === String(req.user.id)
         ),
-        proposal: present(req.proposal, { reviews }),
+        proposal: await presented(req.proposal, { reviews }),
       },
     });
   },
@@ -148,7 +151,7 @@ module.exports = {
       .order('-deletedAt');
 
     return res.render('/admin/proposals/withdrawn', {
-      data: { proposals: proposals.map((proposal) => present(proposal)) },
+      data: { proposals: await presented(proposals) },
     });
   },
 };

@@ -269,7 +269,9 @@ describe('personal data', () => {
 
       // The programme this conference ran is its own record: the talks are
       // still there, with their titles and their scores
-      const talk = await Proposal.findById(accepted.id, { include: 'speaker' });
+      const talk = await Proposal.findByKey(accepted.id, {
+        include: 'speaker',
+      });
 
       expect(talk.title).toBe('What a database owes you');
       expect(talk.state).toBe('accepted');
@@ -281,7 +283,7 @@ describe('personal data', () => {
       ).toBe(1);
 
       // And the speaker is a row that names nobody
-      const erased = await User.findById(speaker.id);
+      const erased = await User.findByKey(speaker.id);
 
       expect(erased).toBeTruthy();
       expect(erased.email).toMatch(/^erased-[0-9a-f]+@erased\.invalid$/u);
@@ -338,7 +340,7 @@ describe('personal data', () => {
       expect(receipt.dryRun).toBe(true);
       expect(receipt.file).toBeNull();
 
-      const untouched = await User.findById(speaker.id);
+      const untouched = await User.findByKey(speaker.id);
 
       expect(untouched.name).toBe('Grace');
       expect(untouched.phone).toBe('+1-555-0199');

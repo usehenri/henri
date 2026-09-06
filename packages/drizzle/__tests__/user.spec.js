@@ -82,7 +82,9 @@ describe('user model overload', () => {
     await user.update({ password: 'second-pass' });
     expect((await stored()).password).toBe('hashed:second-pass');
 
-    await User.findByIdAndUpdate(user.id, { password: 'third-pass' });
+    await User.findByIdAndUpdate(user.externalId, {
+      password: 'third-pass',
+    });
     expect((await stored()).password).toBe('hashed:third-pass');
 
     await User.update({ id: user.id }, { password: 'fourth-pass' });
@@ -100,7 +102,7 @@ describe('user model overload', () => {
       password: 'secret-1',
     });
 
-    expect((await User.findById(created.id)).password).toBeUndefined();
+    expect((await User.findByKey(created.id)).password).toBeUndefined();
     expect((await User.find())[0].password).toBeUndefined();
     expect(
       (await User.where({ email: 'p@b.co' }).first()).password
@@ -165,14 +167,14 @@ describe('user model overload', () => {
 
     expect(user.roles).toEqual(['member']);
 
-    await User.findByIdAndUpdate(user.id, { roles: ['admin'] });
-    expect((await User.findById(user.id)).roles).toEqual(['member']);
+    await User.findByIdAndUpdate(user.externalId, { roles: ['admin'] });
+    expect((await User.findByKey(user.id)).roles).toEqual(['member']);
 
     await user.update({ roles: ['admin'] });
-    expect((await User.findById(user.id)).roles).toEqual(['member']);
+    expect((await User.findByKey(user.id)).roles).toEqual(['member']);
 
     await User.update({ id: user.id }, { name: 'x', roles: ['admin'] });
-    expect((await User.findById(user.id)).roles).toEqual(['member']);
+    expect((await User.findByKey(user.id)).roles).toEqual(['member']);
   });
 
   test('changes roles through setRoles or with unsafe', async () => {
@@ -185,15 +187,19 @@ describe('user model overload', () => {
 
     await user.setRoles(['admin', 'editor']);
     expect(user.roles).toEqual(['admin', 'editor']);
-    expect((await User.findById(user.id)).roles).toEqual(['admin', 'editor']);
+    expect((await User.findByKey(user.id)).roles).toEqual(['admin', 'editor']);
 
     const updated = await User.setRoles(user.id, 'member');
 
     expect(updated.roles).toEqual(['member']);
     expect(await User.setRoles(999, 'member')).toBeNull();
 
-    await User.findByIdAndUpdate(user.id, { roles: ['x'] }, { unsafe: true });
-    expect((await User.findById(user.id)).roles).toEqual(['x']);
+    await User.findByIdAndUpdate(
+      user.externalId,
+      { roles: ['x'] },
+      { unsafe: true }
+    );
+    expect((await User.findByKey(user.id)).roles).toEqual(['x']);
   });
 
   test('checks roles with hasRole', async () => {

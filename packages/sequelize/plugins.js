@@ -1,7 +1,9 @@
+const { DataTypes } = require('sequelize');
 const {
   EXTERNAL_ID,
   isUuid,
   normalizeExternalId,
+  resolvesKeys,
   withoutInternalIds,
 } = require('./external-id');
 
@@ -75,45 +77,111 @@ const paginate = (Model) => {
 };
 
 /**
- * Adds `Model.findById()`: the Sequelize name is `findByPk`, and henri
- * wants one lookup that takes whatever `req.params.id` holds.
+ * Adds the two lookups henri splits an id into.
  *
- * With a public identifier (`external-id.js`) a uuid is looked up on
- * `externalId` and anything else on the primary key, which can never be
- * confused: a uuid is 36 characters with dashes, a primary key is not.
- * `findByPk()` accepts both too, so existing code keeps working.
+ * `findById()` is the one that takes what arrived from outside, and on a
+ * model carrying a public identifier (`external-id.js`) it takes a uuid and
+ * nothing else: a primary key answers `null`, the same `null` a uuid naming
+ * no row answers, so nothing in the reply says which of the two it was.
+ * `externalIds.lookup: "any"` restores the old permissive behaviour.
+ *
+ * `findByKey()` is the primary key and only the primary key, for the code
+ * that legitimately holds one -- the subject of a session, a row it just
+ * joined. `findByPk()`, the Sequelize name, is its alias.
+ *
+ * A model that opted out of the public identifier has only the primary key
+ * to be found by, so both take it and nothing changes for it.
  *
  * @param {object} Model A Sequelize model
  * @param {boolean} external Does the model carry a public identifier?
+ * @param {object} henri The henri instance (for `externalIds.lookup`)
  * @returns {object} The model
  */
-const lookup = (Model, external) => {
+const lookup = (Model, external, henri) => {
   const findByPk = Model.findByPk;
 
   /**
-   * A row by id: the public identifier or the primary key
+   * Can the primary key column hold this value at all?
    *
-   * @param {*} value An external id or a primary key
-   * @param {object} [options] findByPk/findOne options
+   * A uuid handed to an integer key is a `SequelizeDatabaseError` on
+   * PostgreSQL, which would answer a 500 -- and print a fragment of SQL --
+   * where a lookup that found nothing belongs. It answers `null` instead,
+   * the way every other miss does.
+   *
+   * @param {object} model The model (`this` in a static)
+   * @param {*} value The value
+   * @returns {boolean} true when the lookup is worth running
+   */
+  const castable = (model, value) => {
+    if (value === null || typeof value === 'undefined' || value === '') {
+      return false;
+    }
+
+    const attribute = model.rawAttributes[model.primaryKeyAttribute] || {};
+
+    return (
+      !(attribute.type instanceof DataTypes.INTEGER) ||
+      /^\d+$/u.test(String(value))
+    );
+  };
+
+  /**
+   * A row by primary key, never by public identifier
+   *
+   * @param {*} value A primary key
+   * @param {object} [options] findByPk options
    * @returns {Promise<?object>} The row or null
    */
-  Model.findById = function findById(value, options) {
-    if (external && isUuid(value)) {
-      return this.findOne({
-        ...options,
-        where: {
-          ...((options && options.where) || {}),
-          [EXTERNAL_ID]: normalizeExternalId(value),
-        },
-      });
+  Model.findByKey = function findByKey(value, options) {
+    if (!castable(this, value)) {
+      return Promise.resolve(null);
     }
 
     return findByPk.call(this, value, options);
   };
 
-  Model.findByPk = function findByPkOrExternalId(value, options) {
-    return this.findById(value, options);
+  /**
+   * A row by public identifier
+   *
+   * @param {*} value An external id (a uuid)
+   * @param {object} [options] findOne options
+   * @returns {Promise<?object>} The row or null
+   */
+  Model.findByExternalId = function findByExternalId(value, options) {
+    return this.findOne({
+      ...options,
+      where: {
+        ...((options && options.where) || {}),
+        [EXTERNAL_ID]: normalizeExternalId(value),
+      },
+    });
   };
+
+  /**
+   * A row by the identifier the outside world holds
+   *
+   * @param {*} value An external id (or a primary key, on a model that has
+   *   no external id or an application that opted out of the strict lookup)
+   * @param {object} [options] findByPk/findOne options
+   * @returns {Promise<?object>} The row or null
+   */
+  Model.findById = function findById(value, options) {
+    if (!external) {
+      return this.findByKey(value, options);
+    }
+
+    if (isUuid(value)) {
+      return this.findByExternalId(value, options);
+    }
+
+    if (resolvesKeys(henri)) {
+      return this.findByKey(value, options);
+    }
+
+    return Promise.resolve(null);
+  };
+
+  Model.findByPk = Model.findByKey;
 
   return Model;
 };

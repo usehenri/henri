@@ -4,6 +4,7 @@ const {
   EXTERNAL_ID,
   isUuid,
   normalizeExternalId,
+  resolvesKeys,
   withoutInternalIds,
 } = require('./external-id');
 const { normalizeField } = require('./schema');
@@ -308,23 +309,50 @@ class Model {
   }
 
   /**
-   * A row by id: the public identifier (`externalId`, a uuid) or the
-   * primary key, whichever the caller holds. `null` for a malformed id,
-   * like a stale session.
+   * A row by the identifier the outside world holds.
    *
-   * @param {*} id An external id or a primary key
+   * On a model carrying a public identifier this takes a uuid and nothing
+   * else: a primary key answers `null`, which is the same `null` a uuid
+   * naming no row answers, so nothing tells the two apart. That is what
+   * stops `GET /proposals/4812` from working next to the uuid.
+   * `externalIds.lookup: "any"` restores the old behaviour, and a model
+   * that opted out of the public identifier is unaffected -- its primary
+   * key is its identifier.
+   *
+   * Server-side code holding a real key calls `findByKey()`.
+   *
+   * @param {*} id An external id (or a primary key, see above)
    * @param {object} [options={}] Options (`include`, `withHidden`)
    * @returns {Promise<?Model>} The instance or null
    * @memberof Model
    */
   static async findById(id, options = {}) {
-    if (this.externalId && isUuid(id)) {
+    if (!this.externalId) {
+      return this.findByKey(id, options);
+    }
+
+    if (isUuid(id)) {
       return this.relation(
         { [EXTERNAL_ID]: normalizeExternalId(id) },
         options
       ).first();
     }
 
+    return resolvesKeys(this.adapter && this.adapter.henri)
+      ? this.findByKey(id, options)
+      : null;
+  }
+
+  /**
+   * A row by primary key, never by public identifier: the door for the code
+   * that legitimately holds a key (the subject of a session, a reload)
+   *
+   * @param {*} id A primary key
+   * @param {object} [options={}] Options (`include`, `withHidden`)
+   * @returns {Promise<?Model>} The instance or null
+   * @memberof Model
+   */
+  static async findByKey(id, options = {}) {
     if (!this.isValidId(id)) {
       return null;
     }
@@ -333,11 +361,34 @@ class Model {
   }
 
   /**
-   * The primary key behind a public identifier: `id` accepts an external id
-   * (a uuid) as well as the internal one, so a controller can hand it
-   * `req.params.id` whatever it holds
+   * A row by public identifier
    *
-   * @param {*} id An external id or a primary key
+   * @param {*} id An external id (a uuid)
+   * @param {object} [options={}] Options (`include`, `withHidden`)
+   * @returns {Promise<?Model>} The instance or null
+   * @memberof Model
+   */
+  static async findByExternalId(id, options = {}) {
+    if (!this.externalId || !isUuid(id)) {
+      return null;
+    }
+
+    return this.relation(
+      { [EXTERNAL_ID]: normalizeExternalId(id) },
+      options
+    ).first();
+  }
+
+  /**
+   * The primary key behind a public identifier, for the update and delete
+   * paths that write without loading first.
+   *
+   * It takes the same identifier `findById()` takes and refuses the same
+   * ones, so `findByIdAndUpdate()` can never reach a row `findById()` will
+   * not answer for.
+   *
+   * @param {*} id An external id (or a primary key, on a model that opted
+   *   out or an application that set `externalIds.lookup: "any"`)
    * @returns {Promise<*>} The primary key, or null when there is no such row
    * @memberof Model
    */
@@ -355,19 +406,25 @@ class Model {
       return found ? found.id : null;
     }
 
+    if (this.externalId && !resolvesKeys(this.adapter && this.adapter.henri)) {
+      // A primary key does not name a row here either: `findByIdAndUpdate()`
+      // must not be the door `findById()` stopped being
+      return null;
+    }
+
     return this.isValidId(id) ? this.castId(id) : null;
   }
 
   /**
-   * Alias of findById() (Sequelize)
+   * Alias of findByKey() (the Sequelize name)
    *
-   * @param {*} id The id
+   * @param {*} id A primary key
    * @param {object} [options] Options
    * @returns {Promise<?Model>} The instance or null
    * @memberof Model
    */
   static findByPk(id, options) {
-    return this.findById(id, options);
+    return this.findByKey(id, options);
   }
 
   /**
@@ -1465,7 +1522,7 @@ class Model {
    * @memberof Model
    */
   async reload() {
-    const fresh = await this.Model.findById(this.id);
+    const fresh = await this.Model.findByKey(this.id);
 
     if (!fresh) {
       throw new Error(`${this.Model.modelName} ${this.id} no longer exists`);

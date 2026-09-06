@@ -603,7 +603,7 @@ describe('api (demo app, disk store)', () => {
     beforeAll(async () => {
       const artwork = await Artwork.create({ title: 'Cached', year: 1 });
 
-      url = `/api/v1/artworks/${artwork.id}`;
+      url = `/api/v1/artworks/${artwork.externalId}`;
     });
 
     test('JSON answers carry a weak ETag and If-None-Match gets a 304', async () => {

@@ -14,7 +14,7 @@ const {
   FIELDS,
   INCLUDE,
   PUBLIC_STATES,
-  present,
+  presented,
   resolveReferences,
 } = require('../helpers/proposals');
 
@@ -158,17 +158,21 @@ module.exports = {
 
     req.flash('notice', 'Draft saved. Submit it when you are happy with it.');
 
-    const full = await Proposal.findById(proposal.id, { include: INCLUDE });
+    const full = await Proposal.findByKey(proposal.id, { include: INCLUDE });
 
     return res.negotiate({
       html: () => res.redirect(`/proposals/${proposal.externalId}`),
-      json: () => res.resource(present(full), { status: 201, subject: full }),
+      json: async () =>
+        res.resource(await presented(full), { status: 201, subject: full }),
     });
   },
 
   edit: async (req, res) =>
     res.render('/proposals/edit', {
-      data: { proposal: present(req.proposal), ...(await formOptions()) },
+      data: {
+        proposal: await presented(req.proposal),
+        ...(await formOptions()),
+      },
     }),
 
   index: async (req, res) => {
@@ -192,7 +196,7 @@ module.exports = {
       order: ['-submittedAt', '-id'],
       where,
     });
-    const proposals = records.map((proposal) => present(proposal));
+    const proposals = await presented(records);
 
     return res.negotiate({
       html: async () => {
@@ -235,7 +239,7 @@ module.exports = {
       .order('-updatedAt');
 
     return res.render('/proposals/mine', {
-      data: { proposals: proposals.map((proposal) => present(proposal)) },
+      data: { proposals: await presented(proposals) },
     });
   },
 
@@ -251,7 +255,7 @@ module.exports = {
             'reviewer'
           )
         : null;
-    const proposal = present(req.proposal, { reviews });
+    const proposal = await presented(req.proposal, { reviews });
 
     return res.negotiate({
       html: async () =>
@@ -294,7 +298,8 @@ module.exports = {
 
     return res.negotiate({
       html: () => res.redirect(`/proposals/${proposal.externalId}`),
-      json: () => res.resource(present(proposal), { subject: proposal }),
+      json: async () =>
+        res.resource(await presented(proposal), { subject: proposal }),
     });
   },
 
@@ -325,7 +330,10 @@ module.exports = {
 
           return res.render('/proposals/edit', {
             data: {
-              proposal: { ...present(proposal), ...req.permit(...FIELDS) },
+              proposal: {
+                ...(await presented(proposal)),
+                ...req.permit(...FIELDS),
+              },
               ...(await formOptions()),
             },
           });
@@ -338,7 +346,8 @@ module.exports = {
 
     return res.negotiate({
       html: () => res.redirect(`/proposals/${proposal.externalId}`),
-      json: () => res.resource(present(proposal), { subject: proposal }),
+      json: async () =>
+        res.resource(await presented(proposal), { subject: proposal }),
     });
   },
 
