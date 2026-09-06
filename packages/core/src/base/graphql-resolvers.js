@@ -540,7 +540,9 @@ module.exports = {
   pageOf,
   present,
   refusal,
+  remove,
   resolversOf,
   scopeOf,
   valuesOf,
+  write,
 };

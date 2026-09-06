@@ -7,7 +7,12 @@ const {
   mergeResolvers,
   sdlOf,
 } = require('../base/graphql-schema');
-const { conditionOf, pageOf } = require('../base/graphql-resolvers');
+const {
+  conditionOf,
+  pageOf,
+  remove,
+  write,
+} = require('../base/graphql-resolvers');
 
 /** A configuration with a user model and nothing else to say */
 const config = { user: { model: 'user' } };
@@ -488,6 +493,38 @@ describe('the graphql definition derived from a model', () => {
         /narrow/u
       );
       expect(conditionOf('everything', null)).toBe('everything');
+    });
+
+    // A Drizzle and a Sequelize record answer update()/destroy(), a Mongoose
+    // document set()/save() and deleteOne(). The record is asked, not a
+    // table of adapter names
+    test('writes through whichever pair of methods a record answers to', async () => {
+      const sql = {
+        update: vi.fn(async () => undefined),
+      };
+      const written = [];
+      const document = {
+        save: vi.fn(async () => undefined),
+        set: (values) => written.push(values),
+      };
+
+      expect(await write(sql, { title: 'x' })).toBe(sql);
+      expect(sql.update).toHaveBeenCalledWith({ title: 'x' });
+
+      expect(await write(document, { title: 'y' })).toBe(document);
+      expect(written).toEqual([{ title: 'y' }]);
+      expect(document.save).toHaveBeenCalled();
+    });
+
+    test('removes through whichever method a record answers to', async () => {
+      const sql = { destroy: vi.fn(async () => undefined) };
+      const document = { deleteOne: vi.fn(async () => undefined) };
+
+      await remove(sql);
+      await remove(document);
+
+      expect(sql.destroy).toHaveBeenCalled();
+      expect(document.deleteOne).toHaveBeenCalled();
     });
 
     test('the page is bounded by config.api', () => {
