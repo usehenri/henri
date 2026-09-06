@@ -233,6 +233,27 @@ const bag = (keys, extra = {}) => ({
 });
 
 /**
+ * A key of an options bag that also accepts `null`.
+ *
+ * The rule, and it is worth stating because it is not uniform: a key that
+ * names a **selector or a switch** takes `null` as "not given", because a
+ * caller that computes an option and comes up with nothing should not have
+ * to delete the key -- `{ model: found && found.name }` is how these are
+ * written, and every reader of one of them tests it for truth. A key whose
+ * absence has a **default** does not, because `{ include: null }` and no
+ * `include` at all are different there: the default only fills in for
+ * `undefined`, and `null` goes straight through to the code that breaks.
+ *
+ * @param {object} node the node
+ * @returns {object} the node, or null
+ */
+const maybe = (node) => ({
+  describe: describe(node),
+  hint: node.hint,
+  oneOf: [{ const: null }, node],
+});
+
+/**
  * What every cache call takes.
  *
  * `ttl` is `ANY` here on purpose: `Cache#ttlOf` owns it and raises
@@ -240,12 +261,15 @@ const bag = (keys, extra = {}) => ({
  * could. What the bag adds is the key names around it, so `tll` and `forse`
  * are refused instead of silently meaning the default.
  */
-const CACHE_OPTIONS = bag({ force: BOOLEAN, ttl: ANY });
+const CACHE_OPTIONS = bag({ force: maybe(BOOLEAN), ttl: ANY });
 
 /** What a policy question takes beside the user, the action and the record */
 const POLICY_OPTIONS = {
   describe: 'a policy name, or { policy, type, req }',
-  oneOf: [NAME, bag({ policy: NAME, req: OBJECT, type: NAME })],
+  oneOf: [
+    NAME,
+    bag({ policy: maybe(NAME), req: maybe(OBJECT), type: maybe(NAME) }),
+  ],
 };
 
 /** ... and the same with the status a refusal answers with */
@@ -254,26 +278,26 @@ const AUTHORIZE_OPTIONS = {
   oneOf: [
     NAME,
     bag({
-      policy: NAME,
-      req: OBJECT,
-      status: { integer: true, max: 599, min: 100, type: 'number' },
-      type: NAME,
+      policy: maybe(NAME),
+      req: maybe(OBJECT),
+      status: maybe({ integer: true, max: 599, min: 100, type: 'number' }),
+      type: maybe(NAME),
     }),
   ],
 };
 
 /** What the access trail is read back with */
 const TRAIL_FILTER = bag({
-  action: NAME,
-  actor: NAME,
-  digest: NAME,
-  limit: COUNT,
-  model: NAME,
-  offset: { integer: true, min: 0, type: 'number' },
-  outcome: { enum: ['failed', 'ok', 'refused'], type: 'string' },
-  since: WHEN,
-  subject: NAME,
-  until: WHEN,
+  action: maybe(NAME),
+  actor: maybe(NAME),
+  digest: maybe(NAME),
+  limit: maybe(COUNT),
+  model: maybe(NAME),
+  offset: maybe({ integer: true, min: 0, type: 'number' }),
+  outcome: maybe({ enum: ['failed', 'ok', 'refused'], type: 'string' }),
+  since: maybe(WHEN),
+  subject: maybe(NAME),
+  until: maybe(WHEN),
 });
 
 /** What an encrypted value is read and written with */
@@ -306,22 +330,22 @@ const STATUS = {
 /** What `res.resource()` takes */
 const RESOURCE_OPTIONS = bag({
   include: INCLUDE,
-  links: OBJECT,
+  links: maybe(OBJECT),
   status: STATUS,
   subject: ANY,
-  type: NAME,
+  type: maybe(NAME),
 });
 
 /** ... and what `res.collection()` adds to it */
 const COLLECTION_OPTIONS = bag({
   include: INCLUDE,
-  links: OBJECT,
-  page: COUNT,
-  perPage: COUNT,
+  links: maybe(OBJECT),
+  page: maybe(COUNT),
+  perPage: maybe(COUNT),
   status: STATUS,
   subject: ANY,
-  total: { integer: true, min: 0, type: 'number' },
-  type: NAME,
+  total: maybe({ integer: true, min: 0, type: 'number' }),
+  type: maybe(NAME),
 });
 
 // ---------------------------------------------------------------------------
@@ -379,7 +403,11 @@ const SIGNATURES = {
     {
       name: 'options',
       optional: true,
-      ...bag({ dryRun: BOOLEAN, field: NAME, model: NAME }),
+      ...bag({
+        dryRun: maybe(BOOLEAN),
+        field: maybe(NAME),
+        model: maybe(NAME),
+      }),
     },
   ],
 
@@ -416,14 +444,14 @@ const SIGNATURES = {
     {
       name: 'options',
       optional: true,
-      ...bag({ cache: ANY, req: OBJECT, type: NAME }),
+      ...bag({ cache: ANY, req: maybe(OBJECT), type: maybe(NAME) }),
     },
   ],
 
   'henri.policies.paths': [
     { name: 'user', ...ANY },
     { name: 'paths', ...OBJECT },
-    { name: 'options', optional: true, ...bag({ req: OBJECT }) },
+    { name: 'options', optional: true, ...bag({ req: maybe(OBJECT) }) },
   ],
 
   'henri.policies.scope': [
@@ -441,20 +469,24 @@ const SIGNATURES = {
     {
       name: 'options',
       optional: true,
-      ...bag({ dryRun: BOOLEAN, source: SOURCE, strategy: STRATEGY }),
+      ...bag({
+        dryRun: maybe(BOOLEAN),
+        source: maybe(SOURCE),
+        strategy: maybe(STRATEGY),
+      }),
     },
   ],
 
   'henri.privacy.export': [
     { name: 'who', ...WHO },
-    { name: 'options', optional: true, ...bag({ source: SOURCE }) },
+    { name: 'options', optional: true, ...bag({ source: maybe(SOURCE) }) },
   ],
 
   'henri.privacy.fields': [{ name: 'model', ...NAME }],
 
   'henri.privacy.plan': [
     { name: 'who', ...WHO },
-    { name: 'options', optional: true, ...bag({ strategy: STRATEGY }) },
+    { name: 'options', optional: true, ...bag({ strategy: maybe(STRATEGY) }) },
   ],
 
   'henri.privacy.strip': [
@@ -464,32 +496,24 @@ const SIGNATURES = {
 
   'henri.privacy.subject': [{ name: 'who', ...WHO }],
 
-  'henri.reporter.report': [
-    { name: 'error', ...ANY },
+  'henri.retention.plan': [
     {
       name: 'options',
       optional: true,
-      ...bag({
-        meta: OBJECT,
-        req: OBJECT,
-        source: {
-          enum: ['application', 'boot', 'rejection', 'request'],
-          type: 'string',
-        },
-        status: STATUS,
-      }),
+      ...bag({ now: maybe(WHEN), only: maybe(NAME) }),
     },
-  ],
-
-  'henri.retention.plan': [
-    { name: 'options', optional: true, ...bag({ now: WHEN, only: NAME }) },
   ],
 
   'henri.retention.sweep': [
     {
       name: 'options',
       optional: true,
-      ...bag({ dryRun: BOOLEAN, now: WHEN, only: NAME, source: SOURCE }),
+      ...bag({
+        dryRun: maybe(BOOLEAN),
+        now: maybe(WHEN),
+        only: maybe(NAME),
+        source: maybe(SOURCE),
+      }),
     },
   ],
 
@@ -503,7 +527,11 @@ const SIGNATURES = {
   'henri.trail.list': [{ name: 'filter', optional: true, ...TRAIL_FILTER }],
 
   'henri.trail.prune': [
-    { name: 'options', optional: true, ...bag({ now: { type: 'number' } }) },
+    {
+      name: 'options',
+      optional: true,
+      ...bag({ now: maybe({ min: 0, type: 'number' }) }),
+    },
   ],
 
   'message.deliverLater': [
@@ -511,10 +539,10 @@ const SIGNATURES = {
       name: 'options',
       optional: true,
       ...bag({
-        at: WHEN,
-        priority: { integer: true, type: 'number' },
-        queue: NAME,
-        wait: DURATION,
+        at: maybe(WHEN),
+        priority: maybe({ integer: true, type: 'number' }),
+        queue: maybe(NAME),
+        wait: maybe(DURATION),
       }),
     },
   ],
@@ -569,7 +597,11 @@ const SIGNATURES = {
       name: 'options',
       optional: true,
       ...bag(
-        { data: ANY, graphql: { oneOf: [NAME, OBJECT] }, include: INCLUDE },
+        {
+          data: ANY,
+          graphql: maybe({ oneOf: [NAME, OBJECT] }),
+          include: INCLUDE,
+        },
         { unknown: 'allow' }
       ),
     },
@@ -618,6 +650,8 @@ const UNCHECKED = {
   'henri.privacy.describe': 'takes no argument',
   'henri.reporter.onError':
     'says so and answers false, which is its documented contract',
+  'henri.reporter.report':
+    'the one entry point that must not refuse: it runs on a failure path, so throwing would lose the failure it was called about. A wrong source is coerced and a wrong options is read as none, deliberately',
   'henri.retention.describe': 'takes no argument',
   'henri.trail.record':
     'HENRI_TRAIL_INVALID_EVENT and the meta refusals already say what is wrong',

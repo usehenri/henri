@@ -1016,6 +1016,18 @@ Usually:
 
 **Fix.** A mailer action returns the message it wants sent: `return { to, subject, data }`. Everything else it holds is passed to nodemailer.
 
+### `HENRI_MAIL_NO_RECIPIENT`
+
+A message was sent to nobody.
+
+Usually:
+
+- a mailer action that built its message without a `to`
+- a `to` read from a record that turned out to be null
+- a message assembled by hand and handed to henri.mail.send()
+
+**Fix.** Give the message a `to`, a `cc` or a `bcc`. Under NODE_ENV=test the transport is nodemailer's json one, which accepts a message nobody will ever receive, so this is refused before it gets there.
+
 ### `HENRI_MAIL_NO_TRANSPORT`
 
 A message was sent and no transport was ever built.

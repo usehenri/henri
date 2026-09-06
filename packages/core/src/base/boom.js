@@ -1,3 +1,4 @@
+const { check } = require('./arguments');
 /**
  * Minimal replacement for express-boom: decorates `res` with `res.boom.<name>()`
  * helpers that answer with a Boom-shaped JSON body.
@@ -41,6 +42,8 @@ function boom() {
 
     for (const [name, [statusCode, error]] of Object.entries(STATUSES)) {
       res.boom[name] = (message = error, data = undefined, code = null) => {
+        check('res.boom', [message, data], `res.boom.${name}`);
+
         const body = { error, message, statusCode };
 
         if (isCode(code)) {

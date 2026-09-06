@@ -920,6 +920,17 @@
     {
       "area": "mail",
       "causes": [
+        "a mailer action that built its message without a `to`",
+        "a `to` read from a record that turned out to be null",
+        "a message assembled by hand and handed to henri.mail.send()"
+      ],
+      "code": "HENRI_MAIL_NO_RECIPIENT",
+      "fix": "Give the message a `to`, a `cc` or a `bcc`. Under NODE_ENV=test the transport is nodemailer's json one, which accepts a message nobody will ever receive, so this is refused before it gets there.",
+      "what": "A message was sent to nobody."
+    },
+    {
+      "area": "mail",
+      "causes": [
         "`mail` is missing from the configuration",
         "the mail module never started, or its transport failed to verify"
       ],

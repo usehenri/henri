@@ -1,3 +1,4 @@
+const { check } = require('./arguments');
 const { DEFAULT_LAYOUT } = require('./mail-view');
 const { htmlToText } = require('./mail-text');
 
@@ -193,6 +194,10 @@ class Message {
    * @memberof Message
    */
   async deliverLater(options = {}) {
+    // A misspelled `wait` is a mail that leaves immediately: the fallback
+    // handler only holds a message back for the two keys it reads
+    check('message.deliverLater', [options]);
+
     return this.henri.mailers.enqueue(await this.render(), options);
   }
 }

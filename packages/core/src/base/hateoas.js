@@ -1,5 +1,6 @@
 const { EXTERNAL_ID, hasExternalId } = require('./external-id');
 const { publish } = require('./references');
+const { check } = require('./arguments');
 const { stamp } = require('./errors');
 const { jsonType, noStore } = require('./headers');
 const { linkHeader, pageLinks, paginate } = require('./pagination');
@@ -406,13 +407,15 @@ async function enforce(henri, req, res, record) {
  * @returns {Express.Response} the response
  * @throws {TypeError} when the record is not an object or the type is unknown
  */
-function resource(
-  henri,
-  req,
-  res,
-  record,
-  { type, links, status = 200, subject, include = [] } = {}
-) {
+function resource(henri, req, res, record, options = {}) {
+  // Before the destructuring, which used to run in the parameter list and
+  // throw its own TypeError over the message below whenever `options` was
+  // null -- and which let a non-array `include` reach the substring match
+  // of `stripPersonal`, where it un-hides a field marked expose: false
+  check('res.resource', [record, options]);
+
+  const { type, links, status = 200, subject, include = [] } = options;
+
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     throw stamp(
       new TypeError(
@@ -510,12 +513,10 @@ function resource(
  * @returns {Express.Response} the response
  * @throws {TypeError} when records is not an array or the type is unknown
  */
-function collection(
-  henri,
-  req,
-  res,
-  records,
-  {
+function collection(henri, req, res, records, options = {}) {
+  check('res.collection', [records, options]);
+
+  const {
     type,
     page,
     perPage,
@@ -524,8 +525,8 @@ function collection(
     status = 200,
     subject,
     include = [],
-  } = {}
-) {
+  } = options;
+
   if (!Array.isArray(records)) {
     throw stamp(
       new TypeError(

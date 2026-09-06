@@ -1,3 +1,6 @@
+const { check } = require('./arguments');
+const { fail } = require('./errors');
+
 /**
  * Strong parameters: pick the fields a controller allows from the request.
  *
@@ -75,6 +78,20 @@ function params(req) {
     permit: (...fields) => {
       const allowed = fields.flat(Infinity);
       const result = {};
+
+      // A field that is not a name used to be dropped rather than refused
+      check('req.permit', [allowed]);
+
+      // ... and a hole is the trap the list cannot say on its own: with no
+      // field at all `permit()` answers everything the action declared, so
+      // one stray `undefined` used to turn that into `{}` -- a write that
+      // quietly saves nothing
+      if (allowed.includes(undefined)) {
+        throw fail(
+          'HENRI_ARGUMENT_INVALID',
+          'req.permit(fields) was given nothing where a field name was meant: with no field at all it answers everything the action declared, and one undefined empties it'
+        );
+      }
 
       if (allowed.length === 0 && accepted) {
         return Object.assign({}, accepted);

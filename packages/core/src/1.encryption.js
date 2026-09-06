@@ -608,7 +608,7 @@ class Encryption extends BaseModule {
       ]);
     const refusal =
       wanted('model', (mark) => mark.model) ||
-      wanted('field', (mark) => `${mark.model}.${mark.field}`);
+      wanted('field', (mark) => mark.field);
 
     if (refusal) {
       throw refusal;

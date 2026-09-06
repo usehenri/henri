@@ -1,3 +1,4 @@
+const { check } = require('./arguments');
 /**
  * Flash messages: one-shot messages kept in the express session so they
  * survive exactly one redirect.
@@ -161,6 +162,8 @@ function expose(req, target) {
 function flashMiddleware() {
   return (req, res, next) => {
     req.flash = (type, message) => {
+      check('req.flash', [type, message]);
+
       if (typeof type === 'undefined') {
         return take(req);
       }

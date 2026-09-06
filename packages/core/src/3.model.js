@@ -1,3 +1,4 @@
+const { check } = require('./base/arguments');
 const { fail, stamp } = require('./base/errors');
 const BaseModule = require('./base/module');
 const path = require('path');
@@ -210,11 +211,28 @@ class Model extends BaseModule {
   getStore(name) {
     const { config, pen } = this.henri;
 
+    check('henri.model.getStore', [name]);
+
     if (this.stores[name]) {
       debug('store %s is already loaded, returning from cache', name);
 
       return this.stores[name];
     }
+
+    // `config.get` would answer HENRI_CONFIG_UNKNOWN_KEY here, which reads
+    // as a problem with the configuration file rather than with the name
+    // that was asked for
+    if (!config.has(`stores.${name}`)) {
+      throw fail(
+        'HENRI_MODEL_UNKNOWN_STORE',
+        `there is no store named "${name}": the configuration holds ${
+          Object.keys(config.has('stores') ? config.get('stores') : {}).join(
+            ', '
+          ) || 'none'
+        }`
+      );
+    }
+
     const store = config.get(`stores.${name}`);
 
     const valid = {
