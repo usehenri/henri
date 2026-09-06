@@ -58,6 +58,9 @@ Field keys: `type`, `required`, `default`, `enum`, `unique`, `index`; any other
 key is handed to the adapter as is. Every store adds `createdAt`/`updatedAt`,
 `Model.paginate({ page, perPage })` -> `{ records, page, perPage, total, pages }`,
 `henri.model.errors(error)` -> `{ field: message }` (`null` otherwise) and `db/seeds.js`, run by `henri db:seed`.
+Every model also carries `externalId`, a uuid that is unique and not null in the
+database and the only identifier that leaves the server: routes, links and payloads
+carry it, the numeric id stays internal, `Model.findById()` takes either of the two, and `options: { externalId: false }` opts a model out.
 The global is the model of the `{{adapter}}` store, and what the generators write: {{#if mongoose}}Mongoose (`find`, `findById`, `create`, then `doc.set()`, `doc.save()` and `doc.deleteOne()`), documents carry `_id`.{{/if}}{{#if drizzle}}the drizzle model (`where`, `order`, `include`, `findById`, `create`, then `row.update()` and `row.destroy()`), rows carry `id`. Migrations live in `db/migrations`: `henri db:generate|migrate|push|status`, generate and commit one after a model change.{{/if}}{{#if sequelize}}Sequelize (`findAll`, `findByPk`, `create`, then `row.update()` and `row.destroy()`), rows carry `id`. There are no migrations: the boot runs `sequelize.sync()` and creates or extends the tables from the models.{{/if}}
 
 ## Controllers
@@ -119,30 +122,27 @@ before rendering again hands validation errors to the page; `res.inertia.locatio
 `app/views/styles/index.css` is the whole stylesheet of the application.
 {{#if react}}`app/views/pages/_app.js` imports it once, `app/views/postcss.config.mjs` compiles it.{{/if}}{{#if inertia}}`app/views/main.jsx` imports it once, the `@tailwindcss/vite` plugin of `app/views/vite.config.mjs` compiles it.{{/if}}
 
-Write utility classes in the pages: no CSS modules, no second stylesheet and
-no `tailwind.config.js` (v4 has none, the theme is `@theme { --color-brand: ... }`
-in that file). Dark mode is the `dark:` variant and follows the operating
-system, so a colour class wants its `dark:` counterpart. Tailwind reads only
-the `@source` globs of `index.css` (`pages/`, `components/`): add one before
-writing classes anywhere else. A class list long enough to hide the markup
-goes in a `const` at the top of the page, like the scaffolded pages do.
+Utility classes in the pages: no CSS modules, no second stylesheet, no
+`tailwind.config.js` (v4 has none; the theme is `@theme` in that file). Dark
+mode is the `dark:` variant and follows the system, so a colour class wants
+its counterpart. Tailwind reads only the `@source` globs of `index.css`
+(`pages/`, `components/`): add one before writing classes elsewhere. A class
+list long enough to hide the markup goes in a `const` at the top of the page.
 
 ## Users and secrets
 
 Set `"user": "user"` in `config/default.json` and add `app/models/User.js`:
 the store adds `email` (unique), `password` (hashed, never selected) and
-`roles` (default: `baseRole`), plus `POST /login` (`email`, `password`),
-`POST /logout`, sessions, CSRF and `req.user`. `roles` cannot be
-mass-assigned: use `user.setRoles([...])` or `User.setRoles(id, roles)`. The
-session secret is `HENRI_SECRET` in `.env` (written by `henri new`).
+`roles` (default: `baseRole`), plus `POST /login`, `POST /logout`, sessions,
+CSRF and `req.user`. `roles` cannot be mass-assigned: use `user.setRoles()`
+or `User.setRoles(id, roles)`. The secret is `HENRI_SECRET` in `.env`.
 
 ## Tests
 
 `henri test` runs Vitest (`vitest.config.js`, `test/**/*.test.js`) with henri
 booted under `NODE_ENV=test`: `henri` and the models are globals, and
-`request()` from `@usehenri/testing` is a supertest bound to the running
-server (`agent()` keeps cookies). `henri generate test posts` writes the
-skeleton. Vitest only, no jest.
+`request()` from `@usehenri/testing` is a supertest bound to the server
+(`agent()` keeps cookies). `henri generate test posts` writes the skeleton.
 
 ## Commands, exit codes, MCP
 
@@ -169,8 +169,7 @@ app (run from the root), 4 needs a terminal (pass the flag: `henri clean
 
 ## Do not
 
-- Do not use `mongoose`, `sequelize`, `mongodb` or `pg` directly: go through the model globals.
-- Do not `require` a model or `henri`: they are globals.
+- Do not use `mongoose`, `sequelize`, `mongodb` or `pg` directly, and do not `require` a model or `henri`: they are globals.
 - Do not put `secret` or passwords in `config/*.json`; do not commit `.env`, `.henri/` or `.backup/`.
 - Do not set `roles` from request data; do not mass-assign `req.body`.
 - Do not add `tailwind.config.js`, a CSS module or a second stylesheet: the theme lives in `app/views/styles/index.css`.

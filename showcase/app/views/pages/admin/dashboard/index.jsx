@@ -68,7 +68,7 @@ export default function Dashboard() {
             <ul className="mt-4 grid gap-3">
               {queue.map((entry) => (
                 <li
-                  key={entry.id}
+                  key={entry.externalId}
                   className={`${card} flex items-center justify-between gap-4 px-5 py-3`}
                 >
                   <div className="min-w-0">
@@ -76,7 +76,7 @@ export default function Dashboard() {
                       className="font-medium hover:underline"
                       href={getRoute(
                         'show_admin/proposals_path',
-                        String(entry.id)
+                        entry.externalId
                       )}
                     >
                       {entry.title}
@@ -107,7 +107,7 @@ export default function Dashboard() {
           ) : (
             <ul className="mt-4 grid gap-3">
               {reviews.map((review) => (
-                <li key={review.id} className={`${card} px-5 py-3`}>
+                <li key={review.externalId} className={`${card} px-5 py-3`}>
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-sm font-medium">
                       {review.reviewer}
@@ -119,7 +119,7 @@ export default function Dashboard() {
                       className="mt-0.5 block text-xs text-zinc-500 hover:underline dark:text-zinc-400"
                       href={getRoute(
                         'show_admin/proposals_path',
-                        String(review.proposal.id)
+                        review.proposal.externalId
                       )}
                     >
                       {review.proposal.title}
@@ -139,7 +139,7 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold tracking-tight">Editions</h2>
         <ul className="mt-4 flex flex-wrap gap-3">
           {events.map((event) => (
-            <li key={event.id} className={`${card} px-5 py-3`}>
+            <li key={event.externalId} className={`${card} px-5 py-3`}>
               <span className="text-sm font-medium">{event.name}</span>{' '}
               <Badge tone={event.state === 'open' ? 'submitted' : 'neutral'}>
                 {event.state}

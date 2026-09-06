@@ -100,12 +100,13 @@ describe('authentication', () => {
     expect(home.body.props.user).toEqual({
       company: null,
       email: 'signin@example.test',
-      // The public user stringifies the id, so a mongo ObjectId and a SQL
-      // integer look the same to a page
-      id: String(user.id),
+      // The public user carries the public identifier of the record; the
+      // primary key stays on the server
+      externalId: user.externalId,
       name: 'Signed In',
       roles: ['speaker'],
     });
+    expect(home.body.props.user.id).toBeUndefined();
   });
 
   test('the public user never carries the password hash', async () => {

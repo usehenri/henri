@@ -95,7 +95,7 @@ describe('proposals', () => {
 
       expect(first.speaker).toEqual({
         company: null,
-        id: speaker.id,
+        externalId: speaker.externalId,
         name: 'Author',
       });
       expect(JSON.stringify(answer.body)).not.toContain('author@example.test');
@@ -105,7 +105,7 @@ describe('proposals', () => {
   describe('before hooks', () => {
     test('a missing record is a 404 from the hook, not from the action', async () => {
       const answer = await request()
-        .get('/proposals/999999')
+        .get('/proposals/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11')
         .set('Accept', 'application/json');
 
       expect(answer.status).toBe(404);
@@ -120,26 +120,29 @@ describe('proposals', () => {
         title: 'A draft of my own',
       });
       const anonymous = await request()
-        .get(`/proposals/${draft.id}`)
+        .get(`/proposals/${draft.externalId}`)
         .set('Accept', 'application/json');
 
       expect(anonymous.status).toBe(404);
 
       const { browser } = await signIn(other);
       const stranger = await browser
-        .get(`/proposals/${draft.id}`)
+        .get(`/proposals/${draft.externalId}`)
         .set('Accept', 'application/json');
 
       expect(stranger.status).toBe(404);
 
       const mine = await signIn(speaker);
-      const owner = await page(mine.browser, `/proposals/${draft.id}`);
+      const owner = await page(mine.browser, `/proposals/${draft.externalId}`);
 
       expect(owner.status).toBe(200);
       expect(owner.body.props.data.editable).toBe(true);
 
       const committee = await signIn(admin);
-      const reviewer = await page(committee.browser, `/proposals/${draft.id}`);
+      const reviewer = await page(
+        committee.browser,
+        `/proposals/${draft.externalId}`
+      );
 
       expect(reviewer.status).toBe(200);
       expect(reviewer.body.props.data.editable).toBe(false);
@@ -149,7 +152,11 @@ describe('proposals', () => {
       const answer = await request()
         .post('/proposals')
         .set('Accept', 'application/json')
-        .send({ abstract: ABSTRACT, eventId: event.id, title: 'Sneaking in' });
+        .send({
+          abstract: ABSTRACT,
+          eventId: event.externalId,
+          title: 'Sneaking in',
+        });
 
       expect(answer.status).toBe(401);
       expect(await Proposal.count({ title: 'Sneaking in' })).toBe(0);
@@ -166,7 +173,7 @@ describe('proposals', () => {
       });
       const { browser, csrf } = await signIn(other);
       const answer = await browser
-        .patch(`/proposals/${theirs.id}`)
+        .patch(`/proposals/${theirs.externalId}`)
         .set('Accept', 'application/json')
         .set('X-CSRF-Token', csrf)
         .send({ title: 'Hijacked, obviously' });
@@ -187,15 +194,15 @@ describe('proposals', () => {
         .set('X-CSRF-Token', csrf)
         .send({
           abstract: ABSTRACT,
-          eventId: event.id,
-          speakerId: other.id,
+          eventId: event.externalId,
+          speakerId: other.externalId,
           state: 'accepted',
           title: 'A proposal that tried to accept itself',
         });
 
       expect(answer.status).toBe(201);
       expect(answer.body.state).toBe('draft');
-      expect(answer.body.speaker.id).toBe(speaker.id);
+      expect(answer.body.speaker.externalId).toBe(speaker.externalId);
     });
 
     test('an invalid proposal answers 422 with one message per field', async () => {
@@ -204,7 +211,11 @@ describe('proposals', () => {
         .post('/proposals')
         .set('Accept', 'application/json')
         .set('X-CSRF-Token', csrf)
-        .send({ abstract: 'too short', eventId: event.id, title: 'no' });
+        .send({
+          abstract: 'too short',
+          eventId: event.externalId,
+          title: 'no',
+        });
 
       expect(answer.status).toBe(422);
       expect(answer.body.data.errors).toMatchObject({
@@ -219,7 +230,11 @@ describe('proposals', () => {
         .post('/proposals')
         .set('X-Inertia', 'true')
         .set('X-CSRF-Token', csrf)
-        .send({ abstract: 'too short', eventId: event.id, title: 'no' });
+        .send({
+          abstract: 'too short',
+          eventId: event.externalId,
+          title: 'no',
+        });
 
       expect(answer.status).toBe(200);
       expect(answer.body.component).toBe('proposals/new');
@@ -236,12 +251,12 @@ describe('proposals', () => {
       });
       const { browser, csrf } = await signIn(speaker);
       const answer = await browser
-        .post(`/proposals/${draft.id}/submit`)
+        .post(`/proposals/${draft.externalId}/submit`)
         .set('Accept', 'text/html')
         .set('X-CSRF-Token', csrf);
 
       expect(answer.status).toBe(302);
-      expect(answer.headers.location).toBe(`/proposals/${draft.id}`);
+      expect(answer.headers.location).toBe(`/proposals/${draft.externalId}`);
 
       const reloaded = await Proposal.findById(draft.id);
 
@@ -249,13 +264,13 @@ describe('proposals', () => {
       expect(reloaded.submittedAt).toBeInstanceOf(Date);
 
       // The message survives exactly one render
-      const landing = await page(browser, `/proposals/${draft.id}`);
+      const landing = await page(browser, `/proposals/${draft.externalId}`);
 
       expect(landing.body.props.flash.notice).toEqual([
         'Submitted. The committee will review it.',
       ]);
 
-      const again = await page(browser, `/proposals/${draft.id}`);
+      const again = await page(browser, `/proposals/${draft.externalId}`);
 
       expect(again.body.props.flash).toEqual({});
     });
@@ -269,12 +284,12 @@ describe('proposals', () => {
       const { browser, csrf } = await signIn(speaker);
 
       await browser
-        .post(`/proposals/${draft.id}/submit`)
+        .post(`/proposals/${draft.externalId}/submit`)
         .set('Accept', 'application/json')
         .set('X-CSRF-Token', csrf);
 
       const answer = await browser
-        .post(`/proposals/${draft.id}/submit`)
+        .post(`/proposals/${draft.externalId}/submit`)
         .set('Accept', 'application/json')
         .set('X-CSRF-Token', csrf);
 
@@ -289,7 +304,7 @@ describe('proposals', () => {
       });
       const { browser, csrf } = await signIn(speaker);
       const answer = await browser
-        .post(`/proposals/${draft.id}/submit`)
+        .post(`/proposals/${draft.externalId}/submit`)
         .set('Accept', 'application/json')
         .set('X-CSRF-Token', csrf);
 
@@ -306,7 +321,7 @@ describe('proposals', () => {
       });
       const { browser, csrf } = await signIn(speaker);
       const answer = await browser
-        .patch(`/proposals/${submitted.id}`)
+        .patch(`/proposals/${submitted.externalId}`)
         .set('Accept', 'application/json')
         .set('X-CSRF-Token', csrf)
         .send({ title: 'A second thought about it' });
@@ -333,7 +348,7 @@ describe('proposals', () => {
 
       const { browser, csrf } = await signIn(speaker);
       const answer = await browser
-        .post(`/proposals/${proposal.id}/withdraw`)
+        .post(`/proposals/${proposal.externalId}/withdraw`)
         .set('Accept', 'text/html')
         .set('X-CSRF-Token', csrf);
 
@@ -345,7 +360,7 @@ describe('proposals', () => {
       expect(await Proposal.count({ id: proposal.id })).toBe(0);
 
       const gone = await request()
-        .get(`/proposals/${proposal.id}`)
+        .get(`/proposals/${proposal.externalId}`)
         .set('Accept', 'application/json');
 
       expect(gone.status).toBe(404);
@@ -369,7 +384,7 @@ describe('proposals', () => {
       const owner = await signIn(speaker);
 
       await owner.browser
-        .post(`/proposals/${proposal.id}/withdraw`)
+        .post(`/proposals/${proposal.externalId}/withdraw`)
         .set('Accept', 'text/html')
         .set('X-CSRF-Token', owner.csrf);
 
@@ -381,7 +396,7 @@ describe('proposals', () => {
       ).toContain('A proposal to restore');
 
       const answer = await browser
-        .post(`/admin/proposals/${proposal.id}/restore`)
+        .post(`/admin/proposals/${proposal.externalId}/restore`)
         .set('Accept', 'text/html')
         .set('X-CSRF-Token', csrf);
 
@@ -404,11 +419,15 @@ describe('proposals', () => {
     });
 
     test('a nested resource knows which parent it hangs under', async () => {
-      const answer = await page(request(), `/events/${event.id}/tracks`);
+      const answer = await page(
+        request(),
+        `/events/${event.externalId}/tracks`
+      );
 
       expect(answer.status).toBe(200);
       expect(answer.body.component).toBe('tracks/index');
-      expect(answer.body.props.data.event.id).toBe(event.id);
+      expect(answer.body.props.data.event.externalId).toBe(event.externalId);
+      expect(answer.body.props.data.event.id).toBeUndefined();
       expect(answer.body.props.data.tracks).toHaveLength(1);
     });
   });
@@ -423,7 +442,7 @@ describe('proposals', () => {
       });
       const { browser, csrf } = await signIn(admin);
       const review = await browser
-        .post(`/proposals/${proposal.id}/reviews`)
+        .post(`/proposals/${proposal.externalId}/reviews`)
         .set('Accept', 'application/json')
         .set('X-CSRF-Token', csrf)
         .send({ comment: 'Worth a slot, and I would go.', score: 2 });
@@ -432,7 +451,7 @@ describe('proposals', () => {
       expect(review.body.reviewer.name).toBe('A Speaker');
 
       const twice = await browser
-        .post(`/proposals/${proposal.id}/reviews`)
+        .post(`/proposals/${proposal.externalId}/reviews`)
         .set('Accept', 'application/json')
         .set('X-CSRF-Token', csrf)
         .send({ comment: 'Changed my mind about it.', score: 1 });
@@ -440,7 +459,7 @@ describe('proposals', () => {
       expect(twice.status).toBe(409);
 
       const decision = await browser
-        .post(`/admin/proposals/${proposal.id}/decide`)
+        .post(`/admin/proposals/${proposal.externalId}/decide`)
         .set('Accept', 'text/html')
         .set('X-CSRF-Token', csrf)
         .send({ state: 'accepted' });
@@ -462,7 +481,7 @@ describe('proposals', () => {
       });
       const { browser, csrf } = await signIn(admin);
       const answer = await browser
-        .post(`/admin/proposals/${proposal.id}/decide`)
+        .post(`/admin/proposals/${proposal.externalId}/decide`)
         .set('Accept', 'application/json')
         .set('X-CSRF-Token', csrf)
         .send({ state: 'maybe' });

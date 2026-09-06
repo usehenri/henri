@@ -94,7 +94,7 @@ describe('auth (core on the drizzle sqlite store)', () => {
     expect(res.status).toBe(201);
     expect(res.body.user).toEqual({
       email: 'grace@usehenri.io',
-      id: expect.any(String),
+      externalId: expect.any(String),
       name: 'Grace',
       roles: ['member'],
     });
@@ -130,7 +130,7 @@ describe('auth (core on the drizzle sqlite store)', () => {
     expect(login.status).toBe(200);
     expect(login.body.user).toEqual({
       email: 'grace@usehenri.io',
-      id: expect.any(String),
+      externalId: expect.any(String),
       name: 'Grace',
       roles: ['member'],
     });
@@ -174,10 +174,11 @@ describe('auth (core on the drizzle sqlite store)', () => {
     expect(denied.status).toBe(403);
     expect(allowed.status).toBe(201);
     expect(allowed.body.artwork).toMatchObject({
-      id: expect.any(Number),
+      externalId: expect.any(String),
       title: 'x',
       year: 1,
     });
+    expect(allowed.body.artwork.id).toBeUndefined();
   });
 
   test('answers 422 with one message per field on invalid data', async () => {

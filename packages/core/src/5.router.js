@@ -12,6 +12,7 @@ const {
   resource,
   resourceLinks,
 } = require('./base/hateoas');
+const { stripInternalIds } = require('./base/external-id');
 const { jsonTypes, noStore, versionGuard } = require('./base/headers');
 const { idempotency } = require('./base/idempotency');
 const { limiter, shutdown } = require('./base/rate-limit');
@@ -548,7 +549,9 @@ class Router extends BaseModule {
 
     const opts = {
       csrf: req.csrfToken || null,
-      data: payload,
+      // The last gate on the way to a page: a record carrying a public
+      // identifier leaves its primary key here (see base/external-id.js)
+      data: stripInternalIds(payload),
       errors,
       // Read once per request: rendering a page consumes the messages
       flash: flash.consume(req),

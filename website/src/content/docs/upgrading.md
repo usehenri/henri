@@ -9,6 +9,53 @@ henri 1.0 (2026) moved the framework to a current toolchain and 1.1 hardened it.
 
 ## From 1.1 to 1.2
 
+### Every record has a public uuid, and the numeric id stops leaving the server
+
+This is the change of 1.2 that touches an application everywhere: **urls change, JSON payloads change, and a database migration is required**. Read it before upgrading.
+
+Every model now carries `externalId`, a uuid stored in an `external_id` column that is `NOT NULL` and `UNIQUE` in the database, generated on the insert. It becomes the only identifier that leaves the server: routes, `_links`, the `Location` header of a `201`, the path helpers and the data a page receives all carry it, and `toJSON()` no longer serializes the primary key. The primary key itself does not change: it is still what the foreign keys and the joins are made of, and `belongsTo`, `hasMany`, `include()` and `populate()` are untouched. See [Identifiers](/guides/models/#identifiers).
+
+What breaks:
+
+- **Urls**: `/tasks/42` becomes `/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11`. Old links keep working, because `Model.findById()` takes the primary key as well, but nothing hands one out any more. Bookmarks, sitemaps and anything holding an id of yours will need remapping.
+- **Payloads**: a serialized record has `externalId` and no `id` (no `_id` on MongoDB). A client reading `body.id` reads `body.externalId` now.
+- **The public user**: `henri.user.publicUser(user)` and `req._henri.user` answer `{ externalId, email, roles }` instead of `{ id, email, roles }`.
+- **Your own code**: anything building a url or a key from `record.id` uses `record.externalId`. Server side, `record.id` is unchanged and still the right thing for a query, a join or a foreign key.
+- **Generated code**: `henri generate scaffold` and `crud` write controllers and pages around `externalId`. Regenerate them with `--force` to pick it up.
+
+The migration:
+
+- **MongoDB (`disk`, `mongoose`)**: the field and its unique index are created on boot. Documents written before the upgrade have no `externalId`, and the unique index counts them as one shared `null`, so backfill them before the second one is written:
+
+  ```js
+  // db/seeds.js, or a one-off script run with `henri console`
+  const { uuidv7 } = require('@usehenri/mongoose/external-id');
+
+  for await (const doc of Task.find({ externalId: { $exists: false } })) {
+    await Task.updateOne({ _id: doc._id }, { $set: { externalId: uuidv7() } });
+  }
+  ```
+
+- **Drizzle**: `henri db:generate` writes the column and the constraint. On a table that already holds rows the generated `ADD COLUMN ... NOT NULL` fails: split it into the three steps below, which is what the showcase application's `db/migrations/0001_external_id.sql` does. `gen_random_uuid()` is version 4, which is fine for rows that already exist; everything written afterwards gets a version 7 from the adapter.
+
+  ```sql
+  ALTER TABLE "tasks" ADD COLUMN "external_id" uuid;--> statement-breakpoint
+  UPDATE "tasks" SET "external_id" = gen_random_uuid() WHERE "external_id" IS NULL;--> statement-breakpoint
+  ALTER TABLE "tasks" ALTER COLUMN "external_id" SET NOT NULL;--> statement-breakpoint
+  ALTER TABLE "tasks" ADD CONSTRAINT "tasks_external_id_unique" UNIQUE("external_id");
+  ```
+
+- **Sequelize (`mysql`, `postgresql`, `mssql`)**: there are no migrations, and `sequelize.sync()` does not alter a table. Add the column yourself with the same three steps (`UUID()` on MySQL and MariaDB, `NEWID()` on MSSQL) before deploying.
+
+A model that must keep its old shape opts out, and then nothing above applies to it:
+
+```js
+module.exports = {
+  options: { externalId: false },
+  schema: { name: { type: 'string' } },
+};
+```
+
 ### Timestamps are on by default
 
 Every model now gets `createdAt` and `updatedAt`, like every Rails table. Before 1.2 they were added only when the model declared `options: { timestamps: true }` on the Mongoose (`disk`, `mongoose`) and Drizzle adapters; the Sequelize adapters (`mysql`, `postgresql`, `mssql`) already added them by default, so nothing changes there.

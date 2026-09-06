@@ -58,11 +58,9 @@ export default function ProposalsIndex() {
         </Link>
         {(editions || []).map((event) => (
           <Link
-            key={event.id}
-            className={
-              String(filters.event) === String(event.id) ? chipOn : chip
-            }
-            href={href({ event: String(event.id) })}
+            key={event.externalId}
+            className={filters.event === event.externalId ? chipOn : chip}
+            href={href({ event: event.externalId })}
           >
             {event.year}
           </Link>
@@ -76,11 +74,11 @@ export default function ProposalsIndex() {
       ) : (
         <ul className="mt-8 grid gap-4">
           {proposals.map((proposal) => (
-            <li key={proposal.id} className={`${card} p-6`}>
+            <li key={proposal.externalId} className={`${card} p-6`}>
               <div className="flex flex-wrap items-baseline justify-between gap-3">
                 <Link
                   className="text-lg font-medium hover:underline"
-                  href={getRoute('show_proposals_path', String(proposal.id))}
+                  href={getRoute('show_proposals_path', proposal.externalId)}
                 >
                   {proposal.title}
                 </Link>

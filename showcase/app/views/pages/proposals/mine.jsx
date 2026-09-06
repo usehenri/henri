@@ -27,13 +27,13 @@ export default function MyProposals() {
         <ul className="mt-8 grid gap-3">
           {proposals.map((proposal) => (
             <li
-              key={proposal.id}
+              key={proposal.externalId}
               className={`${card} flex flex-wrap items-center justify-between gap-4 px-5 py-4`}
             >
               <div className="min-w-0">
                 <Link
                   className="font-medium hover:underline"
-                  href={getRoute('show_proposals_path', String(proposal.id))}
+                  href={getRoute('show_proposals_path', proposal.externalId)}
                 >
                   {proposal.title}
                 </Link>

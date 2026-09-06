@@ -92,7 +92,12 @@ describe('the JSON API', () => {
       const answer = await request().get('/proposals').set('Accept', HAL);
       const [first] = answer.body._embedded.proposals;
 
-      expect(first._links.self.href).toBe(`/proposals/${first.id}`);
+      expect(first._links.self.href).toBe(`/proposals/${first.externalId}`);
+      // The primary key is not in the payload and not in the link
+      expect(first.id).toBeUndefined();
+      expect(first.externalId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+      );
       expect(first._links.collection.href).toBe('/proposals');
       // `except: ['destroy']` in config/routes.js: there is no such route,
       // so no client is ever offered the link
@@ -112,28 +117,36 @@ describe('the JSON API', () => {
   describe('a resource', () => {
     test('is the record plus its links', async () => {
       const answer = await request()
-        .get(`/proposals/${submitted.id}`)
+        .get(`/proposals/${submitted.externalId}`)
         .set('Accept', HAL);
 
       expect(answer.status).toBe(200);
       expect(answer.body).toMatchObject({
-        id: submitted.id,
+        externalId: submitted.externalId,
         state: 'submitted',
         title: submitted.title,
       });
-      expect(answer.body._links.self.href).toBe(`/proposals/${submitted.id}`);
+      expect(answer.body.id).toBeUndefined();
+      expect(answer.body._links.self.href).toBe(
+        `/proposals/${submitted.externalId}`
+      );
       expect(answer.body.speaker).toEqual({
         company: 'Fathom',
-        id: speaker.id,
+        externalId: speaker.externalId,
         name: 'API Speaker',
       });
       // The presenter drops it: an email never leaves the server this way
       expect(answer.body.speaker.email).toBeUndefined();
+      // The foreign keys are public ids too: the presenter resolves them,
+      // and the speaker one is dropped outright
+      expect(answer.body.eventId).toBe(event.externalId);
+      expect(answer.body.trackId).toBe(track.externalId);
+      expect(answer.body.speakerId).toBeUndefined();
     });
 
     test('answers 404 for a record that is not there', async () => {
       const answer = await request()
-        .get('/proposals/999999')
+        .get('/proposals/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11')
         .set('Accept', HAL);
 
       expect(answer.status).toBe(404);
@@ -147,13 +160,13 @@ describe('the JSON API', () => {
   describe('conditional requests', () => {
     test('a weak ETag and If-None-Match answer 304', async () => {
       const first = await request()
-        .get(`/proposals/${submitted.id}`)
+        .get(`/proposals/${submitted.externalId}`)
         .set('Accept', 'application/json');
 
       expect(first.headers.etag).toMatch(/^W\//);
 
       const second = await request()
-        .get(`/proposals/${submitted.id}`)
+        .get(`/proposals/${submitted.externalId}`)
         .set('Accept', 'application/json')
         .set('If-None-Match', first.headers.etag);
 
@@ -163,7 +176,7 @@ describe('the JSON API', () => {
 
     test('a changed record answers 200 with a new ETag', async () => {
       const first = await request()
-        .get(`/proposals/${submitted.id}`)
+        .get(`/proposals/${submitted.externalId}`)
         .set('Accept', 'application/json');
 
       await Proposal.findByIdAndUpdate(submitted.id, {
@@ -171,7 +184,7 @@ describe('the JSON API', () => {
       });
 
       const second = await request()
-        .get(`/proposals/${submitted.id}`)
+        .get(`/proposals/${submitted.externalId}`)
         .set('Accept', 'application/json')
         .set('If-None-Match', first.headers.etag);
 
@@ -212,13 +225,19 @@ describe('the JSON API', () => {
         .set('X-CSRF-Token', csrf)
         .send({
           abstract: ABSTRACT,
-          eventId: event.id,
+          eventId: event.externalId,
           title: 'A proposal created over the API',
         });
 
       expect(answer.status).toBe(201);
-      expect(answer.headers.location).toBe(`/proposals/${answer.body.id}`);
-      expect(answer.body._links.self.href).toBe(`/proposals/${answer.body.id}`);
+      expect(answer.headers.location).toBe(
+        `/proposals/${answer.body.externalId}`
+      );
+      expect(answer.body._links.self.href).toBe(
+        `/proposals/${answer.body.externalId}`
+      );
+      // The edition was posted as a public id and resolved on the way in
+      expect(answer.body.event.externalId).toBe(event.externalId);
     });
 
     describe('Idempotency-Key', () => {
@@ -235,7 +254,7 @@ describe('the JSON API', () => {
             .set('Accept', HAL)
             .set('X-CSRF-Token', csrf)
             .set('Idempotency-Key', 'the-same-key')
-            .send({ ...body, eventId: event.id });
+            .send({ ...body, eventId: event.externalId });
 
         const first = await send();
 
@@ -246,7 +265,7 @@ describe('the JSON API', () => {
 
         expect(second.status).toBe(201);
         expect(second.headers['idempotency-replayed']).toBe('true');
-        expect(second.body.id).toBe(first.body.id);
+        expect(second.body.externalId).toBe(first.body.externalId);
 
         expect(await Proposal.count({ title: body.title })).toBe(1);
       });
@@ -260,7 +279,7 @@ describe('the JSON API', () => {
           .set('Idempotency-Key', 'the-same-key')
           .send({
             abstract: ABSTRACT,
-            eventId: event.id,
+            eventId: event.externalId,
             title: 'A different proposal entirely',
           });
 
@@ -278,12 +297,12 @@ describe('the JSON API', () => {
           .set('Idempotency-Key', 'the-same-key')
           .send({
             abstract: ABSTRACT,
-            eventId: event.id,
+            eventId: event.externalId,
             title: 'Another speaker, the same key',
           });
 
         expect(answer.status).toBe(201);
-        expect(answer.body.speaker.id).toBe(other.id);
+        expect(answer.body.speaker.externalId).toBe(other.externalId);
       });
     });
   });
@@ -293,23 +312,23 @@ describe('the JSON API', () => {
       const { browser, csrf } = await signIn(admin);
 
       await browser
-        .post(`/proposals/${submitted.id}/reviews`)
+        .post(`/proposals/${submitted.externalId}/reviews`)
         .set('Accept', HAL)
         .set('X-CSRF-Token', csrf)
         .send({ comment: 'A review long enough to pass.', score: 2 });
 
       const answer = await browser
-        .get(`/proposals/${submitted.id}/reviews`)
+        .get(`/proposals/${submitted.externalId}/reviews`)
         .set('Accept', HAL);
 
       expect(answer.status).toBe(200);
       expect(answer.body._embedded.reviews).toHaveLength(1);
       expect(answer.body._embedded.reviews[0]).toMatchObject({
-        proposalId: submitted.id,
+        proposalId: submitted.externalId,
         score: 2,
       });
       expect(answer.body._links.proposal.href).toBe(
-        `/proposals/${submitted.id}`
+        `/proposals/${submitted.externalId}`
       );
       expect(answer.body.total).toBe(1);
     });

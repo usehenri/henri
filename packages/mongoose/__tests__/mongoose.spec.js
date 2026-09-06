@@ -407,9 +407,18 @@ describe('mongoose adapter', () => {
 
       expect(byId.email).toBe('felix@usehenri.io');
       expect(byId.password).toBeUndefined();
+      // The public identifier finds the user too, and it is the only
+      // identifier the plain representation carries
+      const byExternalId = await adapter.findUserById(user.externalId);
+
+      expect(byExternalId.email).toBe('felix@usehenri.io');
       expect(adapter.toPlain(user)).toEqual(
-        expect.objectContaining({ _id: user._id, email: 'felix@usehenri.io' })
+        expect.objectContaining({
+          email: 'felix@usehenri.io',
+          externalId: user.externalId,
+        })
       );
+      expect(adapter.toPlain(user)._id).toBeUndefined();
       expect(adapter.toPlain(user).password).toBeUndefined();
 
       await expect(adapter.findUserByEmail('nobody@usehenri.io')).resolves.toBe(

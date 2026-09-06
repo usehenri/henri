@@ -56,12 +56,12 @@ const Home = ({ data: { tasks = [] }, getRoute, user }) => (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {tasks.map((task) => (
             <li
-              key={String(task._id ?? task.id)}
+              key={task.externalId}
               className="flex items-center justify-between gap-4 px-5 py-3"
             >
               <Link
                 className="text-sm font-medium hover:underline"
-                href={getRoute('show_tasks_path', String(task._id ?? task.id))}
+                href={getRoute('show_tasks_path', task.externalId)}
               >
                 {task.name}
               </Link>

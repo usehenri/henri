@@ -23,6 +23,7 @@
   "main": "index.js",
   "files": [
     "index.js",
+    "external-id.js",
     "plugins.js",
     "schema.js",
     "types.js",

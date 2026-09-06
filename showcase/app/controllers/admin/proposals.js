@@ -16,10 +16,12 @@ const DECISIONS = ['accepted', 'rejected'];
  * @returns {Promise<object|undefined>} The 404 answer, or nothing
  */
 const loadProposal = async (req, res) => {
-  req.proposal = await Proposal.withDeleted()
-    .where({ id: req.params.id })
-    .include(...INCLUDE)
-    .first();
+  // `:id` is the public identifier of the proposal; findById() takes it and
+  // `withDeleted` reaches the withdrawn ones the trash page links to
+  req.proposal = await Proposal.findById(req.params.id, {
+    include: INCLUDE,
+    withDeleted: true,
+  });
 
   if (!req.proposal) {
     return res.boom.notFound(`No proposal ${req.params.id}`);
@@ -66,7 +68,7 @@ module.exports = {
     if (req.proposal.state === 'draft') {
       req.flash('alert', 'That proposal has not been submitted yet.');
 
-      return res.redirect(`/admin/proposals/${req.proposal.id}`);
+      return res.redirect(`/admin/proposals/${req.proposal.externalId}`);
     }
 
     await req.proposal.update({ decidedAt: new Date(), state });

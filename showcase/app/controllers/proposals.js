@@ -12,6 +12,7 @@ const {
   mayRead,
   owns,
   present,
+  resolveReferences,
 } = require('../helpers/proposals');
 
 /**
@@ -86,16 +87,19 @@ const formOptions = async () => {
   const tracks = await Track.where({
     eventId: events.map((event) => event.id),
   }).order('name');
+  // The form posts the public id of a record, never its primary key: the
+  // controller resolves them back on the way in (see resolveReferences)
+  const editions = new Map(events.map((event) => [event.id, event.externalId]));
 
   return {
     events: events.map((event) => ({
-      id: event.id,
+      externalId: event.externalId,
       name: event.name,
       year: event.year,
     })),
     tracks: tracks.map((track) => ({
-      eventId: track.eventId,
-      id: track.id,
+      eventId: editions.get(track.eventId) || null,
+      externalId: track.externalId,
       name: track.name,
     })),
   };
@@ -120,7 +124,7 @@ module.exports = {
 
     try {
       proposal = await Proposal.create({
-        ...attributes,
+        ...(await resolveReferences(attributes)),
         // Never from the request: the speaker is whoever is signed in, and a
         // new proposal always starts as a draft
         speakerId: req.user.id,
@@ -150,7 +154,7 @@ module.exports = {
     const full = await Proposal.findById(proposal.id, { include: INCLUDE });
 
     return res.negotiate({
-      html: () => res.redirect(`/proposals/${proposal.id}`),
+      html: () => res.redirect(`/proposals/${proposal.externalId}`),
       json: () => res.resource(present(full), { status: 201 }),
     });
   },
@@ -168,7 +172,11 @@ module.exports = {
     }
 
     if (req.query.event) {
-      where.eventId = Number(req.query.event);
+      // The filter carries the public id of an edition; an unknown one
+      // matches nothing rather than everything
+      const edition = await Event.findById(req.query.event);
+
+      where.eventId = edition ? edition.id : 0;
     }
 
     const { records, page, perPage, total, pages } = await Proposal.paginate({
@@ -186,7 +194,7 @@ module.exports = {
         return res.render('/proposals/index', {
           data: {
             editions: editions.map((event) => ({
-              id: event.id,
+              externalId: event.externalId,
               name: event.name,
               year: event.year,
             })),
@@ -246,7 +254,7 @@ module.exports = {
       req.flash('alert', 'That proposal has already been submitted.');
 
       return res.negotiate({
-        html: () => res.redirect(`/proposals/${proposal.id}`),
+        html: () => res.redirect(`/proposals/${proposal.externalId}`),
         json: () => res.boom.conflict('Only a draft can be submitted'),
       });
     }
@@ -255,7 +263,7 @@ module.exports = {
       req.flash('alert', 'The call for papers of that edition is closed.');
 
       return res.negotiate({
-        html: () => res.redirect(`/proposals/${proposal.id}`),
+        html: () => res.redirect(`/proposals/${proposal.externalId}`),
         json: () => res.boom.conflict('The call for papers is closed'),
       });
     }
@@ -264,7 +272,7 @@ module.exports = {
     req.flash('notice', 'Submitted. The committee will review it.');
 
     return res.negotiate({
-      html: () => res.redirect(`/proposals/${proposal.id}`),
+      html: () => res.redirect(`/proposals/${proposal.externalId}`),
       json: () => res.resource(present(proposal)),
     });
   },
@@ -276,13 +284,13 @@ module.exports = {
       req.flash('alert', 'A submitted proposal can no longer be edited.');
 
       return res.negotiate({
-        html: () => res.redirect(`/proposals/${proposal.id}`),
+        html: () => res.redirect(`/proposals/${proposal.externalId}`),
         json: () => res.boom.conflict('Only a draft can be edited'),
       });
     }
 
     try {
-      await proposal.update(req.permit(...FIELDS));
+      await proposal.update(await resolveReferences(req.permit(...FIELDS)));
     } catch (error) {
       const errors = henri.model.errors(error);
 
@@ -308,7 +316,7 @@ module.exports = {
     req.flash('notice', 'Draft updated.');
 
     return res.negotiate({
-      html: () => res.redirect(`/proposals/${proposal.id}`),
+      html: () => res.redirect(`/proposals/${proposal.externalId}`),
       json: () => res.resource(present(proposal)),
     });
   },

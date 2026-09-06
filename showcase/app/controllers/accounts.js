@@ -95,7 +95,7 @@ module.exports = {
           bio: req.user.bio,
           company: req.user.company,
           email: req.user.email,
-          id: req.user.id,
+          externalId: req.user.externalId,
           name: req.user.name,
           roles: req.user.roles,
         },

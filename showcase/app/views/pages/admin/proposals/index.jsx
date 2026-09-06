@@ -42,7 +42,7 @@ export default function AdminProposals() {
         <ul className="mt-8 grid gap-3">
           {proposals.map((proposal) => (
             <li
-              key={proposal.id}
+              key={proposal.externalId}
               className={`${card} flex flex-wrap items-center justify-between gap-4 px-5 py-4`}
             >
               <div className="min-w-0">
@@ -50,7 +50,7 @@ export default function AdminProposals() {
                   className="font-medium hover:underline"
                   href={getRoute(
                     'show_admin/proposals_path',
-                    String(proposal.id)
+                    proposal.externalId
                   )}
                 >
                   {proposal.title}

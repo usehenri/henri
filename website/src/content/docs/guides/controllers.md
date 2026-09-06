@@ -23,6 +23,7 @@ const FIELDS = ['name', 'category', 'done'];
  * @returns {Promise<object|undefined>} The 404 answer, or nothing
  */
 const loadTask = async (req, res) => {
+  // `:id` is the public identifier of the record; findById() takes it
   req.task = await Task.findById(req.params.id);
 
   if (!req.task) {
@@ -58,7 +59,7 @@ module.exports = {
     req.flash('notice', 'Task created');
 
     return res.negotiate({
-      html: () => res.redirect(`/tasks/${task.id}`),
+      html: () => res.redirect(`/tasks/${task.externalId}`),
       json: () => res.resource(task, { status: 201 }),
     });
   },

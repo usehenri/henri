@@ -119,11 +119,15 @@ describe(`model API (${target.name})`, () => {
       expect(task.createdAt).toBeInstanceOf(Date);
       expect(task.updatedAt).toEqual(task.createdAt);
       expect(task.isNew).toBe(false);
+      expect(task.externalId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/
+      );
+      // The primary key never leaves the server: the public identifier does
       expect(JSON.parse(JSON.stringify(task))).toEqual({
         category: 'low',
         createdAt: task.createdAt.toISOString(),
         done: false,
-        id: task.id,
+        externalId: task.externalId,
         name: 'write docs',
         notes: null,
         priority: 3,
@@ -487,10 +491,17 @@ describe(`model API (${target.name})`, () => {
 
       expect(loaded.author).toBeInstanceOf(Author);
       expect(loaded.author.name).toBe('Ada');
-      expect(JSON.parse(JSON.stringify(loaded))).toMatchObject({
-        author: { id: ada.id, name: 'Ada' },
+      // Nested records are serialized the same way: no primary key
+      const json = JSON.parse(JSON.stringify(loaded));
+
+      expect(json).toMatchObject({
+        author: { externalId: ada.externalId, name: 'Ada' },
         title: 'first',
       });
+      expect(json.id).toBeUndefined();
+      expect(json.author.id).toBeUndefined();
+      // The foreign key stays what it is: joins are made of primary keys
+      expect(json.authorId).toBe(ada.id);
 
       const authors = await Author.include('posts', 'profile').order('name');
 

@@ -37,7 +37,7 @@ export default function EventShow() {
           <Link
             className="underline"
             href={String(
-              pathFor('index_tracks_path', { event_id: String(event.id) })
+              pathFor('index_tracks_path', { event_id: event.externalId })
             )}
           >
             {tracks.length} tracks
@@ -57,12 +57,12 @@ export default function EventShow() {
           <ul className="mt-4 grid gap-3">
             {lineup.map((proposal) => (
               <li
-                key={proposal.id}
+                key={proposal.externalId}
                 className={`${card} flex flex-wrap items-baseline justify-between gap-3 px-5 py-4`}
               >
                 <Link
                   className="font-medium hover:underline"
-                  href={getRoute('show_proposals_path', String(proposal.id))}
+                  href={getRoute('show_proposals_path', proposal.externalId)}
                 >
                   {proposal.title}
                 </Link>

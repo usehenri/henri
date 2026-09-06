@@ -93,7 +93,7 @@ describe('roles', () => {
     test('gets a 403 naming the role it is missing', async () => {
       const { browser } = await signIn(speaker);
       const answer = await browser
-        .get(`/proposals/${proposal.id}/reviews`)
+        .get(`/proposals/${proposal.externalId}/reviews`)
         .set('Accept', 'application/json');
 
       expect(answer.status).toBe(403);
@@ -107,7 +107,7 @@ describe('roles', () => {
     test('gets the collection once it has the role', async () => {
       const { browser } = await signIn(admin);
       const answer = await browser
-        .get(`/proposals/${proposal.id}/reviews`)
+        .get(`/proposals/${proposal.externalId}/reviews`)
         .set('Accept', 'application/hal+json');
 
       expect(answer.status).toBe(200);
@@ -167,7 +167,7 @@ describe('roles', () => {
   test('an admin promotes somebody through the member route', async () => {
     const { browser, csrf } = await signIn(admin);
     const answer = await browser
-      .post(`/admin/users/${speaker.id}/role`)
+      .post(`/admin/users/${speaker.externalId}/role`)
       .set('Accept', 'text/html')
       .set('X-CSRF-Token', csrf)
       .send({ role: 'admin' });

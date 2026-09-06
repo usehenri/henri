@@ -5,7 +5,8 @@ import { PageHeader } from 'components/ui';
 
 export default function EditProposal() {
   const { data, getRoute, pathFor } = useHenri();
-  const id = String(data.proposal.id);
+  // The public identifier of the proposal: what every url is made of
+  const id = data.proposal.externalId;
 
   return (
     <Layout>

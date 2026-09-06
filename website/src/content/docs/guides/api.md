@@ -32,7 +32,7 @@ module.exports = {
     const task = await Task.create(req.permit('title', 'done'));
 
     return res.negotiate({
-      html: () => res.redirect(`/tasks/${task.id}`),
+      html: () => res.redirect(`/tasks/${task.externalId}`),
       json: () => res.resource(task, { status: 201 }),
     });
   },
@@ -44,17 +44,25 @@ A resource looks like this:
 ```json
 {
   "_links": {
-    "self": { "href": "/tasks/6a9c" },
+    "self": { "href": "/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11" },
     "collection": { "href": "/tasks" },
-    "edit": { "href": "/tasks/6a9c/edit" },
-    "update": { "href": "/tasks/6a9c", "method": "PATCH" },
-    "destroy": { "href": "/tasks/6a9c", "method": "DELETE" }
+    "edit": { "href": "/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11/edit" },
+    "update": {
+      "href": "/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11",
+      "method": "PATCH"
+    },
+    "destroy": {
+      "href": "/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11",
+      "method": "DELETE"
+    }
   },
-  "id": "6a9c",
+  "externalId": "0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11",
   "title": "Ship it",
   "done": false
 }
 ```
+
+The identifier is the record's `externalId`, the public one every model carries; the primary key stays on the server and is not in the payload. `res.resource()`, `res.collection()`, the `Location` header of a `201` and every href of `_links` are built from it. See [Identifiers](/guides/models/#identifiers).
 
 A collection embeds its items under `_embedded.<type>` and carries the paging links and counters, plus `Link` and `X-Total-Count` headers:
 

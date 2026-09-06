@@ -30,8 +30,8 @@ module.exports = {
     return res.render('/api', {
       data: {
         sample: {
-          event: event ? event.id : null,
-          proposal: proposal ? proposal.id : null,
+          event: event ? event.externalId : null,
+          proposal: proposal ? proposal.externalId : null,
         },
       },
     });

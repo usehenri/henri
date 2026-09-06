@@ -204,7 +204,8 @@ class User extends BaseModule {
 
   /**
    * The representation of a user that can be sent to a browser:
-   * `{ id, email, roles }` plus the fields listed in `config.user.public`
+   * `{ externalId, email, roles }` plus the fields listed in
+   * `config.user.public`. The primary key stays on the server.
    *
    * @param {object} user a user instance
    * @returns {?object} the public user or null
@@ -464,7 +465,7 @@ class User extends BaseModule {
 
         const me = this.publicUser(user);
 
-        pen.info('user', 'logged in', me && me.id);
+        pen.info('user', 'logged in', me && (me.externalId || me.id));
 
         return respond(res, {
           html: () => res.redirect(afterLogin),
@@ -491,7 +492,7 @@ class User extends BaseModule {
 
     const finish = () => {
       res.clearCookie(SESSION_COOKIE, { path: '/' });
-      me && pen.info('user', 'logged out', me.id);
+      me && pen.info('user', 'logged out', me.externalId || me.id);
 
       return respond(res, {
         html: () => res.redirect('/'),

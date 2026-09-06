@@ -1,10 +1,30 @@
 const { Model } = require('mongoose');
+const {
+  EXTERNAL_ID,
+  isUuid,
+  normalizeExternalId,
+  uuidv7,
+} = require('./external-id');
 
 /**
- * The Rails behaviours henri adds to Mongoose models: `paginate()` on every
- * model and, with `options: { paranoid: true }`, soft deletes (Rails'
- * `acts_as_paranoid`).
+ * The Rails behaviours henri adds to Mongoose models: `paginate()` and the
+ * public `externalId` on every model and, with `options: { paranoid: true }`,
+ * soft deletes (Rails' `acts_as_paranoid`).
  */
+
+/**
+ * The filter of a lookup by id: the public identifier when the value is a
+ * uuid and the model carries one, the document id otherwise. A 24 character
+ * ObjectId never looks like a uuid, so the two can never be confused.
+ *
+ * @param {object} model The model (`this` in a static)
+ * @param {*} value An external id or a document id
+ * @returns {object} The filter
+ */
+const idFilter = (model, value) =>
+  model.schema.path(EXTERNAL_ID) && isUuid(value)
+    ? { [EXTERNAL_ID]: normalizeExternalId(value) }
+    : { _id: typeof value === 'undefined' ? null : value };
 
 // Queries that must not see soft deleted documents (Mongoose 9 has no
 // `count`, `findOneAndRemove` or `findByIdAndRemove` any more)
@@ -122,10 +142,16 @@ const soften = (name) =>
     const { force, ...rest } = options;
 
     if (force) {
-      return Model[name].call(this, filter, rest);
+      // `findByIdAndDelete` takes an id: route it through the filter form so
+      // that a public identifier is understood here too
+      return name.startsWith('findById')
+        ? Model.findOneAndDelete.call(this, idFilter(this, filter), rest)
+        : Model[name].call(this, filter, rest);
     }
 
-    const where = name.startsWith('findById') ? { _id: filter } : filter || {};
+    const where = name.startsWith('findById')
+      ? idFilter(this, filter)
+      : filter || {};
     const update = { $set: { deletedAt: new Date() } };
 
     if (name === 'deleteMany' || name === 'deleteOne') {
@@ -234,4 +260,94 @@ const paranoid = (schema) => {
   return schema;
 };
 
-module.exports = { DELETE_STATICS, READ_HOOKS, paginate, paranoid };
+/**
+ * The public identifier of every document: `externalId`, a uuid v7 written
+ * on insert, unique and indexed. The document id stays internal, is never
+ * serialized, and the lookups by id take either of the two.
+ *
+ * `options: { externalId: false }` on the model file opts out.
+ *
+ * @param {object} schema The Mongoose schema
+ * @returns {object} The schema
+ */
+const externalId = (schema) => {
+  schema.add({
+    [EXTERNAL_ID]: {
+      default: uuidv7,
+      immutable: true,
+      lowercase: true,
+      required: true,
+      trim: true,
+      type: String,
+      unique: true,
+    },
+  });
+
+  // What leaves the server carries the external id and not the document id
+  schema.set('toJSON', {
+    ...(schema.get('toJSON') || {}),
+    /**
+     * Drops the document id from the JSON representation
+     *
+     * @param {object} doc The document
+     * @param {object} ret The plain object being built
+     * @returns {object} The plain object
+     */
+    transform(doc, ret) {
+      delete ret._id;
+      delete ret.__v;
+
+      return ret;
+    },
+  });
+
+  /**
+   * A document by id: the public identifier or the document id
+   *
+   * @param {*} id An external id or a document id
+   * @param {*} [projection] The projection
+   * @param {object} [options] Query options
+   * @returns {object} A query
+   */
+  schema.statics.findById = function findById(id, projection, options) {
+    return this.findOne(idFilter(this, id), projection, options);
+  };
+
+  /**
+   * Updates a document by id
+   *
+   * @param {*} id An external id or a document id
+   * @param {object} [update] The update
+   * @param {object} [options] Query options
+   * @returns {object} A query
+   */
+  schema.statics.findByIdAndUpdate = function findByIdAndUpdate(
+    id,
+    update,
+    options
+  ) {
+    return this.findOneAndUpdate(idFilter(this, id), update, options);
+  };
+
+  /**
+   * Deletes a document by id (a soft delete on a paranoid model)
+   *
+   * @param {*} id An external id or a document id
+   * @param {object} [options] Query options
+   * @returns {object} A query
+   */
+  schema.statics.findByIdAndDelete = function findByIdAndDelete(id, options) {
+    return this.findOneAndDelete(idFilter(this, id), options);
+  };
+
+  return schema;
+};
+
+module.exports = {
+  DELETE_STATICS,
+  READ_HOOKS,
+  externalId,
+  idFilter,
+  paginate,
+  paranoid,
+};

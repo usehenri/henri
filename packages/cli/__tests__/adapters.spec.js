@@ -280,11 +280,13 @@ describe('the scaffolded resource follows the adapter', () => {
     expect(read(app, 'app/controllers/main.js')).toContain('Task.find()');
   });
 
-  test('sequelize: findByPk and instance updates', () => {
+  test('sequelize: findById and instance updates', () => {
     const { app } = scaffoldWith(dir, 'pg', ['--adapter', 'postgresql']);
     const controller = read(app, 'app/controllers/tasks.js');
 
-    expect(controller).toContain('Task.findByPk(id)');
+    // The lookup is `findById()`, henri's name on every store, and it takes
+    // the public identifier of the row as well as its primary key
+    expect(controller).toContain('Task.findById(id)');
     expect(controller).toContain('task.update(req.permit(...FIELDS))');
     expect(controller).toContain('task.destroy()');
     expect(controller).not.toContain('findByIdAndUpdate');
@@ -639,7 +641,7 @@ describe('the generated controllers run on their adapter', () => {
 
             return row(2, data);
           },
-          findByPk: async (id) => {
+          findById: async (id) => {
             if (id === 'unknown') {
               const error = new Error('invalid input syntax for type integer');
 

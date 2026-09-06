@@ -8,6 +8,8 @@ const COLUMNS = {
   mysql: {
     active: 'tinyint(1)',
     amount: 'double',
+    // The public identifier every model carries (see external-id.js)
+    external_id: 'varchar(36)',
     id: 'int',
     key: 'varchar(36)',
     // The values are part of the column type
@@ -22,6 +24,7 @@ const COLUMNS = {
   postgres: {
     active: 'boolean',
     amount: 'double precision',
+    external_id: 'uuid',
     id: 'integer',
     key: 'uuid',
     // A type of its own, named after the table and the column
@@ -36,6 +39,7 @@ const COLUMNS = {
   sqlite: {
     active: 'integer',
     amount: 'real',
+    external_id: 'text',
     id: 'integer',
     key: 'text',
     // No enum on sqlite: the values are only checked by the model

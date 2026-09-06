@@ -1,3 +1,8 @@
+const {
+  EXTERNAL_ID,
+  hasExternalId,
+  stripInternalIds,
+} = require('./external-id');
 const { jsonType, noStore } = require('./headers');
 const { linkHeader, pageLinks, paginate } = require('./pagination');
 
@@ -6,18 +11,20 @@ const { linkHeader, pageLinks, paginate } = require('./pagination');
  *
  * A resource is its public fields plus `_links` built from the router's path
  * helpers (`show_tasks_path`, `edit_tasks_path`, ...), filtered by the roles
- * of the current user so a client only sees the links it may follow:
+ * of the current user so a client only sees the links it may follow. The
+ * identifier in the payload and in every href is the record's `externalId`;
+ * the primary key stays on the server (see base/external-id.js):
  *
  * ```json
  * {
  *   "_links": {
- *     "self": { "href": "/tasks/42" },
+ *     "self": { "href": "/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11" },
  *     "collection": { "href": "/tasks" },
- *     "edit": { "href": "/tasks/42/edit" },
- *     "update": { "href": "/tasks/42", "method": "PATCH" },
- *     "destroy": { "href": "/tasks/42", "method": "DELETE" }
+ *     "edit": { "href": "/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11/edit" },
+ *     "update": { "href": "/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11", "method": "PATCH" },
+ *     "destroy": { "href": "/tasks/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11", "method": "DELETE" }
  *   },
- *   "id": "42",
+ *   "externalId": "0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11",
  *   "name": "Write the docs"
  * }
  * ```
@@ -28,7 +35,10 @@ const { linkHeader, pageLinks, paginate } = require('./pagination');
  */
 
 /**
- * The id of a record as a string
+ * The public id of a record as a string: its `externalId` when it has one
+ * (every model, unless it opted out), the primary key otherwise. This is
+ * what every href of `_links` is made of, so a url never carries the
+ * sequential id of a row.
  *
  * @param {*} record a model instance or a plain object
  * @returns {?string} the id or null
@@ -36,6 +46,10 @@ const { linkHeader, pageLinks, paginate } = require('./pagination');
 function identify(record) {
   if (!record || typeof record !== 'object') {
     return null;
+  }
+
+  if (hasExternalId(record)) {
+    return record[EXTERNAL_ID];
   }
 
   const id =
@@ -47,10 +61,10 @@ function identify(record) {
 }
 
 /**
- * A record as a plain object with an `id`
+ * A record as a plain object with its public identifier
  *
  * Model instances are serialized through their own `toJSON()` (Mongoose,
- * Sequelize) so the schema options (hidden fields, virtuals) apply.
+ * Sequelize, Drizzle) so the schema options (hidden fields, virtuals) apply.
  *
  * @param {*} record a model instance or a plain object
  * @returns {object} a copy
@@ -68,7 +82,14 @@ function toPlain(record) {
     plain = record.toObject();
   }
 
-  plain = Object.assign({}, plain);
+  // A record carrying a public identifier answers with it and nothing else:
+  // the primary key is dropped here and at every depth (a `.lean()` query or
+  // a hand-built object never went through a model's own toJSON)
+  plain = Object.assign({}, stripInternalIds(plain));
+
+  if (hasExternalId(plain)) {
+    return plain;
+  }
 
   const id = identify(plain);
 

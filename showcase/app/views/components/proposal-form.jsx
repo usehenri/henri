@@ -101,7 +101,7 @@ export default function ProposalForm({
               >
                 <option value="">Choose an edition</option>
                 {events.map((event) => (
-                  <option key={event.id} value={event.id}>
+                  <option key={event.externalId} value={event.externalId}>
                     {event.name}
                   </option>
                 ))}
@@ -121,7 +121,7 @@ export default function ProposalForm({
               >
                 <option value="">Undecided</option>
                 {tracks.map((track) => (
-                  <option key={track.id} value={track.id}>
+                  <option key={track.externalId} value={track.externalId}>
                     {track.name}
                   </option>
                 ))}

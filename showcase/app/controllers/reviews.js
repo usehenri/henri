@@ -18,11 +18,12 @@ const FIELDS = ['comment', 'score'];
  * @param {object} review A Review instance, with its reviewer loaded
  * @returns {object} A plain object
  */
-const present = (review) => ({
+const present = (review, proposal) => ({
   comment: review.comment,
   createdAt: review.createdAt,
-  id: review.id,
-  proposalId: review.proposalId,
+  externalId: review.externalId,
+  // The public id of the proposal, never the foreign key it is stored as
+  proposalId: proposal.externalId,
   reviewer: speakerOf(review.reviewer),
   score: review.score,
 });
@@ -48,7 +49,7 @@ module.exports = {
       req.flash('alert', 'You have already reviewed that proposal.');
 
       return res.negotiate({
-        html: () => res.redirect(`/admin/proposals/${req.proposal.id}`),
+        html: () => res.redirect(`/admin/proposals/${req.proposal.externalId}`),
         json: () => res.boom.conflict('You already reviewed this proposal'),
       });
     }
@@ -71,7 +72,7 @@ module.exports = {
       req.flash('alert', 'That review could not be saved.');
 
       return res.negotiate({
-        html: () => res.redirect(`/admin/proposals/${req.proposal.id}`),
+        html: () => res.redirect(`/admin/proposals/${req.proposal.externalId}`),
         json: () => res.boom.badData(error.message, { errors }),
       });
     }
@@ -79,13 +80,18 @@ module.exports = {
     req.flash('notice', 'Review recorded.');
 
     return res.negotiate({
-      html: () => res.redirect(`/admin/proposals/${req.proposal.id}`),
+      html: () => res.redirect(`/admin/proposals/${req.proposal.externalId}`),
       json: () =>
         res.resource(
           // The reviewer is whoever is signed in: no need to load it back
-          { ...present(review), reviewer: speakerOf(req.user) },
           {
-            links: { proposal: `/proposals/${req.proposal.id}` },
+            ...present(review, req.proposal),
+            reviewer: speakerOf(req.user),
+          },
+          {
+            links: {
+              proposal: `/proposals/${req.proposal.externalId}`,
+            },
             status: 201,
           }
         ),
@@ -96,15 +102,15 @@ module.exports = {
     const reviews = await Review.where({ proposalId: req.proposal.id })
       .include('reviewer')
       .order('-createdAt');
-    const records = reviews.map(present);
+    const records = reviews.map((review) => present(review, req.proposal));
 
     return res.negotiate({
-      html: () => res.redirect(`/admin/proposals/${req.proposal.id}`),
+      html: () => res.redirect(`/admin/proposals/${req.proposal.externalId}`),
       // No page, no perPage: an unpaginated collection answers `self`,
       // `count` and `total` without the paging links
       json: () =>
         res.collection(records, {
-          links: { proposal: `/proposals/${req.proposal.id}` },
+          links: { proposal: `/proposals/${req.proposal.externalId}` },
         }),
     });
   },

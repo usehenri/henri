@@ -17,6 +17,8 @@
  * }
  * ```
  */
+const { EXTERNAL_ID, hasExternalId } = require('./external-id');
+
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
 const DEFAULTS = Object.freeze({
@@ -173,10 +175,14 @@ function userAdapter(store, model) {
 /**
  * Builds the representation of a user that can leave the server
  *
+ * The identifier is the user's `externalId`, the public one every model
+ * carries; a user model that opted out of it (`options: { externalId:
+ * false }`) still answers with its `id`.
+ *
  * @param {object} adapter facade built by userAdapter()
  * @param {object} user a user instance (or null)
  * @param {Array<string>} [fields=[]] extra fields to expose (config.user.public)
- * @returns {?{id: string, email: string, roles: Array<string>}} the public user or null
+ * @returns {?{externalId: string, email: string, roles: Array<string>}} the public user or null
  */
 function publicUser(adapter, user, fields = []) {
   if (!user) {
@@ -192,11 +198,9 @@ function publicUser(adapter, user, fields = []) {
     roles = [plain.roles];
   }
 
-  const result = {
-    email: plain.email,
-    id: adapter.userId(user),
-    roles,
-  };
+  const result = hasExternalId(plain)
+    ? { email: plain.email, externalId: plain[EXTERNAL_ID], roles }
+    : { email: plain.email, id: adapter.userId(user), roles };
 
   for (const field of fields) {
     if (

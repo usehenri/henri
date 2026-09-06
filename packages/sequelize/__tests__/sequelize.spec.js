@@ -301,9 +301,17 @@ describe('sequelize adapter', () => {
 
       expect(byId.email).toBe('felix@usehenri.io');
       expect(byId.password).toBeUndefined();
+      // The public identifier finds the user too
+      const byExternalId = await adapter.findUserById(user.externalId);
+
+      expect(byExternalId.email).toBe('felix@usehenri.io');
       expect(adapter.toPlain(user)).toEqual(
-        expect.objectContaining({ email: 'felix@usehenri.io', id: user.id })
+        expect.objectContaining({
+          email: 'felix@usehenri.io',
+          externalId: user.externalId,
+        })
       );
+      expect(adapter.toPlain(user).id).toBeUndefined();
       expect(adapter.toPlain(user).password).toBeUndefined();
 
       await expect(adapter.findUserByEmail('nobody@usehenri.io')).resolves.toBe(

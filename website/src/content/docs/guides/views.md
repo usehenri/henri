@@ -120,8 +120,8 @@ import withHenri from '@usehenri/react';
 const Tasks = ({ data: { tasks = [] }, getRoute }) => (
   <ul>
     {tasks.map((task) => (
-      <li key={task._id}>
-        <Link href={getRoute('show_tasks_path', String(task._id))}>
+      <li key={task.externalId}>
+        <Link href={getRoute('show_tasks_path', task.externalId)}>
           {task.name}
         </Link>
       </li>
@@ -216,7 +216,7 @@ export default withHenri(NewTask);
 ```
 
 - `Form` props: `action` (a route string or a `pathFor()` result, `POST` by default), `method`, `data` (initial values, followed when the prop changes), `onSuccess(data, result)`, `onError(message, error)`, `onFail` (message when the server sends none), `error` (a message to display), `handleSubmit(action, data, clear)` (replaces the request; not with `action`), `name`, `className`, `debug`. After a successful submission the form calls `hydrate()`, then `onSuccess`, then clears itself; it stays disabled until the request settles.
-- Field props: `name` (nested names like `address.street` work), `validation` (`{ isEmail: true, isLength: { min: 3 } }`, any validator.js function), `sanitation` (`{ trim: true, escape: true }`, applied in order), `errorMsg` (`{ rule: message }`), `required`, `disabled`, `placeholder`, `className`, plus anything the underlying element accepts. `Select` takes `choices` (strings, or objects read through `displayProp`, `name` by default, valued by `_id`, `id` or `value`) and renders `placeholder` as a real first option. `Radio` takes `group` (the data key) and `name` (the value it sets). `Editor` is a [Quill](https://quilljs.com/) rich text field loaded in the browser only, controlled by the form data; import `react-quill-new/dist/quill.snow.css` from the page that uses it.
+- Field props: `name` (nested names like `address.street` work), `validation` (`{ isEmail: true, isLength: { min: 3 } }`, any validator.js function), `sanitation` (`{ trim: true, escape: true }`, applied in order), `errorMsg` (`{ rule: message }`), `required`, `disabled`, `placeholder`, `className`, plus anything the underlying element accepts. `Select` takes `choices` (strings, or objects read through `displayProp`, `name` by default, valued by `externalId`, `_id`, `id` or `value`) and renders `placeholder` as a real first option. `Radio` takes `group` (the data key) and `name` (the value it sets). `Editor` is a [Quill](https://quilljs.com/) rich text field loaded in the browser only, controlled by the form data; import `react-quill-new/dist/quill.snow.css` from the page that uses it.
 - A `422` answer whose `data.errors` maps field names to messages (what the scaffolded controllers send) shows each message under its field; any other error goes to `FormError`.
 - `useForm()` gives a custom field `data`, `errors`, `error`, `disabled`, `modified`, `handleChange(event, validation)`, `handleSubmit()`, `clear()` and `addSanitizer(name, rules)`.
 
@@ -301,7 +301,7 @@ export default function Tasks() {
       </Form>
       <ul>
         {data.tasks.map((task) => (
-          <li key={task._id}>{task.name}</li>
+          <li key={task.externalId}>{task.name}</li>
         ))}
       </ul>
       <Link href={getRoute('home_main_path')}>home</Link>

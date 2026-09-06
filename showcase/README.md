@@ -108,7 +108,9 @@ page holds no link to the committee.
 The same routes answer HAL. `GET /proposals` with
 `Accept: application/hal+json` is a collection with `_embedded.proposals`, the
 paging links, `Link` and `X-Total-Count`; `GET /proposals/:id` is a resource
-with `_links`. Pagination is `Proposal.paginate(req.pagination())`, creates
+with `_links`. `:id` is the `externalId` of the record, a uuid: the bigint
+primary key is what the foreign keys are made of and it never leaves the
+server, so no url and no payload carries a number anybody could count up. Pagination is `Proposal.paginate(req.pagination())`, creates
 honour `Idempotency-Key`, every answer carries a weak `ETag`, and the route
 serves `application/vnd.henri.v1+json` and refuses other versions with a `406`.
 
@@ -118,9 +120,13 @@ browser and shows the status, the headers and the body.
 ### Models
 
 Five models on the Drizzle adapter, with `belongsTo`/`hasMany` associations
-declared on both sides, enum, length and range validations, timestamps, and
-`options: { paranoid: true }` on `Proposal`: withdrawing soft deletes it, the
-reviews survive, and the committee restores it from `/admin/proposals/withdrawn`.
+declared on both sides, enum, length and range validations, timestamps, a
+public `externalId` on every table, and `options: { paranoid: true }` on
+`Proposal`: withdrawing soft deletes it, the reviews survive, and the
+committee restores it from `/admin/proposals/withdrawn`. The proposal form
+posts the public id of an edition and of a track, and
+`resolveReferences()` in `app/helpers/proposals.js` turns them back into the
+foreign keys the columns hold.
 
 `db/migrations` is the drizzle-kit layout written by `henri db:generate`. The
 development store sets `"sync": false`, so a schema change needs a migration
@@ -138,6 +144,16 @@ pnpm test                                    # from showcase/
 application in the worker and binds supertest to it. The suite needs the
 PostgreSQL of `compose.yaml`, which is why it is **not** part of the
 monorepo's `pnpm test`: `vitest.config.mjs` at the root excludes `showcase/`.
+
+The boot pushes the schema, which creates the tables of a fresh test database
+by itself. A test database created before a migration that adds a `NOT NULL`
+column to a table already holding rows is a different matter: drizzle-kit asks
+before doing that and there is no terminal to ask, so the boot fails. Migrate
+it once, or drop it and let the next run build it again:
+
+```bash
+NODE_ENV=test henri db:migrate     # from showcase/
+```
 
 The five files cover the flows above: `auth.test.js` (sign up, sign in, sign
 out, CSRF), `roles.test.js` (the guard and the filtered path helpers),

@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 const debug = require('debug')('henri:mongoose');
-const { paginate, paranoid } = require('./plugins');
+const { externalId, paginate, paranoid } = require('./plugins');
 const { normalizeSchema } = require('./schema');
+const { EXTERNAL_ID, wantsExternalId } = require('./external-id');
 const { buildUrl, fatal, normalizeEmail, redact } = require('./utils');
 
 /**
@@ -126,7 +127,11 @@ class Mongoose {
    */
   addModel(model, user) {
     const isUser = model.identity === user;
-    const { paranoid: soft = false, ...options } = model.options || {};
+    const {
+      externalId: external,
+      paranoid: soft = false,
+      ...options
+    } = model.options || {};
     // Rails has timestamps on every table: `timestamps: false` opts out
     const schema = new this.mongoose.Schema(
       normalizeSchema(model.schema || {}),
@@ -139,6 +144,11 @@ class Mongoose {
     debug('adding model %s', model.globalId);
 
     paginate(schema);
+
+    // Every model carries a public identifier; the document id is internal
+    if (wantsExternalId({ options: { externalId: external } })) {
+      externalId(schema);
+    }
 
     if (soft) {
       paranoid(schema);
@@ -406,6 +416,12 @@ class Mongoose {
 
     delete plain.password;
 
+    // The document id never leaves the server when there is a public one
+    if (plain[EXTERNAL_ID]) {
+      delete plain._id;
+      delete plain.id;
+    }
+
     return plain;
   }
 
@@ -561,10 +577,10 @@ class Mongoose {
       throw error;
     }
 
-    // The unique email index must exist before the first request
-    if (this.userModelName) {
-      await this.models[this.userModelName].init();
-    }
+    // The unique indexes (the email of the user model, the external id of
+    // every model) must exist before the first request: mongoose builds them
+    // when the model is initialized, and `unique` is nothing but an index
+    await Promise.all(Object.values(this.models).map((Model) => Model.init()));
 
     this.associate();
     debug('started %s', this.name);

@@ -20,7 +20,8 @@ const Show = ({ data: { {{lower}} = null }, getRoute }) => {
     );
   }
 
-  const id = String(item._id ?? item.id);
+  // The public identifier: a url never carries the numeric id of a record
+  const id = item.externalId;
 
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-12">

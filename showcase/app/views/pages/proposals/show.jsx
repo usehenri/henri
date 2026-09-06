@@ -23,7 +23,8 @@ const day = (value) => (value ? String(value).slice(0, 10) : '—');
 export default function ProposalShow() {
   const { data, getRoute, pathFor } = useHenri();
   const { editable, proposal } = data;
-  const id = String(proposal.id);
+  // The public identifier of the proposal: what every url is made of
+  const id = proposal.externalId;
 
   return (
     <Layout>
@@ -117,7 +118,7 @@ export default function ProposalShow() {
           </h2>
           <ul className="mt-4 grid gap-3">
             {proposal.reviews.map((review) => (
-              <li key={review.id} className={`${card} px-5 py-4`}>
+              <li key={review.externalId} className={`${card} px-5 py-4`}>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-sm font-medium">
                     {review.reviewer ? review.reviewer.name : '—'}

@@ -366,7 +366,10 @@ declare namespace start {
 
   /** The current user as it may leave the server. */
   interface PublicUser {
-    id: string;
+    /** The public uuid. Absent only when the user model opted out. */
+    externalId?: string;
+    /** The primary key, and only when the user model opted out. */
+    id?: string;
     email: string;
     roles: string[];
     /** Plus the fields listed in `config.user.public`. */
