@@ -26,6 +26,7 @@ const { coded, isPlainObject } = require('./utils');
 const { canonical, canonicalInteger, isExact, settingsOf } = require('./exact');
 const { checkOrder, comparison, markOf } = require('./encryption');
 const { checkMassWrite } = require('./versions');
+const { tenantSQL } = require('./tenant');
 
 /**
  * The operators whose answer depends on the order of the values, and which
@@ -425,6 +426,16 @@ const compileWith = (Model, includes) => {
       entry.columns = columns;
     }
 
+    // An eager loaded association is a second query on a second table, and
+    // drizzle's relational api takes a `where` per entry: without this an
+    // `include('invoices')` would load every tenant's invoices under this
+    // tenant's account, which is the leak nobody tests for
+    const mine = tenantSQL(Target, 'include');
+
+    if (mine) {
+      entry.where = entry.where ? and(entry.where, mine) : mine;
+    }
+
     if (rest.length > 0) {
       entry.with = entry.with || {};
       add(Target, entry.with, rest);
@@ -618,6 +629,17 @@ class Relation {
 
     if (scope) {
       parts.push(scope);
+    }
+
+    // Next to the soft-delete scope, and for the same reason: this is the
+    // one place every read and every fluent mass write is compiled, so a
+    // condition added here is a condition nothing built through a Relation
+    // can escape. It throws rather than adding nothing when the model
+    // belongs to a tenant and nobody said which (./tenant.js)
+    const mine = tenantSQL(this.Model, 'find');
+
+    if (mine) {
+      parts.push(mine);
     }
 
     if (parts.length === 0) {

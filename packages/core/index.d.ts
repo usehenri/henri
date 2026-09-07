@@ -649,6 +649,70 @@ declare namespace start {
     verify?: boolean;
   }
 
+  /**
+   * `config.tenancy`: multi-tenancy.
+   *
+   * This does not make a model a tenant's -- a model does, with
+   * `options: { tenant: true }`. It says where the tenant of a request
+   * comes from and what a request that names somebody else's answers.
+   */
+  interface TenancyConfig {
+    /**
+     * The column henri adds to every model that says
+     * `options: { tenant: true }` (`'tenantId'`). A model naming a column
+     * of its own overrides it.
+     */
+    column?: string;
+    /** Where the tenant of a request comes from, in a fixed order. */
+    from?: TenancyFromConfig;
+    /**
+     * Refuse a request whose tenant no source could decide (`false`). Off,
+     * the refusal happens at the first model call that needed one, which
+     * names the model that wanted it.
+     */
+    require?: boolean;
+    /**
+     * What a request naming somebody else's tenant answers (`404`). `404`
+     * hides that the tenant exists at all.
+     */
+    status?: 403 | 404;
+  }
+
+  /**
+   * `config.tenancy.from`: the sources of a request's tenant.
+   *
+   * The order is fixed and is not configurable: what somebody said
+   * explicitly (`req.setTenant()`), then the signed-in user's own record,
+   * then the subdomain, then the header. Everything a client can name is
+   * below the user's record and is only ever allowed to agree with it.
+   */
+  interface TenancyFromConfig {
+    /**
+     * The header the tenant may arrive in, and the proxies allowed to set
+     * it. A name with no `from` fails the boot: any client can send a
+     * header.
+     */
+    header?: false | string | TenancyHeaderConfig;
+    /**
+     * The domain the tenant is a label of (`'example.com'` makes
+     * `acme.example.com` the tenant `acme`).
+     */
+    subdomain?: false | string;
+    /**
+     * The column of the user model that says which tenant they belong to
+     * (`'tenantId'`). The one source a client cannot write.
+     */
+    user?: false | string;
+  }
+
+  /** One `tenancy.from.header`: the name, and who may set it. */
+  interface TenancyHeaderConfig {
+    /** The addresses or CIDR ranges of the proxies allowed to set it. */
+    from: string[];
+    /** The header name. */
+    name: string;
+  }
+
   /** `config.rateLimit`: `false` disables every limit. */
   interface RateLimitConfig {
     /** The window of the global limit (`60000`). */
@@ -964,6 +1028,11 @@ declare namespace start {
     externalIds?: ExternalIdsConfig;
     /** What a refused policy answers, and whether an unasked one is reported. */
     policies?: PoliciesConfig;
+    /**
+     * Multi-tenancy: where the tenant of a request comes from, and what a
+     * query on a tenanted model without one costs. `false` is the default.
+     */
+    tenancy?: false | TenancyConfig;
     /** Express `trust proxy` (`true`). */
     trustProxy?: boolean | number | string;
     /** `false` disables the CSRF protection. */
@@ -2190,6 +2259,25 @@ declare namespace start {
      * application has no catalogue for (`HENRI_LOCALE_UNKNOWN`).
      */
     setLocale?(locale: string): string;
+    /**
+     * The tenant of this request, decided once by the tenancy middleware.
+     * Absent when the application is not multi-tenant, `null` when no
+     * configured source could decide one.
+     */
+    tenant?: string | null;
+    /**
+     * Which source decided `req.tenant`. `user` is the only one a client
+     * cannot write, which is why the other two are cross-checked against
+     * it.
+     */
+    tenantSource?: 'explicit' | 'header' | 'subdomain' | 'user' | null;
+    /**
+     * Says which tenant this request is, from here on -- the `explicit`
+     * source, cross-checked against the signed-in user's own record like
+     * the rest. Refuses a value that cannot be an identifier
+     * (`HENRI_TENANT_INVALID`).
+     */
+    setTenant?(tenant: string): string;
     /**
      * The listed fields from the query string, body and path parameters
      * (later sources win); missing fields are omitted. With no field at all:
@@ -4769,6 +4857,51 @@ declare namespace start {
     refresh(): Promise<boolean>;
   }
 
+  /**
+   * `henri.tenancy`: which tenant this is, and the refusal when nobody
+   * said.
+   *
+   * A tenant is a **scope, not a permission**: narrowing to one only ever
+   * removes rows, and what a person may do with the rows that are left
+   * stays the policies' question. `enabled` is false until
+   * `config.tenancy` asks, and then nothing is added to any model.
+   */
+  interface TenancyModule {
+    /** Whether `config.tenancy` asked for any of this. */
+    readonly enabled: boolean;
+    /** `config.tenancy`, normalized. */
+    readonly settings: {
+      column: string;
+      enabled: boolean;
+      require: boolean;
+      status: 403 | 404;
+    };
+    /** The tenant of whatever is running, or `null` outside one. */
+    current(): string | null;
+    /** How it was decided: `explicit`, `user`, `subdomain` or `header`. */
+    source(): string | null;
+    /** Whether the running work is deliberately unscoped. */
+    isUnscoped(): boolean;
+    /**
+     * Runs something as a tenant. An async context and not a setting, so
+     * two jobs in one process never claim each other's tenant. This is what
+     * a job does with the tenant its arguments carried.
+     */
+    run<T>(tenant: string | Record<string, unknown>, work: () => T): T;
+    /**
+     * Runs something across every tenant, deliberately. The one way past
+     * the refusal, and it is a context rather than a flag so that it covers
+     * exactly the call it wraps and nothing running next to it.
+     */
+    unscoped<T>(work: () => T): T;
+    /** The tenant, or `HENRI_TENANT_REQUIRED`. */
+    require(why?: string): string;
+    /** The models that carry a mark, and the column each one uses. */
+    map(): Record<string, string>;
+    /** The sources a request's tenant may come from, in order. */
+    sources(): string[];
+  }
+
   interface Henri {
     config: ConfigModule;
     pen: Pen;
@@ -4829,6 +4962,12 @@ declare namespace start {
      * created, mounted or written before one does.
      */
     versions: VersionsModule;
+    /**
+     * Which tenant this is, and the refusal when nobody said. `enabled` is
+     * false until `config.tenancy` asks, and then no model carries a
+     * column and no query carries a condition.
+     */
+    tenancy: TenancyModule;
     /**
      * The queue, when the application depends on `@usehenri/jobs`. It is
      * `undefined` when it does not -- core carries no queue of its own --

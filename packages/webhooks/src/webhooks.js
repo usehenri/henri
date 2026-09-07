@@ -878,7 +878,9 @@ class Webhooks {
    * @param {string} event The event name (`invoice.paid`)
    * @param {*} [data=null] What the receivers get, under `data`
    * @param {object} [options={}] Options
-   * @param {string} [options.owner] Only this tenant's endpoints
+   * @param {string} [options.owner] Only this tenant's endpoints; defaults
+   *   to the tenant of the request or job this is emitted from, when the
+   *   application is multi-tenant (`henri.tenancy`)
    * @param {(number|string)} [options.wait] Deliver that much later
    * @returns {Promise<Array<object>>} One `{ id, endpoint, job }` per
    *   delivery enqueued
@@ -894,10 +896,12 @@ class Webhooks {
       );
     }
 
-    const owner =
-      typeof options.owner === 'undefined' || options.owner === null
-        ? null
-        : String(options.owner);
+    // The `owner` of an endpoint has been the tenant since this package
+    // shipped, and `henri.tenancy` is now what says which tenant a request
+    // or a job is: an `emit` inside one goes to that tenant's endpoints
+    // without the caller repeating it. Naming an owner still wins, and an
+    // application that is not multi-tenant is exactly where it was
+    const owner = this.ownerOf(options);
     const found = await this.subscriptions(owner);
     const endpoints = found.filter((entry) => subscribed(entry.events, event));
 
@@ -920,6 +924,31 @@ class Webhooks {
     debug('%s -> %d endpoint(s)', event, deliveries.length);
 
     return deliveries;
+  }
+
+  /**
+   * The owner an `emit` means: what it named, else the tenant in scope.
+   *
+   * Explicit wins, including an explicit `null` -- "the endpoints that
+   * belong to nobody" is a thing to mean, and it is what a platform-wide
+   * event is. Without the key at all, a multi-tenant application gets the
+   * tenant of whatever is running, which is the answer that makes
+   * forgetting safe rather than cross-tenant.
+   *
+   * @param {object} options What `emit()` was given
+   * @returns {?string} The owner
+   * @memberof Webhooks
+   */
+  ownerOf(options = {}) {
+    if (Object.prototype.hasOwnProperty.call(options, 'owner')) {
+      return options.owner === null || typeof options.owner === 'undefined'
+        ? null
+        : String(options.owner);
+    }
+
+    const tenancy = this.henri && this.henri.tenancy;
+
+    return (tenancy && tenancy.enabled && tenancy.current()) || null;
   }
 
   /**

@@ -508,6 +508,18 @@ describe('the schema, the declarations and the documentation', () => {
       'UploadVariantConfig',
       () => Object.keys(SCHEMA.uploads.oneOf[1].keys.variants.values.keys),
     ],
+    ['TenancyConfig', () => Object.keys(SCHEMA.tenancy.oneOf[1].keys)],
+    [
+      'TenancyFromConfig',
+      () => Object.keys(SCHEMA.tenancy.oneOf[1].keys.from.keys),
+    ],
+    [
+      'TenancyHeaderConfig',
+      () =>
+        Object.keys(
+          SCHEMA.tenancy.oneOf[1].keys.from.keys.header.oneOf[2].keys
+        ),
+    ],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
     ['MailersConfig', () => Object.keys(SCHEMA.mailers.keys)],
     ['I18nConfig', () => Object.keys(SCHEMA.i18n.oneOf[1].keys)],

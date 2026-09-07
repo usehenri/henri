@@ -390,6 +390,20 @@ const CHECKS = [
   },
   {
     asvs: null,
+    check: 'tenancy.header-from-any',
+    level: null,
+    owasp: 'A01',
+    what: 'tenancy.from.header.from covers every address, so any client may choose which tenant its request is served as',
+  },
+  {
+    asvs: 'V4.2.1',
+    check: 'tenancy.unmarked-model',
+    level: 1,
+    owasp: 'A01',
+    what: 'the application is multi-tenant and a model says nothing about tenants, so every tenant shares its rows',
+  },
+  {
+    asvs: null,
     check: 'trust-proxy.permissive',
     level: null,
     owasp: 'A05',
@@ -1186,6 +1200,32 @@ const configFindings = (config, { file, hasUser }) => {
         'calls.address-from-any',
         OWASP.A05,
         `calls.address.from includes ${everything.join(', ')}, so henri believes ${config.calls.address.header || 'the named header'} from any peer: a client can choose the address its own requests are recorded under`,
+        'List the addresses or ranges of the proxies actually in front of henri ("from": ["10.0.0.0/8"]); a header from anywhere else is text the client typed',
+        null
+      );
+    }
+  }
+
+  // The same shape one boundary up, and the consequence is larger: the
+  // call log's `from` decides what an operator reads in an incident, and
+  // this one decides whose rows a request is served. A header believed
+  // from anybody is a tenant a client picks, which is the authorization
+  // bug this feature exists to prevent
+  if (isObject(config.tenancy) && isObject(config.tenancy.from)) {
+    const header = config.tenancy.from.header;
+    const from = isObject(header) ? header.from : null;
+    const everything = Array.isArray(from)
+      ? from.filter((entry) =>
+          /^(?:0\.0\.0\.0\/0|::\/0)$/u.test(String(entry).trim())
+        )
+      : [];
+
+    if (everything.length > 0) {
+      add(
+        'high',
+        'tenancy.header-from-any',
+        OWASP.A01,
+        `tenancy.from.header.from includes ${everything.join(', ')}, so henri believes ${header.name || 'the named header'} from any peer: a client can choose which tenant its own request is served as`,
         'List the addresses or ranges of the proxies actually in front of henri ("from": ["10.0.0.0/8"]); a header from anywhere else is text the client typed',
         null
       );
@@ -1993,6 +2033,57 @@ const privacy = (dir, config) => {
   return found;
 };
 
+/**
+ * The models that say nothing about tenants, in an application that is
+ * multi-tenant.
+ *
+ * A model with no `options.tenant` is shared by every tenant, which is
+ * right for a `Plan`, a `Country` or a `Currency` and is a leak for
+ * anything a customer wrote. henri does not guess which is which -- so
+ * this reports the list rather than a verdict, the way
+ * `privacy.unmarked` does, and the point is that somebody read it once.
+ *
+ * @param {string} dir The application directory
+ * @param {object} config The configuration of the default environment
+ * @returns {Array<object>} The findings
+ */
+const tenancy = (dir, config) => {
+  if (!isObject(config.tenancy)) {
+    return [];
+  }
+
+  const configured = isObject(config.user) ? config.user.model : config.user;
+  const user = `${String(configured || 'user').toLowerCase()}.js`;
+  const found = [];
+
+  for (const file of sources(dir, 'app/models', ['.js'])) {
+    const source = stripComments(fs.readFileSync(path.join(dir, file), 'utf8'));
+
+    // The user model is where the tenant comes from and can never carry a
+    // mark of its own (0.tenancy.js refuses one), so it is not a finding
+    if (path.basename(file).toLowerCase() === user) {
+      continue;
+    }
+
+    if (/(^|[\s,{])tenant\s*:/mu.test(source)) {
+      continue;
+    }
+
+    found.push({
+      asvs: 'V4.2.1',
+      check: 'tenancy.unmarked-model',
+      file,
+      hint: 'Add options: { tenant: true } when its rows belong to one customer -- henri then adds the column, scopes every query and refuses a read with no tenant in scope. Leave it as it is when every tenant is meant to share it (a Plan, a Country), and this line is the record that somebody decided',
+      message:
+        'the application is multi-tenant and this model says nothing about tenants, so its rows are shared by every tenant',
+      owasp: OWASP.A01,
+      severity: 'low',
+    });
+  }
+
+  return found;
+};
+
 /** How each package manager asks its registry about the production tree */
 const AUDIT_COMMANDS = {
   npm: ['audit', '--omit=dev', '--audit-level=high', '--json'],
@@ -2209,6 +2300,7 @@ const findings = (dir = process.cwd()) => {
     ...policies(dir),
     ...graphql(dir, config),
     ...privacy(dir, config),
+    ...tenancy(dir, config),
   ]);
 };
 

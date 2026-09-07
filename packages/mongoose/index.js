@@ -17,6 +17,7 @@ const { normalizeModel } = require('./schema');
 const { exactPaths, exactness } = require('./exact-paths');
 const { encryption } = require('./encryption');
 const { versioned } = require('./versions');
+const { tenant } = require('./tenant');
 const {
   EXTERNAL_ID,
   isUuid,
@@ -165,6 +166,9 @@ class Mongoose {
       // Mongoose schema options
       personal,
       retention,
+      // `tenant` is core's mark and not a Mongoose schema option: the
+      // adapter reads it through `henri.tenancy` a line below (./tenant.js)
+      tenant: belongsToTenant,
       versioned: keepsVersions,
       ...options
     } = model.options || {};
@@ -212,6 +216,19 @@ class Mongoose {
     // Every model carries a public identifier; the document id is internal
     if (wantsExternalId({ options: { externalId: external } })) {
       externalId(schema);
+    }
+
+    // Before the soft delete, so a tenanted model that also soft deletes
+    // carries both conditions -- and after the identifier, because the
+    // column is added here. The mark is null unless `config.tenancy` asked,
+    // so a single-tenant application registers no hook at all (./tenant.js)
+    const mark =
+      belongsToTenant && this.henri.tenancy
+        ? this.henri.tenancy.markFor(model)
+        : null;
+
+    if (mark) {
+      tenant(schema, this.henri, model.globalId, mark);
     }
 
     if (soft) {

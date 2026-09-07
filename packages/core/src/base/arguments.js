@@ -946,6 +946,17 @@ const SIGNATURES = {
     },
   ],
 
+  'henri.tenancy.run': [
+    {
+      hint: "henri.tenancy.run('acme', () => Invoice.find()) -- a record carrying the tenant column works too",
+      name: 'tenant',
+      oneOf: [NAME, OBJECT],
+    },
+    { name: 'work', ...FUNCTION },
+  ],
+
+  'henri.tenancy.unscoped': [{ name: 'work', ...FUNCTION }],
+
   'henri.trail.about': [
     { name: 'who', ...WHO },
     { name: 'filter', optional: true, ...TRAIL_FILTER },
@@ -1237,6 +1248,13 @@ const UNCHECKED = {
     'henri.init() is the one caller and what it passes is what henri.analyze() answered; anything else answers false rather than failing a boot for the sake of a span',
   'henri.telemetry.on':
     'answers false for anything that is not one of the boundaries, which is what a caller asking about a name henri does not know should get',
+  'henri.tenancy.current': 'takes nothing: it reads the async context',
+  'henri.tenancy.isUnscoped': 'takes nothing: it reads the async context',
+  'henri.tenancy.map': 'takes nothing: it reads the marks the models declared',
+  'henri.tenancy.require':
+    'the argument is the sentence fragment naming what wanted a tenant, so anything printable is right and there is nothing to refuse',
+  'henri.tenancy.source': 'takes nothing: it reads the async context',
+  'henri.tenancy.sources': 'takes nothing: it reads the configuration',
   'henri.trail.record':
     'HENRI_TRAIL_INVALID_EVENT and the meta refusals already say what is wrong',
   'henri.user.findByEmail':
@@ -1267,6 +1285,8 @@ const UNCHECKED = {
   'req.scope': 'the one implementation is henri.policies.scope',
   'req.setLocale':
     'refuses every locale the application has no catalogue for, by name and with HENRI_LOCALE_UNKNOWN, which is a better message than a schema walk would write',
+  'req.setTenant':
+    'refuses anything that is not an identifier a column can hold, with HENRI_TENANT_INVALID and the reason -- and it says the same thing wherever a tenant arrives from, which a second schema here would not',
   'req.t': 'the one implementation is henri.i18n.t, hand-guarded there',
   'res.hbs': "checked against res.render's signature, under its own name",
 };

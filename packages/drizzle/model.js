@@ -10,6 +10,7 @@ const {
 const { isExact } = require('./exact');
 const { normalizeField } = require('./schema');
 const { checkMassWrite, plainOf, write } = require('./versions');
+const { scoped, stamp } = require('./tenant');
 const { ValidationError, failure, validate } = require('./validation');
 const {
   massWrite: massValidation,
@@ -1168,7 +1169,13 @@ class Model {
    * @memberof Model
    */
   static async prepare(kind, attrs, options, instance) {
-    let data = { ...(isPlainObject(attrs) ? attrs : {}) };
+    // The write funnel, so the tenant is stamped and checked once for
+    // every path that produces values -- create(), save(), update(where),
+    // findByIdAndUpdate(). A create is stamped; anything naming the column
+    // itself is refused when it names another tenant (./tenant.js)
+    let data = stamp(this, kind, {
+      ...(isPlainObject(attrs) ? attrs : {}),
+    });
 
     data =
       (await this.runHooks('beforeValidate', data, options, instance)) || data;
@@ -1308,7 +1315,10 @@ class Model {
     }
 
     const [{ id }] = await db.insert(table).values(values).$returningId();
-    const rows = await db.select().from(table).where(eq(table.id, id));
+    const rows = await db
+      .select()
+      .from(table)
+      .where(scoped(this, eq(table.id, id), 'create'));
 
     return rows[0];
   }
@@ -1325,12 +1335,13 @@ class Model {
    * @memberof Model
    */
   static async externalIdsWhere(where, limit = 2) {
+    const condition = scoped(this, where, 'find');
     const rows = await this.run(() => {
       const query = this.db()
         .select({ [EXTERNAL_ID]: this.table[EXTERNAL_ID] })
         .from(this.table);
 
-      return (where ? query.where(where) : query).limit(limit);
+      return (condition ? query.where(condition) : query).limit(limit);
     });
 
     return rows.map((row) => row[EXTERNAL_ID]);
@@ -1370,26 +1381,28 @@ class Model {
   static async updateById(id, values) {
     const db = this.db();
     const { table } = this;
+    // The one write path that never builds a Relation: `instance.save()`
+    // and `findByIdAndUpdate()` both land here with nothing but a primary
+    // key, so the tenant condition is added here rather than there. A row
+    // scoped through a Relation carries it twice, which is deliberate
+    // (./tenant.js)
+    const where = scoped(this, eq(table.id, id), 'update');
 
     if (Object.keys(values).length === 0) {
-      const rows = await db.select().from(table).where(eq(table.id, id));
+      const rows = await db.select().from(table).where(where);
 
       return rows[0] || null;
     }
 
     if (this.adapter.dialect.returning) {
-      const rows = await db
-        .update(table)
-        .set(values)
-        .where(eq(table.id, id))
-        .returning();
+      const rows = await db.update(table).set(values).where(where).returning();
 
       return rows[0] || null;
     }
 
-    await db.update(table).set(values).where(eq(table.id, id));
+    await db.update(table).set(values).where(where);
 
-    const rows = await db.select().from(table).where(eq(table.id, id));
+    const rows = await db.select().from(table).where(where);
 
     return rows[0] || null;
   }
@@ -1453,11 +1466,12 @@ class Model {
       return this.setWhere(where, { deletedAt: new Date() });
     }
 
+    const condition = scoped(this, where, 'destroy');
     const result = await this.run(() => {
       let query = this.db().delete(this.table);
 
-      if (where) {
-        query = query.where(where);
+      if (condition) {
+        query = query.where(condition);
       }
 
       return query;
@@ -1476,11 +1490,14 @@ class Model {
    * @memberof Model
    */
   static async setWhere(where, values) {
+    // The raw stamp behind a soft delete and a restore, and two of its four
+    // callers hand it a bare primary key rather than a compiled Relation
+    const condition = scoped(this, where, 'update');
     const result = await this.run(() => {
       let query = this.db().update(this.table).set(values);
 
-      if (where) {
-        query = query.where(where);
+      if (condition) {
+        query = query.where(condition);
       }
 
       return query;

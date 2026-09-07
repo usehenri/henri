@@ -146,8 +146,8 @@ identities }`),
   `mail`, `mailers`, `api`, `jobs`, `webhooks`, `rateLimit`, `shared`,
   `cache`, `flags`, `helmet`, `csp`, `filterParameters`, `logs`, `telemetry`,
   `encryption`, `privacy`, `retention`, `trail`, `calls`, `queries`,
-  `versions`, `i18n`, `bodyLimit`, `uploads`, `requestTimeout`, `shutdown`,
-  `maintenance`, `errors`.
+  `versions`, `tenancy`, `i18n`, `bodyLimit`, `uploads`, `requestTimeout`,
+  `shutdown`, `maintenance`, `errors`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
@@ -644,6 +644,45 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   untouched, and a policy without one throws rather than meaning "everything".
   `henri generate policy <Model> [ownerColumn]` writes the file and its test,
   and `henri audit` reports a policy nothing asks (`policies.unenforced`).
+- Multi-tenancy is `0.tenancy.js` (`henri.tenancy`) and `base/tenancy.js`,
+  off unless `config.tenancy` says otherwise. Of the three ways to be
+  multi-tenant henri picked **a column on every row**, and the header argues
+  why: a schema per tenant is a `search_path` on postgres, a database name
+  on mysql, a connection on MongoDB and a file on sqlite, all of which are
+  _connection_ decisions a store makes once at boot -- so it would be a pool
+  per tenant and a migration run per customer, and the guide says who should
+  reach for it anyway. A model marks itself (`options: { tenant: true }`, or
+  a column of its own by name) and from then on the condition is added to
+  every query henri builds for it -- `Relation#whereSQL()` on drizzle next
+  to the soft-delete scope, plus `updateById()` and `setWhere()`, which are
+  the two write funnels that never build a Relation; query middleware on
+  mongoose; hooks plus one connector hook for the `include` on sequelize,
+  because `defaultScope` is dropped by the `.scope('withPassword')` of
+  henri's own sign-in and by two `unscoped()` calls. **The default is the
+  refusal**: a tenanted model touched with no tenant in scope raises
+  `HENRI_TENANT_REQUIRED` rather than reading every tenant's rows, which is
+  `HENRI_POLICY_SCOPE_REQUIRED`'s instinct one layer down, and it is what
+  makes a job, a seed or a console session fail loudly instead of leaking.
+  `henri.tenancy.unscoped(fn)` is the one way past and is an async context
+  rather than a setting (`henri.encryption.tolerate()`'s shape); a write
+  naming another tenant is `HENRI_TENANT_CROSS_WRITE`; what an ORM cannot
+  narrow at all (a MongoDB `aggregate` or `bulkWrite`, a Sequelize
+  `increment`) is `HENRI_TENANT_UNSCOPABLE`, and `adapter.query()` is raw
+  SQL and is not covered, which the guide says out loud. The tenant of a
+  request is decided in **one** place, right after passport, and is visible
+  (`req.tenant`, `req.tenantSource`, the `req.localeSource` precedent) in a
+  fixed order: `explicit` (`req.setTenant()`), the user's own column, the
+  subdomain, then a header from a proxy `tenancy.from.header.from` lists --
+  a header with no `from` fails the boot. Everything a client can name sits
+  **below** the user's own record and may only agree with it: a mismatch is
+  `HENRI_TENANT_MISMATCH` (404, message not spoken in production like a
+  policy refusal), and `POST /login` asks again after passport so signing in
+  on the wrong subdomain opens no session. The path prefix is deliberately
+  not a source, `base/i18n.js`'s refusal for `base/i18n.js`'s reason. The
+  user model **cannot** be marked. Around it: the idempotency keys are
+  scoped by tenant, `henri.webhooks.emit()` defaults its `owner` to the
+  tenant in scope, and `henri audit` gained `tenancy.header-from-any` and
+  `tenancy.unmarked-model`. The guide is `guides/multi-tenancy.md`.
 - Personal data lives in `3.privacy.js` (`henri.privacy`), `base/privacy.js`
   and `base/erasure.js`. A model marks a field in the schema
   (`name: { personal: true, type: 'string' }`, or
@@ -1530,5 +1569,30 @@ filters.spec.js`), on MongoDB through the demo application core's suite
   a validation leaves the refused value on the in-memory instance and the
   next `update()` on that same instance is measured against it. A record
   read again is fine; only the object in hand is stale.
+- Multi-tenancy (`config.tenancy`) is new, and this tranche landed the
+  column, the resolution, the query default and the refusals. The negative
+  property -- tenant A cannot read or write tenant B's rows -- is proved on
+  sqlite offline and on the live PostgreSQL and MySQL of
+  `pnpm test:sql:live` (`packages/drizzle/__tests__/tenancy.spec.js`, over
+  `find`, `count`, `paginate`, an eager loaded association, a mass update, a
+  mass destroy, `instance.save()`, a soft delete and a restore) and on
+  MongoDB (`packages/mongoose/__tests__/tenancy.spec.js`); the wiring of a
+  real request -- the middleware mounted after passport, the mismatch 404
+  and the refused sign-in -- is
+  `packages/core/src/__tests__/tenancy-http.spec.js`, which boots the demo
+  application with `HENRI_CONFIG_JSON__tenancy`. MSSQL rides the
+  Sequelize wiring and has **no coverage of its own**, like the rest of that
+  adapter. What was **deliberately left**: `henri_jobs` carries no `tenant`
+  column, so a job's tenant travels in its arguments and
+  `henri jobs:list --tenant` does not exist -- the queue's tables are
+  `CREATE TABLE IF NOT EXISTS` with no migration path, so adding a column
+  would break an upgrade; `henri_versions` is shared for the same reason;
+  the trail and the call log are shared **on purpose** (operator records,
+  one hash chain, and an admin page built over them is the application's own
+  cross-tenant view to scope); the flag store is shared and a per-tenant
+  rollout is a `group` gate the application writes; the rate limit and the
+  lockout stay keyed by address; and there is no `henri tenants` command,
+  because henri holds no list of tenants.
+
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.
