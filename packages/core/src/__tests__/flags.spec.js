@@ -204,10 +204,19 @@ describe('the actor', () => {
     expect(actorOf(null)).toBeNull();
     expect(actorOf(undefined)).toBeNull();
     expect(actorOf('')).toBeNull();
+    // An externalId is a uuid, which is neither shape
+    expect(actorOf('01a07d06-e6c4-73cd-9021-31eb06befdd7')).toBe(
+      '01a07d06-e6c4-73cd-9021-31eb06befdd7'
+    );
+    // An application that generates its own is taken at its word
+    expect(actorOf('acct_9f2b')).toBe('acct_9f2b');
   });
 
   test('is never a primary key, and says so', () => {
-    for (const key of [42, 1n]) {
+    // A stringified one too: `String(user.id)` is what a caller reaches for,
+    // and on MongoDB it is a 24 character ObjectId that no read would ever
+    // match -- a flag silently on for nobody
+    for (const key of [42, 1n, '42', '6a9dc968ac7459e5a588ab10']) {
       let thrown = null;
 
       try {

@@ -456,6 +456,13 @@ function bucket(name, actor) {
 }
 
 /**
+ * The two shapes henri's own primary keys take when a caller stringifies
+ * one: an integer (SQL) and a 24 character hexadecimal ObjectId (MongoDB).
+ * A uuid is neither, so an `externalId` passes.
+ */
+const PRIMARY_KEY = /^(?:\d+|[0-9a-f]{24})$/u;
+
+/**
  * The public identifier of whoever is asking.
  *
  * A record uses its `externalId`, because that is the identifier that
@@ -473,7 +480,26 @@ function actorOf(actor) {
   }
 
   if (typeof actor === 'string') {
-    return actor === '' ? null : actor;
+    if (actor === '') {
+      return null;
+    }
+
+    // A string is taken at its word, because an application may generate
+    // its own `externalId` and henri does not get to say what one looks
+    // like. The two shapes henri's *own* primary keys take are the
+    // exception: a stringified integer and a MongoDB ObjectId are what a
+    // caller reaching for `String(user.id)` produces, and accepting one
+    // would add a set member no read ever matches -- a flag that silently
+    // never turns on for that person, which is the failure an undeclared
+    // name throws to avoid
+    if (PRIMARY_KEY.test(actor)) {
+      throw fail(
+        'HENRI_FLAGS_ACTOR_INVALID',
+        `"${actor}" is the shape of a primary key, and a primary key never leaves the server: pass the record itself, or its externalId`
+      );
+    }
+
+    return actor;
   }
 
   if (typeof actor === 'number' || typeof actor === 'bigint') {

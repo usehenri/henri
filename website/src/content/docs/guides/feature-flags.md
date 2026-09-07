@@ -119,7 +119,7 @@ await henri.flags.enabled('checkout', account); // anything with an externalId
 await henri.flags.enabled('checkout'); // nobody in particular
 ```
 
-A primary key is refused (`HENRI_FLAGS_ACTOR_INVALID`). It never leaves the server anywhere else in henri — `Model.findById()` will not even take one — and a flag store full of them would be the one place it did. Without an actor only the switch and the group can answer yes: a percentage has nobody to bucket, so it stays closed rather than flipping a coin.
+A primary key is refused (`HENRI_FLAGS_ACTOR_INVALID`), stringified as well as not: `String(user.id)` is what a caller reaches for, and on MongoDB that is a 24-character ObjectId no read would ever match — a flag silently on for nobody. It never leaves the server anywhere else in henri — `Model.findById()` will not even take one — and a flag store full of them would be the one place it did. Any other string is taken at its word, because an application may generate its own `externalId` and henri does not get to say what one looks like. Without an actor only the switch and the group can answer yes: a percentage has nobody to bucket, so it stays closed rather than flipping a coin.
 
 The actor does not have to be a person. A tenant, an account, a workspace — anything with a stable public identifier is one, and a plain string is taken as given.
 
