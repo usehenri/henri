@@ -96,8 +96,11 @@ function negotiate(
     // `Accept: application/hal+json` falls through to the text branch --
     // which `res.boom.*` never did, and which a controller answering
     // `res.notFound()` would have inherited
+    // `res.json()` rather than `send(JSON.stringify(...))`: the body carries
+    // a message, a static analyzer treats every `send()` as an html sink,
+    // and `type()` before `json()` keeps the media type this branch is for
     // eslint-disable-next-line sort-keys
-    [HAL]: () => seal(res).type(HAL).send(JSON.stringify(body)),
+    [HAL]: () => seal(res).type(HAL).json(body),
     // Escaped as well: static analyzers treat every send() as an html sink
     default: () =>
       res
