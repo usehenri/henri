@@ -77,17 +77,18 @@ A field is `{ type, ...keys }` or a bare type. The type names and the keys below
 
 `decimal` and `bigint` are the two whose value a JavaScript number cannot carry, so they cross into JavaScript as exact decimal strings on every adapter. See [Exact numbers](#exact-numbers).
 
-| Key         | Description                                                                                                                                                                                              |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `required`  | The field has to hold something, on every write path of every adapter ([Validations](#validations)); the column is `NOT NULL` as well, where the store has columns.                                      |
-| `default`   | Default value. `Date.now` becomes `NOW` on SQL.                                                                                                                                                          |
-| `enum`      | The values accepted, refused by henri before the write ([Validations](#validations)); still an `ENUM` column on MySQL, MariaDB and PostgreSQL underneath.                                                |
-| `unique`    | Unique index or constraint.                                                                                                                                                                              |
-| `index`     | `index: true` adds an index on the field.                                                                                                                                                                |
-| `precision` | A `decimal` only: the total number of digits, 19 by default and 38 at most — the widest every dialect henri writes carries. See [Exact numbers](#exact-numbers).                                         |
-| `scale`     | A `decimal` only: the digits after the point, 4 by default. A value with more of them is refused, not rounded.                                                                                           |
-| `personal`  | This field is about a person: masked in the logs, exported and erased. See [Personal data](/guides/privacy/).                                                                                            |
-| `encrypted` | The column holds ciphertext and the model the string. `true` is randomised (not queryable), `{ deterministic: true }` keeps an equality and a `unique`. See [Encrypted attributes](/guides/encryption/). |
+| Key          | Description                                                                                                                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `required`   | The field has to hold something, on every write path of every adapter ([Validations](#validations)); the column is `NOT NULL` as well, where the store has columns.                                      |
+| `default`    | Default value. `Date.now` becomes `NOW` on SQL.                                                                                                                                                          |
+| `enum`       | The values accepted, refused by henri before the write ([Validations](#validations)); still an `ENUM` column on MySQL, MariaDB and PostgreSQL underneath.                                                |
+| `predicates` | The methods an `enum` generates: `false` for none, a name to prefix them with. See [Enums](#enums-predicates-scopes-and-the-list).                                                                       |
+| `unique`     | Unique index or constraint.                                                                                                                                                                              |
+| `index`      | `index: true` adds an index on the field.                                                                                                                                                                |
+| `precision`  | A `decimal` only: the total number of digits, 19 by default and 38 at most — the widest every dialect henri writes carries. See [Exact numbers](#exact-numbers).                                         |
+| `scale`      | A `decimal` only: the digits after the point, 4 by default. A value with more of them is refused, not rounded.                                                                                           |
+| `personal`   | This field is about a person: masked in the logs, exported and erased. See [Personal data](/guides/privacy/).                                                                                            |
+| `encrypted`  | The column holds ciphertext and the model the string. `true` is randomised (not queryable), `{ deterministic: true }` keeps an equality and a `unique`. See [Encrypted attributes](/guides/encryption/). |
 
 What the adapters do with anything else differs:
 
@@ -178,6 +179,101 @@ The refusal is measured against the fields the write actually names, so a mass u
 - **`unique` is not a validation, and henri does not pretend otherwise.** A `SELECT` before an `INSERT` answers a question about a moment that has already passed: two requests both find nothing and both write. The unique index is what actually holds, so the database refuses the second one and `henri.model.errors()` turns that refusal into `{ field: 'must be unique' }` — [the same shape](#validation-errors) as everything above. What you give up is the message arriving before the round trip; what you get is a guarantee rather than a near-miss.
 - **A write no hook of the ORM reaches is refused, not skipped** (`HENRI_MODEL_VALIDATION_UNCHECKED_WRITE`). Mongoose runs no middleware for the operations inside a `bulkWrite`, Sequelize runs none for `increment` and `decrement`, and an update operator that describes a change rather than a value (`$inc`, `$push`) has nothing to measure until the server has applied it. None of the three exists on all three adapters, so none of them is part of what a `validates` block means. Read the record, change it and save it.
 - **Cross-record rules are yours.** "No two posts published the same day" is a query, and a query in a validator is a race with a nicer message.
+
+## Enums: predicates, scopes and the list
+
+A column that declares an `enum` already says what it may hold, so henri spells it back as methods rather than making every application write the strings out by hand:
+
+```js
+// app/models/Post.js
+module.exports = {
+  schema: {
+    title: { type: 'string', required: true },
+    status: { type: 'string', enum: ['draft', 'in_review', 'live'] },
+  },
+};
+```
+
+gives you three things, on every adapter:
+
+| What                | Where        | Answers                                                               |
+| ------------------- | ------------ | --------------------------------------------------------------------- |
+| `post.isDraft()`    | every record | `true` when the column holds that value                               |
+| `Post.draft()`      | the model    | **the condition** `{ status: 'draft' }`, narrowed by what it is given |
+| `Post.enums.status` | the model    | `['draft', 'in_review', 'live']`, frozen                              |
+
+```js
+if (post.isLive()) { … }
+
+// every live post, however this adapter spells a list
+await Post.find(Post.live());              // mongoose
+await Post.where(Post.live());             // drizzle
+await Post.findAll({ where: Post.live() }); // sequelize
+```
+
+The predicate is the one with no substitute: `post.status === 'darft'` is silently false for the life of the application, while `post.isDarft()` is a `TypeError` the first time it runs. Writing a wrong value is already refused — that is what [the `enum` rule](#validations) does, on every adapter and every write path — so it is the _comparison_ that needed the method.
+
+### A scope is a condition, not a query
+
+`Post.live()` answers a condition. It is not a Rails relation, because henri has three query builders and [wraps none of them](#querying): a method that answered records would have to be a Mongoose `Query` on one adapter, a promise on another and a Drizzle `Relation` on the third. A condition is the one value all three read the same way — and the one that composes:
+
+```js
+index: async (req, res) => {
+  const { order, where } = await req.filters();
+  const { records, page, perPage, total } = await Post.paginate({
+    ...req.pagination(),
+    order,
+    where: Post.live(where),
+  });
+
+  return res.collection(records, { page, perPage, total });
+},
+```
+
+`where` there is already `policy.scope(user)` intersected with what the client asked for ([Filtering](/guides/filtering/)), and the scope goes _under_ it: an `and` spelled for the adapter, never a merge of keys, so **a scope narrows a list and can never widen it** — the same promise a filter makes. Two conditions on the same column both hold. Anything that is not a plain object is refused (`HENRI_MODEL_ENUM_UNMERGEABLE`) rather than dropped.
+
+The list is what a `<select>`, a seed and a test want, and it is also how you reach a scope whose value is in a variable:
+
+```js
+for (const state of Post.enums.status) {
+  counts[state] = await Post.count(Post[state]());
+}
+```
+
+Never index a model with a string that came from a request: `Post[req.query.state]()` is a method of the model, not a scope. That is what [`filters`](/guides/filtering/) is for.
+
+### A predicate is on the record, and a page has none
+
+`isDraft()` is a method of a record, so it is gone by the time the record is JSON — a React or Inertia page receives the column and compares it itself. The value list crosses over, so a page that has to compare gets the strings from one place:
+
+```jsx
+// pass the list, not a hand-written copy of it
+res.render('/posts', { data: { states: Post.enums.status, posts } });
+```
+
+### The names
+
+`draft` gives `isDraft` and `draft`. `in_review`, `in-review`, `IN_REVIEW` and `InReview` all give `inReview`: the value is split on everything that is not a letter or a digit and at every lower-to-upper boundary, then camel cased. Two values of one model that come out the same name are refused, because they would be the same method.
+
+A value that is not a name at all — `2fa`, `''` — gets no predicate and no scope. It is still in `Post.enums`, still validated and still queryable; there is simply no method for it.
+
+### When a name is already taken
+
+A generated name that already exists is a **boot failure** naming the model, the field, the value and who owns the name (`HENRI_MODEL_ENUM_NAME_TAKEN`). Skipping it silently is the worse answer: `Post.find` would go on answering records to a caller who asked for a condition, and `ticket.isNew()` would call a boolean.
+
+The two namespaces are not equally crowded. Only eight names shaped like `is<Name>` exist across the three ORMs, and exactly one of them is a value a real model writes: **`new`**, whose `isNew` is how Mongoose and the Drizzle model tell an insert from an update. The model's own namespace is the crowded one — `find`, `create`, `update`, `count`, `exists`, `build`, `all`, `first`, `last`, `where`, and `name` and `length`, which every function has.
+
+`new` is also a value nobody can rename once it is in a database, so the field says what it wants:
+
+```js
+// ticket.isStatusNew(), Ticket.statusNew()
+status: { type: 'string', enum: ['new', 'open'], predicates: 'status' },
+
+// no methods for this column; Ticket.enums.status is still the list
+status: { type: 'string', enum: ['new', 'open'], predicates: false },
+```
+
+The check covers the names henri puts on a model on **every** adapter, not only the one you are running, so a model that boots on sqlite boots on MongoDB. What it does not cover is an association: `associate()` runs after the models are built, so a `hasMany` named after an enum value wins. In practice they do not collide — an association is a plural noun and a state is an adjective.
 
 ## Exact numbers
 

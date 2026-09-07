@@ -65,7 +65,9 @@ module.exports = {
       });
     }
 
-    if (req.proposal.state === 'draft') {
+    // The predicate the `enum` generates, rather than the string: a typo in
+    // `state === 'darft'` is silently false forever, and `isDarft()` is not
+    if (req.proposal.isDraft()) {
       req.flash('alert', 'That proposal has not been submitted yet.');
 
       return res.redirect(`/admin/proposals/${req.proposal.externalId}`);
@@ -78,15 +80,12 @@ module.exports = {
   },
 
   index: async (req, res) => {
-    const where = {};
-
-    if (
-      ['accepted', 'draft', 'rejected', 'submitted'].includes(req.query.state)
-    ) {
-      where.state = req.query.state;
-    } else {
-      where.state = 'submitted';
-    }
+    // The list of states is the model's own (`Proposal.enums.state`), so a
+    // state added to the schema does not need this line changed
+    const asked = Proposal.enums.state.includes(req.query.state)
+      ? req.query.state
+      : 'submitted';
+    const where = { state: asked };
 
     const { records, page, perPage, total, pages } = await Proposal.paginate({
       ...req.pagination(),

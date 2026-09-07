@@ -55,14 +55,16 @@ const normalizeField = (
   }
 
   // Marks for henri: `personal` for base/privacy.js, `encrypted` for
-  // base/encryption.js. Neither is a Mongoose option, and neither are the
-  // `precision` and `scale` of a decimal column
+  // base/encryption.js, `predicates` for base/enums.js. None of them is a
+  // Mongoose option, and neither are the `precision` and `scale` of a
+  // decimal column
   const {
     allowNull,
     defaultValue,
     encrypted,
     personal,
     precision,
+    predicates,
     scale,
     type,
     ...rest

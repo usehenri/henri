@@ -26,6 +26,9 @@ const HENRI_KEYS = {
   personal: 'henri.privacy',
   // The two a `decimal` carries; they build DECIMAL(p, s) below
   precision: 'DataTypes.DECIMAL(precision, scale)',
+  // Metadata, not a column: what the methods an `enum` generates are called
+  // (core's base/enums.js, read back through the model file like `personal`)
+  predicates: 'henri.enums',
   required: 'allowNull: false',
   scale: 'DataTypes.DECIMAL(precision, scale)',
   type: 'type',
@@ -394,11 +397,13 @@ const normalizeField = (
       key === 'personal' ||
       key === 'encrypted' ||
       key === 'precision' ||
+      key === 'predicates' ||
       key === 'scale'
     ) {
       // Marks for henri, and nothing Sequelize has to know about: the
       // encryption one and the decimal column are applied below, once the
-      // type has resolved
+      // type has resolved, and `predicates` is read off the model file by
+      // core's base/enums.js once this model is built
     } else if (key === 'validate' && typeof value === 'function') {
       // Sequelize's `validate` is an object of named validators, so a
       // function there is read as nothing and does nothing -- while the
