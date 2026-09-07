@@ -950,10 +950,14 @@ const SCHEMA = {
                     keys: {
                       from: {
                         describe: 'a list of addresses or CIDR ranges',
+                        hint: 'The proxies henri believes this header from, the way trustProxy names the ones it believes X-Forwarded-For from: a header nobody vouches for is a tenant the client picked',
                         of: text(),
                         type: 'array',
                       },
-                      name: text({ describe: 'a header name' }),
+                      name: text({
+                        describe: 'a header name',
+                        hint: 'What the proxy in front of henri writes the tenant into (X-Tenant, X-Account); the request has to carry this exact name',
+                      }),
                     },
                     required: ['from', 'name'],
                     type: 'object',
