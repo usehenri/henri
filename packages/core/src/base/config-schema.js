@@ -1868,6 +1868,56 @@ const SCHEMA = {
     type: 'object',
   },
 
+  timeZone: {
+    default: 'UTC',
+    describe: 'a IANA time zone name, or an object of time zone settings',
+    hint: "The zone a server renders a moment in, never what it stores: storage is UTC on every adapter. Absent is UTC rather than the machine's zone, so what a person sees does not move when the application is deployed somewhere else",
+    oneOf: [
+      text(),
+      {
+        keys: {
+          default: text({
+            default: 'UTC',
+            describe: 'the zone every answer is written in',
+            hint: 'A name Intl knows: America/New_York, Europe/Paris, UTC. A zone this runtime has no rules for fails the boot rather than quietly answering in another one',
+          }),
+          from: {
+            describe: 'an object saying where the zone of a request comes from',
+            hint: 'The order is fixed: an explicit call, the user, the query, the cookie, the header, the default. Every step is off until it is named here, because there is no header a browser sends on its own',
+            keys: {
+              cookie: {
+                default: false,
+                describe: 'a cookie name, or false',
+                hint: "henri reads it and never writes it: the script that asks the browser for Intl.DateTimeFormat().resolvedOptions().timeZone is the application's",
+                oneOf: [{ const: false }, text()],
+              },
+              header: {
+                default: false,
+                describe: 'a request header name, or false',
+                hint: 'There is no standard header for a zone, so henri invents none and reads whichever one the application decided to send. A zone off the wire may decide how a moment is printed and never what a person may see',
+                oneOf: [{ const: false }, text()],
+              },
+              query: {
+                default: false,
+                describe: 'a query parameter name, or false',
+                hint: 'The parameter of ?tz=Europe/Paris; useful for looking at a page the way somebody else sees it, and it makes the answer vary',
+                oneOf: [{ const: false }, text()],
+              },
+              user: {
+                default: null,
+                describe: 'the column of the user model holding their zone',
+                hint: 'This is also what a mail asks when it has the recipient and no request, which is the only thing a job can ask (see guides/time)',
+                oneOf: [{ const: null }, text()],
+              },
+            },
+            type: 'object',
+          },
+        },
+        type: 'object',
+      },
+    ],
+  },
+
   trail: {
     default: false,
     describe: 'an object of access trail settings, or false to keep none',

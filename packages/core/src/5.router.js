@@ -26,6 +26,7 @@ const { table } = require('./base/routes');
 const flash = require('./base/flash');
 const { implicit, track } = require('./base/hooks');
 const { CLIENT_PATH, middleware: locales } = require('./base/i18n');
+const { middleware: zones } = require('./base/time');
 const { needsRecord } = require('./base/policies');
 const filters = require('./base/filters');
 
@@ -1147,6 +1148,18 @@ class Router extends BaseModule {
       });
     }
 
+    // The zone this answer's moments are written in, and which step of
+    // `timeZone.from` decided it. Unlike the catalogue this is always
+    // there: a page that prints a date needs the zone the server used or
+    // it will print a different day, and an application that configured
+    // nothing gets one frozen object rather than an allocation
+    // (see base/time.js)
+    if (this.henri.time) {
+      opts.time = this.henri.time.view(
+        req.timeZone ? { source: req.timeZoneSource, zone: req.timeZone } : null
+      );
+    }
+
     // The nonce of this response, for the view engines and for a template
     // writing an inline script of its own. Absent unless `csp.nonce` is on:
     // a key that is always there and usually null is what makes a page
@@ -1285,6 +1298,14 @@ class Router extends BaseModule {
       this.henri.i18n.enabled &&
       this.handler.use(locales(this.henri));
 
+    // The zone this request is answered in: `req.timeZone`,
+    // `req.timeZoneSource` and `req.setTimeZone()`. Not mounted unless a
+    // `timeZone.from` step is on, because an application whose pages are
+    // all in one zone has nothing to decide (see base/time.js)
+    this.henri.time &&
+      this.henri.time.personal &&
+      this.handler.use(zones(this.henri));
+
     if (this.henri._middlewares.length > 0) {
       let middlewaresLoaded = [];
 
@@ -1326,6 +1347,22 @@ class Router extends BaseModule {
               locale: req.locale,
               source: req.localeSource,
             }),
+        });
+      }
+
+      // The zone this answer's moments are written in, read when the page
+      // is built rather than now, because a `before` hook may still call
+      // `req.setTimeZone()` between here and the render
+      if (this.henri.time) {
+        Object.defineProperty(exposed, 'time', {
+          configurable: true,
+          enumerable: true,
+          get: () =>
+            this.henri.time.view(
+              req.timeZone
+                ? { source: req.timeZoneSource, zone: req.timeZone }
+                : null
+            ),
         });
       }
 

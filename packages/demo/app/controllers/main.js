@@ -7,6 +7,10 @@ let counter = 0;
  * @returns {object} what the page needs
  */
 const hello = (req) => ({
+  // A fixed instant, so the page says what zone it was rendered in rather
+  // than what time it is: 10:00Z is the 9th in Kiritimati and the 7th in
+  // Niue (see guides/time.md)
+  at: new Date('2026-03-08T10:00:00.000Z'),
   count: Number(req.query.count || 2),
   greeting: req.t('greeting', { name: req.query.name || 'Ada' }),
   locale: req.locale,

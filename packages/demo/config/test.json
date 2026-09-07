@@ -51,6 +51,13 @@
       "user": "locale"
     }
   },
+  "timeZone": {
+    "default": "Europe/Paris",
+    "from": {
+      "query": "tz",
+      "user": "timeZone"
+    }
+  },
   "rateLimit": {
     "auth": {
       "max": 200

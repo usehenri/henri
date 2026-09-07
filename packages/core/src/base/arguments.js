@@ -956,6 +956,7 @@ const SIGNATURES = {
   ],
 
   'henri.tenancy.unscoped': [{ name: 'work', ...FUNCTION }],
+  'henri.time.forUser': [{ name: 'user', ...maybe(USER) }],
 
   'henri.trail.about': [
     { name: 'who', ...WHO },
@@ -1255,6 +1256,16 @@ const UNCHECKED = {
     'the argument is the sentence fragment naming what wanted a tenant, so anything printable is right and there is nothing to refuse',
   'henri.tenancy.source': 'takes nothing: it reads the async context',
   'henri.tenancy.sources': 'takes nothing: it reads the configuration',
+  'henri.time.canonical':
+    'a total function of unknown: anything that is not a zone this runtime knows answers null, which is the question it is asked',
+  'henri.time.decide':
+    'answers the application zone and source: default for anything that is not a request, which is what a caller asking about nothing should get',
+  'henri.time.format':
+    "a moment it cannot read answers the empty string and a zone it cannot render in falls back to the application's: it is called from inside a render, and a page that fails to answer over a mistyped zone is worse than one that says the time in UTC",
+  'henri.time.supports':
+    'answers false for anything that is not a zone this runtime can render in, which is what it is for',
+  'henri.time.view':
+    'the router is the one caller and what it passes is what decide() answered; anything else answers the application zone rather than failing a render',
   'henri.trail.record':
     'HENRI_TRAIL_INVALID_EVENT and the meta refusals already say what is wrong',
   'henri.user.findByEmail':
@@ -1287,6 +1298,8 @@ const UNCHECKED = {
     'refuses every locale the application has no catalogue for, by name and with HENRI_LOCALE_UNKNOWN, which is a better message than a schema walk would write',
   'req.setTenant':
     'refuses anything that is not an identifier a column can hold, with HENRI_TENANT_INVALID and the reason -- and it says the same thing wherever a tenant arrives from, which a second schema here would not',
+  'req.setTimeZone':
+    'refuses every zone this runtime cannot render in, by name and with HENRI_TIME_ZONE_UNKNOWN, which is a better message than a schema walk would write',
   'req.t': 'the one implementation is henri.i18n.t, hand-guarded there',
   'res.hbs': "checked against res.render's signature, under its own name",
 };
