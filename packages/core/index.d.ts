@@ -960,6 +960,29 @@ declare namespace start {
     previews?: boolean;
   }
 
+  /** `config.timeZone.from`: where the zone of a request is read, in order.
+   * Every step is off until it is named: there is no header a browser sends
+   * on its own, so henri reads only what the application decided to send. */
+  interface TimeZoneFromConfig {
+    /** The column of the user model holding their zone; none by default. */
+    user?: string | null;
+    /** Query parameter (`?tz=`); `false` (the default) turns the step off. */
+    query?: string | false;
+    /** Cookie henri reads and never writes; `false` (the default) is off. */
+    cookie?: string | false;
+    /** Request header carrying the zone; `false` (the default) is off. */
+    header?: string | false;
+  }
+
+  /** `config.timeZone`: the zone a server renders a moment in, and where a
+   * person's own is read. Never what is stored -- storage is UTC. */
+  interface TimeZoneConfig {
+    /** The zone every answer is written in (`UTC`). An IANA name. */
+    default?: string;
+    /** Where the zone of a request is read, in order. */
+    from?: TimeZoneFromConfig;
+  }
+
   /** `config.i18n.from`: where the locale of a request is read, in order. */
   interface I18nFromConfig {
     /** The column of the user model holding their locale; none by default. */
@@ -1051,6 +1074,8 @@ declare namespace start {
      * and off when there is not, and off costs a request nothing.
      */
     i18n?: false | I18nConfig;
+    /** The zone a server renders a moment in; a name, or an object. */
+    timeZone?: string | TimeZoneConfig;
     api?: ApiConfig;
     jobs?: JobsConfig;
     webhooks?: WebhooksConfig;
@@ -2100,6 +2125,12 @@ declare namespace start {
      * learns to read and every payload carries.
      */
     i18n?: ViewLocale;
+    /**
+     * The zone this answer's moments are written in, and which step of
+     * `timeZone.from` decided it. Always there: a page that prints a date
+     * needs the zone the server used, or it prints a different day.
+     */
+    time?: ViewTimeZone;
   }
 
   /**
@@ -2115,6 +2146,24 @@ declare namespace start {
     url?: string;
     /** The catalogue itself, flat. */
     messages?: Record<string, string | Record<string, string>>;
+  }
+
+  /**
+   * The zone of one answer, as it reaches a view. `message` is the source a
+   * mail carries: it is rendered without a request, so its zone is the
+   * recipient's rather than any step of `timeZone.from`.
+   */
+  interface ViewTimeZone {
+    /** An IANA name, canonical. */
+    zone: string;
+    source:
+      | 'cookie'
+      | 'default'
+      | 'explicit'
+      | 'header'
+      | 'message'
+      | 'query'
+      | 'user';
   }
 
   /** The second argument of `res.render()` and `res.hbs()`. */
@@ -2245,6 +2294,23 @@ declare namespace start {
      * The string comes back plain: escaping is the renderer's, and the
      * Handlebars helper is where henri does it.
      */
+    /**
+     * The zone this request's moments are written in, decided once by the
+     * time zone middleware. Absent unless a `timeZone.from` step is on.
+     *
+     * A display preference, never an authorization input: a client can set
+     * any cookie and any header, so this may decide how a moment is
+     * printed and must never decide what a person may see.
+     */
+    timeZone?: string;
+    /** Which step of `timeZone.from` decided `req.timeZone`. */
+    timeZoneSource?:
+      'cookie' | 'default' | 'explicit' | 'header' | 'query' | 'user';
+    /**
+     * Says what zone this request is answered in, from here on. Throws
+     * `HENRI_TIME_ZONE_UNKNOWN` when the runtime has no such zone.
+     */
+    setTimeZone?(zone: string): string;
     t?(
       key: string,
       values?: Record<string, unknown>,
@@ -4192,6 +4258,50 @@ declare namespace start {
   }
 
   /**
+   * `henri.time`: the zone this application renders a moment in, and the
+   * zone a person reads one in. Always registered, and `zone` always
+   * answers -- unlike a catalogue a zone has no "off", because something
+   * formats every date a server prints. Absent configuration means `UTC`
+   * rather than the machine's zone, so what a person sees does not move
+   * when the application is deployed somewhere else.
+   *
+   * It stores nothing and changes no stored value: a zone is a
+   * presentation concern, and storage is UTC on every adapter.
+   */
+  interface TimeModule {
+    name: 'time';
+    /** The zone this application renders in when nothing knows better. */
+    readonly zone: string;
+    /** Whether a request or a person can be in a zone of their own. */
+    readonly personal: boolean;
+    /** Whether the application said anything at all about time zones. */
+    readonly configured: boolean;
+    /** Is this a zone this runtime can render in? */
+    supports(zone: unknown): boolean;
+    /** The canonical name of a zone (`US/Eastern` is `America/New_York`). */
+    canonical(zone: unknown): string | null;
+    /**
+     * The zone a person's record says they read in, from the column
+     * `timeZone.from.user` names. This is what a mail asks when it has a
+     * recipient and no request -- a job, for instance.
+     */
+    forUser(user: unknown): string | null;
+    /**
+     * One instant, written for a person to read: `Intl.DateTimeFormat`
+     * with the zone filled in and every other option passed through. henri
+     * invents no format of its own; what it adds is the zone.
+     */
+    format(
+      value: Date | string | number,
+      options?: Intl.DateTimeFormatOptions & { locale?: string; zone?: string }
+    ): string;
+    /** Which zone a request is in, and which step decided it. */
+    decide(req: unknown): { source: string; zone: string };
+    /** What a rendered answer carries about the zone. */
+    view(decided: { source: string; zone: string } | null): ViewTimeZone;
+  }
+
+  /**
    * `henri.i18n`: the catalogues of `config/locales` and the lookup over
    * them. Always registered; `enabled` is false and every method is inert
    * when the application has one language, which is what makes one language
@@ -4924,6 +5034,7 @@ declare namespace start {
      * when the application has one language.
      */
     i18n: I18nModule;
+    time: TimeModule;
     /**
      * The GraphQL module, when the application depends on
      * `@usehenri/graphql`. Rendering with `{ graphql }` or declaring types

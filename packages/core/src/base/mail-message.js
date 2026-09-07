@@ -5,12 +5,13 @@ const { htmlToText } = require('./mail-text');
 /**
  * The keys of an envelope henri reads itself; everything else is handed to
  * nodemailer as is (from, to, cc, bcc, replyTo, subject, attachments,
- * headers, priority...). `locale` and `for` are the two the language of
- * the message is decided from (see `Message#locale`), and neither reaches
+ * headers, priority...). `locale`, `timeZone` and `for` are the three the
+ * language and the zone of the message are decided from (see
+ * `Message#locale` and `Message#zone`), and none of them reaches
  * the transport -- `for` in particular is a user record, which is exactly
  * what a mail payload must not carry into a queue row.
  */
-const OWN = new Set(['data', 'for', 'layout', 'locale', 'view']);
+const OWN = new Set(['data', 'for', 'layout', 'locale', 'timeZone', 'view']);
 
 /**
  * One message, as returned by a mailer action
@@ -179,6 +180,12 @@ class Message {
       this.henri.i18n.enabled &&
       (meta.i18n = { locale: this.locale, source: 'message' });
 
+    // `{{date ...}}` in a mail view reads this, the way a page reads the
+    // one `res.render()` put in the view options. A mail is rendered
+    // without a request, so this is the only thing that can say what zone
+    // its moments are written in (see `Message#zone`)
+    this.henri.time && (meta.time = { source: 'message', zone: this.zone });
+
     return meta;
   }
 
@@ -224,6 +231,50 @@ class Message {
     const recipient = this.envelope.for || this.defaults.for || null;
 
     return i18n.forUser(recipient) || i18n.fallback;
+  }
+
+  /**
+   * The zone this message's moments are written in.
+   *
+   * **The zone of a mail is the recipient's, and it is never the
+   * server's.** It is the locale's argument exactly, for the same reason:
+   * a nightly digest, an administrator acting on somebody else's account
+   * and a job retrying a delivery an hour later all produce a mail whose
+   * reader is not whoever made the request, and two of those have no
+   * request at all. So a message carries its own, in this order:
+   *
+   * 1. `timeZone` in what the action returned;
+   * 2. `timeZone` in the mailer's `defaults`;
+   * 3. the recipient's own setting, when the action named them: `for` is a
+   *    user record and `henri.time.forUser()` reads the column
+   *    `timeZone.from.user` names -- this is the one that works from a
+   *    job, because a record is something a job has;
+   * 4. `config.timeZone`.
+   *
+   * A mail that says "your appointment is at 09:00" in the reader's zone
+   * and a page that says the same thing are the same feature, and this is
+   * the half of it a request cannot answer.
+   *
+   * @readonly
+   * @returns {string} the zone
+   * @memberof Message
+   */
+  get zone() {
+    const { time } = this.henri;
+
+    if (!time) {
+      return 'UTC';
+    }
+
+    const said = this.envelope.timeZone || this.defaults.timeZone || null;
+
+    if (time.supports(said)) {
+      return time.canonical(said);
+    }
+
+    const recipient = this.envelope.for || this.defaults.for || null;
+
+    return time.forUser(recipient) || time.zone;
   }
 
   /**

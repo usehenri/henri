@@ -1253,6 +1253,71 @@ const translating = (req: Request, res: Response) => {
 
 expectType<typeof translating>(translating);
 
+// --- time zones -------------------------------------------------------------
+
+expectType<Configuration>({ timeZone: 'America/Montreal' });
+
+const timeZoneConfig: Configuration = {
+  timeZone: {
+    default: 'UTC',
+    from: {
+      cookie: 'henri.tz',
+      header: 'X-Time-Zone',
+      query: false,
+      user: 'timeZone',
+    },
+  },
+};
+
+expectType<Configuration>(timeZoneConfig);
+
+const wrongZoneStep: Configuration = {
+  // @ts-expect-error there is no header a browser sends on its own: a step
+  // is a name to read or false, never true
+  timeZone: { from: { header: true } },
+};
+
+const wrongZoneShape: Configuration = {
+  // @ts-expect-error a zone is a name or an object, never a list of them
+  timeZone: ['UTC', 'Europe/Paris'],
+};
+
+expectType<string>(henri.time.zone);
+expectType<boolean>(henri.time.personal);
+expectType<boolean>(henri.time.configured);
+expectType<boolean>(henri.time.supports('Europe/Paris'));
+expectType<string | null>(henri.time.canonical('US/Eastern'));
+expectType<string | null>(henri.time.forUser({ timeZone: 'Europe/Paris' }));
+expectType<string>(henri.time.format(new Date()));
+expectType<string>(henri.time.format('2026-03-08T10:00:00Z', { zone: 'UTC' }));
+expectType<string>(
+  henri.time.format(Date.now(), {
+    dateStyle: 'long',
+    locale: 'fr',
+    zone: 'Europe/Paris',
+  })
+);
+expectType<{ source: string; zone: string }>(henri.time.decide({}));
+
+const badZoneOption: string = henri.time.format(new Date(), {
+  // @ts-expect-error the options are Intl's, plus locale and zone
+  dateStyle: 'enormous',
+});
+
+// The request half: the zone of this one, and what decided it
+const zoning = (req: Request, res: Response) => {
+  expectType<string | undefined>(req.timeZone);
+  expectType<
+    'cookie' | 'default' | 'explicit' | 'header' | 'query' | 'user' | undefined
+  >(req.timeZoneSource);
+
+  req.setTimeZone && req.setTimeZone('Europe/Paris');
+
+  return res.render('/hello', { data: {} });
+};
+
+expectType<typeof zoning>(zoning);
+
 // --- logs and error reporting -----------------------------------------------
 
 expectType<Configuration>({ logs: { format: 'json' } });

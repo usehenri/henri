@@ -951,6 +951,37 @@ duration, rows, requestId, source, callsite }` -- and the N+1 detector is
   no expressions -- and model attribute names and validation messages are
   not translated, composing with `henri.model.errors()` through
   `t(key, values, { default })`. The guide is `guides/i18n.md`.
+- Time zones are `1.time.js` (`henri.time`) and `base/time.js`, and the
+  survey in that header is the argument. **Storage was never the problem**:
+  every adapter keeps a moment as a moment, measured by writing under
+  `Pacific/Kiritimati` (UTC+14) and reading under `Pacific/Niue` (UTC-11)
+  -- `integer` epoch ms on drizzle/sqlite, `timestamp with time zone` on
+  postgres, `datetime(3)` on mysql, a BSON date on mongoose,
+  `DATETIMEOFFSET` on mssql; the one defect is Sequelize's bare `DATETIME`
+  on MySQL truncating the milliseconds, which an application does not reach
+  because a MySQL store is drizzle's. A `Date` also reaches `res.json()`
+  untouched and serializes as ISO-8601 `Z`. What was broken is **rendering
+  on the server**: `Intl.DateTimeFormat` with no `timeZone` follows the
+  process, so one instant printed as three calendar days depending on the
+  deployment. So `config.timeZone` (a name, or `{ default, from }`) is the
+  zone a server renders in, defaulting to **`UTC` and not
+  `process.env.TZ`** -- a behaviour change, because a value nobody set must
+  not move with the deploy. A **person's** zone lives on their record in
+  the column `timeZone.from.user` names, exactly where `i18n.from.user`
+  puts their language, because **a mail's zone is the recipient's**
+  (`Message#zone`, the locale's argument and the only thing a job can ask).
+  `req.timeZone`/`req.timeZoneSource` make the decision visible and
+  `req.setTimeZone()` sets it; every step but the default is **off until it
+  is named**, since no browser sends a zone header on its own, and a zone
+  off the wire is a display preference and never an authorization input.
+  henri ships no date library: `henri.time.format()` is `Intl.DateTimeFormat`
+  with the `timeZone` filled in, `{{date}}` fills in the render's zone (the
+  hash still wins) and a page gets `{ zone, source }` in the view options
+  next to `i18n`. It **stores nothing** -- the queue's BIGINTs, the trail,
+  the call log, the versions, retention's cutoffs and every idempotency key
+  are untouched -- and a `date` parameter with no offset is now read as UTC
+  rather than in the process's zone, which was the one place the absence of
+  a policy reached a stored value. The guide is `guides/time.md`.
 - The router (`5.router.js`) expands `config/routes.js` through
   `base/routes.js` (`root`, `resources`/`crud` with `only`/`except`/`omit`,
   `member`, `collection`, `namespace`, `nested`; `@usehenri/cli` requires the

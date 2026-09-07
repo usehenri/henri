@@ -13,6 +13,7 @@ const Tenancy = require('./0.tenancy');
 const Encryption = require('./1.encryption');
 const I18n = require('./1.i18n');
 const Mailer = require('./1.mailer');
+const Time = require('./1.time');
 const Controllers = require('./2.controllers');
 const Flags = require('./2.flags');
 const Mailers = require('./2.mailers');
@@ -98,6 +99,7 @@ class Henri extends HenriBase {
     this.modules.add(new Router());
     this.modules.add(new Telemetry());
     this.modules.add(new Tenancy());
+    this.modules.add(new Time());
     this.modules.add(new Trail());
     this.modules.add(new User());
     this.modules.add(new Versions());

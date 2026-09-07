@@ -118,6 +118,10 @@
       "what": "multi-tenancy: the models that belong to a tenant, the tenant a request is decided to be, and the queries scoped by it"
     },
     {
+      "area": "time",
+      "what": "the zone an application renders a moment in, and the zone a person reads one in"
+    },
+    {
       "area": "trail",
       "what": "the append-only record of who read or changed personal data"
     },
@@ -1923,6 +1927,17 @@
       "code": "HENRI_TENANT_UNSCOPABLE",
       "fix": "These three run no query middleware, or count a collection rather than a filter, so there is nowhere for henri to put the condition -- and answering them across every tenant is the one thing this feature exists to prevent. Put the match in the pipeline yourself, use one scoped update per record instead of a bulk write, and `countDocuments()` instead of the estimate. `henri.tenancy.unscoped(() => ...)` is how a report says it means every tenant.",
       "what": "An operation henri cannot narrow was run on a model that belongs to a tenant."
+    },
+    {
+      "area": "time",
+      "causes": [
+        "config.timeZone names a zone this runtime has no rules for",
+        "a zone was written with a space or an abbreviation rather than an IANA name (EST, \"Eastern Time\")",
+        "req.setTimeZone() was given something that is not a zone"
+      ],
+      "code": "HENRI_TIME_ZONE_UNKNOWN",
+      "fix": "Use an IANA name Intl knows: America/New_York, Europe/Paris, UTC. henri.time.supports(zone) answers whether this runtime has one, and henri.time.canonical(zone) gives the name it will be compared under. An abbreviation is not a zone: EST is a fixed offset half the year and names nothing in the database.",
+      "what": "A time zone was asked for that this runtime cannot render in."
     },
     {
       "area": "trail",

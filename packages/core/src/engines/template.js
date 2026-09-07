@@ -326,6 +326,14 @@ class TemplateEngine {
    * `.jsx` page calls `Intl` itself and gets nothing from henri here --
    * and not because henri has an opinion about formatting.
    *
+   * `{{date}}` fills in one option the others leave alone: the `timeZone`,
+   * which is the zone of the render (`base/time.js`) rather than the
+   * process's. That is not an opinion about formatting either -- it is the
+   * one input `Intl` cannot guess and the application knows, and without
+   * it the same instant prints as a different day on a server that moved.
+   * `{{date at timeZone="UTC"}}` still wins, because the hash is the
+   * caller's.
+   *
    * @returns {boolean} whether they were registered
    * @memberof TemplateEngine
    */
@@ -341,6 +349,18 @@ class TemplateEngine {
       const hash = (options && options.hash) || {};
 
       return hash.locale || (data.i18n && data.i18n.locale) || null;
+    };
+
+    /**
+     * The zone of the render being written, from the data frame
+     *
+     * @param {object} options the helper options
+     * @returns {?string} the zone, or null
+     */
+    const zoneOf = (options) => {
+      const data = (options && options.data) || {};
+
+      return (data.time && data.time.zone) || null;
     };
 
     this.hbs.registerHelper('t', (key, options) => {
@@ -383,16 +403,28 @@ class TemplateEngine {
 
     this.hbs.registerHelper('date', (value, options) => {
       const locale = localeOf(options) || undefined;
-      const when = value instanceof Date ? value : new Date(value);
+      const hash = (options && options.hash) || {};
+      const { time } = this.henri;
 
-      if (Number.isNaN(when.getTime())) {
-        return '';
+      // The zone of the render, which is the whole point: with no
+      // `timeZone` of its own `Intl` formats in the process's zone, and
+      // one instant then prints as three different days depending on
+      // where the server was deployed (see base/time.js). A `timeZone` in
+      // the hash still wins -- the options are the caller's
+      if (!time) {
+        const when = value instanceof Date ? value : new Date(value);
+
+        return Number.isNaN(when.getTime())
+          ? ''
+          : new Intl.DateTimeFormat(locale, hash).format(when);
       }
 
-      return new Intl.DateTimeFormat(
-        locale,
-        (options && options.hash) || {}
-      ).format(when);
+      return time.format(
+        value,
+        Object.assign({ locale }, hash, {
+          zone: hash.timeZone || zoneOf(options),
+        })
+      );
     });
 
     return true;

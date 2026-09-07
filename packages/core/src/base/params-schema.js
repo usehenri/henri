@@ -580,6 +580,40 @@ function typed(compiled, given, strict = false) {
   return type === 'integer' && !Number.isInteger(given) ? WORDS.integer : null;
 }
 
+/** A date and time with no offset and no `Z`: `2026-03-08T09:00[:00[.000]]` */
+const NAIVE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/u;
+
+/**
+ * One moment, out of the text a request carried.
+ *
+ * `Date.parse` follows ECMA-262, where a date **with a time and no
+ * offset** -- `"2026-03-08T09:00:00"` -- is read in the zone the *process*
+ * happens to be in, while a bare date is read as UTC. So the same query
+ * string meant two different instants on two machines, and moving a
+ * deployment moved what every such value had meant. That is the one place
+ * the absence of a zone policy reached a **stored** value, and it is
+ * settled here rather than left to the reader: a moment with no offset is
+ * UTC, like the bare date next to it.
+ *
+ * henri deliberately does not read it in the request's zone instead
+ * (`req.timeZone`). A zone off a cookie or a header is a display
+ * preference, and letting one decide what a write means would make the
+ * stored value depend on the client -- the failure `base/time.js` exists
+ * to rule out. An application that wants a wall clock in a person's zone
+ * takes the parts and says which zone they are in, which `guides/time.md`
+ * names as what this tranche left.
+ *
+ * @param {string} given the trimmed text
+ * @returns {object} `{ value }` or `{ error }`
+ */
+const parseMoment = (given) => {
+  const time = Date.parse(
+    NAIVE.test(given) ? `${given.replace(' ', 'T')}Z` : given
+  );
+
+  return Number.isNaN(time) ? { error: WORDS.date } : { value: new Date(time) };
+};
+
 /**
  * One exact value, written out, or null when it is not one.
  *
@@ -710,7 +744,12 @@ function keep(compiled, given, nested) {
   }
 
   if (compiled.type === 'date') {
-    return { value: given instanceof Date ? given : new Date(given) };
+    // The same reading as a query string's, so the source stops mattering:
+    // an ISO-8601 string with no offset is UTC (see parseMoment)
+    return {
+      value:
+        given instanceof Date ? given : parseMoment(String(given).trim()).value,
+    };
   }
 
   // The digits, with any exponent written out: the same value an action
@@ -784,11 +823,7 @@ function scalar(type, given) {
   }
 
   if (type === 'date') {
-    const time = Date.parse(given.trim());
-
-    return Number.isNaN(time)
-      ? { error: WORDS.date }
-      : { value: new Date(time) };
+    return parseMoment(given.trim());
   }
 
   // An exact value stays a string: turning it into a number here is
