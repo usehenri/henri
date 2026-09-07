@@ -10,7 +10,7 @@
  * `fileParallelism: false` so files do not fight for the same resources.
  */
 import { createRequire } from 'node:module';
-import { afterAll } from 'vitest';
+import { afterAll, beforeEach } from 'vitest';
 
 const require = createRequire(import.meta.url);
 
@@ -18,8 +18,14 @@ const require = createRequire(import.meta.url);
 // without it a request can be answered by whatever else holds that port
 require('./loopback.js');
 
-const { setup, teardown } = require('./index.js');
+const { clearInbox, setup, teardown } = require('./index.js');
 
 await setup();
+
+// Every test starts with an empty inbox, the way a Rails test does: nothing
+// a test asserts on can come from the one before it. The queue is not
+// emptied here -- those are rows in the application's own database, and
+// deleting them is the suite's decision (`clearJobs()`)
+beforeEach(clearInbox);
 
 afterAll(teardown);

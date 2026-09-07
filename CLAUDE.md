@@ -62,7 +62,15 @@ after }`, a value is a literal or a function of the build context
 and `create`/`build`/`createList`/`defineFactory` are the calls
 (`packages/testing/factory.js`, `guides/testing.md`). An override always wins
 and is never made, which is what keeps `create('proposal', { speakerId })`
-from making a second user. `packages/demo` is such an app and is what core's
+from making a second user. `inbox()`/`clearInbox()`
+(`packages/testing/mail.js`) is the mail an application was asked to send:
+captured at **both** doors -- `henri.mail.send` and `henri.mailers.enqueue`,
+each an own property of that instance's modules -- and kept on the henri
+instance under a symbol, so the inbox is per-application and the setup file
+empties it before every test. `enqueued()`/`clearJobs()`
+(`packages/testing/jobs.js`) read `henri.jobs` back rather than intercepting
+anything, and answer `HENRI_JOB_QUEUE_UNAVAILABLE` with the install line when
+the application has no queue -- never an empty list, which would pass. `packages/demo` is such an app and is what core's
 tests boot; `showcase/test/factories` is the worked example.
 
 Every project runs its test files at the same time, core included: each of

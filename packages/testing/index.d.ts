@@ -3,7 +3,7 @@
 // Hand-written; see packages/core/index.d.ts for the rest of the API.
 
 import type Supertest from 'supertest';
-import type { Henri } from '@usehenri/core';
+import type { Henri, Job, JobFilter } from '@usehenri/core';
 
 /** Options of `setup()`. */
 export interface SetupOptions {
@@ -42,6 +42,76 @@ export const supertest: typeof Supertest;
  * `undefined` before the first boot.
  */
 export const henri: Henri | undefined;
+
+/** One message the application was asked to send, as `inbox()` hands it out. */
+export interface Mail {
+  /** The mailer action that rendered it (`confirm`), when one did. */
+  action: string | null;
+  bcc: string[];
+  cc: string[];
+  /** True when it went through `deliverLater()` rather than `deliver()`. */
+  deferred: boolean;
+  from: string | null;
+  html: string | null;
+  /** The mailer that rendered it (`welcome`), when one did. */
+  mailer: string | null;
+  /** The nodemailer payload itself: attachments, headers, everything. */
+  message: Record<string, any>;
+  /** What `deliverLater()` was called with (`wait`, `at`, `queue`). */
+  options: Record<string, any>;
+  subject: string | null;
+  text: string | null;
+  to: string[];
+}
+
+/**
+ * What `inbox()` keeps. A string is compared (an address without its case),
+ * a regular expression is tested, and anything a filter cannot say is a
+ * predicate: `inbox((mail) => mail.text.includes('reset'))`.
+ */
+export interface MailFilter {
+  action?: string | RegExp;
+  deferred?: boolean;
+  mailer?: string | RegExp;
+  subject?: string | RegExp;
+  to?: string | RegExp;
+}
+
+/**
+ * The mail the application was asked to send, oldest first: both what
+ * `deliver()` handed to the transport and what `deliverLater()` handed to
+ * the queue.
+ *
+ *     expect(inbox()).toHaveLength(1);
+ *     expect(inbox({ to: user.email })[0].subject).toBe('Confirm your address');
+ */
+export function inbox(filter?: MailFilter | ((mail: Mail) => boolean)): Mail[];
+
+/**
+ * Empty the inbox. `@usehenri/testing/setup-file` calls it before every
+ * test; `false` means there was no running application to empty.
+ */
+export function clearInbox(): boolean;
+
+/** What `enqueued()` and `clearJobs()` filter on, which is what the queue takes. */
+export interface EnqueuedFilter extends Omit<JobFilter, 'state'> {
+  /** `null` asks for every state. `enqueued()` defaults to `'pending'`. */
+  state?: JobFilter['state'] | null;
+}
+
+/**
+ * The jobs the queue is holding: `pending` ones by default, which is what
+ * "enqueued" means. Needs `@usehenri/jobs`, and says so when the
+ * application has no queue (`HENRI_JOB_QUEUE_UNAVAILABLE`).
+ *
+ *     const [job] = await enqueued('report');
+ *
+ *     expect(job.args).toEqual({ month: '2026-08' });
+ */
+export function enqueued(filter?: string | EnqueuedFilter): Promise<Job[]>;
+
+/** Forget the jobs the queue is holding, whatever their state. */
+export function clearJobs(filter?: string | EnqueuedFilter): Promise<number>;
 
 /** What a factory's value function is given. */
 export interface FactoryContext {

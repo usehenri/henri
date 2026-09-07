@@ -8,6 +8,8 @@ const {
   defineFactory,
   resetFactories,
 } = require('./factory');
+const { clearJobs, enqueued } = require('./jobs');
+const { captureMail, clearInbox, inbox, releaseMail } = require('./mail');
 
 const state = {
   instance: null,
@@ -99,6 +101,10 @@ const setup = (options) => {
         state.instance = instance;
         state.starting = null;
 
+        // The inbox is a property of this instance, so it starts here and
+        // goes away with it (see mail.js)
+        captureMail(instance);
+
         return instance;
       },
       (error) => {
@@ -132,6 +138,8 @@ const teardown = async () => {
   try {
     await instance.stop();
   } finally {
+    releaseMail(instance);
+
     if (global.henri === instance) {
       delete global.henri;
     }
@@ -186,9 +194,13 @@ const agent = (instance = current()) => supertest.agent(target(instance));
 module.exports = {
   agent,
   build,
+  clearInbox,
+  clearJobs,
   create,
   createList,
   defineFactory,
+  enqueued,
+  inbox,
   request,
   resetFactories,
   setup,

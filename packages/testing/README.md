@@ -99,6 +99,40 @@ always wins, and the definition's value is then not evaluated at all.
 how a factory grants roles the model will not mass assign.
 `defineFactory(name, definition)` declares one from a test file.
 
+## Mail and jobs
+
+`inbox()` is the mail the application was asked to send, oldest first, and
+`enqueued()` is what the job queue holds:
+
+```js
+const { enqueued, inbox, request } = require('@usehenri/testing');
+
+await request().post('/signup').send({ email: 'ada@example.com', password });
+
+const [mail] = inbox();
+
+expect(inbox()).toHaveLength(1);
+expect(mail.to).toContain('ada@example.com');
+expect(mail.subject).toBe('Confirm your address');
+expect(mail.html).toContain('/confirm/');
+
+expect(await enqueued('welcome')).toHaveLength(1);
+```
+
+Both doors are captured: `deliver()`, which reaches the transport, and
+`deliverLater()`, which reaches the queue -- an entry says which with
+`deferred`, and carries `to`, `cc`, `bcc`, `from`, `subject`, `html`, `text`,
+the `mailer` and `action` that rendered it, and `message`, the nodemailer
+payload itself. `inbox(filter)` narrows on `action`, `deferred`, `mailer`,
+`subject` and `to`, or on a predicate. The setup file empties the inbox before
+every test; `clearInbox()` does it by hand.
+
+`enqueued(filter)` reads the queue back, so a row's `args` are what a runner
+will claim; `henri.jobs.performNow(job.name, job.args)` runs one. It needs
+`@usehenri/jobs`, which this package does not depend on: an application
+without a queue is told what to install rather than handed an empty list.
+`clearJobs()` forgets the rows, and nothing calls it for you.
+
 ## API
 
 - `setup({ workers = false })` boots henri for the app in `process.cwd()` and
@@ -106,6 +140,8 @@ how a factory grants roles the model will not mass assign.
 - `teardown()` stops it.
 - `request()` a supertest request bound to the running server.
 - `agent()` a supertest agent (keeps cookies between requests).
+- `inbox(filter)` the mail the app was asked to send; `clearInbox()` empties it.
+- `enqueued(filter)` the jobs the queue holds; `clearJobs(filter)` forgets them.
 - `create(name, ...traits, overrides)` a saved record from a factory.
 - `build(name, ...traits, overrides)` the attributes, without saving.
 - `createList(name, count, ...traits, overrides)` several of them.
