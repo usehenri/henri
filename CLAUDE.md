@@ -547,7 +547,22 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   `henri.can(user, action, record)`, `req.can()` and `req.authorize()` (which
   resolves with the record and rejects with a `POLICY_DENIED` error carrying
   `config.policies.status`, 404 by default, or 401 and the login page for an
-  anonymous visitor). `policy: true` on a route registers the guard next to
+  anonymous visitor). **The message of a 404 refusal does not leave a
+  production process** (`base/http.js`, `spoken()`, the call `notFound()`
+  already made for the route 404): "Not allowed to show this memo" says in
+  the body what the 404 was chosen to hide, so it is answered in development
+  and in a test process and the reason phrase is the whole answer in
+  production, while the `policies denied` log line carries it everywhere. The
+  other half of the pair is `res.notFound(why)`, which follows the same rule
+  and negotiates -- `res.boom.notFound()` says its message everywhere and
+  answers JSON even to a browser, so the shape gave the two apart even when
+  the words matched -- and it is what `henri generate scaffold` writes.
+  `config.policies.status: 403` keeps its message: that application decided
+  to tell them. What is _not_ closed, and is argued in `refusal()`: the 401
+  an **anonymous** visitor gets is uniform only when it is decided before
+  anything is looked up, so on a route guarded only by a record-level rule
+  an anonymous visitor still tells an id that exists from one that does not
+  -- a `roles` on the route answers at the gate, before the lookup. `policy: true` on a route registers the guard next to
   the role guard rather than instead of it; what the gate cannot decide is
   enforced by `res.resource()` (unless the action already asked that question)
   and reported by `config.policies.verify`. `res.resource`/`res.collection`

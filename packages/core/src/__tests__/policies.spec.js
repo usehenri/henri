@@ -366,6 +366,123 @@ describe('policies (demo app, disk store)', () => {
     });
   });
 
+  // The property, not an example: the refusal and the absence have to be
+  // one answer, so these assert the two are *equal* rather than checking
+  // each against a sentence. Either side gaining a word fails them.
+  describe('a refusal and a record that is not there are one answer', () => {
+    /** A uuid v7 shaped id no record has */
+    const gone = '01a00000-0000-7000-8000-000000000000';
+
+    /**
+     * Runs a body with the instance believing it is in production, which
+     * is the switch `base/http.js` reads. The suite runs under
+     * `NODE_ENV=test`, and what is being asserted is what a deployment
+     * answers.
+     *
+     * @param {function} fn what to run
+     * @returns {Promise<*>} whatever it answered
+     */
+    const asProduction = async (fn) => {
+      Object.assign(henri, { isDev: false, isProduction: true, isTest: false });
+
+      try {
+        return await fn();
+      } finally {
+        Object.assign(henri, {
+          isDev: false,
+          isProduction: false,
+          isTest: true,
+        });
+      }
+    };
+
+    /**
+     * The two answers a stranger gets: the memo somebody else owns, and a
+     * memo that does not exist
+     *
+     * @param {object} send `(agent) => supertest request`, given the id
+     * @param {string} accept the Accept header
+     * @returns {Promise<Array<object>>} the refused answer, then the absent one
+     */
+    const pair = (send, accept) =>
+      Promise.all(
+        [mine.externalId, gone].map((id) =>
+          send(id).set('Accept', accept).set('X-CSRF-Token', stranger.csrf)
+        )
+      );
+
+    test('the JSON bodies are identical, on the path res.resource() guards', async () => {
+      const [refused, absent] = await asProduction(() =>
+        pair((id) => stranger.agent.get(`/memos/${id}`), 'application/json')
+      );
+
+      expect(refused.status).toBe(absent.status);
+      expect(refused.body).toEqual(absent.body);
+      expect(refused.text).toBe(absent.text);
+      expect(refused.body.message).toBe('Not Found');
+    });
+
+    test('and on the path req.authorize() throws from', async () => {
+      const [refused, absent] = await asProduction(() =>
+        pair(
+          (id) => stranger.agent.patch(`/memos/${id}`).send({ title: 'x' }),
+          'application/json'
+        )
+      );
+
+      expect(refused.status).toBe(absent.status);
+      expect(refused.body).toEqual(absent.body);
+      // The stack of a thrown refusal is a development detail, and a
+      // record that is not there never had one to answer with
+      expect(refused.body.data).toBeUndefined();
+    });
+
+    test('the pages a browser gets are identical too', async () => {
+      const [refused, absent] = await asProduction(() =>
+        pair((id) => stranger.agent.get(`/memos/${id}`), 'text/html')
+      );
+
+      expect(refused.text).toBe(absent.text);
+      expect(refused.headers['content-type']).toBe(
+        absent.headers['content-type']
+      );
+      // `res.boom` answers JSON whatever the client asked for and
+      // `res.notFound` negotiates, which is what makes these two the same
+      // shape and not only the same words
+      expect(refused.headers.vary).toBe(absent.headers.vary);
+      expect(refused.text).toContain('404 Not Found');
+    });
+
+    test('a developer is still told which of the two it was', async () => {
+      const [refused, absent] = await pair(
+        (id) => stranger.agent.get(`/memos/${id}`),
+        'application/json'
+      );
+
+      // Outside production, and only there: this is the half of the trade
+      // that keeps the framework usable, and it has to keep working
+      expect(refused.body.message).toBe('Not allowed to show this memo');
+      expect(absent.body.message).toBe(`Memo ${gone} not found`);
+    });
+
+    test('an application that asked for 403 keeps its message everywhere', () => {
+      // `config.policies.status: 403` is an application saying it would
+      // rather tell them; the message is the useful half of that answer
+      const refusal = new PolicyError({
+        action: 'show',
+        policy: 'memo',
+        status: 403,
+      });
+
+      expect(refusal.expose).toBe(true);
+      expect(refusal.message).toBe('Not allowed to show this memo');
+
+      expect(
+        new PolicyError({ action: 'show', policy: 'memo', status: 404 }).expose
+      ).toBe(false);
+    });
+  });
+
   describe('what leaves the server', () => {
     test('_links never carry an action the policy would refuse', async () => {
       const res = await owner.agent

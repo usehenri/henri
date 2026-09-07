@@ -27,7 +27,9 @@ const loadTask = async (req, res) => {
   req.task = await Task.findById(req.params.id);
 
   if (!req.task) {
-    return res.boom.notFound(`Task ${req.params.id} not found`);
+    // Not res.boom.notFound(): a policy that refuses this task answers a
+    // 404 too, and the two have to read the same. See `res.notFound` below
+    return res.notFound(`Task ${req.params.id} not found`);
   }
 };
 
@@ -334,6 +336,20 @@ Every field has to be a name. One stray `undefined` — `req.permit(maybe)` wher
 `henri.params(req).permit(...)` is the same helper for code outside the middleware chain, and `henri.params(req).all()` the merged parameters, for reading only.
 
 An action that declared [`params`](#params-what-an-action-accepts) has had those fields checked and coerced before it ran, so `req.permit('year')` answers the number and not the string it arrived as, and `req.permit()` with no field answers the whole declaration. Without a declaration `req.permit()` answers `{}`: nothing is permitted unless it is named.
+
+## `res.notFound`
+
+`res.notFound(why)` is the 404 for a record that is not there: the error page for a browser, the boom envelope for an API client, negotiated like every other answer henri writes.
+
+```js
+if (!req.task) {
+  return res.notFound(`Task ${req.params.id} not found`);
+}
+```
+
+`why` is for you. It is answered in development and in a test process, and dropped in production, where the body is `Not Found` and nothing else — which is what makes this 404 and the 404 a [policy refusal](/guides/policies/#the-message-of-a-404-refusal-stops-at-production) answers **one answer**. A 404 that says which of the two it was tells whoever asked that the record exists, and that is the whole thing the refusal's 404 was for.
+
+Prefer it to `res.boom.notFound()` for a record lookup, which says its message in every environment and answers JSON even to a browser — so the shape gives it away even when the words match. `res.boom` is still the right answer for the rest.
 
 ## `res.boom`
 

@@ -191,6 +191,12 @@ const loadHelper = ({ doc, lower }, lookup) => `
  * before_action does. A hook that answers ends the request: the actions
  * below only ever run with a record.
  *
+ * \`res.notFound()\` rather than \`res.boom.notFound()\`: a policy that
+ * refuses this record answers the same 404, and the two have to be one
+ * answer. The reason reaches a developer and is dropped in production,
+ * because a 404 that says which of the two it is tells whoever asked that
+ * the record exists -- which is the whole thing the 404 was for.
+ *
  * @param {object} req Express request
  * @param {object} res Express response
  * @returns {Promise<object|undefined>} The 404 answer, or nothing
@@ -199,7 +205,7 @@ const load${doc} = async (req, res) => {
   ${lookup}
 
   if (!req.${lower}) {
-    return res.boom.notFound(\`${doc} \${req.params.id} not found\`);
+    return res.notFound(\`${doc} \${req.params.id} not found\`);
   }
 };
 `;

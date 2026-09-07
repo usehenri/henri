@@ -34,7 +34,7 @@ module.exports = {
       req.proposal = await Proposal.findById(req.params.proposal_id);
 
       if (!req.proposal) {
-        return res.boom.notFound(`No proposal ${req.params.proposal_id}`);
+        return res.notFound(`No proposal ${req.params.proposal_id}`);
       }
     },
   },

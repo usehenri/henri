@@ -472,6 +472,10 @@ describe('the generated controllers run on their adapter', () => {
     res.status = (code) => ({
       end: () => res.calls.push(['end', code]) && res,
     });
+    // The negotiated 404 the generated `before` hook answers with, rather
+    // than res.boom.notFound: a policy refusal answers the same 404 and
+    // the two must not be told apart (core's base/http.js)
+    res.notFound = (why) => res.calls.push(['notFound', 404, why]) && res;
     res.boom = {
       badData: (message, data) =>
         res.calls.push(['badData', 422, message, data]) && res,

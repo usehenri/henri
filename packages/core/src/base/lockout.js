@@ -14,6 +14,14 @@
  * - the answer is the same 429 either way, and carries no hint about the
  *   account.
  *
+ * A locked account does answer 429 where an unlocked one answers 401, and
+ * that difference is deliberate and says nothing: it is reachable for any
+ * address, and what it reports is how many attempts the person asking has
+ * already made against that address -- which they made, and already knew.
+ * The `check()` also runs before the user table is read, so a locked
+ * address that has an account and a locked address that has none cost the
+ * same and answer the same.
+ *
  * The counter is keyed by an HMAC of the normalized email under
  * `config.secret`, so the store never holds addresses. It is an
  * express-rate-limit store: in memory by default (per process, cleared on

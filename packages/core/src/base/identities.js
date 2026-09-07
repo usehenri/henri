@@ -1483,7 +1483,26 @@ function identities(henri) {
   return service;
 }
 
-/** What a browser is told, per reason. Never who has an account. */
+/**
+ * What a browser is told, per reason. Never who has an account.
+ *
+ * `exists` looks like the exception and is not, and the reason is worth
+ * writing down next to it. It says an account already exists for that
+ * address, which is precisely what `base/accounts.js` refuses to say --
+ * but every path to it went through a callback the provider **verified**
+ * the address on, so the person reading the sentence is the person who
+ * holds that mailbox. Telling somebody their own address is registered is
+ * not enumeration: an attacker cannot reach this answer without first
+ * getting a provider to verify an address they do not control, which is
+ * the provider's promise and the whole basis of the flow.
+ *
+ * `unconfirmed`, `already-linked`, `linked-elsewhere` and
+ * `last-credential` are the same shape: each one is reached only after a
+ * subject matched a stored identity or a session proved who is asking, so
+ * the person already held the credential the sentence is about.
+ * `unverified` is the one that must not read the user table at all, and
+ * the header of this file says why.
+ */
 const MESSAGES = Object.freeze({
   'already-linked': 'this account is already linked to that provider',
   denied: 'that sign-in was not completed',
