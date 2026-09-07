@@ -219,12 +219,16 @@ describe('henri new', () => {
     expect(form).toContain('<p className={message}>{errors.name}</p>');
 
     // A failed write renders the page again with res.inertia.errors(), and
-    // still answers a 422 to an API client
+    // still answers a 422 to an API client. The page gets what it needs to
+    // render: the record on the edit page, and the values of the <select>
+    // the `category` column of the sample model asks for on both
     expect(controller).toContain('res.inertia.errors(errors)');
-    expect(controller).toContain("invalid(res, error, '/tasks/new')");
     expect(controller).toContain(
-      "invalid(res, error, '/tasks/edit', { task: req.task })"
+      "invalid(res, error, '/tasks/new', { enums: Task.enums })"
     );
+    expect(controller).toContain("invalid(res, error, '/tasks/edit', {");
+    expect(controller).toContain('enums: Task.enums,');
+    expect(controller).toContain('task: req.task,');
     expect(controller).toContain('res.boom.badData(error.message, { errors })');
   });
 

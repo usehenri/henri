@@ -232,6 +232,30 @@ describe('attribute parsing', () => {
     });
   });
 
+  test('takes the one setting a name:type pair carries: enum=', () => {
+    expect(parseAttributes(['status:string:enum=draft,in_review'])).toEqual({
+      status: { enum: ['draft', 'in_review'], type: 'string' },
+    });
+    expect(parseAttributes(['status!:string:enum=draft,live'])).toEqual({
+      status: { enum: ['draft', 'live'], required: true, type: 'string' },
+    });
+  });
+
+  test('rejects a setting it cannot carry out', () => {
+    expect(() => parseAttributes(['status:string:unique'])).toThrow(
+      /Unknown setting "unique".+The only one is enum=/
+    );
+    expect(() => parseAttributes(['count:integer:enum=1,2'])).toThrow(
+      /only for a string or a text column/
+    );
+    expect(() => parseAttributes(['status:string:enum=live,live'])).toThrow(
+      /each value once/
+    );
+    expect(() => parseAttributes(['status:string:enum='])).toThrow(
+      /each value once/
+    );
+  });
+
   test('rejects unknown types with the list of valid ones', () => {
     expect(() => parseAttributes(['score:varchar'])).toThrow(
       /Unknown type "varchar" for attribute "score"\. Valid types: string, text/
@@ -1067,6 +1091,200 @@ describe('henri generate', () => {
       );
       expect(exists(app, 'app/models/Ghost.js')).toBe(false);
     });
+  });
+
+  describe('the marks the model file carries', () => {
+    // What `henri new` does: a model written by hand, with an `enum` no
+    // `name:type` pair can express, and the generator called right after
+    // with the plain attributes
+    const declared = `module.exports = {
+  options: { timestamps: true },
+  schema: {
+    title: { type: 'string', required: true },
+    status: { type: 'string', enum: ['draft', 'live'], default: 'draft' },
+    note: { type: 'string' },
+    ssn: { type: 'string', personal: { expose: false } },
+    phone: { type: 'string', personal: true },
+  },
+  store: 'default',
+};
+`;
+    const attributes = [
+      'title:string!',
+      'status:string',
+      'note:string',
+      'ssn:string',
+      'phone:string',
+    ];
+
+    /**
+     * The `<input>` or `<select>` a generated form writes for one field
+     *
+     * @param {string} form The form page
+     * @param {string} tag input or select
+     * @param {string} name The field
+     * @returns {string} The element, attributes and all
+     * @throws when the form has no such field (a `not.toContain` over
+     *   nothing at all would pass without meaning anything)
+     */
+    const elementFor = (form, tag, name) => {
+      const found = form.match(
+        new RegExp(`<${tag}[^>]+name="${name}"[^>]*>`, 'u')
+      );
+
+      if (!found) {
+        throw new Error(`the form has no <${tag} name="${name}">`);
+      }
+
+      return found[0];
+    };
+
+    beforeAll(() => {
+      fs.writeFileSync(path.join(app, 'app', 'models', 'Ticket.js'), declared);
+
+      const result = henri(['g', 'scaffold', 'Ticket', ...attributes], {
+        cwd: app,
+      });
+
+      if (result.status !== 0) {
+        throw new Error(result.stdout + result.stderr);
+      }
+    });
+
+    test('an enum column is a select, of the list the controller sends', () => {
+      const form = read(app, 'app/views/pages/tickets/_form.jsx');
+      const controller = read(app, 'app/controllers/tickets.js');
+
+      expect(elementFor(form, 'select', 'status')).toContain(
+        "defaultValue={data.status ?? ''}"
+      );
+      expect(form).toContain('{(enums.status || []).map((value) => (');
+      // The values are never copied into the page: a copy of the schema
+      // stops being true the first time the model changes
+      expect(form).not.toContain('draft');
+      expect(controller).toContain(
+        'new: async () => ({ enums: Ticket.enums })'
+      );
+      expect(controller).toContain(
+        'data: { enums: Ticket.enums, ticket: req.ticket }'
+      );
+      // ... including the page rendered again after a failed write
+      expect(controller).toContain(
+        "invalid(res, error, '/tickets/new', { enums: Ticket.enums })"
+      );
+    });
+
+    test('the new and edit pages hand the form what they were sent', () => {
+      expect(read(app, 'app/views/pages/tickets/new.jsx')).toContain(
+        'enums={data.enums}'
+      );
+      expect(read(app, 'app/views/pages/tickets/edit.jsx')).toContain(
+        'enums={data.enums}'
+      );
+    });
+
+    test('a required column gets a required input, and only it', () => {
+      const form = read(app, 'app/views/pages/tickets/_form.jsx');
+
+      expect(elementFor(form, 'input', 'title')).toContain('required');
+      expect(elementFor(form, 'input', 'note')).not.toContain('required');
+      expect(elementFor(form, 'select', 'status')).not.toContain('required');
+    });
+
+    test('a column that never leaves the server is on no page', () => {
+      // A field marked `personal: { expose: false }` is stripped from every
+      // answer henri builds, so a page showing it shows an empty column
+      // forever -- and a form posts that empty string back over the value
+      for (const page of ['_form', 'index', 'show']) {
+        const file = `app/views/pages/tickets/${page}.jsx`;
+
+        expect(read(app, file)).not.toContain('ssn');
+        expect(() => parseFile(app, file)).not.toThrow();
+      }
+
+      // A personal column that does not say `expose: false` is a field like
+      // any other: whether it is stripped is config.privacy.expose, which
+      // is per environment, and a page is one file for all of them
+      expect(read(app, 'app/views/pages/tickets/show.jsx')).toContain(
+        'item.phone'
+      );
+    });
+
+    test('... but a request may still set it: an answer is not a write', () => {
+      const controller = read(app, 'app/controllers/tickets.js');
+
+      expect(controller).toContain(
+        "const FIELDS = ['title', 'status', 'note', 'ssn', 'phone']"
+      );
+      expect(controller).toContain(
+        'henri drops a field marked personal: { expose: false } from every answer'
+      );
+      expect(controller).toContain('still permitted here: ssn');
+      expect(() => parseFile(app, 'app/controllers/tickets.js')).not.toThrow();
+    });
+
+    test('the command line can write the enum itself, in one run', () => {
+      const result = henri(
+        [
+          'g',
+          'scaffold',
+          'Release',
+          'name:string!',
+          'channel:string:enum=alpha,beta',
+        ],
+        { cwd: app }
+      );
+
+      expect(result.status).toBe(0);
+      expect(read(app, 'app/models/Release.js')).toContain(
+        "enum: ['alpha', 'beta']"
+      );
+      expect(read(app, 'app/views/pages/releases/_form.jsx')).toContain(
+        '{(enums.channel || []).map((value) => ('
+      );
+      expect(read(app, 'app/controllers/releases.js')).toContain(
+        'enums: Release.enums'
+      );
+    });
+
+    test('the React renderer gets a Select and the same required inputs', () => {
+      const { app: other, dir: otherDir } = scaffold([
+        '--no-git',
+        '--renderer',
+        'react',
+      ]);
+
+      try {
+        fs.writeFileSync(
+          path.join(other, 'app', 'models', 'Ticket.js'),
+          declared
+        );
+        expect(
+          henri(['g', 'scaffold', 'Ticket', ...attributes], { cwd: other })
+            .status
+        ).toBe(0);
+
+        const form = read(other, 'app/views/pages/tickets/_form.js');
+
+        expect(form).toContain(
+          "import { Button, Form, FormError, Input, Select } from '@usehenri/react/forms'"
+        );
+        expect(elementFor(form, 'Select', 'status')).toContain(
+          'choices={enums.status || []}'
+        );
+        expect(elementFor(form, 'Input', 'title')).toContain('required');
+        expect(elementFor(form, 'Input', 'note')).not.toContain('required');
+        expect(form).not.toContain('ssn');
+        expect(read(other, 'app/views/pages/tickets/new.js')).toContain(
+          'enums={enums}'
+        );
+        expect(() =>
+          parseFile(other, 'app/views/pages/tickets/_form.js')
+        ).not.toThrow();
+      } finally {
+        cleanup(otherDir);
+      }
+    }, 120000);
   });
 
   test('keeps config/routes.js valid after every change', () => {

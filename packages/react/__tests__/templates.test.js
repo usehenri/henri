@@ -9,14 +9,31 @@ const { parse } = require('@babel/parser');
 
 const dir = path.resolve(__dirname, '../../cli/scripts/generate');
 const views = ['_form', 'index', 'new', 'edit', 'show'];
+// What `resourceOf()` in packages/cli/scripts/generate.js hands a template:
+// the fields the command line named, annotated with what the model file
+// says about each of them
 const context = {
   doc: 'Post',
+  fields: [
+    { enum: null, name: 'title', required: true },
+    { enum: null, name: 'body', required: false },
+  ],
+  hasEnums: false,
   // What a url of one record carries: `externalId`, or the `slug` of a
   // model that declared one (see base/slug.js)
   identifier: 'externalId',
-  keys: ['title', 'body'],
   lower: 'post',
   plural: 'posts',
+};
+
+/** The same resource with an enum column, which is a <Select> */
+const withEnum = {
+  ...context,
+  fields: [
+    ...context.fields,
+    { enum: ['draft', 'live'], name: 'status', required: false },
+  ],
+  hasEnums: true,
 };
 
 /**
@@ -39,7 +56,9 @@ describe('react scaffold templates', () => {
     const { ast, code } = compile(view);
 
     expect(ast.program.body.length).toBeGreaterThan(1);
-    expect(code).not.toMatch(/\{\{\s*(doc|lower|plural|this|keys|#|\/)/);
+    expect(code).not.toMatch(
+      /\{\{\s*(doc|lower|plural|this|fields|name|enum|hasEnums|#|\/)/
+    );
     expect(code).not.toContain('_scaffold');
   });
 
@@ -100,13 +119,31 @@ describe('react scaffold templates', () => {
     }
   });
 
-  test('the form renders an input per key', () => {
+  test('the form renders an input per field, required where it is', () => {
     const { code } = compile('_form');
 
     expect(code).toContain('name="title"');
     expect(code).toContain('name="body"');
     expect(code).toContain('const PostForm');
     expect(code).toContain('<FormError');
+    // The model says which: `title` is required and `body` is not
+    expect(code).toMatch(/name="title"[^>]+required/);
+    expect(code).not.toMatch(/name="body"[^>]+required/);
+    expect(code).not.toContain('<Select');
+  });
+
+  test('an enum column is a Select of the list the controller sends', () => {
+    const { ast, code } = compile('_form', withEnum);
+
+    expect(ast.program.body.length).toBeGreaterThan(1);
+    expect(code).toContain(
+      "import { Button, Form, FormError, Input, Select } from '@usehenri/react/forms'"
+    );
+    expect(code).toMatch(/<Select[^>]+choices=\{enums\.status \|\| \[\]\}/);
+    // The values themselves are never written into the page
+    expect(code).not.toContain('draft');
+    expect(compile('new', withEnum).code).toContain('enums={enums}');
+    expect(compile('edit', withEnum).code).toContain('enums={enums}');
   });
 
   test('the pages are styled with tailwind, dark mode included', () => {
@@ -120,10 +157,15 @@ describe('react scaffold templates', () => {
     }
   });
 
-  test('templates survive names with several keys and none', () => {
-    expect(() => compile('index', { ...context, keys: [] }).ast).not.toThrow();
+  test('templates survive several fields and none', () => {
+    expect(
+      () => compile('index', { ...context, fields: [] }).ast
+    ).not.toThrow();
     expect(() =>
-      compile('_form', { ...context, keys: ['a', 'b', 'c', 'd'] })
+      compile('_form', {
+        ...context,
+        fields: ['a', 'b', 'c', 'd'].map((name) => ({ name })),
+      })
     ).not.toThrow();
   });
 

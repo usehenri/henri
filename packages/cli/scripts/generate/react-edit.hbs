@@ -7,7 +7,7 @@ import {{doc}}Form from './_form';
 // page moves to the record once the controller answered.
 const back = 'text-sm text-zinc-500 hover:underline dark:text-zinc-400';
 
-const Edit = ({ data: { {{lower}} = null }, getRoute, pathFor, router }) => {
+const Edit = ({ data: { {{lower}} = null{{#if hasEnums}}, enums = {}{{/if}} }, getRoute, pathFor, router }) => {
   const item = Array.isArray({{lower}}) ? {{lower}}[0] : {{lower}};
 
   if (!item) {
@@ -35,6 +35,9 @@ const Edit = ({ data: { {{lower}} = null }, getRoute, pathFor, router }) => {
         <{{doc}}Form
           action={pathFor('update_{{plural}}_path', { id })}
           data={item}
+          {{#if hasEnums}}
+          enums={enums}
+          {{/if}}
           button="Update"
           onSuccess={() => router.push(getRoute('show_{{plural}}_path', id))}
         />

@@ -5,6 +5,10 @@ import { Form } from '@usehenri/inertia';
 // Inertia's router, so the controller answers with a redirect on success, or
 // renders this page again after `res.inertia.errors()`; those messages arrive
 // as `errors` below, keyed by field name.
+{{#if hasEnums}}
+// `enums` is what the controller sent as `{{doc}}.enums`: the values each
+// column may hold, which is what the <select>s below offer.
+{{/if}}
 // The className props style the fields with Tailwind CSS (see
 // app/views/styles/index.css).
 const field =
@@ -14,20 +18,41 @@ const submit =
 const caption = 'text-xs font-medium text-zinc-500 dark:text-zinc-400';
 const message = 'text-sm text-red-600 dark:text-red-400';
 
-const {{doc}}Form = ({ action, data = {}, button = 'Create' }) => (
+const {{doc}}Form = ({ action, data = {}, {{#if hasEnums}}enums = {}, {{/if}}button = 'Create' }) => (
   <Form action={action} className="flex flex-col gap-4">
     {({ errors, processing }) => (
       <>
-        {{#each keys}}
+        {{#each fields}}
         <label className="flex flex-col gap-1">
-          <span className={caption}>{{this}}</span>
+          <span className={caption}>{{name}}</span>
+          {{#if enum}}
+          <select
+            className={field}
+            defaultValue={data.{{name}} ?? ''}
+            name="{{name}}"
+            {{#if required}}
+            required
+            {{/if}}
+          >
+            <option value="">Choose...</option>
+            {(enums.{{name}} || []).map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+          {{else}}
           <input
             className={field}
-            defaultValue={data.{{this}} ?? ''}
-            name="{{this}}"
-            placeholder="{{this}}"
+            defaultValue={data.{{name}} ?? ''}
+            name="{{name}}"
+            placeholder="{{name}}"
+            {{#if required}}
+            required
+            {{/if}}
           />
-          {errors.{{this}} ? <p className={message}>{errors.{{this}} }</p> : null}
+          {{/if}}
+          {errors.{{name}} ? <p className={message}>{errors.{{name}} }</p> : null}
         </label>
         {{/each}}
         <button className={submit} disabled={processing} type="submit">

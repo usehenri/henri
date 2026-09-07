@@ -35,6 +35,9 @@ const Edit = () => {
         <{{doc}}Form
           action={pathFor('update_{{plural}}_path', { id })}
           data={item}
+          {{#if hasEnums}}
+          enums={data.enums}
+          {{/if}}
           button="Update"
         />
       </div>

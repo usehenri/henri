@@ -1591,6 +1591,28 @@ the LICENSE and a README into every public package at publish time
   of the default store (`scripts/adapters.js` maps it to the mongoose,
   sequelize or drizzle flavour), which `henri new --adapter <name>` configures.
   The `template` and `vue` renderers get no generated pages.
+  **The pages follow the model file, not only the command line**
+  (`fieldsOf()` in `scripts/generate.js`, which reads it off the disk the
+  way `hasSlug()` does): the fields are the `name:type` arguments and what
+  each of them _is_ comes from `app/models/<Name>.js`. An `enum` column is
+  a `<select>` of `Model.enums.<field>` -- **sent by the controller, never
+  copied into the page**, which is what the models guide already told
+  applications to do -- a `required` column gets a `required` input, and a
+  column marked `personal: { expose: false }` is written into no page at
+  all, because henri strips it from every answer it builds: the table
+  column would be empty forever and the form would post the empty string
+  it had to show over the stored value. `FIELDS` in the controller keeps
+  it with a comment, since the mark governs answers and a write is not
+  one. A `personal` field without `expose: false` is left alone -- whether
+  it is stripped is `config.privacy.expose`, which is per environment, and
+  a page is one file for all of them. `:enum=draft,live` is the one
+  setting a `name:type` pair takes after its type (`parseSetting()`), and
+  the grammar is closed there on purpose: it is the mark the pages read
+  back, and everything else a column can say belongs in the model file.
+  `henri new` writes the sample `Task` model by hand for its `default` and
+  the generator reads the `enum` next to it back, which is the worked
+  example. Regenerating with `--force` is how pages catch up with a mark
+  that changed.
 - `@usehenri/uploads` is new in 1.2. It recognizes a file rather than
   validating it: a signature table plus a text inference over the first 4kb,
   so a valid header followed by anything is that type, a `.docx` is
@@ -1818,10 +1840,10 @@ false` columns of the user model), sqlite offline and the live PostgreSQL
   receives the column and compares it, and `Model.enums.<field>` is what
   crosses over. An association that shadows a generated name is not caught,
   because `associate()` runs after the models are built. `henri generate
-model` has **no syntax for an `enum`** (`name:type` only), so the scaffold
-  writes no enum column and there was nothing for a generated controller or
-  page to use a predicate on; giving the generator one is a CLI tranche of
-  its own. Coverage: sqlite and MongoDB offline
+model` gained `status:string:enum=draft,live` in the CLI tranche below,
+  and the pages a scaffold writes read the mark back -- but **a predicate
+  is still never on a page**, so a generated page compares the column or
+  maps over `Model.enums`. Coverage: sqlite and MongoDB offline
   (`packages/{drizzle,mongoose,sequelize}/__tests__/enums.spec.js`, plus
   the demo application in `packages/core/src/__tests__/enums.spec.js`),
   PostgreSQL and MySQL through `pnpm test:sql:live`, and the showcase's

@@ -2,9 +2,13 @@ import Link from 'next/link';
 import withHenri from '@usehenri/react';
 import {{doc}}Form from './_form';
 
-// Rendered by the `new` action (no data). The form posts to the `create`
-// action and the page moves to the listing once the controller answered.
-const New = ({ getRoute, pathFor, router }) => (
+{{#if hasEnums}}
+// Rendered by the `new` action, whose only data is `enums`: the values the
+// <Select>s of the form offer.
+{{/if}}
+// The form posts to the `create` action and the page moves to the listing
+// once the controller answered.
+const New = ({ {{#if hasEnums}}data: { enums = {} }, {{/if}}getRoute, pathFor, router }) => (
   <main className="mx-auto w-full max-w-lg px-6 py-12">
     <Link
       className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
@@ -17,6 +21,9 @@ const New = ({ getRoute, pathFor, router }) => (
     <div className="mt-8 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
       <{{doc}}Form
         action={pathFor('create_{{plural}}_path')}
+        {{#if hasEnums}}
+        enums={enums}
+        {{/if}}
         button="Create"
         onSuccess={() => router.push(getRoute('index_{{plural}}_path'))}
       />

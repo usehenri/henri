@@ -245,8 +245,11 @@ Model and resource names are given in the singular with a capital: `Post` gives 
 
 Fields are `name:type`, `string` when the type is omitted; a trailing `!` (`name:string!` or `name!:string`) makes the field required. Types: `string`, `text`, `number`, `integer`, `float`, `decimal`, `bigint`, `boolean`, `date`, `json`, `uuid`, mapped by each adapter (see [Models](/guides/models/#the-schema-format)); anything else is refused. A generated `decimal` is written out as `{ type: 'decimal', precision: 12, scale: 2 }`, because a field somebody spells `price:decimal` is money and the default (19, 4) is not — see [Exact numbers](/guides/models/#exact-numbers).
 
+One setting follows the type: `status:string:enum=draft,in_review,live`, the values a `string` or `text` column may hold ([Enums](/guides/models/#enums-predicates-scopes-and-the-list)). It is the only one, and it is there because it is the mark the pages read back; everything else a column says — `default`, `unique`, `index`, a `personal` mark — is written in the model file. Anything else after the type is refused, as is an `enum=` on a column whose values a command line cannot spell.
+
 ```bash
 henri generate model User name:string! birthday:date
+henri g scaffold Post title:string! status:string:enum=draft,live
 henri generate controller locations index show
 henri g scaffold HighScore game:string! score:integer
 henri g job welcome
@@ -262,7 +265,18 @@ henri g authentication
 
 The scaffolded controllers follow the adapter of the default store: the Drizzle model API on `drizzle`, `postgresql` and `mysql`, the Mongoose API on `disk` and `mongoose`, Sequelize on `mssql` (see [Models](/guides/models/)). What they load a record with differs; their `index` is [`Model.paginate(req.pagination())`](/guides/models/#pagination) and their 422 is [`henri.model.errors(error)`](/guides/models/#validation-errors) on all three, because both answer the same shape on every adapter. They declare no [`params`](/guides/controllers/#params-what-an-action-accepts) block, so that model refusal is the only 422 a generated action gives.
 
-The pages follow the `renderer` of the application, read back from `config/default.json`: Inertia `.jsx` pages using `useHenri()` and `<Form>`, or Next.js `.js` pages using `withHenri` and `@usehenri/react/forms`. The renderer is also what a failed write answers a browser with: the Inertia controllers call `res.inertia.errors()` and render the form again, the React ones answer the `422` their forms read. API clients get the same `422` either way, and `henri generate test` writes the matching test (the Inertia page object plus the HAL answers, or the HAL answers alone).
+The pages follow the model file as well as the command line. The fields come from the `name:type` arguments; what each of them _is_ comes from `app/models/<Name>.js` — the one this run wrote, or the one that was already there, read off the disk the way `--slug` is:
+
+| The model says                | The pages write                                                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `enum: ['draft', 'live']`     | a `<select>` of `Model.enums.<field>`, which the `new` and `edit` actions send — never a copy of the list written into the page |
+| `required: true`              | a `required` input (and only there: a column that is not required does not get one)                                             |
+| `personal: { expose: false }` | nothing at all: no table column, no detail row, no form field. `FIELDS` in the controller keeps it, with a comment saying why   |
+| `options: { slug: 'title' }`  | urls built from `record.slug` rather than the `externalId`                                                                      |
+
+The `personal` one is the case worth stating: henri drops a field marked `expose: false` from [every answer it builds](/guides/privacy/#what-the-mark-does), at every depth, so a page showing it would show an empty column forever and a form posting it would write the empty string it had to display over the stored value. A write is not an answer, so the controller still permits it — an API client, or a form you write yourself, may set it. A field marked `personal` _without_ `expose: false` is a field like any other here: whether it is stripped is `config.privacy.expose`, which is per environment, and a page is one file for all of them.
+
+The pages follow the `renderer` of the application, read back from `config/default.json`: Inertia `.jsx` pages using `useHenri()` and `<Form>`, or Next.js `.js` pages using `withHenri` and `@usehenri/react/forms` (where an `enum` column is the package's own `<Select choices={...}>`). The renderer is also what a failed write answers a browser with: the Inertia controllers call `res.inertia.errors()` and render the form again, the React ones answer the `422` their forms read. API clients get the same `422` either way, and `henri generate test` writes the matching test (the Inertia page object plus the HAL answers, or the HAL answers alone).
 
 ## `destroy`
 

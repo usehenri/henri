@@ -139,6 +139,14 @@ marked `expose: false` fails the boot unless the rule says `expose: true`.
 field is then private unless it says `personal: { expose: true }`. It is one
 line, and it is the strict reading of the same rule.
 
+`henri generate scaffold` reads the mark too: a column marked
+`expose: false` is written into no page — not the table, not the detail
+list, not the form — because a page showing it would show an empty column
+forever, and a form posting it would write the empty string it had to
+display over the stored value. The controller's `FIELDS` still names it,
+with a comment saying so: what the mark governs is answers, and a write is
+not an answer.
+
 ## Which model is a person
 
 The user model (`config.user.model`). henri's notion of a person is the one it

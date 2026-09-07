@@ -32,10 +32,10 @@ const Show = ({ data: { {{lower}} = null }, getRoute }) => {
       <p className="mt-1 font-mono text-xs text-zinc-500 dark:text-zinc-400">{id}</p>
 
       <dl className="mt-8 overflow-hidden rounded-xl border border-zinc-200 text-sm dark:border-zinc-800">
-        {{#each keys}}
+        {{#each fields}}
         <div className="flex gap-4 border-b border-zinc-200 px-5 py-3 last:border-0 dark:border-zinc-800">
-          <dt className="w-32 shrink-0 text-zinc-500 dark:text-zinc-400">{{this}}</dt>
-          <dd className="min-w-0 flex-1">{String(item.{{this}} ?? '')}</dd>
+          <dt className="w-32 shrink-0 text-zinc-500 dark:text-zinc-400">{{name}}</dt>
+          <dd className="min-w-0 flex-1">{String(item.{{name}} ?? '')}</dd>
         </div>
         {{/each}}
       </dl>

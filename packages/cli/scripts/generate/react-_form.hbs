@@ -1,8 +1,12 @@
-import { Button, Form, FormError, Input } from '@usehenri/react/forms';
+import { Button, Form, FormError, Input{{#if hasEnums}}, Select{{/if}} } from '@usehenri/react/forms';
 
 // Shared by new and edit: `action` is a pathFor() result ({ method, route })
 // or a route string; the Form submits it as JSON and reports the errors the
 // controller answers with (a 422 boom body maps `data.errors` to the fields).
+{{#if hasEnums}}
+// `enums` is what the controller sent as `{{doc}}.enums`: the values each
+// column may hold, which is what the <Select>s below offer.
+{{/if}}
 // The className props style henri's form components with Tailwind CSS (see
 // app/views/styles/index.css).
 const field =
@@ -10,7 +14,7 @@ const field =
 const submit =
   'inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200';
 
-const {{doc}}Form = ({ action, data = {}, button = 'Create', onSuccess }) => (
+const {{doc}}Form = ({ action, data = {}, {{#if hasEnums}}enums = {}, {{/if}}button = 'Create', onSuccess }) => (
   <Form
     action={action}
     className="flex flex-col gap-4"
@@ -18,17 +22,33 @@ const {{doc}}Form = ({ action, data = {}, button = 'Create', onSuccess }) => (
     onSuccess={onSuccess}
   >
     <FormError className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" />
-    {{#each keys}}
-    <Input
-      name="{{this}}"
-      placeholder="{{this}}"
-      required
+    {{#each fields}}
+    {{#if enum}}
+    <Select
+      name="{{name}}"
+      choices={enums.{{name}} || []}
+      placeholder="{{name}}"
       className={field}
       baseClassName="flex flex-col gap-1"
       errorClassName="text-sm text-red-600 dark:text-red-400"
-      validation=\{{ isLength: { min: 1 } }}
-      errorMsg=\{{ isLength: 'Minimum 1 char' }}
+      {{#if required}}
+      required
+      {{/if}}
     />
+    {{else}}
+    <Input
+      name="{{name}}"
+      placeholder="{{name}}"
+      className={field}
+      baseClassName="flex flex-col gap-1"
+      errorClassName="text-sm text-red-600 dark:text-red-400"
+      {{#if required}}
+      required
+      validation=\{{ isLength: { min: 1 } }}
+      errorMsg=\{{ isLength: 'This field is required' }}
+      {{/if}}
+    />
+    {{/if}}
     {{/each}}
     <Button className={submit}>{button} {{doc}}</Button>
   </Form>
