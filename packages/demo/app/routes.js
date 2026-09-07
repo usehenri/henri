@@ -10,6 +10,9 @@ module.exports = {
     roles: ['admin'],
   },
   'get /admin': { controller: 'user#admin', roles: ['admin'] },
+  // An export that streams, and the one that proves the exit gate: a user
+  // row holds every expose: false column this application has
+  'get /admin/people.csv': { controller: 'user#report', roles: ['admin'] },
   'get /flags': 'main#flags',
   'get /flags/ghost': 'main#ghostFlag',
   'get /fr/hello': 'main#frHello',
@@ -21,6 +24,9 @@ module.exports = {
     rateLimit: { max: 2, windowMs: 60000 },
   },
   'get /profile': { controller: 'user#profile', roles: ['member'] },
+  // The other side of a relation, embedded: a user and their memos, one
+  // query for the lot and one policy question per memo (see base/embeds.js)
+  'get /profile/memos': { controller: 'user#memos', roles: ['member'] },
   // What an action answers, declared and not (see base/answers.js)
   'get /reports/digest': 'reports#digest',
   'get /reports/hand': { controller: 'reports#hand', roles: ['member'] },
@@ -64,7 +70,7 @@ module.exports = {
   'resources memos': {
     // `get /memos/search` declares what it may be filtered and ordered by
     // (see base/filters.js); everything else is a 422
-    collection: { 'get search': 'search' },
+    collection: { 'get report': 'report', 'get search': 'search' },
     controller: 'memos',
     member: { 'get peek': 'peek' },
     omit: ['edit', 'new'],

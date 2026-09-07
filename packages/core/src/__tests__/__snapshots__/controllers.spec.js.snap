@@ -4,6 +4,7 @@ exports[`controllers > should match snapshot 1`] = `
 Controllers {
   "_answers": Map {},
   "_controllers": Map {},
+  "_embeds": Map {},
   "_filters": Map {},
   "_modules": Map {},
   "_params": Map {},
@@ -14,6 +15,7 @@ Controllers {
   "checks": [Function],
   "configure": [Function],
   "consoleOnly": false,
+  "embeds": [Function],
   "filters": [Function],
   "get": [Function],
   "henri": null,

@@ -41,6 +41,10 @@ module.exports = {
   // Declared with a record, so it is never asked without one
   peek: (user, memo) => owns(user, memo),
 
+  // The export is a list, so it is answered without a record and bounded by
+  // the scope below rather than by a rule per row (see base/csv.js)
+  report: (user) => Boolean(user),
+
   // Which memos may this user see? henri hands the value to the controller
   // and never looks inside it
   scope: (user) => ({ ownerId: String((user && (user.id || user._id)) || '') }),

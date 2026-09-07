@@ -111,20 +111,27 @@ const scanActions = (source) => {
  *
  * @param {string} cwd The application directory
  * @param {Array<object>} [models=[]] The model files, for the filters
- * @returns {{accepts: ?object, actions: ?object, answers: ?object, filters:
- *   ?object}} the declarations, by `controller#action`
+ * @returns {{accepts: ?object, actions: ?object, answers: ?object, embeds:
+ *   ?object, filters: ?object}} the declarations, by `controller#action`
  */
 const controllersOf = (cwd, models = []) => {
   const dir = path.join(cwd, 'app', 'controllers');
 
   if (!fs.existsSync(dir)) {
-    return { accepts: null, actions: null, answers: null, filters: null };
+    return {
+      accepts: null,
+      actions: null,
+      answers: null,
+      embeds: null,
+      filters: null,
+    };
   }
 
   const params = fromCore('src/base/params-schema', cwd);
   const hooks = fromCore('src/base/hooks', cwd);
   const answered = fromCore('src/base/answers', cwd);
   const declared = fromCore('src/base/filters', cwd);
+  const embedded = fromCore('src/base/embeds', cwd);
   const openapi = fromCore('src/base/openapi', cwd);
   const privacy = fromCore('src/base/privacy', cwd);
   const reserved = new Set([
@@ -132,6 +139,7 @@ const controllersOf = (cwd, models = []) => {
     ...params.RESERVED,
     ...answered.RESERVED,
     ...declared.RESERVED,
+    ...embedded.RESERVED,
   ]);
   const settings = openapi.settingsOf(readConfig(cwd, undefined));
   const hidden = new Set(
@@ -141,6 +149,7 @@ const controllersOf = (cwd, models = []) => {
   const answers = {};
   const actions = {};
   const filters = {};
+  const embeds = {};
 
   for (const name of listing(dir)) {
     const file = path.join(cwd, 'app', 'controllers', `${name}.js`);
@@ -148,6 +157,7 @@ const controllersOf = (cwd, models = []) => {
     let rules = null;
     let shapes = null;
     let narrows = null;
+    let expands = null;
 
     try {
       delete require.cache[require.resolve(file)];
@@ -183,6 +193,14 @@ const controllersOf = (cwd, models = []) => {
       } catch {
         narrows = null;
       }
+
+      try {
+        // Only the names reach the document, so the compiled declaration is
+        // enough: binding it needs the reference table, which needs a boot
+        expands = embedded.declarations(loaded, name, names);
+      } catch {
+        expands = null;
+      }
     } catch {
       // A controller that cannot be loaded outside a booted application:
       // read the actions off the source instead of pretending there are none
@@ -197,10 +215,11 @@ const controllersOf = (cwd, models = []) => {
       // same fact as an action that declares nothing
       answers[`${name}#${action}`] = shapes ? shapes[action] || {} : null;
       filters[`${name}#${action}`] = (narrows && narrows[action]) || null;
+      embeds[`${name}#${action}`] = (expands && expands[action]) || null;
     }
   }
 
-  return { accepts, actions, answers, filters };
+  return { accepts, actions, answers, embeds, filters };
 };
 
 /**
@@ -273,13 +292,17 @@ const describe = (cwd = process.cwd()) => {
   const { build } = fromCore('src/base/openapi', cwd);
   const { loadModules } = fromCore('src/utils', cwd);
   const models = Object.values(loadModules(path.join(cwd, 'app', 'models')));
-  const { accepts, actions, answers, filters } = controllersOf(cwd, models);
+  const { accepts, actions, answers, embeds, filters } = controllersOf(
+    cwd,
+    models
+  );
 
   return build({
     accepts,
     actions,
     answers,
     config: readConfig(cwd, undefined),
+    embeds,
     filters,
     info: identity(cwd),
     models,

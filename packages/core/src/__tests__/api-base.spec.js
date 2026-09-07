@@ -93,6 +93,7 @@ describe('api settings', () => {
 
     expect(defaults).toEqual({
       bodyLimit: '1mb',
+      embeds: { maxEmbedded: 25, maxEmbeds: 3 },
       filterParameters: ['password', 'token', 'secret', 'authorization'],
       filters: { maxFilters: 8, maxSort: 3 },
       idempotency: { store: null, ttl: 24 * 60 * 60 * 1000 },

@@ -589,8 +589,33 @@ const CALL_TRACK = bag({
   url: maybe(NAME),
 });
 
+/** The relations an answer embeds (see base/embeds.js) */
+const EMBED = {
+  describe: 'a list of relation names',
+  hint: 'They are the relations the action declared in its `embeds` block',
+  of: NAME,
+  type: 'array',
+};
+
+/** What `res.csv()` takes (see base/csv.js) */
+const CSV_OPTIONS = bag({
+  bom: BOOLEAN,
+  columns: {
+    describe: 'a list of column names',
+    hint: 'They are the columns of the model, in the order the file carries them',
+    of: NAME,
+    type: 'array',
+  },
+  filename: maybe(NAME),
+  include: INCLUDE,
+  policy: maybe(NAME),
+  scope: ANY,
+  where: ANY,
+});
+
 /** What `res.resource()` takes */
 const RESOURCE_OPTIONS = bag({
+  embed: EMBED,
   include: INCLUDE,
   links: maybe(OBJECT),
   status: STATUS,
@@ -600,6 +625,7 @@ const RESOURCE_OPTIONS = bag({
 
 /** ... and what `res.collection()` adds to it */
 const COLLECTION_OPTIONS = bag({
+  embed: EMBED,
   include: INCLUDE,
   links: maybe(OBJECT),
   page: maybe(COUNT),
@@ -1135,6 +1161,17 @@ const SIGNATURES = {
   'res.collection': [
     { by: 'HENRI_API_INVALID_COLLECTION', name: 'records' },
     { name: 'options', optional: true, ...COLLECTION_OPTIONS },
+  ],
+
+  'res.csv': [
+    {
+      by: 'HENRI_CSV_ADAPTER_UNSUPPORTED',
+      describe: 'a model, or the name of one',
+      hint: 'res.csv(Invoice) or res.csv("Invoice")',
+      name: 'model',
+      oneOf: [{ type: 'function' }, NAME],
+    },
+    { name: 'options', optional: true, ...CSV_OPTIONS },
   ],
 
   'res.negotiate': [

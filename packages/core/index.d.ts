@@ -592,6 +592,19 @@ declare namespace start {
     maxFilters?: number;
     /** Most columns one request may order by (`3`). */
     maxSort?: number;
+    /** Most relations one request may ask to embed (`3`). */
+    maxEmbeds?: number;
+    /** Most records one `_embedded` relation carries per record (`25`). */
+    maxEmbedded?: number;
+    /** What `res.csv()` reads at once, and how it escapes a cell. */
+    csv?: {
+      /** Rows read per page of the cursor (`500`). */
+      batch?: number;
+      /** Write a cell starting with `=`, `+`, `-` or `@` as text (`true`). */
+      formulas?: boolean;
+      /** Most rows one export may carry (`100000`). */
+      maxRows?: number;
+    };
     /** Refuse (500) a JSON answer without `_links` on a resource route. */
     strict?: boolean;
     /** `Idempotency-Key` replays; `false` disables the feature. */
@@ -2046,6 +2059,30 @@ declare namespace start {
    */
   type FilterDeclarations = Record<string, FilterDeclaration>;
 
+  /**
+   * One relation an action may embed under `_embedded`: the declared
+   * foreign key it goes through, or an object holding it.
+   *
+   * `'customerId'` is a key **this** model declared, and the record it
+   * names is embedded; `'Line.invoiceId'` is a key another model declared
+   * **at** this one, and the records naming it are.
+   */
+  interface EmbedRule {
+    /** The foreign key: `'customerId'`, or `'Line.invoiceId'`. */
+    through: string;
+    /** Most records embedded per record; only the many side takes one. */
+    limit?: number;
+    /** The other model holds at most one of them (a hasOne). */
+    one?: boolean;
+  }
+
+  /**
+   * The `embeds` export of a controller: what each action may put under
+   * `_embedded`, keyed by action the way `params` and `filters` are
+   * (`all`, `'index,show'`).
+   */
+  type EmbedDeclarations = Record<string, Record<string, EmbedRule | string>>;
+
   /** What `req.filters()` takes. */
   interface FilterOptions {
     /** The policy whose `scope(user)` the filter is intersected with. */
@@ -2238,6 +2275,31 @@ declare namespace start {
      * here is the only way back.
      */
     include?: string[];
+    /**
+     * The relations to put under `_embedded`, named among the ones the
+     * action declared in its `embeds` block. Without this option the answer
+     * carries what the client asked for (`?embed=lines`); with it, the
+     * caller's list wins and `[]` embeds nothing.
+     */
+    embed?: string[];
+  }
+
+  /** Options of `res.csv()`. */
+  interface CsvOptions {
+    /** The condition, intersected with what the policy says the list is. */
+    where?: unknown;
+    /** The policy whose `scope(user)` it is intersected with. */
+    policy?: string;
+    /** A condition of your own, or `false` for an export of everything. */
+    scope?: unknown;
+    /** The columns, in order; every one of them by default. */
+    columns?: string[];
+    /** The name the browser saves it under (`.csv` is added). */
+    filename?: string;
+    /** The fields marked `personal: { expose: false }` the file may carry. */
+    include?: string[];
+    /** Write a byte order mark, which is what Excel reads the encoding from. */
+    bom?: boolean;
   }
 
   /** Options of `res.collection()`. */
@@ -2486,6 +2548,17 @@ declare namespace start {
       options?: CollectionOptions
     ): ExpressResponse;
     /**
+     * The records of a model, streamed as a CSV file.
+     *
+     * Chunked and never held in memory: the rows are read a page at a time
+     * through a cursor on the record's public identifier, published and
+     * stripped like every other answer, and written with backpressure
+     * honoured. There is no `Content-Length`, and a failure once the
+     * headers are out destroys the connection rather than ending it, so a
+     * half file is never mistaken for a whole one.
+     */
+    csv(model: unknown, options?: CsvOptions): Promise<ExpressResponse>;
+    /**
      * Runs `html` for browsers and `json` for API clients. The handler is not
      * awaited: what comes back is the response, not what the handler returned.
      *
@@ -2628,7 +2701,8 @@ declare namespace start {
 
   /**
    * A controller file. Every exported function is an action (`tasks#index`);
-   * `before`, `params`, `answers` and `filters` are the reserved keys.
+   * `before`, `params`, `answers`, `filters` and `embeds` are the reserved
+   * keys.
    *
    *     /** @type {import('@usehenri/core').Controller} *\/
    *     module.exports = {
@@ -2644,12 +2718,14 @@ declare namespace start {
     params?: ParamsBlock;
     answers?: AnswersBlock;
     filters?: FilterDeclarations;
+    embeds?: EmbedDeclarations;
     [action: string]:
       | Action
       | BeforeBlock
       | ParamsBlock
       | AnswersBlock
       | FilterDeclarations
+      | EmbedDeclarations
       | undefined;
   }
 
@@ -3371,6 +3447,12 @@ declare namespace start {
      * runlevel 5, where the models exist.
      */
     filters(key: string): object | null;
+    /**
+     * What an action lets a client embed, compiled; null when nothing is.
+     * The foreign keys are checked against what the models declared at
+     * runlevel 5, where the reference table exists.
+     */
+    embeds(key: string): object | null;
     all(): Record<string, unknown>;
     size(): number;
   }

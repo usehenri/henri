@@ -15,6 +15,10 @@ const {
   RESERVED: FILTER_KEYS,
   declarations: filterDeclarations,
 } = require('./base/filters');
+const {
+  RESERVED: EMBED_KEYS,
+  declarations: embedDeclarations,
+} = require('./base/embeds');
 
 /** The exports of a controller that describe it instead of answering */
 const RESERVED = new Set([
@@ -22,6 +26,7 @@ const RESERVED = new Set([
   ...PARAM_KEYS,
   ...ANSWER_KEYS,
   ...FILTER_KEYS,
+  ...EMBED_KEYS,
 ]);
 
 /**
@@ -50,9 +55,12 @@ class Controllers extends BaseModule {
     this._answers = new Map();
     /** The compiled `filters` declarations, by `controller#action` */
     this._filters = new Map();
+    /** The compiled `embeds` declarations, by `controller#action` */
+    this._embeds = new Map();
 
     this.accepts = this.accepts.bind(this);
     this.answers = this.answers.bind(this);
+    this.embeds = this.embeds.bind(this);
     this.checks = this.checks.bind(this);
     this.filters = this.filters.bind(this);
     this.configure = this.configure.bind(this);
@@ -129,6 +137,12 @@ class Controllers extends BaseModule {
         )) {
           this._filters.set(`${id}#${action}`, declared);
         }
+
+        for (const [action, declared] of Object.entries(
+          embedDeclarations(controller, id, actions)
+        )) {
+          this._embeds.set(`${id}#${action}`, declared);
+        }
       }
     }
 
@@ -165,6 +179,7 @@ class Controllers extends BaseModule {
     this._params.clear();
     this._answers.clear();
     this._filters.clear();
+    this._embeds.clear();
     await this.init();
 
     return this.name;
@@ -235,6 +250,23 @@ class Controllers extends BaseModule {
    */
   filters(key) {
     return this._filters.get(key) || null;
+  }
+
+  /**
+   * What an action declared may be embedded in its answers, compiled but
+   * not yet bound to the models.
+   *
+   * A controller exports it as `embeds`, keyed by action the way `params`
+   * is. The foreign keys are checked against what the models declared at
+   * runlevel 5, where the reference table exists: see base/embeds.js and
+   * Router#expands.
+   *
+   * @param {string} key The controller name (ex: invoices#show)
+   * @returns {?object} The relations by name, or null when there are none
+   * @memberof Controllers
+   */
+  embeds(key) {
+    return this._embeds.get(key) || null;
   }
 
   /**

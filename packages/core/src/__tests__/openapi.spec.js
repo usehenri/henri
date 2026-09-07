@@ -14,6 +14,7 @@ const {
   modelFor,
   verify,
 } = require('../base/filters');
+const { declarations: embedDeclarations } = require('../base/embeds');
 const { mapOf } = require('../base/privacy');
 
 const demo = path.resolve(__dirname, '..', '..', '..', 'demo');
@@ -46,6 +47,7 @@ const describeDemo = () => {
   const accepts = {};
   const actions = {};
   const filters = {};
+  const embeds = {};
 
   for (const controller of Object.values(controllers)) {
     const names = Object.keys(controller).filter(
@@ -53,6 +55,9 @@ const describeDemo = () => {
     );
     const rules = declarations(controller, controller.identity, names);
     const narrows = filterDeclarations(controller, controller.identity, names);
+    // Only the names reach the document, so the compiled declaration is
+    // enough here as it is for `henri openapi` (see base/embeds.js)
+    const expands = embedDeclarations(controller, controller.identity, names);
 
     for (const action of names) {
       const key = `${controller.identity}#${action}`;
@@ -63,6 +68,7 @@ const describeDemo = () => {
 
       actions[key] = true;
       accepts[key] = rules[action] || {};
+      embeds[key] = expands[action] || null;
       filters[key] = declared
         ? verify(declared, {
             columns: columnsOf(model || {}, settings),
@@ -78,6 +84,7 @@ const describeDemo = () => {
     accepts,
     actions,
     config,
+    embeds,
     filters,
     info: { title: 'demo', version: '1.0.0' },
     models,

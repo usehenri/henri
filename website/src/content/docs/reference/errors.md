@@ -870,6 +870,108 @@ Usually:
 
 **Fix.** The boot prints every path it tried. Create config/default.json, or fix the JSON of the file that is there.
 
+## csv
+
+The streamed exports of `res.csv()`: the columns, the cursor, the bound and the escaping.
+
+### `HENRI_CSV_ADAPTER_UNSUPPORTED`
+
+henri cannot read the records of this model to export them.
+
+Usually:
+
+- a model whose adapter is not mongoose, sequelize or drizzle
+- `res.csv('Name')` naming a model no store holds
+
+**Fix.** An export is read through the model API of the three adapters henri ships. Pass the model itself (`res.csv(Invoice)`), or the name of one the boot registered.
+
+### `HENRI_CSV_INTERRUPTED`
+
+An export stopped after its headers were already sent.
+
+Usually:
+
+- the client closed the connection while the file was being written
+- a store that stopped answering part way through the export
+
+**Fix.** There is no status left to send once the headers are out, so henri destroys the connection rather than ending the response: a truncated CSV is a valid CSV, and a client has to be able to tell one from a complete file. Ask again; the log line says how many rows made it out.
+
+### `HENRI_CSV_TOO_MANY`
+
+An export holds more rows than henri will send in one answer.
+
+Usually:
+
+- an export whose condition matches more rows than `config.api.csv.maxRows`
+- rows added under the export while it was being written
+
+**Fix.** Narrow the export -- a date range is the usual one -- or raise `config.api.csv.maxRows` for an application that can afford the read. The count is taken before the headers go out, so this reaches a client as an answer rather than as a file that stops in the middle.
+
+### `HENRI_CSV_UNKNOWN_COLUMN`
+
+res.csv() was asked for a column the file cannot carry.
+
+Usually:
+
+- `columns` naming a column the model does not have
+- `columns` naming a column marked `personal: { expose: false }` without naming it in `include` as well
+
+**Fix.** The message lists the columns this export can carry: they are the model's own, plus what the adapter adds, minus what never leaves the server. Name one of those, or drop `columns` and take them all.
+
+### `HENRI_CSV_UNPAGEABLE`
+
+The condition of an export is not one a cursor can walk.
+
+Usually:
+
+- a `where` that is not a plain object henri can intersect with the cursor
+- a policy whose `scope(user)` answers something other than a plain object
+
+**Fix.** An export is read a page at a time, so its condition has to be one henri can put a cursor under. What `req.filters()` answers is one; a value handed straight to the ORM is not.
+
+## embed
+
+The relations a controller declares embeddable, and the `_embedded` of a HAL answer.
+
+### `HENRI_EMBED_ADAPTER_UNSUPPORTED`
+
+henri cannot load an embedded relation from this model's adapter.
+
+Usually:
+
+- a model whose adapter is not mongoose, sequelize or drizzle
+- a model that left the application between the boot and the request
+
+**Fix.** An embedded relation is loaded through the model API of the three adapters henri ships. Make sure the store holding the model the relation names is the one the boot started.
+
+### `HENRI_EMBED_DECLARATION_INVALID`
+
+A controller declares an embed henri cannot carry out, or asks for one it did not declare.
+
+Usually:
+
+- a relation that is not a string or an object holding a `through`
+- a `through` that is not a declared foreign key of this model, or a `Model.field` that does not point back at it
+- a `limit` that is not a whole number above zero, or one on the side of the relation that names a single record
+- an unknown key, usually a misspelling of `through`, `limit` or `one`
+- a selector naming an action the controller does not export
+- a controller that embeds and is not named after the model it answers
+- `res.resource(record, { embed })` naming a relation the action did not declare
+
+**Fix.** The message names the controller, the action and the relation. A relation is the foreign key it goes through -- `customer: 'customerId'` for the record a key names, `lines: { through: 'Line.invoiceId' }` for the records naming this one -- and the key has to be declared on the model (`references: { model }` on a SQL adapter, `ref` on mongoose). See the JSON API guide.
+
+### `HENRI_EMBED_INVALID`
+
+A request asks to embed a relation the action did not declare.
+
+Usually:
+
+- an `?embed=` name the action did not declare
+- `?embed=` on an action that declares no embeds
+- more names than `config.api.maxEmbeds`
+
+**Fix.** The 422 answer carries one message per name in `data.errors`. Ask for what the action declared, or declare what you want to be able to ask for (`embeds: { show: { lines: { through: 'Line.invoiceId' } } }`).
+
 ## encryption
 
 The fields marked `encrypted` in the models, the keys that open them and the rotation that moves them.
@@ -1581,6 +1683,17 @@ Usually:
 ## model
 
 The model files of app/models and the schema the adapters normalize.
+
+### `HENRI_MODEL_ADAPTER_UNSUPPORTED`
+
+henri cannot read the records of this model.
+
+Usually:
+
+- a model whose adapter is not mongoose, sequelize or drizzle
+- a model that left the application between the boot and the read
+
+**Fix.** henri reads records of its own -- an erasure, a retention sweep, an embedded relation, an export -- through the model API of the three adapters it ships. Make sure the store holding the model is the one the boot started. The caller usually raises a code of its own instead of this one; this is what is left when it did not.
 
 ### `HENRI_MODEL_ENUM_INVALID`
 

@@ -7,7 +7,7 @@ sidebar:
 
 Controllers live in `app/controllers`. Every `.js` file there is loaded on boot, reloaded on save and referenced from `config/routes.js` as `file#action`; a file in a subdirectory is prefixed with it (`app/controllers/admin/users.js` is `admin/users#index`).
 
-A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block, an optional `params` block saying what each action accepts, an optional `answers` block saying what each action answers and an optional `filters` block saying what a list may be narrowed and ordered by. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
+A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block, an optional `params` block saying what each action accepts, an optional `answers` block saying what each action answers, an optional `filters` block saying what a list may be narrowed and ordered by and an optional `embeds` block saying what may travel next to a record in `_embedded`. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
 
 A `/** @type {import('@usehenri/core').Controller} */` line above `module.exports` is what gives `req` and `res` completion in an editor; the generators write it for you. See [Types](/reference/types/).
 
@@ -100,7 +100,7 @@ module.exports = {
 };
 ```
 
-A hook may also be given by name (`before: { show: 'loadTask' }`), which resolves to another export of the same controller. `before`, [`params`](#params-what-an-action-accepts), [`answers`](#answers-what-an-action-answers) and [`filters`](#filters-what-a-list-may-be-narrowed-and-ordered-by) are never routable: they are the keys of a controller that are not actions.
+A hook may also be given by name (`before: { show: 'loadTask' }`), which resolves to another export of the same controller. `before`, [`params`](#params-what-an-action-accepts), [`answers`](#answers-what-an-action-answers), [`filters`](#filters-what-a-list-may-be-narrowed-and-ordered-by) and [`embeds`](#embeds-what-travels-next-to-a-record) are never routable: they are the keys of a controller that are not actions.
 
 ## `params`: what an action accepts
 
@@ -284,6 +284,24 @@ index: async (req, res) => {
 ```
 
 `req.filters()` intersects what the client asked for with what [the policy says the list is](/guides/policies/#scoping-a-list), so a filter narrows a list and can never widen it. Nothing undeclared is filterable, an order over a `text` or an `encrypted` column is refused at boot, and `henri openapi` describes the `filter[...]` parameters the same way it describes `params`. The whole of it is in [Filtering and sorting](/guides/filtering/).
+
+## `embeds`: what travels next to a record
+
+The fifth reserved key, and the one that points at the answer: `embeds` says which of a record's **relations** may travel with it under `_embedded`, so a client that wants an invoice and its lines makes one request instead of two — and a page of twenty invoices makes one instead of twenty one.
+
+```js
+embeds: {
+  show: {
+    customer: 'customerId',
+    lines: { limit: 200, through: 'Line.invoiceId' },
+  },
+  index: { customer: 'customerId' },
+},
+
+show: async (req, res) => res.resource(req.invoice, { embed: ['lines'] }),
+```
+
+A relation is the **declared foreign key** it goes through: `'customerId'` is a key this model declared and the record it names is embedded, `'Line.invoiceId'` is a key another model declared at this one and the records naming it are. A client asks with `?embed=lines`, only for what the action declared, and anything else is a `422` before the action runs. Every embedded record goes through the same publish and strip as the record it hangs off — so a column marked `personal: { expose: false }` is no more reachable there than anywhere else — and is asked `show` against its own model's policy, one record at a time. The whole of it is in [Embedding relations](/guides/api/#embedding-relations).
 
 ## Implicit rendering
 

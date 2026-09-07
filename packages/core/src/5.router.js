@@ -29,6 +29,9 @@ const { CLIENT_PATH, middleware: locales } = require('./base/i18n');
 const { middleware: zones } = require('./base/time');
 const { needsRecord } = require('./base/policies');
 const filters = require('./base/filters');
+const embeds = require('./base/embeds');
+const { csv } = require('./base/csv');
+const { ormFor } = require('./base/records');
 
 /** Verbs of the routes that change something (idempotency applies) */
 const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
@@ -80,6 +83,8 @@ class Router extends BaseModule {
     this._limiters = [];
     /** The declared filters, bound to their model (see base/filters.js) */
     this._narrows = new Map();
+    /** The declared embeds, bound to their models (see base/embeds.js) */
+    this._expands = new Map();
 
     this.handler = null;
     this.activeRoutes = new Map();
@@ -242,6 +247,7 @@ class Router extends BaseModule {
     this._stats = { failed: 0, good: 0 };
     this._limiters.splice(0).forEach(shutdown);
     this._narrows.clear();
+    this._expands.clear();
 
     this.handler = null;
     this.activeRoutes = new Map();
@@ -268,6 +274,7 @@ class Router extends BaseModule {
     const answers = {};
     const actions = {};
     const narrows = {};
+    const expands = {};
     let info = {};
 
     for (const route of Object.values(this.routes)) {
@@ -281,6 +288,8 @@ class Router extends BaseModule {
       // ... and the declaration bound to its model, which is what says
       // which model the `filter[...]` parameters are about
       narrows[route.controller] = this._narrows.get(route.controller) || null;
+      // ... and what it lets a client embed, which is only a list of names
+      expands[route.controller] = this._expands.get(route.controller) || null;
     }
 
     try {
@@ -302,6 +311,7 @@ class Router extends BaseModule {
       actions,
       answers,
       config,
+      embeds: expands,
       filters: narrows,
       info,
       models: (model && model.models) || [],
@@ -402,6 +412,7 @@ class Router extends BaseModule {
     const checks = this.checks(controller);
     const gates = this.gates(controller, name);
     const narrows = this.narrows(controller);
+    const expands = this.expands(controller);
     const hooks = this.hooks(controller);
     const handler = implicit(action, controllerName, controllerAction);
 
@@ -460,6 +471,7 @@ class Router extends BaseModule {
       ...gates,
       ...checks,
       ...narrows,
+      ...expands,
       ...hooks,
       handler
     );
@@ -743,6 +755,66 @@ class Router extends BaseModule {
     debug('%s filters %s', controller, model.globalId);
 
     return [filters.guard(bound, () => this.henri.api.settings.filters)];
+  }
+
+  /**
+   * The embeds of a controller action, as middlewares.
+   *
+   * This is where a declaration meets the reference table: a relation goes
+   * through a foreign key a model **declared**, and one that does not fails
+   * the boot rather than serializing a column nobody said points anywhere
+   * (see base/embeds.js and base/references.js).
+   *
+   * Which model an action answers is read off the controller name, the way
+   * `narrows()` reads it: an action that embeds is an action of a resource,
+   * and a controller not named after its model has no declaration henri can
+   * bind.
+   *
+   * @param {string} controller the controller (`invoices#show`)
+   * @returns {Array<function>} express middlewares (none, or one)
+   * @throws {Error} HENRI_EMBED_DECLARATION_INVALID
+   * @memberof Router
+   */
+  expands(controller) {
+    const { controllers } = this.henri;
+
+    if (!controllers || typeof controllers.embeds !== 'function') {
+      return [];
+    }
+
+    const declared = controllers.embeds(controller);
+
+    if (!declared) {
+      return [];
+    }
+
+    const [name] = String(controller).split('#');
+    const model = filters.modelFor(
+      (this.henri.model && this.henri.model.models) || [],
+      {},
+      name
+    );
+
+    if (!model) {
+      throw fail(
+        'HENRI_EMBED_DECLARATION_INVALID',
+        `${controller} declares embeds and henri cannot tell which model they hang off`,
+        {
+          hint: 'A controller that embeds is named after the model it answers (invoices -> Invoice)',
+        }
+      );
+    }
+
+    const bound = embeds.verify(declared, {
+      model: model.globalId,
+      table: (this.henri.model && this.henri.model.referenceTable) || null,
+      where: controller,
+    });
+
+    this._expands.set(controller, bound);
+    debug('%s embeds %o', controller, Object.keys(bound.relations));
+
+    return [embeds.guard(bound, () => this.henri.api.settings.embeds)];
   }
 
   /**
@@ -1537,6 +1609,26 @@ class Router extends BaseModule {
         resource(this.henri, req, res, record, options);
       res.collection = (records, options) =>
         collection(this.henri, req, res, records, options);
+      // An export that streams and leaves through the same gate every
+      // other answer does (see base/csv.js). The condition is intersected
+      // with what the policy says the list is, the way req.filters() does
+      // it: a hundred thousand rows are not a hundred thousand policy
+      // questions, so the scope is what bounds an export
+      res.csv = async (model, options = {}) => {
+        check('res.csv', [model, options]);
+
+        const Model =
+          typeof model === 'string'
+            ? ormFor(this.henri, model, 'HENRI_CSV_ADAPTER_UNSUPPORTED')
+            : model;
+        const scope = await this.scopeFor(req, res, options);
+
+        return csv(this.henri, req, res, Model, {
+          ...options,
+          where: filters.narrow(Model, scope, options.where || {}),
+        });
+      };
+
       res.negotiate = (handlers) => {
         check('res.negotiate', [handlers]);
 
