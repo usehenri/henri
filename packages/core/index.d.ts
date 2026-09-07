@@ -1017,6 +1017,11 @@ declare namespace start {
     /** Milliseconds before a running request is answered 503. */
     requestTimeout?: number | false;
     shutdown?: ShutdownConfig;
+    /**
+     * Where the maintenance switch lives and what a closed application
+     * tells a visitor; `false` gives the application no switch at all.
+     */
+    maintenance?: false | MaintenanceConfig;
     errors?: ErrorsConfig;
     [key: string]: unknown;
   }
@@ -1559,6 +1564,121 @@ declare namespace start {
      * `henri.server.shutdown('SIGTERM')` itself.
      */
     signals?: boolean;
+  }
+
+  /**
+   * `config.maintenance`: where the switch that closes the application
+   * lives, and what a visitor is told while it is thrown. Nothing here
+   * turns maintenance on -- `henri maintenance:on` does, from a shell,
+   * without a deploy. See [Maintenance mode](/guides/maintenance/).
+   */
+  interface MaintenanceConfig {
+    /**
+     * What gets through a closed application besides the signed token
+     * `henri maintenance:on` prints (`"token"`). `"loopback"` also lets
+     * anything connecting from this machine through, which is the operator
+     * with a shell -- and every visitor at once when a reverse proxy runs
+     * on that same machine, which `henri audit` reports.
+     */
+    bypass?: 'token' | 'loopback';
+    /**
+     * Where the switch is written when it is not in the shared store
+     * (`".henri/maintenance.json"`). A file reaches the processes on that
+     * machine and no other.
+     */
+    file?: string;
+    /** What a visitor is told, unless `--message` says otherwise. */
+    message?: string;
+    /**
+     * An html page of the application's own
+     * (`"app/views/maintenance.html"`), read as it is -- the view engine is
+     * not involved -- with `{{message}}`, `{{retryAfter}}` and `{{since}}`
+     * replaced by the escaped values of the window.
+     */
+    page?: string;
+    /**
+     * How stale the switch may be in a running process, in milliseconds
+     * (`1000`). Zero re-reads it on every request.
+     */
+    poll?: number;
+    /**
+     * What `/readyz` answers while the application is closed (`"ready"`).
+     * It stays ready on purpose: every process is in maintenance at once,
+     * so a 503 empties the pool and the visitor gets the proxy's error page
+     * instead of yours. `"unavailable"` is for a deployment that really
+     * does want to be taken out.
+     */
+    readyz?: 'ready' | 'unavailable';
+    /** The `Retry-After` of the 503, in seconds (`300`). */
+    retryAfter?: number;
+    /**
+     * Where the switch lives (`"auto"`): the shared store when
+     * `config.shared` names one, a file otherwise. The boot line says which.
+     */
+    switch?: 'auto' | 'file' | 'shared';
+  }
+
+  /**
+   * `henri.maintenance`: the switch itself. It is always there, whether or
+   * not the application is closed and whether or not the switch is a file
+   * or the shared store -- reading it again later is the whole feature.
+   */
+  interface MaintenanceSwitch {
+    /** `false` when `config.maintenance` is `false`: no switch at all. */
+    enabled: boolean;
+    /** Whether the application is closed, as of the last read. */
+    readonly closed: boolean;
+    /** `"file"`, `"shared"`, or `"none"` when there is no switch. */
+    readonly where: 'file' | 'shared' | 'none';
+    /** The switch in words, as the boot line says it. */
+    describe(): string;
+    /** The record of the window, as of the last read. */
+    current(): MaintenanceRecord | null;
+    /** Re-reads the switch, at most once per `maintenance.poll`. */
+    refresh(force?: boolean): Promise<MaintenanceRecord | null>;
+    /** Closes the application, and answers the record with its token. */
+    on(options?: {
+      by?: string | null;
+      message?: string | null;
+      retryAfter?: number | null;
+    }): Promise<MaintenanceRecord & { token: string | null }>;
+    /** Opens it again; `true` when it was closed. */
+    off(): Promise<boolean>;
+    /** Reads the switch fresh: what `henri maintenance:status` prints. */
+    status(): Promise<MaintenanceStatus>;
+  }
+
+  /** One maintenance window, as the switch holds it. */
+  interface MaintenanceRecord {
+    on: true;
+    /** The id of the window; the bypass token is signed against it. */
+    id: string;
+    /** When it was thrown, in epoch milliseconds. */
+    since: number;
+    /** What the visitor is told. */
+    message: string;
+    /** The `Retry-After` of the 503, in seconds. */
+    retryAfter: number;
+    /** Who threw it, when `henri maintenance:on --by` said. */
+    by: string | null;
+  }
+
+  /** What `henri.maintenance.status()` answers. */
+  interface MaintenanceStatus {
+    enabled: boolean;
+    on: boolean;
+    where: 'file' | 'shared' | 'none';
+    /** The switch in words: a path, or the name of the shared backend. */
+    switch: string;
+    bypass: 'token' | 'loopback';
+    poll: number;
+    id?: string;
+    since?: number;
+    message?: string;
+    retryAfter?: number;
+    by?: string | null;
+    /** A bypass token for this window, `null` without a `secret`. */
+    token?: string | null;
   }
 
   /** `henri.api.settings`: the configuration above, normalized. */
@@ -4600,6 +4720,12 @@ declare namespace start {
      * backend -- and then it is that one, with nothing else to configure.
      */
     cache: CacheModule;
+    /**
+     * The maintenance switch: `on()`, `off()` and `status()`, plus what the
+     * running server reads on the way into a request. Always there --
+     * `enabled` is false when `config.maintenance` is `false`.
+     */
+    maintenance: MaintenanceSwitch;
     /** Registration, the password reset and the address confirmation. */
     accounts: AccountsService;
     /**

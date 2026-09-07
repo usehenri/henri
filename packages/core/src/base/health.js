@@ -22,6 +22,11 @@
  * finishing. Readiness is what says "stop sending", and it says it before the
  * port closes (`2.server.js`).
  *
+ * Maintenance mode (`base/maintenance.js`) is the third state and the one
+ * whose answer is not the drain's: liveness stays 200 for the same reason,
+ * and readiness stays 200 as well, with `maintenance: true` in the body.
+ * See `maintenance()` below for why, and for the key that reverses it.
+ *
  * `/healthz` is the older convention, and it is the ambiguous one: the name
  * says "health" without saying which of the two questions it answers, so one
  * deployment wires it to liveness and the next to readiness. henri answers
@@ -202,6 +207,45 @@ async function pingShared(henri, timeout) {
 }
 
 /**
+ * What maintenance mode adds to a readiness answer, and whether it changes
+ * it.
+ *
+ * A closed application says so -- `maintenance: true` in the body, so an
+ * operator polling `/readyz` sees why -- and by default it stays **ready**.
+ * That is the deliberate part: every process is in maintenance at once, so
+ * a 503 here empties the load balancer's pool in one instant and the
+ * visitor gets the proxy's own error page instead of the message the
+ * operator wrote, the bypass stops being routable, and a rollout (often the
+ * thing that ends the maintenance) stalls on instances that never turn
+ * ready. Draining is the opposite case -- one process leaving while its
+ * peers stay -- and gets the opposite answer.
+ *
+ * `maintenance.readyz: "unavailable"` is for the deployment that really
+ * does want to be taken out of the pool, an edge serving its own page.
+ *
+ * @param {Henri} henri the henri instance
+ * @returns {Promise<?{ready: boolean}>} null when the application is open
+ */
+async function maintenance(henri) {
+  const state = henri.maintenance || null;
+
+  if (!state || !state.enabled) {
+    return null;
+  }
+
+  // The probes are mounted before the maintenance middleware, so this is
+  // what keeps a process that is answering nothing else up to date. It is
+  // bounded by `maintenance.poll` and deduplicated (base/maintenance.js)
+  await state.refresh();
+
+  if (!state.closed) {
+    return null;
+  }
+
+  return { ready: state.settings.readyz !== 'unavailable' };
+}
+
+/**
  * What every one of these endpoints answers, before its own keys
  *
  * @param {Henri} henri the henri instance
@@ -261,6 +305,22 @@ function ready(henri, { timeout = 2000 } = {}) {
       );
     }
 
+    const closed = await maintenance(henri);
+
+    if (closed) {
+      answer.maintenance = true;
+
+      if (!closed.ready) {
+        return res.status(503).json(
+          Object.assign(answer, {
+            reason: 'maintenance',
+            status: 'unavailable',
+            stores: {},
+          })
+        );
+      }
+    }
+
     const [{ checks, ok }, shared] = await Promise.all([
       ping(henri, timeout),
       pingShared(henri, timeout),
@@ -290,6 +350,7 @@ module.exports.LIVE_PATH = LIVE_PATH;
 module.exports.PATH = PATH;
 module.exports.READY_PATH = READY_PATH;
 module.exports.live = live;
+module.exports.maintenance = maintenance;
 module.exports.phase = phase;
 module.exports.pingShared = pingShared;
 module.exports.ready = ready;

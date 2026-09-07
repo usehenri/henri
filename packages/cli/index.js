@@ -78,6 +78,7 @@ module.exports = (pkg, args) => {
     'credentials',
     'db',
     'encryption',
+    'maintenance',
     'privacy',
     'retention',
     'trail',

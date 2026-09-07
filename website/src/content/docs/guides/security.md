@@ -382,6 +382,16 @@ false` (`calls.kept-forever`: a [call log](/guides/calls/) holds the bodies
 users sent, so a copy of them that nothing ever sweeps is not a setting but
 an accumulation).
 
+**A door that only looks shut** -- `maintenance.bypass: "loopback"` in a
+configuration a production boot reads (`maintenance.loopback-bypass`). It is
+an access control decision made on the peer address of the socket: on a
+machine running nothing else that is the operator with a shell, and behind a
+reverse proxy, a sidecar or a container network it is every request, so a
+[closed application](/guides/maintenance/) serves everybody as usual. In
+development the shortcut is the point and nothing is said; the signed url
+`henri maintenance:on` prints is what production is meant to use, and it is
+never a finding.
+
 **A development instrument left on where it answers a visitor** --
 `queries.detect.raise: true` in a configuration a production boot reads
 (`queries.raise-in-production`). Raising on the fifth repeat of a model call

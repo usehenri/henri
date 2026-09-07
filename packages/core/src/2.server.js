@@ -19,6 +19,7 @@ const { paginationMiddleware } = require('./base/pagination');
 const { authLimiter, limiter } = require('./base/rate-limit');
 const { requestId } = require('./base/request-id');
 const { callsConfig, inbound } = require('./base/calls');
+const { createMaintenance } = require('./base/maintenance');
 const { createShared, manyProcesses } = require('./base/shared');
 const requestTimeout = require('./base/timeout');
 const { drain, settings: stopSettings } = require('./base/shutdown');
@@ -380,6 +381,12 @@ class Server extends BaseModule {
       );
     }
 
+    // `henri.maintenance`: the switch that closes the application without a
+    // deploy. It is built whether or not it is on, because the whole point
+    // is that a running process reads it again later (base/maintenance.js)
+    this.henri.maintenance = createMaintenance(this.henri);
+    await this.henri.maintenance.start();
+
     // `henri.api`: settings of the JSON api and the stores it uses
     const api = (this.henri.api = createApi(
       this.henri,
@@ -468,6 +475,12 @@ class Server extends BaseModule {
     app.get(health.READY_PATH, readiness);
     app.get(health.HEALTH_PATH, readiness);
     app.get(health.PATH, readiness);
+
+    // Maintenance goes after the probes and before everything else: a
+    // closed application still answers an orchestrator, and answers
+    // everybody else without opening a session, counting a rate limit or
+    // touching a store (base/maintenance.js)
+    app.use(this.henri.maintenance.middleware());
 
     app.use(express.static(path.resolve(this.henri.cwd(), 'app/views/public')));
 
@@ -913,6 +926,10 @@ class Server extends BaseModule {
 
     if (this.henri.api && typeof this.henri.api.stop === 'function') {
       await this.henri.api.stop();
+    }
+
+    if (this.henri.maintenance) {
+      await this.henri.maintenance.stop();
     }
 
     if (this.httpServer && this.httpServer.listening) {

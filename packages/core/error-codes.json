@@ -66,6 +66,10 @@
       "what": "the mail transport, the mailers of app/mailers and their views"
     },
     {
+      "area": "maintenance",
+      "what": "maintenance mode: the switch that closes an application without a deploy"
+    },
+    {
       "area": "migration",
       "what": "the migrations of db/migrations and the schema dump of a drizzle store"
     },
@@ -1287,6 +1291,34 @@
       "code": "HENRI_MAIL_VIEW_MISSING",
       "fix": "Write app/views/mailers/<mailer>/<action>.hbs. A `<action>.text.hbs` next to it replaces the plain text part, which is otherwise derived from the html.",
       "what": "A mail has no view to render."
+    },
+    {
+      "area": "maintenance",
+      "causes": [
+        "`config.maintenance` is `false` in the configuration this command read"
+      ],
+      "code": "HENRI_MAINTENANCE_DISABLED",
+      "fix": "Remove \"maintenance\": false from the configuration, or leave this deployment without a switch on purpose.",
+      "what": "The application was asked to open or close and it has no maintenance switch."
+    },
+    {
+      "area": "maintenance",
+      "causes": [
+        "`henri maintenance:on` was run and nobody ran `henri maintenance:off`"
+      ],
+      "code": "HENRI_MAINTENANCE_ON",
+      "fix": "This is what a deliberately closed application answers. End the window with `henri maintenance:off`, or go through the bypass url `henri maintenance:status` prints.",
+      "what": "The application is closed for maintenance and answered 503."
+    },
+    {
+      "area": "maintenance",
+      "causes": [
+        "the file the switch lives in cannot be written (permissions, a read-only filesystem)",
+        "the shared store holding the switch did not answer"
+      ],
+      "code": "HENRI_MAINTENANCE_UNAVAILABLE",
+      "fix": "Check that the process can write config.maintenance.file, or that the backend of config.shared answers. A running server keeps whatever state it last read, so nothing changed.",
+      "what": "The maintenance switch could not be read or written."
     },
     {
       "area": "migration",
