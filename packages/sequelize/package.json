@@ -35,6 +35,7 @@
     "CHANGELOG.md",
     "encrypted.js",
     "encryption.js",
+    "tenant.js",
     "versions.js"
   ],
   "publishConfig": {

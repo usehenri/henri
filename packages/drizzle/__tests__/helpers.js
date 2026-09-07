@@ -4,6 +4,7 @@ const path = require('path');
 const Drizzle = require('../index');
 const Encryption = require('@usehenri/core/src/1.encryption');
 const Queries = require('@usehenri/core/src/0.queries');
+const Tenancy = require('@usehenri/core/src/0.tenancy');
 const { generateKey } = require('@usehenri/core/src/base/encryption');
 const target = require('./targets');
 
@@ -62,6 +63,15 @@ const fakeHenri = (settings = {}) => {
   queries.henri = henri;
   queries.init();
   henri.queries = queries;
+
+  // The same again: what a tenanted model is scoped by is core's decision,
+  // and the adapter is what has to ask. `enabled` is false unless a suite
+  // passed a `tenancy` setting, so every other suite is untouched
+  const tenancy = new Tenancy();
+
+  tenancy.henri = henri;
+  tenancy.init();
+  henri.tenancy = tenancy;
 
   // The seam says at boot that it is counting. That is the module's line and
   // not the adapter's, and `calls` is what the suites read to see what the

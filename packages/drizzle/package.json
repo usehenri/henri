@@ -32,6 +32,7 @@
     "validations.js",
     "encrypted.js",
     "encryption.js",
+    "tenant.js",
     "versions.js"
   ],
   "dependencies": {

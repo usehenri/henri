@@ -10,6 +10,7 @@ const { instrument: instrumentQueries } = require('./queries');
 const { compileTable, encryptedFields, normalizeSchema } = require('./schema');
 const { decorateModel } = require('./encryption');
 const { decorateModel: decorateVersions } = require('./versions');
+const { tenantField } = require('./tenant');
 const { SESSION_FIELDS, createStore } = require('./session');
 const { ValidationError } = require('./validation');
 const {
@@ -74,6 +75,7 @@ const MODEL_OPTIONS = new Set([
   'paranoid',
   'personal',
   'retention',
+  'tenant',
   'timestamps',
   'versioned',
 ]);
@@ -213,6 +215,18 @@ class Drizzle {
 
     debug('adding model %s', model.globalId);
 
+    // Before the schema is normalized, because a tenant mark can add a
+    // column: `tenant: true` is the one core names, `tenant: 'accountId'`
+    // is one the model already declares and nothing is added for it. The
+    // mark is null unless `config.tenancy` asked, so an application that is
+    // not multi-tenant gets exactly the table it had (./tenant.js)
+    const tenant =
+      (this.henri.tenancy && this.henri.tenancy.markFor(definition)) || null;
+
+    if (tenant && !tenant.declared) {
+      definition.schema[tenant.column] = tenantField(tenant);
+    }
+
     this.addExternalId(definition);
 
     if (isUser) {
@@ -238,6 +252,11 @@ class Drizzle {
     if (Model.versioned) {
       decorateVersions(Model);
     }
+
+    // Not a decorator: the condition is added in `Relation#whereSQL()` and
+    // in the two write funnels that never build a Relation, and all three
+    // read this (./tenant.js)
+    Model.tenant = tenant;
 
     if (isUser) {
       this.decorateUser(Model);

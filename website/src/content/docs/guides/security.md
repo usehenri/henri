@@ -491,6 +491,15 @@ mark henri cannot redact the field in the logs, put it in an export or erase
 it, so this is a gap with consequences rather than a matter of taste. See
 [Personal data](/guides/privacy/).
 
+**Multi-tenancy** — a `tenancy.from.header.from` that covers every address
+(`tenancy.header-from-any`, high: any client could then choose which tenant
+its own request is served as, which is an authorization bug with extra
+steps), and, once an application is multi-tenant, every model that says
+nothing about tenants (`tenancy.unmarked-model`, low). The second is a list
+rather than a verdict: a `Plan`, a `Country` and a `Currency` are meant to be
+shared, and the point is that somebody read the list once and decided. See
+[Multi-tenancy](/guides/multi-tenancy/).
+
 **Dependencies** — the known advisories of the production dependencies
 (`deps.advisories`), whether they could be checked at all
 (`deps.audit-unavailable`), and a lockfile that is on disk but not committed

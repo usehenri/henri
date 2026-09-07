@@ -1314,6 +1314,87 @@ describe('henri audit', () => {
     ).toMatchObject({ file: 'app/models/user.js' });
   });
 
+  test('says nothing about tenants unless the application is multi-tenant', () => {
+    expect(run(app).names).not.toContain('tenancy.unmarked-model');
+  });
+
+  test('lists the models a multi-tenant application shares', () => {
+    const shared = withConfig(app, 'config/default.json', {
+      tenancy: { from: { subdomain: 'example.com' } },
+    });
+
+    expect(
+      shared.findings.filter(
+        (entry) => entry.check === 'tenancy.unmarked-model'
+      )
+    ).toEqual([
+      expect.objectContaining({
+        asvs: 'V4.2.1',
+        file: 'app/models/Task.js',
+        message:
+          'the application is multi-tenant and this model says nothing about tenants, so its rows are shared by every tenant',
+        owasp: 'A01:2021 Broken Access Control',
+        severity: 'low',
+      }),
+    ]);
+  });
+
+  test('a model that says which tenant it belongs to is not reported', () => {
+    const base = JSON.parse(
+      fs.readFileSync(path.join(app, 'config/default.json'), 'utf8')
+    );
+    const original = fs.readFileSync(
+      path.join(app, 'config/default.json'),
+      'utf8'
+    );
+
+    fs.writeFileSync(
+      path.join(app, 'config/default.json'),
+      JSON.stringify({ ...base, tenancy: {} })
+    );
+
+    try {
+      const marked = withFile(
+        app,
+        'app/models/Task.js',
+        `module.exports = {
+  options: { tenant: true },
+  schema: { name: { type: 'string' } },
+};
+`
+      );
+
+      expect(marked.names).not.toContain('tenancy.unmarked-model');
+    } finally {
+      fs.writeFileSync(path.join(app, 'config/default.json'), original);
+    }
+  });
+
+  test('a tenant header believed from anywhere is the highest finding', () => {
+    const anywhere = withConfig(app, 'config/production.json', {
+      tenancy: {
+        from: { header: { from: ['0.0.0.0/0'], name: 'x-tenant' } },
+      },
+    });
+
+    expect(
+      anywhere.findings.find(
+        (entry) => entry.check === 'tenancy.header-from-any'
+      )
+    ).toMatchObject({
+      owasp: 'A01:2021 Broken Access Control',
+      severity: 'high',
+    });
+
+    const listed = withConfig(app, 'config/production.json', {
+      tenancy: {
+        from: { header: { from: ['10.0.0.0/8'], name: 'x-tenant' } },
+      },
+    });
+
+    expect(listed.names).not.toContain('tenancy.header-from-any');
+  });
+
   test('says nothing about policies when the application ships none', () => {
     expect(run(app).names).not.toContain('policies.unenforced');
   });

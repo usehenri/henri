@@ -744,6 +744,15 @@ class User extends BaseModule {
     server.app.use(this.passport.initialize());
     server.app.use(this.passport.session());
 
+    // The tenant of a request is decided here and nowhere else, and here is
+    // exactly after passport: `req.user` is what the `user` source reads and
+    // what a client-named tenant is checked against, so a middleware mounted
+    // any earlier would decide it without the one thing a client cannot
+    // write. It is a no-op unless `config.tenancy` asked (0.tenancy.js)
+    if (this.henri.tenancy) {
+      this.henri.tenancy.mount(server);
+    }
+
     if (config.has('csrf') && config.get('csrf') === false) {
       pen.warn('user', 'csrf protection is disabled by configuration');
     } else {
@@ -1081,6 +1090,22 @@ class User extends BaseModule {
       // trying its own correct password cannot lock itself out
       if (this.lockout && account) {
         await this.lockout.succeed(account).catch(() => false);
+      }
+
+      // The tenant middleware ran before passport put a user on this
+      // request, so a sign-in is the one moment it cannot check: this is
+      // that check. Signing in on somebody else's subdomain opens no
+      // session at all, rather than one that is refused on its next
+      // request (0.tenancy.js, `resolve`)
+      const wrong = this.henri.tenancy && this.henri.tenancy.refuses(req, user);
+
+      if (wrong) {
+        pen.warn('user', 'login refused', wrong.message);
+
+        return respond(res, {
+          html: () => res.redirect(`${loginPath}?error=tenant`),
+          json: () => res.boom.unauthorized('Invalid credentials'),
+        });
       }
 
       // `config.user.confirmation.required`: an address nobody has proved

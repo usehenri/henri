@@ -222,7 +222,16 @@ function fingerprint(req) {
 }
 
 /**
- * Whom a key belongs to: the user, else the session, else the ip
+ * Whom a key belongs to: the user, else the session, else the ip -- and,
+ * in front of all three, the tenant.
+ *
+ * The key itself is the client's, which is why the scope exists at all: two
+ * clients sending `Idempotency-Key: 1` must not replay each other's answer.
+ * A tenant is the same argument one level up. Two of the three fallbacks
+ * are not tenant-specific -- an anonymous request is scoped by its address,
+ * and an application behind one load balancer can see the same address for
+ * two customers -- so the tenant goes in front, where it costs a string
+ * concatenation and closes it.
  *
  * @param {Express.Request} req the request
  * @param {string} [sessionCookie='henri.sid'] name of the session cookie
@@ -230,19 +239,20 @@ function fingerprint(req) {
  */
 function scopeOf(req, sessionCookie = 'henri.sid') {
   const { user } = req;
+  const tenant = req.tenant ? `tenant:${req.tenant}\n` : '';
   const id =
     user &&
     (typeof user.id !== 'undefined' && user.id !== null ? user.id : user._id);
 
   if (id !== null && typeof id !== 'undefined') {
-    return `user:${String(id)}`;
+    return `${tenant}user:${String(id)}`;
   }
 
   if (req.cookies && req.cookies[sessionCookie] && req.sessionID) {
-    return `session:${req.sessionID}`;
+    return `${tenant}session:${req.sessionID}`;
   }
 
-  return `ip:${req.ip || 'unknown'}`;
+  return `${tenant}ip:${req.ip || 'unknown'}`;
 }
 
 /**

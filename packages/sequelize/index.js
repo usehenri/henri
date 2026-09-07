@@ -3,6 +3,7 @@ const debug = require('debug')('henri:sequelize');
 const { Drift, describeDifference } = require('./drift');
 const { decorateAttributes, decorateModel } = require('./encryption');
 const { decorateModel: decorateVersions } = require('./versions');
+const { decorateModel: decorateTenant, tenantAttribute } = require('./tenant');
 const { lookup, paginate, publicId, validations } = require('./plugins');
 const { validationsOf } = require('./validations');
 const { instrument: instrumentQueries } = require('./queries');
@@ -245,9 +246,14 @@ class Sql {
     // options, not Sequelize ones
     const keepsVersions = options.versioned;
 
+    // `tenant` is core's mark and not a Sequelize option: the adapter
+    // reads it through `henri.tenancy` below (./tenant.js)
+    const belongsToTenant = options.tenant;
+
     delete options.externalId;
     delete options.personal;
     delete options.retention;
+    delete options.tenant;
     delete options.versioned;
 
     if (model.name && !options.tableName) {
@@ -259,6 +265,19 @@ class Sql {
     }
 
     debug('adding model %s', model.globalId);
+
+    // Before define(), because a tenant mark can add an attribute:
+    // `tenant: true` is the column core names, `tenant: 'accountId'` is one
+    // the model already declares and nothing is added for it. The mark is
+    // null unless `config.tenancy` asked (./tenant.js)
+    const tenant =
+      belongsToTenant && this.henri.tenancy
+        ? this.henri.tenancy.markFor(model)
+        : null;
+
+    if (tenant && !tenant.declared) {
+      attributes[tenant.column] = tenantAttribute(tenant);
+    }
 
     if (external) {
       this.addExternalId(attributes);
@@ -305,6 +324,12 @@ class Sql {
       this.decorateUser(instance);
       this.henri._user = instance;
       this.userModelName = model.globalId;
+    }
+
+    // Before the versions, so a history records the tenant a row was
+    // written with, and only for a model that asked (./tenant.js)
+    if (tenant) {
+      decorateTenant(instance, this.henri, tenant);
     }
 
     // Only for a model that asked: an application with nothing versioned

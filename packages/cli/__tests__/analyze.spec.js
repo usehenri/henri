@@ -53,6 +53,7 @@ describe('henri analyze', () => {
         'config',
         'queries',
         'telemetry',
+        'tenancy',
       ]);
       expect(analysis.chart[3].modules).toEqual([
         'cache',

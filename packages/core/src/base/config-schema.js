@@ -921,6 +921,78 @@ const SCHEMA = {
     type: 'object',
   },
 
+  tenancy: {
+    describe:
+      'an object of multi-tenancy settings ({ column, from, require, status }), or false',
+    hint: "This does not make a model a tenant's: a model does, with options: { tenant: true }. It says where the tenant of a request comes from and what a query without one costs",
+    oneOf: [
+      { const: false },
+      {
+        keys: {
+          column: text({
+            default: 'tenantId',
+            describe: 'a column name',
+            hint: 'The column henri adds to every model that says options: { tenant: true }; a model naming its own column overrides it',
+          }),
+          from: {
+            describe:
+              'an object saying where the tenant of a request comes from',
+            hint: "The order is fixed: what somebody said explicitly, then the signed-in user, then the subdomain, then the header. A client-named tenant is only ever allowed to agree with the user's own",
+            keys: {
+              header: {
+                describe:
+                  'a header name, or an object ({ name, from }) naming the proxies allowed to set it',
+                hint: 'Any client can send a header, so a name without `from` fails the boot: list the addresses or ranges of the proxies in front of henri',
+                oneOf: [
+                  { const: false },
+                  text(),
+                  {
+                    keys: {
+                      from: {
+                        describe: 'a list of addresses or CIDR ranges',
+                        of: text(),
+                        type: 'array',
+                      },
+                      name: text({ describe: 'a header name' }),
+                    },
+                    required: ['from', 'name'],
+                    type: 'object',
+                  },
+                ],
+              },
+              subdomain: {
+                describe: 'the domain the tenant is a label of, or false',
+                hint: "'example.com' makes acme.example.com the tenant acme; the bare domain and a deeper name are no tenant at all",
+                oneOf: [{ const: false }, text()],
+              },
+              user: {
+                default: 'tenantId',
+                describe:
+                  'the column of the user model that says which tenant they belong to, or false',
+                hint: 'This is the one source a client cannot write, which is why everything below it is only ever allowed to agree with it',
+                oneOf: [{ const: false }, text()],
+              },
+            },
+            type: 'object',
+          },
+          require: {
+            default: false,
+            describe: 'true or false',
+            hint: 'true refuses a request whose tenant no source could decide. Off, the refusal happens at the first model call that needed one, which names the model',
+            type: 'boolean',
+          },
+          status: {
+            default: 404,
+            describe: '403 or 404',
+            hint: "What a request naming somebody else's tenant answers; 404 hides that the tenant exists",
+            oneOf: [{ const: 403 }, { const: 404 }],
+          },
+        },
+        type: 'object',
+      },
+    ],
+  },
+
   trustProxy: {
     default: true,
     describe:

@@ -2035,6 +2035,105 @@ Usually:
 
 **Fix.** henri ships the instrumentation and never the pipeline: install the interface with `npm install @opentelemetry/api`, and an SDK and an exporter of your choosing beside it (see the telemetry guide). Leave `telemetry.enabled` out to let henri instrument only when the package is there, or set `"telemetry": false` to say this application does not want it.
 
+## tenant
+
+Multi-tenancy: the models that belong to a tenant, the tenant a request is decided to be, and the queries scoped by it.
+
+### `HENRI_TENANT_CROSS_WRITE`
+
+A write named a tenant other than the one in scope.
+
+Usually:
+
+- a create or an update wrote the tenant column with a value other than the tenant in scope
+- a record read as one tenant was saved while another was in scope
+
+**Fix.** Run the write where it belongs: `henri.tenancy.run(tenant, () => record.save())`. henri refuses rather than obeying because a row written into the wrong tenant is a leak no later request notices -- the row simply appears in somebody else's list. `henri.tenancy.unscoped()` is how a migration or an admin task moves rows on purpose.
+
+### `HENRI_TENANT_HEADER_UNVERIFIABLE`
+
+The tenant was to be read from a header henri has no way to verify.
+
+Usually:
+
+- a header is named under `tenancy.from.header` with no `from` listing the proxies allowed to set it
+
+**Fix.** Any client can send a header, so henri believes a named one only from a proxy the application listed -- the rule `calls.address` already follows. Add the addresses or ranges: `{ "tenancy": { "from": { "header": { "name": "x-tenant", "from": ["10.0.0.0/8"] } } } }`, or take the header out and let the signed-in user or the subdomain decide.
+
+### `HENRI_TENANT_INVALID`
+
+A value henri cannot use as a tenant identifier was given as one.
+
+Usually:
+
+- a tenant identifier longer than 190 characters, or holding something other than letters, digits and `. _ : @ + -`
+- `henri.tenancy.run()` was given something that is not an identifier
+
+**Fix.** A tenant is an opaque identifier henri puts in an indexed column and never interprets: at most 190 characters (what MySQL indexes in a utf8mb4 key), starting with a letter or a digit. It is never truncated to fit, because two tenants sharing a prefix would share their rows. Use the account's `externalId` or its slug.
+
+### `HENRI_TENANT_INVALID_MARK`
+
+A model declared a tenant mark henri cannot carry out.
+
+Usually:
+
+- `options: { tenant: ... }` on a model is neither `true` nor the name of a column
+
+**Fix.** A mark is `options: { tenant: true }`, which adds the column `tenancy.column` names, or `options: { tenant: "accountId" }`, which uses a column the model already declares. A model that says nothing is shared by every tenant, on purpose.
+
+### `HENRI_TENANT_MISMATCH`
+
+The request named one tenant and the signed-in user belongs to another.
+
+Usually:
+
+- a request arrived on one tenant's subdomain (or with one tenant's header) and the signed-in user belongs to another
+- a session opened on one subdomain was replayed on another
+
+**Fix.** Nothing to fix in the code: this is the refusal working. A tenant a request can name freely would be an authorization bug, so what a client names is only ever allowed to agree with the tenant the signed-in user's own record says. Send the person to their own tenant, or sign them out first.
+
+### `HENRI_TENANT_REQUIRED`
+
+A model that belongs to a tenant was used with no tenant in scope.
+
+Usually:
+
+- a model marked `options: { tenant: true }` was read or written outside a request
+- a job, a seed, a console session or a recurring sweep touched a tenanted model
+- a request whose tenant no source could decide reached a tenanted model
+
+**Fix.** henri does not read a tenanted table without a condition, because no condition is every tenant's rows -- the same reason a policy without a `scope` refuses instead of meaning "everything". Inside a request henri decides the tenant itself; outside one say which: `henri.tenancy.run(tenant, () => ...)`. When every tenant really is what you mean -- a report, a migration, a `henri db:seed` -- say that instead: `henri.tenancy.unscoped(() => ...)`.
+
+### `HENRI_TENANT_UNKNOWN_COLUMN`
+
+A model named a tenant column its schema does not declare.
+
+Usually:
+
+- `options: { tenant: "accountId" }` on a model whose schema declares no `accountId`
+
+**Fix.** A named tenant column is one of the model's own, so declare it in the schema next to the others -- which is what lets a tenant be an existing foreign key with a `ref`. Or say `options: { tenant: true }` and henri adds the column `tenancy.column` names.
+
+### `HENRI_TENANT_UNRESOLVED`
+
+A request was refused because no tenant could be decided for it.
+
+Usually:
+
+- `tenancy.require` is on and no configured source could decide the tenant of a request
+
+**Fix.** Either the request should carry a tenant and does not -- an anonymous visitor on the bare domain where the application expects a subdomain -- or the route is one that legitimately has none, in which case take `tenancy.require` off and let the refusal happen at the model call, which is precise about which model wanted a tenant.
+
+### `HENRI_TENANT_UNSCOPABLE`
+
+An operation henri cannot narrow was run on a model that belongs to a tenant.
+
+Usually:
+
+- an aggregation pipeline, a `bulkWrite` or an `estimatedDocumentCount` on a model that belongs to a tenant
+
+**Fix.** These three run no query middleware, or count a collection rather than a filter, so there is nowhere for henri to put the condition -- and answering them across every tenant is the one thing this feature exists to prevent. Put the match in the pipeline yourself, use one scoped update per record instead of a bulk write, and `countDocuments()` instead of the estimate. `henri.tenancy.unscoped(() => ...)` is how a report says it means every tenant.
+
 ## trail
 
 The append-only record of who read or changed personal data.
