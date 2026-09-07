@@ -126,11 +126,12 @@ const BOUNDARIES = [
 /** A string that is not empty */
 const text = (extra = {}) => ({ pattern: /\S/u, type: 'string', ...extra });
 
-/** One bound of the graphql endpoint: a whole number, or false to lift it */
-const limit = (value) => ({
+/** A counted bound: a whole number, or false to lift it */
+const limit = (value, extra = {}) => ({
   default: value,
   describe: 'a whole number above zero, or false',
   oneOf: [{ const: false }, { above: 0, integer: true, type: 'number' }],
+  ...extra,
 });
 
 /** A number strictly above zero */
@@ -196,6 +197,7 @@ const sizeLimit = (extra = {}) => ({
  * `henri audit` reports.
  */
 const IDENTITY_PROVIDER = {
+  hint: 'A provider needs authorizationUrl, tokenUrl, userinfoUrl, clientId and clientSecret; everything else has a default',
   keys: {
     allows: text({
       default: 'signin',
@@ -215,11 +217,17 @@ const IDENTITY_PROVIDER = {
     }),
     claims: {
       describe: 'which fields of the userinfo answer henri reads',
+      hint: 'Only for a provider that does not use the OpenID Connect names: henri reads sub, email and email_verified without this',
       keys: {
-        email: text({ default: 'email', describe: 'the address claim' }),
+        email: text({
+          default: 'email',
+          describe: 'the address claim',
+          hint: 'A field of what userinfoUrl answers; henri never reads an address out of an id_token',
+        }),
         subject: text({
           default: 'sub',
           describe: "the claim holding the provider's identifier for a person",
+          hint: 'It has to be stable and never reused: the row it keys is a credential, and a provider that hands the same one to a second person hands over the account',
         }),
         verified: {
           default: 'email_verified',
@@ -230,17 +238,25 @@ const IDENTITY_PROVIDER = {
       },
       type: 'object',
     },
-    clientId: text({ describe: 'the client identifier the provider issued' }),
+    clientId: text({
+      describe: 'the client identifier the provider issued',
+      hint: 'It reaches a browser in the authorization url, so it is not a secret; clientSecret is',
+    }),
     clientSecret: text({
       describe: 'the client secret the provider issued',
       hint: 'Put it in the encrypted credentials (henri credentials:edit) or in the environment; henri audit reports one written here',
     }),
-    label: text({ describe: 'what a button calls this provider' }),
+    label: text({
+      describe: 'what a button calls this provider',
+      hint: 'What the button says ("Sign in with Acme"); the name under providers is what the url carries',
+    }),
     params: {
       describe: 'extra authorization parameters, by name',
       hint: 'What a provider asks for beyond the standard ones',
       type: 'record',
-      values: text(),
+      values: text({
+        hint: 'A value is a string, appended to the authorization url as it is; henri sends the standard parameters itself',
+      }),
     },
     pkce: {
       default: true,
@@ -250,9 +266,13 @@ const IDENTITY_PROVIDER = {
     },
     scope: {
       describe: "a list of scopes, or one string ('openid email')",
+      hint: 'What the provider is asked for; the list and the space-separated string are the same thing',
       oneOf: [text(), { of: text(), type: 'array' }],
     },
-    tokenUrl: text({ describe: 'where an authorization code is redeemed' }),
+    tokenUrl: text({
+      describe: 'where an authorization code is redeemed',
+      hint: 'Called by henri from the server with the code and the client secret, so it never reaches a browser',
+    }),
     trusted: {
       default: false,
       describe: 'true or false',
@@ -261,6 +281,7 @@ const IDENTITY_PROVIDER = {
     },
     userinfoUrl: text({
       describe: "where the person's claims are read with the access token",
+      hint: 'What it answers is the profile henri reads: no id_token is ever parsed, so a provider that only signs its claims into one cannot be used',
     }),
   },
   required: [
@@ -283,15 +304,25 @@ const STORE = {
       required: true,
       type: 'string',
     },
-    database: text({ describe: 'a database name' }),
-    dbName: text({ default: 'henri', describe: 'a database name (disk)' }),
+    database: text({
+      describe: 'a database name',
+      hint: 'One of `host`, `port`, `database`, `username` and `password`, the long form of a connection; a `url` replaces all five',
+    }),
+    dbName: text({
+      default: 'henri',
+      describe: 'a database name (disk)',
+      hint: 'The disk adapter is the one that calls it that; every other adapter names it `database`',
+    }),
     dialect: {
       describe: `one of ${DIALECTS.join(', ')} (drizzle)`,
       enum: DIALECTS,
       hint: 'The application installs the driver: better-sqlite3, pg or mysql2',
       type: 'string',
     },
-    host: text({ describe: 'a host name (or a url, on mongoose)' }),
+    host: text({
+      describe: 'a host name (or a url, on mongoose)',
+      hint: 'With `port`, `database`, `username` and `password` it is the whole connection; a `url` replaces all five',
+    }),
     migrate: {
       describe: 'true or false',
       hint: 'drizzle: true applies db/migrations on a production boot',
@@ -299,16 +330,22 @@ const STORE = {
     },
     opts: {
       describe: 'an object of mongoose.connect() options',
+      hint: 'Handed to mongoose.connect() untouched; henri only sets connectTimeoutMS and serverSelectionTimeoutMS itself',
       type: 'object',
       unknown: 'allow',
     },
-    password: { type: 'string' },
+    password: {
+      hint: 'Never in a config/*.json, which is committed: put the connection in DATABASE_URL, in the credentials (`henri credentials:edit`) or in the environment',
+      type: 'string',
+    },
     path: text({
       default: '.henri/data',
       describe: 'a data directory, relative to the application (disk)',
+      hint: 'Where the local mongod keeps its files. The default is under .henri, which the scaffold already keeps out of git',
     }),
     port: {
       describe: 'a port number between 1 and 65535',
+      hint: "The database server's port; the one the application listens on is config.port",
       integer: true,
       max: 65535,
       min: 1,
@@ -316,6 +353,7 @@ const STORE = {
     },
     session: {
       describe: 'an object of session store options',
+      hint: 'Handed to the session store the adapter builds: connect-mongo on mongoose, the henri_sessions table on drizzle, connect-session-sequelize on mssql',
       type: 'object',
       unknown: 'allow',
     },
@@ -329,8 +367,14 @@ const STORE = {
       hint: 'SQL: false stops a development boot from bringing the schema up; on a Sequelize store true also lets a production boot create the tables that are missing, which it otherwise refuses to do',
       type: 'boolean',
     },
-    url: text({ describe: 'a connection string' }),
-    username: { type: 'string' },
+    url: text({
+      describe: 'a connection string',
+      hint: 'It replaces `host`, `port`, `database`, `username` and `password`; DATABASE_URL sets it for the default store',
+    }),
+    username: {
+      hint: 'With `password`, the long form of a connection; a `url` carries both',
+      type: 'string',
+    },
   },
   // Everything else reaches the driver (Sequelize takes `logging`, `pool`,
   // `dialectOptions`, ...), so only a misspelling is worth a word
@@ -360,6 +404,7 @@ const SCHEMA = {
 
   cors: {
     describe: 'true for the cors defaults, or an object of cors options',
+    hint: 'Absent means no cross-origin header at all, which is what a same-origin application wants; an object reaches the cors package unread, and whatever its origin allows csrf.trustedOrigins trusts',
     oneOf: [{ type: 'boolean' }, { type: 'object', unknown: 'allow' }],
   },
 
@@ -374,20 +419,33 @@ const SCHEMA = {
 
   inertia: {
     describe: 'an object of Inertia renderer options',
+    hint: 'Read by the inertia renderer alone: the keys rename the files it boots from, which henri new wrote into app/views, and turn server-side rendering off',
     keys: {
       entry: text({
         default: 'main.jsx',
         describe: 'a client entry, relative to app/views',
+        hint: 'The file Vite bundles for the browser, the one that calls createInertiaApp',
       }),
-      id: text({ default: 'app', describe: 'the id of the root element' }),
-      ssr: { default: true, type: 'boolean' },
+      id: text({
+        default: 'app',
+        describe: 'the id of the root element',
+        hint: 'It has to be the id of an element of inertia.template, which is what a page mounts into',
+      }),
+      ssr: {
+        default: true,
+        describe: 'true or false',
+        hint: 'false renders every page in the browser, so the first answer is an empty shell carrying the page object',
+        type: 'boolean',
+      },
       ssrEntry: text({
         default: 'ssr.jsx',
         describe: 'a server entry, relative to app/views',
+        hint: 'Built only while inertia.ssr is on: it renders the same pages without a browser and answers { head, body }',
       }),
       template: text({
         default: 'index.html',
         describe: 'an html shell, relative to app/views',
+        hint: 'The document henri fills: <!--head--> and <!--body--> receive the rendered page',
       }),
     },
     type: 'object',
@@ -395,7 +453,14 @@ const SCHEMA = {
 
   experimental: {
     describe: 'an object of renderer opt-ins',
-    keys: { vue: { type: 'boolean' } },
+    hint: 'The only opt-in henri has is { "vue": true }; a supported renderer needs nothing here',
+    keys: {
+      vue: {
+        describe: 'true or false',
+        hint: 'true loads the Vue/Nuxt renderer, which has not been exercised since 2020 and is not supported',
+        type: 'boolean',
+      },
+    },
     type: 'object',
   },
 
@@ -420,6 +485,7 @@ const SCHEMA = {
   user: {
     describe:
       'the name of the user model, or an object ({ model, public, loginPath, afterLogin, sessionMaxAge, password, lockout, signup, passwordReset, confirmation })',
+    hint: '"user" is the short form of { "model": "user" }; the object is where the sign-in paths, the password policy and the account flows go',
     oneOf: [
       text(),
       {
@@ -427,6 +493,7 @@ const SCHEMA = {
           afterLogin: text({
             default: '/',
             describe: 'a path to land on after a form login',
+            hint: 'Where a browser is redirected; a client asking for JSON is answered the user and never redirected',
           }),
           confirmation: {
             default: false,
@@ -444,6 +511,7 @@ const SCHEMA = {
                   emailPath: text({
                     default: '/account/email',
                     describe: 'where an account asks to change its address',
+                    hint: 'A POST from a signed-in account; the link goes to the new address and nothing changes until it is followed',
                   }),
                   enabled: {
                     default: true,
@@ -454,10 +522,12 @@ const SCHEMA = {
                   expiresIn: duration({
                     default: '3d',
                     describe: 'how long a confirmation link stays valid',
+                    hint: 'The token is signed rather than stored, so rotating config.secret invalidates every link already sent, whatever this says',
                   }),
                   path: text({
                     default: '/confirm',
                     describe: 'the prefix of the confirmation endpoints',
+                    hint: 'GET <path>/:token confirms an address, POST <path> mails the link again',
                   }),
                   required: {
                     default: false,
@@ -510,6 +580,7 @@ const SCHEMA = {
                   path: text({
                     default: '/auth',
                     describe: 'the prefix of the identity endpoints',
+                    hint: 'POST <path>/:provider, GET <path>/:provider/callback and POST <path>/:provider/unlink; the callback url registered with each provider has to match',
                   }),
                   providers: {
                     describe:
@@ -527,14 +598,17 @@ const SCHEMA = {
                   stateExpiresIn: duration({
                     default: '10m',
                     describe: 'how long one sign-in attempt stays valid',
+                    hint: 'How long a person has between the button and the callback; the state is minted per attempt, kept in the session and single use',
                   }),
                   table: text({
                     default: 'henri_identities',
                     describe: 'the table the identities live in',
+                    hint: 'henri creates it and owns it: a row is a credential, never a model',
                   }),
                   timeout: duration({
                     default: '10s',
                     describe: 'how long a provider has to answer',
+                    hint: 'One bound for the token request and for the userinfo request; a provider slower than this fails the sign-in',
                   }),
                 },
                 type: 'object',
@@ -552,6 +626,7 @@ const SCHEMA = {
                   max: {
                     default: 10,
                     describe: 'a number of failed attempts, above zero',
+                    hint: 'Failed attempts one account may receive per window, whoever sends them; rateLimit.auth is what bounds one client',
                     integer: true,
                     min: 1,
                     type: 'number',
@@ -565,6 +640,7 @@ const SCHEMA = {
                   windowMs: positive({
                     default: 900000,
                     describe: 'a window in milliseconds',
+                    hint: 'The window user.lockout.max is counted in; nothing else unlocks an account',
                   }),
                 },
                 type: 'object',
@@ -574,10 +650,16 @@ const SCHEMA = {
           loginPath: text({
             default: '/login',
             describe: 'a path to send denied browsers to',
+            hint: 'Where a browser goes when a route or a policy denies an anonymous visitor; a JSON client gets a 401 instead',
           }),
-          model: text({ default: 'user', describe: 'the user model name' }),
+          model: text({
+            default: 'user',
+            describe: 'the user model name',
+            hint: 'A model of app/models; henri adds email, password and roles to whichever one it names',
+          }),
           password: {
             describe: 'the password policy and the hashing parameters',
+            hint: 'The defaults are the safe ones (argon2id where @node-rs/argon2 resolves, bcrypt otherwise); lower nothing here without a reason',
             keys: {
               algorithm: text({
                 default: 'auto',
@@ -588,6 +670,7 @@ const SCHEMA = {
               bcryptRounds: {
                 default: 12,
                 describe: 'a bcrypt work factor, at least 10',
+                hint: 'Only read when bcrypt is what hashes; every step up doubles the work of a sign-in as well as an attacker',
                 integer: true,
                 min: 10,
                 type: 'number',
@@ -609,6 +692,7 @@ const SCHEMA = {
                       enabled: {
                         default: true,
                         describe: 'true or false',
+                        hint: 'false writes new hashes unbound; the bound ones keep verifying, because the marker in the column is what decides',
                         type: 'boolean',
                       },
                     },
@@ -627,6 +711,7 @@ const SCHEMA = {
               memoryCost: {
                 default: 19456,
                 describe: 'argon2id memory in kibibytes, at least 8',
+                hint: 'argon2id only, and the parameter that costs an attacker most; 19456 next to timeCost 2 and parallelism 1 is what OWASP recommends',
                 integer: true,
                 min: 8,
                 type: 'number',
@@ -634,6 +719,7 @@ const SCHEMA = {
               minLength: {
                 default: 12,
                 describe: 'a password length, at least 8',
+                hint: 'Checked when a password is set and never when one is verified, so raising it locks nobody out',
                 integer: true,
                 min: 8,
                 type: 'number',
@@ -641,6 +727,7 @@ const SCHEMA = {
               parallelism: {
                 default: 1,
                 describe: 'a number of argon2id lanes, at least 1',
+                hint: 'argon2id only; one lane is what OWASP recommends next to the default memoryCost',
                 integer: true,
                 min: 1,
                 type: 'number',
@@ -659,9 +746,13 @@ const SCHEMA = {
                         hint: 'false refuses hashes written before the pepper',
                         type: 'boolean',
                       },
-                      current: text({ describe: 'the key in force' }),
+                      current: text({
+                        describe: 'the key in force',
+                        hint: 'What every new hash is written under; a rotation moves the old key into `previous` rather than dropping it',
+                      }),
                       previous: {
                         describe: 'a list of keys it replaced',
+                        hint: 'Still accepted on the way in: a password that verified under one is written again under `current` at that sign-in, so a rotation ends when nothing verifies under them any more',
                         of: text(),
                         type: 'array',
                       },
@@ -674,6 +765,7 @@ const SCHEMA = {
               timeCost: {
                 default: 2,
                 describe: 'a number of argon2id iterations, at least 1',
+                hint: 'argon2id only; two iterations is what OWASP recommends next to the default memoryCost, and memory is the parameter to raise first',
                 integer: true,
                 min: 1,
                 type: 'number',
@@ -693,6 +785,7 @@ const SCHEMA = {
                   after: text({
                     default: '/',
                     describe: 'a path to land on once the password changed',
+                    hint: 'user.passwordReset.login is what decides whether the browser arrives there signed in',
                   }),
                   enabled: {
                     default: true,
@@ -703,6 +796,7 @@ const SCHEMA = {
                   expiresIn: duration({
                     default: '1h',
                     describe: 'how long a reset link stays valid',
+                    hint: 'A reset also stamps passwordChangedAt, which closes every session opened before it',
                   }),
                   login: {
                     default: true,
@@ -713,6 +807,7 @@ const SCHEMA = {
                   path: text({
                     default: '/password',
                     describe: 'the prefix of the reset endpoints',
+                    hint: 'POST <path>/forgot asks for the mail, GET <path>/reset/:token opens the form and POST <path>/reset writes the password',
                   }),
                 },
                 type: 'object',
@@ -728,6 +823,7 @@ const SCHEMA = {
           sessionMaxAge: positive({
             default: 2592000000,
             describe: 'a session lifetime in milliseconds',
+            hint: 'The lifetime of the session cookie, thirty days by default; rotating config.secret ends every session at once whatever this says',
           }),
           signup: {
             default: false,
@@ -741,6 +837,7 @@ const SCHEMA = {
                   after: text({
                     default: '/',
                     describe: 'a path to land on after a signup',
+                    hint: 'user.signup.login is what decides whether the browser arrives there signed in',
                   }),
                   enabled: {
                     default: true,
@@ -763,6 +860,7 @@ const SCHEMA = {
                   path: text({
                     default: '/signup',
                     describe: 'where the endpoint is mounted',
+                    hint: 'A POST here opens an account with email, password and the fields of user.signup.fields, and nothing else',
                   }),
                 },
                 type: 'object',
@@ -777,6 +875,7 @@ const SCHEMA = {
 
   baseRole: {
     describe: 'a role name, or a list of them',
+    hint: 'What the roles column of a new account is set to; without this key an account starts with none, and setRoles() is what changes them afterwards',
     oneOf: [text(), { of: text(), type: 'array' }],
   },
 
@@ -826,6 +925,7 @@ const SCHEMA = {
     default: true,
     describe:
       "express' trust proxy setting: a boolean, a hop count or a list of addresses",
+    hint: 'What express believes of X-Forwarded-For, which is what the rate limit counts by. Set false with no proxy in front; a blanket true behind one is also what makes the call log record no client address at all',
     oneOf: [
       { type: 'boolean' },
       { integer: true, min: 0, type: 'number' },
@@ -868,6 +968,7 @@ const SCHEMA = {
   graphql: {
     default: '/_henri/gql',
     describe: 'a path starting with /, or an object ({ endpoint, ... })',
+    hint: 'The path is the short form of { "endpoint": ... }; the object is where the guards and the query limits go. Serving any of it needs @usehenri/graphql in the application',
     oneOf: [
       text({ pattern: /^\//u }),
       {
@@ -881,6 +982,7 @@ const SCHEMA = {
           endpoint: text({
             default: '/_henri/gql',
             describe: 'a path starting with /',
+            hint: 'One path is the whole surface: graphql.authenticated, graphql.roles and graphql.loopbackOnly are what guard it, and moving it guards nothing',
             pattern: /^\//u,
           }),
           introspection: {
@@ -894,10 +996,18 @@ const SCHEMA = {
             hint: 'true answers 404 to anything but the loopback interface',
             type: 'boolean',
           },
-          maxAliases: limit(15),
-          maxComplexity: limit(1000),
-          maxDepth: limit(10),
-          maxTokens: limit(5000),
+          maxAliases: limit(15, {
+            hint: 'The most aliases one query may use. It needs no cycle and no deep schema to be worth refusing, which is why it is the strict one; false lifts it',
+          }),
+          maxComplexity: limit(1000, {
+            hint: 'The most fields one query may select, fragments expanded, which is what a fragment bomb inflates; false lifts it',
+          }),
+          maxDepth: limit(10, {
+            hint: 'The deepest query accepted. It only bites on a schema with somewhere deep to go, so it is the loosest of the three; false lifts it',
+          }),
+          maxTokens: limit(5000, {
+            hint: "The most tokens one document may hold. It is graphql's own parser bound, so it refuses a document before parsing it; false lifts it",
+          }),
           roles: {
             describe: 'a role name, or a list of them',
             hint: 'asking for a role implies authenticated',
@@ -911,17 +1021,23 @@ const SCHEMA = {
 
   mail: {
     describe: 'a nodemailer transport object, or "test"',
+    hint: 'Absent, henri warns at boot and sends nothing; "test" opens an Ethereal account, and anything else reaches nodemailer.createTransport() and is verified before the boot finishes',
     oneOf: [{ const: 'test' }, { type: 'object', unknown: 'allow' }],
   },
 
   mailers: {
     describe: 'an object of mailer defaults',
+    hint: "Defaults for every mailer of app/mailers; a mailer's own `defaults` wins over them, and config.mail is the transport that sends them",
     keys: {
-      from: text({ describe: 'a sender address' }),
+      from: text({
+        describe: 'a sender address',
+        hint: 'Used by every message that sets none of its own',
+      }),
       layout: {
         default: 'mailer',
         describe:
           'the name of a layout in app/views/mailers/layouts, or false for none',
+        hint: 'The file is app/views/mailers/layouts/<name>.hbs and it wraps every view around {{{body}}}',
         oneOf: [{ const: false }, text()],
       },
       previews: {
@@ -978,6 +1094,7 @@ const SCHEMA = {
               query: {
                 default: 'locale',
                 describe: 'a query parameter name, or false',
+                hint: 'The parameter of ?locale=fr; false takes that one step out of the order and turns nothing else off',
                 oneOf: [{ const: false }, text()],
               },
               user: {
@@ -1005,6 +1122,7 @@ const SCHEMA = {
           path: text({
             default: 'config/locales',
             describe: 'the directory the catalogues live in',
+            hint: 'A catalogue is <locale>.json, or <locale>/<namespace>.json for one file per area; a directory that is not there means no catalogue is read at all',
           }),
           serverOnly: {
             default: ['mailers'],
@@ -1021,10 +1139,12 @@ const SCHEMA = {
 
   api: {
     describe: 'an object of JSON API settings',
+    hint: 'A block of settings and not a switch: the JSON layer is always on, and these only change the paging, the Idempotency-Key window and how strict an answer has to be',
     keys: {
       idempotency: {
         describe:
           'false, or an object ({ ttl, store }) of Idempotency-Key settings',
+        hint: 'false stops honouring Idempotency-Key on every mutating route; one route opts out on its own with `idempotent: false`',
         oneOf: [
           { const: false },
           {
@@ -1056,6 +1176,7 @@ const SCHEMA = {
       maxPerPage: {
         default: 100,
         describe: 'a whole number of records, above zero',
+        hint: 'The ceiling on ?perPage=, which is what stops a client asking for the whole table in one answer',
         integer: true,
         min: 1,
         type: 'number',
@@ -1071,6 +1192,7 @@ const SCHEMA = {
       perPage: {
         default: 25,
         describe: 'a whole number of records, above zero',
+        hint: 'The page size req.pagination() takes when a request names none; api.maxPerPage is the ceiling on the one it does',
         integer: true,
         min: 1,
         type: 'number',
@@ -1091,23 +1213,36 @@ const SCHEMA = {
     keys: {
       backoff: {
         describe: 'an object ({ base, factor, jitter, max })',
+        hint: 'The wait before the next attempt is base x factor^(attempt - 1), capped at max and spread by jitter',
         keys: {
-          base: duration({ default: '5s' }),
-          factor: positive({ default: 4, describe: 'a number above zero' }),
+          base: duration({
+            default: '5s',
+            hint: 'The wait before the second attempt; every one after it is multiplied by jobs.backoff.factor',
+          }),
+          factor: positive({
+            default: 4,
+            describe: 'a number above zero',
+            hint: 'What each attempt multiplies the wait by, until jobs.backoff.max caps it',
+          }),
           jitter: {
             default: 0.15,
             describe: 'a number between 0 and 1',
+            hint: 'The share of the wait that is randomised, so a hundred jobs that failed together do not retry together',
             max: 1,
             min: 0,
             type: 'number',
           },
-          max: duration({ default: '1h' }),
+          max: duration({
+            default: '1h',
+            hint: 'The cap on the wait, however many attempts a job has had',
+          }),
         },
         type: 'object',
       },
       concurrency: {
         default: 5,
         describe: 'a whole number of jobs, above zero',
+        hint: 'How many jobs one runner performs at once; `henri jobs --concurrency` says it for one runner',
         integer: true,
         min: 1,
         type: 'number',
@@ -1118,11 +1253,19 @@ const SCHEMA = {
         hint: 'false stops the boot from creating the tables (henri jobs:install does)',
         type: 'boolean',
       },
-      keepCompleted: duration({ default: '1d' }),
-      mailQueue: text({ default: 'mailers', describe: 'a queue name' }),
+      keepCompleted: duration({
+        default: '1d',
+        hint: 'How long a finished job stays in the table before a runner prunes it; 0 keeps them forever',
+      }),
+      mailQueue: text({
+        default: 'mailers',
+        describe: 'a queue name',
+        hint: 'Where deliverLater() puts a rendered message; a runner has to be taking from it or nothing is sent',
+      }),
       maxArgsBytes: {
         default: 524288,
         describe: 'a whole number of bytes, above zero',
+        hint: 'The serialized arguments of one job; past it the enqueue fails rather than storing a truncated payload',
         integer: true,
         min: 1,
         type: 'number',
@@ -1130,36 +1273,67 @@ const SCHEMA = {
       maxAttempts: {
         default: 5,
         describe: 'a whole number of attempts, above zero',
+        hint: 'Attempts before a job goes to the dead letter queue, where `henri jobs:dead` finds it',
         integer: true,
         min: 1,
         type: 'number',
       },
-      pollInterval: duration({ default: '1s' }),
+      pollInterval: duration({
+        default: '1s',
+        hint: 'How often a runner looks for work while the queue is empty; never under 50ms',
+      }),
       priority: {
         default: 0,
         describe: 'a number (the higher, the sooner)',
+        hint: 'What a job file declaring no `priority` of its own gets',
         type: 'number',
       },
-      queue: text({ default: 'default', describe: 'a queue name' }),
+      queue: text({
+        default: 'default',
+        describe: 'a queue name',
+        hint: 'What a job file declaring no `queue` of its own gets; jobs.queues is what a runner takes from',
+      }),
       queues: {
         describe: "a list of queue names, or one string ('a,b')",
+        hint: 'What a runner takes from when `henri jobs` is given no --queue; the string form is comma separated',
         oneOf: [text(), { of: text(), type: 'array' }],
       },
       recurring: {
         describe: 'an object of schedules, by name',
+        hint: 'A runner is what puts them on the queue, so nothing recurs unless `henri jobs` is running somewhere',
         type: 'record',
         values: {
           hint: 'A schedule needs a "cron" or an "every", never both',
           keys: {
-            args: { describe: 'the arguments of the job', type: 'any' },
-            cron: text({ describe: 'a cron expression, read in UTC' }),
-            every: duration(),
+            args: {
+              describe: 'the arguments of the job',
+              hint: 'What perform(args) receives, the same value a henri.jobs.perform() call would pass',
+              type: 'any',
+            },
+            cron: text({
+              describe: 'a cron expression, read in UTC',
+              hint: "UTC whatever the server's zone is, and it has a minute of resolution; `every` is the other way to say when",
+            }),
+            every: duration({
+              hint: 'An interval counted from the last run; `cron` is the other way to say when, and a schedule takes one of the two',
+            }),
             job: text({
               describe: 'the job name (the schedule name by default)',
+              hint: 'The file of app/jobs to perform, so a schedule may be named for what it is for rather than for the job it runs',
             }),
-            name: text({ describe: 'an alias of `job`' }),
-            priority: { describe: 'a number', type: 'number' },
-            queue: text({ describe: 'a queue name' }),
+            name: text({
+              describe: 'an alias of `job`',
+              hint: 'Write one or the other; `job` is the spelling the guide uses',
+            }),
+            priority: {
+              describe: 'a number',
+              hint: 'The priority of what this schedule enqueues; jobs.priority is what it falls back to',
+              type: 'number',
+            },
+            queue: text({
+              describe: 'a queue name',
+              hint: 'The queue this schedule enqueues into; jobs.queue is what it falls back to',
+            }),
           },
           type: 'object',
         },
@@ -1167,15 +1341,21 @@ const SCHEMA = {
       store: text({
         default: 'default',
         describe: 'the name of a store of `stores`',
+        hint: 'Which of config.stores holds the queue; it is reached with raw SQL and never through a model',
       }),
-      stuckAfter: duration({ default: '5m' }),
+      stuckAfter: duration({
+        default: '5m',
+        hint: 'Without a heartbeat for that long a running job is taken to belong to a dead runner and put back, so keep it above the longest jobs.timeout',
+      }),
       table: text({
         default: 'henri_jobs',
         describe: 'a table name: letters, digits and underscores only',
+        hint: 'henri creates it, and the schedules live next to it in <table>_schedules',
         pattern: /^[A-Za-z_][A-Za-z0-9_]*$/u,
       }),
       timeout: {
         describe: "a duration, or null for 'no limit'",
+        hint: 'How long one attempt may take, for the jobs that set none of their own; with no limit jobs.stuckAfter is what recovers a runner that died mid-job',
         oneOf: [{ const: null }, duration()],
       },
     },
@@ -1200,17 +1380,29 @@ const SCHEMA = {
       },
       backoff: {
         describe: 'an object ({ base, factor, jitter, max })',
+        hint: 'The wait before the next attempt is base x factor^(attempt - 1), capped at max and spread by jitter',
         keys: {
-          base: duration({ default: '10s' }),
-          factor: positive({ default: 3, describe: 'a number above zero' }),
+          base: duration({
+            default: '10s',
+            hint: 'The wait before the second attempt; every one after it is multiplied by webhooks.backoff.factor',
+          }),
+          factor: positive({
+            default: 3,
+            describe: 'a number above zero',
+            hint: 'What each attempt multiplies the wait by, until webhooks.backoff.max caps it',
+          }),
           jitter: {
             default: 0.2,
             describe: 'a number between 0 and 1',
+            hint: 'The share of the wait that is randomised, so a receiver that refused a hundred deliveries is not retried by all of them at once',
             max: 1,
             min: 0,
             type: 'number',
           },
-          max: duration({ default: '6h' }),
+          max: duration({
+            default: '6h',
+            hint: 'The cap on the wait, however many attempts a delivery has had',
+          }),
         },
         type: 'object',
       },
@@ -1236,14 +1428,20 @@ const SCHEMA = {
         min: 1,
         type: 'number',
       },
-      queue: text({ default: 'webhooks', describe: 'a queue name' }),
+      queue: text({
+        default: 'webhooks',
+        describe: 'a queue name',
+        hint: 'A queue of its own, so a slow receiver never delays the rest of the work; `henri jobs:list --queue webhooks` is what shows the deliveries',
+      }),
       store: text({
         default: 'default',
         describe: 'the name of a store of `stores`',
+        hint: 'Which of config.stores holds the endpoints; there is no deliveries table, because a delivery is a job',
       }),
       table: text({
         default: 'henri_webhooks',
         describe: 'a table name: letters, digits and underscores only',
+        hint: 'henri creates it and owns it: an endpoint is a row, never a model',
         pattern: /^[A-Za-z_][A-Za-z0-9_]*$/u,
       }),
       timeout: duration({
@@ -1256,6 +1454,7 @@ const SCHEMA = {
 
   rateLimit: {
     describe: 'an object of limits, true for the defaults, or false for none',
+    hint: 'Nothing is counted in development whatever this says; true is the defaults and false lifts every limit',
     oneOf: [
       { type: 'boolean' },
       {
@@ -1263,30 +1462,43 @@ const SCHEMA = {
           auth: {
             describe:
               'false, or an object ({ windowMs, max, paths }) for the login paths',
+            hint: 'A second, tighter limit on the sign-in and account paths; false leaves them to the global one',
             oneOf: [
               { const: false },
               {
                 keys: {
-                  limit: positive({ describe: 'an alias of max' }),
+                  limit: positive({
+                    describe: 'an alias of max',
+                    hint: 'The name express-rate-limit 8 uses; write this one or `max`, never both',
+                  }),
                   max: positive({
                     default: 10,
                     describe: 'a number of requests per window, above zero',
+                    hint: 'Per window and per client, on the auth paths alone; user.lockout is the count kept per account',
                   }),
                   paths: {
                     describe: 'a list of paths to guard',
+                    hint: 'It replaces the list henri guards rather than adding to it',
                     of: text(),
                     type: 'array',
                   },
-                  windowMs: positive({ default: 60000 }),
+                  windowMs: positive({
+                    default: 60000,
+                    hint: 'The window rateLimit.auth.max is counted in',
+                  }),
                 },
                 type: 'object',
               },
             ],
           },
-          limit: positive({ describe: 'an alias of max' }),
+          limit: positive({
+            describe: 'an alias of max',
+            hint: 'The name express-rate-limit 8 uses; write this one or `max`, never both',
+          }),
           max: positive({
             default: 600,
             describe: 'a number of requests per window, above zero',
+            hint: 'Per window and per client over everything outside development; config.trustProxy is what decides which client that is',
           }),
           store: {
             describe:
@@ -1294,7 +1506,10 @@ const SCHEMA = {
             hint: 'defaults to config.shared; without one the count is per process',
             oneOf: [{ const: null }, text()],
           },
-          windowMs: positive({ default: 60000 }),
+          windowMs: positive({
+            default: 60000,
+            hint: 'The window rateLimit.max is counted in',
+          }),
         },
         type: 'object',
       },
@@ -1330,7 +1545,10 @@ const SCHEMA = {
         describe: 'a key prefix',
         hint: 'Two applications sharing one server need one prefix each',
       }),
-      url: text({ describe: 'a connection string (redis://, rediss://)' }),
+      url: text({
+        describe: 'a connection string (redis://, rediss://)',
+        hint: 'Where the backend listens; every other key of this block reaches the driver, so ioredis takes tls, db, password and sentinels next to it',
+      }),
     },
     // Everything else reaches the driver (ioredis takes `tls`, `db`,
     // `password`, `sentinels`, ...), so only a misspelling is worth a word
@@ -1407,6 +1625,7 @@ const SCHEMA = {
 
   helmet: {
     describe: 'an object of helmet options, or false to disable helmet',
+    hint: "What is written here is merged over henri's defaults rather than replacing them; false takes every security header off at once",
     oneOf: [{ const: false }, { type: 'object', unknown: 'allow' }],
   },
 
@@ -1427,11 +1646,13 @@ const SCHEMA = {
   filterParameters: {
     default: ['password', 'token', 'secret', 'authorization'],
     describe: 'a list of parameter names to mask, or false',
+    hint: 'The list replaces the defaults rather than adding to them, so name password, token, secret and authorization again next to your own; they are matched as substrings, and "encryption" is masked whatever this says',
     oneOf: [{ const: false }, { of: text(), type: 'array' }],
   },
 
   logs: {
     describe: 'an object of log settings',
+    hint: 'A block, not a level: `format` is the only key, and nothing here turns a log line off',
     keys: {
       format: {
         default: 'auto',
@@ -1878,6 +2099,7 @@ const SCHEMA = {
   bodyLimit: {
     default: '1mb',
     describe: 'a size, as a string ("1mb") or a number of bytes',
+    hint: 'It bounds a JSON or urlencoded body; a multipart one is bounded by uploads.maxTotalSize and uploads.maxFileSize instead',
     oneOf: [text(), positive({ describe: 'a number of bytes above zero' })],
   },
 
@@ -1898,6 +2120,7 @@ const SCHEMA = {
           maxFieldNameSize: {
             default: 100,
             describe: 'a whole number of bytes, above zero',
+            hint: 'The name of a form field; uploads.maxFieldSize is what bounds its value',
             integer: true,
             min: 1,
             type: 'number',
@@ -1905,8 +2128,13 @@ const SCHEMA = {
           maxFieldSize: sizeLimit({
             hint: 'One non-file part of the form; defaults to config.bodyLimit',
           }),
-          maxFields: limit(100),
-          maxFileSize: sizeLimit({ default: '10mb' }),
+          maxFields: limit(100, {
+            hint: 'How many non-file fields one request may carry; false lifts the bound',
+          }),
+          maxFileSize: sizeLimit({
+            default: '10mb',
+            hint: 'The largest single file; uploads.maxTotalSize is what bounds all the parts together',
+          }),
           maxFilenameLength: {
             default: 255,
             describe: 'a whole number of characters, above zero',
@@ -1915,8 +2143,13 @@ const SCHEMA = {
             min: 1,
             type: 'number',
           },
-          maxFiles: limit(10),
-          maxTotalSize: sizeLimit({ default: '25mb' }),
+          maxFiles: limit(10, {
+            hint: 'How many files one request may carry; false lifts the bound',
+          }),
+          maxTotalSize: sizeLimit({
+            default: '25mb',
+            hint: 'Every part together, checked against Content-Length before a parser is built and then counted as the bytes arrive',
+          }),
           paths: {
             describe: "a list of path prefixes ('/api/artworks')",
             hint: 'Without it a multipart body is read on every route that takes one',
@@ -1946,6 +2179,7 @@ const SCHEMA = {
                   adapter: {
                     describe:
                       "a backend name ('s3'), or the module id of a HenriStorage",
+                    hint: "A name that is not local resolves @usehenri/<name> from the application; the keys next to it are that backend's own (a bucket, a region, an endpoint) and henri reads none of them",
                     required: true,
                     type: 'string',
                   },
@@ -1975,6 +2209,7 @@ const SCHEMA = {
                     default: 300,
                     describe:
                       'a whole number of seconds, from 1 to 604800 (a week)',
+                    hint: 'Until it expires the url is a bearer capability: whoever holds the link gets the file, with no session and no policy. A week is the ceiling because it is what S3 honours',
                     integer: true,
                     max: 604800,
                     min: 1,
@@ -2002,17 +2237,20 @@ const SCHEMA = {
                 fit: {
                   default: 'cover',
                   describe: 'one of contain, cover, fill, inside, outside',
+                  hint: "sharp's, and it decides how the box is filled: cover crops to it, contain fits inside it and pads, fill stretches",
                   enum: ['contain', 'cover', 'fill', 'inside', 'outside'],
                   type: 'string',
                 },
                 format: {
                   default: 'webp',
                   describe: 'one of avif, jpeg, png, webp',
+                  hint: 'What the variant is encoded as, whatever the source was. The build of libvips has to carry it: avif is in the prebuilt binaries and missing from some distribution packages',
                   enum: ['avif', 'jpeg', 'png', 'webp'],
                   type: 'string',
                 },
                 height: {
                   describe: 'a whole number of pixels, from 1 to 8192',
+                  hint: 'With `width` it is the box `fit` fills; one of the two is enough, and a variant needs at least one',
                   integer: true,
                   max: 8192,
                   min: 1,
@@ -2021,6 +2259,7 @@ const SCHEMA = {
                 quality: {
                   default: 80,
                   describe: 'a whole number from 1 to 100',
+                  hint: 'What the encoder is asked for; it does not mean the same thing in two formats, so it is worth setting next to `format`',
                   integer: true,
                   max: 100,
                   min: 1,
@@ -2028,6 +2267,7 @@ const SCHEMA = {
                 },
                 width: {
                   describe: 'a whole number of pixels, from 1 to 8192',
+                  hint: 'With `height` it is the box `fit` fills; one of the two is enough, and a variant needs at least one',
                   integer: true,
                   max: 8192,
                   min: 1,
@@ -2046,11 +2286,13 @@ const SCHEMA = {
   requestTimeout: {
     default: 30000,
     describe: 'a number of milliseconds above zero, or false',
+    hint: 'A request with no answer by then is sent a 503, and nothing is sent once the headers are out (a stream, an event source). The handler keeps running either way: req.timedout is what it can read before doing more work',
     oneOf: [{ const: false }, positive()],
   },
 
   shutdown: {
     describe: 'an object of graceful shutdown settings',
+    hint: 'Keep shutdown.delay plus shutdown.drain under the termination grace period of the platform, which is thirty seconds on Kubernetes, so the process leaves before it is killed',
     keys: {
       delay: {
         default: 0,
@@ -2140,6 +2382,7 @@ const SCHEMA = {
 
   errors: {
     describe: 'an object of error code settings',
+    hint: 'The one key is `url`, the template that turns a code into a link; the codes themselves are always there and this block only decides whether a message carries an address',
     keys: {
       url: {
         describe: 'a url template holding {code}',

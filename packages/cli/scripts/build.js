@@ -2,7 +2,12 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const { CliError } = require('./errors');
-const { readConfig, resolveFrom, validInstall } = require('./utils');
+const {
+  detectPackageManager,
+  readConfig,
+  resolveFrom,
+  validInstall,
+} = require('./utils');
 
 /**
  * The view engines that need a production build, by renderer. Each module
@@ -41,10 +46,19 @@ const main = async () => {
   try {
     engine = require(resolveFrom(name, cwd));
   } catch (error) {
+    // The catalogue's fix for this code is "run the install command the
+    // message prints", so this one has to print it
+    const pm = detectPackageManager(cwd);
+    const add = pm === 'npm' ? 'npm install' : `${pm} add`;
+    const useHenri = name.replace(/\/engine$/u, '');
+
     throw new CliError(
       'HENRI_CLI_NOT_INSTALLED',
-      `${name.replace(/\/engine$/, '')} is not installed in this project (${error.message})`,
-      { cause: error }
+      `${useHenri} is not installed in this project (${error.message})`,
+      {
+        cause: error,
+        hint: `The "${renderer}" renderer is what asks for it: ${add} ${useHenri}, or set config.renderer to a renderer this application has`,
+      }
     );
   }
 

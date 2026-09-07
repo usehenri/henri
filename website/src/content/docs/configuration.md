@@ -936,6 +936,15 @@ config ✖ "secret" must be a string, but it is a number => from the credentials
 
 The source matters: `port must be a number` is unhelpful when the culprit is an environment variable three deployments away. A value the [filters](#headers-logs-and-limits) name, and anything the credentials provided, is printed as its type alone; the password of a connection string is always masked.
 
+**And what to do about it is on the next line.** Nearly every key of the schema carries one, and it says the thing the expectation could not: the command that fixes it, the other key that decides the same thing, the package the value needs, or the consequence of the value that arrived.
+
+```
+config ✖ "filterParameters[1]" must be a string, but it is the number 7 => from config/default.json
+config ✖ The list replaces the defaults rather than adding to them, so name password, token, secret and authorization again next to your own; they are matched as substrings, and "encryption" is masked whatever this says
+```
+
+An item of a list inherits the hint of the list, the way a value of a union inherits the union's: what to do about `retention.approved` is what to do about the token that is wrong inside it. Two keys carry no hint on purpose — where "a path to land on once the address is confirmed" leaves nothing to add, henri says nothing rather than padding.
+
 `henri server` exits `1` and `henri server --json` prints the same thing as `{ "error": { "code": "HENRI_CONFIG_INVALID", "message", "hint", "problems": [...] } }`, where each problem is `{ key, level, message, expected, received, source, hint }`. See [Error codes](/reference/errors/).
 
 **An unknown key is a warning, never a failure.** An application may carry keys of its own — `henri.config.get()` is how it reads them — so henri says it ignores the key and boots:
