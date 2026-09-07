@@ -1684,6 +1684,17 @@ Usually:
 
 The model files of app/models and the schema the adapters normalize.
 
+### `HENRI_MODEL_ADAPTER_UNSUPPORTED`
+
+henri cannot read the records of this model.
+
+Usually:
+
+- a model whose adapter is not mongoose, sequelize or drizzle
+- a model that left the application between the boot and the read
+
+**Fix.** henri reads records of its own -- an erasure, a retention sweep, an embedded relation, an export -- through the model API of the three adapters it ships. Make sure the store holding the model is the one the boot started. The caller usually raises a code of its own instead of this one; this is what is left when it did not.
+
 ### `HENRI_MODEL_ENUM_INVALID`
 
 A model field's `predicates` key is not one henri can read.
@@ -1718,17 +1729,6 @@ Usually:
 - a `policy.scope(user)` that is not a plain object handed to a scope
 
 **Fix.** An enum scope answers a condition and takes one, so `Model.live(where)` is `where AND status = 'live'` -- pass a plain object, or nothing. A scope that is not a plain object cannot have a condition put under it: answer one from `scope(user)`, or intersect it yourself.
-
-### `HENRI_MODEL_ADAPTER_UNSUPPORTED`
-
-henri cannot read the records of this model.
-
-Usually:
-
-- a model whose adapter is not mongoose, sequelize or drizzle
-- a model that left the application between the boot and the read
-
-**Fix.** henri reads records of its own -- an erasure, a retention sweep, an embedded relation, an export -- through the model API of the three adapters it ships. Make sure the store holding the model is the one the boot started. The caller usually raises a code of its own instead of this one; this is what is left when it did not.
 
 ### `HENRI_MODEL_FIELD_INCOMPLETE`
 

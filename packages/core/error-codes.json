@@ -1298,8 +1298,8 @@
       "area": "job",
       "causes": ["a job whose `perform()` never returned in time"],
       "code": "HENRI_JOB_TIMEOUT",
-      "fix": "Raise the job’s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
-      "what": "An attempt ran past the job’s timeout."
+      "fix": "Raise the job\u2019s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
+      "what": "An attempt ran past the job\u2019s timeout."
     },
     {
       "area": "job",
@@ -1554,6 +1554,16 @@
     {
       "area": "model",
       "causes": [
+        "a model whose adapter is not mongoose, sequelize or drizzle",
+        "a model that left the application between the boot and the read"
+      ],
+      "code": "HENRI_MODEL_ADAPTER_UNSUPPORTED",
+      "fix": "henri reads records of its own -- an erasure, a retention sweep, an embedded relation, an export -- through the model API of the three adapters it ships. Make sure the store holding the model is the one the boot started. The caller usually raises a code of its own instead of this one; this is what is left when it did not.",
+      "what": "henri cannot read the records of this model."
+    },
+    {
+      "area": "model",
+      "causes": [
         "`predicates` given something that is neither true, false nor a name",
         "`predicates: 'in review'`, or any string that is not one word"
       ],
@@ -1582,16 +1592,6 @@
       "code": "HENRI_MODEL_ENUM_UNMERGEABLE",
       "fix": "An enum scope answers a condition and takes one, so `Model.live(where)` is `where AND status = 'live'` -- pass a plain object, or nothing. A scope that is not a plain object cannot have a condition put under it: answer one from `scope(user)`, or intersect it yourself.",
       "what": "An enum scope was given something that is not a condition to narrow."
-    },
-    {
-      "area": "model",
-      "causes": [
-        "a model whose adapter is not mongoose, sequelize or drizzle",
-        "a model that left the application between the boot and the read"
-      ],
-      "code": "HENRI_MODEL_ADAPTER_UNSUPPORTED",
-      "fix": "henri reads records of its own -- an erasure, a retention sweep, an embedded relation, an export -- through the model API of the three adapters it ships. Make sure the store holding the model is the one the boot started. The caller usually raises a code of its own instead of this one; this is what is left when it did not.",
-      "what": "henri cannot read the records of this model."
     },
     {
       "area": "model",
@@ -2517,7 +2517,7 @@
         "a receiver answering 410 Gone, which also disables the endpoint"
       ],
       "code": "HENRI_WEBHOOK_DELIVERY_FAILED",
-      "fix": "The delivery is a job: it is retried with the queue’s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
+      "fix": "The delivery is a job: it is retried with the queue\u2019s backoff and lands in the dead letter queue when it runs out of attempts. `henri jobs:dead --queue webhooks` shows them, `henri jobs:retry <id>` sends one again.",
       "what": "A receiver refused a delivery."
     },
     {
