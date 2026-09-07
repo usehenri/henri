@@ -32,6 +32,13 @@
  * 404 below -- and a redirect is built from `record.externalId`, never from
  * the numeric id, which does not leave the server.
  *
+ * The model file is read back for more than the names: `hidden` is the
+ * columns marked `personal: { expose: false }`, which the pages leave out
+ * and FIELDS keeps -- henri strips them from every *answer* it builds, and
+ * a write is not an answer -- and `hasEnums` says the model declares an
+ * `enum` column, so `new` and `edit` send `Model.enums` for the `<select>`s
+ * of the form. See `fieldsOf()` in ../generate.js.
+ *
  * A model that declared `options: { slug: ... }` has a second public name,
  * and the urls of this resource carry that one instead (`base/slug.js`):
  * `slug` is true in the resource, the redirects are built from
@@ -98,10 +105,39 @@ const pageFile = ({ plural, renderer }, view) =>
 
 // --- the helpers every flavour shares --------------------------------------
 
-const fields = ({ keys }) => `
-// Attributes a request may set (see req.permit)
+const fields = (opts) => {
+  const { hidden = [], keys } = opts;
+  // A column marked `personal: { expose: false }` is dropped from every
+  // answer henri builds -- but a write is not an answer, so it stays in the
+  // list a request may set, and the comment says why it is still here
+  const note =
+    hidden.length === 0
+      ? ''
+      : `
+//
+// henri drops a field marked personal: { expose: false } from every answer
+// it builds${opts.pages === false ? '' : ', and no page shows one'}. A write is not an answer, so ${
+        hidden.length > 1 ? 'these are' : 'this one is'
+      }
+// still permitted here: ${hidden.join(', ')}`;
+
+  return `
+// Attributes a request may set (see req.permit)${note}
 const FIELDS = ${JSON.stringify(keys)};
 `;
+};
+
+/**
+ * The `enums` a page of this resource is rendered with: the model's own
+ * `{ column: [values] }`, which is what the <select> of an enum column
+ * offers. Sent rather than written into the page, because a list copied
+ * into a form is a copy of the schema that stops being true.
+ *
+ * @param {object} opts { doc, hasEnums }
+ * @returns {string} `enums: Post.enums, ` or nothing at all
+ */
+const enumsData = ({ doc, hasEnums }) =>
+  hasEnums ? `enums: ${doc}.enums, ` : '';
 
 const validationHelper = (opts) =>
   rendersInertia(opts) ? inertiaValidation(opts) : jsonValidation(opts);
@@ -172,11 +208,13 @@ const invalidCall = (opts, view) => {
     return 'return invalid(res, error);';
   }
 
-  // The edit page needs its record back; the new page renders without data
-  const data =
-    view === 'edit' ? `, { ${opts.lower}: req.${opts.lower} }` : '';
+  // The page is rendered again with what it needs: the edit page its
+  // record, and both pages the values their <select>s offer
+  const record = view === 'edit' ? `${opts.lower}: req.${opts.lower} ` : '';
+  const carried =
+    record || enumsData(opts) ? `, { ${enumsData(opts)}${record}}` : '';
 
-  return `return invalid(res, error, '/${opts.plural}/${view}'${data});`;
+  return `return invalid(res, error, '/${opts.plural}/${view}'${carried});`;
 };
 
 /**
@@ -406,8 +444,14 @@ const indexJson = (opts) => `
 
 const newC = (opts) => `
   // No answer, no res.render(): what an action returns is the data of its
-  // own page, here ${pageFile(opts, 'new')}
-  new: async () => ({}),`;
+  // own page, here ${pageFile(opts, 'new')}${
+    opts.hasEnums
+      ? `.
+  // ${opts.doc}.enums is { column: [values] } for every enum column of the
+  // model: the form's <select>s offer that list rather than a copy of it`
+      : ''
+  }
+  new: async () => ({ ${enumsData(opts)}}),`;
 
 const create = (opts) => `
   create: async (req, res) => {
@@ -439,7 +483,9 @@ const edit = (opts) => `
   edit: async (req, res) =>
     res.negotiate({
       html: () =>
-        res.render('/${opts.plural}/edit', { data: { ${opts.lower}: req.${opts.lower} } }),
+        res.render('/${opts.plural}/edit', {
+          data: { ${enumsData(opts)}${opts.lower}: req.${opts.lower} },
+        }),
       json: () => res.resource(req.${opts.lower}),
     }),`;
 

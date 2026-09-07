@@ -101,17 +101,72 @@ const main = async (args) => {
 };
 
 /**
+ * The values of `status:string:enum=draft,live`, the one setting an
+ * attribute takes after its type.
+ *
+ * It is the one mark of the schema a `name:type` pair could not express and
+ * the one the generated pages read back (a `<select>` rather than a text
+ * input, see `fieldsOf`), which is what earns it a spelling of its own; the
+ * grammar is closed at that single word on purpose, and everything else a
+ * column can say is written in the model file, where it is read.
+ *
+ * @param {string} attribute The attribute as typed
+ * @param {string} type The type it declared
+ * @param {string[]} rest What followed the type, split on `:`
+ * @returns {object} `{ enum: [...] }`, or nothing at all
+ * @throws {CliError} USAGE on anything but one readable `enum=`
+ */
+const parseSetting = (attribute, type, rest) => {
+  const hint = 'ex: status:string:enum=draft,live';
+
+  if (rest.length === 0) {
+    return {};
+  }
+
+  const [key, ...value] = rest.join(':').split('=');
+
+  if (key !== 'enum') {
+    throw new CliError(
+      'USAGE',
+      `Unknown setting "${key}" in "${attribute}". The only one is enum=<values>`,
+      { hint }
+    );
+  }
+
+  if (type !== 'string' && type !== 'text') {
+    throw new CliError(
+      'USAGE',
+      `enum= is only for a string or a text column ("${attribute}" is a ${type})`,
+      { hint }
+    );
+  }
+
+  const values = value.join('=').split(',');
+  const listed = new Set(values);
+
+  if (value.length === 0 || listed.has('') || listed.size !== values.length) {
+    throw new CliError(
+      'USAGE',
+      `Invalid enum values in "${attribute}": expected a comma separated list, each value once`,
+      { hint }
+    );
+  }
+
+  return { enum: values };
+};
+
+/**
  * Parse `name:type!` attributes into a schema
  *
  * @param {string[]} [attributes=[]] Attributes as typed on the command line
  * @returns {object} The schema ({ name: { type, required } })
- * @throws {CliError} USAGE on an unknown type
+ * @throws {CliError} USAGE on an unknown type or an unreadable setting
  */
 const parseAttributes = (attributes = []) => {
   const schema = {};
 
   for (const attribute of attributes) {
-    let [name, rawType = 'string'] = attribute.split(':');
+    let [name, rawType = 'string', ...rest] = attribute.split(':');
     let required = false;
 
     if (name.endsWith('!')) {
@@ -144,7 +199,10 @@ const parseAttributes = (attributes = []) => {
 
     // A decimal with no settings is 19 digits with 4 after the point,
     // which is not what somebody who typed `price:decimal` meant
-    const settings = type === 'decimal' ? DECIMAL_SETTINGS : {};
+    const settings = {
+      ...(type === 'decimal' ? DECIMAL_SETTINGS : {}),
+      ...parseSetting(attribute, type, rest),
+    };
 
     schema[name] = required
       ? { required: true, ...settings, type }
@@ -670,13 +728,7 @@ const scaffold = async (name, attributes = [], opts = {}) => {
  * @return {Promise<void>} Resolves when done
  */
 const resources = async (name, attributes = [], opts = {}) => {
-  const resource = {
-    ...names(name),
-    api: apiOf(process.cwd()),
-    keys: extractKeys(attributes),
-    renderer: rendererOf(process.cwd()),
-    slug: hasSlug(names(name).doc, opts),
-  };
+  const resource = resourceOf(name, attributes, opts);
   const generator = require('./generate/controllers');
 
   await output(
@@ -699,16 +751,15 @@ const resources = async (name, attributes = [], opts = {}) => {
  * @return {Promise<void>} Resolves when done
  */
 const crud = async (name, attributes = [], opts = {}) => {
-  const resource = {
-    ...names(name),
-    api: apiOf(process.cwd()),
-    keys: extractKeys(attributes),
-    renderer: rendererOf(process.cwd()),
-    slug: hasSlug(names(name).doc, opts),
-  };
   const generator = require('./generate/controllers');
 
+  // The model first, then read it back: the controller of a resource is
+  // written from what the model file says, whether this run wrote it or it
+  // was already there (see resourceOf)
   await model(name, attributes, opts);
+
+  const resource = resourceOf(name, attributes, opts);
+
   await output(
     'controller',
     'app/controllers',
@@ -722,7 +773,7 @@ const crud = async (name, attributes = [], opts = {}) => {
 /**
  * Handle views processing
  *
- * @param {object} resource { doc, lower, plural, keys, renderer }
+ * @param {object} resource { doc, lower, plural, fields, renderer }
  * @param {object} [opts] { force, report }
  * @returns {Promise<void>} Resolves when written
  */
@@ -742,6 +793,42 @@ const extractKeys = (args = []) =>
   args.map((val) => val.split(':')[0].replace(/!$/, ''));
 
 /**
+ * Is this an object with keys -- a mark, rather than a bare value?
+ *
+ * @param {*} value anything
+ * @returns {boolean} true for a plain object
+ */
+const isObject = (value) =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * The model file of a resource, read off the disk without booting henri.
+ *
+ * The one way this command reads a model: `--slug` was the first caller and
+ * the marks a page honours are the second. A file that will not load is a
+ * boot failure, not this command's to report, so it answers null and every
+ * caller writes what it always wrote.
+ *
+ * @param {string} doc The model's global id (ex: Article)
+ * @returns {?object} The model file, or null
+ */
+const modelFileOf = (doc) => {
+  const location = path.join(process.cwd(), 'app', 'models', `${doc}.js`);
+
+  if (!fs.existsSync(location)) {
+    return null;
+  }
+
+  try {
+    delete require.cache[require.resolve(location)];
+
+    return require(location);
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Does this model carry a slug -- the name a person reads in a url?
  *
  * `--slug` says so for a model this run is writing; for one that is already
@@ -758,34 +845,107 @@ const hasSlug = (doc, opts = {}) => {
     return true;
   }
 
-  const location = path.join(process.cwd(), 'app', 'models', `${doc}.js`);
+  const declared = ((modelFileOf(doc) || {}).options || {}).slug;
 
-  if (!fs.existsSync(location)) {
-    return false;
+  return Boolean(
+    typeof declared === 'string'
+      ? declared
+      : isObject(declared) && declared.from
+  );
+};
+
+/**
+ * What the model file says about the fields the command line named.
+ *
+ * The command line names the fields (`title:string!`) and the model file
+ * says what each of them is -- the one this run just wrote, or the one that
+ * was already there, read the way the slug is. Which is what makes a mark
+ * no `name:type` pair can express reach the pages anyway: `henri new`
+ * writes the sample `Task` model by hand, with an `enum` on `category`, and
+ * calls this generator with `category:string` right after.
+ *
+ * Three marks change a page:
+ *
+ * - **`enum`** is the values the column may hold, so the field is a
+ *   `<select>` rather than a text input. Its options are `Model.enums`,
+ *   which the controller sends: a list written into the page would be a
+ *   copy of the schema that stops being true (`guides/models.md`).
+ * - **`required`** is the `required` attribute of the input, from the model
+ *   file or from the `!` of the command line.
+ * - **`personal: { expose: false }`** is a column henri drops from every
+ *   answer it builds, at every depth, so the field is not written at all: a
+ *   table column that is empty forever, and a form that shows the empty
+ *   string it had to show and posts it back over the stored value. The
+ *   controller still permits it -- an answer is not a write -- and the
+ *   FIELDS comment says so.
+ *
+ * A field that is `personal` without saying `expose: false` is left alone:
+ * whether it is stripped is `config.privacy.expose`, which is per
+ * environment, and a page is one file for all of them.
+ *
+ * @param {string} doc The model's global id (ex: Task)
+ * @param {string[]} [attributes=[]] The attributes as typed on the command line
+ * @returns {{fields: Array<object>, hidden: Array<string>}} what to write
+ *   ({ enum, name, required } per visible field) and what never leaves
+ */
+const fieldsOf = (doc, attributes = []) => {
+  const typed = parseAttributes(attributes);
+  const model = modelFileOf(doc);
+  const declared =
+    isObject(model) && isObject(model.schema) ? model.schema : {};
+  const fields = [];
+  const hidden = [];
+
+  for (const name of Object.keys(typed)) {
+    const definition = isObject(declared[name]) ? declared[name] : typed[name];
+    const personal = definition.personal;
+
+    if (isObject(personal) && personal.expose === false) {
+      hidden.push(name);
+      continue;
+    }
+
+    fields.push({
+      enum: Array.isArray(definition.enum) ? definition.enum : null,
+      name,
+      required: definition.required === true,
+    });
   }
 
-  try {
-    delete require.cache[require.resolve(location)];
+  return { fields, hidden };
+};
 
-    const declared = (require(location).options || {}).slug;
+/**
+ * What a controller and its pages are written from: the names, the model
+ * API of the store, the renderer of the application, the fields the command
+ * line named and what the model file says about them
+ *
+ * @param {string} name Model name (singular, ex: Post)
+ * @param {string[]} [attributes=[]] Attributes (name:type!)
+ * @param {object} [opts] { slug }
+ * @returns {object} The resource
+ */
+const resourceOf = (name, attributes = [], opts = {}) => {
+  const named = names(name);
+  const { fields, hidden } = fieldsOf(named.doc, attributes);
 
-    return Boolean(
-      typeof declared === 'string'
-        ? declared
-        : declared && typeof declared === 'object' && declared.from
-    );
-  } catch {
-    // A model file that will not load is a boot failure, not this
-    // command's to report: it writes the urls it always wrote
-    return false;
-  }
+  return {
+    ...named,
+    api: apiOf(process.cwd()),
+    fields,
+    hasEnums: fields.some((field) => field.enum),
+    hidden,
+    keys: extractKeys(attributes),
+    renderer: rendererOf(process.cwd()),
+    slug: hasSlug(named.doc, opts),
+  };
 };
 
 /**
  * Compile one view template into app/views/pages/<plural>/<view>, a `.jsx`
  * page for the Inertia renderer and a `.js` one for the Next.js renderer
  *
- * @param {object} resource { doc, lower, plural, keys, view, renderer }
+ * @param {object} resource { doc, lower, plural, fields, view, renderer }
  * @param {object} [opts] { force, report }
  * @return {Promise<boolean>} True when written
  */
@@ -794,7 +954,8 @@ const compileView = async (
     doc,
     lower,
     plural,
-    keys = [],
+    fields = [],
+    hasEnums = false,
     slug = false,
     view = 'index',
     renderer = DEFAULT_RENDERER,
@@ -813,8 +974,9 @@ const compileView = async (
     `${view}.${PAGE_EXTENSIONS[renderer]}`,
     template({
       doc,
+      fields,
+      hasEnums,
       identifier: slug ? 'slug' : 'externalId',
-      keys,
       lower,
       plural,
     }),

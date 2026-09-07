@@ -820,6 +820,12 @@ const storeNotice = (store) => {
 /**
  * The sample Task resource: model, controller, routes, views and a test
  *
+ * The model is written here rather than by the generator because of the
+ * `default` on `category`, which no `name:type` pair can express. The
+ * `enum` next to it is read back: the generator runs over the file this
+ * wrote, so the scaffolded form gets a `<select>` of those four values
+ * (`fieldsOf` in scripts/generate.js).
+ *
  * @param {boolean} force Overwrite existing files
  * @returns {Promise<void>} Resolves when written
  */

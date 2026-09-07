@@ -716,7 +716,12 @@ const COMMANDS = [
       'in the henri layout. Existing files are skipped; --force overwrites',
       'them.',
       `Field types: ${FIELD_TYPES} (default: string).`,
-      'A trailing ! makes the field required.',
+      'A trailing ! makes the field required, and :enum=draft,live says the',
+      'values a string column may hold.',
+      'The pages follow the model file: an enum column is a <select> of the',
+      "list the controller sends (Model.enums), a required column's input is",
+      'required, and a column marked personal: { expose: false } -- which',
+      'henri strips from every answer it builds -- is on no page at all.',
       'Scaffolded controllers answer HAL to JSON clients (Accept:',
       'application/json or application/hal+json): res.collection() for the',
       'index (paginated with ?page=&per_page=), res.resource() for one',
@@ -743,6 +748,12 @@ const COMMANDS = [
         command: 'henri g scaffold Article title:string! --slug title',
         description:
           'The same, with a slug: the urls carry /articles/how-we-ship rather than the uuid',
+      },
+      {
+        command:
+          'henri g scaffold Post title:string! status:string:enum=draft,live',
+        description:
+          'A column that can only hold those values: the form gets a <select> of them, not a text input',
       },
       {
         command: 'henri g worker cleanup',
@@ -789,8 +800,9 @@ const COMMANDS = [
       'write models, controllers, routes, views, mailers, workers and tests',
     targets: [
       {
-        description: 'app/models/<Name>.js (singular, PascalCase)',
-        name: 'model <Name> [field:type[!] ...]',
+        description:
+          'app/models/<Name>.js (singular, PascalCase). A field is name:type, ! marks it required and :enum=a,b,c the values it may hold',
+        name: 'model <Name> [field:type[!][:enum=a,b] ...]',
       },
       {
         description: 'app/controllers/<name>.js and one route per action',
@@ -820,12 +832,12 @@ const COMMANDS = [
       },
       {
         description: 'model, JSON controller and the crud routes',
-        name: 'crud <Name> [field:type[!] ...] [--slug <field>]',
+        name: 'crud <Name> [field:type[!][:enum=a,b] ...] [--slug <field>]',
       },
       {
         description:
-          'model, resources controller, resources routes and the pages. `--slug <field>` gives the model a name a person reads in a url and writes the controller and the pages to use it',
-        name: 'scaffold <Name> [field:type[!] ...] [--slug <field>]',
+          'model, resources controller, resources routes and the pages. The pages follow the model file: an enum column is a <select>, a required one a required input, and a column marked personal: { expose: false } is on no page at all. `--slug <field>` gives the model a name a person reads in a url and writes the controller and the pages to use it',
+        name: 'scaffold <Name> [field:type[!][:enum=a,b] ...] [--slug <field>]',
       },
       {
         description:

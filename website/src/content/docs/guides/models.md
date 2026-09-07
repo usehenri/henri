@@ -251,6 +251,8 @@ Never index a model with a string that came from a request: `Post[req.query.stat
 res.render('/posts', { data: { states: Post.enums.status, posts } });
 ```
 
+This is what a scaffolded page already does: `henri generate scaffold` writes a `new` and an `edit` action that send `Post.enums`, and a form whose `<select>` maps over the list it was given. Regenerate the pages of a model that grew an `enum` (`--force`) to pick it up.
+
 ### The names
 
 `draft` gives `isDraft` and `draft`. `in_review`, `in-review`, `IN_REVIEW` and `InReview` all give `inReview`: the value is split on everything that is not a letter or a digit and at every lower-to-upper boundary, then camel cased. Two values of one model that come out the same name are refused, because they would be the same method.
@@ -694,7 +696,13 @@ On Mongoose the behaviour is a schema plugin: it adds the `deletedAt` path, a qu
 henri generate model Post title:string! body:text published:boolean views:integer
 ```
 
-writes `app/models/Post.js` with one field per `name:type` argument (`string` when the type is omitted, `!` marks it required) and refuses unknown types. `henri generate scaffold` and `crud` start with the same model and add the controller, routes and views; see the [CLI reference](/reference/cli/#generators).
+writes `app/models/Post.js` with one field per `name:type` argument (`string` when the type is omitted, `!` marks it required) and refuses unknown types. One setting follows the type, `:enum=draft,in_review,live`, and it is there because it is the mark the generated pages read back:
+
+```bash
+henri generate scaffold Post title:string! status:string:enum=draft,in_review,live
+```
+
+writes the column, the [predicates and the scopes](#enums-predicates-scopes-and-the-list) that come with it, and a form whose `status` field is a `<select>` of those values rather than a text input. Everything else a column can say — a `default`, `unique`, `index`, a `personal` mark — is written in the model file, which is where the generators read it: a `henri generate scaffold` or `crud` run over a model that already exists follows what that file says. `henri generate scaffold` and `crud` start with the same model and add the controller, routes and views; see the [CLI reference](/reference/cli/#generators).
 
 ## Querying
 

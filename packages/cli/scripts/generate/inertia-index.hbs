@@ -36,8 +36,8 @@ export default function Index() {
         <table className="w-full text-left">
           <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
             <tr>
-              {{#each keys}}
-              <th className="px-4 py-2 font-medium">{{this}}</th>
+              {{#each fields}}
+              <th className="px-4 py-2 font-medium">{{name}}</th>
               {{/each}}
               <th className="px-4 py-2 text-right font-medium">Actions</th>
             </tr>
@@ -47,7 +47,7 @@ export default function Index() {
               <tr>
                 <td
                   className="px-4 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400"
-                  colSpan={ {{keys.length}} + 1}
+                  colSpan={ {{fields.length}} + 1}
                 >
                   Nothing to show
                 </td>
@@ -58,8 +58,8 @@ export default function Index() {
                 key={item.{{identifier}} }
                 className="hover:bg-zinc-50 dark:hover:bg-zinc-900"
               >
-                {{#each keys}}
-                <td className={cell}>{String(item.{{this}} ?? '')}</td>
+                {{#each fields}}
+                <td className={cell}>{String(item.{{name}} ?? '')}</td>
                 {{/each}}
                 <td className={`${cell} space-x-4 whitespace-nowrap text-right`}>
                   <Link className={link} href={getRoute('show_{{plural}}_path', item.{{identifier}})}>

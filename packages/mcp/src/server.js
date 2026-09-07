@@ -21,7 +21,8 @@ const { version } = require('../package.json');
  */
 const NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 const CONTROLLER = /^[A-Za-z][A-Za-z0-9_]*(\/[A-Za-z][A-Za-z0-9_]*)*$/;
-const ATTRIBUTE = /^[A-Za-z_][A-Za-z0-9_]*!?(:[A-Za-z]+!?)?$/;
+const ATTRIBUTE =
+  /^[A-Za-z_][A-Za-z0-9_]*!?(:[A-Za-z]+!?(:enum=[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*)?)?$/;
 const ACTION = /^[a-z][A-Za-z0-9_]*$/;
 const ROUTE_KEY = /^([a-z-]+ )?\/[A-Za-z0-9_\-/:.]*$/i;
 const TEST_FILE = /^(?!-)[A-Za-z0-9_.\-/]+$/;
@@ -609,7 +610,7 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
     {
       annotations: { destructiveHint: false, idempotentHint: false },
       description:
-        'Runs a henri generator (the same as `henri generate`) and returns the files written, the files skipped and the routes added. scaffold/model/crud take attributes ("title:string!", "body:text"; types: string, text, number, integer, float, decimal, bigint, boolean, date, json, uuid; ! = required), controller and mailer take action names, authentication and agents take nothing. `authentication` turns the account flows on in config/*.json and writes the pages, the controller, the mailer and the tests around the endpoints henri mounts. Existing files are skipped unless force is true.',
+        'Runs a henri generator (the same as `henri generate`) and returns the files written, the files skipped and the routes added. scaffold/model/crud take attributes ("title:string!", "body:text", "status:string:enum=draft,live"; types: string, text, number, integer, float, decimal, bigint, boolean, date, json, uuid; ! = required, :enum= the values a string column may hold), controller and mailer take action names, authentication and agents take nothing. `authentication` turns the account flows on in config/*.json and writes the pages, the controller, the mailer and the tests around the endpoints henri mounts. Existing files are skipped unless force is true.',
       inputSchema: {
         actions: zod
           .array(zod.string().regex(ACTION))
@@ -618,7 +619,9 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
         attributes: zod
           .array(zod.string().regex(ATTRIBUTE))
           .optional()
-          .describe('scaffold, model, crud: name:type! attributes'),
+          .describe(
+            'scaffold, model, crud: name:type! attributes, optionally :enum=a,b'
+          ),
         force: zod
           .boolean()
           .optional()

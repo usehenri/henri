@@ -73,7 +73,7 @@ henri server
 └── vitest.config.js
 ```
 
-If you have a Ruby on Rails background, this should look familiar. The sample resource is a regular scaffold (`henri generate scaffold Task name:string! category:string done:boolean` writes the same files); `henri destroy scaffold Task` removes it.
+If you have a Ruby on Rails background, this should look familiar. The sample resource is a regular scaffold (`henri generate scaffold Task name:string! category:string:enum=urgent,high,medium,low done:boolean` writes the same files, bar the default the sample `category` carries); `henri destroy scaffold Task` removes it. Its form shows what the generator reads off the model: `name` is required so its input is, and `category` can only hold four values so it is a `<select>` of them.
 
 The pages are styled: [Tailwind CSS](https://tailwindcss.com) v4 is wired for the renderer you picked, `app/views/styles/index.css` is the whole stylesheet, and dark mode follows the operating system. Everything the generators write from now on is styled the same way. See [Views](/guides/views/#styles) for the theme, the `@source` globs and how to opt out.
 

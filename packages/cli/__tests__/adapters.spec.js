@@ -427,7 +427,11 @@ describe('the scaffolded resource follows the adapter', () => {
     expect(controller).toContain(
       'req.task = await Task.findById(req.params.id)'
     );
-    expect(controller).toContain("invalid(res, error, '/tasks/new')");
+    // The sample model's `category` column is an enum, so the page it
+    // renders again is sent the values its <select> offers
+    expect(controller).toContain(
+      "invalid(res, error, '/tasks/new', { enums: Task.enums })"
+    );
     expect(controller).toContain('res.inertia.errors(errors)');
     // An API client still gets the 422, on the same route
     expect(controller).toContain('res.boom.badData(error.message, { errors })');

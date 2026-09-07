@@ -644,7 +644,7 @@ const generators = (facts) => {
 ${lines.join('\n')}
 \`\`\`
 
-Types are \`string, text, number, integer, float, decimal, bigint, boolean, date, json, uuid\`, and a trailing \`!\` makes the field required. \`Post\` gives \`posts\` (\`Category\` -> \`categories\`, \`Person\` -> \`people\`). An existing file is skipped unless \`--force\`; \`--json\` prints the files written or removed and the routes added. The generators rewrite \`config/routes.js\` through prettier, so comments in that file are lost. Regenerate this file with \`henri generate agents\` whenever the application changes shape.`;
+Types are \`string, text, number, integer, float, decimal, bigint, boolean, date, json, uuid\`, a trailing \`!\` makes the field required and \`status:string:enum=draft,live\` says the values a column may hold. \`Post\` gives \`posts\` (\`Category\` -> \`categories\`, \`Person\` -> \`people\`). The scaffolded pages follow the model file, so regenerating them (\`--force\`) after a mark changed is how they catch up: an \`enum\` column is a \`<select>\` of \`Model.enums\`, a required one a required input, and a field marked \`personal: { expose: false }\` is on no page at all. An existing file is skipped unless \`--force\`; \`--json\` prints the files written or removed and the routes added. The generators rewrite \`config/routes.js\` through prettier, so comments in that file are lost. Regenerate this file with \`henri generate agents\` whenever the application changes shape.`;
 };
 
 /**
