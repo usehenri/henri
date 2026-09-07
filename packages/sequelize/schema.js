@@ -399,6 +399,17 @@ const normalizeField = (
       // Marks for henri, and nothing Sequelize has to know about: the
       // encryption one and the decimal column are applied below, once the
       // type has resolved
+    } else if (key === 'validate' && typeof value === 'function') {
+      // Sequelize's `validate` is an object of named validators, so a
+      // function there is read as nothing and does nothing -- while the
+      // same line on the drizzle and mongoose adapters is a validator that
+      // runs. `validates` is the spelling that means one thing everywhere
+      throw coded(
+        'HENRI_MODEL_INVALID_FIELD',
+        `Field '${field}' of ${
+          (context && context.model) || 'the model'
+        } has a \`validate\` function, which Sequelize reads as nothing: its own \`validate\` is an object of named validators. Write it in the model's \`validates\` block instead -- validates: { ${field}: { validate: (value, record) => ... } } -- which runs on every write path of every adapter`
+      );
     } else if (KNOWN_KEYS.has(key)) {
       attribute[key] = value;
     } else {

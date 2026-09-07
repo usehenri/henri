@@ -6,6 +6,12 @@ const {
   resolvesKeys,
   uuidv7,
 } = require('./external-id');
+const {
+  massWrite,
+  problemsOf,
+  uncheckedWrite,
+  wantsRecord,
+} = require('./validations');
 
 /**
  * The Rails behaviours henri adds to Mongoose models: `paginate()` and the
@@ -460,10 +466,186 @@ const externalId = (schema) => {
   return schema;
 };
 
+/** The query middleware a write with attributes goes through */
+const WRITE_HOOKS = [
+  'findOneAndReplace',
+  'findOneAndUpdate',
+  'replaceOne',
+  'updateMany',
+  'updateOne',
+];
+
+/** The ones of those that name a single document, so it can be read */
+const ONE_HOOKS = new Set([
+  'findOneAndReplace',
+  'findOneAndUpdate',
+  'replaceOne',
+  'updateOne',
+]);
+
+/** Mongo update operators henri can read a value out of */
+const SETTERS = ['$set', '$setOnInsert'];
+
+/**
+ * The values a query update writes, and the fields it changes some other
+ * way
+ *
+ * A `$set` and a plain document are values henri can check. `$unset` takes
+ * the value away, which `required` is exactly about, so it arrives as
+ * `undefined`. Every other operator (`$inc`, `$push`, `$mul`, ...) changes
+ * a field by describing the change rather than the result, and there is
+ * nothing to measure until the server has done it.
+ *
+ * @param {*} update What `getUpdate()` answered
+ * @returns {{values: object, opaque: Array<string>}} The values, and the
+ *   fields changed by an operator henri cannot read
+ */
+const updateValues = (update) => {
+  const values = {};
+  const opaque = [];
+
+  if (!update || typeof update !== 'object' || Array.isArray(update)) {
+    return { opaque, values };
+  }
+
+  for (const [key, value] of Object.entries(update)) {
+    if (!key.startsWith('$')) {
+      values[key] = value;
+
+      continue;
+    }
+
+    if (SETTERS.includes(key)) {
+      Object.assign(values, value);
+
+      continue;
+    }
+
+    if (key === '$unset') {
+      for (const field of Object.keys(value || {})) {
+        values[field] = undefined;
+      }
+
+      continue;
+    }
+
+    opaque.push(...Object.keys(value || {}));
+  }
+
+  return { opaque, values };
+};
+
+/**
+ * What a model's `validates` block declared, on every Mongoose write.
+ *
+ * Mongoose runs its own validators on `save()`, `create()` and
+ * `insertMany()` and on nothing else: `updateOne`, `updateMany` and
+ * `findOneAndUpdate` write straight past `required` and `enum` unless the
+ * caller remembers `runValidators` on that one call. That is the hole this
+ * closes, and it is why the rules are registered twice -- once as document
+ * middleware and once as query middleware.
+ *
+ * On a document the failure goes through `invalidate()`, so what a
+ * controller catches is the `ValidationError` Mongoose already answers
+ * with, carrying henri's sentence (the argument is in the header of
+ * ./exact-paths.js). On a query there is no document to invalidate, so one
+ * is thrown with the same shape.
+ *
+ * @param {object} schema The Mongoose schema
+ * @param {object} rules The compiled rules (./validations.js)
+ * @param {string} model The model's global id, for the messages
+ * @returns {object} The schema
+ */
+const validations = (schema, rules, model) => {
+  /**
+   * The error a query update gets, in the shape a document would have
+   *
+   * @param {object} problems `{ field: message }`
+   * @param {object} values The values being written
+   * @returns {Error} A ValidationError
+   */
+  const failure = (problems, values) => {
+    const details = Object.entries(problems)
+      .map(([field, message]) => `${field}: ${message}`)
+      .join(', ');
+    const error = new Error(`${model} validation failed: ${details}`);
+
+    error.name = 'ValidationError';
+    error.errors = Object.fromEntries(
+      Object.entries(problems).map(([field, message]) => [
+        field,
+        { kind: 'validates', message, path: field, value: values[field] },
+      ])
+    );
+
+    return error;
+  };
+
+  schema.pre('validate', function henriValidates() {
+    const record = this.toObject({ depopulate: true, virtuals: false });
+    const problems = problemsOf(rules, record, {
+      partial: false,
+      record,
+    });
+
+    for (const [field, message] of Object.entries(problems || {})) {
+      this.invalidate(field, message, record[field]);
+    }
+  });
+
+  schema.pre(WRITE_HOOKS, async function henriValidatesUpdate() {
+    const { opaque, values } = updateValues(this.getUpdate());
+    const changed = opaque.filter((field) => rules[field]);
+
+    if (changed.length > 0) {
+      throw uncheckedWrite(
+        model,
+        this.op,
+        `${changed.join(' and ')} ${changed.length === 1 ? 'is' : 'are'} changed by an operator rather than set to a value. Read the record, change it and save it, which is checked.`
+      );
+    }
+
+    const wanted = wantsRecord(rules, values);
+    let record = null;
+
+    if (wanted.length > 0) {
+      if (!ONE_HOOKS.has(this.op)) {
+        throw massWrite(model, this.op, 'update(attrs)', wanted);
+      }
+
+      // One document is named, so the rule that asked for it gets it,
+      // the way `findByIdAndUpdate` reads one on the drizzle adapter
+      const found = await this.model.findOne(this.getFilter()).lean();
+
+      record = found ? { ...found, ...values } : values;
+    }
+
+    const problems = problemsOf(rules, values, {
+      partial: true,
+      record: record || values,
+    });
+
+    if (problems) {
+      throw failure(problems, values);
+    }
+  });
+
+  schema.pre('bulkWrite', function henriValidatesBulk() {
+    throw uncheckedWrite(
+      model,
+      'bulkWrite',
+      'Mongoose runs no middleware for the operations of a bulk write, so henri never sees what they write. Use create(), insertMany() or one update per record, all of which are checked.'
+    );
+  });
+
+  return schema;
+};
+
 module.exports = {
   DELETE_STATICS,
   NOTHING,
   READ_HOOKS,
+  WRITE_HOOKS,
   externalId,
   idFilter,
   keyFilter,
@@ -471,4 +653,6 @@ module.exports = {
   owned,
   paginate,
   paranoid,
+  updateValues,
+  validations,
 };

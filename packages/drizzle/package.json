@@ -29,6 +29,7 @@
     "types.js",
     "utils.js",
     "validation.js",
+    "validations.js",
     "encrypted.js",
     "encryption.js",
     "versions.js"

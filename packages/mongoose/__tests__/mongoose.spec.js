@@ -235,7 +235,10 @@ describe('mongoose adapter', () => {
       });
 
       expect(definition.active).toBe(Boolean);
-      expect(definition.age).toEqual({ required: true, type: Number });
+      // `required` on a field whose type henri knows is henri's, checked
+      // by ./validations.js on every write path rather than by Mongoose on
+      // the three it covers, so it is not a path option any more
+      expect(definition.age).toEqual({ type: Number });
       expect(definition.birthday).toBe(Date);
       expect(definition.id).toBe(String);
       expect(definition.name).toEqual({ type: String });
@@ -358,10 +361,12 @@ describe('mongoose adapter', () => {
       expect(task.category).toBe('low');
       expect(task.done).toBe(false);
       expect(task.createdAt).toBeInstanceOf(Date);
-      await expect(Task.create({})).rejects.toThrow(/`name` is required/);
+      // Henri's sentence, not Mongoose's: `required` and `enum` mean the
+      // same thing and say the same thing on all three adapters now
+      await expect(Task.create({})).rejects.toThrow(/name: is required/);
       await expect(
         Task.create({ category: 'nope', name: 'x' })
-      ).rejects.toThrow(/not a valid enum value/);
+      ).rejects.toThrow(/category: must be one of urgent, high, medium, low/);
     });
 
     test('pings the server', async () => {

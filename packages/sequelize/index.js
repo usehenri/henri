@@ -3,7 +3,8 @@ const debug = require('debug')('henri:sequelize');
 const { Drift, describeDifference } = require('./drift');
 const { decorateAttributes, decorateModel } = require('./encryption');
 const { decorateModel: decorateVersions } = require('./versions');
-const { lookup, paginate, publicId } = require('./plugins');
+const { lookup, paginate, publicId, validations } = require('./plugins');
+const { validationsOf } = require('./validations');
 const { instrument: instrumentQueries } = require('./queries');
 const { normalizeSchema } = require('./schema');
 const {
@@ -235,6 +236,10 @@ class Sql {
     // Rails has timestamps on every table: `timestamps: false` opts out
     const options = { timestamps: true, ...(model.options || {}) };
     const external = wantsExternalId(model);
+    // What the model says must be true of its records, compiled once. A
+    // declaration henri cannot carry out fails the boot here, naming the
+    // model and the field (./validations.js)
+    const rules = validationsOf(model);
 
     // `externalId`, `personal`, `retention` and `versioned` are henri
     // options, not Sequelize ones
@@ -280,6 +285,13 @@ class Sql {
       external,
       this.henri
     );
+
+    // First of the hooks, so what a rule measures is the value the
+    // application wrote: the encryption hooks below turn it into an
+    // envelope and the user hooks turn a password into a hash
+    if (rules) {
+      validations(instance, rules);
+    }
 
     if (Object.keys(encrypted).length > 0) {
       decorateModel(instance, encrypted, this.henri);

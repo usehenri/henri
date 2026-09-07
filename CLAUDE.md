@@ -515,6 +515,42 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   `henri.model.errors(error)` (`base/model-errors.js`) normalizes the three
   ORMs' validation failures to `{ field: message }`, `null` for anything else.
   `henri db:seed` runs `db/seeds.js` on any adapter.
+- **What must be true of a record is `validates`** (`base/validations.js`,
+  a copy per adapter the way `exact.js` is, kept byte identical by
+  `src/__tests__/validations.spec.js`): a block keyed by field, in the
+  vocabulary `params-schema.js` already owns (`required`, `enum`, `min`,
+  `max`, `minLength`, `maxLength`, `pattern`) plus `validate`, a function.
+  No `type` -- the schema says it, and it is what decides which constraints
+  apply; a rule henri cannot carry out fails the boot naming the model and
+  the field (`HENRI_MODEL_VALIDATION_INVALID`). **The schema's own
+  `required` and `enum` are the same rules**, which is what makes those two
+  mean one thing: they used to mean three. Measured before this existed:
+  Mongoose ran its validators on `save`/`create`/`insertMany` and on
+  nothing else, so `updateMany` wrote a null over a required field;
+  Sequelize's `bulkCreate` defaults to `validate: false`, so it wrote a
+  value outside an `enum`; and on postgres and mysql the `enum` column is a
+  native `ENUM` with no JavaScript check, so the server refused the value
+  with a `SequelizeDatabaseError` -- which `model-errors.js` answers null
+  for, so the same model file answered **500** there and 422 on sqlite. The
+  rules run in `Model.prepare()` (drizzle), a `beforeValidate` plus
+  `beforeBulkCreate` (sequelize, ahead of Sequelize's own validators so the
+  sentence is henri's) and `pre('validate')` plus the query middleware
+  (mongoose, where `required` and `enum` are stripped from the path
+  definition for a field whose type henri knows, so henri owns the message
+  -- a type Mongoose brought keeps Mongoose's meaning). Two refusals rather
+  than a silence: a `validate` declaring a second parameter is asking for
+  the record, the predicate `base/policies.js` uses, so a mass write naming
+  that field is `HENRI_MODEL_VALIDATION_MASS_WRITE` (the versions
+  precedent), measured against the fields the write names so a soft delete
+  is not caught; and a write no hook reaches -- Mongoose's `bulkWrite`,
+  Sequelize's `increment`/`decrement`, a `$inc` -- is
+  `HENRI_MODEL_VALIDATION_UNCHECKED_WRITE`. **henri does not claim
+  `unique`**: a check before an insert is a race, so the index stays what
+  holds and `model-errors.js` turns the duplicate into
+  `{ field: 'must be unique' }`. The guide is `guides/models.md`
+  (`#validations`), which is also where the boundary with `params` is
+  argued: `params` checks what arrives, `validates` what is written, and a
+  job, a seed or a console has no request.
 - The user module (`4.user.js`) mounts express-session (`henri.sid`),
   passport (`local` and `jwt` strategies), `POST /login`, `POST /logout`
   (`GET` answers 405), the double-submit CSRF middleware (`base/csrf.js`,
@@ -1468,5 +1504,31 @@ filters.spec.js`), on MongoDB through the demo application core's suite
   the rest of that adapter. There is no `or` between filters, no free-text
   search across columns, no cursor paging, no filtering across an
   association and no operator an application can add.
+- Model validations (`validates`) are new, and this is the tranche that
+  landed the declaration plus the validators that work identically on all
+  three. What was **deliberately left**: no `unique` (argued above and in
+  the guide), no cross-record rule, no model-level rule filed under `base`,
+  no `if`/`unless` condition, no message of one's own per constraint (only
+  a `validate` returning a string), no `on: 'create'` / `on: 'update'`
+  selector, and no `Model.valid?`/`errors` on an unsaved instance -- a
+  refused write throws, as it always did. The **schema keys the adapters
+  brought and henri did not** are untouched and are still not portable:
+  drizzle's `min`, `max`, `minLength`, `maxLength`, `match`, `validate`,
+  `trim`, `lowercase` and `select` are drizzle's, mongoose passes its own
+  through, and sequelize refuses every one of them at boot except its own
+  `validate` object -- which is why a `validate` function there now fails
+  the boot pointing at `validates` rather than doing nothing. Coverage:
+  sqlite and MongoDB offline, PostgreSQL and MySQL through
+  `pnpm test:sql:live`; MSSQL rides the Sequelize wiring with no coverage
+  of its own, like the rest of that adapter. Two known holes henri refuses
+  rather than checks are in the error catalogue
+  (`HENRI_MODEL_VALIDATION_UNCHECKED_WRITE`), and `Model.upsert()` on
+  Sequelize is treated as a partial write, so a required column it does
+  not name is left to the database's `NOT NULL`.
+- Separate from the above and **not fixed**: on the drizzle adapter
+  `instance.update(attrs)` is `set()` then `save()`, so a write refused by
+  a validation leaves the refused value on the in-memory instance and the
+  next `update()` on that same instance is measured against it. A record
+  read again is fine; only the object in hand is stale.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.
