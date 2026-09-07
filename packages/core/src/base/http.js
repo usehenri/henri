@@ -4,7 +4,7 @@ const { isLoopback } = require('../utils');
 const { recorder } = require('./runtime');
 const { STATUSES } = require('./boom');
 const { coded } = require('./errors');
-const { seal } = require('./headers');
+const { HAL, seal } = require('./headers');
 
 /**
  * Escape a string for html
@@ -91,8 +91,14 @@ function negotiate(
         : res.type('html').send(page(status, title, details, code)),
     // The envelope henri writes itself, like base/boom.js (base/answers.js)
     json: () => seal(res).json(body),
-    // Escaped as well: static analyzers treat every send() as an html sink
+    // A HAL client asked for JSON and spelled it the way this API answers
+    // it. `res.format()` matches the key literally, so without this line
+    // `Accept: application/hal+json` falls through to the text branch --
+    // which `res.boom.*` never did, and which a controller answering
+    // `res.notFound()` would have inherited
     // eslint-disable-next-line sort-keys
+    [HAL]: () => seal(res).type(HAL).send(JSON.stringify(body)),
+    // Escaped as well: static analyzers treat every send() as an html sink
     default: () =>
       res
         .type('txt')

@@ -453,6 +453,32 @@ describe('policies (demo app, disk store)', () => {
       expect(refused.text).toContain('404 Not Found');
     });
 
+    test('a HAL client gets the envelope, not the text branch', async () => {
+      // The showcase asks with `Accept: application/hal+json`, which is how
+      // a client of this API spells JSON. `res.format()` matches its keys
+      // literally, so before the HAL branch existed the negotiated 404 fell
+      // through to text/plain -- which `res.boom.notFound()` never did, and
+      // which every controller answering `res.notFound()` would have
+      // inherited the moment it stopped using boom
+      const [refused, absent] = await asProduction(() =>
+        pair((id) => stranger.agent.get(`/memos/${id}`), 'application/hal+json')
+      );
+
+      for (const answer of [refused, absent]) {
+        expect(answer.status).toBe(404);
+        expect(answer.headers['content-type']).toContain(
+          'application/hal+json'
+        );
+        expect(JSON.parse(answer.text)).toEqual({
+          error: 'Not Found',
+          message: 'Not Found',
+          statusCode: 404,
+        });
+      }
+
+      expect(refused.text).toBe(absent.text);
+    });
+
     test('a developer is still told which of the two it was', async () => {
       const [refused, absent] = await pair(
         (id) => stranger.agent.get(`/memos/${id}`),
