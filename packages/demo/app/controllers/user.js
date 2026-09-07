@@ -58,4 +58,13 @@ module.exports = {
 
   profile: async (req, res) =>
     res.render('/index', { data: { artwork: await Artwork.find() } }),
+
+  // The dangerous export, and the one that proves the gate: a user row is
+  // where every `personal: { expose: false }` column of this application
+  // lives (`gender`, `phone`, `nationalId`, and the password the adapter
+  // adds), and none of them is in the file. `scope: false` says out loud
+  // that this export is everybody, which the route's `roles` is what
+  // guards (see base/csv.js)
+  report: async (req, res) =>
+    res.csv(User, { filename: 'people', scope: false }),
 };

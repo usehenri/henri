@@ -597,6 +597,22 @@ const EMBED = {
   type: 'array',
 };
 
+/** What `res.csv()` takes (see base/csv.js) */
+const CSV_OPTIONS = bag({
+  bom: BOOLEAN,
+  columns: {
+    describe: 'a list of column names',
+    hint: 'They are the columns of the model, in the order the file carries them',
+    of: NAME,
+    type: 'array',
+  },
+  filename: maybe(NAME),
+  include: INCLUDE,
+  policy: maybe(NAME),
+  scope: ANY,
+  where: ANY,
+});
+
 /** What `res.resource()` takes */
 const RESOURCE_OPTIONS = bag({
   embed: EMBED,
@@ -1145,6 +1161,17 @@ const SIGNATURES = {
   'res.collection': [
     { by: 'HENRI_API_INVALID_COLLECTION', name: 'records' },
     { name: 'options', optional: true, ...COLLECTION_OPTIONS },
+  ],
+
+  'res.csv': [
+    {
+      by: 'HENRI_CSV_ADAPTER_UNSUPPORTED',
+      describe: 'a model, or the name of one',
+      hint: 'res.csv(Invoice) or res.csv("Invoice")',
+      name: 'model',
+      oneOf: [{ type: 'function' }, NAME],
+    },
+    { name: 'options', optional: true, ...CSV_OPTIONS },
   ],
 
   'res.negotiate': [

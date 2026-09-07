@@ -1392,6 +1392,35 @@ disposition, filename, type })` is one call whatever the backend -- the
   and served its prefix, never refused: the answer is already built by then.
   `henri openapi` writes one `embed` parameter plus `x-henri.embeds`. The
   guide is `guides/api.md` (`#embedding-relations`).
+- `res.csv(Model, options)` (`base/csv.js`) is the other half of the same
+  tranche: an export that **streams**. No `Content-Length` (there is no
+  number without building the file first), a chunked answer, pages of
+  `config.api.csv.batch` (500) and `res.write()` returning false awaited
+  rather than ignored. The pages are a **cursor** on `externalId` (the
+  primary key on a model that opted out), never an `OFFSET`, because an
+  offset over a table being written to skips rows and repeats rows -- and a
+  uuid v7 is creation order, so a client's `sort` has no say. Every page
+  goes through the same `toPublic()` call `res.resource()` uses, so the
+  file carries no primary key, publishes its foreign keys and holds no
+  column marked `personal: { expose: false }`; the **columns are the
+  model's** (the schema plus what the adapter adds, minus what is hidden),
+  so a file with no rows still has a header. It is **not** a per-record
+  authorization surface -- a hundred thousand rows are not a hundred
+  thousand policy questions -- so it takes `req.filters()`'s position: the
+  list is what `policy.scope(user)` says it is, `scope: false` is the
+  explicit opt-out. Escaping is RFC 4180 **walked, never matched**, plus
+  the fifth character RFC 4180 does not mention: a cell starting with `=`,
+  `+`, `-`, `@`, a tab or a CR is a formula in every spreadsheet, so a
+  **string** that is not a plain number is written quoted with a leading
+  apostrophe (`-1.5` is left alone, which is the whole of the false
+  positive) and `config.api.csv.formulas: false` turns it off. The bound is
+  `config.api.csv.maxRows` (100000), counted **before the headers go out**
+  so it is a 413 rather than a short file; and once bytes are on the wire
+  henri **destroys the connection** instead of ending the response, because
+  a truncated CSV is a valid CSV -- `base/timeout.js`'s wall, one step
+  louder. The headers go out with the first 64kb chunk rather than the
+  first row, so a small export that fails still gets an ordinary 500. The
+  guide is `guides/api.md` (`#exporting-a-csv`).
 - The fourth boundary is every entry point an application calls
   (`base/arguments.js`), after the configuration and the request: the
   signature of roughly fifty of them, as data, in the same node vocabulary
@@ -1713,6 +1742,24 @@ filters.spec.js`), on MongoDB through the demo application core's suite
   the rest of that adapter. There is no `or` between filters, no free-text
   search across columns, no cursor paging, no filtering across an
   association and no operator an application can add.
+- `res.csv()` is new. What was **deliberately left**: no other delimiter
+  (a `.csv` is comma separated), no `xlsx` and no other format, no
+  background export mailed as a link (that is a job and a storage
+  decision), no client-chosen columns or order (`columns` is the caller's
+  word, and the file is always in creation order), and **no per-record
+  policy question** -- argued above and in the guide. The formula guard
+  **changes the bytes** of a cell it neutralizes, which is said out loud
+  rather than hidden. Coverage: the escaping, the filename and the settings
+  offline; the whole path on MongoDB through the demo application core's
+  suite boots (`get /memos/report` for the scope and the escaping,
+  `get /admin/people.csv` for the exit gate, which is where every
+  `expose: false` column of that application lives); and the cursor on
+  sqlite offline plus the live PostgreSQL and MySQL of `pnpm test:sql:live`
+  (`packages/{drizzle,sequelize}/__tests__/csv.spec.js`). What no suite
+  proves is a **real** interruption over a socket: `push`, `drained` and
+  `interrupted` are exercised against a fake response, so what is checked
+  is that henri destroys rather than ends -- not what a particular client
+  does with that.
 - The declared embeds (`embeds` in a controller, `_embedded` in the answer)
   are new. What was **deliberately left**, each with its reason in the
   header of `base/embeds.js`: no `_links` on an embedded record (nothing

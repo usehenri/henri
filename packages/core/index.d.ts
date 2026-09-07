@@ -596,6 +596,15 @@ declare namespace start {
     maxEmbeds?: number;
     /** Most records one `_embedded` relation carries per record (`25`). */
     maxEmbedded?: number;
+    /** What `res.csv()` reads at once, and how it escapes a cell. */
+    csv?: {
+      /** Rows read per page of the cursor (`500`). */
+      batch?: number;
+      /** Write a cell starting with `=`, `+`, `-` or `@` as text (`true`). */
+      formulas?: boolean;
+      /** Most rows one export may carry (`100000`). */
+      maxRows?: number;
+    };
     /** Refuse (500) a JSON answer without `_links` on a resource route. */
     strict?: boolean;
     /** `Idempotency-Key` replays; `false` disables the feature. */
@@ -2275,6 +2284,24 @@ declare namespace start {
     embed?: string[];
   }
 
+  /** Options of `res.csv()`. */
+  interface CsvOptions {
+    /** The condition, intersected with what the policy says the list is. */
+    where?: unknown;
+    /** The policy whose `scope(user)` it is intersected with. */
+    policy?: string;
+    /** A condition of your own, or `false` for an export of everything. */
+    scope?: unknown;
+    /** The columns, in order; every one of them by default. */
+    columns?: string[];
+    /** The name the browser saves it under (`.csv` is added). */
+    filename?: string;
+    /** The fields marked `personal: { expose: false }` the file may carry. */
+    include?: string[];
+    /** Write a byte order mark, which is what Excel reads the encoding from. */
+    bom?: boolean;
+  }
+
   /** Options of `res.collection()`. */
   interface CollectionOptions extends ResourceOptions {
     page?: number;
@@ -2520,6 +2547,17 @@ declare namespace start {
       records: readonly object[],
       options?: CollectionOptions
     ): ExpressResponse;
+    /**
+     * The records of a model, streamed as a CSV file.
+     *
+     * Chunked and never held in memory: the rows are read a page at a time
+     * through a cursor on the record's public identifier, published and
+     * stripped like every other answer, and written with backpressure
+     * honoured. There is no `Content-Length`, and a failure once the
+     * headers are out destroys the connection rather than ending it, so a
+     * half file is never mistaken for a whole one.
+     */
+    csv(model: unknown, options?: CsvOptions): Promise<ExpressResponse>;
     /**
      * Runs `html` for browsers and `json` for API clients. The handler is not
      * awaited: what comes back is the response, not what the handler returned.

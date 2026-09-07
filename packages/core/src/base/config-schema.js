@@ -1262,6 +1262,35 @@ const SCHEMA = {
           },
         ],
       },
+      csv: {
+        describe: 'an object of export settings ({ batch, formulas, maxRows })',
+        hint: 'What `res.csv()` may read at once and how it escapes a cell (base/csv.js)',
+        keys: {
+          batch: {
+            default: 500,
+            describe: 'a whole number of records, above zero',
+            hint: 'How many rows one page of an export reads; the cursor walks the whole table a page at a time',
+            integer: true,
+            min: 1,
+            type: 'number',
+          },
+          formulas: {
+            default: true,
+            describe: 'true or false',
+            hint: 'true writes a cell starting with =, +, - or @ as text, so a spreadsheet does not run it; false writes the value as it is stored',
+            type: 'boolean',
+          },
+          maxRows: {
+            default: 100000,
+            describe: 'a whole number of records, above zero',
+            hint: 'The most rows one export may carry; a bigger one is refused before a byte is written',
+            integer: true,
+            min: 1,
+            type: 'number',
+          },
+        },
+        type: 'object',
+      },
       maxEmbedded: {
         default: 25,
         describe: 'a whole number of records, above zero',

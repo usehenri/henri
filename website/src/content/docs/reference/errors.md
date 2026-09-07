@@ -870,6 +870,65 @@ Usually:
 
 **Fix.** The boot prints every path it tried. Create config/default.json, or fix the JSON of the file that is there.
 
+## csv
+
+The streamed exports of `res.csv()`: the columns, the cursor, the bound and the escaping.
+
+### `HENRI_CSV_ADAPTER_UNSUPPORTED`
+
+henri cannot read the records of this model to export them.
+
+Usually:
+
+- a model whose adapter is not mongoose, sequelize or drizzle
+- `res.csv('Name')` naming a model no store holds
+
+**Fix.** An export is read through the model API of the three adapters henri ships. Pass the model itself (`res.csv(Invoice)`), or the name of one the boot registered.
+
+### `HENRI_CSV_INTERRUPTED`
+
+An export stopped after its headers were already sent.
+
+Usually:
+
+- the client closed the connection while the file was being written
+- a store that stopped answering part way through the export
+
+**Fix.** There is no status left to send once the headers are out, so henri destroys the connection rather than ending the response: a truncated CSV is a valid CSV, and a client has to be able to tell one from a complete file. Ask again; the log line says how many rows made it out.
+
+### `HENRI_CSV_TOO_MANY`
+
+An export holds more rows than henri will send in one answer.
+
+Usually:
+
+- an export whose condition matches more rows than `config.api.csv.maxRows`
+- rows added under the export while it was being written
+
+**Fix.** Narrow the export -- a date range is the usual one -- or raise `config.api.csv.maxRows` for an application that can afford the read. The count is taken before the headers go out, so this reaches a client as an answer rather than as a file that stops in the middle.
+
+### `HENRI_CSV_UNKNOWN_COLUMN`
+
+res.csv() was asked for a column the file cannot carry.
+
+Usually:
+
+- `columns` naming a column the model does not have
+- `columns` naming a column marked `personal: { expose: false }` without naming it in `include` as well
+
+**Fix.** The message lists the columns this export can carry: they are the model's own, plus what the adapter adds, minus what never leaves the server. Name one of those, or drop `columns` and take them all.
+
+### `HENRI_CSV_UNPAGEABLE`
+
+The condition of an export is not one a cursor can walk.
+
+Usually:
+
+- a `where` that is not a plain object henri can intersect with the cursor
+- a policy whose `scope(user)` answers something other than a plain object
+
+**Fix.** An export is read a page at a time, so its condition has to be one henri can put a cursor under. What `req.filters()` answers is one; a value handed straight to the ORM is not.
+
 ## embed
 
 The relations a controller declares embeddable, and the `_embedded` of a HAL answer.

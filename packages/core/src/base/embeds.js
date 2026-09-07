@@ -182,8 +182,16 @@
 const { conditionFor, orderFor } = require('./filters');
 const { EXTERNAL_ID } = require('./external-id');
 const { fail } = require('./errors');
-const { kindOf } = require('./erasure');
+const {
+  findRecords,
+  hasColumn,
+  ormFor: modelFor,
+  primaryOf,
+} = require('./records');
 const { refuse } = require('./params-schema');
+
+/** The code the failures of this module carry when a model cannot be read */
+const ADAPTER = 'HENRI_EMBED_ADAPTER_UNSUPPORTED';
 
 /** The controller exports that are never actions (see base/hooks.js) */
 const RESERVED = new Set(['embeds']);
@@ -657,127 +665,6 @@ function wanted(req, option, where) {
 }
 
 /**
- * The failure a model henri cannot query raises
- *
- * @param {string} name the model name
- * @returns {Error} the error to throw
- */
-const unsupported = (name) =>
-  fail(
-    'HENRI_EMBED_ADAPTER_UNSUPPORTED',
-    `unable to load the records of ${name}: its adapter is not one henri knows how to drive`,
-    {
-      hint: 'An embedded relation goes through the model API of the three adapters henri ships: mongoose, sequelize and drizzle',
-    }
-  );
-
-/**
- * The ORM model of a global name, the way `Router#ormFor` resolves it: the
- * stores first, the global second
- *
- * @param {Henri} henri the henri instance
- * @param {string} name the global name (`Invoice`)
- * @returns {*} the ORM model
- * @throws {Error} HENRI_EMBED_ADAPTER_UNSUPPORTED when no store holds it
- */
-function ormFor(henri, name) {
-  for (const store of Object.values(
-    (henri.model && henri.model.stores) || {}
-  )) {
-    const models = typeof store.getModels === 'function' && store.getModels();
-
-    if (models && models[name]) {
-      return models[name];
-    }
-  }
-
-  if (global[name]) {
-    return global[name];
-  }
-
-  throw unsupported(name);
-}
-
-/**
- * The name of the column holding the primary key
- *
- * @param {*} Model an ORM model
- * @returns {string} `_id` on Mongoose, the declared key on Sequelize, `id`
- *   on Drizzle
- */
-function primaryOf(Model) {
-  const kind = kindOf(Model);
-
-  if (kind === 'mongoose') {
-    return '_id';
-  }
-
-  if (kind === 'sequelize') {
-    return Model.primaryKeyAttribute || 'id';
-  }
-
-  return 'id';
-}
-
-/**
- * Does this model carry a column?
- *
- * @param {*} Model an ORM model
- * @param {string} name the column
- * @returns {boolean} true when it does
- */
-function hasColumn(Model, name) {
-  const kind = kindOf(Model);
-
-  if (kind === 'mongoose') {
-    return Boolean(Model.schema && Model.schema.path(name));
-  }
-
-  if (kind === 'sequelize') {
-    return Boolean(Model.rawAttributes && Model.rawAttributes[name]);
-  }
-
-  return Boolean(Model.fields && Model.fields[name]);
-}
-
-/**
- * Every row matching a condition, in one statement
- *
- * @param {*} Model an ORM model
- * @param {*} where the condition, spelled for the adapter
- * @param {object} [options={}] `{ limit, order }`
- * @returns {Promise<Array>} the records
- * @throws {Error} HENRI_EMBED_ADAPTER_UNSUPPORTED
- */
-async function findRecords(Model, where, { limit = null, order = null } = {}) {
-  const kind = kindOf(Model);
-
-  if (kind === 'drizzle') {
-    return Model.find(where, { limit, order });
-  }
-
-  if (kind === 'mongoose') {
-    const query = Model.find(where);
-
-    order && query.sort(order);
-
-    return limit === null ? query : query.limit(limit);
-  }
-
-  if (kind === 'sequelize') {
-    return Model.findAll(
-      Object.assign(
-        { where },
-        limit === null ? {} : { limit },
-        order ? { order } : {}
-      )
-    );
-  }
-
-  throw unsupported((Model && Model.name) || 'this model');
-}
-
-/**
  * The key a record is grouped by, as a string.
  *
  * The identity of a row is spelled differently by every adapter -- an
@@ -840,7 +727,7 @@ function capOf(bound, limits) {
  *   grouped by the key of the record they belong to
  */
 async function loadOne(henri, bound, { column, limits, sources }) {
-  const Target = ormFor(henri, bound.target);
+  const Target = modelFor(henri, bound.target, ADAPTER);
   const forward = bound.owner === null;
   const rows = new Map();
   const values = [];
@@ -874,7 +761,7 @@ async function loadOne(henri, bound, { column, limits, sources }) {
   const found = await findRecords(
     Target,
     conditionFor(Target, [{ column: matched, operator: 'in', value: values }]),
-    { limit, order: forward ? null : orderOf(Target, matched) }
+    { code: ADAPTER, limit, order: forward ? null : orderOf(Target, matched) }
   );
 
   for (const record of found) {
@@ -1015,7 +902,7 @@ async function gather(henri, req, { declaration, names, route, sources }) {
   );
   const nodes = [];
   const plans = sources.map(() => null);
-  const primary = primaryOf(ormFor(henri, declaration.model));
+  const primary = primaryOf(modelFor(henri, declaration.model, ADAPTER));
 
   for (const name of names) {
     const bound = declaration.relations[name];

@@ -35,6 +35,7 @@ const RESERVED = new Set(['before']);
  */
 const ANSWERING = [
   'collection',
+  'csv',
   'download',
   'end',
   'format',

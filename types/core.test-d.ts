@@ -999,6 +999,16 @@ res.resource({ id: '1' }, { include: true });
 
 // ... and the relations that travel with it are named the same way
 res.resource({ id: '1' }, { embed: ['comments'] });
+
+// An export is a model, a condition and the columns of the file
+res.csv('Invoice');
+res.csv('Invoice', { filename: 'invoices', where: { paid: true } });
+res.csv('Invoice', { columns: ['externalId', 'amount'], scope: false });
+res.csv('Invoice', { bom: true, include: ['phone'], policy: 'invoice' });
+// @ts-expect-error `columns` names columns, not a boolean
+res.csv('Invoice', { columns: true });
+// @ts-expect-error a key the call does not take
+res.csv('Invoice', { delimiter: ';' });
 res.collection([{ id: '1' }], { embed: [] });
 // @ts-expect-error `embed` names relations, not a boolean
 res.resource({ id: '1' }, { embed: true });

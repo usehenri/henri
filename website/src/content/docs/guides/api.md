@@ -1,6 +1,6 @@
 ---
 title: JSON API
-description: HAL answers with res.resource and res.collection, pagination, Idempotency-Key, rate limiting, request ids, versioning, the health endpoints and graceful shutdown.
+description: HAL answers with res.resource and res.collection, embedded relations, streamed CSV exports, pagination, Idempotency-Key, rate limiting, request ids, versioning, the health endpoints and graceful shutdown.
 sidebar:
   order: 7
 ---
@@ -184,6 +184,35 @@ The same thing `res.resource()` of that record would answer. The children are pu
 A list is capped per record at `limit`, or at `config.api.maxEmbedded` (25) when the declaration names none, and the rows come back ordered by the foreign key and then by the target's `externalId` (a uuid v7, so creation order), which makes the prefix a client gets the same prefix twice. `limit` is a promise about your data: a relation that holds more is reported once per route in the log and the client is served the prefix. It is not refused, even under `config.api.strict` — the answer is already built by then, and a request that fails because a customer has twenty six invoices instead of twenty five turns a cosmetic mistake into an outage. A relation that genuinely needs paging is a collection, and a collection has an endpoint of its own.
 
 Deliberately not here: `_links` on an embedded record (nothing declares which controller serves a model, and a guessed href is worse than none), nesting (`?embed=lines.product`), embedding from `res.render()`, and filtering or ordering an embedded relation from the query string.
+
+## Exporting a CSV
+
+Every application grows an export endpoint, and the shape it grows is the same one every time: read the whole table, join the rows with commas, `res.send()`. That holds the file in memory, falls over on the row count that made anybody want an export, writes the primary key into the file, writes a column the model said must never leave, and hands a spreadsheet a cell that starts with `=`. `res.csv()` is henri's answer to all four:
+
+```js
+// app/controllers/invoices.js
+report: async (req, res) => res.csv(Invoice, { filename: 'invoices' }),
+```
+
+**It streams.** There is no `Content-Length` — there is no number to put there without building the file first, which is the thing being avoided — so the answer is chunked, the rows are read a page at a time (`config.api.csv.batch`, 500) and `res.write()` returning `false` is awaited rather than ignored, so a slow client slows the reads instead of filling the process with a file nobody is taking.
+
+The pages are a **cursor**, not an `OFFSET`: `WHERE externalId > :last ORDER BY externalId` (the primary key on a model that opted out of the public one). An offset over a table that is being written to skips rows and repeats rows, and an export that quietly drops a row is worse than no export. A uuid v7 is also creation order, so the file is in the order the records were made; a client's `sort` has no say, because an export is a dump rather than a page.
+
+**The same exit gate.** Every page goes through the same `toPublic()` call `res.resource()` uses — publish, then strip — so a foreign key leaves as the `externalId` of the row it names, no primary key leaves at all, and a column marked `personal: { expose: false }` is not in the file. `include: ['phone']` is the same way back it is everywhere else. The columns are the **model's**, not the rows': the header comes from the schema plus what the adapter adds, minus what is hidden, so a file with no rows still has a header and two exports of the same model have the same columns whatever the rows happened to hold. `columns: ['title', 'amount']` narrows and reorders that list, and a name that is not one of them is refused before a byte is written.
+
+**It is not a per-record authorization surface.** A hundred thousand rows are not a hundred thousand policy questions, so `res.csv()` takes the position `req.filters()` takes: the list is what [`policy.scope(user)`](/guides/policies/#scoping-a-list) says it is, asked for by default. Hand it a condition (`where`, usually what `req.filters()` answered) and it is intersected with the scope; an application whose export is genuinely everything says so once, with `scope: false`, and guards the route with `roles` instead.
+
+### Escaping, and the fifth character
+
+A cell is quoted when it holds a comma, a quote, a newline or a leading or trailing space, and a quote inside it is doubled — RFC 4180, written as a walk over the code points rather than as a pattern.
+
+RFC 4180 says nothing about the fifth one. A cell whose text starts with `=`, `+`, `-`, `@`, a tab or a carriage return is a **formula** in Excel, Sheets and LibreOffice; `=cmd|'/c calc'!A1` is the famous one and `=IMPORTXML(...)` quietly posts the row it sits next to at a url of somebody else's choosing. henri writes such a cell as text — quoted, with a leading apostrophe — and the rule is narrow on purpose, because the false positive matters: `-1.5` starts with `-`, and an export where every negative number has been mangled is not an export. So only a value that **is a string** is considered (a number, a date, a boolean is text henri wrote itself), and a string that is a **plain number** is left alone. It does change the bytes, which is why `config.api.csv.formulas: false` turns it off for an export a machine reads.
+
+### The bound, and what happens when something breaks
+
+`config.api.csv.maxRows` (100000), checked with one `count()` **before the headers go out**, so an export too big to serve is a `413` carrying the bound and the number — an answer a client can narrow — rather than a file that stops in the middle.
+
+Once bytes really are on the wire there is no status left to send. henri **destroys the connection** instead of ending the response: a truncated CSV is a valid CSV, and a consumer has to be able to tell a file that stopped early from a file that ended, so the terminating chunk is never written and every conforming client reports a transport error. The failure is logged with the row count reached and goes to [`henri.reporter`](/guides/logs/#henrireporter). That answer is blunt, so the other half of it is making it rare: the headers go out with the first **chunk** (64kb) rather than the first row, so an export smaller than that — which is most of them — has written nothing when it fails and still gets an ordinary `500`.
 
 ## Idempotency
 

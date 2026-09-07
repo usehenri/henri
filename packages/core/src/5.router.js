@@ -30,6 +30,8 @@ const { middleware: zones } = require('./base/time');
 const { needsRecord } = require('./base/policies');
 const filters = require('./base/filters');
 const embeds = require('./base/embeds');
+const { csv } = require('./base/csv');
+const { ormFor } = require('./base/records');
 
 /** Verbs of the routes that change something (idempotency applies) */
 const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
@@ -1607,6 +1609,26 @@ class Router extends BaseModule {
         resource(this.henri, req, res, record, options);
       res.collection = (records, options) =>
         collection(this.henri, req, res, records, options);
+      // An export that streams and leaves through the same gate every
+      // other answer does (see base/csv.js). The condition is intersected
+      // with what the policy says the list is, the way req.filters() does
+      // it: a hundred thousand rows are not a hundred thousand policy
+      // questions, so the scope is what bounds an export
+      res.csv = async (model, options = {}) => {
+        check('res.csv', [model, options]);
+
+        const Model =
+          typeof model === 'string'
+            ? ormFor(this.henri, model, 'HENRI_CSV_ADAPTER_UNSUPPORTED')
+            : model;
+        const scope = await this.scopeFor(req, res, options);
+
+        return csv(this.henri, req, res, Model, {
+          ...options,
+          where: filters.narrow(Model, scope, options.where || {}),
+        });
+      };
+
       res.negotiate = (handlers) => {
         check('res.negotiate', [handlers]);
 

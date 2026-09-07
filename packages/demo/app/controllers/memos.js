@@ -80,6 +80,12 @@ module.exports = {
   // what config.policies.verify reports.
   peek: async (req, res) => res.json({ title: req.memo.title }),
 
+  // The whole list as a file, streamed. `where` is left out on purpose:
+  // `res.csv()` asks app/policies/memo.js for the scope the way
+  // `req.filters()` does, so an export is what the policy says the list is
+  // (see base/csv.js)
+  report: async (req, res) => res.csv(Memo, { filename: 'memos' }),
+
   // The filtered half of the list. The scope is what the policy says the
   // list is, plus what this action is about -- a memo the author has not
   // put away -- and a client filter is intersected with it, never merged
