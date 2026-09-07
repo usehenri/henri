@@ -33,6 +33,13 @@ const loadMemo = async (req, res) => {
 module.exports = {
   before: { 'peek,show,update,destroy': loadMemo },
 
+  // What a client may ask to see next to a memo, and nothing else: `owner`
+  // goes through `ownerId`, which the model declared as a reference to the
+  // user (`ref: 'User'`), so henri can load it and publish it. An
+  // `?embed=` naming anything else is a 422 before the action runs (see
+  // base/embeds.js)
+  embeds: { 'index,search,show': { owner: 'ownerId' } },
+
   // What a client may narrow and order this list by, and nothing else: an
   // undeclared name is a 422 before the action runs, and `contains` is
   // named because a substring search over a text column is a scan (see

@@ -21,6 +21,9 @@ module.exports = {
     rateLimit: { max: 2, windowMs: 60000 },
   },
   'get /profile': { controller: 'user#profile', roles: ['member'] },
+  // The other side of a relation, embedded: a user and their memos, one
+  // query for the lot and one policy question per memo (see base/embeds.js)
+  'get /profile/memos': { controller: 'user#memos', roles: ['member'] },
   // What an action answers, declared and not (see base/answers.js)
   'get /reports/digest': 'reports#digest',
   'get /reports/hand': { controller: 'reports#hand', roles: ['member'] },

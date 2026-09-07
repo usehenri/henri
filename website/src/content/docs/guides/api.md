@@ -126,6 +126,65 @@ index: async (req, res) => {
 
 `?filter[state]=accepted&filter[submittedAt][gte]=2026-01-01&sort=-submittedAt` is the request. `req.filters()` intersects it with what [the policy says the list is](/guides/policies/#scoping-a-list), so a filter narrows a list and can never widen it, and it appends the record's `externalId` to the order so paging is exact. The whole of it — the operators, what can never be declared, and why a substring search is opt-in per field — is in [Filtering and sorting](/guides/filtering/).
 
+## Embedding relations
+
+A client that wants an invoice and its lines makes two requests, and a page of twenty invoices makes twenty one. `_embedded` is HAL's answer to that, and an action says what may go in it in an `embeds` block next to `params` and `filters`:
+
+```js
+// app/controllers/invoices.js
+module.exports = {
+  embeds: {
+    show: {
+      customer: 'customerId',
+      lines: { limit: 200, through: 'Line.invoiceId' },
+    },
+    index: { customer: 'customerId' },
+  },
+
+  show: async (req, res) => res.resource(req.invoice, { embed: ['lines'] }),
+};
+```
+
+A relation is written as **the foreign key it goes through**, because that is the only thing henri can check: `'customerId'` is a key this model declared and the record it names is embedded; `'Line.invoiceId'` is a key another model declared at this one and the records naming it are. Both have to be [declared references](/guides/models/#foreign-keys) — `belongsTo()`, `references: { model }`, Mongoose's `ref` — and anything else fails the boot, because henri reads no field name to decide what points where. `{ through, limit, one }` is the whole vocabulary: `limit` caps a list per record, and `one: true` says the other model holds at most one of them.
+
+The answer carries them under `_embedded`, next to the record's own fields:
+
+```json
+{
+  "_links": {
+    "self": { "href": "/invoices/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11" }
+  },
+  "externalId": "0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11",
+  "amount": "129.90",
+  "customerId": "0199a5c2-8d21-7b04-9f3e-6c2b0d7a1e55",
+  "_embedded": {
+    "lines": [
+      { "externalId": "0199a5c3-0f11-7c22-8a44-1d3e5b6c7d88", "label": "Seat" }
+    ]
+  }
+}
+```
+
+**A client asks with `?embed=`**, and only for what the action declared: `GET /invoices?embed=customer` embeds it, `?embed=notes` is a `422` before the action runs, and at most `config.api.maxEmbeds` (3) relations may be asked for at once. `res.resource(record, { embed })` is the caller's word and wins over the query string; `embed: []` embeds nothing. An action with no `embeds` block has no such surface at all, so `?embed=` there is a query parameter nothing reads.
+
+### What an embedded record is, exactly
+
+The same thing `res.resource()` of that record would answer. The children are published and stripped in the **same call** as the records they hang off, so every rule that governs an answer governs an embedded one:
+
+- foreign keys leave as the `externalId` of the row they name, at every depth, and no primary key leaves at all;
+- a column marked `personal: { expose: false }` is dropped from an embedded record exactly as it is from the record itself — including on the [user model](/guides/privacy/), which is answered as the model left it rather than through `publicUser()`, so a field that must not leave says so on the model;
+- the identifier lookups of the parents and the children are batched together, one statement per model for the whole answer.
+
+**Every embedded record is asked `show` against its own model's [policy](/guides/policies/)**, one at a time, by the rule `_links` already follows: a model with a policy is asked about every record, a model with no policy is not asked at all. A record the policy refuses is **absent** — not a stub and not a `null`, because the request the client would otherwise have made would have been a `404`, and a `404` carries nothing.
+
+### What it costs, and the bound
+
+**One statement per relation per answer**, whatever the page size: the parents' keys are collected, deduplicated and asked for once (`WHERE invoice_id IN (...)`, `{ $in: [...] }` on MongoDB), then grouped in memory. Twenty invoices embedding their lines is one query for the twenty. henri does not reuse an association the controller eager loaded, because an eager loaded list honours neither the `limit` nor the order this promises — so a controller that eager loads _and_ embeds pays for both.
+
+A list is capped per record at `limit`, or at `config.api.maxEmbedded` (25) when the declaration names none, and the rows come back ordered by the foreign key and then by the target's `externalId` (a uuid v7, so creation order), which makes the prefix a client gets the same prefix twice. `limit` is a promise about your data: a relation that holds more is reported once per route in the log and the client is served the prefix. It is not refused, even under `config.api.strict` — the answer is already built by then, and a request that fails because a customer has twenty six invoices instead of twenty five turns a cosmetic mistake into an outage. A relation that genuinely needs paging is a collection, and a collection has an endpoint of its own.
+
+Deliberately not here: `_links` on an embedded record (nothing declares which controller serves a model, and a guessed href is worse than none), nesting (`?embed=lines.product`), embedding from `res.render()`, and filtering or ordering an embedded relation from the query string.
+
 ## Idempotency
 
 Clients retrying a `POST`, `PUT`, `PATCH` or `DELETE` send an `Idempotency-Key` header (1 to 255 printable ASCII characters, otherwise a `400` carrying `HENRI_API_IDEMPOTENCY_KEY_INVALID`), with the same semantics as Stripe:

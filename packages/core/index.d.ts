@@ -592,6 +592,10 @@ declare namespace start {
     maxFilters?: number;
     /** Most columns one request may order by (`3`). */
     maxSort?: number;
+    /** Most relations one request may ask to embed (`3`). */
+    maxEmbeds?: number;
+    /** Most records one `_embedded` relation carries per record (`25`). */
+    maxEmbedded?: number;
     /** Refuse (500) a JSON answer without `_links` on a resource route. */
     strict?: boolean;
     /** `Idempotency-Key` replays; `false` disables the feature. */
@@ -2046,6 +2050,30 @@ declare namespace start {
    */
   type FilterDeclarations = Record<string, FilterDeclaration>;
 
+  /**
+   * One relation an action may embed under `_embedded`: the declared
+   * foreign key it goes through, or an object holding it.
+   *
+   * `'customerId'` is a key **this** model declared, and the record it
+   * names is embedded; `'Line.invoiceId'` is a key another model declared
+   * **at** this one, and the records naming it are.
+   */
+  interface EmbedRule {
+    /** The foreign key: `'customerId'`, or `'Line.invoiceId'`. */
+    through: string;
+    /** Most records embedded per record; only the many side takes one. */
+    limit?: number;
+    /** The other model holds at most one of them (a hasOne). */
+    one?: boolean;
+  }
+
+  /**
+   * The `embeds` export of a controller: what each action may put under
+   * `_embedded`, keyed by action the way `params` and `filters` are
+   * (`all`, `'index,show'`).
+   */
+  type EmbedDeclarations = Record<string, Record<string, EmbedRule | string>>;
+
   /** What `req.filters()` takes. */
   interface FilterOptions {
     /** The policy whose `scope(user)` the filter is intersected with. */
@@ -2238,6 +2266,13 @@ declare namespace start {
      * here is the only way back.
      */
     include?: string[];
+    /**
+     * The relations to put under `_embedded`, named among the ones the
+     * action declared in its `embeds` block. Without this option the answer
+     * carries what the client asked for (`?embed=lines`); with it, the
+     * caller's list wins and `[]` embeds nothing.
+     */
+    embed?: string[];
   }
 
   /** Options of `res.collection()`. */
@@ -2628,7 +2663,8 @@ declare namespace start {
 
   /**
    * A controller file. Every exported function is an action (`tasks#index`);
-   * `before`, `params`, `answers` and `filters` are the reserved keys.
+   * `before`, `params`, `answers`, `filters` and `embeds` are the reserved
+   * keys.
    *
    *     /** @type {import('@usehenri/core').Controller} *\/
    *     module.exports = {
@@ -2644,12 +2680,14 @@ declare namespace start {
     params?: ParamsBlock;
     answers?: AnswersBlock;
     filters?: FilterDeclarations;
+    embeds?: EmbedDeclarations;
     [action: string]:
       | Action
       | BeforeBlock
       | ParamsBlock
       | AnswersBlock
       | FilterDeclarations
+      | EmbedDeclarations
       | undefined;
   }
 
@@ -3371,6 +3409,12 @@ declare namespace start {
      * runlevel 5, where the models exist.
      */
     filters(key: string): object | null;
+    /**
+     * What an action lets a client embed, compiled; null when nothing is.
+     * The foreign keys are checked against what the models declared at
+     * runlevel 5, where the reference table exists.
+     */
+    embeds(key: string): object | null;
     all(): Record<string, unknown>;
     size(): number;
   }

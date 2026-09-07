@@ -4,6 +4,7 @@ const { DAY, MemoryStore } = require('./idempotency');
 const { AUTH_DEFAULTS, DEFAULTS: RATE_DEFAULTS } = require('./rate-limit');
 const { DEFAULTS: PAGE_DEFAULTS } = require('./pagination');
 const { DEFAULTS: FILTER_DEFAULTS } = require('./filters');
+const { DEFAULTS: EMBED_DEFAULTS } = require('./embeds');
 const { identitiesConfig } = require('./identities');
 const { filterParameters } = require('./redact');
 
@@ -88,6 +89,11 @@ function settings(config, user = {}) {
       typeof get('bodyLimit') === 'string' || Number(get('bodyLimit')) > 0
         ? get('bodyLimit')
         : '1mb',
+    // What one request may ask a declared answer to embed (base/embeds.js)
+    embeds: {
+      maxEmbedded: positive(api.maxEmbedded, EMBED_DEFAULTS.maxEmbedded),
+      maxEmbeds: positive(api.maxEmbeds, EMBED_DEFAULTS.maxEmbeds),
+    },
     filterParameters: filterParameters(config),
     // What one request may ask a declared index for (see base/filters.js)
     filters: {

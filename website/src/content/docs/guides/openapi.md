@@ -27,6 +27,7 @@ Everything below comes from the application, never from a convention henri hopes
 | The path parameters               | The `:id` of the route, typed as the record's `externalId` when the model carries one                                                                                     |
 | The query and body parameters     | The [`params`](/guides/controllers/#params-what-an-action-accepts) an action declared, where it declared any — the types, the bounds, the enums and what is required      |
 | The `filter[...]` and `sort`      | The [`filters`](/guides/filtering/) an action declared: one parameter per comparison, and the columns a client may order by                                               |
+| The `embed`                       | The [`embeds`](/guides/api/#embedding-relations) an action declared: an enum of the relation names, capped at `config.api.maxEmbeds`                                      |
 | The schemas                       | `app/models`, plus the columns the adapters add (`externalId`, `createdAt`/`updatedAt`, `deletedAt`, and the user's `email`, `roles`, `confirmedAt`, `passwordChangedAt`) |
 | The HAL envelopes                 | [`res.resource()` and `res.collection()`](/guides/api/#answering-hal), for the routes expanded from `resources` and `crud`                                                |
 | The error envelope                | [`res.boom.*`](/guides/api/) and the 404/500 handlers, with the `code` of the [error catalogue](/reference/errors/)                                                       |
@@ -37,7 +38,7 @@ Everything below comes from the application, never from a convention henri hopes
 | The identity endpoints            | `config.user.identities`: the providers are the `enum` of the path parameter, and every refusal is described by the `data.reason` it carries                              |
 | `/livez`, `/readyz`, `/healthz`   | Always: every henri application answers them                                                                                                                              |
 
-Every operation also carries `x-henri.enforced`, a list naming what henri actually checks on that route — `_links` on the ones expanded from `resources` and `crud`, `params` on the ones whose action declared any, `answers` on the ones whose action declared what it sends, `filters` on the ones that declared those — as opposed to what it expects.
+Every operation also carries `x-henri.enforced`, a list naming what henri actually checks on that route — `_links` on the ones expanded from `resources` and `crud`, `params` on the ones whose action declared any, `answers` on the ones whose action declared what it sends, `filters` on the ones that declared those, `embeds` on the ones that declared what may travel next to a record — as opposed to what it expects.
 
 A field marked `personal: { expose: false }` is in **no** schema, because [privacy](/guides/privacy/) strips that name from every answer henri builds, at every depth. Neither is `password`. A declared foreign key is typed as the `externalId` of the row it names, because that is what [`base/references.js`](/guides/models/#identifiers) publishes — and `null`, because a key that names no row resolves to nothing.
 
@@ -77,6 +78,26 @@ The [`filters`](/guides/filtering/) block is the same kind of statement about th
 A list operator (`in`, `nin`, `between`) is an array in the `form` style with no explode, which _is_ the comma-separated spelling a query string uses; `between` carries `minItems: 2, maxItems: 2`. The order is one `sort` parameter whose enum holds both spellings of every declared column (`title`, `-title`) and whose `maxItems` is `config.api.maxSort`.
 
 `x-henri.filters` carries the same thing as a summary — the model, the sortable columns, and the operators of each field — and the operation answers the `InvalidParameters` 422 above, with `HENRI_FILTER_INVALID` as its code.
+
+### And what may travel next to a record
+
+The [`embeds`](/guides/api/#embedding-relations) block is a third statement about the same request, and it is the smallest one to describe: a single `embed` parameter whose enum is the relations the action declared, in the `form` style with no explode — the comma-separated spelling — and whose `maxItems` is `config.api.maxEmbeds`.
+
+```json
+{
+  "name": "embed",
+  "in": "query",
+  "style": "form",
+  "explode": false,
+  "schema": {
+    "type": "array",
+    "maxItems": 3,
+    "items": { "type": "string", "enum": ["customer", "lines"] }
+  }
+}
+```
+
+Only the names are described. What an embedded record looks like is what the model's own schema already says, and how many of them arrive depends on the data rather than on the declaration — so the document states the vocabulary and stops there. `x-henri.embeds` carries the same list, and the operation answers the `InvalidParameters` 422 with `HENRI_EMBED_INVALID` as its code. This is the one declaration the command reads **without** resolving a model: binding a relation to the foreign key it goes through needs the reference table, which needs a boot, and the names do not.
 
 ### Where the declarations are read
 

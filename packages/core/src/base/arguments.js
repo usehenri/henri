@@ -589,8 +589,17 @@ const CALL_TRACK = bag({
   url: maybe(NAME),
 });
 
+/** The relations an answer embeds (see base/embeds.js) */
+const EMBED = {
+  describe: 'a list of relation names',
+  hint: 'They are the relations the action declared in its `embeds` block',
+  of: NAME,
+  type: 'array',
+};
+
 /** What `res.resource()` takes */
 const RESOURCE_OPTIONS = bag({
+  embed: EMBED,
   include: INCLUDE,
   links: maybe(OBJECT),
   status: STATUS,
@@ -600,6 +609,7 @@ const RESOURCE_OPTIONS = bag({
 
 /** ... and what `res.collection()` adds to it */
 const COLLECTION_OPTIONS = bag({
+  embed: EMBED,
   include: INCLUDE,
   links: maybe(OBJECT),
   page: maybe(COUNT),

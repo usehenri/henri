@@ -112,6 +112,7 @@ const {
   DEFAULTS: FILTER_DEFAULTS,
   OPERATORS: FILTER_OPERATORS,
 } = require('./filters');
+const { DEFAULTS: EMBED_DEFAULTS } = require('./embeds');
 
 /** The version of the specification this builder writes */
 const OPENAPI_VERSION = '3.1.0';
@@ -281,6 +282,10 @@ function settingsOf(config) {
     host: read('host', null),
     idempotency: api.idempotency !== false,
     lookup: externalIds.lookup === 'any' ? 'any' : 'external',
+    maxEmbeds:
+      Number(api.maxEmbeds) > 0
+        ? Number(api.maxEmbeds)
+        : EMBED_DEFAULTS.maxEmbeds,
     maxFilters:
       Number(api.maxFilters) > 0
         ? Number(api.maxFilters)
@@ -944,6 +949,38 @@ function filterDescription({ action, controller, field, model, operator }) {
     `Declared by \`${controller}#${action}\` (the \`filters\` export): nothing undeclared is filterable, and a name or an operator this action did not declare is a 422 (\`HENRI_FILTER_INVALID\`).`,
     `The result is intersected with what the policy says the list is, so a filter can only ever narrow it.${text}`,
   ].join(' ');
+}
+
+/**
+ * The `embed` parameter an action declared.
+ *
+ * One parameter, an enum of the relation names, because what an embedded
+ * record looks like is what the model's own schema already says -- and
+ * because there is nothing else a client may write here: an undeclared name
+ * is a 422 before the action runs (see base/embeds.js).
+ *
+ * @param {Array<string>} names the relations the action declared
+ * @param {object} context `{ action, controller, settings }`
+ * @returns {object} the parameter object
+ */
+function embedParameter(names, { action, controller, settings }) {
+  return {
+    name: 'embed',
+    in: 'query',
+    required: false,
+    description: [
+      `The relations to carry under \`_embedded\` next to each record.`,
+      `Declared by \`${controller}#${action}\` (the \`embeds\` export): a name this action did not declare is a 422 (\`HENRI_EMBED_INVALID\`), and at most ${settings.maxEmbeds} of them may be asked for at once.`,
+      'An embedded record goes through the same gate as the record it hangs off, and is dropped when the policy of its own model refuses it.',
+    ].join(' '),
+    style: 'form',
+    explode: false,
+    schema: {
+      type: 'array',
+      maxItems: settings.maxEmbeds,
+      items: { type: 'string', enum: names.slice() },
+    },
+  };
 }
 
 /**
@@ -2023,6 +2060,15 @@ function operationFor(route, context) {
     );
   }
 
+  // What a client may ask to travel next to the records of this answer.
+  // Only the names: what an embedded record looks like is what the model's
+  // own schema already says (see base/embeds.js)
+  const expands = context.embedded(route.controller);
+
+  if (expands) {
+    parameters.push(embedParameter(expands, { action, controller, settings }));
+  }
+
   if (answer === 'collection') {
     // The paging parameters, unless the action declared one of them itself:
     // two parameters of the same name in the same place is not a document,
@@ -2085,7 +2131,8 @@ function operationFor(route, context) {
     .concat(described || answer === 'page' ? ['_links'] : [])
     .concat(params.rules ? ['params'] : [])
     .concat(declaredAnswers ? ['answers'] : [])
-    .concat(narrows ? ['filters'] : []);
+    .concat(narrows ? ['filters'] : [])
+    .concat(expands ? ['embeds'] : []);
   const marks = prune({
     fields: params.rules ? Object.keys(params.rules).sort() : undefined,
     read: params.read === false ? false : undefined,
@@ -2112,6 +2159,7 @@ function operationFor(route, context) {
         ? Object.keys(declaredAnswers).sort()
         : undefined,
       controller,
+      embeds: expands || undefined,
       enforced: enforced.length > 0 ? enforced : undefined,
       filters: narrows
         ? {
@@ -2848,6 +2896,10 @@ function overview(settings) {
  *   narrow and order its list by, compiled, as `{ 'tasks#index': declaration }`
  *   -- the bound declarations of a booted application, `declarations()` over
  *   the controller files otherwise (see base/filters.js)
+ * @param {?object} [input.embeds=null] what each action lets a client embed,
+ *   as `{ 'tasks#show': { comments: rule } }`. Only the names are described,
+ *   so the compiled declaration is enough and no model has to be resolved
+ *   (see base/embeds.js)
  * @param {object} [input.info={}] `title`, `version` and `description`
  * @param {Array<object>} [input.servers] the servers, when the caller knows
  *   better than the configuration
@@ -2858,6 +2910,7 @@ function build({
   actions = null,
   answers = null,
   config = {},
+  embeds = null,
   filters = null,
   info = {},
   models = [],
@@ -2899,6 +2952,24 @@ function build({
         written && typeof written === 'object' ? objectOf(written) : {};
 
       return Object.keys(rules).length > 0 ? rules : null;
+    },
+
+    /**
+     * What an action lets a client embed (see base/embeds.js)
+     *
+     * @param {string} controller the `controller#action` key
+     * @returns {?Array<string>} the relation names, or null when there are none
+     */
+    embedded: (controller) => {
+      const written =
+        (embeds &&
+          typeof embeds === 'object' &&
+          Object.prototype.hasOwnProperty.call(embeds, controller) &&
+          embeds[controller]) ||
+        null;
+      const names = written ? Object.keys(written.relations || written) : [];
+
+      return names.length > 0 ? names.slice().sort() : null;
     },
 
     /**

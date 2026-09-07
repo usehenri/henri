@@ -1,5 +1,6 @@
 const { EXTERNAL_ID, hasExternalId } = require('./external-id');
 const { nameOf, publish } = require('./references');
+const { assemble, gather, wanted } = require('./embeds');
 const { check } = require('./arguments');
 const { stamp } = require('./errors');
 const { isInertiaPage, jsonType, noStore, seal } = require('./headers');
@@ -291,6 +292,50 @@ function routeType(res) {
 }
 
 /**
+ * The name of the route being handled (`get /invoices`), for a report
+ *
+ * @param {Express.Request} req the request
+ * @param {Express.Response} res the response
+ * @returns {string} the route name
+ */
+function routeName(req, res) {
+  const route = res && res.locals && res.locals.route;
+
+  return (route && route.name) || `${req.method} ${req.originalUrl || req.url}`;
+}
+
+/**
+ * Everything one answer embeds: the records the relations were loaded for,
+ * the live children and the plan putting them back.
+ *
+ * The children are **not** published here. They are handed back so the
+ * caller can put them in the same `toPublic()` call as the records they
+ * hang off, which is what keeps an embedded record on the gate every other
+ * record leaves through -- one publish, one strip, one batch of identifier
+ * lookups (see base/embeds.js).
+ *
+ * @param {Henri} henri the henri instance
+ * @param {Express.Request} req the request
+ * @param {Express.Response} res the response
+ * @param {object} options `{ embed, sources, where }`
+ * @returns {Promise<{nodes: Array, plans: Array}>} the children and the plan
+ */
+async function embedded(henri, req, res, { embed, sources, where }) {
+  const { declaration, names } = wanted(req, embed, where);
+
+  if (!declaration || names.length === 0) {
+    return { nodes: [], plans: sources.map(() => null) };
+  }
+
+  return gather(henri, req, {
+    declaration,
+    names,
+    route: routeName(req, res),
+    sources,
+  });
+}
+
+/**
  * Sends a JSON body with the negotiated media type and cache headers
  *
  * @param {Express.Request} req the request
@@ -432,7 +477,7 @@ function resource(henri, req, res, record, options = {}) {
   // of `stripPersonal`, where it un-hides a field marked expose: false
   check('res.resource', [record, options]);
 
-  const { type, links, status = 200, subject, include = [] } = options;
+  const { type, links, status = 200, subject, include = [], embed } = options;
 
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     throw stamp(
@@ -464,7 +509,17 @@ function resource(henri, req, res, record, options = {}) {
       return res;
     }
 
-    const plain = await toPublic(henri, record, include);
+    // The relations this answer embeds, loaded and filtered by the policy of
+    // each record, but not yet published: they go through the gate below in
+    // the same call as the record they hang off (see base/embeds.js)
+    const { nodes, plans } = await embedded(henri, req, res, {
+      embed,
+      sources: [asked],
+      where: 'res.resource',
+    });
+    const published = await toPublic(henri, [record, ...nodes], include);
+    const plain = published[0];
+    const embeds = assemble(plans[0], published.slice(1));
 
     // The read half of the access trail: one entry naming the model, the
     // record and who asked, and never a value (see base/trail.js). Off
@@ -472,8 +527,9 @@ function resource(henri, req, res, record, options = {}) {
     //
     // `asked` is here for the same reason the policies read it: a controller
     // answering with a presentation of a record hands over a plain object,
-    // which carries no model, and `subject` is where the record itself is
-    henri.trail && (await henri.trail.seen(req, [record, asked]));
+    // which carries no model, and `subject` is where the record itself is.
+    // An embedded record left the server too, so it is in the entry
+    henri.trail && (await henri.trail.seen(req, [record, asked, nodes]));
 
     const paths = henri.router.pathForRoles(req.user);
     const merged = await allowed(
@@ -501,6 +557,10 @@ function resource(henri, req, res, record, options = {}) {
     }
 
     const body = Object.assign({ _links: null }, plain, { _links: merged });
+
+    if (embeds) {
+      body._embedded = embeds;
+    }
 
     return send(req, res, body, status);
   })();
@@ -543,6 +603,7 @@ function collection(henri, req, res, records, options = {}) {
     status = 200,
     subject,
     include = [],
+    embed,
   } = options;
 
   if (!Array.isArray(records)) {
@@ -572,9 +633,22 @@ function collection(henri, req, res, records, options = {}) {
     const cache = new Map();
     const user = req.user || null;
     const items = [];
-    // The whole page at once: publishing record by record would make one
-    // lookup per foreign key per row (see base/references.js)
-    const published = await toPublic(henri, records, include);
+    // What the page embeds, one statement per relation for the whole page
+    // rather than one per row -- the shape base/references.js already uses
+    // for its own lookups (see base/embeds.js)
+    const { nodes, plans } = await embedded(henri, req, res, {
+      embed,
+      sources: records.map((record, index) =>
+        subjectOf(subject, record, index)
+      ),
+      where: 'res.collection',
+    });
+    // The whole page at once, the embedded records with it: publishing
+    // record by record would make one lookup per foreign key per row (see
+    // base/references.js)
+    const answered = await toPublic(henri, [...records, ...nodes], include);
+    const published = answered.slice(0, records.length);
+    const children = answered.slice(records.length);
 
     // One entry for the page, not one per row: what was read is the answer.
     // `subject` carries the records themselves when the page is a list of
@@ -583,31 +657,36 @@ function collection(henri, req, res, records, options = {}) {
       (await henri.trail.seen(req, [
         records,
         Array.isArray(subject) ? subject : null,
+        nodes,
       ]));
 
     for (const [index, record] of records.entries()) {
       const plain = published[index];
+      const embeds = assemble(plans[index], children);
+      const item = Object.assign({ _links: null }, plain, {
+        _links: await allowed(
+          henri,
+          user,
+          resourceLinks({
+            id: identify(
+              plain,
+              nameOf(henri, subjectOf(subject, record, index)) ||
+                nameOf(henri, record)
+            ),
+            params: req.params,
+            paths,
+            type: kind,
+          }),
+          subjectOf(subject, record, index),
+          { cache, req, type: kind }
+        ),
+      });
 
-      items.push(
-        Object.assign({ _links: null }, plain, {
-          _links: await allowed(
-            henri,
-            user,
-            resourceLinks({
-              id: identify(
-                plain,
-                nameOf(henri, subjectOf(subject, record, index)) ||
-                  nameOf(henri, record)
-              ),
-              params: req.params,
-              paths,
-              type: kind,
-            }),
-            subjectOf(subject, record, index),
-            { cache, req, type: kind }
-          ),
-        })
-      );
+      if (embeds) {
+        item._embedded = embeds;
+      }
+
+      items.push(item);
     }
 
     const url = req.originalUrl || req.url || '/';

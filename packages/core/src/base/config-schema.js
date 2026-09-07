@@ -1262,6 +1262,22 @@ const SCHEMA = {
           },
         ],
       },
+      maxEmbedded: {
+        default: 25,
+        describe: 'a whole number of records, above zero',
+        hint: 'The most records one `_embedded` relation carries per record, when the controller declares no limit of its own (base/embeds.js)',
+        integer: true,
+        min: 1,
+        type: 'number',
+      },
+      maxEmbeds: {
+        default: 3,
+        describe: 'a whole number of relations, above zero',
+        hint: 'The most relations one request may ask to embed (`?embed=lines,customer`)',
+        integer: true,
+        min: 1,
+        type: 'number',
+      },
       maxFilters: {
         default: 8,
         describe: 'a whole number of filter terms, above zero',

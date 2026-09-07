@@ -1264,7 +1264,7 @@ disposition, filename, type })` is one call whatever the backend -- the
 - Controllers may export `before` (`base/hooks.js`): hooks the router runs
   between the role guard and the action, keyed by action (`all`,
   `'show,edit'`) or as `[fn, { run, only, except }]`; a hook that answers ends
-  the request, and `before` is one of the three exports that are never an
+  the request, and `before` is one of the five exports that are never an
   action. The same module wraps every action so that returning without
   answering renders `/<controller>/<action>` (`/<controller>` for `index`)
   with what it returned. `req.flash()` (`base/flash.js`) keeps one-shot messages in the
@@ -1358,6 +1358,40 @@ disposition, filename, type })` is one call whatever the backend -- the
   `base/pagination.js` already carries the query string into `next`/`prev`,
   so the links carry the filter, and `henri openapi` writes one parameter per
   comparison plus `x-henri.filters`. The guide is `guides/filtering.md`.
+- The fifth is `embeds` (`base/embeds.js`): what may travel **next to** a
+  record, under `_embedded`. henri answered half of HAL -- `_links` said
+  where to go next, and a client that wanted an invoice and its lines made
+  two requests, a page of twenty invoices twenty one. A relation is written
+  as the **declared foreign key** it goes through, because that is the only
+  thing henri can check: `customer: 'customerId'` is a key this model
+  declared and the record it names is embedded, `lines: { through:
+'Line.invoiceId' }` is a key another model declared at this one and the
+  records naming it are; `limit` caps a list and `one: true` says the other
+  side holds a single record. A key no model declared as a reference fails
+  the boot (`HENRI_EMBED_DECLARATION_INVALID`), for the reason
+  `base/references.js` gives: henri reads no field name to decide what
+  points where. A client asks with `?embed=lines`, only for what the action
+  declared, and anything else is a 422 before the action runs
+  (`HENRI_EMBED_INVALID`, at most `config.api.maxEmbeds`); an action with no
+  block has no such surface, like an action with no `filters`. **The exit
+  gate is the same gate**: the children are handed to the same `toPublic()`
+  call as the records they hang off, in one list, so `publish()` and
+  `strip()` run over them exactly as over everything else, and there is
+  nowhere for an `embed` that skips either pass to be written. An embedded
+  record answers what `res.resource()` of it would answer -- the user model
+  included, rather than `publicUser()`, because a second rule for one model
+  would be a _different_ gate. **The policy is asked per record** (`show`,
+  against the child's own policy, the rule `links()` follows), and a record
+  it refuses is **absent**: a stub would say "there is a record here you may
+  not read", which is the oracle `findById()` was made strict to close. The
+  cost is **one statement per relation per answer** whatever the page size
+  -- `conditionFor()` and `orderFor()` of `base/filters.js` spell it for the
+  three adapters -- and an eager loaded association is deliberately not
+  reused, because it honours neither the `limit` nor the order. A record
+  with more rows than the declaration promised is reported once per route
+  and served its prefix, never refused: the answer is already built by then.
+  `henri openapi` writes one `embed` parameter plus `x-henri.embeds`. The
+  guide is `guides/api.md` (`#embedding-relations`).
 - The fourth boundary is every entry point an application calls
   (`base/arguments.js`), after the configuration and the request: the
   signature of roughly fifty of them, as data, in the same node vocabulary
@@ -1679,6 +1713,28 @@ filters.spec.js`), on MongoDB through the demo application core's suite
   the rest of that adapter. There is no `or` between filters, no free-text
   search across columns, no cursor paging, no filtering across an
   association and no operator an application can add.
+- The declared embeds (`embeds` in a controller, `_embedded` in the answer)
+  are new. What was **deliberately left**, each with its reason in the
+  header of `base/embeds.js`: no `_links` on an embedded record (nothing
+  declares which controller serves a model, and a guessed href is worse than
+  none), **no nesting** (`?embed=lines.product` is a query and a policy
+  question per record per level), nothing from `res.render()` (`_embedded`
+  is a HAL word), no filtering or ordering of an embedded relation from the
+  query string, and no reuse of an association the controller eager loaded
+  -- so a controller that eager loads _and_ embeds pays for both. Two
+  limits are real rather than deliberate: a relation is bound to the model
+  the **controller is named after** (there is no `model:` override the way
+  `filters` has one), and a to-many relation is read with a global
+  `limit x parents + 1` rather than a per-parent top-N, so a page whose
+  rows go past that bound loses whole records at the end of the page --
+  reported once per route, never refused. Coverage: MongoDB through the
+  demo application core's suite boots (`get /memos?embed=owner` and
+  `get /profile/memos`, including the policy refusal and the `expose:
+false` columns of the user model), sqlite offline and the live PostgreSQL
+  and MySQL of `pnpm test:sql:live`
+  (`packages/{drizzle,sequelize}/__tests__/embeds.spec.js`, which also
+  count the statements). MSSQL rides the Sequelize path with no coverage of
+  its own, like the rest of that adapter.
 - Model validations (`validates`) are new, and this is the tranche that
   landed the declaration plus the validators that work identically on all
   three. What was **deliberately left**: no `unique` (argued above and in

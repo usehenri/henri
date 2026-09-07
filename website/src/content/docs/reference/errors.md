@@ -870,6 +870,49 @@ Usually:
 
 **Fix.** The boot prints every path it tried. Create config/default.json, or fix the JSON of the file that is there.
 
+## embed
+
+The relations a controller declares embeddable, and the `_embedded` of a HAL answer.
+
+### `HENRI_EMBED_ADAPTER_UNSUPPORTED`
+
+henri cannot load an embedded relation from this model's adapter.
+
+Usually:
+
+- a model whose adapter is not mongoose, sequelize or drizzle
+- a model that left the application between the boot and the request
+
+**Fix.** An embedded relation is loaded through the model API of the three adapters henri ships. Make sure the store holding the model the relation names is the one the boot started.
+
+### `HENRI_EMBED_DECLARATION_INVALID`
+
+A controller declares an embed henri cannot carry out, or asks for one it did not declare.
+
+Usually:
+
+- a relation that is not a string or an object holding a `through`
+- a `through` that is not a declared foreign key of this model, or a `Model.field` that does not point back at it
+- a `limit` that is not a whole number above zero, or one on the side of the relation that names a single record
+- an unknown key, usually a misspelling of `through`, `limit` or `one`
+- a selector naming an action the controller does not export
+- a controller that embeds and is not named after the model it answers
+- `res.resource(record, { embed })` naming a relation the action did not declare
+
+**Fix.** The message names the controller, the action and the relation. A relation is the foreign key it goes through -- `customer: 'customerId'` for the record a key names, `lines: { through: 'Line.invoiceId' }` for the records naming this one -- and the key has to be declared on the model (`references: { model }` on a SQL adapter, `ref` on mongoose). See the JSON API guide.
+
+### `HENRI_EMBED_INVALID`
+
+A request asks to embed a relation the action did not declare.
+
+Usually:
+
+- an `?embed=` name the action did not declare
+- `?embed=` on an action that declares no embeds
+- more names than `config.api.maxEmbeds`
+
+**Fix.** The 422 answer carries one message per name in `data.errors`. Ask for what the action declared, or declare what you want to be able to ask for (`embeds: { show: { lines: { through: 'Line.invoiceId' } } }`).
+
 ## encryption
 
 The fields marked `encrypted` in the models, the keys that open them and the rotation that moves them.

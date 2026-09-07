@@ -627,6 +627,7 @@ expectType<Record<string, AnswerRule> | null>(
   henri.controllers.answers('tasks#index')
 );
 expectType<object | null>(henri.controllers.filters('tasks#index'));
+expectType<object | null>(henri.controllers.embeds('tasks#show'));
 
 const narrowed: Controller = {
   filters: {
@@ -656,6 +657,31 @@ const narrowed: Controller = {
 };
 
 expectType<Controller>(narrowed);
+
+// What may travel next to a record, under `_embedded`
+const embedding: Controller = {
+  embeds: {
+    // the short form is the foreign key of this model
+    index: { owner: 'ownerId' },
+    show: {
+      owner: 'ownerId',
+      comments: { through: 'Comment.taskId', limit: 50 },
+      cover: { through: 'Cover.taskId', one: true },
+    },
+  },
+  show: async (req, res) => res.resource({ id: '1' }, { embed: ['comments'] }),
+};
+
+expectType<Controller>(embedding);
+
+const badEmbed: Controller = {
+  embeds: {
+    // @ts-expect-error a relation says what it goes through
+    show: { owner: { limit: 2 } },
+  },
+};
+
+expectType<Controller>(badEmbed);
 
 const badFilter: Controller = {
   filters: {
@@ -970,6 +996,12 @@ res.render('/account', { data: { user: {} }, include: ['phone'] });
 res.resource({ id: '1' }, { include: ['phone'] });
 // @ts-expect-error `include` names fields, not a boolean
 res.resource({ id: '1' }, { include: true });
+
+// ... and the relations that travel with it are named the same way
+res.resource({ id: '1' }, { embed: ['comments'] });
+res.collection([{ id: '1' }], { embed: [] });
+// @ts-expect-error `embed` names relations, not a boolean
+res.resource({ id: '1' }, { embed: true });
 
 declare const page: Page<{ id: string }>;
 expectType<{ id: string }[]>(page.records);
