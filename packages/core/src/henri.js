@@ -13,6 +13,7 @@ const Encryption = require('./1.encryption');
 const I18n = require('./1.i18n');
 const Mailer = require('./1.mailer');
 const Controllers = require('./2.controllers');
+const Flags = require('./2.flags');
 const Mailers = require('./2.mailers');
 const Server = require('./2.server');
 const Cache = require('./3.cache');
@@ -82,6 +83,7 @@ class Henri extends HenriBase {
     this.modules.add(new Calls());
     this.modules.add(new Config());
     this.modules.add(new Encryption());
+    this.modules.add(new Flags());
     this.modules.add(new I18n());
     this.modules.add(new Mailer());
     this.modules.add(new Controllers());

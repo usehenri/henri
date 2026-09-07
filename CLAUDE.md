@@ -75,31 +75,31 @@ has to be named per record or per process. An application's own suite keeps
 
 ## Layout
 
-| Path                           | Package               | Role                                                                                                                                                                                                                                                                                               |
-| ------------------------------ | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/henri`               | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                                                                                                                                                                        |
-| `packages/cli`                 | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `runner`, `routes`, `openapi`, `graphql`, `generate` (incl. `authentication`), `destroy`, `build`, `test`, `db`, `jobs`, `webhooks`, `privacy`, `encryption`, `calls`, `maintenance`, `doctor`, `audit`, `mcp`, `clean`, `about`, `analyze`; the app templates |
-| `packages/core`                | `@usehenri/core`      | The framework: modules, server, router, models, views, users, policies, mail, i18n                                                                                                                                                                                                                 |
-| `packages/mongoose`            | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                                                                                                                                                                       |
-| `packages/disk`                | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                                                                                                                                                               |
-| `packages/drizzle`             | `@usehenri/drizzle`   | henri's SQL data layer: Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`). The default of `henri new`, on sqlite                                                                                                                                                    |
-| `packages/postgresql`, `mysql` | `@usehenri/*`         | `@usehenri/drizzle` with the dialect and the driver chosen; `mariadb` is served by `@usehenri/mysql`                                                                                                                                                                                               |
-| `packages/sequelize`           | `@usehenri/sequelize` | Sequelize 6, only under `@usehenri/mssql`: Drizzle has no SQL Server dialect                                                                                                                                                                                                                       |
-| `packages/mssql`               | `@usehenri/mssql`     | SQL Server, on `@usehenri/sequelize`. No migrations; `henri db:status` reports the drift                                                                                                                                                                                                           |
-| `packages/react`               | `@usehenri/react`     | Next.js 16 view engine (pages router), `withHenri`, `useHenri`, form components; supported and frozen                                                                                                                                                                                              |
-| `packages/inertia`             | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19; the default renderer of `henri new`                                                                                                                                                                                                                     |
-| `packages/jobs`                | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1; ships its own module, left core in 1.2                                                                                                                                   |
-| `packages/graphql`             | `@usehenri/graphql`   | GraphQL: the models' types and resolvers merged and served by Apollo Server; left core in 1.2                                                                                                                                                                                                      |
-| `packages/webhooks`            | `@usehenri/webhooks`  | Outbound webhooks: endpoints henri stores, Standard Webhooks signatures, an SSRF check at request time; delivers through the queue, new in 1.2                                                                                                                                                     |
-| `packages/uploads`             | `@usehenri/uploads`   | File uploads: bounded multipart parsing (busboy), files typed by their bytes and a storage seam; ships its own module, new in 1.2                                                                                                                                                                  |
-| `packages/s3`                  | `@usehenri/s3`        | Uploads on an object store: one backend over the S3 API (S3, R2, Spaces, MinIO), SigV4 and presigned urls, new in 1.2                                                                                                                                                                              |
-| `packages/redis`               | `@usehenri/redis`     | The shared store of `config.shared`: the rate limit, the sign-in lockout and the idempotency keys counted in Redis instead of one process                                                                                                                                                          |
-| `packages/testing`             | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                                                                                                                                                  |
-| `packages/mcp`                 | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                                                                                                                                               |
-| `packages/websocket`           | private               | Not published, never wired into core                                                                                                                                                                                                                                                               |
-| `packages/demo`                | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                                                                                                                                                                     |
-| `showcase`                     | private               | Lineup, the showcase application (Inertia + Drizzle on PostgreSQL); its own suite, `pnpm test:showcase`                                                                                                                                                                                            |
-| `website`                      | private               | usehenri.io, deployed by Vercel from `website/`, master only (`vercel.json`)                                                                                                                                                                                                                       |
+| Path                           | Package               | Role                                                                                                                                                                                                                                                                                                        |
+| ------------------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/henri`               | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                                                                                                                                                                                 |
+| `packages/cli`                 | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `runner`, `routes`, `openapi`, `graphql`, `generate` (incl. `authentication`), `destroy`, `build`, `test`, `db`, `jobs`, `webhooks`, `privacy`, `encryption`, `calls`, `flags`, `maintenance`, `doctor`, `audit`, `mcp`, `clean`, `about`, `analyze`; the app templates |
+| `packages/core`                | `@usehenri/core`      | The framework: modules, server, router, models, views, users, policies, mail, i18n                                                                                                                                                                                                                          |
+| `packages/mongoose`            | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                                                                                                                                                                                |
+| `packages/disk`                | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                                                                                                                                                                        |
+| `packages/drizzle`             | `@usehenri/drizzle`   | henri's SQL data layer: Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`). The default of `henri new`, on sqlite                                                                                                                                                             |
+| `packages/postgresql`, `mysql` | `@usehenri/*`         | `@usehenri/drizzle` with the dialect and the driver chosen; `mariadb` is served by `@usehenri/mysql`                                                                                                                                                                                                        |
+| `packages/sequelize`           | `@usehenri/sequelize` | Sequelize 6, only under `@usehenri/mssql`: Drizzle has no SQL Server dialect                                                                                                                                                                                                                                |
+| `packages/mssql`               | `@usehenri/mssql`     | SQL Server, on `@usehenri/sequelize`. No migrations; `henri db:status` reports the drift                                                                                                                                                                                                                    |
+| `packages/react`               | `@usehenri/react`     | Next.js 16 view engine (pages router), `withHenri`, `useHenri`, form components; supported and frozen                                                                                                                                                                                                       |
+| `packages/inertia`             | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19; the default renderer of `henri new`                                                                                                                                                                                                                              |
+| `packages/jobs`                | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1; ships its own module, left core in 1.2                                                                                                                                            |
+| `packages/graphql`             | `@usehenri/graphql`   | GraphQL: the models' types and resolvers merged and served by Apollo Server; left core in 1.2                                                                                                                                                                                                               |
+| `packages/webhooks`            | `@usehenri/webhooks`  | Outbound webhooks: endpoints henri stores, Standard Webhooks signatures, an SSRF check at request time; delivers through the queue, new in 1.2                                                                                                                                                              |
+| `packages/uploads`             | `@usehenri/uploads`   | File uploads: bounded multipart parsing (busboy), files typed by their bytes and a storage seam; ships its own module, new in 1.2                                                                                                                                                                           |
+| `packages/s3`                  | `@usehenri/s3`        | Uploads on an object store: one backend over the S3 API (S3, R2, Spaces, MinIO), SigV4 and presigned urls, new in 1.2                                                                                                                                                                                       |
+| `packages/redis`               | `@usehenri/redis`     | The shared store of `config.shared`: the rate limit, the sign-in lockout and the idempotency keys counted in Redis instead of one process                                                                                                                                                                   |
+| `packages/testing`             | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                                                                                                                                                           |
+| `packages/mcp`                 | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                                                                                                                                                        |
+| `packages/websocket`           | private               | Not published, never wired into core                                                                                                                                                                                                                                                                        |
+| `packages/demo`                | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                                                                                                                                                                              |
+| `showcase`                     | private               | Lineup, the showcase application (Inertia + Drizzle on PostgreSQL); its own suite, `pnpm test:showcase`                                                                                                                                                                                                     |
+| `website`                      | private               | usehenri.io, deployed by Vercel from `website/`, master only (`vercel.json`)                                                                                                                                                                                                                                |
 
 ## How core works
 
@@ -144,7 +144,7 @@ afterLogin, sessionMaxAge, signup, passwordReset, confirmation,
 identities }`),
   `baseRole`, `externalIds`, `policies`, `trustProxy`, `csrf`, `graphql`,
   `mail`, `mailers`, `api`, `jobs`, `webhooks`, `rateLimit`, `shared`,
-  `cache`, `helmet`, `csp`, `filterParameters`, `logs`, `telemetry`,
+  `cache`, `flags`, `helmet`, `csp`, `filterParameters`, `logs`, `telemetry`,
   `encryption`, `privacy`, `retention`, `trail`, `calls`, `queries`,
   `versions`, `i18n`, `bodyLimit`, `uploads`, `requestTimeout`, `shutdown`,
   `maintenance`, `errors`.
@@ -316,6 +316,43 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   stored at all. Every entry has a TTL; henri invalidates nothing on its
   own. Values never reach a log line and a key matching `filterParameters`
   is masked there.
+- Feature flags are `2.flags.js` (`henri.flags`) and `base/flags.js`, and
+  they are **declared**: `config/flags.js` lists every flag an application
+  has (`checkout: false`, or `{ default, description, expose, group }`), and
+  a name nothing declares is `HENRI_FLAGS_UNKNOWN` at the call and a refusal
+  on the command line rather than a `false` -- `req.permit()`'s position,
+  argued in the guide, with the cost (removing a flag is two deploys) said
+  out loud. `flipper` is what it learns from: the gates and the
+  `enable`/`disable` vocabulary are kept, `percentage_of_time` is not (a
+  feature that flickers inside one page load is a bug henri would have
+  caused), and neither are the expression gates, the UI or the metrics. The
+  gates are a union, first `true` wins: the switch, a named set of
+  `externalId`s, a percentage, then `boolean === false` (the kill switch,
+  which the group below cannot argue with), then the group, then the
+  declared default -- and `disable(name)` is a **reset**, clearing the set
+  and the percentage the way flipper's does. The percentage is
+  `sha256(flag + actor)`, computed and never stored, so it is stable across
+  processes and restarts and a rollout only ever adds people; the flag name
+  is in the hash so two features at ten percent are not on for the same ten
+  percent, and the `externalId` is hashed **whole** because a uuid v7 is
+  time-ordered and any prefix of it would roll out by signup date (the
+  suite checks every tenth of ten thousand sequential ids, not only the
+  total). A primary key is never an actor
+  (`HENRI_FLAGS_ACTOR_INVALID`). The state lives in `config.shared` when
+  there is a backend, `.henri/flags.json` otherwise and this process's
+  memory under `NODE_ENV=test`, and the boot line names which and says its
+  limit. Every read comes from an in-memory snapshot re-read on a timer
+  (`flags.refresh`, ten seconds, which is the whole staleness window) --
+  not through `henri.cache`, because a cache's answer to a backend that is
+  down is a miss and a miss here would revert every flag to its default
+  mid-incident; **a store that cannot be read flips nothing**, the snapshot
+  stands and it is reported at most once a minute. `henri.flags.enabled()`,
+  `req.flag()` and, for the pages, the `flags` view option holding the
+  flags declared `expose: true` and no others. `henri flags`, `flags:on`,
+  `flags:off`, `flags:percentage` and `flags:reset` boot to **runlevel 2**
+  and no further, so a kill switch can be flipped with the database
+  unreachable; there is **no HTTP surface** in any environment. The guide
+  is `guides/feature-flags.md`.
 - `SIGINT` and `SIGTERM` drain before they stop (`base/shutdown.js`,
   `2.server.js`): readiness turns 503, `config.shutdown.delay` passes, the
   listener closes and the idle keep-alives are hung up, the requests in

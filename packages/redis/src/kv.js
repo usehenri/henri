@@ -90,20 +90,41 @@ class KeyValueStore {
   }
 
   /**
+   * How long an entry lives, as Redis takes it, or nothing at all.
+   *
+   * A ttl is what every counter here has, but not everything on this
+   * backend is a counter: `henri.flags` keeps the state of a feature
+   * switch, and a switch that turned itself back on after a fortnight
+   * would be the worst failure that module could have. So a call that
+   * names no expiry gets none, rather than a very long one that is a bug
+   * with a date on it.
+   *
+   * @param {*} ttl how long it lives (ms), or nothing
+   * @returns {?object} the options for `SET`, or null for no expiry
+   * @memberof KeyValueStore
+   */
+  expiry(ttl) {
+    const found = Number(ttl);
+
+    return Number.isFinite(found) && found > 0
+      ? { PX: Math.max(1, Math.round(found)) }
+      : null;
+  }
+
+  /**
    * Writes an entry, replacing whatever was there
    *
    * @param {string} key the key
    * @param {*} value anything JSON-serializable (a string in `raw`)
-   * @param {number} ttl how long it lives (ms)
+   * @param {number} [ttl] how long it lives (ms); forever without one
    * @returns {Promise<void>} done
    * @memberof KeyValueStore
    */
   async set(key, value, ttl) {
     const client = await this.client();
+    const expiry = this.expiry(ttl);
 
-    await client.set(this.key(key), this.payload(value), {
-      PX: Math.max(1, Math.round(ttl)),
-    });
+    await client.set(this.key(key), this.payload(value), expiry || undefined);
   }
 
   /**
@@ -112,7 +133,7 @@ class KeyValueStore {
    *
    * @param {string} key the key
    * @param {*} value anything JSON-serializable
-   * @param {number} ttl how long it lives (ms)
+   * @param {number} [ttl] how long it lives (ms); forever without one
    * @returns {Promise<boolean>} true when this call wrote it
    * @memberof KeyValueStore
    */
@@ -120,7 +141,7 @@ class KeyValueStore {
     const client = await this.client();
     const answer = await client.set(this.key(key), this.payload(value), {
       NX: true,
-      PX: Math.max(1, Math.round(ttl)),
+      ...this.expiry(ttl),
     });
 
     return answer !== null;

@@ -1,3 +1,5 @@
+const path = require('path');
+
 const express = require('express');
 const supertest = require('supertest');
 
@@ -9,6 +11,8 @@ const {
   MemoryStore,
   idempotency,
 } = require('@usehenri/core/src/base/idempotency');
+
+const FlagsModule = require('@usehenri/core/src/2.flags');
 
 const Backend = require('../index');
 const { clear, live, prefix, url } = require('./targets');
@@ -276,6 +280,71 @@ describe.skipIf(!live)('@usehenri/redis against a live server', () => {
       .expect(422);
 
     expect(created).toBe(1);
+  });
+
+  test('two processes read one set of feature flags', async () => {
+    // The other half of `henri flags`. Its default store is a file, which
+    // is one machine; this is the store that makes a flip mean the same
+    // thing everywhere, and the closest this suite gets to two deployments
+    // of one application: two modules, two connections, one Redis
+    const flagsOn = async () => {
+      const module = new FlagsModule();
+
+      module.henri = {
+        config: { get: () => undefined, has: () => false },
+        // An application declaring two flags and nothing else
+        cwd: () => path.join(__dirname, 'fixtures', 'flags-app'),
+        isDev: false,
+        isTest: false,
+        pen: { error: () => {}, info: () => {}, warn: () => {} },
+        shared: sharedOn(await started('flags')),
+      };
+
+      await module.init();
+
+      return module;
+    };
+
+    const one = await flagsOn();
+    const two = await flagsOn();
+
+    // `config.shared` is what decided it, with nothing else configured
+    expect(one.settings.store).toBe('shared');
+    expect(one.store.describe()).toBe('shared with every process');
+
+    await one.reset('checkout');
+    await two.refresh();
+    expect(await two.enabled('checkout')).toBe(false);
+
+    await one.enable('checkout');
+    await two.refresh();
+    expect(await two.enabled('checkout')).toBe(true);
+
+    // The kill switch, and then a named actor added afterwards: both
+    // written by one instance and read by the other
+    const actor = '018f0000-0000-7000-8000-000000000000';
+
+    await one.disable('checkout');
+    await one.enable('checkout', actor);
+    await two.refresh();
+
+    expect(await two.enabled('checkout', actor)).toBe(true);
+    expect(await two.enabled('checkout')).toBe(false);
+
+    // No expiry: the key is still there with no ttl of its own, because a
+    // switch that turned itself back on after a fortnight would be the
+    // worst failure this module could have
+    const client = await one.henri.shared.backend.connected();
+    const key = `${one.henri.shared.backend.prefix}kv:flags:checkout`;
+
+    expect(await client.pTTL(key)).toBe(-1);
+
+    await one.reset('checkout');
+    await two.refresh();
+    expect(await two.enabled('checkout', actor)).toBe(false);
+
+    await one.stop();
+    await two.stop();
   });
 
   test('a shared store answers what /readyz asks', async () => {

@@ -1,0 +1,6 @@
+{
+  "name": "flags-fixture",
+  "private": true,
+  "henri": true,
+  "description": "Runs henri flags against a declared set, without a database"
+}

@@ -78,6 +78,27 @@ describe('the redis backend, without a server', () => {
     );
   });
 
+  test('a value with no expiry is kept, and one with an expiry is not', async () => {
+    const sent = [];
+    const store = new Backend({ prefix: 'lineup:' }).keyValueStore('flags');
+
+    store.client = async () => ({
+      set: async (...args) => void sent.push(args),
+    });
+
+    // The counters all name a ttl, and every one of them still gets a PX
+    await store.set('idem', { ok: true }, 5000);
+    expect(sent[0][2]).toEqual({ PX: 5000 });
+
+    // `henri.flags` does not: a feature switch that turned itself back on
+    // after a fortnight would be the worst failure that module could have
+    await store.set('checkout', { boolean: true });
+    expect(sent[1][2]).toBeUndefined();
+
+    await store.add('claimed', { ok: true });
+    expect(sent[2][2]).toEqual({ NX: true });
+  });
+
   test('a server that is not there fails fast, and says so', async () => {
     const backend = new Backend({
       connectTimeout: 300,

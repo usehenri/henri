@@ -629,6 +629,86 @@ const COMMANDS = [
     ],
   },
   {
+    description: [
+      'The feature flags of this application, and the four things an',
+      'operator can do to one. The flags themselves are declared in',
+      'config/flags.js -- a name this command does not find there is',
+      'refused rather than written, because a flag nothing reads is a',
+      'switch that does nothing.',
+      '',
+      'A flag is on for everyone, on for a named set of people, on for a',
+      'stable share of them, or on for a group the application describes',
+      'in code. henri flags:off is the kill switch and it is a reset: the',
+      'named set and the share go with it.',
+      '',
+      'The actor of :on and :off is a public identifier (an externalId),',
+      'never a primary key and never an email address. This boots to the',
+      'express application and no further, so a flag can be flipped while',
+      'the database is down.',
+    ],
+    examples: [
+      {
+        command: 'henri flags',
+        description: 'Every flag, what it answers and when it moved',
+      },
+      {
+        command: 'henri flags:on checkout',
+        description: 'On for everyone',
+      },
+      {
+        command: 'henri flags:on checkout 018f0000-0000-7000-8000-000000000000',
+        description: 'On for one person, and nobody else',
+      },
+      {
+        command: 'henri flags:percentage checkout 25',
+        description:
+          'On for a quarter of the actors, the same quarter every time',
+      },
+      {
+        command: 'henri flags:off checkout',
+        description: 'Off for everyone, clearing the share and the named set',
+      },
+    ],
+    flags: [
+      {
+        description: 'list: print the public identifiers of the named set',
+        flag: '--all',
+      },
+      JSON_FLAG,
+    ],
+    name: 'flags',
+    summary: 'the feature flags of this application, and flipping one',
+    targets: [
+      {
+        description: 'every flag and what moved it (the default)',
+        name: 'list',
+      },
+      {
+        description: 'on for everyone, or for one actor',
+        name: 'on <name> [actor]',
+      },
+      {
+        description: 'off for everyone (a reset), or take one actor out',
+        name: 'off <name> [actor]',
+      },
+      {
+        description: 'on for a stable share of the actors; 0 clears it',
+        name: 'percentage <name> <0-100>',
+      },
+      {
+        description: 'forget every flip: the declared default answers again',
+        name: 'reset <name>',
+      },
+    ],
+    usage: [
+      'henri flags [--all] [--json]',
+      'henri flags:on <name> [<actor>] [--json]',
+      'henri flags:off <name> [<actor>] [--json]',
+      'henri flags:percentage <name> <0-100> [--json]',
+      'henri flags:reset <name> [--json]',
+    ],
+  },
+  {
     aliases: ['g'],
     description: [
       'Writes models, controllers, routes, views, policies, mailers, workers',

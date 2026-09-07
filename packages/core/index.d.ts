@@ -736,6 +736,31 @@ declare namespace start {
   }
 
   /**
+   * `config.flags`: where the state of the feature flags is kept, and how
+   * often a process re-reads it. The flags themselves are declared in
+   * `config/flags.js`, not here.
+   */
+  interface FlagsConfig {
+    /**
+     * `false` keeps the block; every flag then answers its declared
+     * default and nothing can be flipped (`true`).
+     */
+    enabled?: boolean;
+    /**
+     * How long a flip takes to reach the other processes (`"10s"`), which
+     * is the staleness window of every read. One second is the floor.
+     */
+    refresh?: number | string;
+    /**
+     * `"shared"` (the backend of `config.shared`), `"memory"` (this
+     * process), or the path of a file. Unset means `"shared"` when there
+     * is a backend, `.henri/flags.json` otherwise, and `"memory"` under
+     * `NODE_ENV=test`.
+     */
+    store?: string | null;
+  }
+
+  /**
    * `config.csp`: the Content Security Policy settings henri owns. The
    * policy itself is helmet's (`config.helmet.contentSecurityPolicy`).
    */
@@ -964,6 +989,11 @@ declare namespace start {
     shared?: SharedConfig;
     /** `henri.cache`: what it keeps and for how long; `false` turns it off. */
     cache?: false | CacheConfig;
+    /**
+     * Feature flags: where their state is kept and how often it is
+     * re-read. The flags are declared in `config/flags.js`.
+     */
+    flags?: FlagsConfig;
     /** Options merged over henri's helmet defaults; `false` disables it. */
     helmet?: false | Record<string, unknown>;
     /** Content Security Policy settings henri owns, beside `helmet`. */
@@ -2187,6 +2217,11 @@ declare namespace start {
       record?: T,
       options?: string | { policy?: string; type?: string; status?: number }
     ): Promise<T>;
+    /**
+     * Is this feature flag on for the signed-in user? The same question as
+     * `henri.flags.enabled()`, with the user of the request filled in.
+     */
+    flag(name: string): Promise<boolean>;
     /**
      * What a list of records should be filtered by, from the policy's
      * `scope`. The name defaults to what the route is about.
@@ -4638,6 +4673,71 @@ declare namespace start {
    * The running application: `global.henri` in an app, and what
    * `require('@usehenri/core')()` resolves with.
    */
+  /** One flag, and everything that has been done to it. */
+  interface FlagState {
+    name: string;
+    /** What `config/flags.js` says it is for, when it says. */
+    description: string | null;
+    /** What it answers before anybody flips it. */
+    default: boolean;
+    /** Whether it reaches a page as `flags.<name>`. */
+    expose: boolean;
+    /** Whether the declaration carries a group predicate. */
+    group: boolean;
+    /** `true` on for everyone, `false` off, `null` never flipped. */
+    boolean: boolean | null;
+    /** The public identifiers it is on for, whatever the rest says. */
+    actors: string[];
+    /** The share of the actors it is on for, `0` when there is none. */
+    percentage: number;
+    /** When it was last flipped, in epoch milliseconds. */
+    at: number | null;
+    /** What it answers for somebody henri knows nothing about. */
+    everyone: boolean;
+  }
+
+  /**
+   * `henri.flags`: the feature flags of `config/flags.js`, the four writes
+   * an operator has, and the one read everything else uses. A name nothing
+   * declares is a failure rather than a `false`.
+   */
+  interface FlagsModule {
+    /** The flags of `config/flags.js`, by name. */
+    readonly declared: Map<string, unknown>;
+    /** `config.flags`, normalized. */
+    readonly settings: {
+      enabled: boolean;
+      refresh: number;
+      store: string;
+    } | null;
+    /**
+     * Is this flag on for this actor? The actor is a record carrying an
+     * `externalId` or that identifier itself; without one only the switch
+     * and the group can answer yes.
+     */
+    enabled(name: string, actor?: unknown): Promise<boolean>;
+    /**
+     * The flags declared `expose: true`, resolved for this actor. What
+     * `5.router.js` puts in the view options as `flags`.
+     */
+    exposed(actor?: unknown): Promise<Record<string, boolean>>;
+    /** Every flag, what it is, and what has been done to it. */
+    list(): Promise<FlagState[]>;
+    /** On for everyone, or -- with an actor -- for that one. */
+    enable(name: string, actor?: unknown): Promise<boolean>;
+    /**
+     * Off for everyone, clearing the actors and the percentage with it, or
+     * -- with an actor -- taking that one out of the set.
+     */
+    disable(name: string, actor?: unknown): Promise<boolean>;
+    /** On for a stable share of the actors; `0` clears the gate. */
+    percentage(name: string, percent: number): Promise<boolean>;
+    /** Forgets everything done to it: the declared default answers again. */
+    reset(name: string): Promise<boolean>;
+    /** Re-reads the store now rather than at the next poll. */
+    refresh(): Promise<boolean>;
+  }
+
   interface Henri {
     config: ConfigModule;
     pen: Pen;
@@ -4730,6 +4830,13 @@ declare namespace start {
      * backend -- and then it is that one, with nothing else to configure.
      */
     cache: CacheModule;
+    /**
+     * The feature flags: `enabled()` to read one, `enable`, `disable`,
+     * `percentage` and `reset` to flip one. The flags are declared in
+     * `config/flags.js` and a name nothing declares throws.
+     */
+    flags: FlagsModule;
+
     /**
      * The maintenance switch: `on()`, `off()` and `status()`, plus what the
      * running server reads on the way into a request. Always there --

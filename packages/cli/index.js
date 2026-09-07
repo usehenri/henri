@@ -80,6 +80,7 @@ module.exports = (pkg, args) => {
     'credentials',
     'db',
     'encryption',
+    'flags',
     'maintenance',
     'privacy',
     'retention',

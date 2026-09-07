@@ -1382,6 +1382,29 @@ const SCHEMA = {
     ],
   },
 
+  flags: {
+    describe: 'an object of feature flag settings',
+    hint: 'The flags are declared in config/flags.js; this is only where their state is kept and how often a process re-reads it',
+    keys: {
+      enabled: {
+        default: true,
+        describe: 'true or false',
+        hint: 'false keeps the block; every flag then answers its declared default and nothing can be flipped',
+        type: 'boolean',
+      },
+      refresh: duration({
+        default: '10s',
+        hint: 'How long a flip takes to reach the other processes, and the floor is one second',
+      }),
+      store: {
+        describe: "'shared', 'memory', or the path of a file",
+        hint: 'Unset means shared when config.shared names a backend, .henri/flags.json otherwise, and memory under NODE_ENV=test',
+        oneOf: [{ const: null }, text()],
+      },
+    },
+    type: 'object',
+  },
+
   helmet: {
     describe: 'an object of helmet options, or false to disable helmet',
     oneOf: [{ const: false }, { type: 'object', unknown: 'allow' }],

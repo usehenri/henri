@@ -58,6 +58,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `rateLimit`        | `600`/min     | Global, authentication and shared-store rate limits, see below. `false` disables them, `true` keeps the defaults.                                                                |
 | `shared`           |               | The backend the rate limit, the sign-in lockout and the idempotency keys count in, so two processes share one set, see below.                                                    |
 | `cache`            | on            | `henri.cache`: how long an entry lives, how much of it is kept and where, see below. `false` turns the cache off.                                                                |
+| `flags`            |               | Where the state of the feature flags is kept and how often a process re-reads it, see below. The flags themselves are declared in `config/flags.js`.                             |
 | `helmet`           | on            | Options merged over henri's [helmet](https://helmetjs.github.io/) defaults; `false` disables it.                                                                                 |
 | `csp`              | off           | Content Security Policy settings henri owns beside `helmet`: `nonce`, see below. See [Security](/guides/security/#content-security-policy).                                      |
 | `filterParameters` | see below     | Parameter names masked in the logs; `false` masks everything but `encryption`.                                                                                                   |
@@ -300,6 +301,30 @@ A cache is a correctness hazard, not only a speed feature, so two things are sai
 
 - **A backend that is down is a miss**, whatever `shared.onError` says. The counters block because a guard that cannot count is not a guard; the cache holds no truth, so refusing a request over a copy would turn an optimization into an outage. Every fallthrough is logged, at most once every ten seconds.
 - **henri invalidates nothing.** No model callback, no query cache, no route. A value stays until its TTL runs out or something calls `henri.cache.delete()` — and with the memory backend that delete reaches one process, which is the reason a deployment running several of them wants `shared`.
+
+## The `flags` object
+
+The feature flags are declared in `config/flags.js` — one file listing every flag the application has — and this block is only about their _state_: where it is kept, and how long a flip takes to reach the other processes. See [Feature flags](/guides/feature-flags/).
+
+```json
+{
+  "flags": {
+    "store": "shared",
+    "refresh": "10s"
+  }
+}
+```
+
+| Key       | Default | Description                                                                                                                                                                                                                        |
+| --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `store`   |         | `"shared"` (the backend of [`shared`](#the-shared-object)), `"memory"` (this process), or the path of a file. Unset means `"shared"` when there is a backend, `.henri/flags.json` otherwise, and `"memory"` under `NODE_ENV=test`. |
+| `refresh` | `"10s"` | How often a process re-reads the store, which is the staleness window of every flag: a flip reaches everything else within it, and the process that flipped it sees it at once. One second is the floor.                           |
+| `enabled` | `true`  | `false` keeps the block; every flag then answers its declared default, nothing is read and nothing can be flipped.                                                                                                                 |
+
+Two things are said out loud rather than left to be discovered:
+
+- **The boot line names the store and its limit** — `shared with every process`, `.henri/flags.json, this machine only`, or `this process only`. A file is what an application gets without `shared`, because `henri flags:on` in one terminal reaching the server in the next one is the point of the command; `memory` makes that command a no-op that reports success, so henri warns about it in production.
+- **A store that cannot be read flips nothing.** A failed poll keeps the snapshot the process already has and says so at most once a minute. The flags stop moving while the backend is down; they never move back to their defaults, which is why this does not go through `henri.cache`.
 
 ## Headers, logs and limits
 

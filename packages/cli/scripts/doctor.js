@@ -132,6 +132,7 @@ const CORE_MODULES = [
   'config',
   'controllers',
   'encryption',
+  'flags',
   'i18n',
   'mail',
   'mailers',
