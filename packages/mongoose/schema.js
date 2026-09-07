@@ -108,6 +108,18 @@ const normalizeField = (
     shaped.required = true;
   }
 
+  // `required` and `enum` on a field whose type henri knows are henri's,
+  // not Mongoose's: they are checked by ./validations.js on every write
+  // path -- including the query updates Mongoose's own validators never
+  // see -- and they say the same sentence there that they say on the other
+  // two adapters. A type Mongoose brought (an `ObjectId`, a nested
+  // document, `[String]`) keeps Mongoose's meaning for both, because henri
+  // has no column to reason about
+  if (TYPES[name]) {
+    delete shaped.required;
+    delete shaped.enum;
+  }
+
   if (typeof defaultValue !== 'undefined' && !('default' in shaped)) {
     shaped.default = defaultValue;
   }

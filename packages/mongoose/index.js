@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
 const debug = require('debug')('henri:mongoose');
-const { externalId, lookups, owned, paginate, paranoid } = require('./plugins');
+const {
+  externalId,
+  lookups,
+  owned,
+  paginate,
+  paranoid,
+  validations,
+} = require('./plugins');
+const { validationsOf } = require('./validations');
 const {
   instrument: instrumentQueries,
   instrumentStatics,
@@ -175,6 +183,15 @@ class Mongoose {
     owned(schema, this.henri);
     paginate(schema);
     lookups(schema);
+
+    // Before every other hook, so what a rule measures is the value the
+    // application wrote rather than an envelope. A declaration henri
+    // cannot carry out failed the boot in `normalizeModel` above
+    const rules = validationsOf(model);
+
+    if (rules) {
+      validations(schema, rules, model.globalId);
+    }
 
     // Before everything else that reads a document back: a `decimal` and a
     // `bigint` are strings in JavaScript, and every other hook here has to

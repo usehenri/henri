@@ -75,8 +75,6 @@ module.exports = {
 
   schema: {
     abstract: {
-      maxLength: 4000,
-      minLength: 60,
       required: true,
       type: 'text',
     },
@@ -113,8 +111,6 @@ module.exports = {
     },
     submittedAt: { type: 'date' },
     title: {
-      maxLength: 120,
-      minLength: 8,
       required: true,
       trim: true,
       type: 'string',
@@ -125,5 +121,16 @@ module.exports = {
       references: { model: 'Track', onDelete: 'set null' },
       type: 'integer',
     },
+  },
+
+  // What must be true of a proposal, in the one vocabulary every adapter
+  // shares. The two lengths used to sit in the schema next to the types,
+  // where they were the drizzle adapter's own keys: they worked here, and
+  // the same lines would have failed the boot on an mssql store and been
+  // checked on three write paths out of five on MongoDB. Here they mean
+  // one thing, and the schema above says what the columns are.
+  validates: {
+    abstract: { maxLength: 4000, minLength: 60 },
+    title: { maxLength: 120, minLength: 8 },
   },
 };

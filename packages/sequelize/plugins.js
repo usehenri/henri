@@ -1,4 +1,8 @@
-const { DataTypes } = require('sequelize');
+const {
+  DataTypes,
+  ValidationError,
+  ValidationErrorItem,
+} = require('sequelize');
 const {
   EXTERNAL_ID,
   isUuid,
@@ -6,6 +10,12 @@ const {
   resolvesKeys,
   withoutInternalIds,
 } = require('./external-id');
+const {
+  massWrite,
+  problemsOf,
+  uncheckedWrite,
+  wantsRecord,
+} = require('./validations');
 
 /**
  * The Rails behaviours henri adds to every Sequelize model. Soft deletes
@@ -226,4 +236,184 @@ const publicId = (Model) => {
   return Model;
 };
 
-module.exports = { lookup, paginate, publicId };
+/**
+ * The `ValidationError` shape Sequelize already answers with, built from
+ * what `./validations.js` said is wrong
+ *
+ * @param {string} model The model's global id
+ * @param {object} problems `{ field: message }`
+ * @param {object} values The values being written
+ * @returns {Error} A SequelizeValidationError
+ */
+const validationError = (model, problems, values) =>
+  new ValidationError(
+    `${model} validation failed: ${Object.entries(problems)
+      .map(([field, message]) => `${field}: ${message}`)
+      .join(', ')}`,
+    Object.entries(problems).map(
+      ([field, message]) =>
+        new ValidationErrorItem(
+          message,
+          'Validation error',
+          field,
+          values ? values[field] : undefined,
+          null,
+          'henriValidates'
+        )
+    )
+  );
+
+/**
+ * The fields an `increment`/`decrement` names, however it names them
+ *
+ * @param {*} fields A field, a list of them, or `{ field: by }`
+ * @returns {Array<string>} The field names
+ */
+const namesOf = (fields) => {
+  if (Array.isArray(fields)) {
+    return fields;
+  }
+
+  return typeof fields === 'string' ? [fields] : Object.keys(fields || {});
+};
+
+/**
+ * What a model's `validates` block declared, on every Sequelize write path
+ * that carries attributes.
+ *
+ * Sequelize's own validation is not one thing: `create`, `save`, `update`
+ * and the mass `Model.update` validate; `bulkCreate` does not unless the
+ * caller says so; `upsert` validates only the columns it was given; and
+ * `increment`/`decrement` run no hook at all. Rather than reason about
+ * which of them Sequelize covers, henri runs the shared rules itself in
+ * the two hooks that see attributes -- `beforeValidate`, which every write
+ * but a bulk insert goes through, and `beforeBulkCreate`, which is that
+ * one -- so a declaration means the same thing on every one of them and
+ * the same thing it means on the other two adapters. The three writes no
+ * hook reaches are wrapped below rather than left to be missed.
+ *
+ * Registered before the encryption and user hooks, so what a `maxLength`
+ * measures is the plaintext a person wrote rather than its envelope or its
+ * hash.
+ *
+ * @param {object} Model A Sequelize model
+ * @param {object} rules The compiled rules (./validations.js)
+ * @returns {object} The model
+ */
+const validations = (Model, rules) => {
+  const name = Model.name;
+
+  /**
+   * Runs the rules, or throws
+   *
+   * @param {object} values The values being written
+   * @param {boolean} partial Is this an update, naming only some fields?
+   * @param {*} record The record, for a rule that asked for one
+   * @returns {void}
+   * @throws {Error} A SequelizeValidationError
+   */
+  const check = (values, partial, record) => {
+    const problems = problemsOf(rules, values, { partial, record });
+
+    if (problems) {
+      throw validationError(name, problems, values);
+    }
+  };
+
+  // `beforeValidate` is the one hook that runs ahead of Sequelize's own
+  // validators, which is where henri's rules have to be for the message a
+  // person reads to be the same sentence on all three adapters. It covers
+  // `create`, `save`, `instance.update`, `upsert` and the mass
+  // `Model.update`; `bulkCreate` is the one it does not reach.
+  Model.addHook('beforeValidate', 'henriValidates', (record, options = {}) => {
+    // Sequelize validates a second time on an update, after the `before`
+    // hooks have run -- by then an encrypted field holds its envelope and
+    // a password its hash, and a `maxLength` would be measuring those.
+    // henri checks what the application wrote, once
+    if (options.henriValidates) {
+      return;
+    }
+
+    options.henriValidates = true;
+
+    const after = record.get();
+    // A create names every column (Sequelize leaves `skip` empty); every
+    // other path names some of them, and the rest are left alone
+    const partial =
+      !record.isNewRecord ||
+      (Array.isArray(options.skip) && options.skip.length > 0);
+
+    if (!partial) {
+      check(after, false, after);
+
+      return;
+    }
+
+    const written = {};
+
+    for (const field of record.changed() || []) {
+      written[field] = after[field];
+    }
+
+    check(written, true, after);
+  });
+
+  Model.addHook('beforeBulkCreate', 'henriValidates', (records, options) => {
+    // Sequelize's `bulkCreate` does not validate unless it is told to, so
+    // an `enum` was written straight past on this one path. henri's rules
+    // run here whatever it decides, and Sequelize's own run from now on
+    options.validate = true;
+
+    for (const record of records) {
+      check(record.get(), false, record.get());
+    }
+  });
+
+  const update = Model.update.bind(Model);
+
+  /**
+   * The mass update, refused when a rule asked for the record
+   *
+   * @param {object} values The values
+   * @param {object} [options] The options (`where`)
+   * @returns {Promise<*>} What Sequelize answers
+   */
+  Model.update = async (values, options) => {
+    const fields = wantsRecord(rules, values);
+
+    if (fields.length > 0) {
+      throw massWrite(name, 'update', 'update(attrs)', fields);
+    }
+
+    return update(values, options);
+  };
+
+  for (const what of ['decrement', 'increment']) {
+    const original = Model[what].bind(Model);
+
+    /**
+     * The same call, refused when henri cannot check what it writes
+     *
+     * @param {*} fields The fields to change
+     * @param {object} [options] The options
+     * @returns {Promise<*>} What Sequelize answers
+     */
+    Model[what] = async (fields, options) => {
+      const ruled = namesOf(fields).filter((field) => rules[field]);
+
+      if (ruled.length > 0) {
+        throw uncheckedWrite(
+          name,
+          what,
+          `Read the record, change ${ruled.join(' and ')} on it and save it, which is checked; or take the rules off ${ruled.join(' and ')}.`
+        );
+      }
+
+      return original(fields, options);
+    };
+  }
+
+  return Model;
+};
+
+module.exports = { lookup, paginate, publicId, validations };

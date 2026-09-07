@@ -16,13 +16,14 @@ const { DataTypes, QueryTypes } = Sql.Sequelize;
 const tasks = target.quote('Tasks');
 const users = target.quote('Users');
 
-// How a bad enum value is refused: sqlite validates it in the model, the
-// dialects with a native ENUM column let the server refuse the value
-const ENUM_ERROR = {
-  mysql: /Data truncated for column 'category'|CHECK constraint/,
-  postgres: /invalid input value for enum/,
-  sqlite: /isIn/,
-};
+// How a bad enum value is refused. It used to depend on the dialect: the
+// column is a native ENUM on postgres and mysql, so the *server* refused
+// the value and answered a SequelizeDatabaseError that
+// `henri.model.errors()` does not recognize -- a 500 where sqlite answered
+// a 422. henri checks the value first now (./validations.js), on every
+// dialect and every write path, so the refusal is the same sentence
+// everywhere and the column is the backstop it was always meant to be
+const ENUM_ERROR = /category: must be one of urgent, high, medium, low/;
 
 /**
  * A JSON column, read back (a string on sqlite, parsed elsewhere)
@@ -153,11 +154,10 @@ describe('sequelize adapter', () => {
       expect((await Task.findAll()).map((row) => row.name)).toEqual([
         'write docs',
       ]);
-      await expect(Task.create({})).rejects.toThrow(/notNull Violation/);
-      // The dialects with a native ENUM check the value themselves
+      await expect(Task.create({})).rejects.toThrow(/name: is required/);
       await expect(
         Task.create({ category: 'nope', name: 'x' })
-      ).rejects.toThrow(ENUM_ERROR[target.name]);
+      ).rejects.toThrow(ENUM_ERROR);
     });
 
     test('exposes ping, query and transaction', async () => {

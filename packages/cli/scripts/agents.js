@@ -689,7 +689,9 @@ const modelSection = (facts) => {
 
 ${MODEL_API[facts.api]} ${MIGRATIONS[facts.api]}
 
-A field is \`{ type, required, default, enum, unique, index }\` and anything else is handed to the adapter as is. Every model gets \`createdAt\`/\`updatedAt\`, \`paginate({ page, perPage })\` answering \`{ records, page, perPage, total, pages }\`, and \`externalId\` -- a uuid, and the only identifier that leaves the server: routes, links and payloads carry it and \`findById()\` takes it, while the numeric key stays inside. \`henri.model.errors(error)\` turns a validation failure into \`{ field: message }\`.${carried}`;
+A field is \`{ type, required, default, enum, unique, index }\` and anything else is handed to the adapter as is. Every model gets \`createdAt\`/\`updatedAt\`, \`paginate({ page, perPage })\` answering \`{ records, page, perPage, total, pages }\`, and \`externalId\` -- a uuid, and the only identifier that leaves the server: routes, links and payloads carry it and \`findById()\` takes it, while the numeric key stays inside. \`henri.model.errors(error)\` turns a validation failure into \`{ field: message }\`.
+
+A \`validates\` block next to the schema says what must be true of a record, keyed by field: \`validates: { title: { minLength: 3, maxLength: 120 }, slug: { pattern: /^[a-z-]+$/ } }\`. The keys are \`required\`, \`enum\`, \`min\`, \`max\`, \`minLength\`, \`maxLength\`, \`pattern\` and \`validate\` (a function of the value, and of the record when it declares a second parameter) -- the same words a controller's \`params\` block uses, with no \`type\` because the schema says it. They run on **every** write: a create, a save, an update, a mass update, a bulk insert. That is where a rule about the record belongs; \`params\` and \`req.permit()\` are about the request, and a job, a seed or a console has none. Anything else in the schema -- an adapter's own \`min\`, \`match\` or \`validate\` -- is that ORM's and does not travel.${carried}`;
 };
 
 /**

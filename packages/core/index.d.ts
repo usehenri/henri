@@ -2652,6 +2652,16 @@ declare namespace start {
     name?: string;
     options?: ModelOptions;
     /**
+     * What must be true of a record, keyed by field.
+     *
+     * The same words a controller's `params` block uses, checked on every
+     * write path of every adapter -- a create, a save, an update, a mass
+     * update, a bulk insert -- rather than on the ones that ORM happens to
+     * cover. The field's `type` in the schema says which constraints
+     * apply, and a rule henri cannot carry out fails the boot.
+     */
+    validates?: Record<string, ModelValidation>;
+    /**
      * GraphQL, when the application has `@usehenri/graphql`.
      *
      * `true` derives the type, the queries and the resolvers from the
@@ -2662,6 +2672,27 @@ declare namespace start {
     graphql?: true | GraphqlModelDefinition;
     /** Called once every model exists, with the models by global id. */
     associate?(models: Record<string, unknown>): void;
+  }
+
+  /**
+   * One field's rule in a model's `validates` block.
+   *
+   * `required` is presence: absent, null and a string of nothing but
+   * spaces are all missing. The bounds need a type henri knows -- `min`
+   * and `max` a number, the two lengths and `pattern` a string -- and a
+   * `validate` that declares a second parameter is asking for the record,
+   * which makes a mass write on that model a refusal rather than a rule
+   * henri quietly skips.
+   */
+  interface ModelValidation {
+    required?: boolean;
+    enum?: unknown[];
+    min?: number | string;
+    max?: number | string;
+    minLength?: number;
+    maxLength?: number;
+    pattern?: RegExp;
+    validate?(value: any, record?: any): boolean | string | void;
   }
 
   /** The `graphql` key of a model, in its object form. */

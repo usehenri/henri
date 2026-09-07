@@ -1661,6 +1661,42 @@ Usually:
 
 **Fix.** henri's types are `string`, `text`, `number`, `integer`, `float`, `decimal`, `bigint`, `boolean`, `date`, `json` and `uuid`. The adapter maps them to the ORM's own.
 
+### `HENRI_MODEL_VALIDATION_INVALID`
+
+A model's `validates` block holds a rule henri cannot carry out.
+
+Usually:
+
+- a `validates` entry naming a field the schema does not have
+- a constraint the field's type does not take (`min` on a string, `maxLength` on an integer)
+- an unknown key, usually a misspelling of `required`, `maxLength` or `pattern`
+- a `pattern` that is not a regular expression, or a `validate` that is not a function
+
+**Fix.** The message names the model, the field and what is wrong with the rule. A `validates` entry takes `required`, `enum`, `min`, `max`, `minLength`, `maxLength`, `pattern` and `validate`, and the field's type in the schema is what says which of them apply. See the Models guide.
+
+### `HENRI_MODEL_VALIDATION_MASS_WRITE`
+
+A mass update was run on a model whose validator asks for the record.
+
+Usually:
+
+- `Model.update(where, attrs)` or the fluent `Model.where(...).update()` on a model whose `validates` block holds a rule taking `(value, record)`
+- `updateMany` on such a model, on any adapter
+
+**Fix.** A rule that declares a record parameter is never asked without one, the way a policy rule is not. A mass write has no records to give it, so henri refuses rather than recording a pass it never made. Loop over the records instead -- `for (const record of await Model.find(where)) await record.update(attrs)` -- and each one is checked. A rule that only reads the value takes one parameter and mass writes keep working.
+
+### `HENRI_MODEL_VALIDATION_UNCHECKED_WRITE`
+
+A write the ORM runs no hook for was made on a validated field.
+
+Usually:
+
+- `Model.bulkWrite()` on a model that declares validations (Mongoose runs no middleware for the operations inside one)
+- `Model.increment()` or `Model.decrement()` on a validated field (Sequelize runs no hook for either)
+- an update operator that describes a change rather than a value (`$inc`, `$push`, `$mul`) on a validated field
+
+**Fix.** The message names the call and the fields. These write paths reach the database without any hook henri could run a rule in, and none of them exists on all three adapters, so henri refuses instead of letting the declaration quietly stop being true. Read the record, change it and save it, which is checked -- or take the rules off the fields that call writes.
+
 ## params
 
 What a controller declares its actions accept, and the requests checked against it.

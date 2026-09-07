@@ -12,6 +12,12 @@ const { normalizeField } = require('./schema');
 const { checkMassWrite, plainOf, write } = require('./versions');
 const { ValidationError, failure, validate } = require('./validation');
 const {
+  massWrite: massValidation,
+  problemsOf,
+  validationsOf,
+  wantsRecord,
+} = require('./validations');
+const {
   coded,
   isPlainObject,
   lowerFirst,
@@ -750,8 +756,13 @@ class Model {
   static async findByIdAndUpdate(id, attrs, options = {}) {
     // A versioned model has to know what the row said before the write,
     // and this path has no instance to ask: it reads the record first, and
-    // then every single-row update of this adapter runs through save()
-    if (this.versioned && options.versions !== false) {
+    // then every single-row update of this adapter runs through save().
+    // A validator that asked for the record wants the same thing, and this
+    // names one row, so it is a read rather than a refusal
+    if (
+      (this.versioned && options.versions !== false) ||
+      wantsRecord(this.validations, attrs).length > 0
+    ) {
       const found = await this.findById(id);
 
       return found ? found.update(attrs, options) : null;
@@ -1167,6 +1178,15 @@ class Model {
       skip: kind === 'update' ? [...PROTECTED, ...IMMUTABLE] : PROTECTED,
     });
 
+    // What the model declared, in the vocabulary every adapter shares
+    // (./validations.js). It runs on the coerced values and before the
+    // `beforeCreate`/`beforeUpdate` hooks, so a `maxLength` measures the
+    // plaintext of an encrypted field rather than its envelope
+    this.checkValidations(values, {
+      partial: kind === 'update',
+      record: instance,
+    });
+
     if (kind === 'create' && data.id !== undefined && this.isValidId(data.id)) {
       values.id = this.castId(data.id);
     }
@@ -1185,6 +1205,65 @@ class Model {
     }
 
     return values;
+  }
+
+  /**
+   * Runs what the model's `validates` block declared, plus the `required`
+   * and `enum` its schema declared, over the values being written
+   *
+   * @param {object} values The coerced values
+   * @param {object} [options={}] Options
+   * @param {boolean} [options.partial=false] An update
+   * @param {?Model} [options.record] The instance being written, if any
+   * @returns {void}
+   * @throws {ValidationError} When a rule refuses a value
+   * @memberof Model
+   */
+  static checkValidations(values, { partial = false, record } = {}) {
+    if (!this.validations) {
+      return;
+    }
+
+    // What a rule that asked for the record is given: the record as it
+    // will be once this write lands, so a rule reads the new value of the
+    // field next to it rather than the old one
+    const after = record ? { ...record, ...values } : values;
+    const problems = problemsOf(this.validations, values, {
+      partial,
+      record: after,
+    });
+
+    if (!problems) {
+      return;
+    }
+
+    throw new ValidationError(
+      this.modelName,
+      Object.fromEntries(
+        Object.entries(problems).map(([field, message]) => [
+          field,
+          failure('validates', message, field, values[field]),
+        ])
+      )
+    );
+  }
+
+  /**
+   * Refuses a mass write on a model whose validator asked for the record
+   *
+   * @param {string} what The call that was made
+   * @param {string} instead The single-record call to loop over
+   * @param {object} attrs The attributes the write names
+   * @returns {void}
+   * @throws {Error} HENRI_MODEL_VALIDATION_MASS_WRITE
+   * @memberof Model
+   */
+  static checkValidationsMassWrite(what, instead, attrs) {
+    const fields = wantsRecord(this.validations, attrs);
+
+    if (fields.length > 0) {
+      throw massValidation(this.modelName, what, instead, fields);
+    }
   }
 
   /**
@@ -1331,6 +1410,7 @@ class Model {
     // place an unknown option is still dropped in silence
     checkOptions(this, 'update', options);
     checkMassWrite(this, 'update', options);
+    this.checkValidationsMassWrite('update', 'update(attrs)', attrs);
 
     const values = await this.prepare(
       'update',
@@ -1865,6 +1945,10 @@ const createModel = (adapter, definition, fields) => {
     paranoid,
     tableName: tableNameOf(definition),
     timestamps,
+    // What the model's `validates` block and its schema's `required` and
+    // `enum` declared, compiled once (./validations.js). Null when the
+    // model declared none, so nothing runs on the write path
+    validations: validationsOf(definition),
     // What `options.versioned` said, or null. The wiring reads it, and so
     // does every path that has to behave differently because a history is
     // being kept (see ./versions.js)

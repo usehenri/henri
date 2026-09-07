@@ -734,12 +734,40 @@ const model: ModelFile = {
     amount: { type: 'decimal', precision: 12, scale: 2, min: '0' },
     reference: { type: 'bigint', unique: true },
   },
+  validates: {
+    title: { maxLength: 120, minLength: 3, pattern: /^[A-Z]/u },
+    amount: { min: '0.00', max: '9999.99' },
+    status: { required: true, enum: ['todo', 'done'] },
+    body: {
+      validate: (value, record) => value !== 'live' || Boolean(record.title),
+    },
+  },
   associate(models) {
     expectType<Record<string, unknown>>(models);
   },
 };
 
 expectType<ModelFile>(model);
+
+const badValidation: ModelFile = {
+  schema: { title: { type: 'string' } },
+  validates: {
+    // @ts-expect-error a pattern is a regular expression, not a string
+    title: { pattern: '^[A-Z]' },
+  },
+};
+
+expectType<ModelFile>(badValidation);
+
+const badValidator: ModelFile = {
+  schema: { title: { type: 'string' } },
+  validates: {
+    // @ts-expect-error a validate is a function, not a message
+    title: { validate: 'must be shouted' },
+  },
+};
+
+expectType<ModelFile>(badValidator);
 
 const badModel: ModelFile = {
   schema: {

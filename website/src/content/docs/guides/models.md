@@ -26,12 +26,16 @@ module.exports = {
     },
     done: { type: 'boolean', default: false },
   },
+  validates: {
+    name: { minLength: 2, maxLength: 120 },
+  },
 };
 ```
 
 | Key                 | Description                                                                                                                                                                                                                                                                                                                                      |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `schema`            | The fields, in the format below.                                                                                                                                                                                                                                                                                                                 |
+| `validates`         | What must be true of a record, keyed by field. Checked on every write path of every adapter — see [Validations](#validations).                                                                                                                                                                                                                   |
 | `options`           | `timestamps`, `paranoid`, `personal`, `retention`, `versioned` ([Model versions](/guides/versions/)) and `externalId` (below). A drizzle store takes those and refuses any other key at boot, naming what to write instead; Mongoose and an mssql store also pass what they do not recognize to `new mongoose.Schema()` or `sequelize.define()`. |
 | `store`             | The store to use, `default` when omitted. The boot fails when the store is not configured.                                                                                                                                                                                                                                                       |
 | `name`              | Collection name (Mongoose), table name (Drizzle) or `tableName` (Sequelize).                                                                                                                                                                                                                                                                     |
@@ -75,9 +79,9 @@ A field is `{ type, ...keys }` or a bare type. The type names and the keys below
 
 | Key         | Description                                                                                                                                                                                              |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `required`  | `required: true` (Mongoose) or `allowNull: false` (Drizzle, Sequelize).                                                                                                                                  |
+| `required`  | The field has to hold something, on every write path of every adapter ([Validations](#validations)); the column is `NOT NULL` as well, where the store has columns.                                      |
 | `default`   | Default value. `Date.now` becomes `NOW` on SQL.                                                                                                                                                          |
-| `enum`      | Allowed values. An `ENUM` column on MySQL, MariaDB and PostgreSQL, an `isIn` validation elsewhere.                                                                                                       |
+| `enum`      | The values accepted, refused by henri before the write ([Validations](#validations)); still an `ENUM` column on MySQL, MariaDB and PostgreSQL underneath.                                                |
 | `unique`    | Unique index or constraint.                                                                                                                                                                              |
 | `index`     | `index: true` adds an index on the field.                                                                                                                                                                |
 | `precision` | A `decimal` only: the total number of digits, 19 by default and 38 at most — the widest every dialect henri writes carries. See [Exact numbers](#exact-numbers).                                         |
@@ -90,7 +94,90 @@ What the adapters do with anything else differs:
 - **Mongoose** passes every other key and type through, so `{ type: 'ObjectId', ref: 'Post' }`, `[String]`, nested objects, `lowercase`, `trim`, `match`, `select`, `validate` and the JavaScript constructors (`String`, `Number`, `Date`) all work. It also understands the Sequelize spellings `allowNull: false` and `defaultValue`.
 - **Sequelize** (`mssql` only) accepts its own attribute options (`allowNull`, `defaultValue`, `validate`, `field`, `primaryKey`, `autoIncrement`, `references`, `onDelete`, `onUpdate`, `comment`, `get`, `set`, `values`, ...), its data types (`type: DataTypes.STRING(50)` or the uppercase name as a string, `'STRING'`), the JavaScript constructors (`Object` and `Array` become `JSON`, `Buffer` a `BLOB`), and stores nested objects and arrays as `JSON`. Any other key throws at boot with the list of supported keys, so a typo never becomes a silently ignored option. A field with a known key but no `type` is an error too.
 
+Those extra keys are the adapter's, not henri's: what they do — and which writes they run on — is that ORM's business, and a model file that leans on them stops moving between stores. [Validations](#validations) below is the portable place for the same thing.
+
 `@usehenri/drizzle/types`, `@usehenri/mongoose/types` and `@usehenri/sequelize/types` export the map above if you need the column or ORM types themselves.
+
+## Validations
+
+A model says what must be true of its records in a `validates` block, keyed by field:
+
+```js
+// app/models/Post.js
+module.exports = {
+  schema: {
+    title: { type: 'string', required: true },
+    slug: { type: 'string', unique: true },
+    views: { type: 'integer', default: 0 },
+    status: { type: 'string', enum: ['draft', 'live'], default: 'draft' },
+    body: { type: 'text' },
+  },
+
+  validates: {
+    title: { minLength: 3, maxLength: 120 },
+    slug: { pattern: /^[a-z0-9-]+$/ },
+    views: { min: 0 },
+    status: {
+      validate: (value, post) =>
+        value !== 'live' || Boolean(post.body) || 'needs a body first',
+    },
+  },
+};
+```
+
+| Key                      | Description                                                                                                                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `required`               | The field has to hold something. Absent, `null` and a string of nothing but spaces are all missing — Rails' `presence`.                                                                  |
+| `enum`                   | The values accepted.                                                                                                                                                                     |
+| `min`, `max`             | The bounds of a number. On a `decimal` or a `bigint` they may be written out as strings, the way those values are.                                                                       |
+| `minLength`, `maxLength` | The bounds of a string's length.                                                                                                                                                         |
+| `pattern`                | A regular expression a string has to match.                                                                                                                                              |
+| `validate`               | A function of the value. `true` (or nothing) passes; `false` is `is invalid`; a string is the message. A second parameter is the record — see [below](#a-rule-that-asks-for-the-record). |
+
+It is the vocabulary a controller's [`params` block](/guides/controllers/#params-what-an-action-accepts) uses, and it means the same thing here. There is no `type` key: the schema next door already says it, and that is what decides which constraints apply — `min` on a `string`, `maxLength` on an `integer` or a rule for a field the schema has no column for all fail the boot naming the model and the field (`HENRI_MODEL_VALIDATION_INVALID`) rather than being ignored.
+
+### The schema's `required` and `enum` are the same rules
+
+They always were the schema's, and now they are checked in the same place, so those two mean one thing on every adapter and on every write path — no `validates` block needed. That is a change: they used to mean three things.
+
+|                              | Mongoose            | Sequelize (`mssql`)                                                                               | Drizzle             |
+| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------------- | ------------------- |
+| `create`, `save`             | checked             | checked                                                                                           | checked             |
+| `instance.update`            | checked             | checked                                                                                           | checked             |
+| mass `update` / `updateMany` | **wrote past both** | checked                                                                                           | checked             |
+| bulk insert                  | checked             | **wrote past both**                                                                               | checked             |
+| what a bad `enum` answered   | a `ValidationError` | a `ValidationError` on sqlite, a **database error** (so a 500, not a 422) on PostgreSQL and MySQL | a `ValidationError` |
+
+Every cell is checked now, with the same sentence in all of them. The column is still whatever the adapter writes — `NOT NULL`, a native `ENUM` on PostgreSQL and MySQL — and it stays there as the backstop for anything that reaches the database another way. henri simply refuses first, so what a person sees does not depend on the dialect.
+
+### Where this belongs, and where `params` belongs
+
+They are not the same boundary and neither replaces the other:
+
+- A controller's `params` block and `req.permit()` check **what arrives**. They are about a request: they coerce a query string into the type the action declared, they drop what was not asked for, and they answer 422 before the action runs.
+- `validates` checks **what is written**. A record is written by a job, a seed, `henri console`, a webhook delivery and a factory as often as by a request, and none of those has a `req`.
+
+Declare the shape of the request in the controller and the truth about the record in the model. A rule that needs two fields, or the record it is changing, is a model rule; a rule about a page number is not.
+
+### A rule that asks for the record
+
+A `validate` that declares a second parameter is asking for the record it is about, the way [a policy rule that declares a record parameter](/guides/policies/) is. It is given the record **as it will be once the write lands**, so a rule reads the value written next to it in the same call and not the stale one.
+
+A mass write has no records to give it. Rather than call it with nothing and record a pass it never made, henri refuses that write (`HENRI_MODEL_VALIDATION_MASS_WRITE`) and the message names the loop to write instead:
+
+```js
+for (const post of await Post.find({ status: 'draft' })) {
+  await post.update({ status: 'live' });
+}
+```
+
+The refusal is measured against the fields the write actually names, so a mass update that does not touch the validated field goes through, and so does a soft delete. A rule that only reads its value takes one parameter and never refuses anything.
+
+### What henri does not check
+
+- **`unique` is not a validation, and henri does not pretend otherwise.** A `SELECT` before an `INSERT` answers a question about a moment that has already passed: two requests both find nothing and both write. The unique index is what actually holds, so the database refuses the second one and `henri.model.errors()` turns that refusal into `{ field: 'must be unique' }` — [the same shape](#validation-errors) as everything above. What you give up is the message arriving before the round trip; what you get is a guarantee rather than a near-miss.
+- **A write no hook of the ORM reaches is refused, not skipped** (`HENRI_MODEL_VALIDATION_UNCHECKED_WRITE`). Mongoose runs no middleware for the operations inside a `bulkWrite`, Sequelize runs none for `increment` and `decrement`, and an update operator that describes a change rather than a value (`$inc`, `$push`) has nothing to measure until the server has applied it. None of the three exists on all three adapters, so none of them is part of what a `validates` block means. Read the record, change it and save it.
+- **Cross-record rules are yours.** "No two posts published the same day" is a query, and a query in a validator is a race with a nicer message.
 
 ## Exact numbers
 
@@ -431,7 +518,7 @@ await Task.where({ done: false }).order('-createdAt').paginate({ page: 2 });
 
 ### Validation errors
 
-The three ORMs reject an invalid write differently: a Mongoose `ValidationError` keyed by path, a Sequelize `SequelizeValidationError` holding an array, a Drizzle `ValidationError`, a MongoDB duplicate key or a `SequelizeUniqueConstraintError`. `henri.model.errors(error)` turns any of them into `{ field: message }`, and answers `null` for anything that is not a validation failure, so a controller can answer a 422 and let the rest bubble up:
+What [a validation](#validations) refuses, and what the ORM refuses on its own, arrive in one shape. The three reject an invalid write differently: a Mongoose `ValidationError` keyed by path, a Sequelize `SequelizeValidationError` holding an array, a Drizzle `ValidationError`, a MongoDB duplicate key or a `SequelizeUniqueConstraintError`. `henri.model.errors(error)` turns any of them into `{ field: message }`, and answers `null` for anything that is not a validation failure, so a controller can answer a 422 and let the rest bubble up:
 
 ```js
 try {
