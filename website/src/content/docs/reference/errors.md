@@ -2134,6 +2134,22 @@ Usually:
 
 **Fix.** These three run no query middleware, or count a collection rather than a filter, so there is nowhere for henri to put the condition -- and answering them across every tenant is the one thing this feature exists to prevent. Put the match in the pipeline yourself, use one scoped update per record instead of a bulk write, and `countDocuments()` instead of the estimate. `henri.tenancy.unscoped(() => ...)` is how a report says it means every tenant.
 
+## time
+
+The zone an application renders a moment in, and the zone a person reads one in.
+
+### `HENRI_TIME_ZONE_UNKNOWN`
+
+A time zone was asked for that this runtime cannot render in.
+
+Usually:
+
+- config.timeZone names a zone this runtime has no rules for
+- a zone was written with a space or an abbreviation rather than an IANA name (EST, "Eastern Time")
+- req.setTimeZone() was given something that is not a zone
+
+**Fix.** Use an IANA name Intl knows: America/New_York, Europe/Paris, UTC. henri.time.supports(zone) answers whether this runtime has one, and henri.time.canonical(zone) gives the name it will be compared under. An abbreviation is not a zone: EST is a fixed offset half the year and names nothing in the database.
+
 ## trail
 
 The append-only record of who read or changed personal data.
