@@ -94,6 +94,18 @@ const CLIENTS = ['always', 'auto'];
 const LOG_FORMATS = ['auto', 'json', 'pretty'];
 
 /**
+ * What the three enumerated keys of `maintenance` accept.
+ *
+ * Mirrored from `base/maintenance.js`, which owns the meaning, the way
+ * `LOG_FORMATS` mirrors `base/logs.js` -- requiring it here would close a
+ * cycle through `config-validate.js`, and `__tests__/maintenance.spec.js`
+ * compares the lists.
+ */
+const MAINTENANCE_BYPASSES = ['token', 'loopback'];
+const MAINTENANCE_READYZ = ['ready', 'unavailable'];
+const MAINTENANCE_SWITCHES = ['auto', 'file', 'shared'];
+
+/**
  * What `telemetry.spans` accepts: the boundaries henri knows.
  *
  * Mirrored from `base/telemetry.js`, which owns the meaning, the way
@@ -2041,6 +2053,68 @@ const SCHEMA = {
     type: 'object',
   },
 
+  maintenance: {
+    describe: 'an object of maintenance settings, or false to have no switch',
+    hint: 'Maintenance is thrown from a shell (henri maintenance:on), not from a deploy; this is only where the switch lives and what the visitor is told',
+    oneOf: [
+      { const: false },
+      {
+        keys: {
+          bypass: {
+            default: 'token',
+            describe: `one of ${MAINTENANCE_BYPASSES.join(', ')}`,
+            hint: "'loopback' also lets anything connecting from this machine through, which is wrong when a reverse proxy runs on it; henri audit reports the pair",
+            enum: MAINTENANCE_BYPASSES,
+            type: 'string',
+          },
+          file: text({
+            default: '.henri/maintenance.json',
+            describe: 'a path, relative to the application',
+            hint: 'Where the switch is written when it is not in the shared store; it reaches the processes on that machine and no other',
+          }),
+          message: text({
+            describe: 'what a visitor is told',
+            hint: 'The default for every window; henri maintenance:on --message says it for one',
+          }),
+          page: text({
+            default: 'app/views/maintenance.html',
+            describe: 'a path to an html file, relative to the application',
+            hint: 'Read as it is, with {{message}}, {{retryAfter}} and {{since}} replaced; henri ships a page for when there is none',
+          }),
+          poll: {
+            default: 1000,
+            describe: 'a number of milliseconds, zero or more',
+            hint: 'How stale the switch may be in a running process; zero re-reads it on every request',
+            min: 0,
+            type: 'number',
+          },
+          readyz: {
+            default: 'ready',
+            describe: `one of ${MAINTENANCE_READYZ.join(', ')}`,
+            hint: "'ready' keeps the traffic coming so the maintenance page is what a visitor sees; 'unavailable' takes every process out of the pool at once, which hands the visitor the proxy's own error page",
+            enum: MAINTENANCE_READYZ,
+            type: 'string',
+          },
+          retryAfter: {
+            default: 300,
+            describe: 'a number of seconds, at least one',
+            hint: 'The Retry-After of the 503; henri maintenance:on --retry-after says it for one window',
+            above: 0,
+            type: 'number',
+          },
+          switch: {
+            default: 'auto',
+            describe: `one of ${MAINTENANCE_SWITCHES.join(', ')}`,
+            hint: "'auto' is the shared store when config.shared names one and a file otherwise, which is what the boot line says",
+            enum: MAINTENANCE_SWITCHES,
+            type: 'string',
+          },
+        },
+        type: 'object',
+      },
+    ],
+  },
+
   errors: {
     describe: 'an object of error code settings',
     keys: {
@@ -2062,6 +2136,9 @@ module.exports = {
   CLIENTS,
   DIALECTS,
   LOG_FORMATS,
+  MAINTENANCE_BYPASSES,
+  MAINTENANCE_READYZ,
+  MAINTENANCE_SWITCHES,
   MISSING,
   PARTITIONS,
   READS,

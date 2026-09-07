@@ -66,6 +66,10 @@
       "what": "the mail transport, the mailers of app/mailers and their views"
     },
     {
+      "area": "maintenance",
+      "what": "maintenance mode: the switch that closes an application without a deploy"
+    },
+    {
       "area": "migration",
       "what": "the migrations of db/migrations and the schema dump of a drizzle store"
     },
@@ -1289,6 +1293,34 @@
       "what": "A mail has no view to render."
     },
     {
+      "area": "maintenance",
+      "causes": [
+        "`config.maintenance` is `false` in the configuration this command read"
+      ],
+      "code": "HENRI_MAINTENANCE_DISABLED",
+      "fix": "Remove \"maintenance\": false from the configuration, or leave this deployment without a switch on purpose.",
+      "what": "The application was asked to open or close and it has no maintenance switch."
+    },
+    {
+      "area": "maintenance",
+      "causes": [
+        "`henri maintenance:on` was run and nobody ran `henri maintenance:off`"
+      ],
+      "code": "HENRI_MAINTENANCE_ON",
+      "fix": "This is what a deliberately closed application answers. End the window with `henri maintenance:off`, or go through the bypass url `henri maintenance:status` prints.",
+      "what": "The application is closed for maintenance and answered 503."
+    },
+    {
+      "area": "maintenance",
+      "causes": [
+        "the file the switch lives in cannot be written (permissions, a read-only filesystem)",
+        "the shared store holding the switch did not answer"
+      ],
+      "code": "HENRI_MAINTENANCE_UNAVAILABLE",
+      "fix": "Check that the process can write config.maintenance.file, or that the backend of config.shared answers. A running server keeps whatever state it last read, so nothing changed.",
+      "what": "The maintenance switch could not be read or written."
+    },
+    {
       "area": "migration",
       "causes": [
         "`henri db:schema:load` into a database that already holds the application tables"
@@ -1633,6 +1665,17 @@
       "code": "HENRI_STORE_NOT_STARTED",
       "fix": "Let the boot finish before querying. In tests, `await setup()` first; the helper boots the application inside the worker.",
       "what": "A store was used before it was started, or after it was stopped."
+    },
+    {
+      "area": "store",
+      "causes": [
+        "the store is a MongoDB one: a session has to be threaded through every call, and a transaction needs a replica set",
+        "the store is an mssql one: Sequelize does not join a transaction by async context",
+        "the store is already inside a transaction"
+      ],
+      "code": "HENRI_STORE_SANDBOX_UNSUPPORTED",
+      "fix": "Run henri console without --sandbox on this store. A sandbox is only honest where a model call joins the transaction of its async context on its own, which is every drizzle store (sqlite, postgres, mysql).",
+      "what": "henri console --sandbox was asked for on a store that cannot hold one."
     },
     {
       "area": "store",

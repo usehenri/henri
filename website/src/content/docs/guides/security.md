@@ -314,7 +314,7 @@ It reads the application; it never starts it. Every finding is a statement
 about a file you can open:
 
 ```text
-  henri audit: 2 findings in 30 checks (1 high, 1 medium, 0 low; failing on medium)
+  henri audit: 2 findings in 52 checks (1 high, 1 medium, 0 low; failing on medium)
 
   high    csrf.disabled              config/production.json
           A01:2021 Broken Access Control / ASVS V4.2.2 (L1)
@@ -381,6 +381,16 @@ and the signature that authenticates it in the clear), and `calls.keep:
 false` (`calls.kept-forever`: a [call log](/guides/calls/) holds the bodies
 users sent, so a copy of them that nothing ever sweeps is not a setting but
 an accumulation).
+
+**A door that only looks shut** -- `maintenance.bypass: "loopback"` in a
+configuration a production boot reads (`maintenance.loopback-bypass`). It is
+an access control decision made on the peer address of the socket: on a
+machine running nothing else that is the operator with a shell, and behind a
+reverse proxy, a sidecar or a container network it is every request, so a
+[closed application](/guides/maintenance/) serves everybody as usual. In
+development the shortcut is the point and nothing is said; the signed url
+`henri maintenance:on` prints is what production is meant to use, and it is
+never a finding.
 
 **A development instrument left on where it answers a visitor** --
 `queries.detect.raise: true` in a configuration a production boot reads

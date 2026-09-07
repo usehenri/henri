@@ -190,10 +190,34 @@ const COMMANDS = [
   {
     description: [
       'Boots the application and opens a REPL with henri and the models loaded.',
+      '',
+      '--sandbox opens a transaction on every store and rolls it back when',
+      'you leave, so a destructive thing can be tried on real data and',
+      'nothing survives it. It needs a model call to join the transaction of',
+      'its async context on its own, which is what a drizzle store does',
+      '(sqlite, postgres, mysql, and so --adapter postgresql and mysql). On',
+      'a mongoose, disk or mssql store the console refuses before it prints',
+      'a prompt rather than keeping the writes quietly.',
+    ],
+    examples: [
+      {
+        command: 'henri console',
+        description: 'A REPL with henri and the models',
+      },
+      {
+        command: 'henri console --sandbox',
+        description: 'The same, with every write rolled back on exit',
+      },
+    ],
+    flags: [
+      {
+        description: 'roll back everything the session writes',
+        flag: '--sandbox',
+      },
     ],
     name: 'console',
     summary: 'REPL with henri and the models loaded',
-    usage: ['henri console [--production]'],
+    usage: ['henri console [--sandbox] [--production]'],
   },
   {
     description: [
@@ -941,6 +965,76 @@ const COMMANDS = [
   },
   {
     description: [
+      'Closes the application, and opens it again, without a deploy. A',
+      'migration that cannot run online, an incident, a data repair: the',
+      'switch is thrown from a shell and every running process picks it up',
+      'within config.maintenance.poll (a second), with no restart.',
+      '',
+      'A closed application answers 503 with a Retry-After: the page for a',
+      'browser (app/views/maintenance.html when there is one) and the JSON',
+      'envelope for an API client. /livez and /readyz keep answering 200 --',
+      'maintenance is deliberate, and a readiness that says no would empty',
+      'the load balancer of every backend at once and hand the visitor its',
+      'error page instead of yours. See the guide for the whole reasoning.',
+      '',
+      'henri maintenance:on prints a bypass url carrying a token signed',
+      'against that window, so you can check the application while it is',
+      'closed; henri maintenance:off invalidates it. The switch lives in',
+      'config.shared when the application names one -- every process on',
+      'every machine -- and in a file otherwise, which reaches the',
+      'processes on that machine only. The boot line says which.',
+      '',
+      'All three boot to the server module: no port is bound, no route is',
+      'registered and no database is opened.',
+    ],
+    examples: [
+      {
+        command: 'henri maintenance',
+        description: 'Whether the application is closed, and since when',
+      },
+      {
+        command:
+          'henri maintenance:on --message "Back at 04:00 UTC" --retry-after 1800',
+        description: 'Close it, and say so',
+      },
+      {
+        command: 'henri maintenance:off',
+        description: 'Open it again',
+      },
+    ],
+    flags: [
+      {
+        description: 'on: what a visitor is told',
+        flag: '--message=<text>',
+      },
+      {
+        description: 'on: the Retry-After of the 503, in seconds',
+        flag: '--retry-after=<seconds>',
+      },
+      {
+        description: 'on: who threw the switch, for the record',
+        flag: '--by=<name>',
+      },
+      JSON_FLAG,
+    ],
+    name: 'maintenance',
+    summary: 'close the application, and open it again, without a deploy',
+    targets: [
+      {
+        description: 'what the switch says right now (the default)',
+        name: 'status',
+      },
+      { description: 'close the application', name: 'on' },
+      { description: 'open it again', name: 'off' },
+    ],
+    usage: [
+      'henri maintenance [--json]',
+      'henri maintenance:on [--message=<text>] [--retry-after=<seconds>] [--by=<name>] [--json]',
+      'henri maintenance:off [--json]',
+    ],
+  },
+  {
+    description: [
       'The personal data of this application: which fields of which models',
       'are marked `personal`, which of them never leave the server, how each',
       'model reaches the person, and what an erasure would do to it. Without',
@@ -1076,6 +1170,50 @@ const COMMANDS = [
     usage: [
       'henri retention [--json]',
       'henri retention:sweep [--only=<name>] [--yes] [--json]',
+    ],
+  },
+  {
+    description: [
+      'Runs an expression or a file inside a booted application and exits.',
+      'This is what a cron line calls: a task that has to touch the models',
+      'and is not worth a job, a controller or a script that boots henri by',
+      'hand and remembers to stop it.',
+      '',
+      'An argument naming a file is that file, and anything else is source',
+      'code; a bare - reads the code from stdin. The globals are the ones an',
+      'application has -- henri and every model -- and a value the',
+      'expression answers is printed, so henri runner "Task.count()" prints',
+      'a number.',
+      '',
+      'A file is required, so it gets its own require and __dirname. A',
+      'function it exports is called with the henri instance.',
+      '',
+      'The exit code is the interface: 0 when it resolves, 1 when anything',
+      'throws or rejects, with the error and its stack on stderr. It boots',
+      'to the queue (runlevel 4) like henri jobs, so no port is bound at any',
+      'point and several runners share a machine.',
+    ],
+    examples: [
+      {
+        command: "henri runner 'await Task.count()'",
+        description: 'One expression, and its answer',
+      },
+      {
+        command: 'henri runner script/backfill.js',
+        description: 'A file, with the application booted around it',
+      },
+      {
+        command: "echo 'await henri.cache.clear()' | henri runner -",
+        description: 'Code from stdin',
+      },
+    ],
+    flags: [JSON_FLAG],
+    name: 'runner',
+    summary: 'run an expression or a file inside a booted application',
+    usage: [
+      'henri runner <expression> [--json]',
+      'henri runner <file> [--json]',
+      'henri runner - [--json]',
     ],
   },
   {

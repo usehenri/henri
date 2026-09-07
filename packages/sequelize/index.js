@@ -47,6 +47,12 @@ const { DataTypes } = Sequelize;
  * @method toPlain(user) The user as a plain object, without its password
  * @method async ping() Resolves true when the database answers
  * @method async transaction(fn) Runs fn inside a transaction
+ *
+ * There is deliberately **no `sandbox()`** here, so `henri console
+ * --sandbox` refuses on an mssql store instead of pretending: Sequelize
+ * joins a transaction by async context only under `Sequelize.useCLS()`,
+ * which henri does not install -- turning it on for the sake of a console
+ * would change how every other transaction in the process behaves.
  * @method async query(sql, params) Raw query (SQL adapters only)
  * @method async drift() What the database and the models disagree about
  *   (SQL adapters only): the tables, columns and indexes that differ, and

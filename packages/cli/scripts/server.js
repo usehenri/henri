@@ -31,11 +31,13 @@ const main = async ({ consoleOnly = false }, cb) => {
   }
 
   const start = await require(resolveCore());
-
-  await start();
+  const henri = await start();
 
   if (typeof cb === 'function') {
-    cb();
+    // Awaited, and handed the instance: `henri console --sandbox` opens a
+    // transaction before it prints a prompt, and a failure there has to
+    // reach the command line rather than becoming an unhandled rejection
+    await cb(henri);
   }
 };
 

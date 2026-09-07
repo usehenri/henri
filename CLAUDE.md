@@ -75,31 +75,31 @@ has to be named per record or per process. An application's own suite keeps
 
 ## Layout
 
-| Path                           | Package               | Role                                                                                                                                                                                                                                                                      |
-| ------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/henri`               | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                                                                                                                                               |
-| `packages/cli`                 | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `routes`, `openapi`, `graphql`, `generate` (incl. `authentication`), `destroy`, `build`, `test`, `db`, `jobs`, `webhooks`, `privacy`, `encryption`, `calls`, `doctor`, `audit`, `mcp`, `clean`, `about`, `analyze`; the app templates |
-| `packages/core`                | `@usehenri/core`      | The framework: modules, server, router, models, views, users, policies, mail, i18n                                                                                                                                                                                        |
-| `packages/mongoose`            | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                                                                                                                                              |
-| `packages/disk`                | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                                                                                                                                      |
-| `packages/drizzle`             | `@usehenri/drizzle`   | henri's SQL data layer: Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`). The default of `henri new`, on sqlite                                                                                                                           |
-| `packages/postgresql`, `mysql` | `@usehenri/*`         | `@usehenri/drizzle` with the dialect and the driver chosen; `mariadb` is served by `@usehenri/mysql`                                                                                                                                                                      |
-| `packages/sequelize`           | `@usehenri/sequelize` | Sequelize 6, only under `@usehenri/mssql`: Drizzle has no SQL Server dialect                                                                                                                                                                                              |
-| `packages/mssql`               | `@usehenri/mssql`     | SQL Server, on `@usehenri/sequelize`. No migrations; `henri db:status` reports the drift                                                                                                                                                                                  |
-| `packages/react`               | `@usehenri/react`     | Next.js 16 view engine (pages router), `withHenri`, `useHenri`, form components; supported and frozen                                                                                                                                                                     |
-| `packages/inertia`             | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19; the default renderer of `henri new`                                                                                                                                                                                            |
-| `packages/jobs`                | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1; ships its own module, left core in 1.2                                                                                                          |
-| `packages/graphql`             | `@usehenri/graphql`   | GraphQL: the models' types and resolvers merged and served by Apollo Server; left core in 1.2                                                                                                                                                                             |
-| `packages/webhooks`            | `@usehenri/webhooks`  | Outbound webhooks: endpoints henri stores, Standard Webhooks signatures, an SSRF check at request time; delivers through the queue, new in 1.2                                                                                                                            |
-| `packages/uploads`             | `@usehenri/uploads`   | File uploads: bounded multipart parsing (busboy), files typed by their bytes and a storage seam; ships its own module, new in 1.2                                                                                                                                         |
-| `packages/s3`                  | `@usehenri/s3`        | Uploads on an object store: one backend over the S3 API (S3, R2, Spaces, MinIO), SigV4 and presigned urls, new in 1.2                                                                                                                                                     |
-| `packages/redis`               | `@usehenri/redis`     | The shared store of `config.shared`: the rate limit, the sign-in lockout and the idempotency keys counted in Redis instead of one process                                                                                                                                 |
-| `packages/testing`             | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                                                                                                                         |
-| `packages/mcp`                 | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                                                                                                                      |
-| `packages/websocket`           | private               | Not published, never wired into core                                                                                                                                                                                                                                      |
-| `packages/demo`                | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                                                                                                                                            |
-| `showcase`                     | private               | Lineup, the showcase application (Inertia + Drizzle on PostgreSQL); its own suite, `pnpm test:showcase`                                                                                                                                                                   |
-| `website`                      | private               | usehenri.io, deployed by Vercel from `website/`, master only (`vercel.json`)                                                                                                                                                                                              |
+| Path                           | Package               | Role                                                                                                                                                                                                                                                                                               |
+| ------------------------------ | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/henri`               | `henri`               | The CLI binary users install; delegates to `@usehenri/cli`.                                                                                                                                                                                                                                        |
+| `packages/cli`                 | `@usehenri/cli`       | `new`, `init`, `server`, `console`, `runner`, `routes`, `openapi`, `graphql`, `generate` (incl. `authentication`), `destroy`, `build`, `test`, `db`, `jobs`, `webhooks`, `privacy`, `encryption`, `calls`, `maintenance`, `doctor`, `audit`, `mcp`, `clean`, `about`, `analyze`; the app templates |
+| `packages/core`                | `@usehenri/core`      | The framework: modules, server, router, models, views, users, policies, mail, i18n                                                                                                                                                                                                                 |
+| `packages/mongoose`            | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                                                                                                                                                                       |
+| `packages/disk`                | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                                                                                                                                                               |
+| `packages/drizzle`             | `@usehenri/drizzle`   | henri's SQL data layer: Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`). The default of `henri new`, on sqlite                                                                                                                                                    |
+| `packages/postgresql`, `mysql` | `@usehenri/*`         | `@usehenri/drizzle` with the dialect and the driver chosen; `mariadb` is served by `@usehenri/mysql`                                                                                                                                                                                               |
+| `packages/sequelize`           | `@usehenri/sequelize` | Sequelize 6, only under `@usehenri/mssql`: Drizzle has no SQL Server dialect                                                                                                                                                                                                                       |
+| `packages/mssql`               | `@usehenri/mssql`     | SQL Server, on `@usehenri/sequelize`. No migrations; `henri db:status` reports the drift                                                                                                                                                                                                           |
+| `packages/react`               | `@usehenri/react`     | Next.js 16 view engine (pages router), `withHenri`, `useHenri`, form components; supported and frozen                                                                                                                                                                                              |
+| `packages/inertia`             | `@usehenri/inertia`   | Inertia.js view engine on Vite + React 19; the default renderer of `henri new`                                                                                                                                                                                                                     |
+| `packages/jobs`                | `@usehenri/jobs`      | Background jobs: a database backed queue with retries, a dead letter queue and recurring jobs (`henri jobs`), new in 1.1; ships its own module, left core in 1.2                                                                                                                                   |
+| `packages/graphql`             | `@usehenri/graphql`   | GraphQL: the models' types and resolvers merged and served by Apollo Server; left core in 1.2                                                                                                                                                                                                      |
+| `packages/webhooks`            | `@usehenri/webhooks`  | Outbound webhooks: endpoints henri stores, Standard Webhooks signatures, an SSRF check at request time; delivers through the queue, new in 1.2                                                                                                                                                     |
+| `packages/uploads`             | `@usehenri/uploads`   | File uploads: bounded multipart parsing (busboy), files typed by their bytes and a storage seam; ships its own module, new in 1.2                                                                                                                                                                  |
+| `packages/s3`                  | `@usehenri/s3`        | Uploads on an object store: one backend over the S3 API (S3, R2, Spaces, MinIO), SigV4 and presigned urls, new in 1.2                                                                                                                                                                              |
+| `packages/redis`               | `@usehenri/redis`     | The shared store of `config.shared`: the rate limit, the sign-in lockout and the idempotency keys counted in Redis instead of one process                                                                                                                                                          |
+| `packages/testing`             | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                                                                                                                                                  |
+| `packages/mcp`                 | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                                                                                                                                               |
+| `packages/websocket`           | private               | Not published, never wired into core                                                                                                                                                                                                                                                               |
+| `packages/demo`                | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                                                                                                                                                                     |
+| `showcase`                     | private               | Lineup, the showcase application (Inertia + Drizzle on PostgreSQL); its own suite, `pnpm test:showcase`                                                                                                                                                                                            |
+| `website`                      | private               | usehenri.io, deployed by Vercel from `website/`, master only (`vercel.json`)                                                                                                                                                                                                                       |
 
 ## How core works
 
@@ -147,7 +147,7 @@ identities }`),
   `cache`, `helmet`, `csp`, `filterParameters`, `logs`, `telemetry`,
   `encryption`, `privacy`, `retention`, `trail`, `calls`, `queries`,
   `versions`, `i18n`, `bodyLimit`, `uploads`, `requestTimeout`, `shutdown`,
-  `errors`.
+  `maintenance`, `errors`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
@@ -324,6 +324,55 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   the application. `henri jobs` boots to runlevel 4, never starts the server
   and drains its own way (the runner stops claiming and finishes what it
   holds).
+- Maintenance mode is `base/maintenance.js` (`henri.maintenance`), built by
+  `2.server.js` next to `henri.shared` and mounted **after the health
+  endpoints and before everything else**, so a closed application opens no
+  session, runs no CSRF check, counts no rate limit and touches no store to
+  answer. It is deliberately not a deploy: `henri maintenance:on
+[--message] [--retry-after]`, `:off` and `:status` write a record every
+  running process re-reads on the way into a request, at most once per
+  `config.maintenance.poll` (1s) and deduplicated, so a burst costs one
+  read. The switch is `henri.shared` when `config.shared` names one -- every
+  process on every machine, with a thirty day expiry because a key there
+  needs one -- and `.henri/maintenance.json` otherwise, which reaches that
+  machine only; `maintenance.switch` pins either and the boot line says
+  which. A read that fails leaves the last state standing (the cache's
+  reasoning: a Redis blip must not close an application, or open one) and is
+  reported at most once every ten seconds. A visitor gets a 503 with a
+  `Retry-After` and `Cache-Control: no-store`, negotiated like the 404 and
+  the 500: `app/views/maintenance.html` if the application ships one (read
+  as it is, `{{message}}`/`{{retryAfter}}`/`{{since}}` substituted and
+  escaped -- the view engine is not involved), henri's own page otherwise,
+  and the boom envelope with `HENRI_MAINTENANCE_ON` for an API client.
+  **`/livez` and `/readyz` both keep answering 200**, readiness with
+  `maintenance: true` in the body: every process is in maintenance at once,
+  so a 503 there empties the pool and hands the visitor the proxy's error
+  page instead of the operator's, breaks the bypass, and stalls the rollout
+  that would end it -- the opposite of a drain, which is one process leaving
+  while its peers stay. `maintenance.readyz: "unavailable"` reverses it. The
+  bypass is one signed url (`base/tokens.js`, purpose `maintenance`, seeded
+  with the window id, so `maintenance:off` invalidates it) which sets an
+  `HttpOnly` cookie; `maintenance.bypass: "loopback"` adds the machine
+  itself, which behind a proxy is everybody, and `henri audit` reports that
+  in a production configuration (`maintenance.loopback-bypass`). The guide
+  is `guides/maintenance.md`.
+- `henri console --sandbox` (`packages/cli/scripts/console.js`) holds one
+  transaction open per store for the life of the REPL and rolls it back on
+  exit. It is offered **only where a model call joins the transaction of its
+  async context on its own**, which is `Drizzle#sandbox()` (the adapter reads
+  the open transaction out of its `AsyncLocalStorage`); mongoose, disk and
+  mssql implement no `sandbox()` and the command refuses before it prints a
+  prompt (`HENRI_STORE_SANDBOX_UNSUPPORTED`), because a flag that silently
+  kept the writes is trusted at exactly the wrong moment. The REPL is started
+  inside the context and its `eval` is wrapped as well, which is the
+  guarantee. Every store is opened, not only the default, and a store that
+  cannot open rolls back the ones that did.
+- `henri runner` (`packages/cli/scripts/runner.js`) is the cron line: an
+  expression, a file or stdin (`-`) run inside a booted application, with
+  the globals an application has. It boots to runlevel 4 like `henri jobs`
+  and **binds no port at any point**, a value it answers is printed
+  (`henri runner '1 + 1'` prints `2`), anything thrown or rejected exits 1
+  with the stack on stderr, and `henri.stop()` runs whatever happened.
 - **Drizzle is henri's SQL data layer.** `henri new` scaffolds it on sqlite
   (`file:.henri/app.db`, `:memory:` under `NODE_ENV=test`), which is the
   default of `packages/cli/scripts/adapters.js`; `--adapter` also takes

@@ -781,6 +781,45 @@ describe('henri audit', () => {
     );
   });
 
+  test('reports a maintenance bypass the public would walk through', () => {
+    // "loopback" is the operator with a shell, and behind a reverse proxy,
+    // a sidecar or a container network it is every visitor: a closed
+    // application that is not closed
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      { maintenance: { bypass: 'loopback' } }
+    );
+
+    expect(names).toContain('maintenance.loopback-bypass');
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V4.1.1',
+        check: 'maintenance.loopback-bypass',
+        file: 'config/production.json',
+        message: expect.stringContaining('reverse proxy'),
+        owasp: 'A01:2021 Broken Access Control',
+        severity: 'high',
+      })
+    );
+
+    // In development the loopback shortcut is the point, and the signed
+    // url henri maintenance:on prints is not a finding anywhere
+    expect(
+      withConfig(app, 'config/dev.json', {
+        maintenance: { bypass: 'loopback' },
+      }).names
+    ).not.toContain('maintenance.loopback-bypass');
+    expect(
+      withConfig(app, 'config/production.json', {
+        maintenance: { bypass: 'token', message: 'Back soon', retryAfter: 900 },
+      }).names
+    ).not.toContain('maintenance.loopback-bypass');
+    expect(
+      withConfig(app, 'config/production.json', { maintenance: false }).names
+    ).not.toContain('maintenance.loopback-bypass');
+  });
+
   test('reports a call log nothing ever sweeps, and only in production', () => {
     // A call log holds what users sent. Its retention is part of the
     // feature, and `keep: false` is the one spelling that takes it away

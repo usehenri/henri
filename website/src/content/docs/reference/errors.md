@@ -1398,6 +1398,41 @@ Usually:
 
 **Fix.** Write app/views/mailers/<mailer>/<action>.hbs. A `<action>.text.hbs` next to it replaces the plain text part, which is otherwise derived from the html.
 
+## maintenance
+
+Maintenance mode: the switch that closes an application without a deploy.
+
+### `HENRI_MAINTENANCE_DISABLED`
+
+The application was asked to open or close and it has no maintenance switch.
+
+Usually:
+
+- `config.maintenance` is `false` in the configuration this command read
+
+**Fix.** Remove "maintenance": false from the configuration, or leave this deployment without a switch on purpose.
+
+### `HENRI_MAINTENANCE_ON`
+
+The application is closed for maintenance and answered 503.
+
+Usually:
+
+- `henri maintenance:on` was run and nobody ran `henri maintenance:off`
+
+**Fix.** This is what a deliberately closed application answers. End the window with `henri maintenance:off`, or go through the bypass url `henri maintenance:status` prints.
+
+### `HENRI_MAINTENANCE_UNAVAILABLE`
+
+The maintenance switch could not be read or written.
+
+Usually:
+
+- the file the switch lives in cannot be written (permissions, a read-only filesystem)
+- the shared store holding the switch did not answer
+
+**Fix.** Check that the process can write config.maintenance.file, or that the backend of config.shared answers. A running server keeps whatever state it last read, so nothing changed.
+
 ## migration
 
 The migrations of db/migrations and the schema dump of a drizzle store.
@@ -1812,6 +1847,18 @@ Usually:
 - a model used before the boot reached the models
 
 **Fix.** Let the boot finish before querying. In tests, `await setup()` first; the helper boots the application inside the worker.
+
+### `HENRI_STORE_SANDBOX_UNSUPPORTED`
+
+henri console --sandbox was asked for on a store that cannot hold one.
+
+Usually:
+
+- the store is a MongoDB one: a session has to be threaded through every call, and a transaction needs a replica set
+- the store is an mssql one: Sequelize does not join a transaction by async context
+- the store is already inside a transaction
+
+**Fix.** Run henri console without --sandbox on this store. A sandbox is only honest where a model call joins the transaction of its async context on its own, which is every drizzle store (sqlite, postgres, mysql).
 
 ### `HENRI_STORE_SESSION_UNAVAILABLE`
 

@@ -17,6 +17,7 @@ henri <command> [options]
 | `init`                        | Add the henri structure to the current directory.                            |
 | `server`, `s`                 | Start the application (development mode with hot reload by default).         |
 | `console`                     | Boot the application and open a Node.js REPL.                                |
+| `runner <code\|file\|->`      | Run an expression or a file inside a booted application and exit.            |
 | `routes`                      | Print the routes table of `config/routes.js`.                                |
 | `openapi`                     | Write the OpenAPI 3.1 description of what the application exposes.           |
 | `generate <what> <name>`, `g` | Generate code, see below.                                                    |
@@ -28,6 +29,7 @@ henri <command> [options]
 | `audit`                       | Check the application against the ASVS and the OWASP Top 10.                 |
 | `analyze [module]`            | Boot the application and print the boot chart of its modules.                |
 | `webhooks`                    | The endpoints this application sends signed webhooks to, see below.          |
+| `maintenance`                 | Close the application, and open it again, without a deploy.                  |
 | `help [command]`              | Print the help.                                                              |
 
 `routes`, `openapi`, `analyze`, `generate`, `destroy`, `build` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
@@ -90,14 +92,59 @@ Boots the application, listens and watches the files in development. The server 
 ## `console`
 
 ```bash
-henri console [--production]
+henri console [--sandbox] [--production]
 ```
 
-Boots the application without the view engine and without listening, then opens a REPL named after the project where `henri` and the models are globals:
+Boots the application without the view engine, then opens a REPL named after the project where `henri` and the models are globals:
 
 ```text
 my-app> await Task.countDocuments()
 ```
+
+### `--sandbox`
+
+Opens a transaction on **every** store and rolls it back when the session ends, so a destructive thing can be tried on real data and nothing survives it:
+
+```text
+  sandbox: default (drizzle) is in a transaction that is rolled back when you leave.
+  Nothing you write here survives, and nothing outside this session sees it.
+
+my-app (sandbox)> await Task.destroy({ where: {} })
+my-app (sandbox)> .exit
+  sandbox: rolled back.
+```
+
+A sandbox is only honest where a model call **joins the transaction of its async context on its own** -- nobody threads a transaction handle through what they type at a prompt, and a flag that silently kept the writes would be worse than no flag, because it is trusted at exactly the wrong moment. So it is offered where henri can honour it and refused before the prompt is printed everywhere else, with `HENRI_STORE_SANDBOX_UNSUPPORTED` and exit `1`:
+
+| Adapter                          | `--sandbox` | Why                                                                                                                             |
+| -------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `drizzle`, `postgresql`, `mysql` | supported   | The adapter reads the open transaction out of an `AsyncLocalStorage`, so every model call inside the session joins it.          |
+| `mongoose`, `disk`               | refused     | A Mongoose write joins a transaction only when the call is handed the `session`, and a MongoDB transaction needs a replica set. |
+| `mssql`                          | refused     | Sequelize joins a transaction by async context only under `Sequelize.useCLS()`, which henri does not install.                   |
+
+Two things it is not: it is not isolation from other processes (another connection is simply outside your transaction and sees the database as it was), and it is not a rollback of anything outside a store -- a mail sent, a webhook emitted or a file written from the console is not undone. Long-running sessions hold a connection and, on PostgreSQL and MySQL, whatever locks their writes take, so a sandbox on a production database is for minutes, not hours.
+
+## `runner`
+
+```bash
+henri runner <expression> [--json]
+henri runner <file> [--json]
+henri runner - [--json]
+```
+
+Runs an expression or a file inside a booted application and exits. This is what a cron line calls: a task that has to touch the models and is not worth a job, a controller, or a script that boots henri by hand and remembers to stop it again.
+
+```bash
+henri runner 'await Task.count()'
+henri runner script/backfill.js
+echo 'await henri.cache.clear()' | henri runner -
+```
+
+An argument naming a file that exists is that file; anything else is source code, and a bare `-` reads it from stdin. The globals are the ones an application has -- `henri` and every model -- and a value the expression answers is printed, so `henri runner '1 + 1'` prints `2`. A file is `require`d, so it gets its own `require` and `__dirname`; a function it exports is called with the henri instance and awaited.
+
+The exit code is the interface: **0** when it resolves, **1** when anything throws or rejects -- a returned promise included -- with the error and its stack on stderr, where a cron mail will find it. `--json` prints `{ "ok": true, "value": ... }` on stdout and sends the boot log to stderr.
+
+It boots to the queue (runlevel 4), the level [`henri jobs`](#jobs) stops at: the models, the users and the queue are there, the router and the workers are not, and **no port is bound at any point** -- several runners share a machine. `henri.stop()` runs whatever happened, so the stores close and the process leaves rather than hanging on an open pool.
 
 ## `routes`
 
@@ -410,6 +457,26 @@ How long the models say they keep their records, and the sweep that enforces it.
 A rule whose token is not in `config.retention.approved` writes nothing however the sweep was run, so a new rule cannot delete anything until a person approved it. `config.retention.batch` (`1000`) bounds one run; the rest is reported and taken by the next. The receipt goes to `config.retention.receipts` (`privacy/`).
 
 With `@usehenri/jobs` installed and `config.retention.schedule` set, the same sweep runs as the recurring `henri/retention` job. Without the package, this command is what a cron line runs, and the boot log says so.
+
+## `maintenance`
+
+```bash
+henri maintenance [--json]
+henri maintenance:on [--message=<text>] [--retry-after=<seconds>] [--by=<name>] [--json]
+henri maintenance:off [--json]
+```
+
+Closes the application, and opens it again, without a deploy. See [Maintenance mode](/guides/maintenance/). All three boot to the server module (runlevel 2): no port is bound, no route is registered and no database is opened.
+
+| Command | What it does                                                                                                                                                              |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)  | What the switch says right now: open or closed, since when, the message, where the switch lives, and -- while it is closed -- a signed url to check the application with. |
+| `on`    | Closes it. `--message` is what a visitor is told and `--retry-after` the `Retry-After` of the `503`, both defaulting to `config.maintenance`. Prints the bypass url.      |
+| `off`   | Opens it again, and invalidates every bypass url minted for that window.                                                                                                  |
+
+A closed application answers `503` with a `Retry-After` -- the page for a browser, the boom envelope for an API client -- and keeps answering `200` on `/livez` and `/readyz`, with `"maintenance": true` in the readiness body. The guide says why, and `config.maintenance.readyz` is the key that reverses it.
+
+The switch lives in the [shared store](/configuration/#the-shared-object) when `config.shared` names one, and in `.henri/maintenance.json` otherwise, which reaches the processes on that machine only. Every running process re-reads it within `config.maintenance.poll` (a second), so nothing has to be restarted.
 
 ## `trail`
 

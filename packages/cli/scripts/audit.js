@@ -263,6 +263,13 @@ const CHECKS = [
     what: 'filterParameters replaces the defaults and drops one of them',
   },
   {
+    asvs: 'V4.1.1',
+    check: 'maintenance.loopback-bypass',
+    level: 1,
+    owasp: 'A01',
+    what: '"maintenance": { "bypass": "loopback" }: behind a proxy every request comes from the loopback, so a closed application is not closed',
+  },
+  {
     asvs: 'V5.1.2',
     check: 'params.mass-assignment',
     level: 1,
@@ -1250,6 +1257,28 @@ const configFindings = (config, { file, hasUser }) => {
         'V9.1.1'
       );
     }
+  }
+
+  // The maintenance bypass is an access control decision, and "loopback"
+  // makes it on the peer address of the socket. That is the operator with a
+  // shell on a machine running nothing else, and it is every visitor at
+  // once behind a reverse proxy, a sidecar or Docker's userland proxy --
+  // all of which arrive from 127.0.0.1. In development it is the point; in
+  // a configuration a production boot reads it is a closed application that
+  // is not closed.
+  if (
+    isObject(config.maintenance) &&
+    PRODUCTION_CONFIGS.includes(file) &&
+    config.maintenance.bypass === 'loopback'
+  ) {
+    add(
+      'high',
+      'maintenance.loopback-bypass',
+      OWASP.A01,
+      'maintenance.bypass is "loopback", so anything connecting from this machine walks past maintenance mode: behind a reverse proxy, a sidecar or a container network that is every request, and a closed application serves everybody as usual',
+      `Remove "bypass": "loopback" from ${file} and use the signed url henri maintenance:on prints; keep it in config/dev.json if a loopback shortcut is useful there`,
+      'V4.1.1'
+    );
   }
 
   if (isObject(config.user)) {

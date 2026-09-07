@@ -50,6 +50,13 @@ const { coded, fatal, normalizeEmail, redact, toRoles } = require('./utils');
  * @method toPlain(user) The user as a plain object, without its password
  * @method async ping() Resolves true when the database answers
  * @method async transaction(fn) Runs fn inside a transaction
+ * @method async sandbox() Opens a transaction and hands back the handle to
+ *   hold it open (`henri console --sandbox`). **Optional, and only
+ *   implemented where a model call joins the transaction of its async
+ *   context on its own** -- an adapter that needs a transaction or a
+ *   session threaded through every call implements nothing here and the
+ *   command line refuses, rather than opening a console whose writes
+ *   survive a rollback that never happened
  * @method async query(sql, params) Raw query
  */
 
@@ -1078,6 +1085,110 @@ class Drizzle {
     }
 
     return db.transaction((tx) => this.context.run({ db: tx }, () => fn(tx)));
+  }
+
+  /**
+   * Opens a transaction and hands back the handle to hold it open, which is
+   * what `henri console --sandbox` needs and `transaction()` cannot give:
+   * `transaction(fn)` ends when `fn` does, and a console session ends when a
+   * person types `.exit`.
+   *
+   * This adapter can honour it because a model call joins the transaction of
+   * its async context on its own (`database()` reads `this.context`). An
+   * adapter where a caller has to thread a transaction or a session through
+   * every call cannot, and must not pretend to: it implements no `sandbox()`
+   * at all, and the command line refuses rather than opening a console whose
+   * writes quietly survive.
+   *
+   * @returns {Promise<{run: function, rollback: function}>} `run(fn)` runs
+   *   fn inside the transaction; `rollback()` undoes everything and closes it
+   * @throws {Error} Before start()
+   * @memberof Drizzle
+   */
+  async sandbox() {
+    // Not one already: nesting a sandbox inside a transaction would roll
+    // back somebody else's work
+    if (this.context.getStore()) {
+      throw coded(
+        'HENRI_STORE_SANDBOX_UNSUPPORTED',
+        `${this.adapterName}: store ${this.name} is already inside a transaction`
+      );
+    }
+
+    const rolled = new Error('henri console --sandbox: rolling back');
+    let hand;
+    let close;
+    let held = false;
+    const ready = new Promise((resolve) => {
+      hand = (handle) => {
+        held = true;
+        resolve(handle);
+      };
+    });
+
+    // The transaction stays open until `close` is called, so the console
+    // runs inside it. Rejecting is what rolls it back on both paths --
+    // the BEGIN/COMMIT of a synchronous driver and drizzle's own
+    const running = this.transaction(
+      (tx) =>
+        new Promise((resolve, reject) => {
+          close = reject;
+          hand({
+            /**
+             * Undoes everything the session wrote and closes the handle
+             *
+             * @returns {Promise<boolean>} true once it is rolled back
+             */
+            rollback: async () => {
+              close(rolled);
+              await running.catch((error) => {
+                if (error !== rolled) {
+                  throw error;
+                }
+              });
+
+              return true;
+            },
+
+            /**
+             * Runs a function inside the transaction, so every model call
+             * it makes joins it
+             *
+             * @param {function} fn What to run
+             * @returns {*} What fn returned
+             */
+            run: (fn) => this.context.run({ db: tx }, fn),
+          });
+        })
+    );
+
+    // A transaction that could not be opened at all (a store that is not
+    // started, a driver that refuses) must fail here rather than after the
+    // console is already accepting input. Once the handle is out, this
+    // branch settles quietly: the transaction ending is then the rollback,
+    // which `rollback()` is already awaiting, and a second rejection with
+    // nobody left to hear it would be an unhandled one
+    const guard = running.then(
+      () => {
+        if (held) {
+          return undefined;
+        }
+
+        throw coded(
+          'HENRI_STORE_SANDBOX_UNSUPPORTED',
+          `${this.adapterName}: store ${this.name} closed the transaction before the sandbox could hold it`
+        );
+      },
+      (error) => {
+        if (held) {
+          return undefined;
+        }
+
+        throw error;
+      }
+    );
+
+    return Promise.race([ready, guard]);
   }
 
   /**
