@@ -147,7 +147,7 @@ has to be named per record or per process. An application's own suite keeps
   the schema; every key the environment provided is
   printed at boot with the `filterParameters` masked. Keys, in the order of
   the schema: `port`, `host`, `cors`, `renderer`, `inertia`, `experimental`,
-  `stores`, `secret`, `url`, `user` (string or `{ model, public, loginPath,
+  `stores`, `migrations`, `secret`, `url`, `user` (string or `{ model, public, loginPath,
 afterLogin, sessionMaxAge, signup, passwordReset, confirmation,
 identities }`),
   `baseRole`, `externalIds`, `policies`, `trustProxy`, `csrf`, `graphql`,
@@ -451,6 +451,39 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   migrations through that one. The codes are the `migration` area of
   `error-codes.json`, and an adapter without either says so
   (`HENRI_CLI_MIGRATIONS_UNSUPPORTED`).
+- **A generated migration is read back before it runs** (`safety.js`).
+  drizzle-kit will write a statement that takes a production database down,
+  so henri scans the `.sql` -- the SQL, not the model diff, because the SQL
+  is what runs -- and reports a dropped or renamed column or table, a
+  `NOT NULL` column with no default, a type change, an index build and a
+  `DELETE`/`UPDATE` with no `WHERE`. Each check names the dialects it
+  applies to and the list is **measured**
+  (`packages/drizzle/__tests__/engines.spec.js` pins it against real
+  servers): an index build is a **postgres problem alone** (`ShareLock` for
+  the build; mysql 8 accepts `ALGORITHM=INPLACE, LOCK=NONE`, sqlite has no
+  concurrent form), and a `NOT NULL` column with no default fails
+  differently -- sqlite and postgres refuse the statement once a row
+  exists, mysql accepts it and writes `''`/`0` into every row without a
+  warning. `CONCURRENTLY` is named as the fix and is **not** told to go in
+  the file, because drizzle applies every pending migration in one
+  transaction and postgres refuses it there. `db:generate` warns and writes
+  the file; a **production** `migrate()` refuses until the migration's token
+  is in `config.migrations.approved` (`HENRI_MIGRATION_UNREVIEWED`, applying
+  nothing at all, and the production boot with `"migrate": true` goes
+  through the same call); `status()` carries the review so `henri db:status`
+  and `henri doctor` (`schema.unreviewed`) answer before the deploy. The
+  token is `<tag>:<digest of the findings>`, plain like retention's, so
+  reformatting keeps it and another drop edited in replaces it; a flag was
+  rejected because `--force` in a deploy script turns the check off for
+  every future migration. `migrations.approve: false` is the blanket way out
+  and `henri audit` reports it (`migrations.unreviewed`). The scanner
+  **walks and does not match**: comments, string literals (whose content it
+  throws away rather than skips), dollar quoting and each dialect's
+  identifier quotes are lexed, so SQL that only mentions `DROP COLUMN`
+  inside a string is not a finding. Two precision rules keep a false
+  refusal from happening: a table created by the same migration has no rows,
+  and sqlite's `__new_x`/copy/drop/rename rebuild is recognized by its shape
+  and reported once as `table.recreate`.
 - **The drizzle model refuses what it cannot honour** rather than dropping
   it, because the Sequelize spellings it does not share used to run and mean
   something else. `Model.update(values, { where })` (Sequelize's argument
@@ -1686,5 +1719,20 @@ filters.spec.js`), on MongoDB through the demo application core's suite
   `packages/cli/__tests__/generate.spec.js` for the generator. MSSQL
   rides the Sequelize wiring with no coverage of its own, like the rest
   of that adapter.
+- The migration safety checks are new. What they read is **one file**: a
+  migration that is safe on its own and catastrophic next to the deploy it
+  ships with is not something a file can show, so the deploy order is not
+  checked and the guide says so. They do not count rows either -- the
+  refusal is "this shape is dangerous on a table with rows", not "this
+  would take 412 rows away", which is `db:rollback`'s answer and needs an
+  inverse to compute. A MySQL executable comment (`/*!40101 ... */`) is
+  read as a comment, so a statement hidden in one is not seen; drizzle-kit
+  writes none, and treating it as code would mean refusing statements that
+  will not run on the server in front of you. The checks are covered on
+  sqlite offline and on the live PostgreSQL and MySQL of
+  `pnpm test:sql:live` (`packages/drizzle/__tests__/{safety,engines,
+review}.spec.js`, the middle one being the claims about the databases
+  themselves); **MSSQL has no migrations at all**, so nothing there applies,
+  and no adapter but drizzle has a migration to read.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.

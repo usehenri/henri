@@ -41,6 +41,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `inertia`          |               | Options of the Inertia renderer: `ssr`, `id`, `entry`, `ssrEntry`, `template`. See [Views](/guides/views/#inertia).                                                                                                                       |
 | `experimental`     |               | Opt-in to unmaintained renderers: `{ "vue": true }`.                                                                                                                                                                                      |
 | `stores`           |               | Named database stores, see below. A model picks one with its `store` key or uses `default`.                                                                                                                                               |
+| `migrations`       |               | What a migration may do to a database that has rows in it, see below. `henri db:generate` warns whatever this says. See [Models](/guides/models/#migration-safety).                                                                       |
 | `secret`           |               | Session and token secret. Required as soon as a user model exists; usually provided by `HENRI_SECRET`.                                                                                                                                    |
 | `url`              | the local url | Canonical address of the application (`https://example.com`), used for the links inside the mails henri sends. Set it in production.                                                                                                      |
 | `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                                                                                                                |
@@ -204,6 +205,28 @@ Each entry of `stores` names an adapter and how to reach its database. The adapt
 | `sync`, `migrate`                                  | SQL           | `sync: false` stops the development boot from bringing the schema up. On an mssql store, a production boot never does, and `sync: true` is what asks it to create the tables that are missing. `migrate: true` (drizzle) applies `db/migrations` on a production boot; on mysql a push only creates the missing tables (see [Models](/guides/models/#drizzle)). |
 
 See [Models](/guides/models/#adapters) for each adapter.
+
+## The `migrations` object
+
+What a migration is allowed to do to a database that has rows in it.
+`henri db:generate` reads the SQL it just wrote and warns whatever this
+says; this is what a production `henri db:migrate` reads, and what a
+production boot with `"migrate": true` on the store reads with it. See
+[Migration safety](/guides/models/#migration-safety).
+
+```json
+{
+  "migrations": {
+    "approve": true,
+    "approved": ["0002_add_priority:9f3c1a2b4d5e"]
+  }
+}
+```
+
+| Key        | Default | Description                                                                                                                                                                                                                                 |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `approve`  | `true`  | Whether a migration henri found something in has to be approved before it runs in production. `false` makes the deployment the review, and `henri audit` reports it (`migrations.unreviewed`).                                              |
+| `approved` | `[]`    | The tokens of the approved migrations. `henri db:status` prints one per pending migration it has something to say about; the digest covers what was found, so reformatting the file keeps the token and another drop edited in replaces it. |
 
 ## JSON API
 

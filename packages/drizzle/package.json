@@ -22,6 +22,7 @@
     "dump.js",
     "migrations.js",
     "queries.js",
+    "safety.js",
     "model.js",
     "relation.js",
     "schema.js",

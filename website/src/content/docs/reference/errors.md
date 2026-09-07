@@ -1566,6 +1566,18 @@ Usually:
 
 **Fix.** The snapshots next to the migrations are what a rollback reads to compute the inverse, and drizzle-kit needs them to generate the next migration too: they belong in the repository. Restore meta/ from version control.
 
+### `HENRI_MIGRATION_UNREVIEWED`
+
+A migration would change a database that has rows in it and nobody approved it.
+
+Usually:
+
+- `henri db:migrate` in production on a migration that drops a column or a table
+- a production boot with `"migrate": true` on the store, reaching the same migration
+- a migration whose findings changed after its token was written down
+
+**Fix.** Run `henri db:status`, which prints the token of every pending migration it has something to say about, next to what it found and the safer way to do it. Put that token in `migrations.approved` once somebody has read it. Nothing was applied, not even the safe migrations queued ahead of this one. `migrations.approve` set to false turns the gate off for an application whose review lives somewhere else, and `henri audit` reports that.
+
 ## model
 
 The model files of app/models and the schema the adapters normalize.

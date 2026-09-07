@@ -2579,7 +2579,7 @@ const behind = async (dir, report, name, store) => {
   try {
     await within(adapter.start(), REACH_TIMEOUT, `store ${name}`);
 
-    const { pending } = await within(
+    const { pending, review } = await within(
       adapter.migrations.status(),
       REACH_TIMEOUT,
       `store ${name}`
@@ -2592,6 +2592,22 @@ const behind = async (dir, report, name, store) => {
         hint: `henri db:migrate applies them, and "stores": { "${name}": { "migrate": true } } in config/production.json applies them on a production boot. henri db:status lists them`,
         level: 'warning',
         message: `store "${name}" is behind db/migrations by ${pending.length} migration${pending.length === 1 ? '' : 's'} (${pending.join(', ')})`,
+      });
+    }
+
+    // A pending migration a production migrate would stop on. Finding that
+    // out here is the whole point: the alternative is finding out during
+    // the deploy, from a boot that refused to come up
+    for (const entry of (review || []).filter((one) => !one.approved)) {
+      append(report, {
+        check: 'schema.unreviewed',
+        code: 'HENRI_MIGRATION_UNREVIEWED',
+        file: `db/migrations/${entry.tag}.sql`,
+        hint: `henri db:status prints what it found and the safer way to do each one. Add "${entry.token}" to "migrations": { "approved": [...] } once somebody has read it`,
+        level: 'warning',
+        message: `${entry.tag} would change a database that has rows in it (${entry.findings
+          .map((finding) => finding.check)
+          .join(', ')}) and a production henri db:migrate would refuse it`,
       });
     }
   } catch (error) {

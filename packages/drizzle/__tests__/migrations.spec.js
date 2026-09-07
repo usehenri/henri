@@ -76,6 +76,7 @@ describe('migrations', () => {
       applied: [],
       folder: path.join(dir, 'db/migrations'),
       pending: [],
+      review: [],
     });
 
     const first = await adapter.migrations.generate({ name: 'Create tasks' });
@@ -132,6 +133,7 @@ describe('migrations', () => {
     expect(await adapter.migrations.migrate()).toEqual({
       applied: [],
       pending: [],
+      review: [],
     });
     await adapter.stop();
   });
@@ -177,6 +179,7 @@ describe('migrations', () => {
     expect(await second.migrations.migrate()).toEqual({
       applied: ['0000_init', '0001_add_priority'],
       pending: [],
+      review: [],
     });
     expect(await second.listTables()).toContain('tasks');
     // The migrations table lives in the `drizzle` schema on postgres
@@ -185,6 +188,7 @@ describe('migrations', () => {
     expect(await second.migrations.migrate()).toEqual({
       applied: [],
       pending: [],
+      review: [],
     });
 
     // Restarting with the default sync pushes nothing more

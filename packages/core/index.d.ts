@@ -1039,6 +1039,8 @@ declare namespace start {
     /** Opt-in to the unmaintained renderers. */
     experimental?: { vue?: boolean };
     stores?: Record<string, StoreConfig>;
+    /** What a migration may do to a database that has rows in it. */
+    migrations?: MigrationsConfig;
     /** Session and token secret; usually provided by `HENRI_SECRET`. */
     secret?: string;
     /**
@@ -1202,6 +1204,26 @@ declare namespace start {
      * `false` keeps none beyond what the command printed.
      */
     receipts?: string | false;
+  }
+
+  /**
+   * `config.migrations`: what a migration is allowed to do to a database
+   * that has rows in it. `henri db:generate` warns whatever this says;
+   * a production `henri db:migrate` is what reads it.
+   */
+  interface MigrationsConfig {
+    /**
+     * Whether a migration henri found something in has to be approved
+     * before it runs in production (`true`). `false` makes the deployment
+     * the review, and `henri audit` reports it.
+     */
+    approve?: boolean;
+    /**
+     * The tokens of the approved migrations
+     * (`"0002_add_priority:9f3c1a2b4d5e"`). `henri db:status` prints them;
+     * the digest covers what was found in the migration, not the file.
+     */
+    approved?: string[];
   }
 
   /**

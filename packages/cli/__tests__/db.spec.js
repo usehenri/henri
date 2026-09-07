@@ -307,9 +307,46 @@ describe('henri db', () => {
         folder: '/app/db/migrations',
         ok: true,
         pending: ['0001_priority'],
+        review: [],
         schema: 'migrations',
         store: 'default',
       });
+    });
+
+    // The review rides on the status, so `henri db:status` says before the
+    // deploy what a production `henri db:migrate` is going to refuse
+    test('db:status carries what a production migrate would refuse', async () => {
+      const review = [
+        {
+          approved: false,
+          findings: [
+            {
+              check: 'column.drop',
+              column: 'done',
+              fix: 'Ship the code that stops reading the column first',
+              table: 'tasks',
+              what: 'drops a column the running code may still be reading',
+            },
+          ],
+          tag: '0001_priority',
+          token: '0001_priority:9f3c1a2b4d5e',
+        },
+      ];
+      const store = {
+        adapterName: 'drizzle',
+        dialect: { name: 'postgres' },
+        migrations: {
+          status: async () => ({
+            applied: ['0000_init'],
+            folder: '/app/db/migrations',
+            pending: ['0001_priority'],
+            review,
+          }),
+        },
+        name: 'default',
+      };
+
+      expect((await status(store, {})).review).toEqual(review);
     });
 
     test('db:status reports the drift of a Sequelize store', async () => {

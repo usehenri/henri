@@ -463,6 +463,7 @@ describe('the schema, the declarations and the documentation', () => {
   test.each([
     ['Configuration', () => Object.keys(SCHEMA)],
     ['StoreConfig', () => Object.keys(STORE.keys)],
+    ['MigrationsConfig', () => Object.keys(SCHEMA.migrations.keys)],
     ['UserConfig', userKeys],
     ['PasswordConfig', passwordKeys],
     ['LockoutConfig', lockoutKeys],

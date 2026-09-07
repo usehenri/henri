@@ -315,6 +315,47 @@ describe('henri audit', () => {
     ).not.toContain('schema.autosync');
   });
 
+  // The other half of the same question: henri reads a generated migration
+  // back and refuses one that would take a column or a table away until it
+  // is approved. Turning that gate off is a decision worth seeing
+  test('reports migrations applied in production without a review', () => {
+    const migrations = (file, block) =>
+      withConfig(app, file, { migrations: block });
+
+    expect(
+      migrations('config/production.json', { approve: false }).findings
+    ).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V14.1.1',
+        check: 'migrations.unreviewed',
+        file: 'config/production.json',
+        owasp: 'A05:2021 Security Misconfiguration',
+        severity: 'medium',
+      })
+    );
+    expect(
+      migrations('config/default.json', { approve: false }).names
+    ).toContain('migrations.unreviewed');
+
+    // The default is the gate being on, and a listed token is the point of
+    // the block rather than a finding
+    expect(migrations('config/production.json', {}).names).not.toContain(
+      'migrations.unreviewed'
+    );
+    expect(
+      migrations('config/production.json', {
+        approve: true,
+        approved: ['0002_drop_email:9f3c1a2b4d5e'],
+      }).names
+    ).not.toContain('migrations.unreviewed');
+
+    // Only a file a production boot reads: development is where a
+    // migration is written and run without ceremony
+    expect(
+      migrations('config/dev.json', { approve: false }).names
+    ).not.toContain('migrations.unreviewed');
+  });
+
   // The two ways an application can weaken the encrypted attributes: a
   // key that reached a committed file, and the migration setting left on
   test('reports an encryption key written in a configuration file', () => {

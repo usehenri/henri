@@ -113,6 +113,7 @@ describe('rollback', () => {
     expect(await adapter.migrations.migrate()).toEqual({
       applied: ['0001_priority'],
       pending: [],
+      review: [],
     });
 
     await adapter.stop();
