@@ -169,14 +169,17 @@ const open = (file) => {
   if (result.error) {
     throw new CliError('FAILED', `The editor (${command}) could not start`, {
       cause: result.error,
-      hint: 'EDITOR is run as a command with the file as its last argument',
+      hint: 'EDITOR is run as a command with the file as its last argument, so it has to be on the PATH: EDITOR="code --wait" henri credentials:edit',
     });
   }
 
   if (result.status !== 0) {
     throw new CliError(
       'FAILED',
-      `The editor (${command}) exited with ${result.status}: nothing was written`
+      `The editor (${command}) exited with ${result.status}: nothing was written`,
+      {
+        hint: 'The editor has to stay in the foreground until the file is saved and then exit 0: EDITOR="code --wait", EDITOR=vim. Run henri credentials:edit again',
+      }
     );
   }
 };
@@ -234,13 +237,13 @@ const edit = (credentials, cwd, env) => {
       } catch {
         // The parser's message quotes the file, and the file is plaintext
         throw new CliError('FAILED', 'What you saved is not valid JSON', {
-          hint: `The ${env} credentials were left as they were`,
+          hint: `Nothing was written and the ${env} credentials were left as they were: run henri credentials:edit --env ${env} again`,
         });
       }
 
       if (parsed === null || typeof parsed !== 'object') {
         throw new CliError('FAILED', 'The credentials must be a JSON object', {
-          hint: `The ${env} credentials were left as they were`,
+          hint: `A credentials file is { "key": "value" } at the top level. Nothing was written and the ${env} credentials were left as they were: run henri credentials:edit --env ${env} again`,
         });
       }
 

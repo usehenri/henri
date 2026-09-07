@@ -133,10 +133,15 @@ const open = async (henri) => {
       // a lock nobody can see
       await rollback(opened).catch(() => null);
 
+      // Not the refusal the catalogue's fix describes: this adapter does
+      // hold a sandbox, and the transaction is what would not open
       throw new CliError(
         'HENRI_STORE_SANDBOX_UNSUPPORTED',
         `henri console --sandbox could not open a transaction on ${name}: ${error.message}`,
-        { cause: error }
+        {
+          cause: error,
+          hint: "The message is the store's own and nothing was left open. Check the store is reachable (henri doctor), or run henri console without --sandbox",
+        }
       );
     }
   }

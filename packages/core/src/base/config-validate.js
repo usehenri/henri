@@ -426,8 +426,18 @@ function walk(node, value, key, context) {
         return;
       }
 
+      // An item inherits the list's hint the way a branch inherits the
+      // union's, and for the same reason: what to do about `retention.
+      // approved` is what to do about the token that is wrong inside it,
+      // and a schema that had to repeat the sentence on every `of` node
+      // would end up not saying it at all
       value.forEach((entry, index) =>
-        walk(node.of, entry, `${key}[${index}]`, context)
+        walk(
+          { ...node.of, hint: node.of.hint || node.hint },
+          entry,
+          `${key}[${index}]`,
+          context
+        )
       );
 
       return;
