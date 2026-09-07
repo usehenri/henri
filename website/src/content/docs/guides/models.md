@@ -395,6 +395,157 @@ In the database, the foreign keys are unaffected. `belongsTo` and `hasMany` keep
 
 [`externalIds`](/configuration/#the-externalids-object) holds both switches, and `henri audit` reports either of them turned off.
 
+## Slugs
+
+`/articles/how-we-ship` rather than `/articles/0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11`. A model asks for a name in its options:
+
+```js
+// app/models/Article.js
+module.exports = {
+  options: { slug: 'title', timestamps: true },
+  schema: {
+    body: { type: 'text' },
+    title: { type: 'string', required: true },
+  },
+};
+```
+
+and henri adds a `slug` column -- unique, indexed, `NOT NULL` -- fills it on the insert, resolves it in `findById()` and prints it in every url that names the record.
+
+```js
+const article = await Article.create({ title: 'How we ship' });
+
+article.slug; // 'how-we-ship-k3f9pq'
+article.externalId; // '0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11'
+article.id; // 42, on the server
+```
+
+`henri generate scaffold Article title:string! body:text --slug title` writes the declaration, the controller and the pages together, and a generator run over a model that already has one reads it back -- so nothing is hand-wired.
+
+### Where a slug appears, and where it does not
+
+A slug is a **third** identifier, and the rule that keeps it from spending what the other two buy is two lines long:
+
+- it appears in the record's own `slug` field, and in the **url** of that record -- `_links`, the path helpers, the `Location` of a `201`;
+- it appears **nowhere else**. A foreign key is still published as the `externalId` of the row it names, never as that row's slug; the versions table, the access trail, the flags actor and the erasure receipts all keep reading `externalId`.
+
+So the uuid is what an API client stores and what henri writes down; the slug is what a person reads and types. A record answers to both, and both are public: this is a second **name**, not a second identity.
+
+```json
+{
+  "_links": { "self": { "href": "/articles/how-we-ship-k3f9pq" } },
+  "externalId": "0199a5c1-1f7e-7a3c-bb0d-2b1a4f6d9c11",
+  "slug": "how-we-ship-k3f9pq",
+  "title": "How we ship"
+}
+```
+
+### The lookup, and why it cannot reach a primary key
+
+`findById()` grew one branch:
+
+```js
+await Article.findById('how-we-ship-k3f9pq'); // the record, by name
+await Article.findById(article.externalId); // the record, as before
+await Article.findById(42); // null
+await Article.findById('42'); // null
+await Article.findById('no-such-article'); // null
+```
+
+A uuid resolves the `externalId`, exactly as before. Anything else resolves the **slug column** -- a `WHERE slug = ?`, not a fallthrough -- and that is the end of it. `findById('42')` asks the slug column for `'42'`; it does not ask the primary key anything, so it cannot say whether row 42 exists. If some record's slug really is `42`, that record comes back, and that is a public fact about a public name rather than the number.
+
+A model with a name takes the whole non-uuid space with it, [`externalIds.lookup: "any"`](/configuration/#the-externalids-object) included: on such a model the primary key belongs to `findByKey()` alone. `findBySlug()` is the explicit half, the way `findByExternalId()` is, and `findByIdAndUpdate()`/`findByIdAndDelete()` reach exactly the rows `findById()` reaches.
+
+A slug shaped like a uuid would take the first branch and quietly name nothing, so henri refuses one.
+
+### Two articles called "Getting started"
+
+That is the normal case, not the edge one, and henri answers it without a `SELECT` before the `INSERT` -- the same position it takes on `unique` in [validations](#validations): a check before a write answers a question about a moment that has passed.
+
+**`suffix: true`, the default.** The slug is the folded title plus a six character discriminator taken from the record's own `externalId`: `getting-started-k3f9pq`. Unique because the uuid is, stable because the uuid never changes, and free because nothing is read. The cost, said out loud: every url carries six extra characters even when nothing would have collided.
+
+**`suffix: false`.** The slug is exactly the folded title: `getting-started`. The **unique index is what holds**, so the second "Getting started" is refused by the database and `henri.model.errors()` turns that into `{ slug: 'must be unique' }`, the same sentence any other unique column gives. The cost is that refusal, and it lands on a title its author had every reason to think was fine -- so this is the choice to make when the source is something a person already keeps unique, like a product code.
+
+```js
+options: { slug: { from: 'title', suffix: false } },
+```
+
+Neither is scoped. A slug is unique across the table, not per tenant or per parent: a scope is a composite index henri would have to write into a migration it does not own.
+
+### When the title changes
+
+By default, nothing happens. `on: 'create'` is the default and it is the honest one: the slug is generated once, and the url minted the day the record was written keeps working forever, whatever the title becomes. An identifier that follows a display string is an identifier that has stopped being one.
+
+`on: 'change'` regenerates whenever the source field is written, **and the old url stops working that instant**. henri keeps no history of slugs: `friendly_id` puts every retired one in a table and answers a `301` from it, which is a table on four adapters, a redirect, a retention rule and a reach for the erasure -- and it is not here. Until it is, `on: 'change'` means the old url 404s.
+
+A mass update naming the source field on such a model is refused (`HENRI_MODEL_SLUG_MASS_WRITE`), because one hook runs for the whole write with no records in it, so either every row would get the same slug or none would get a new one:
+
+```js
+// refused
+await Article.update({ author: 'ada' }, { title: 'One name for all' });
+
+// what to write instead
+for (const article of await Article.find({ author: 'ada' })) {
+  await article.update({ title: 'One name for all' });
+}
+```
+
+It is the answer `HENRI_MODEL_VALIDATION_MASS_WRITE` and `HENRI_VERSION_MASS_WRITE` already give to the same shape of problem. A model whose slug is generated once has nothing to regenerate, and its mass updates are untouched.
+
+### A title that is not in English
+
+henri lowercases the title, decomposes it (NFKD) and keeps `a-z0-9`. `Café Crème` becomes `cafe-creme` with no transliteration table at all, because Unicode already knows that `é` is `e` with a mark on it.
+
+What Unicode does not decompose is a short list of Latin letters that are letters in their own right, and those get a line each -- eleven of them: `æ ð đ ħ ı ł ø œ ß þ ŧ`. So `Straße in Köln` is `strasse-in-koln` and `Łódź` is `lodz`. **That is the whole table**, and it is deliberately not the first entry of one per script: a Japanese, Chinese, Arabic, Hebrew, Greek or Cyrillic title has no ASCII to fold to, and shipping the tables that would invent some is how a framework ends up choosing romanizations on a reader's behalf.
+
+So a title in one of those scripts folds to nothing, and that has two real answers rather than a shrug:
+
+- with `suffix: true` the record still gets a slug -- the discriminator alone, `k3f9pq` -- so the write never fails and the url always works. With `suffix: false` there is nothing to fall back to and the write is refused (`HENRI_MODEL_SLUG_EMPTY`), naming the field and what it held;
+- **a slug the application writes itself always wins, and may be in any script**:
+
+```js
+await Article.create({ slug: 'こんにちは', title: 'Hello' });
+// GET /articles/%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF
+```
+
+Every browser shows that as `こんにちは` in the address bar. So henri makes neither choice for you: its generator folds to ASCII and ships no romanization, and an application that wants its own script in the url writes the slug and gets it, byte for byte.
+
+`req.permit()` decides whether a request may set one -- the generated controller does not list `slug`, so by default nothing outside can.
+
+### What a slug may be
+
+A supplied slug is measured against a list of the structural characters rather than a definition of a letter, because henri is not the one deciding what counts as a word. It is refused when it:
+
+- is empty, or longer than the column;
+- holds a space, a control character, or one of the seventeen that end a path segment, start a query, escape an encoding or name a directory (`"`, `#`, `%`, `/`, `:`, `?`, `@`, `[`, `\`, `]`, `^`, `{`, `|`, `}`, `<`, `>` and the backtick);
+- is `.` or `..`, or a path henri already mounts -- `new`, because `resources articles` puts `GET /articles/new` ahead of `GET /articles/:id`. A `collection` route of your own is a segment henri cannot know when the slug is written, so add it: `reserved: ['search']`;
+- is shaped like a public identifier.
+
+The message is a `{ slug: '...' }` a controller answers `422` with, like any other validation failure. henri lowercases and trims what it stores.
+
+### The declaration
+
+| Key         | Default    | What it says                                                                                                                |
+| ----------- | ---------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `from`      | --         | The field the name is built from: a `string` or a `text`, never an `encrypted` one. `slug: 'title'` is the shorthand for it |
+| `on`        | `'create'` | `'create'` generates it once; `'change'` follows the source and retires the old url                                         |
+| `suffix`    | `true`     | Append the six character discriminator                                                                                      |
+| `reserved`  | `[]`       | Words a slug may not take, on top of henri's own                                                                            |
+| `maxLength` | `80`       | How long the folded source may be, before the discriminator                                                                 |
+
+A declaration henri cannot carry out fails the boot naming the model (`HENRI_MODEL_SLUG_DECLARATION_INVALID`): a `from` the schema does not declare, one that is not text, an `encrypted` one, one marked `personal: { expose: false }` -- both of those are fields henri keeps off every answer, and a slug is in every url -- a schema that declares a `slug` field of its own next to it, or an unknown key.
+
+### Slugs and personal data
+
+A slug is public, by construction: it is in the url, in the browser history, in the proxy logs. So `/authors/ada-lovelace` is a decision to publish that name, and it is one henri lets you make -- a field marked `personal: true` may name a record -- but not one it makes quietly:
+
+- a field marked `personal: { expose: false }` cannot be a `from` at all, because that mark says the value never leaves the server;
+- `henri privacy:erase` anonymizes the columns it was told about and **does not rewrite the slug**, because the slug is an identifier and rewriting it would 404 every url that ever pointed at the record. A model whose records are about a person and whose name is built from them wants `slug` off the person's own field -- a title, a reference, a number -- rather than an erasure that only half happened.
+
+### What is not here
+
+No history table, so no `301` from a retired slug -- see above. No scoped uniqueness. No slug on the user model by default. No route that resolves a slug across models, and no redirect engine: a url is a route, and the router is where routes are.
+
 ## Soft deletes
 
 `options: { paranoid: true }` is Rails' `acts_as_paranoid` (and Sequelize's own name for it): deleting a record stamps `deletedAt` instead of removing the row, and every query hides the stamped records.

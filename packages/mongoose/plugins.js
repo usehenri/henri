@@ -7,6 +7,15 @@ const {
   uuidv7,
 } = require('./external-id');
 const {
+  SLUG,
+  emptySlug,
+  lengthOf,
+  massWrite: massSlug,
+  problemOf: slugProblem,
+  slugFor,
+  writesSource,
+} = require('./slug');
+const {
   massWrite,
   problemsOf,
   uncheckedWrite,
@@ -32,6 +41,11 @@ const NOTHING = () => ({ _id: null });
 // `externalIds.lookup` without a global. Weak, so a reloaded schema is
 // collected with its entry.
 const owners = new WeakMap();
+
+// The compiled `options.slug` of a schema that declared one, read by the
+// lookup below so a name is resolved and a document id still is not. Weak,
+// for the same reason.
+const slugs = new WeakMap();
 
 /**
  * Remembers which henri instance a schema belongs to
@@ -84,12 +98,25 @@ const keyFilter = (model, value) => {
  * @returns {object} The filter
  */
 const idFilter = (model, value) => {
+  const named =
+    slugs.has(model.schema) && typeof value === 'string' && value !== ''
+      ? { [SLUG]: value.toLowerCase() }
+      : null;
+
   if (!model.schema.path(EXTERNAL_ID)) {
-    return keyFilter(model, value);
+    return named || keyFilter(model, value);
   }
 
   if (isUuid(value)) {
     return { [EXTERNAL_ID]: normalizeExternalId(value) };
+  }
+
+  // The slug column, and only the slug column. A model that has a name
+  // takes the whole non-uuid space with it: `externalIds.lookup: "any"`
+  // does not put the document id back, because a filter is one filter and
+  // the stricter of the two is the one to keep (see ./slug.js)
+  if (named) {
+    return named;
   }
 
   return resolvesKeys(owners.get(model.schema))
@@ -159,6 +186,24 @@ const lookups = (schema) => {
     return this.findOne(
       isUuid(id) && this.schema.path(EXTERNAL_ID)
         ? { [EXTERNAL_ID]: normalizeExternalId(id) }
+        : NOTHING(),
+      projection,
+      options
+    );
+  };
+
+  /**
+   * A document by the name a person reads, on a model that declared one
+   *
+   * @param {*} slug A slug
+   * @param {*} [projection] The projection
+   * @param {object} [options] Query options
+   * @returns {object} A query
+   */
+  schema.statics.findBySlug = function findBySlug(slug, projection, options) {
+    return this.findOne(
+      slugs.has(this.schema) && typeof slug === 'string' && slug !== ''
+        ? { [SLUG]: slug.toLowerCase() }
         : NOTHING(),
       projection,
       options
@@ -466,6 +511,142 @@ const externalId = (schema) => {
   return schema;
 };
 
+/**
+ * The `slug` path and the two hooks that fill it: the name a person reads
+ * in a url, on a model that declared `options: { slug: ... }`.
+ *
+ * Registered as document middleware and as query middleware for the same
+ * reason `validations` is: Mongoose runs `pre('validate')` for `save()`,
+ * `create()` and `insertMany()` and for nothing else, so an
+ * `updateOne`/`findOneAndUpdate` that changed the title would have written
+ * past a regeneration.
+ *
+ * @param {object} schema The Mongoose schema
+ * @param {object} declaration The compiled declaration (./slug.js)
+ * @param {string} model The model's global id, for the messages
+ * @returns {object} The schema
+ */
+const slugged = (schema, declaration, model) => {
+  slugs.set(schema, declaration);
+
+  schema.add({
+    [SLUG]: {
+      index: true,
+      lowercase: true,
+      maxlength: lengthOf(declaration),
+      required: true,
+      trim: true,
+      type: String,
+      unique: true,
+    },
+  });
+
+  /**
+   * The error a slug that cannot be a url segment gets, in the shape a
+   * Mongoose validation failure has
+   *
+   * @param {string} message What is wrong with it
+   * @param {*} value The slug
+   * @returns {Error} A ValidationError
+   */
+  const failure = (message, value) => {
+    const error = new Error(`${model} validation failed: ${SLUG}: ${message}`);
+
+    error.name = 'ValidationError';
+    error.errors = {
+      [SLUG]: { kind: 'slug', message, path: SLUG, value },
+    };
+
+    return error;
+  };
+
+  /**
+   * Everything wrong with a slug an application wrote itself
+   *
+   * @param {*} value The slug
+   * @returns {string} The slug, normalized
+   * @throws {Error} When it cannot be one path segment
+   */
+  const checked = (value) => {
+    const given =
+      typeof value === 'string' ? value.trim().toLowerCase() : value;
+    const wrong = slugProblem(given, declaration);
+
+    if (wrong) {
+      throw failure(wrong, value);
+    }
+
+    return given;
+  };
+
+  /**
+   * The slug of a source, refusing a source there is nothing to build one
+   * from
+   *
+   * @param {*} source What the source field holds
+   * @param {*} seed The record's external id, for the discriminator
+   * @returns {string} The slug
+   * @throws {Error} HENRI_MODEL_SLUG_EMPTY
+   */
+  const made = (source, seed) => {
+    const slug = slugFor(declaration, source, seed);
+
+    if (slug === '') {
+      throw emptySlug(model, declaration, source);
+    }
+
+    return slug;
+  };
+
+  schema.pre('validate', function henriSlugs() {
+    const given = this.get(SLUG);
+
+    // A slug the application wrote itself always wins, and the only thing
+    // asked of it is whether it can be one path segment
+    if (
+      this.isModified(SLUG) &&
+      typeof given !== 'undefined' &&
+      given !== null &&
+      given !== ''
+    ) {
+      this.set(SLUG, checked(given));
+
+      return;
+    }
+
+    if (
+      !this.isNew &&
+      !(declaration.on === 'change' && this.isModified(declaration.from))
+    ) {
+      return;
+    }
+
+    this.set(SLUG, made(this.get(declaration.from), this.get(EXTERNAL_ID)));
+  });
+
+  schema.pre(WRITE_HOOKS, function henriSlugsUpdate() {
+    const { values } = updateValues(this.getUpdate());
+    const follows =
+      declaration.on === 'change' && writesSource(declaration, values);
+
+    if (follows && !ONE_HOOKS.has(this.op)) {
+      throw massSlug(model, declaration, this.op, 'update(attrs)');
+    }
+
+    if (Object.prototype.hasOwnProperty.call(values, SLUG)) {
+      this.set(SLUG, checked(values[SLUG]));
+
+      return;
+    }
+
+    if (follows) {
+      this.set(SLUG, made(values[declaration.from], null));
+    }
+  });
+
+  return schema;
+};
+
 /** The query middleware a write with attributes goes through */
 const WRITE_HOOKS = [
   'findOneAndReplace',
@@ -645,6 +826,7 @@ module.exports = {
   DELETE_STATICS,
   NOTHING,
   READ_HOOKS,
+  SLUG,
   WRITE_HOOKS,
   externalId,
   idFilter,
@@ -653,6 +835,7 @@ module.exports = {
   owned,
   paginate,
   paranoid,
+  slugged,
   updateValues,
   validations,
 };

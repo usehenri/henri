@@ -115,6 +115,7 @@ describe('utils', () => {
       const models = utils.loadModules(path.join(demo, 'models'));
 
       expect(Object.keys(models).sort()).toEqual([
+        'article',
         'artwork',
         'invoice',
         'memo',
@@ -133,6 +134,7 @@ describe('utils', () => {
 
       expect(Object.keys(controllers).sort()).toEqual([
         'admin/notes',
+        'articles',
         'artwork',
         'artworks',
         'comments',

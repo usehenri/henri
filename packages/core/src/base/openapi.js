@@ -107,6 +107,7 @@ const { identitiesConfig } = require('./identities');
 const { userConfig } = require('./auth');
 const { mapOf, privacyConfig } = require('./privacy');
 const { DEFAULTS: PAGE_DEFAULTS } = require('./pagination');
+const { SLUG, lengthOf, slugOf } = require('./slug');
 const {
   DEFAULTS: FILTER_DEFAULTS,
   OPERATORS: FILTER_OPERATORS,
@@ -182,6 +183,7 @@ const GENERATED = new Set([
   'externalId',
   'id',
   'passwordChangedAt',
+  'slug',
   'updatedAt',
 ]);
 
@@ -384,6 +386,24 @@ function policyFinder(policies) {
 }
 
 /**
+ * The `options.slug` of a model, compiled, or null.
+ *
+ * A declaration henri cannot carry out fails the boot; this command
+ * describes what an application exposes without booting, so it says nothing
+ * rather than repeating the refusal (`henri doctor` is where that is said).
+ *
+ * @param {object} model a model file
+ * @returns {?object} the compiled declaration, or null
+ */
+function slugFor(model) {
+  try {
+    return slugOf(model);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The columns of a model as they exist once the adapter is done with it:
  * what the file declares, plus `externalId`, the timestamps, `deletedAt`
  * and, on the user model, `email`, `password`, `roles`, `confirmedAt` and
@@ -420,6 +440,17 @@ function columnsOf(model, settings) {
     fields.externalId = fields.externalId || {
       required: true,
       type: 'uuid',
+      unique: true,
+    };
+  }
+
+  const named = slugFor(model);
+
+  if (named) {
+    fields[SLUG] = {
+      maxLength: lengthOf(named),
+      required: true,
+      type: 'string',
       unique: true,
     };
   }
@@ -508,6 +539,12 @@ function fieldDescription(name, field, reference) {
   if (name === 'externalId') {
     parts.push(
       'The public identifier of the record: the only identifier that leaves the server.'
+    );
+  }
+
+  if (name === SLUG) {
+    parts.push(
+      'The name of the record: what every url of it carries, and a second thing findById() resolves. Written by henri, never a request (base/slug.js).'
     );
   }
 
@@ -1543,20 +1580,28 @@ function pathParameters(names, { declared = {}, findModel, route, settings }) {
         ? findModel(controller)
         : findModel(name.replace(/_id$/u, ''));
     const external = owner && objectOf(owner.options).externalId !== false;
+    const named = owner ? slugFor(owner) : null;
     const rule = Object.prototype.hasOwnProperty.call(declared, name)
       ? declared[name]
       : null;
+    // A model with a name has no format to state: a slug is a string, and
+    // the uuid it sits next to still resolves (base/slug.js)
     const schema =
-      external && settings.lookup === 'external'
+      external && !named && settings.lookup === 'external'
         ? { type: 'string', format: 'uuid' }
         : { type: 'string' };
-    const description = owner
-      ? `The externalId of the ${owner.globalId}${
-          external && settings.lookup === 'external'
-            ? ': the primary key does not resolve (base/references.js)'
-            : ''
-        }.`
-      : 'A path parameter henri knows the name of and nothing else.';
+    let description =
+      'A path parameter henri knows the name of and nothing else.';
+
+    if (owner && named) {
+      description = `The slug of the ${owner.globalId}: its externalId resolves here too, its primary key does not (base/slug.js).`;
+    } else if (owner) {
+      description = `The externalId of the ${owner.globalId}${
+        external && settings.lookup === 'external'
+          ? ': the primary key does not resolve (base/references.js)'
+          : ''
+      }.`;
+    }
 
     return {
       name,

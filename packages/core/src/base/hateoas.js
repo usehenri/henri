@@ -1,5 +1,5 @@
 const { EXTERNAL_ID, hasExternalId } = require('./external-id');
-const { publish } = require('./references');
+const { nameOf, publish } = require('./references');
 const { check } = require('./arguments');
 const { stamp } = require('./errors');
 const { isInertiaPage, jsonType, noStore, seal } = require('./headers');
@@ -41,17 +41,30 @@ const { linkHeader, pageLinks, paginate } = require('./pagination');
  */
 
 /**
- * The public id of a record as a string: its `externalId` when it has one
- * (every model, unless it opted out), the primary key otherwise. This is
- * what every href of `_links` is made of, so a url never carries the
- * sequential id of a row.
+ * The identifier a url gives a record: its slug when the model declared
+ * one (base/slug.js), its `externalId` otherwise (every model, unless it
+ * opted out), the primary key when there is neither. This is what every
+ * href of `_links` is made of, so a url never carries the sequential id of
+ * a row.
+ *
+ * The slug is passed in rather than read off the record, because only the
+ * model says whether a `slug` field is the name henri gave it: an
+ * application that has always had a column of that name keeps the urls it
+ * had. It is also the **only** place a slug replaces the public identifier
+ * -- the payload still carries the `externalId`, and so does every foreign
+ * key pointing at this record.
  *
  * @param {*} record a model instance or a plain object
+ * @param {?string} [named=null] the record's slug, when the model has one
  * @returns {?string} the id or null
  */
-function identify(record) {
+function identify(record, named = null) {
   if (!record || typeof record !== 'object') {
     return null;
+  }
+
+  if (typeof named === 'string' && named !== '') {
+    return named;
   }
 
   if (hasExternalId(record)) {
@@ -468,7 +481,7 @@ function resource(henri, req, res, record, options = {}) {
       req.user || null,
       Object.assign(
         resourceLinks({
-          id: identify(plain),
+          id: identify(plain, nameOf(henri, asked) || nameOf(henri, record)),
           params: req.params,
           paths,
           type: kind,
@@ -581,7 +594,11 @@ function collection(henri, req, res, records, options = {}) {
             henri,
             user,
             resourceLinks({
-              id: identify(plain),
+              id: identify(
+                plain,
+                nameOf(henri, subjectOf(subject, record, index)) ||
+                  nameOf(henri, record)
+              ),
               params: req.params,
               paths,
               type: kind,

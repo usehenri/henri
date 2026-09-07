@@ -70,7 +70,7 @@ describe('--json', () => {
         '--json',
       ]);
       expect(generate.targets.map((target) => target.name)).toContain(
-        'scaffold <Name> [field:type[!] ...]'
+        'scaffold <Name> [field:type[!] ...] [--slug <field>]'
       );
       expect(generate.examples[0].command).toContain('henri generate model');
     });

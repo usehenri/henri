@@ -11,6 +11,9 @@ const dir = path.resolve(__dirname, '../../cli/scripts/generate');
 const views = ['_form', 'index', 'new', 'edit', 'show'];
 const context = {
   doc: 'Post',
+  // What a url of one record carries: `externalId`, or the `slug` of a
+  // model that declared one (see base/slug.js)
+  identifier: 'externalId',
   keys: ['title', 'body'],
   lower: 'post',
   plural: 'posts',
@@ -122,5 +125,17 @@ describe('react scaffold templates', () => {
     expect(() =>
       compile('_form', { ...context, keys: ['a', 'b', 'c', 'd'] })
     ).not.toThrow();
+  });
+
+  test('a model with a slug links with the slug and never the uuid', () => {
+    const slugged = { ...context, identifier: 'slug' };
+
+    for (const view of ['index', 'show', 'edit']) {
+      const { code } = compile(view, slugged);
+
+      expect(code).toContain('item.slug');
+      expect(code).not.toContain('externalId');
+      expect(() => compile(view, slugged).ast).not.toThrow();
+    }
   });
 });

@@ -1,4 +1,5 @@
 const { EXTERNAL_ID, hasExternalId, isUuid } = require('./external-id');
+const { SLUG } = require('./slug');
 
 /**
  * The other half of the public identifier: the foreign keys, and the
@@ -271,6 +272,10 @@ function build(stores = {}) {
       models[globalId] = {
         externalId: entry.externalId !== false,
         references: entry.references || {},
+        // Does this model carry the third identifier, the one a person
+        // reads? Only what the model declared says so: an application's own
+        // column called `slug` is a column, and it names no url
+        slug: entry.slug === true,
         store: name,
       };
     }
@@ -616,10 +621,43 @@ async function publish(henri, value, options = {}) {
   return copy;
 }
 
+/**
+ * The name a url gives this record: the slug of a model that declared one,
+ * and nothing at all otherwise.
+ *
+ * The table is what answers, never the value: a record carrying a `slug`
+ * field is not a record henri named, and only a model that said
+ * `options: { slug: ... }` has its urls written in it. So an application
+ * that has always had a column called `slug` keeps the urls it had.
+ *
+ * @param {Henri} henri the henri instance
+ * @param {*} value a live model instance
+ * @returns {?string} the slug, or null
+ */
+function nameOf(henri, value) {
+  const table = henri && henri.model && henri.model.referenceTable;
+
+  if (!table || !value || typeof value !== 'object') {
+    return null;
+  }
+
+  const model = modelOf(table.classes, value);
+  const entry = model ? table.models[model] : null;
+
+  if (!entry || !entry.slug) {
+    return null;
+  }
+
+  const slug = value[SLUG];
+
+  return typeof slug === 'string' && slug !== '' ? slug : null;
+}
+
 module.exports = {
   DEFAULTS,
   build,
   keyOf,
+  nameOf,
   prepare,
   publish,
   settings,

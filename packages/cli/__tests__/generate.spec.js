@@ -985,6 +985,90 @@ describe('henri generate', () => {
     });
   });
 
+  describe('scaffold --slug', () => {
+    beforeAll(() => {
+      const result = henri(
+        [
+          'g',
+          'scaffold',
+          'Article',
+          'title:string!',
+          'body:text',
+          '--slug',
+          'title',
+        ],
+        { cwd: app }
+      );
+
+      if (result.status !== 0) {
+        throw new Error(result.stdout + result.stderr);
+      }
+    });
+
+    test('declares the name on the model', () => {
+      const model = read(app, 'app/models/Article.js');
+
+      expect(model).toContain("slug: 'title'");
+      expect(() => parseFile(app, 'app/models/Article.js')).not.toThrow();
+    });
+
+    test('writes a controller whose redirects carry the slug', () => {
+      const controller = read(app, 'app/controllers/articles.js');
+
+      expect(controller).toContain('/articles/${article.slug}');
+      expect(controller).toContain('/articles/${req.article.slug}');
+      expect(controller).not.toContain('article.externalId');
+      expect(() => parseFile(app, 'app/controllers/articles.js')).not.toThrow();
+    });
+
+    test('writes pages that link with the slug', () => {
+      const index = read(app, 'app/views/pages/articles/index.jsx');
+      const show = read(app, 'app/views/pages/articles/show.jsx');
+
+      expect(index).toContain("getRoute('show_articles_path', item.slug)");
+      expect(index).toContain('key={item.slug}');
+      expect(show).toContain('const id = item.slug;');
+      expect(index).not.toContain('externalId');
+      expect(() =>
+        parseFile(app, 'app/views/pages/articles/index.jsx')
+      ).not.toThrow();
+    });
+
+    test('reads the name back off the model for a later generator', () => {
+      // No flag this time: the model file is what says the resource has a
+      // name, so a controller written over a model that already has one is
+      // never half wired
+      fs.writeFileSync(
+        path.join(app, 'app', 'models', 'Chapter.js'),
+        "module.exports = { options: { slug: 'title', timestamps: true }, schema: { title: { type: 'string' } } };\n"
+      );
+
+      const result = henri(['g', 'crud', 'Chapter', 'title:string'], {
+        cwd: app,
+      });
+
+      expect(result.status).toBe(0);
+      // A crud controller answers JSON and builds no redirect, so what
+      // says the name reached it is the lookup it documents
+      expect(read(app, 'app/controllers/chapters.js')).toContain(
+        'is the slug of the chapter'
+      );
+    });
+
+    test('refuses a --slug naming an attribute the model has not got', () => {
+      const result = henri(
+        ['g', 'scaffold', 'Ghost', 'body:text', '--slug', 'title'],
+        { cwd: app }
+      );
+
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}${result.stderr}`).toContain(
+        'no title attribute'
+      );
+      expect(exists(app, 'app/models/Ghost.js')).toBe(false);
+    });
+  });
+
   test('keeps config/routes.js valid after every change', () => {
     expect(() => parseFile(app, 'config/routes.js')).not.toThrow();
     expect(fs.existsSync(path.join(app, 'config', 'routes.js'))).toBe(true);

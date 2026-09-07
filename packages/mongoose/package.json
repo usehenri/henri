@@ -32,6 +32,7 @@
     "types.js",
     "utils.js",
     "validations.js",
+    "slug.js",
     "CHANGELOG.md",
     "encrypted.js",
     "encryption.js",

@@ -21,8 +21,8 @@ const Edit = () => {
     );
   }
 
-  // The public identifier: a url never carries the numeric id of a record
-  const id = item.externalId;
+  // The identifier a url of this record carries; never the numeric id
+  const id = item.{{identifier}};
 
   return (
     <main className="mx-auto w-full max-w-lg px-6 py-12">

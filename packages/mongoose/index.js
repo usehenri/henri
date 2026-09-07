@@ -6,6 +6,7 @@ const {
   owned,
   paginate,
   paranoid,
+  slugged,
   validations,
 } = require('./plugins');
 const { validationsOf } = require('./validations');
@@ -24,6 +25,7 @@ const {
   uuidv7,
   wantsExternalId,
 } = require('./external-id');
+const { slugOf } = require('./slug');
 const { buildUrl, coded, fatal, normalizeEmail, redact } = require('./utils');
 
 /**
@@ -166,6 +168,7 @@ class Mongoose {
       // Mongoose schema options
       personal,
       retention,
+      slug: named,
       // `tenant` is core's mark and not a Mongoose schema option: the
       // adapter reads it through `henri.tenancy` a line below (./tenant.js)
       tenant: belongsToTenant,
@@ -216,6 +219,15 @@ class Mongoose {
     // Every model carries a public identifier; the document id is internal
     if (wantsExternalId({ options: { externalId: external } })) {
       externalId(schema);
+    }
+
+    // The third identifier, and the only one a person reads. After the
+    // public one, because the discriminator of a generated slug is taken
+    // from it (./slug.js)
+    const declaredSlug = slugOf(model);
+
+    if (declaredSlug) {
+      slugged(schema, declaredSlug, model.globalId);
     }
 
     // Before the soft delete, so a tenanted model that also soft deletes
@@ -612,6 +624,7 @@ class Mongoose {
       described[globalId] = {
         externalId: Boolean(Model.schema.path(EXTERNAL_ID)),
         references,
+        slug: Boolean(slugOf(this.definitions[globalId].model)),
       };
     }
 

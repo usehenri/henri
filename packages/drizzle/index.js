@@ -19,6 +19,7 @@ const {
   uuidv7,
   wantsExternalId,
 } = require('./external-id');
+const { SLUG, lengthOf, slugOf } = require('./slug');
 const { coded, fatal, normalizeEmail, redact, toRoles } = require('./utils');
 
 /**
@@ -67,14 +68,16 @@ const SESSIONS_KEY = 'HenriSession';
 /**
  * The keys a model file's `options` may hold on a drizzle store:
  * `timestamps` and `paranoid` are read by the model class, `externalId` by
- * `external-id.js`, and `personal` and `retention` are marks core reads
- * (`base/privacy.js`, `base/retention.js`) and this adapter only carries.
+ * `external-id.js`, `slug` by `slug.js`, and `personal` and `retention` are
+ * marks core reads (`base/privacy.js`, `base/retention.js`) and this
+ * adapter only carries.
  */
 const MODEL_OPTIONS = new Set([
   'externalId',
   'paranoid',
   'personal',
   'retention',
+  'slug',
   'tenant',
   'timestamps',
   'versioned',
@@ -228,6 +231,7 @@ class Drizzle {
     }
 
     this.addExternalId(definition);
+    this.addSlug(definition);
 
     if (isUser) {
       this.overload(definition);
@@ -338,6 +342,41 @@ class Drizzle {
       type: 'uuid',
       unique: true,
     };
+
+    return definition;
+  }
+
+  /**
+   * Adds the `slug` column to a model that asked for one: the name a person
+   * reads in a url, unique and indexed like the public identifier next to
+   * it. henri fills it (`model.js`, `prepare()`); the column is henri's, so
+   * a model that declares a `slug` field of its own is refused rather than
+   * quietly overwritten (`slug.js`, `slugOf()`).
+   *
+   * @param {object} definition The model file (copied)
+   * @returns {object} The definition
+   * @throws {Error} HENRI_MODEL_SLUG_DECLARATION_INVALID on a declaration
+   *   this adapter cannot carry out
+   * @memberof Drizzle
+   */
+  addSlug(definition) {
+    const declaration = slugOf(definition);
+
+    if (!declaration) {
+      return definition;
+    }
+
+    definition.schema[SLUG] = {
+      length: lengthOf(declaration),
+      lowercase: true,
+      required: true,
+      trim: true,
+      type: 'string',
+      unique: true,
+    };
+    // Compiled once, here, and read back by the model class: the column and
+    // the declaration are written by the same call, so they cannot drift
+    definition.slugged = declaration;
 
     return definition;
   }
@@ -615,6 +654,7 @@ class Drizzle {
       described[globalId] = {
         externalId: Boolean(Model.externalId),
         references,
+        slug: Boolean(Model.slug),
       };
     }
 

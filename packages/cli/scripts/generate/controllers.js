@@ -32,6 +32,14 @@
  * 404 below -- and a redirect is built from `record.externalId`, never from
  * the numeric id, which does not leave the server.
  *
+ * A model that declared `options: { slug: ... }` has a second public name,
+ * and the urls of this resource carry that one instead (`base/slug.js`):
+ * `slug` is true in the resource, the redirects are built from
+ * `record.slug`, and `findById()` resolves the slug and the `externalId`
+ * both. It is still never the primary key. The generator reads the model
+ * file back for this, so a resource written over a model that already has a
+ * name gets the right urls with no flag at all.
+ *
  * Two things do not need a flavour: `Model.paginate()` answers the same
  * `{ records, page, perPage, total, pages }` on the three model APIs, and
  * `henri.model.errors()` normalizes what any of them throws on an invalid
@@ -39,6 +47,15 @@
  */
 
 const DEFAULT_API = 'mongoose';
+
+/**
+ * The field a url of this resource is built from: the slug of a model that
+ * declared one, its public identifier otherwise
+ *
+ * @param {object} opts { slug }
+ * @returns {string} `slug` or `externalId`
+ */
+const identifierOf = ({ slug }) => (slug ? 'slug' : 'externalId');
 
 /**
  * The api of a resource, `mongoose` when it is not one we know
@@ -185,12 +202,20 @@ const page = ({ doc, plural }) => `
  * @param {string} lookup The source code setting `req.<lower>`
  * @returns {string} The source code
  */
-const loadHelper = ({ doc, lower }, lookup) => `
+const loadHelper = ({ doc, lower, slug }, lookup) => `
 /**
  * Loads the ${lower} of \`:id\` into \`req.${lower}\`, the way rails'
  * before_action does. A hook that answers ends the request: the actions
  * below only ever run with a record.
- *
+ *${
+   slug
+     ? `
+ * \`:id\` here is the slug of the ${lower} (\`options: { slug }\` on the
+ * model): \`findById()\` resolves it, and the \`externalId\` next to it,
+ * and never the primary key.
+ *`
+     : ''
+ }
  * \`res.notFound()\` rather than \`res.boom.notFound()\`: a policy that
  * refuses this record answers the same 404, and the two have to be one
  * answer. The reason reaches a developer and is dropped in production,
@@ -389,7 +414,7 @@ const create = (opts) => `
     ${of('create', opts)}
     // 201 with a Location header pointing at the new ${opts.lower}
     return res.negotiate({
-      html: () => res.redirect(\`/${opts.plural}/\${${opts.lower}.externalId}\`),
+      html: () => res.redirect(\`/${opts.plural}/\${${opts.lower}.${identifierOf(opts)}}\`),
       json: () => res.resource(${opts.lower}, { status: 201 }),
     });
   },`;
@@ -423,7 +448,7 @@ const update = (opts) => `
     ${of('update', opts)}
     return res.negotiate({
       html: () =>
-        res.redirect(\`/${opts.plural}/\${req.${opts.lower}.externalId}\`),
+        res.redirect(\`/${opts.plural}/\${req.${opts.lower}.${identifierOf(opts)}}\`),
       json: () => res.resource(req.${opts.lower}),
     });
   },`;

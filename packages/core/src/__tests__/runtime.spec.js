@@ -212,6 +212,7 @@ describe('runtime endpoints (demo app, disk store)', () => {
       default: { adapter: 'disk', queryable: false },
     });
     expect(res.body.models.map((model) => model.name).sort()).toEqual([
+      'Article',
       'Artwork',
       'Invoice',
       'Memo',

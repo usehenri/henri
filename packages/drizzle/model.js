@@ -19,6 +19,14 @@ const {
   wantsRecord,
 } = require('./validations');
 const {
+  SLUG,
+  emptySlug,
+  massWrite: massSlug,
+  problemOf: slugProblem,
+  slugFor,
+  writesSource,
+} = require('./slug');
+const {
   coded,
   isPlainObject,
   lowerFirst,
@@ -426,7 +434,9 @@ class Model {
    */
   static async findById(id, options = {}) {
     if (!this.externalId) {
-      return this.findByKey(id, options);
+      return this.slug
+        ? this.findBySlug(id, options)
+        : this.findByKey(id, options);
     }
 
     if (isUuid(id)) {
@@ -436,9 +446,35 @@ class Model {
       ).first();
     }
 
+    // The slug column, and only the slug column: a `WHERE slug = ?` cannot
+    // answer a question about the primary key, so `/articles/4812` stays as
+    // silent as it was before the model had a name. A model that has a name
+    // takes the whole non-uuid space with it, `externalIds.lookup: "any"`
+    // included -- the stricter of the two rules is the one to keep, and it
+    // is the same one on every adapter (./slug.js)
+    if (this.slug) {
+      return this.findBySlug(id, options);
+    }
+
     return resolvesKeys(this.adapter && this.adapter.henri)
       ? this.findByKey(id, options)
       : null;
+  }
+
+  /**
+   * A row by the name a person reads, on a model that declared one
+   *
+   * @param {*} slug A slug
+   * @param {object} [options={}] Options (`include`, `withHidden`)
+   * @returns {Promise<?Model>} The instance or null
+   * @memberof Model
+   */
+  static async findBySlug(slug, options = {}) {
+    if (!this.slug || typeof slug !== 'string' || slug === '') {
+      return null;
+    }
+
+    return this.relation({ [SLUG]: slug.toLowerCase() }, options).first();
   }
 
   /**
@@ -502,6 +538,23 @@ class Model {
         .toArray();
 
       return found ? found.id : null;
+    }
+
+    if (this.slug) {
+      // The same second identifier `findById()` takes, and the same one
+      // only: a slug names a row here or nothing does
+      if (typeof id !== 'string' || id === '') {
+        return null;
+      }
+
+      const [named] = await this.query()
+        .where({ [SLUG]: id.toLowerCase() })
+        .withDeleted()
+        .select('id')
+        .limit(1)
+        .toArray();
+
+      return named ? named.id : null;
     }
 
     if (this.externalId && !resolvesKeys(this.adapter && this.adapter.henri)) {
@@ -1180,6 +1233,11 @@ class Model {
     data =
       (await this.runHooks('beforeValidate', data, options, instance)) || data;
 
+    // Before the coercion, because the column henri adds is `required` and
+    // this is what fills it: a slug is written by the framework, so it has
+    // to be there by the time the schema is checked (./slug.js)
+    this.applySlug(kind, data, instance);
+
     let values = validate(this.modelName, this.fields, data, {
       partial: kind === 'update',
       skip: kind === 'update' ? [...PROTECTED, ...IMMUTABLE] : PROTECTED,
@@ -1253,6 +1311,133 @@ class Model {
         ])
       )
     );
+  }
+
+  /**
+   * Fills the `slug` column of a model that declared one, or checks the
+   * slug the write supplied.
+   *
+   * A slug the application wrote itself always wins and is never
+   * regenerated: it is the one way a record gets a name henri's ASCII fold
+   * would not have produced, and the only thing measured against it is
+   * whether it can be one path segment (`slug.js`, `problemOf()`).
+   *
+   * @param {string} kind create or update
+   * @param {object} data The attributes being written, written into
+   * @param {?Model} instance The instance being saved (updates)
+   * @returns {void}
+   * @throws {ValidationError} When the supplied slug cannot be a url
+   * @throws {Error} HENRI_MODEL_SLUG_EMPTY when there is nothing to build
+   *   one from and no discriminator to fall back to
+   * @memberof Model
+   */
+  static applySlug(kind, data, instance) {
+    const declaration = this.slug;
+
+    if (!declaration) {
+      return;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(data, SLUG)) {
+      // Normalized here rather than by the column's own `trim` and
+      // `lowercase`, so what is checked is exactly what is stored
+      const given =
+        typeof data[SLUG] === 'string'
+          ? data[SLUG].trim().toLowerCase()
+          : data[SLUG];
+      const wrong = slugProblem(given, declaration);
+
+      if (wrong) {
+        throw new ValidationError(this.modelName, {
+          [SLUG]: failure('slug', wrong, SLUG, data[SLUG]),
+        });
+      }
+
+      data[SLUG] = given;
+
+      return;
+    }
+
+    if (
+      kind !== 'create' &&
+      !(declaration.on === 'change' && writesSource(declaration, data))
+    ) {
+      return;
+    }
+
+    const source = writesSource(declaration, data)
+      ? data[declaration.from]
+      : instance && instance[declaration.from];
+    const slug = slugFor(
+      declaration,
+      source,
+      this.seedFor(kind, data, instance)
+    );
+
+    if (slug === '') {
+      throw emptySlug(this.modelName, declaration, source);
+    }
+
+    data[SLUG] = slug;
+  }
+
+  /**
+   * The public identifier the discriminator of a slug is taken from.
+   *
+   * On a create it is minted here rather than by the schema's default a
+   * moment later, so the slug and the `externalId` of a record are two
+   * spellings of the same uuid and stay that way if the slug is ever
+   * regenerated. A model that carries no public identifier has no seed and
+   * `slugFor()` falls back to randomness.
+   *
+   * @param {string} kind create or update
+   * @param {object} data The attributes being written
+   * @param {?Model} instance The instance being saved (updates)
+   * @returns {*} The external id, or undefined
+   * @memberof Model
+   */
+  static seedFor(kind, data, instance) {
+    if (data[EXTERNAL_ID]) {
+      return data[EXTERNAL_ID];
+    }
+
+    if (instance && instance[EXTERNAL_ID]) {
+      return instance[EXTERNAL_ID];
+    }
+
+    if (kind !== 'create' || !this.externalId) {
+      return undefined;
+    }
+
+    const mint = this.fields[EXTERNAL_ID].default;
+
+    if (typeof mint !== 'function') {
+      return undefined;
+    }
+
+    data[EXTERNAL_ID] = mint();
+
+    return data[EXTERNAL_ID];
+  }
+
+  /**
+   * Refuses a mass write that would have regenerated many slugs at once
+   *
+   * @param {string} what The call that was made
+   * @param {string} instead The single-record call to loop over
+   * @param {object} attrs The attributes the write names
+   * @returns {void}
+   * @throws {Error} HENRI_MODEL_SLUG_MASS_WRITE
+   * @memberof Model
+   */
+  static checkSlugMassWrite(what, instead, attrs) {
+    if (
+      this.slug &&
+      this.slug.on === 'change' &&
+      writesSource(this.slug, attrs)
+    ) {
+      throw massSlug(this.modelName, this.slug, what, instead);
+    }
   }
 
   /**
@@ -1424,6 +1609,7 @@ class Model {
     checkOptions(this, 'update', options);
     checkMassWrite(this, 'update', options);
     this.checkValidationsMassWrite('update', 'update(attrs)', attrs);
+    this.checkSlugMassWrite('update', 'update(attrs)', attrs);
 
     const values = await this.prepare(
       'update',
@@ -1960,6 +2146,11 @@ const createModel = (adapter, definition, fields) => {
     key: modelName,
     modelName,
     paranoid,
+    // What `options.slug` declared, compiled by the adapter when it added
+    // the column, or null when the model wants no second name (./slug.js).
+    // Compiled once and read from the definition rather than compiled again
+    // here, so the column and the declaration can never be out of step
+    slug: definition.slugged || null,
     tableName: tableNameOf(definition),
     timestamps,
     // What the model's `validates` block and its schema's `required` and
