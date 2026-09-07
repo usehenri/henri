@@ -451,6 +451,23 @@ const SCHEMA = {
     type: 'object',
   },
 
+  assets: {
+    describe: 'an object naming where the compiled assets are served from',
+    hint: "Read by the view engines and by the Content Security Policy; uploads.urls.cdn is the other one and it is a different thing (a cache in front of henri's own route)",
+    keys: {
+      prefix: text({
+        describe:
+          "an absolute http(s) url ('https://cdn.example.com') or a path ('/assets')",
+        hint: 'The url of every file the production build wrote; henri names its origin in the policy itself, so config.helmet needs nothing. No credentials, no query and no fragment: it is a prefix, not a link',
+        // A path, or an http(s) url with no credentials (`@`), no query and
+        // no fragment. A trailing slash is allowed and taken off when it is
+        // used (`base/assets.js`)
+        pattern: /^(?:\/(?!\/)[^\s?#]*|https?:\/\/[^\s/?#@]+(?:\/[^\s?#]*)?)$/u,
+      }),
+    },
+    type: 'object',
+  },
+
   experimental: {
     describe: 'an object of renderer opt-ins',
     hint: 'The only opt-in henri has is { "vue": true }; a supported renderer needs nothing here',

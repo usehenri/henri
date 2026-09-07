@@ -330,6 +330,30 @@ Both files are read once, at boot and by `next build`. Saving them triggers a re
 
 `henri server --production` (or `NODE_ENV=production`) builds the pages once, when `app/views/.next/BUILD_ID` (or the `distDir` of your `config/next.js`) is missing, and serves the optimized build. `--force-build` rebuilds even if a build exists. `henri build` runs `next build` on its own without booting henri, so it needs neither a database nor the stores: use it in a Docker build stage (the repository's `docker/Dockerfile` does).
 
+## Serving the assets from a CDN
+
+`assets.prefix` is what goes in front of every url the production build wrote — the entry module and its chunks, the stylesheets, and the fonts and images those stylesheets name. It is Vite's `base` and Next's `assetPrefix`, said once, for whichever renderer the application uses.
+
+```json
+{ "assets": { "prefix": "https://cdn.example.com" } }
+```
+
+An absolute `http(s)` url moves the assets to another host; a path (`/assets`) keeps them on this one. No credentials, no query and no fragment: it is a prefix, not a link, and the boot refuses anything else.
+
+**henri names the origin in the Content Security Policy itself.** This is the part that would otherwise cost an afternoon: `default-src 'self'` and `script-src 'self'` refuse a script from another origin, so an asset prefix that did not reach the policy would give you an application that boots, answers `200` and paints nothing, with the reason only in the browser console. The origin is added to `script-src`, `style-src`, `font-src`, `img-src`, `connect-src`, `worker-src` and `media-src` — everything a compiled application loads — and to nothing else. `default-src` is deliberately left alone: widening it would let the asset host be framed and embedded as well, and the one thing that falls back to it is a `<link rel="prefetch">`, where a refusal costs a warm cache and never a page. Nothing goes in `config.helmet`.
+
+The [nonce](/guides/security/#content-security-policy) still lands on every tag, prefixed or not.
+
+Three things worth knowing:
+
+- **The application still serves the assets.** `express.static` (Inertia) and Next's own handler are untouched, at the same paths as before, which is exactly what an origin-pull CDN pulls from. Point the CDN at the application and it works with nothing else configured.
+- **It applies to the production build only.** In development the Vite dev server and Next serve from this origin, because there is no build sitting on the other host yet. The policy names the origin in every environment all the same — it costs a request nothing, and it means a production configuration is never one directive away from a blank page.
+- **Set it before you build.** The prefix is compiled into the bundle: it is what the urls _inside_ a chunk are written against (a lazy import, a font a stylesheet names), not only what the document's tags say. `henri build` reads the production configuration, so a deploy that builds and boots from the same files is already consistent; changing the prefix means building again.
+
+`henri audit` reports an `http://` prefix in a production configuration (`assets.plaintext-prefix`), because over https the browser refuses every script of every page.
+
+This is not [`uploads.urls.cdn`](/guides/uploads/#behind-a-cdn), which is the other key with a host in it. That one puts a cache in front of henri's _own_ `/_uploads` route: the cache forwards the path and the query to this application, which checks a signature and streams a file somebody uploaded. `assets.prefix` names a host that serves files the build wrote, which the application never looks at again. One forwards to henri, the other replaces it — which is why they do not share a word.
+
 ## Handlebars
 
 The `template` renderer serves the `.hbs`, `.html` and `.htm` files under `app/views/pages` and registers everything under `app/views/partials` as partials, named by their path without extension (`{{> menu/left}}` for `partials/menu/left.hbs`). It has no build step and no client-side JavaScript of its own.

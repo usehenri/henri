@@ -103,6 +103,65 @@ function devTags(entry, stylesheets = []) {
 }
 
 /**
+ * The asset prefix of an application, without its trailing slashes.
+ *
+ * `config.assets.prefix` is where the files the production build wrote are
+ * loaded from -- Vite calls it `base`, Next calls it `assetPrefix`. Core
+ * owns the meaning and the validation (`base/assets.js` of `@usehenri/core`,
+ * whose schema refuses anything that is not a path or an absolute http url);
+ * this reads it, because the engine also builds from `henri build`, where
+ * henri is not booted and the configuration is a plain object.
+ *
+ * It is read the same way from both: henri's config module (`has`/`get`) and
+ * a parsed `config/<env>.json`.
+ *
+ * Walked rather than matched, on the principle the rest of this workspace
+ * follows for the same shape of value: `/\/+$/` is quadratic on a run of
+ * slashes.
+ *
+ * @param {?object} config henri's config module, or a plain object
+ * @returns {string} the prefix, or '' when there is none
+ */
+function assetPrefix(config) {
+  if (!config) {
+    return '';
+  }
+
+  const assets =
+    typeof config.has === 'function' && typeof config.get === 'function'
+      ? config.has('assets') && config.get('assets')
+      : config.assets;
+  const value = assets && typeof assets === 'object' ? assets.prefix : null;
+
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const text = value.trim();
+  let end = text.length;
+
+  while (end > 0 && text[end - 1] === '/') {
+    end -= 1;
+  }
+
+  return text.slice(0, end);
+}
+
+/**
+ * The public base path of the built assets: what `assetTags` puts in front
+ * of every file of the manifest, and what Vite is built with so the urls
+ * inside the bundle (a lazy chunk, a font a stylesheet names) agree with it.
+ *
+ * @param {?object} config henri's config module, or a plain object
+ * @returns {string} the base, always ending in a slash
+ */
+function assetBase(config) {
+  const prefix = assetPrefix(config);
+
+  return prefix ? `${prefix}/` : '/';
+}
+
+/**
  * Tags loading the built client entry: its stylesheets, the entry module and
  * a modulepreload for the chunks it imports statically.
  *
@@ -266,6 +325,8 @@ function inject(template, { head = '', body = '' } = {}) {
 }
 
 module.exports = {
+  assetBase,
+  assetPrefix,
   assetTags,
   clientBody,
   coded,

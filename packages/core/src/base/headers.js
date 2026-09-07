@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const helmet = require('helmet');
 
+const { assetOrigin, assetPrefix } = require('./assets');
+
 /**
  * Secure headers (helmet), API versioning and JSON content negotiation.
  */
@@ -100,6 +102,21 @@ function nonceEnabled(config) {
 const NONCE_SENTINEL = 'henri.csp.nonce.placeholder';
 
 /**
+ * The directives an asset prefix's origin is added to: everything a
+ * compiled application loads from where its bundles live. `default-src` is
+ * not one of them (see `cspDirectives`).
+ */
+const ASSET_DIRECTIVES = [
+  'script-src',
+  'style-src',
+  'font-src',
+  'img-src',
+  'connect-src',
+  'worker-src',
+  'media-src',
+];
+
+/**
  * Is a value a plain object?
  *
  * @param {*} value anything
@@ -170,13 +187,35 @@ function merge(base, extra) {
  * every inline style in the application. Tightening that is an application's
  * decision (`style-src-attr` plus its own `style-src`), not henri's.
  *
+ * `origin` is the host `config.assets.prefix` names, when it names another
+ * one. **A policy that does not know about it is what turns an asset prefix
+ * into a blank page**: every script of the document is refused, the
+ * application answers 200 and the only trace is in the browser console. So
+ * the origin is added to the directives that carry what a build produced --
+ * the entry module and its chunks (`script-src`, which also governs
+ * `modulepreload`), the stylesheets (`style-src`), the fonts and images
+ * their css names (`font-src`, `img-src`), the lazy fetches and the source
+ * maps (`connect-src`), the workers (`worker-src`) and the media
+ * (`media-src`).
+ *
+ * `default-src` is not one of them, deliberately: widening it would let the
+ * asset host be framed and embedded too, and the only thing that falls back
+ * to it here is `<link rel="prefetch">` -- a refused prefetch costs a warm
+ * cache, never a page.
+ *
  * @param {object} [options={}] options
  * @param {boolean} [options.isDev=false] development mode
  * @param {(string|function|null)} [options.nonce=null] the nonce source expression
+ * @param {?string} [options.origin=null] the origin serving the assets
  * @param {boolean} [options.secure=false] the request arrived over https
  * @returns {object} directives, helmet style
  */
-function cspDirectives({ isDev = false, nonce = null, secure = false } = {}) {
+function cspDirectives({
+  isDev = false,
+  nonce = null,
+  origin = null,
+  secure = false,
+} = {}) {
   const directives = helmet.contentSecurityPolicy.getDefaultDirectives();
 
   directives['img-src'] = ["'self'", 'data:', 'blob:'];
@@ -188,6 +227,16 @@ function cspDirectives({ isDev = false, nonce = null, secure = false } = {}) {
     directives['script-src'] = ["'self'", "'unsafe-inline'", "'unsafe-eval'"];
     directives['connect-src'] = ["'self'", 'ws:', 'wss:'];
     directives['worker-src'] = ["'self'", 'blob:'];
+  }
+
+  if (origin) {
+    for (const directive of ASSET_DIRECTIVES) {
+      const sources = directives[directive] || ["'self'"];
+
+      directives[directive] = sources.includes(origin)
+        ? sources
+        : sources.concat(origin);
+    }
   }
 
   if (nonce) {
@@ -313,6 +362,11 @@ function secureHeaders(henri) {
 
   const permissions = policy();
   const nonces = nonceEnabled(config);
+  // The policy names the asset origin in every environment, not only where
+  // the production build uses the prefix. It costs a request nothing, and it
+  // means a production configuration is never one directive away from a
+  // document whose every script the browser refuses
+  const origin = assetOrigin(assetPrefix(config));
 
   /**
    * The helmet options for one protocol and one nonce source
@@ -324,7 +378,12 @@ function secureHeaders(henri) {
   const optionsFor = (secure, nonce) => {
     const defaults = {
       contentSecurityPolicy: {
-        directives: cspDirectives({ isDev: henri.isDev, nonce, secure }),
+        directives: cspDirectives({
+          isDev: henri.isDev,
+          nonce,
+          origin,
+          secure,
+        }),
         useDefaults: false,
       },
     };
@@ -607,6 +666,7 @@ function sealed(res) {
 }
 
 module.exports = {
+  ASSET_DIRECTIVES,
   HAL,
   JSON_TYPE,
   NONCE_SENTINEL,

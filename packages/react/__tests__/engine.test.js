@@ -4,6 +4,7 @@ const path = require('path');
 
 const ReactEngine = require('../engine');
 const {
+  assetPrefixOf,
   build,
   createNextConfig,
   pagePath,
@@ -517,6 +518,161 @@ describe('react engine', () => {
         build({ config: { renderer: 'template' }, cwd, pen, spawn: () => 1 })
       ).resolves.toBeNull();
       expect(pen.calls.warn[0]).toContain('template');
+    });
+
+    // `next build` runs in a process where the only thing henri can say is
+    // an environment variable: app/views/next.config.js requires ./conf,
+    // which has nothing but a working directory to go on
+    test('carries config.assets.prefix to the next build it spawns', async () => {
+      const cwd = app();
+      const spawns = [];
+      const spawn = (...args) => {
+        spawns.push(args);
+        fs.mkdirSync(path.join(cwd, 'app/views/.next'), { recursive: true });
+        fs.writeFileSync(path.join(cwd, 'app/views/.next/BUILD_ID'), 'xyz\n');
+
+        return { status: 0 };
+      };
+      const before = process.env.HENRI_ASSET_PREFIX;
+
+      await build({
+        config: { assets: { prefix: 'https://cdn.example.com/' } },
+        cwd,
+        pen: fakePen(),
+        spawn,
+      });
+
+      expect(spawns[0][2].env.HENRI_ASSET_PREFIX).toBe(
+        'https://cdn.example.com'
+      );
+      // It goes in the child's environment, not in this one: `build()` runs
+      // without a henri, so it has no business changing this process
+      expect(process.env.HENRI_ASSET_PREFIX).toBe(before);
+    });
+  });
+
+  describe('the asset prefix', () => {
+    test('assetPrefixOf() reads both shapes, without a trailing slash', () => {
+      const values = { assets: { prefix: 'https://cdn.example.com//' } };
+
+      expect(assetPrefixOf(values)).toBe('https://cdn.example.com');
+      expect(
+        assetPrefixOf({
+          get: (key) => values[key],
+          has: (key) => Object.prototype.hasOwnProperty.call(values, key),
+        })
+      ).toBe('https://cdn.example.com');
+      expect(assetPrefixOf({})).toBe('');
+      expect(assetPrefixOf(null)).toBe('');
+      expect(assetPrefixOf({ assets: { prefix: false } })).toBe('');
+    });
+
+    test('becomes assetPrefix in the next.js configuration', () => {
+      const cwd = app();
+
+      expect(
+        createNextConfig(cwd, { assetPrefix: 'https://cdn.example.com' })
+          .assetPrefix
+      ).toBe('https://cdn.example.com');
+      expect(createNextConfig(cwd).assetPrefix).toBeUndefined();
+    });
+
+    test('HENRI_ASSET_PREFIX is the channel into a spawned next build', () => {
+      const cwd = app();
+
+      process.env.HENRI_ASSET_PREFIX = 'https://cdn.example.com';
+
+      try {
+        expect(createNextConfig(cwd).assetPrefix).toBe(
+          'https://cdn.example.com'
+        );
+        // What a booted henri passes wins: it read the configuration itself
+        expect(createNextConfig(cwd, { assetPrefix: '' }).assetPrefix).toBe(
+          undefined
+        );
+      } finally {
+        delete process.env.HENRI_ASSET_PREFIX;
+      }
+    });
+
+    test('config/next.js still gets the last word', () => {
+      const cwd = app({
+        'config/next.js':
+          'module.exports = { next: { assetPrefix: "https://other.example" } };\n',
+      });
+
+      expect(
+        createNextConfig(cwd, { assetPrefix: 'https://cdn.example.com' })
+          .assetPrefix
+      ).toBe('https://other.example');
+    });
+
+    test('the engine only uses it in production, and puts it where next reads it', () => {
+      const cwd = app();
+      const withPrefix = (isProduction) => {
+        const henri = fakeHenri(cwd, { isProduction });
+
+        henri.config = {
+          get: (key) =>
+            key === 'assets' ? { prefix: 'https://cdn.example.com' } : 'react',
+          has: (key) => ['assets', 'renderer'].includes(key),
+        };
+
+        return new ReactEngine(henri, {});
+      };
+
+      try {
+        expect(withPrefix(true).conf.assetPrefix).toBe(
+          'https://cdn.example.com'
+        );
+        // Next answers a request through the configuration it read off
+        // disk, not through the `conf` it was constructed with, and
+        // app/views/next.config.js reads this: without it the prefix
+        // reaches the build manifest and never a tag of the document
+        expect(process.env.HENRI_ASSET_PREFIX).toBe('https://cdn.example.com');
+
+        // Development serves /_next off this origin: there is no build
+        // sitting on the other host yet
+        expect(withPrefix(false).conf.assetPrefix).toBeUndefined();
+        expect(process.env.HENRI_ASSET_PREFIX).toBe('');
+      } finally {
+        delete process.env.HENRI_ASSET_PREFIX;
+      }
+    });
+
+    test('a build at boot carries it, not the empty string', async () => {
+      const cwd = app();
+      const spawns = [];
+      const henri = fakeHenri(cwd, { isProduction: true });
+
+      henri.config = {
+        get: (key) =>
+          key === 'assets' ? { prefix: 'https://cdn.example.com' } : 'react',
+        has: (key) => ['assets', 'renderer'].includes(key),
+      };
+
+      const engine = new ReactEngine(henri, {
+        spawn: (...args) => {
+          spawns.push(args);
+          fs.mkdirSync(path.join(cwd, 'app/views/.next'), { recursive: true });
+          fs.writeFileSync(path.join(cwd, 'app/views/.next/BUILD_ID'), 'a\n');
+
+          return { status: 0 };
+        },
+      });
+
+      try {
+        // The first production boot of an application with no build runs it
+        // itself, and `build()` reads the configuration rather than the
+        // engine: it has to be handed what this engine resolved
+        await engine.build();
+
+        expect(spawns[0][2].env.HENRI_ASSET_PREFIX).toBe(
+          'https://cdn.example.com'
+        );
+      } finally {
+        delete process.env.HENRI_ASSET_PREFIX;
+      }
     });
   });
 });

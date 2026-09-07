@@ -1,4 +1,5 @@
 const BaseModule = require('./base/module');
+const { assetOrigin, assetPrefix } = require('./base/assets');
 const { nonceEnabled } = require('./base/headers');
 const { suggestedRenderer } = require('./base/renderer');
 
@@ -7,6 +8,9 @@ const allowed = {
   react: 'react',
   template: 'template',
 };
+
+/** The renderers with a production build, so the ones an asset prefix reaches */
+const BUILT = ['inertia', 'react'];
 
 /** Renderers that only load when `config.experimental.<name>` is true */
 const experimental = {
@@ -131,9 +135,54 @@ class View extends BaseModule {
       );
     }
 
+    this.assets(config, pen);
+
     this.engine.init && (await this.engine.init());
 
     return this.name;
+  }
+
+  /**
+   * Say where the compiled assets come from.
+   *
+   * `config.assets.prefix` is read by the engine that has a production
+   * build and by the Content Security Policy, and by nothing else -- so a
+   * renderer with no build is told the key does nothing rather than left to
+   * wonder, and the boot line says both where the urls point and that the
+   * policy already allows them.
+   *
+   * @param {object} config henri's config module
+   * @param {object} pen the pen
+   * @returns {string} the prefix, or '' when there is none
+   * @memberof View
+   */
+  assets(config, pen) {
+    const prefix = assetPrefix(config);
+
+    if (!prefix) {
+      return '';
+    }
+
+    if (!BUILT.includes(this.renderer)) {
+      pen.warn(
+        'view',
+        `"assets": { "prefix": "${prefix}" } is set, but the '${this.renderer}' renderer has no build to serve from somewhere else`,
+        '=> the prefix is ignored; only the inertia and react renderers write asset urls'
+      );
+
+      return prefix;
+    }
+
+    const origin = assetOrigin(prefix);
+
+    pen.info(
+      'view',
+      `assets from ${prefix}`,
+      this.henri.isProduction ? '' : '(production builds only)',
+      origin ? `${origin} is named in the content security policy` : ''
+    );
+
+    return prefix;
   }
 
   /**

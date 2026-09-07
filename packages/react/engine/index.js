@@ -14,7 +14,11 @@
  *   resolves with `null` when `config.renderer` is set to something else than
  *   `react`. `henri build` calls it:
  *   `require('@usehenri/react/engine').build({ cwd: process.cwd(), config })`.
- * - `createNextConfig(cwd)`: the next.js configuration henri uses.
+ * - `createNextConfig(cwd, { assetPrefix })`: the next.js configuration henri
+ *   uses. `assetPrefix` is `config.assets.prefix`; without it the value of
+ *   `HENRI_ASSET_PREFIX` is read, which is the channel that reaches next.js
+ *   itself -- it loads `app/views/next.config.js` off disk, in the build it
+ *   spawns and in a booted application alike.
  */
 /**
  * An Error carrying one of henri's error codes
@@ -95,6 +99,41 @@ function configValue(config, key) {
   }
 
   return config[key];
+}
+
+/**
+ * The asset prefix of an application, without its trailing slashes.
+ *
+ * `config.assets.prefix` is where the files the production build wrote are
+ * loaded from; next.js calls it `assetPrefix`. Core owns the meaning and the
+ * validation (`base/assets.js` of `@usehenri/core`, whose schema refuses
+ * anything that is not a path or an absolute http url); this reads it,
+ * because the engine also builds from `henri build`, where henri is not
+ * booted and the configuration is a plain object.
+ *
+ * Walked rather than matched, on the principle the rest of this workspace
+ * follows for the same shape of value: `/\/+$/` is quadratic on a run of
+ * slashes.
+ *
+ * @param {?object} config henri's config module, or a plain object
+ * @returns {string} the prefix, or '' when there is none
+ */
+function assetPrefixOf(config) {
+  const assets = configValue(config, 'assets');
+  const value = assets && typeof assets === 'object' ? assets.prefix : null;
+
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const text = value.trim();
+  let end = text.length;
+
+  while (end > 0 && text[end - 1] === '/') {
+    end -= 1;
+  }
+
+  return text.slice(0, end);
 }
 
 /**
@@ -227,12 +266,18 @@ async function build({
 
   ensureNextConfig(dir, pen);
 
+  // `next build` reads app/views/next.config.js, which requires ./conf,
+  // which has nothing but a working directory to go on. This is the channel
+  // that carries config.assets.prefix across the process boundary
   const result = spawn(
     process.execPath,
     [resolveFrom('next/dist/bin/next', cwd), 'build', dir, `--${bundler}`],
     {
       cwd,
-      env: Object.assign({}, process.env, { NODE_ENV: 'production' }),
+      env: Object.assign({}, process.env, {
+        HENRI_ASSET_PREFIX: assetPrefixOf(config),
+        NODE_ENV: 'production',
+      }),
       stdio: 'inherit',
     }
   );
@@ -284,7 +329,27 @@ class ReactEngine {
       .toString()
       .toLowerCase();
 
-    this.conf = createNextConfig(this.cwd);
+    /**
+     * Where the built assets are loaded from (`config.assets.prefix`).
+     * Production only: in development next.js serves `/_next` off this
+     * origin and there is no build sitting on the other host yet.
+     */
+    this.assetPrefix = thisHenri.isProduction
+      ? assetPrefixOf(thisHenri.config)
+      : '';
+
+    // The environment variable is the channel, and it was measured rather
+    // than assumed: next.js 16 answers a request through the config it read
+    // off disk (`routerServerGlobal`, out of `app/views/next.config.js`),
+    // not through the `conf` object it was constructed with -- so a prefix
+    // handed only to `next({ conf })` reaches the manifest and never a tag.
+    // `next.config.js` requires ./conf, which reads this, so both halves
+    // agree; the spawned `next build` of build() inherits it for the same
+    // reason. `conf` gets it too, because `distDir` and every reader of
+    // `engine.conf` should see the same configuration next.js does.
+    process.env.HENRI_ASSET_PREFIX = this.assetPrefix;
+
+    this.conf = createNextConfig(this.cwd, { assetPrefix: this.assetPrefix });
     this.distDir = distDirOf(this.dir, this.conf);
     this.bundler = selectBundler(this.cwd);
     this.stamps = hookStamps(this.cwd);
@@ -431,6 +496,11 @@ class ReactEngine {
   async build() {
     return build({
       bundler: this.bundler,
+      // The prefix goes back in as a plain object: `build()` takes both
+      // shapes and reads the configuration itself, so a first production
+      // boot with no build has to hand it the value this engine resolved
+      // rather than let it answer '' and wipe the prefix from the child
+      config: { assets: { prefix: this.assetPrefix }, renderer: this.renderer },
       cwd: this.cwd,
       distDir: this.distDir,
       pen: this.henri.pen,
@@ -649,6 +719,7 @@ class ReactEngine {
 module.exports = ReactEngine;
 module.exports.ReactEngine = ReactEngine;
 module.exports.build = build;
+module.exports.assetPrefixOf = assetPrefixOf;
 module.exports.createNextConfig = createNextConfig;
 module.exports.ensureNextConfig = ensureNextConfig;
 module.exports.pagePath = pagePath;

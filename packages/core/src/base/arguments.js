@@ -1261,8 +1261,14 @@ const UNCHECKED = {
     'both of its arguments belong to whoever followed the link back from a provider: the query is attacker controlled by construction and every branch of it answers a reason a page shows, which is what an expired state, a replayed callback and a refused merge all answer',
   'henri.identities.providerOf':
     'answers null for anything that is not one of the providers this application configured, which is what a router asking about a name out of a url should get',
+  'henri.mailers.deliver':
+    'refuses by name: message() throws naming the mailers it has and the actions that one has, which is more useful than a type error about two strings',
   'henri.mailers.onDeliverLater':
     'says so and answers false, which is its documented contract',
+  'henri.mailers.onRender':
+    'says so and answers false, the contract it shares with onDeliverLater',
+  'henri.mailers.preview':
+    'the same refusal as deliver(), reached from the preview router with a mailer and an action out of a url',
   'henri.model.errors':
     'answers null for anything that is not a validation failure, which is its documented contract',
   'henri.model.publish':

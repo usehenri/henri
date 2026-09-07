@@ -146,7 +146,8 @@ has to be named per record or per process. An application's own suite keeps
   whose type comes from the file and, when the file has no value there, from
   the schema; every key the environment provided is
   printed at boot with the `filterParameters` masked. Keys, in the order of
-  the schema: `port`, `host`, `cors`, `renderer`, `inertia`, `experimental`,
+  the schema: `port`, `host`, `cors`, `renderer`, `inertia`, `assets`,
+  `experimental`,
   `stores`, `migrations`, `secret`, `url`, `user` (string or `{ model, public, loginPath,
 afterLogin, sessionMaxAge, signup, passwordReset, confirmation,
 identities }`),
@@ -1465,6 +1466,20 @@ disposition, filename, type })` is one call whatever the backend -- the
   `base/mail-preview.js` is the `/_mailers` preview router, mounted by
   `5.router.js` in development behind `loopbackOnly()`. Configuration:
   `mailers: { from, layout, previews }`.
+  **henri inlines no CSS and is not going to**: the honest version of
+  "apply that `<style>` block to the elements it matches" is a CSS parser,
+  a selector engine with specificity, an html parser and an html
+  serializer, anything smaller is a regular expression over rendered html,
+  and a mangled mail cannot be fixed after it is sent -- so what henri owns
+  is the seam. `henri.mailers.onRender(fn)` (`onDeliverLater`'s shape, one
+  handler, `null` removes it) is called from `Message#finish()` on every
+  message henri renders, a delivery, a `deliverLater()` and a `/_mailers`
+  preview alike, with the nodemailer payload and
+  `{ mailer, action, view, layout }`. It runs **last, and that is the
+  point**: both parts already exist, so an inliner rewriting `html` cannot
+  leak a `style=""` attribute into the derived `text/plain`. Throwing fails
+  the render rather than sending. `juice` is the three line answer and the
+  guide (`guides/mail.md`) says so in those words.
 - View engines implement `init()`, `prepare()`, `fallback(router)`,
   `render(req, res, route, opts)` and optionally `reload()` and `close()`. The
   Handlebars engine lives in `core/src/engines/template.js`; `react` resolves
@@ -1473,6 +1488,36 @@ disposition, filename, type })` is one call whatever the backend -- the
   pages through `req._henri`; `withHenri` reads only that on the server.
   `build({ cwd, config })` on both engines builds without booting henri, which
   is what `henri build` calls.
+- `config.assets.prefix` (`base/assets.js`) is where the files the
+  production build wrote are loaded from: Vite's `base`, Next's
+  `assetPrefix`, said once. **The Content Security Policy is the whole
+  trap** -- `script-src 'self'` refuses a script from another origin, so a
+  prefix that did not reach the policy is an application that boots,
+  answers 200 and paints nothing -- so it is read in one place and used in
+  two: the engine writes the urls and `base/headers.js` adds the origin to
+  `ASSET_DIRECTIVES` (`script-src`, `style-src`, `font-src`, `img-src`,
+  `connect-src`, `worker-src`, `media-src`). `default-src` is deliberately
+  untouched: widening it would let the asset host be framed as well, and
+  the one thing that falls back to it is a `<link rel="prefetch">`, where a
+  refusal costs a warm cache and never a page. The policy names the origin
+  in **every environment** while the prefix itself is **production only**
+  (in development the dev servers serve from this origin), and it is
+  compiled into the bundle rather than only stamped on the document's tags
+  -- Vite's `base` for the client and ssr builds, `assetPrefix` in the next
+  config. On the react side the channel is **`HENRI_ASSET_PREFIX` and not
+  the `conf` object**, measured rather than assumed: next.js 16 answers a
+  request through the configuration it loaded off `app/views/next.config.js`
+  (which requires `@usehenri/react/engine/conf`, which reads the variable),
+  so a prefix handed only to `next({ conf })` reaches the build manifest and
+  never a tag -- `build()` sets it on the child's environment and the engine
+  sets it on its own. The
+  application still serves the files at the same paths, which is what an
+  origin-pull CDN pulls from. A path prefix (`/assets`) needs no policy
+  change, a renderer with no build is warned that the key does nothing, and
+  `henri audit` reports an `http://` prefix in a production configuration
+  (`assets.plaintext-prefix`). It is **not** `uploads.urls.cdn`, a cache in
+  front of henri's own route that forwards to this application, and the two
+  guides say which is which.
 
 ## Conventions
 

@@ -714,6 +714,41 @@ describe('henri audit', () => {
     );
   });
 
+  test('reports an asset prefix served over plaintext http', () => {
+    // The prefix is where every script of every page comes from: over http
+    // an https page refuses them all, and an http page runs whatever the
+    // path handed back
+    const { findings: found, names } = withConfig(
+      app,
+      'config/production.json',
+      { assets: { prefix: 'http://cdn.example.com' } }
+    );
+
+    expect(names).toContain('assets.plaintext-prefix');
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        asvs: 'V9.1.1',
+        check: 'assets.plaintext-prefix',
+        file: 'config/production.json',
+        message: expect.stringContaining('http://cdn.example.com'),
+        owasp: 'A02:2021 Cryptographic Failures',
+        severity: 'high',
+      })
+    );
+
+    // An https prefix, a path on this origin, and a file a production boot
+    // never reads: none of them is anything
+    for (const [file, assets] of [
+      ['config/production.json', { prefix: 'https://cdn.example.com' }],
+      ['config/production.json', { prefix: '/assets' }],
+      ['config/dev.json', { prefix: 'http://localhost:8080' }],
+    ]) {
+      expect(withConfig(app, file, { assets }).names).not.toContain(
+        'assets.plaintext-prefix'
+      );
+    }
+  });
+
   test('reports the automatic merge of an identity provider', () => {
     // The one setting that lets a provider's word about an address be
     // enough to be handed the account that already holds it

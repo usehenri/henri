@@ -348,6 +348,13 @@ class InertiaEngine {
       config.has('inertia') ? config.get('inertia') : {}
     );
 
+    /**
+     * What every built asset url starts with: `config.assets.prefix` plus a
+     * slash, or `/`. The built files are still served from this origin as
+     * well (see `fallback`), which is what an origin-pull CDN pulls from.
+     */
+    this.assetBase = shell.assetBase(config);
+
     // Development: the vite dev server. Production: the static handler
     this.vite = null;
     this.styles = [];
@@ -533,7 +540,16 @@ class InertiaEngine {
     const vite = await loadVite(cwd);
     const base = await baseConfig(views);
     const started = Date.now();
-    const common = { logLevel, mode: 'production' };
+    // Vite's `base` is the asset prefix: it is what the urls *inside* the
+    // bundle are written against -- a lazy chunk, the css a chunk imports,
+    // a font a stylesheet names -- and `assetTags` puts the same value in
+    // front of the entry. Setting one without the other is an application
+    // whose first script loads from the CDN and whose second does not
+    const common = {
+      base: shell.assetBase(config),
+      logLevel,
+      mode: 'production',
+    };
 
     debug('building the client bundle of %s', views);
 
@@ -609,7 +625,13 @@ class InertiaEngine {
     this.ensureViewFiles();
 
     const result = await InertiaEngine.build({
-      config: { inertia: this.options },
+      // The prefix goes back in as a plain object: the static build takes
+      // both shapes, and this one has to carry the same value the tags of a
+      // rendered document will use
+      config: {
+        assets: { prefix: shell.assetPrefix(this.henri.config) },
+        inertia: this.options,
+      },
       cwd: this.henri.cwd(),
     });
 
@@ -1019,9 +1041,11 @@ class InertiaEngine {
       body = shell.clientBody(this.options.id, page);
     }
 
+    // The dev server serves from this origin whatever the prefix says: there
+    // is no build yet, so there is nothing on the other host to load
     const assets = this.vite
       ? shell.devTags(this.options.entry, this.styles)
-      : shell.assetTags(this.manifest, this.options.entry);
+      : shell.assetTags(this.manifest, this.options.entry, this.assetBase);
     const meta = nonce ? [shell.nonceMeta(nonce)] : [];
 
     // Every tag of the document is nonced at once, this engine's and the
