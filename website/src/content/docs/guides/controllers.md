@@ -255,6 +255,7 @@ The declaration is one level deep, like `params`: it describes the fields of the
 ### It is also the description of the answer
 
 [`henri openapi`](/guides/openapi/) refused to describe what a controller writes: such an operation carried the statuses henri produces, `x-henri.known: false` and no success status at all. A declared answer is exactly what it could not know, so an operation that has one carries a `200` with the schema — `$ref`ing the model's record schema for a field naming a model, the column's own schema for a field naming one, and `additionalProperties: false`, because the document says what the gate does.
+
 ## `filters`: what a list may be narrowed and ordered by
 
 The fourth reserved key. `params` says what an action accepts; `filters` says what a client may **filter and sort a list by** — which columns, with which operators, and in which order — and refuses everything else with the same `422`:

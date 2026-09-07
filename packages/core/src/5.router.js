@@ -676,34 +676,6 @@ class Router extends BaseModule {
   }
 
   /**
-   * The model an action's filters are about: the one it named, or the one
-   * the controller is named after (`proposals` -> `Proposal`, the way
-   * `base/openapi.js` and `3.policies.js` resolve it)
-   *
-   * @param {object} declared the compiled declaration
-   * @param {string} controller the controller name (`proposals`)
-   * @returns {?object} the model file, or null
-   * @memberof Router
-   */
-  modelFor(declared, controller) {
-    const models = (this.henri.model && this.henri.model.models) || [];
-    const wanted = declared.model ? String(declared.model).toLowerCase() : null;
-    const last = String(controller).split('/').pop().toLowerCase();
-    const singular = singularize(last);
-
-    return (
-      models.find((model) =>
-        wanted
-          ? String(model.globalId).toLowerCase() === wanted ||
-            String(model.identity || '').toLowerCase() === wanted
-          : String(model.identity || model.globalId).toLowerCase() ===
-              singular ||
-            String(model.identity || model.globalId).toLowerCase() === last
-      ) || null
-    );
-  }
-
-  /**
    * The filter check of a controller action, as middlewares.
    *
    * This is where a declaration meets the model it is about: the columns
