@@ -46,6 +46,13 @@ const { buildUrl, coded, fatal, normalizeEmail, redact } = require('./utils');
  * @method toPlain(user) The user as a plain object, without its password
  * @method async ping() Resolves true when the database answers
  * @method async transaction(fn) Runs fn inside a transaction
+ *
+ * There is deliberately **no `sandbox()`** here, so `henri console
+ * --sandbox` refuses on a mongoose or disk store instead of pretending. Two
+ * reasons, either of them enough: a Mongoose write only joins a transaction
+ * when the call is handed the `session`, and there is no async-context path
+ * to hand it one from a REPL prompt; and a MongoDB transaction needs a
+ * replica set, which `mongodb-memory-server` is not started as.
  * @method async query(sql, params) Raw query (SQL adapters only)
  */
 

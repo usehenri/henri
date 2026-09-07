@@ -1848,6 +1848,18 @@ Usually:
 
 **Fix.** Let the boot finish before querying. In tests, `await setup()` first; the helper boots the application inside the worker.
 
+### `HENRI_STORE_SANDBOX_UNSUPPORTED`
+
+henri console --sandbox was asked for on a store that cannot hold one.
+
+Usually:
+
+- the store is a MongoDB one: a session has to be threaded through every call, and a transaction needs a replica set
+- the store is an mssql one: Sequelize does not join a transaction by async context
+- the store is already inside a transaction
+
+**Fix.** Run henri console without --sandbox on this store. A sandbox is only honest where a model call joins the transaction of its async context on its own, which is every drizzle store (sqlite, postgres, mysql).
+
 ### `HENRI_STORE_SESSION_UNAVAILABLE`
 
 No session store could be built for the user module.

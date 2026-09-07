@@ -1669,6 +1669,17 @@
     {
       "area": "store",
       "causes": [
+        "the store is a MongoDB one: a session has to be threaded through every call, and a transaction needs a replica set",
+        "the store is an mssql one: Sequelize does not join a transaction by async context",
+        "the store is already inside a transaction"
+      ],
+      "code": "HENRI_STORE_SANDBOX_UNSUPPORTED",
+      "fix": "Run henri console without --sandbox on this store. A sandbox is only honest where a model call joins the transaction of its async context on its own, which is every drizzle store (sqlite, postgres, mysql).",
+      "what": "henri console --sandbox was asked for on a store that cannot hold one."
+    },
+    {
+      "area": "store",
+      "causes": [
         "the store's adapter has no session store",
         "the store is not loaded",
         "the adapter's session store failed to build its table"

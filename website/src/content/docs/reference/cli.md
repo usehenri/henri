@@ -92,14 +92,37 @@ Boots the application, listens and watches the files in development. The server 
 ## `console`
 
 ```bash
-henri console [--production]
+henri console [--sandbox] [--production]
 ```
 
-Boots the application without the view engine and without listening, then opens a REPL named after the project where `henri` and the models are globals:
+Boots the application without the view engine, then opens a REPL named after the project where `henri` and the models are globals:
 
 ```text
 my-app> await Task.countDocuments()
 ```
+
+### `--sandbox`
+
+Opens a transaction on **every** store and rolls it back when the session ends, so a destructive thing can be tried on real data and nothing survives it:
+
+```text
+  sandbox: default (drizzle) is in a transaction that is rolled back when you leave.
+  Nothing you write here survives, and nothing outside this session sees it.
+
+my-app (sandbox)> await Task.destroy({ where: {} })
+my-app (sandbox)> .exit
+  sandbox: rolled back.
+```
+
+A sandbox is only honest where a model call **joins the transaction of its async context on its own** -- nobody threads a transaction handle through what they type at a prompt, and a flag that silently kept the writes would be worse than no flag, because it is trusted at exactly the wrong moment. So it is offered where henri can honour it and refused before the prompt is printed everywhere else, with `HENRI_STORE_SANDBOX_UNSUPPORTED` and exit `1`:
+
+| Adapter                          | `--sandbox` | Why                                                                                                                             |
+| -------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `drizzle`, `postgresql`, `mysql` | supported   | The adapter reads the open transaction out of an `AsyncLocalStorage`, so every model call inside the session joins it.          |
+| `mongoose`, `disk`               | refused     | A Mongoose write joins a transaction only when the call is handed the `session`, and a MongoDB transaction needs a replica set. |
+| `mssql`                          | refused     | Sequelize joins a transaction by async context only under `Sequelize.useCLS()`, which henri does not install.                   |
+
+Two things it is not: it is not isolation from other processes (another connection is simply outside your transaction and sees the database as it was), and it is not a rollback of anything outside a store -- a mail sent, a webhook emitted or a file written from the console is not undone. Long-running sessions hold a connection and, on PostgreSQL and MySQL, whatever locks their writes take, so a sandbox on a production database is for minutes, not hours.
 
 ## `runner`
 

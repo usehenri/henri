@@ -779,6 +779,8 @@ describe('henri audit', () => {
         'secret.identity-client',
       ])
     );
+  });
+
   test('reports a maintenance bypass the public would walk through', () => {
     // "loopback" is the operator with a shell, and behind a reverse proxy,
     // a sidecar or a container network it is every visitor: a closed

@@ -190,10 +190,34 @@ const COMMANDS = [
   {
     description: [
       'Boots the application and opens a REPL with henri and the models loaded.',
+      '',
+      '--sandbox opens a transaction on every store and rolls it back when',
+      'you leave, so a destructive thing can be tried on real data and',
+      'nothing survives it. It needs a model call to join the transaction of',
+      'its async context on its own, which is what a drizzle store does',
+      '(sqlite, postgres, mysql, and so --adapter postgresql and mysql). On',
+      'a mongoose, disk or mssql store the console refuses before it prints',
+      'a prompt rather than keeping the writes quietly.',
+    ],
+    examples: [
+      {
+        command: 'henri console',
+        description: 'A REPL with henri and the models',
+      },
+      {
+        command: 'henri console --sandbox',
+        description: 'The same, with every write rolled back on exit',
+      },
+    ],
+    flags: [
+      {
+        description: 'roll back everything the session writes',
+        flag: '--sandbox',
+      },
     ],
     name: 'console',
     summary: 'REPL with henri and the models loaded',
-    usage: ['henri console [--production]'],
+    usage: ['henri console [--sandbox] [--production]'],
   },
   {
     description: [
