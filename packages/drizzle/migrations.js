@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const debug = require('debug')('henri:drizzle:migrations');
+const safety = require('./safety');
 const { coded, quiet } = require('./utils');
 
 const BREAKPOINT = '\n--> statement-breakpoint\n';
@@ -58,6 +59,31 @@ const ORIGIN = '00000000-0000-0000-0000-000000000000';
  * The `.sql` and the snapshot stay on disk: rolling back moves the
  * database, not the folder, so `db:status` reports the migration pending
  * again and `db:migrate` applies it again.
+ *
+ * ## Safety
+ *
+ * drizzle-kit will write a statement that takes a production database down
+ * and say nothing about it, so henri reads the `.sql` back (`safety.js`)
+ * and reports what would hurt a database that has rows in it. Where that
+ * lands depends on who is standing there:
+ *
+ * - **`db:generate` warns.** Generating is a development act, the developer
+ *   is right there, and the migration they just wrote is the thing they are
+ *   still deciding about.
+ * - **A production `migrate()` refuses**, whether it came from
+ *   `henri db:migrate` or from a boot with `"migrate": true` on the store,
+ *   because that is the one place nobody is watching. It refuses until the
+ *   migration's token is in `config.migrations.approved`
+ *   (`HENRI_MIGRATION_UNREVIEWED`).
+ * - **`status()` carries the review of everything pending**, so
+ *   `henri db:status` and `henri doctor` can say before the deploy what the
+ *   deploy is going to refuse.
+ *
+ * The token is `<tag>:<digest>` over what was *found*, not over the file:
+ * a comment added afterwards leaves it alone and another `DROP COLUMN`
+ * edited in makes a new one. `config.migrations.approve: false` is the way
+ * out for an application whose review lives somewhere else, and
+ * `henri audit` reports it in a production configuration.
  *
  * @class Migrations
  */
@@ -287,9 +313,15 @@ class Migrations {
    * Writes a migration for the difference between the last snapshot and
    * the current schema (`henri db:generate`)
    *
+   * It warns and never refuses: the developer who asked for the migration
+   * is the one reading the answer, and what they wanted is to see it.
+   * `findings` is what a production `migrate()` would stop on and `token`
+   * is what would let it through.
+   *
    * @param {object} [options={}] `name` of the migration
-   * @returns {Promise<{ file: ?string, statements: Array<string> }>} The
-   *   file written (null when the schema did not change) and its statements
+   * @returns {Promise<{ file: ?string, findings: Array<object>, statements: Array<string>, token: ?string }>}
+   *   The file written (null when the schema did not change), its
+   *   statements, and the review of what it would do
    * @memberof Migrations
    */
   async generate({ name } = {}) {
@@ -300,7 +332,7 @@ class Migrations {
     const statements = await this.diff(prev, cur);
 
     if (statements.length === 0) {
-      return { file: null, statements, tag: null };
+      return { file: null, findings: [], statements, tag: null, token: null };
     }
 
     const idx = journal.entries.length;
@@ -348,13 +380,86 @@ class Migrations {
       }
     }
 
-    return { file, recorded, statements, tag };
+    const reviewed = this.review(tag);
+
+    return {
+      file,
+      findings: reviewed.findings,
+      recorded,
+      statements,
+      tag,
+      token: reviewed.token,
+    };
+  }
+
+  /**
+   * What `config.migrations` says, with henri's answers where it is silent
+   *
+   * The second argument of `config.get()` is what keeps an application that
+   * never wrote the block from failing here: without it the read throws
+   * `HENRI_CONFIG_UNKNOWN_KEY` rather than answering nothing, and every key
+   * of this one has a default.
+   *
+   * @returns {{ approve: boolean, approved: Array<string> }} The settings
+   * @memberof Migrations
+   */
+  settings() {
+    const { henri } = this.adapter;
+    const config =
+      (henri && henri.config && henri.config.get('migrations', true)) || {};
+
+    return {
+      approve: config.approve !== false,
+      approved: Array.isArray(config.approved)
+        ? config.approved.map((token) => String(token))
+        : [],
+    };
+  }
+
+  /**
+   * What one migration would do to a database that has rows in it
+   *
+   * @param {string} tag The migration tag
+   * @returns {{ approved: boolean, findings: Array<object>, tag: string, token: ?string }}
+   *   The findings, empty when there is nothing to say, and the token
+   *   `config.migrations.approved` would have to hold (null when there is
+   *   nothing to approve)
+   * @memberof Migrations
+   */
+  review(tag) {
+    const file = path.join(this.folder, `${tag}.sql`);
+
+    if (!fs.existsSync(file)) {
+      return { approved: true, findings: [], tag, token: null };
+    }
+
+    const findings = safety.review(fs.readFileSync(file, 'utf8'), {
+      dialect: this.adapter.dialect.name,
+    });
+
+    if (findings.length === 0) {
+      return { approved: true, findings, tag, token: null };
+    }
+
+    const token = safety.tokenOf(tag, findings);
+    const settings = this.settings();
+
+    return {
+      approved: !settings.approve || settings.approved.includes(token),
+      findings,
+      tag,
+      token,
+    };
   }
 
   /**
    * The applied and pending migrations (`henri db:status`)
    *
-   * @returns {Promise<{ applied: Array<string>, pending: Array<string>, folder: string }>} The status
+   * `review` is the pending migrations that have something to say, in the
+   * order they would run: what a production `db:migrate` is going to refuse,
+   * answered before the deploy rather than during it.
+   *
+   * @returns {Promise<{ applied: Array<string>, folder: string, pending: Array<string>, review: Array<object> }>} The status
    * @memberof Migrations
    */
   async status() {
@@ -371,7 +476,11 @@ class Migrations {
       }
     }
 
-    return { applied, folder: this.folder, pending };
+    const review = pending
+      .map((tag) => this.review(tag))
+      .filter((entry) => entry.findings.length > 0);
+
+    return { applied, folder: this.folder, pending, review };
   }
 
   /**
@@ -494,7 +603,15 @@ class Migrations {
   /**
    * Applies the pending migrations (`henri db:migrate`)
    *
-   * @returns {Promise<{ applied: Array<string>, pending: Array<string> }>} What ran
+   * In production every pending migration is read first and the first one
+   * that would change a database with rows in it, without its token in
+   * `config.migrations.approved`, stops the whole run: nothing is applied,
+   * not even the safe migrations ahead of it, because applying half of a
+   * deploy's schema change is its own outage. In development it says the
+   * same thing through `pen.warn` and applies them.
+   *
+   * @returns {Promise<{ applied: Array<string>, pending: Array<string>, review: Array<object> }>} What ran
+   * @throws {Error} HENRI_MIGRATION_UNREVIEWED
    * @memberof Migrations
    */
   async migrate() {
@@ -502,7 +619,30 @@ class Migrations {
     const before = await this.status();
 
     if (before.pending.length === 0) {
-      return { applied: [], pending: [] };
+      return { applied: [], pending: [], review: [] };
+    }
+
+    const unapproved = before.review.find((entry) => !entry.approved);
+
+    if (unapproved) {
+      const { henri } = adapter;
+
+      if (henri && henri.isProduction) {
+        throw safety.unreviewed(
+          unapproved.tag,
+          unapproved.findings,
+          unapproved.token
+        );
+      }
+
+      if (henri && henri.pen) {
+        unapproved.findings.forEach((finding) =>
+          henri.pen.warn(
+            adapter.adapterName,
+            `${unapproved.tag}: ${safety.describe(finding)}`
+          )
+        );
+      }
     }
 
     const { migrate } = require(adapter.dialect.migrator);
@@ -511,7 +651,11 @@ class Migrations {
 
     const after = await this.status();
 
-    return { applied: before.pending, pending: after.pending };
+    return {
+      applied: before.pending,
+      pending: after.pending,
+      review: before.review,
+    };
   }
 
   /**

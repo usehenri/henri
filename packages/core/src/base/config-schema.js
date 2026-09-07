@@ -471,6 +471,27 @@ const SCHEMA = {
     values: STORE,
   },
 
+  migrations: {
+    describe: 'an object of migration settings',
+    hint: 'What a migration is allowed to do to a database that has rows in it. `henri db:generate` warns whatever this says; a production `henri db:migrate` is what reads it',
+    keys: {
+      approve: {
+        default: true,
+        describe: 'true or false',
+        hint: 'true means a migration henri found something in does not run in production until its token is listed; false is the deployment being the review, and `henri audit` reports it',
+        type: 'boolean',
+      },
+      approved: {
+        default: [],
+        describe: 'a list of migration tokens (tag:digest)',
+        hint: '`henri db:status` prints the token of every pending migration it has something to say about; the digest covers what was found, so reformatting the file keeps it and another drop edited in replaces it',
+        of: text(),
+        type: 'array',
+      },
+    },
+    type: 'object',
+  },
+
   secret: text({
     describe: 'a string',
     hint: 'Set it with HENRI_SECRET or the credentials, never in config/',

@@ -1954,6 +1954,43 @@ describe('henri doctor: the schema of a store', () => {
     });
   });
 
+  // Finding out here is the whole point: the alternative is finding out
+  // during the deploy, from a boot that refused to come up
+  test('says which pending migration a production migrate would refuse', async () => {
+    app = migrating();
+
+    fs.writeFileSync(
+      path.join(app, 'db/migrations/0000_init.sql'),
+      'CREATE TABLE tasks (id integer primary key);\n--> statement-breakpoint\nALTER TABLE notes DROP COLUMN body;\n'
+    );
+
+    const problems = await ask(app);
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'schema.unreviewed',
+        code: 'HENRI_MIGRATION_UNREVIEWED',
+        file: 'db/migrations/0000_init.sql',
+        hint: expect.stringContaining('migrations'),
+        level: 'warning',
+        message: expect.stringContaining('column.drop'),
+      })
+    );
+    // The token the hint names is the one the configuration would hold
+    expect(
+      problems.find((entry) => entry.check === 'schema.unreviewed').hint
+    ).toMatch(/0000_init:[0-9a-f]{12}/u);
+  });
+
+  test('says nothing about a migration that only creates tables', async () => {
+    app = migrating();
+
+    // The scaffolded shape: every table it touches is one it made
+    expect((await ask(app)).map((entry) => entry.check)).not.toContain(
+      'schema.unreviewed'
+    );
+  });
+
   test('says nothing when the store holds every migration', async () => {
     app = migrating();
 

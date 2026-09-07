@@ -831,6 +831,150 @@ henri db:schema:load                     # creates that schema in an empty datab
 
 In development the boot pushes the schema unless the store sets `"sync": false`; in production the boot applies the pending migrations when the store sets `"migrate": true` and warns about them otherwise. `henri db:push` refuses statements that lose data unless `--force` is passed; every command accepts `--store=<name>` and `--json`. `henri db:seed` is the exception: it runs [`db/seeds.js`](#seeds) on any adapter.
 
+#### Migration safety
+
+drizzle-kit writes the difference between the models and the last snapshot,
+and it will happily write a statement that takes a production database down.
+henri reads the generated SQL back -- the SQL, not the model diff, because the
+SQL is what runs -- and says which statements are the ones that bite.
+
+Where that lands depends on who is standing there:
+
+- **`henri db:generate` warns.** Generating is a development act, the
+  developer is right there, and the migration they just wrote is the thing
+  they are still deciding about. It always writes the file.
+- **A production `henri db:migrate` refuses**, and so does a production boot
+  with `"migrate": true` on the store, because that is the one place nobody is
+  watching (`HENRI_MIGRATION_UNREVIEWED`). Nothing is applied -- not even the
+  safe migrations queued ahead of the one it stopped on, because applying half
+  of a deploy's schema change is its own outage.
+- **`henri db:status` and `henri doctor` report** every pending migration that
+  would be refused, so somebody finds out before the deploy rather than during
+  it.
+
+##### What it checks, and where each one bites
+
+The classic set, with the dialect answers measured against a real
+PostgreSQL 17, MySQL 8.4 and SQLite 3.53 rather than assumed
+(`packages/drizzle/__tests__/engines.spec.js` is where they are pinned):
+
+| Check             | sqlite | postgres | mysql | What runs into                                                                               |
+| ----------------- | ------ | -------- | ----- | -------------------------------------------------------------------------------------------- |
+| `table.drop`      | yes    | yes      | yes   | The deploy window, not the lock: the old process is still reading it.                        |
+| `column.drop`     | yes    | yes      | yes   | The same. Instant on postgres and on MySQL 8, which is not the problem.                      |
+| `table.rename`    | yes    | yes      | yes   | Worse than a drop: the old code and the new code both break.                                 |
+| `column.rename`   | yes    | yes      | yes   | The same.                                                                                    |
+| `column.not-null` | yes    | yes      | yes   | Not the same failure on each: see below.                                                     |
+| `column.type`     | yes    | yes      | yes   | A table rewrite under a lock on postgres and mysql; on sqlite, a copy.                       |
+| `index.build`     | --     | yes      | --    | A postgres problem alone: see below.                                                         |
+| `table.recreate`  | yes    | --       | --    | sqlite's answer to `ALTER COLUMN`, which copies the table.                                   |
+| `data.unbounded`  | yes    | yes      | yes   | A `DELETE` or an `UPDATE` with no `WHERE`, which drizzle-kit never writes and a person does. |
+
+Two of those are worth spelling out, because the dialects genuinely disagree.
+
+**A `NOT NULL` column with no default does not fail the same way.** sqlite
+(`Cannot add a NOT NULL column with default value NULL`) and postgres
+(`23502`) refuse the statement outright as soon as the table has one row, so
+the migration fails and the deploy stops. MySQL 8.4 **accepts it**, under
+`STRICT_TRANS_TABLES`, and writes an empty string into every existing row of a
+`varchar` and a zero into every `int`, without a warning. The loud failure is
+the kind one; the safe path on all three is the same, which is to add the
+column nullable, backfill it, and add the constraint in a later migration.
+
+**Building an index is a postgres problem.** `CREATE INDEX` holds a
+`ShareLock` there, so every `INSERT`, `UPDATE` and `DELETE` on the table waits
+for the build. MySQL 8 builds a secondary index online -- it accepts
+`ALGORITHM=INPLACE, LOCK=NONE`, which it only does when concurrent writes are
+really allowed -- and sqlite has no concurrent form at all. henri reports it on
+postgres and stays quiet on the other two, because a check whose message
+cannot name a safe path is a check people turn off.
+
+The safe path on postgres has a catch worth knowing, and henri's message says
+it: `CREATE INDEX CONCURRENTLY` **cannot go in the migration file**. drizzle
+applies every pending migration inside one transaction, and postgres refuses
+`CONCURRENTLY` in a transaction block (`25001`). So build the index against the
+database yourself, outside the migration, and `henri db:generate` will see that
+it is already there.
+
+##### How the SQL is read
+
+By walking it, not by matching it. A regular expression over a whole file
+would be both slow and, worse, wrong: `INSERT INTO notes (body) VALUES ('run
+DROP COLUMN before the deploy')` is a safe statement that contains the text of
+a dangerous one, and refusing it is worse than not checking at all. So henri
+scans the file once, character by character, and knows the four things that are
+not code: line and block comments (nested on postgres, flat elsewhere), string
+literals with their `''` escape plus mysql's backslashes, mysql's
+`"double quoted"` strings, postgres's `E'...'` and `$tag$ dollar quoting $tag$`,
+quoted identifiers in all three flavours, and the `--> statement-breakpoint`
+line drizzle-kit writes. **A string literal's content is thrown away** by the
+scanner rather than skipped over, so nothing downstream can read one as SQL
+even by accident.
+
+Two rules exist only to keep a false refusal from happening, because a false
+refusal is what gets a checker turned off:
+
+- **A table created by the same migration has no rows**, so nothing done to it
+  is reported. Without this, every first migration would warn about the indexes
+  it creates beside its tables.
+- **sqlite's table rebuild is one finding, not two.** sqlite has no
+  `ALTER COLUMN`, and drizzle-kit's answer is to create `__new_tasks`, copy
+  every row into it, `DROP TABLE tasks` and rename. Read one statement at a
+  time that is a dropped table and a renamed table; read as a migration it is
+  one table being rebuilt, and that is what `table.recreate` says. The pattern
+  is recognized by its shape -- a table created here, later renamed onto a
+  table dropped here -- and not by drizzle-kit's `__new_` prefix.
+
+##### Approving one
+
+The way through is a token in the configuration, the way
+[`config.retention.approved`](/guides/retention/) works:
+
+```bash
+henri db:status      # prints the token of every pending migration it found something in
+```
+
+```json
+{
+  "migrations": {
+    "approved": ["0002_drop_email:9f3c1a2b4d5e"]
+  }
+}
+```
+
+The digest covers **what was found**, not the file: reformatting the migration
+or adding a comment leaves the token alone, and another `DROP COLUMN` edited in
+afterwards makes a new one, so the approval goes stale exactly when the thing
+approved changes. It is a plain digest and not a keyed one, deliberately -- a
+token is committed and travels to production, where `config.secret` does not.
+
+A flag on the command would have been the other answer, and it is the worse
+one: `henri db:migrate --force` in a deploy script is written once and then
+turns the check off for **every future migration**, silently, which is the
+failure this feature exists to prevent. A token names one migration and expires
+with it. For the operator who cannot redeploy the configuration, the
+environment already reaches it, and says so at boot:
+
+```bash
+HENRI_CONFIG_JSON__migrations='{"approved":["0002_drop_email:9f3c1a2b4d5e"]}' henri db:migrate
+```
+
+`"migrations": { "approve": false }` turns the gate off wholesale for an
+application whose review lives somewhere else. That is a configuration rather
+than a flag, so it is visible in the repository, and `henri audit` reports it
+in a production configuration (`migrations.unreviewed`).
+
+##### What it does not check
+
+It reads what is in the file. A migration that is safe on its own and
+catastrophic next to the deploy it ships with is not something a file can
+show, and henri does not guess: the deploy order is yours. It also does not
+count rows -- `db:rollback` does that, because it knows exactly which rows an
+inverse would remove, and a forward migration does not. And a MySQL executable
+comment (`/*!40101 ... */`) is read as a comment, so a statement hidden in one
+is not seen; drizzle-kit writes none, and treating it as code would mean
+refusing statements that will not run on the server in front of you.
+
 #### Rolling back
 
 drizzle-kit generates forward-only SQL: a migration has no `down`. henri does

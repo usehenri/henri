@@ -270,6 +270,13 @@ const CHECKS = [
     what: '"maintenance": { "bypass": "loopback" }: behind a proxy every request comes from the loopback, so a closed application is not closed',
   },
   {
+    asvs: 'V14.1.1',
+    check: 'migrations.unreviewed',
+    level: 2,
+    owasp: 'A05',
+    what: '"migrations": { "approve": false }: a migration that drops a column or a table reaches the production database with nobody having read it',
+  },
+  {
     asvs: 'V5.1.2',
     check: 'params.mass-assignment',
     level: 1,
@@ -893,6 +900,23 @@ const configFindings = (config, { file, hasUser }) => {
         OWASP.A05,
         `stores.${name} applies schema changes to the production database on every boot`,
         `Remove "sync": true from ${file} and change the schema in the deploy instead: "henri db:status" reports what the database and the models disagree about, and the drizzle adapter has reviewable migrations ("henri db:generate", "henri db:migrate")`,
+        'V14.1.1'
+      );
+    }
+  }
+
+  // The other half of the same question: henri reads a migration back and
+  // refuses one that would take a column, a table or every row away until
+  // its token is approved. Turning that off is a decision worth seeing in
+  // a review, and only in a file a production boot reads
+  if (PRODUCTION_CONFIGS.includes(file) && isObject(config.migrations)) {
+    if (config.migrations.approve === false) {
+      add(
+        'medium',
+        'migrations.unreviewed',
+        OWASP.A05,
+        'a migration that drops a column or a table is applied in production without anybody approving it',
+        `Remove "approve": false from the "migrations" block of ${file} and let henri refuse the ones it finds something in: "henri db:status" prints the token of each, and "migrations": { "approved": [...] } is where a reviewed migration is recorded`,
         'V14.1.1'
       );
     }

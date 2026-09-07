@@ -314,7 +314,7 @@ It reads the application; it never starts it. Every finding is a statement
 about a file you can open:
 
 ```text
-  henri audit: 2 findings in 52 checks (1 high, 1 medium, 0 low; failing on medium)
+  henri audit: 2 findings in 55 checks (1 high, 1 medium, 0 low; failing on medium)
 
   high    csrf.disabled              config/production.json
           A01:2021 Broken Access Control / ASVS V4.2.2 (L1)
@@ -433,7 +433,15 @@ production boot run DDL of its own from whatever the models happen to say
 boot compares the database with the models and warns, and `henri db:status`
 is the same comparison on demand. `mssql` is the only store the finding
 reaches, because it is the only one left on Sequelize; every other SQL store
-is Drizzle, which never pushes in production.
+is Drizzle, which never pushes in production. The other half of the same
+question is `"migrations": { "approve": false }` in either of those two files
+(`migrations.unreviewed`): henri reads a generated migration back and refuses,
+in production, one that would drop a column or a table, add a `NOT NULL`
+column with no default, change a type, build an index on postgres or run a
+`DELETE` with no `WHERE`, until its token is in `migrations.approved`. Turning
+that gate off means every future migration reaches the production database
+with nobody having read it. See
+[Migration safety](/guides/models/#migration-safety).
 
 **Settings that open a door** — a `script-src` (or, without one, a
 `default-src`) written by the application that allows `'unsafe-inline'` with no

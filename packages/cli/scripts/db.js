@@ -434,6 +434,7 @@ const run = async (command, store, args) => {
       applied: status.applied,
       folder: status.folder,
       pending: status.pending,
+      review: status.review || [],
       schema: 'migrations',
     };
   }
@@ -445,15 +446,17 @@ const run = async (command, store, args) => {
     return {
       ...base,
       file: result.file || null,
+      findings: result.findings || [],
       recorded: result.recorded || [],
       statements: result.statements || [],
+      token: result.token || null,
     };
   }
 
   if (command === 'migrate') {
     const result = await migrations.migrate();
 
-    return { ...base, applied: result.applied };
+    return { ...base, applied: result.applied, review: result.review || [] };
   }
 
   if (command === 'rollback') {
@@ -589,6 +592,36 @@ const list = (label, tags) => {
 };
 
 /**
+ * Prints what a migration would do to a database that has rows in it
+ *
+ * @param {Array<object>} findings What the review answered
+ * @param {?string} token The token that approves them
+ * @param {boolean} [approved=false] Whether it is approved already
+ * @returns {void}
+ */
+const warnings = (findings, token, approved = false) => {
+  findings.forEach((finding) => {
+    console.log(
+      `    ! ${finding.check} ${finding.table || '?'}${
+        finding.column ? `.${finding.column}` : ''
+      }: ${finding.what}`
+    );
+    console.log(`      ${finding.fix}`);
+  });
+
+  if (!token) {
+    return;
+  }
+
+  console.log('');
+  console.log(
+    approved
+      ? `    Approved: "${token}" is in migrations.approved`
+      : `    A production migrate refuses this until migrations.approved holds "${token}"`
+  );
+};
+
+/**
  * Prints a result for humans
  *
  * @param {object} result What run() returned
@@ -641,6 +674,12 @@ const print = (result) => {
     console.log('');
     list('Applied', result.applied);
     list('Pending', result.pending);
+
+    (result.review || []).forEach((entry) => {
+      console.log('');
+      console.log(`  ${entry.tag}`);
+      warnings(entry.findings, entry.token, entry.approved);
+    });
   }
 
   if (result.command === 'status' && result.schema === 'models') {
@@ -690,6 +729,12 @@ const print = (result) => {
     if (result.recorded.length > 0) {
       console.log('  The database already matches: recorded as applied');
     }
+
+    if (result.findings.length > 0) {
+      console.log('');
+      console.log('  On a database that has rows in it, this migration would:');
+      warnings(result.findings, result.token);
+    }
   }
 
   if (result.command === 'migrate') {
@@ -698,6 +743,16 @@ const print = (result) => {
     } else {
       list('Applied', result.applied);
     }
+
+    // Outside production this applies and says so; the same finding is a
+    // refusal on the deploy, which is what the token is for
+    (result.review || [])
+      .filter((entry) => !entry.approved)
+      .forEach((entry) => {
+        console.log('');
+        console.log(`  ${entry.tag} would not have run in production:`);
+        warnings(entry.findings, entry.token);
+      });
   }
 
   if (result.command === 'rollback') {
