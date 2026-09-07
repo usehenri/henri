@@ -62,7 +62,13 @@ const NAMELESS = ['agents', 'authentication'];
 const main = async (args) => {
   const [cmd, target, ...rest] = args._;
   const report = new Report({ command: 'generate', json: args.json === true });
-  const opts = { force: args.force === true, report };
+  const opts = {
+    force: args.force === true,
+    report,
+    // `--slug title`: the model gets a name a person reads in a url, and
+    // the controller and the pages are written to use it (base/slug.js)
+    slug: typeof args.slug === 'string' && args.slug !== '' ? args.slug : null,
+  };
 
   if (!cmd) {
     console.log(usage('generate'));
@@ -160,15 +166,32 @@ const model = async (name, attributes = [], opts = {}) => {
   const { doc } = names(name);
   const schema = parseAttributes(attributes);
 
+  if (opts.slug && !schema[opts.slug]) {
+    throw new CliError(
+      'USAGE',
+      `--slug ${opts.slug}: ${doc} has no ${opts.slug} attribute to build a name from`,
+      {
+        hint: `henri generate scaffold ${doc} ${opts.slug}:string --slug ${opts.slug}`,
+      }
+    );
+  }
+
   const code = `
 // Models are autoloaded from app/models and exposed globally (here: \`${doc}\`).
 // Types: ${TYPES.join(', ')}.
 // Keys: type, required, default, enum, unique, index (anything else is
 // handed to the adapter as is).
-
+${
+  opts.slug
+    ? `// \`slug\` is the name a person reads in a url: henri adds the column,
+// fills it from \`${opts.slug}\` on insert and never moves it again, and
+// \`findById()\` resolves it next to the externalId. See the models guide.
+`
+    : ''
+}
 /** @type {import('@usehenri/core').ModelFile} */
 module.exports = {
-  options: { timestamps: true },
+  options: { ${opts.slug ? `slug: '${opts.slug}', ` : ''}timestamps: true },
   schema: ${util.inspect(schema, { depth: 6 })},
   store: 'default', // a store name from config/default.json
 };
@@ -652,6 +675,7 @@ const resources = async (name, attributes = [], opts = {}) => {
     api: apiOf(process.cwd()),
     keys: extractKeys(attributes),
     renderer: rendererOf(process.cwd()),
+    slug: hasSlug(names(name).doc, opts),
   };
   const generator = require('./generate/controllers');
 
@@ -680,6 +704,7 @@ const crud = async (name, attributes = [], opts = {}) => {
     api: apiOf(process.cwd()),
     keys: extractKeys(attributes),
     renderer: rendererOf(process.cwd()),
+    slug: hasSlug(names(name).doc, opts),
   };
   const generator = require('./generate/controllers');
 
@@ -717,6 +742,46 @@ const extractKeys = (args = []) =>
   args.map((val) => val.split(':')[0].replace(/!$/, ''));
 
 /**
+ * Does this model carry a slug -- the name a person reads in a url?
+ *
+ * `--slug` says so for a model this run is writing; for one that is already
+ * there, the model file itself does. So `henri generate crud Article` over
+ * a model that declared a name writes the controller that uses it, with no
+ * flag repeated (see base/slug.js).
+ *
+ * @param {string} doc The model's global id (ex: Article)
+ * @param {object} [opts] { slug }
+ * @returns {boolean} true when the urls of this resource carry a slug
+ */
+const hasSlug = (doc, opts = {}) => {
+  if (opts.slug) {
+    return true;
+  }
+
+  const location = path.join(process.cwd(), 'app', 'models', `${doc}.js`);
+
+  if (!fs.existsSync(location)) {
+    return false;
+  }
+
+  try {
+    delete require.cache[require.resolve(location)];
+
+    const declared = (require(location).options || {}).slug;
+
+    return Boolean(
+      typeof declared === 'string'
+        ? declared
+        : declared && typeof declared === 'object' && declared.from
+    );
+  } catch {
+    // A model file that will not load is a boot failure, not this
+    // command's to report: it writes the urls it always wrote
+    return false;
+  }
+};
+
+/**
  * Compile one view template into app/views/pages/<plural>/<view>, a `.jsx`
  * page for the Inertia renderer and a `.js` one for the Next.js renderer
  *
@@ -730,6 +795,7 @@ const compileView = async (
     lower,
     plural,
     keys = [],
+    slug = false,
     view = 'index',
     renderer = DEFAULT_RENDERER,
   },
@@ -745,7 +811,13 @@ const compileView = async (
     'view',
     `app/views/pages/${plural}`,
     `${view}.${PAGE_EXTENSIONS[renderer]}`,
-    template({ doc, keys, lower, plural }),
+    template({
+      doc,
+      identifier: slug ? 'slug' : 'externalId',
+      keys,
+      lower,
+      plural,
+    }),
     opts
   );
 };

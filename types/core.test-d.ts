@@ -798,6 +798,44 @@ const badStrategy: ModelFile = {
   schema: { title: 'string' },
 };
 
+// The third identifier: a field name, or the object form
+const named: ModelFile = {
+  options: { slug: 'title' },
+  schema: { title: 'string' },
+};
+
+expectType<ModelFile>(named);
+
+const namedAtLength: ModelFile = {
+  options: {
+    slug: {
+      from: 'title',
+      maxLength: 40,
+      on: 'change',
+      reserved: ['search'],
+      suffix: false,
+    },
+  },
+  schema: { title: 'string' },
+};
+
+expectType<ModelFile>(namedAtLength);
+
+const badSlugEvent: ModelFile = {
+  // @ts-expect-error a slug is generated on a create or on a change
+  options: { slug: { from: 'title', on: 'save' } },
+  schema: { title: 'string' },
+};
+
+const badSlugSource: ModelFile = {
+  // @ts-expect-error the object form names the field it is built from
+  options: { slug: { on: 'create' } },
+  schema: { title: 'string' },
+};
+
+expectType<ModelFile>(badSlugEvent);
+expectType<ModelFile>(badSlugSource);
+
 const derived: ModelFile = {
   graphql: true,
   schema: { title: 'string' },

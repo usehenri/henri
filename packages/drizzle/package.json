@@ -30,6 +30,7 @@
     "utils.js",
     "validation.js",
     "validations.js",
+    "slug.js",
     "encrypted.js",
     "encryption.js",
     "tenant.js",

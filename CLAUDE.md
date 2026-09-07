@@ -515,6 +515,40 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   `henri.model.errors(error)` (`base/model-errors.js`) normalizes the three
   ORMs' validation failures to `{ field: message }`, `null` for anything else.
   `henri db:seed` runs `db/seeds.js` on any adapter.
+- **A slug is a third identifier and it only ever names a url**
+  (`base/slug.js`, a copy per adapter the way `validations.js` is).
+  `options: { slug: 'title' }` adds a unique, indexed, `NOT NULL` `slug`
+  column, henri fills it on the insert, and `hateoas.identify()` --
+  through `references.nameOf()`, which asks the model table rather than
+  the record, so an application's own `slug` column keeps the urls it had
+  -- prints it in `_links`, the route helpers and the `Location` of a 201.
+  Nowhere else: a foreign key is still the target's `externalId`, and so
+  is every identifier the versions table, the trail, the flags actor and
+  the receipts hold. `findById()` resolves a uuid against `externalId`
+  and **anything else against the slug column** -- a `WHERE slug = ?`,
+  never a fallthrough -- so a primary key answers the same `null` an
+  unknown name answers; a model with a slug takes the whole non-uuid
+  space with it, `externalIds.lookup: "any"` included, and a slug shaped
+  like a uuid is refused so the two spaces never overlap. `findBySlug()`
+  is the explicit half and `internalId()` follows the same rule. **No
+  `SELECT` before the `INSERT`**, the position `validates` already takes
+  on `unique`: the default appends a six character discriminator derived
+  from the record's own `externalId` (`getting-started-k3f9pq`), and
+  `suffix: false` gives the bare name and leaves the unique index to
+  refuse the second one. `on: 'create'` (the default) never moves the
+  url; `on: 'change'` follows the source, the old url 404s -- there is no
+  history table -- and a mass update naming the source is
+  `HENRI_MODEL_SLUG_MASS_WRITE`. Unicode is NFKD plus eleven Latin
+  letters it does not decompose and nothing else, so a Japanese, Arabic
+  or Cyrillic title folds to nothing and the discriminator is what makes
+  its url work (`HENRI_MODEL_SLUG_EMPTY` with `suffix: false`); a slug
+  the application writes itself always wins and may be in any script,
+  carried percent-encoded. **No regular expression anywhere in the
+  file** -- it walks the code points with the bound applied as it goes,
+  because a title arrives through `req.permit()`.
+  `henri generate scaffold --slug <field>` writes the declaration, the
+  controller and the pages, and a later generator reads the mark back off
+  the model file. The guide is `guides/models.md` (`#slugs`).
 - **What must be true of a record is `validates`** (`base/validations.js`,
   a copy per adapter the way `exact.js` is, kept byte identical by
   `src/__tests__/validations.spec.js`): a block keyed by field, in the
@@ -1625,5 +1659,24 @@ filters.spec.js`), on MongoDB through the demo application core's suite
   lockout stay keyed by address; and there is no `henri tenants` command,
   because henri holds no list of tenants.
 
+- Slugs are new. There is **no history table**: `on: 'change'` retires the
+  old url the moment the title is written, and henri answers no `301` --
+  `friendly_id`'s answer is a table on four adapters plus a redirect, a
+  retention rule and a reach for the erasure, and it is a tranche of its
+  own. Also not here: a slug unique per tenant or per parent (a composite
+  index henri would have to write into a migration it does not own), a
+  route that resolves a name across models, and any romanization at all --
+  the fold is `String#normalize` plus eleven letters, so a title with no
+  Latin in it produces nothing and the discriminator is what answers.
+  `privacy:erase` does **not** rewrite a slug, because rewriting an
+  identifier 404s every url that pointed at the record; a `from` marked
+  `personal: { expose: false }` is refused at boot, and a plain
+  `personal: true` one is allowed and said out loud in the guide.
+  Coverage: sqlite and MongoDB offline, PostgreSQL and MySQL through
+  `pnpm test:sql:live`, the demo application's own `Article` resource for
+  the router and the HAL links, and
+  `packages/cli/__tests__/generate.spec.js` for the generator. MSSQL
+  rides the Sequelize wiring with no coverage of its own, like the rest
+  of that adapter.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.

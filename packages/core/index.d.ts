@@ -619,6 +619,11 @@ declare namespace start {
      * a url answers the same `null` an unknown uuid answers; `'any'`
      * restores the primary key lookup. `findByKey()` always takes the
      * primary key, whatever this says.
+     *
+     * A model that declared `options.slug` takes the whole non-uuid space
+     * with it, `'any'` included: on such a model `findById()` resolves the
+     * slug or the `externalId`, and the primary key is `findByKey()`'s
+     * alone.
      */
     lookup?: 'any' | 'external';
     /**
@@ -2777,6 +2782,21 @@ declare namespace start {
     timestamps?: boolean;
     /** Soft deletes: `deletedAt` instead of a real delete. */
     paranoid?: boolean;
+    /**
+     * The name a person reads in a url: `/articles/how-we-ship` rather than
+     * the uuid. henri adds a unique `slug` column, fills it from the field
+     * named here and resolves it in `findById()` next to the `externalId`
+     * -- never next to the primary key.
+     *
+     * `slug: 'title'` is the shorthand. The object form takes `on`
+     * (`create`, the default, never moves the name again; `change` follows
+     * the source and the old url stops working, since henri keeps no
+     * history), `suffix` (a six character discriminator, on by default, so
+     * two records may share a title without a lookup before the insert),
+     * `reserved` (words a slug may not take, on top of henri's own) and
+     * `maxLength`.
+     */
+    slug?: string | SlugOptions;
     /** What this model is to a person, for the export and the erasure. */
     personal?: {
       /**
@@ -2791,6 +2811,30 @@ declare namespace start {
       export?: boolean;
     };
     [key: string]: unknown;
+  }
+
+  /** `options.slug` in its object form. */
+  interface SlugOptions {
+    /** The field the name is built from: a `string` or a `text`. */
+    from: string;
+    /**
+     * When it is generated: once, on the insert (`create`, the default), or
+     * whenever the source field is written (`change`, which retires the old
+     * url on the spot -- henri keeps no history of slugs, and a mass update
+     * naming the source is refused rather than half done).
+     */
+    on?: 'create' | 'change';
+    /**
+     * Append a six character discriminator taken from the record's own
+     * `externalId` (`true`). With `false` the slug is the folded source and
+     * nothing else, the unique index is what keeps it unique, and a second
+     * record with the same title is refused by the database.
+     */
+    suffix?: boolean;
+    /** Words a slug may not take, on top of the ones henri mounts. */
+    reserved?: string[];
+    /** How long the folded source may be, before the discriminator (80). */
+    maxLength?: number;
   }
 
   /**

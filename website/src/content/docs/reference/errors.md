@@ -1617,6 +1617,41 @@ Usually:
 
 **Fix.** Configure `stores.default`, or give the model a `store` naming one of the stores that exist.
 
+### `HENRI_MODEL_SLUG_DECLARATION_INVALID`
+
+A model's `options.slug` asks for a name henri cannot build.
+
+Usually:
+
+- an `options.slug` naming a field the schema does not declare, or one that is not a `string` or a `text`
+- an `options.slug` built from an `encrypted` field, which is not public and has nothing a url could carry
+- an `options.slug` built from a field marked `personal: { expose: false }`, which henri drops from every answer it builds
+- a schema that declares a `slug` field of its own next to `options.slug`: henri adds the column
+- an unknown key, or an `on` that is neither `create` nor `change`
+
+**Fix.** The message names the model and what is wrong with the declaration. `options: { slug: 'title' }` is the whole of it for most models; the object form takes `from`, `on` (`create` or `change`), `suffix`, `reserved` and `maxLength`, and the column is always called `slug` and always added by henri. See the Models guide.
+
+### `HENRI_MODEL_SLUG_EMPTY`
+
+A slug was to be built from a source there is nothing to build one from.
+
+Usually:
+
+- a title in a script henri folds nothing to (Japanese, Chinese, Arabic, Hebrew, Greek, Cyrillic) on a model that declared `slug: { suffix: false }`
+- a source field that is empty, or holds something that is not text, on such a model
+
+**Fix.** `suffix: false` means the slug is the folded source and nothing else, so a source that folds to nothing leaves no name to write. Either write the slug yourself (an application-supplied slug always wins and may be in any script) or drop `suffix: false`, which appends a six character discriminator and therefore always answers something. henri ships no transliteration table and folds only what Unicode itself decomposes; the Models guide says which scripts that covers.
+
+### `HENRI_MODEL_SLUG_MASS_WRITE`
+
+A mass update named the field a model regenerates its slug from.
+
+Usually:
+
+- `Model.update(where, attrs)` or `updateMany` naming the source field, on a model that declared `slug: { on: 'change' }`
+
+**Fix.** One hook runs for the whole write and no record is named by it, so henri would either give every row the same slug or leave them all stale. Loop over the records instead (`for (const record of await Model.find(where)) await record.update(attrs)`) and each one gets its own name. A model whose slug is generated once (`on: 'create'`, the default) has nothing to regenerate and mass updates keep working.
+
 ### `HENRI_MODEL_TYPE_UNSUPPORTED`
 
 A model field asks for a type this store cannot carry without changing the value.

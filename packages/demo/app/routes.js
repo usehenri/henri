@@ -44,6 +44,12 @@ module.exports = {
   'post /register': 'user#create',
   // Multipart, read by @usehenri/uploads before sessions and csrf
   'post /uploads': { controller: 'uploads#create', idempotent: false },
+  // A model with a name (base/slug.js): the urls of this resource carry the
+  // slug, and `findById()` resolves it and the public identifier
+  'resources articles': {
+    controller: 'articles',
+    only: ['index', 'create', 'show'],
+  },
   // A versioned, scoped resource (/api/v1/artworks)
   'resources artworks': {
     controller: 'artworks',

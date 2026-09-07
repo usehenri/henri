@@ -328,6 +328,7 @@ const modelFacts = (source, name) => {
       .filter((field) => marked(field.body, 'personal'))
       .map((field) => field.name),
     retention: marked(options, 'retention'),
+    slug: marked(options, 'slug'),
     store: storeOf(source),
   };
 };
@@ -675,6 +676,10 @@ const modelSection = (facts) => {
       held.push('a retention rule');
     }
 
+    if (model.slug) {
+      held.push('a slug (its urls carry the name, not the uuid)');
+    }
+
     if (held.length > 0) {
       marks.push(`\`${model.name}\` carries ${held.join(', ')}`);
     }
@@ -683,7 +688,7 @@ const modelSection = (facts) => {
   const carried =
     marks.length === 0
       ? ''
-      : `\n\nMarks this application already made: ${marks.join('; ')}. Keep them when you edit those models: \`personal\` is what henri masks in the logs, hands to \`henri privacy:export\` and removes in \`henri privacy:erase\`; \`encrypted\` is ciphertext in the column and the plain string on the model; a \`retention\` rule is swept by \`henri retention:sweep\`.`;
+      : `\n\nMarks this application already made: ${marks.join('; ')}. Keep them when you edit those models: \`personal\` is what henri masks in the logs, hands to \`henri privacy:export\` and removes in \`henri privacy:erase\`; \`encrypted\` is ciphertext in the column and the plain string on the model; a \`retention\` rule is swept by \`henri retention:sweep\`; a \`slug\` is the name a url of that record carries, written by henri and resolved by \`findById()\` next to the externalId.`;
 
   return `## Models (\`${facts.api}\`)
 

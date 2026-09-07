@@ -11,6 +11,14 @@ const {
   withoutInternalIds,
 } = require('./external-id');
 const {
+  SLUG,
+  emptySlug,
+  massWrite: massSlug,
+  problemOf: slugProblem,
+  slugFor,
+  writesSource,
+} = require('./slug');
+const {
   massWrite,
   problemsOf,
   uncheckedWrite,
@@ -107,7 +115,7 @@ const paginate = (Model) => {
  * @param {object} henri The henri instance (for `externalIds.lookup`)
  * @returns {object} The model
  */
-const lookup = (Model, external, henri) => {
+const lookup = (Model, external, henri, named = null) => {
   const findByPk = Model.findByPk;
 
   /**
@@ -176,22 +184,168 @@ const lookup = (Model, external, henri) => {
    * @returns {Promise<?object>} The row or null
    */
   Model.findById = function findById(value, options) {
-    if (!external) {
-      return this.findByKey(value, options);
-    }
-
-    if (isUuid(value)) {
+    if (external && isUuid(value)) {
       return this.findByExternalId(value, options);
     }
 
-    if (resolvesKeys(henri)) {
+    // The slug column, and only the slug column. A model that has a name
+    // takes the whole non-uuid space with it, `externalIds.lookup: "any"`
+    // included -- the stricter of the two rules is the one to keep, and it
+    // is the same one on every adapter (./slug.js)
+    if (named) {
+      return this.findBySlug(value, options);
+    }
+
+    if (!external || resolvesKeys(henri)) {
       return this.findByKey(value, options);
     }
 
     return Promise.resolve(null);
   };
 
+  /**
+   * A row by the name a person reads, on a model that declared one
+   *
+   * @param {*} value A slug
+   * @param {object} [options] findOne options
+   * @returns {Promise<?object>} The row or null
+   */
+  Model.findBySlug = function findBySlug(value, options) {
+    if (!named || typeof value !== 'string' || value === '') {
+      return Promise.resolve(null);
+    }
+
+    return this.findOne({
+      ...options,
+      where: {
+        ...((options && options.where) || {}),
+        [SLUG]: value.toLowerCase(),
+      },
+    });
+  };
+
   Model.findByPk = Model.findByKey;
+
+  return Model;
+};
+
+/**
+ * The `slug` column filled on every write Sequelize runs a hook for.
+ *
+ * The two hooks are the ones `validations` uses and for the same reason:
+ * `beforeValidate` covers `create`, `save`, `instance.update`, `upsert`
+ * and the mass `Model.update`, and `beforeBulkCreate` is the one it does
+ * not reach. A mass update naming the source of a model that follows it is
+ * refused rather than written, because one hook runs for the whole write
+ * and no row is named by it (./slug.js).
+ *
+ * @param {object} Model A Sequelize model
+ * @param {object} declaration The compiled declaration (./slug.js)
+ * @returns {object} The model
+ */
+const slugged = (Model, declaration) => {
+  const name = Model.name;
+
+  /**
+   * The error a slug that cannot be a url segment gets, in the shape
+   * Sequelize answers a validation failure with
+   *
+   * @param {string} message What is wrong with it
+   * @param {*} value The slug
+   * @returns {Error} A SequelizeValidationError
+   */
+  const failure = (message, value) =>
+    validationError(name, { [SLUG]: message }, { [SLUG]: value });
+
+  /**
+   * Fills or checks the slug of one record about to be written
+   *
+   * @param {object} record The Sequelize instance
+   * @param {object} [options] The write options, whose `fields` decides
+   *   which columns the statement names: a column henri filled in a hook
+   *   is not one the caller listed, so it is added here or it is set in
+   *   memory and never written
+   * @returns {void}
+   * @throws {Error} When the slug cannot be a url, or there is nothing to
+   *   build one from
+   */
+  const apply = (record, options) => {
+    const written = () => {
+      if (
+        options &&
+        Array.isArray(options.fields) &&
+        !options.fields.includes(SLUG)
+      ) {
+        options.fields.push(SLUG);
+      }
+    };
+    const given = record.get(SLUG);
+
+    // A slug the application wrote itself always wins, and the only thing
+    // asked of it is whether it can be one path segment
+    if (
+      record.changed(SLUG) &&
+      typeof given !== 'undefined' &&
+      given !== null &&
+      given !== ''
+    ) {
+      const wanted =
+        typeof given === 'string' ? given.trim().toLowerCase() : given;
+      const wrong = slugProblem(wanted, declaration);
+
+      if (wrong) {
+        throw failure(wrong, given);
+      }
+
+      record.set(SLUG, wanted);
+      written();
+
+      return;
+    }
+
+    if (
+      !record.isNewRecord &&
+      !(declaration.on === 'change' && record.changed(declaration.from))
+    ) {
+      return;
+    }
+
+    const source = record.get(declaration.from);
+    const slug = slugFor(declaration, source, record.get(EXTERNAL_ID));
+
+    if (slug === '') {
+      throw emptySlug(name, declaration, source);
+    }
+
+    record.set(SLUG, slug);
+    written();
+  };
+
+  Model.addHook('beforeValidate', 'henriSlugs', (record, options) =>
+    apply(record, options)
+  );
+  Model.addHook('beforeBulkCreate', 'henriSlugs', (records, options) => {
+    for (const record of records) {
+      apply(record, options);
+    }
+  });
+
+  const update = Model.update.bind(Model);
+
+  /**
+   * The mass update, refused when it would regenerate many slugs at once
+   *
+   * @param {object} values The values
+   * @param {object} [options] The options (`where`)
+   * @returns {Promise<*>} What Sequelize answers
+   */
+  Model.update = async (values, options) => {
+    if (declaration.on === 'change' && writesSource(declaration, values)) {
+      throw massSlug(name, declaration, 'update', 'update(attrs)');
+    }
+
+    return update(values, options);
+  };
 
   return Model;
 };
@@ -416,4 +570,4 @@ const validations = (Model, rules) => {
   return Model;
 };
 
-module.exports = { lookup, paginate, publicId, validations };
+module.exports = { lookup, paginate, publicId, slugged, validations };

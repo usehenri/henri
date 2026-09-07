@@ -740,6 +740,11 @@ const COMMANDS = [
           'Creates a model, a controller with the resources actions, the matching resources routes and the views',
       },
       {
+        command: 'henri g scaffold Article title:string! --slug title',
+        description:
+          'The same, with a slug: the urls carry /articles/how-we-ship rather than the uuid',
+      },
+      {
         command: 'henri g worker cleanup',
         description: 'Creates app/workers/cleanup.js with start and stop',
       },
@@ -815,12 +820,12 @@ const COMMANDS = [
       },
       {
         description: 'model, JSON controller and the crud routes',
-        name: 'crud <Name> [field:type[!] ...]',
+        name: 'crud <Name> [field:type[!] ...] [--slug <field>]',
       },
       {
         description:
-          'model, resources controller, resources routes and the pages',
-        name: 'scaffold <Name> [field:type[!] ...]',
+          'model, resources controller, resources routes and the pages. `--slug <field>` gives the model a name a person reads in a url and writes the controller and the pages to use it',
+        name: 'scaffold <Name> [field:type[!] ...] [--slug <field>]',
       },
       {
         description:

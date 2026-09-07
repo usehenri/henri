@@ -4,7 +4,13 @@ const { Drift, describeDifference } = require('./drift');
 const { decorateAttributes, decorateModel } = require('./encryption');
 const { decorateModel: decorateVersions } = require('./versions');
 const { decorateModel: decorateTenant, tenantAttribute } = require('./tenant');
-const { lookup, paginate, publicId, validations } = require('./plugins');
+const {
+  lookup,
+  paginate,
+  publicId,
+  slugged,
+  validations,
+} = require('./plugins');
 const { validationsOf } = require('./validations');
 const { instrument: instrumentQueries } = require('./queries');
 const { normalizeSchema } = require('./schema');
@@ -16,6 +22,7 @@ const {
   wantsExternalId,
   withoutInternalIds,
 } = require('./external-id');
+const { SLUG, lengthOf, slugOf } = require('./slug');
 const { fatal, normalizeEmail, redact } = require('./utils');
 
 const { DataTypes } = Sequelize;
@@ -253,6 +260,7 @@ class Sql {
     delete options.externalId;
     delete options.personal;
     delete options.retention;
+    delete options.slug;
     delete options.tenant;
     delete options.versioned;
 
@@ -283,6 +291,15 @@ class Sql {
       this.addExternalId(attributes);
     }
 
+    // The third identifier, and the only one a person reads (./slug.js).
+    // Compiled from the model file rather than from `attributes`, so the
+    // column henri adds is never mistaken for one the application declared
+    const declaredSlug = slugOf(model);
+
+    if (declaredSlug) {
+      this.addSlug(attributes, declaredSlug);
+    }
+
     if (isUser) {
       this.overload(attributes, options, model);
     }
@@ -302,8 +319,16 @@ class Sql {
     const instance = lookup(
       paginate(connector.define(model.globalId, attributes, options)),
       external,
-      this.henri
+      this.henri,
+      declaredSlug
     );
+
+    // Before the validations and everything else: what a rule measures and
+    // what a `beforeCreate` hook sees is a record whose name is already
+    // written, the way it is on the other two adapters
+    if (declaredSlug) {
+      slugged(instance, declaredSlug);
+    }
 
     // First of the hooks, so what a rule measures is the value the
     // application wrote: the encryption hooks below turn it into an
@@ -372,6 +397,26 @@ class Sql {
       defaultValue: uuidv7,
       field: EXTERNAL_ID_COLUMN,
       type: DataTypes.UUID,
+      unique: true,
+    };
+
+    return attributes;
+  }
+
+  /**
+   * Adds the `slug` column to a model that asked for one: the name a
+   * person reads in a url, unique and indexed like the public identifier
+   * next to it. henri fills it (`plugins.js`, `slugged()`).
+   *
+   * @param {object} attributes The Sequelize attributes
+   * @param {object} declaration The compiled declaration (./slug.js)
+   * @returns {object} The attributes
+   * @memberof Sql
+   */
+  addSlug(attributes, declaration) {
+    attributes[SLUG] = {
+      allowNull: false,
+      type: DataTypes.STRING(lengthOf(declaration)),
       unique: true,
     };
 
@@ -759,6 +804,7 @@ class Sql {
           Model.rawAttributes && Model.rawAttributes[EXTERNAL_ID]
         ),
         references,
+        slug: Boolean(slugOf(this.definitions[globalId].model)),
       };
     }
 
