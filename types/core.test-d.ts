@@ -726,6 +726,10 @@ const model: ModelFile = {
     title: { type: 'string', required: true, unique: true },
     body: 'text',
     status: { type: 'string', enum: ['todo', 'done'], default: 'todo' },
+    // The methods an enum generates, named after the field rather than
+    // after the value: `isStageNew()` and `Task.stageNew()`
+    stage: { type: 'string', enum: ['new', 'closed'], predicates: 'stage' },
+    kind: { type: 'string', enum: ['bug', 'chore'], predicates: false },
     meta: { type: 'json' },
     author: { type: 'string', personal: true },
     phone: { type: 'string', personal: { expose: false, erase: 'retain' } },

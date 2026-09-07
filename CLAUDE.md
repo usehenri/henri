@@ -509,7 +509,7 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   with `utils.resolveFrom('@usehenri/<adapter>')`. Model files use the henri
   schema format (`type: 'string'|'text'|'number'|'integer'|'float'|'decimal'|
 'bigint'|'boolean'|'date'|'json'|'uuid'`, `required`, `default`, `enum`,
-  `unique`, `index`),
+  `predicates`, `unique`, `index`),
   normalized by `schema.js` in each adapter (Sequelize and Drizzle throw on
   unknown keys,
   Mongoose passes them through). **`decimal` and `bigint` are the two a
@@ -626,6 +626,36 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   (`#validations`), which is also where the boundary with `params` is
   argued: `params` checks what arrives, `validates` what is written, and a
   job, a seed or a console has no request.
+- **An `enum` column is spelled back as methods** (`base/enums.js`, applied
+  by `3.model.js` right after `addModel`). One file in core rather than a
+  copy per adapter, unlike `validates`: a method on a model is a property,
+  and core already knows how to read a model on all three (`kindOf()` in
+  `base/erasure.js`, `narrow()` in `base/filters.js`). Three of Rails' four:
+  `post.isDraft()` on the record, `Post.live()` on the model -- **a
+  condition, not records**, because henri has three query builders and wraps
+  none of them, and a condition is the value all three read identically and
+  the one that composes -- and `Post.enums.status`, the frozen list. It goes
+  under `policy.scope(user)` and the client's filters with the same `and`
+  `narrow()` spells, so a scope narrows a list and can never widen it. **The
+  bang is dropped**: `post.update({ status: 'archived' })` is already one
+  call, the wrong value in a _write_ is already refused by the `enum` rule,
+  and only the wrong value in a _comparison_ was silently false forever --
+  which is the whole argument for the predicate. `in_review`, `in-review`,
+  `IN_REVIEW` and `InReview` all give `inReview` (`names()` in
+  `packages/cli/scripts/utils.js` is a _resource_ name and lives where core
+  cannot require it); a value that is not a name gets no method and stays in
+  the list. A generated name that is already something else is a boot
+  failure (`HENRI_MODEL_ENUM_NAME_TAKEN`) rather than a silent shadow, and
+  the measurement is why: the record's namespace holds eight `is<Name>`
+  methods across the three ORMs and exactly one is a plausible value
+  (`new` -> `isNew`, how Mongoose and the drizzle model tell an insert from
+  an update), while the model's is crowded (`find`, `create`, `count`,
+  `name`, `length`). It is checked against `MODEL_API`/`RECORD_API` -- henri's
+  own surface, held as data so the answer is the same on every adapter --
+  and then `name in Model`, which is exact and covers the ORM's own. The
+  field carries the way out next to the `enum`: `predicates: 'status'`
+  prefixes both halves, `predicates: false` generates none. The guide is
+  `guides/models.md` (`#enums-predicates-scopes-and-the-list`).
 - The user module (`4.user.js`) mounts express-session (`henri.sid`),
   passport (`local` and `jwt` strategies), `POST /login`, `POST /logout`
   (`GET` answers 405), the double-submit CSRF middleware (`base/csrf.js`,
@@ -1675,6 +1705,25 @@ filters.spec.js`), on MongoDB through the demo application core's suite
   a validation leaves the refused value on the in-memory instance and the
   next `update()` on that same instance is measured against it. A record
   read again is fine; only the object in hand is stale.
+- Enum predicates and scopes are new. What was **deliberately left**: the
+  bang (argued above), a scope that answers records, an `or` between two
+  values (`{ status: { $in: [...] } }` is not portable by hand -- that is
+  `filters`' `in` operator, or a condition written for the adapter), a
+  scope on the **record** side of an association, and any state machine at
+  all -- no transition table, no guard, no callback. **A predicate is a
+  method of a record, so a page never has one**: a React or Inertia page
+  receives the column and compares it, and `Model.enums.<field>` is what
+  crosses over. An association that shadows a generated name is not caught,
+  because `associate()` runs after the models are built. `henri generate
+model` has **no syntax for an `enum`** (`name:type` only), so the scaffold
+  writes no enum column and there was nothing for a generated controller or
+  page to use a predicate on; giving the generator one is a CLI tranche of
+  its own. Coverage: sqlite and MongoDB offline
+  (`packages/{drizzle,mongoose,sequelize}/__tests__/enums.spec.js`, plus
+  the demo application in `packages/core/src/__tests__/enums.spec.js`),
+  PostgreSQL and MySQL through `pnpm test:sql:live`, and the showcase's
+  `Proposal` on a real application. MSSQL rides the Sequelize wiring with
+  no coverage of its own, like the rest of that adapter.
 - Multi-tenancy (`config.tenancy`) is new, and this tranche landed the
   column, the resolution, the query default and the refusals. The negative
   property -- tenant A cannot read or write tenant B's rows -- is proved on

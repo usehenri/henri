@@ -2699,6 +2699,18 @@ declare namespace start {
     default?: unknown;
     /** Allowed values (an ENUM on mysql and postgres, a validation elsewhere). */
     enum?: unknown[];
+    /**
+     * The methods an `enum` generates: `record.isDraft()` on every record,
+     * `Model.draft()` -- the condition, intersected with whatever it is
+     * given -- on the model, and `Model.enums.<field>`, the list of values.
+     *
+     * `true` is the default. `false` generates none and leaves the list.
+     * A string prefixes both halves, which is the way out when a value
+     * would shadow something (`predicates: 'status'` gives
+     * `isStatusNew()` and `Model.statusNew()`); a generated name that is
+     * already a method of the model or of a record is a boot failure.
+     */
+    predicates?: boolean | string;
     unique?: boolean;
     index?: boolean;
     /**

@@ -6,6 +6,15 @@ module.exports = {
   options: { slug: 'title', timestamps: true },
   schema: {
     body: { type: 'text' },
+    // An `enum` says what the column may hold, and henri spells it back as
+    // methods (base/enums.js): `article.isDraft()` on the record and
+    // `Article.live()` -- a condition, intersected with whatever it is
+    // given -- on the model, plus `Article.enums.status`, the list
+    status: {
+      default: 'draft',
+      enum: ['draft', 'live', 'archived'],
+      type: 'string',
+    },
     title: { required: true, type: 'string' },
   },
 };

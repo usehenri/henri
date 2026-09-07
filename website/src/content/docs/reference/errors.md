@@ -1582,6 +1582,41 @@ Usually:
 
 The model files of app/models and the schema the adapters normalize.
 
+### `HENRI_MODEL_ENUM_INVALID`
+
+A model field's `predicates` key is not one henri can read.
+
+Usually:
+
+- `predicates` given something that is neither true, false nor a name
+- `predicates: 'in review'`, or any string that is not one word
+
+**Fix.** `predicates` sits next to an `enum` and says what methods it generates: `true` (the default) gives `isDraft()` and `Model.draft()`, `false` gives none and leaves `Model.enums.<field>` as the list of values, and a name prefixes them -- `predicates: 'status'` gives `isStatusDraft()` and `Model.statusDraft()`. See the Models guide.
+
+### `HENRI_MODEL_ENUM_NAME_TAKEN`
+
+An `enum` value would generate a method name that is already something else.
+
+Usually:
+
+- a value whose predicate is already a method of the ORM: `new` gives `isNew()`, which Mongoose and the drizzle model define on every record
+- a value whose scope is already a method of the model: `find`, `create`, `count`, `all`, `first`, `last`, `name`, `length`
+- two values of one model that camel case to the same name (`in_review` and `IN_REVIEW`)
+- a value whose predicate is also a column of the same model
+
+**Fix.** Generating the method would shadow something that already works, so henri refuses instead. Rename the value where you can, or name that column's methods after the field -- `status: { enum: [...], predicates: 'status' }` gives `isStatusNew()` and `Model.statusNew()`. `predicates: false` turns them off for that column and `Model.enums.<field>` is still the list of values. The check covers the names henri puts on a model on every adapter, so a model that boots on one store boots on the next.
+
+### `HENRI_MODEL_ENUM_UNMERGEABLE`
+
+An enum scope was given something that is not a condition to narrow.
+
+Usually:
+
+- `Model.live(true)`, `Model.live('draft')` or a scope given an array
+- a `policy.scope(user)` that is not a plain object handed to a scope
+
+**Fix.** An enum scope answers a condition and takes one, so `Model.live(where)` is `where AND status = 'live'` -- pass a plain object, or nothing. A scope that is not a plain object cannot have a condition put under it: answer one from `scope(user)`, or intersect it yourself.
+
 ### `HENRI_MODEL_FIELD_INCOMPLETE`
 
 A model field carries options but no type.

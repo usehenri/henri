@@ -580,5 +580,43 @@ describe('proposals', () => {
       expect(answer.status).toBe(422);
       expect((await Proposal.findByKey(proposal.id)).state).toBe('submitted');
     });
+
+    test('will not decide on a draft, which the enum predicate is what asks', async () => {
+      const proposal = await create('proposal', {
+        eventId: event.id,
+        speakerId: speaker.id,
+        title: 'A proposal still being written',
+      });
+
+      expect(proposal.isDraft()).toBe(true);
+      expect(proposal.isSubmitted()).toBe(false);
+
+      const { browser, csrf } = await signIn(admin);
+      const answer = await browser
+        .post(`/admin/proposals/${proposal.externalId}/decide`)
+        .set('Accept', 'text/html')
+        .set('X-CSRF-Token', csrf)
+        .send({ state: 'accepted' });
+
+      expect(answer.status).toBe(302);
+      expect((await Proposal.findByKey(proposal.id)).state).toBe('draft');
+    });
+
+    test('the states of the review queue are the model’s own list', async () => {
+      expect(Proposal.enums.state).toEqual([
+        'draft',
+        'submitted',
+        'accepted',
+        'rejected',
+      ]);
+      // ... and the scope of one of them is a condition, intersected with
+      // whatever it is given rather than replacing it
+      const submitted = await Proposal.find(
+        Proposal.submitted({ eventId: event.id })
+      );
+
+      expect(submitted.every((one) => one.isSubmitted())).toBe(true);
+      expect(submitted.every((one) => one.eventId === event.id)).toBe(true);
+    });
   });
 });

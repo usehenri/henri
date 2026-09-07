@@ -9,6 +9,7 @@ const { userConfig } = require('./base/auth');
 const { modelErrors } = require('./base/model-errors');
 const { engine: graphqlEngine } = require('./base/graphql');
 const { blocksOf: graphqlBlocks } = require('./base/graphql-schema');
+const { attach: attachEnums } = require('./base/enums');
 const {
   build: buildReferences,
   publish: publishRecords,
@@ -109,6 +110,14 @@ class Model extends BaseModule {
         const store = await this.getStore(storeName);
 
         global[model.globalId] = store.addModel(model, user);
+
+        // What an `enum` column already said, spelled as methods: the
+        // predicates on the record, the scopes on the model and the list of
+        // values (base/enums.js). Here rather than in each adapter, because
+        // a method on a model is a property and core already knows how to
+        // read a model on all three -- unlike `validates`, which has to
+        // hook write paths and is a copy per adapter for that reason
+        attachEnums(global[model.globalId], model);
         this.ids.push(model.globalId);
         configuration.adapters[storeName] = store;
 

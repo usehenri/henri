@@ -27,6 +27,9 @@ const KNOWN_KEYS = new Set([
   'personal',
   // The two a `decimal` column carries; see ./exact.js
   'precision',
+  // Metadata, not a column: what the methods an `enum` generates are
+  // called, or whether it generates any (core's base/enums.js)
+  'predicates',
   'primaryKey',
   'references',
   'required',
