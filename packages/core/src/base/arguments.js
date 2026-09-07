@@ -1082,6 +1082,16 @@ const SIGNATURES = {
     },
   ],
 
+  'res.notFound': [
+    {
+      ...NAME,
+      describe: 'a string',
+      hint: 'The reason is for a developer: it is answered outside production and dropped in it',
+      name: 'why',
+      optional: true,
+    },
+  ],
+
   'res.render': [
     {
       ...NAME,

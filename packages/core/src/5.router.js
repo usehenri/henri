@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const debug = require('debug')('henri:router');
 const { check } = require('./base/arguments');
-const { loopbackOnly, negotiate: answer } = require('./base/http');
+const { loopbackOnly, negotiate: answer, spoken } = require('./base/http');
 const runtime = require('./base/runtime');
 const { fail } = require('./base/errors');
 const { respond, userConfig } = require('./base/auth');
@@ -554,7 +554,16 @@ class Router extends BaseModule {
    * @memberof Router
    */
   refuse(req, res, error) {
-    this.henri.pen.warn('policies', 'denied', req.method, req.path);
+    // The reason a refusal cannot answer is the reason it is logged: this
+    // line is where a person reads why a request got a 404, in every
+    // environment, and it never reaches the client
+    this.henri.pen.warn(
+      'policies',
+      'denied',
+      req.method,
+      req.path,
+      error.message
+    );
 
     if (error.redirect) {
       return respond(res, {
@@ -563,7 +572,11 @@ class Router extends BaseModule {
       });
     }
 
-    return answer(res, error.status, error.message);
+    return answer(
+      res,
+      error.status,
+      spoken(this.henri, error.status, error.message, error.expose)
+    );
   }
 
   /**
@@ -1445,6 +1458,22 @@ class Router extends BaseModule {
         check('req.filters', [options]);
 
         return this.narrowed(req, res, options);
+      };
+
+      // The 404 for a record that is not there, and the answer a refused
+      // record gets: one function, so the two cannot be told apart.
+      //
+      // `res.boom.notFound('Memo <id> not found')` was what a controller
+      // wrote, and it differed from a refusal twice over -- it said which
+      // one this was, and it answered the boom envelope to a browser
+      // where a refusal answered the negotiated page, so the shape gave
+      // it away even with the same words. This negotiates like every
+      // other answer henri writes, and the reason reaches a developer and
+      // nobody else (base/http.js, `spoken`).
+      res.notFound = (why = '') => {
+        check('res.notFound', [why]);
+
+        return answer(res, 404, spoken(this.henri, 404, why, false));
       };
 
       // HAL answers for the JSON api (see base/hateoas.js)

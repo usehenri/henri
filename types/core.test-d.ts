@@ -371,6 +371,10 @@ res.hbs('mail/welcome', { data: {} });
 expectType<Boom>(res.boom);
 res.boom.notFound('No such task', { id: 1 });
 res.boom.badData('Invalid', { errors: { title: 'is required' } });
+// The 404 of a record lookup: the reason is optional, and it is dropped in
+// production so this reads like the 404 a policy refusal answers
+res.notFound(`Task ${req.params.id} not found`);
+res.notFound();
 res.resource({ id: '1' }, { status: 201 });
 res.collection([{ id: '1' }], { page: 1, perPage: 25, total: 1 });
 res.collection([], { links: { search: '/tasks/search' } });
@@ -403,6 +407,9 @@ res.resource([{ id: '1' }]);
 
 // The public surface checks what it is called with, and the declarations say
 // the same thing: see base/arguments.js and /reference/api/#wrong-calls
+
+// @ts-expect-error `res.notFound()` takes a reason, not the boom data bag
+res.notFound({ id: 1 });
 
 // @ts-expect-error `res.negotiate()` needs an html handler, a json one, or both
 res.negotiate({});

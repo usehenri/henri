@@ -1,5 +1,5 @@
 const { CliError } = require('./errors');
-const { validInstall } = require('./utils');
+const { leave, validInstall } = require('./utils');
 
 /**
  * Prefer the @usehenri/core the project depends on and fall back to the
@@ -119,8 +119,9 @@ const main = async (args = {}) => {
   }
 
   // The server and the stores are closed by henri.stop(); leave nothing
-  // behind (the terminal keypress handlers keep the loop alive otherwise)
-  process.exit(0);
+  // behind (the terminal keypress handlers keep the loop alive otherwise),
+  // and leave only once the chart above has actually gone out (see leave)
+  leave(0);
 };
 
 /**

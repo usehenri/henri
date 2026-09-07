@@ -12,6 +12,7 @@ const code = (name) => EXIT_CODES.find((entry) => entry.name === name).code;
 describe('henri analyze', () => {
   describe('the boot chart', () => {
     let analysis;
+    let printed;
 
     beforeAll(() => {
       const { status, stdout, stderr } = henri(['analyze', '--json'], {
@@ -23,8 +24,21 @@ describe('henri analyze', () => {
         throw new Error(`henri analyze failed (${status}): ${stderr}`);
       }
 
+      printed = stdout;
       analysis = JSON.parse(stdout);
     }, 120000);
+
+    test('arrives whole, however long it is', () => {
+      // `console.log` to a pipe is asynchronous and `process.exit()` drops
+      // what has not drained. This chart is past the size where that shows:
+      // it used to arrive cut at exactly 8192 bytes on Node 24 and whole on
+      // Node 22, which is a difference no runtime promises. The assertion is
+      // the length rather than the parse, so a chart that shrinks below the
+      // threshold reports that it stopped covering this rather than passing
+      // for a reason nobody meant (see utils.leave)
+      expect(printed.length).toBeGreaterThan(8192);
+      expect(printed.trimEnd().endsWith('}')).toBe(true);
+    });
 
     test('reports the order, the timings and the level chart', () => {
       const names = analysis.modules.map((module) => module.name);

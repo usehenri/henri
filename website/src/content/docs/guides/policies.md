@@ -162,6 +162,49 @@ one call at a time:
 await req.authorize('update', proposal, { status: 403 });
 ```
 
+### The message of a 404 refusal stops at production
+
+A 404 that says `Not allowed to show this proposal` gives away in the body
+exactly what the status was chosen to hide. So the reason is answered outside
+production and dropped in it, the way the message of a route 404 is:
+
+```
+                       development / test                production
+refused, record exists  Not allowed to show this proposal  Not Found
+record is not there     Proposal <id> not found            Not Found
+```
+
+The two have to match, so **the other half is yours**: answer a record that is
+not there with `res.notFound()` rather than `res.boom.notFound()`.
+
+```js
+const loadProposal = async (req, res) => {
+  req.proposal = await Proposal.findById(req.params.id);
+
+  if (!req.proposal) {
+    // The reason reaches you and not the internet, and this negotiates —
+    // res.boom answers JSON even to a browser, which gives it away by shape
+    return res.notFound(`Proposal ${req.params.id} not found`);
+  }
+};
+```
+
+`henri generate scaffold` writes that line already. A refusal an application
+configured to answer `403` keeps its message everywhere: you decided to tell
+them, and the message is the useful half of that.
+
+The reason always reaches your logs, whatever the environment — the
+`policies denied` line carries it.
+
+:::caution[An anonymous visitor can still tell the two apart]
+The `401` above is uniform only when it is decided before anything is looked
+up. A rule that takes a record cannot be, so on a route guarded **only** by
+such a rule an anonymous visitor gets the login page for an id that exists and
+a 404 for one that does not. Put a `roles` on the route (or write a
+`show(user)` rule that refuses anonymous) and they are turned away at the
+gate, before the lookup, which is uniform.
+:::
+
 ## The links a page is not given
 
 `_links` and `paths` are already filtered by role. Policies filter them again,

@@ -51,8 +51,12 @@ const loadProposal = async (req, res) => {
     include: INCLUDE,
   });
 
+  // One branch for both, which is the point: a proposal that is not
+  // there and one this person may not see answer the same words, and
+  // `res.notFound` gives them the same shape (the reason is dropped in
+  // production, and negotiates rather than always answering JSON)
   if (!proposal || !(await req.can('show', proposal))) {
-    return res.boom.notFound(`No proposal ${req.params.id}`);
+    return res.notFound(`No proposal ${req.params.id}`);
   }
 
   req.proposal = proposal;

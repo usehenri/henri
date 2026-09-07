@@ -131,6 +131,17 @@ function policiesConfig(config) {
  * boom body. An anonymous visitor gets a 401 and, in a browser, the login
  * page: "log in and try again" is the useful answer and it leaks nothing.
  *
+ * **The message of a 404 does not leave a production process.** The whole
+ * point of answering 404 rather than 403 is that a record somebody may not
+ * see reads like a record that is not there, and "Not allowed to show this
+ * memo" undoes that in the one field a client reads. So the message is
+ * marked `expose: false` and `base/http.js` (`spoken()`) hands it over
+ * only to a development or a test process; `Router#refuse` asks the same
+ * function. A refusal an application configured to answer **403** keeps
+ * its message everywhere: `config.policies.status: 403` is that
+ * application saying it would rather tell them, and the message is the
+ * useful half of that answer.
+ *
  * @class PolicyError
  * @extends {Error}
  */
@@ -159,6 +170,9 @@ class PolicyError extends Error {
     this.status = status;
     this.statusCode = status;
     this.redirect = redirect;
+    // See the class header: only a 404 has something to hide, and 401
+    // says the same thing to everybody whether the record is there or not
+    this.expose = status !== 404;
   }
 }
 

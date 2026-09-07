@@ -62,6 +62,15 @@ const fakeRes = () => {
 
     return res;
   };
+  // The negotiated 404 of a record lookup, which the generated `before`
+  // hook answers with rather than `res.boom.notFound` -- a policy refusal
+  // answers the same 404 and the two must not be told apart
+  // (packages/core/src/base/http.js)
+  res.notFound = (why) => {
+    res.calls.push(['notFound', 404, why]);
+
+    return res;
+  };
   res.boom = {
     badData: (message, data) => {
       res.calls.push(['badData', 422, message, data]);

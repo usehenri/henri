@@ -4,7 +4,7 @@ const { isLoopback } = require('../utils');
 const { recorder } = require('./runtime');
 const { STATUSES } = require('./boom');
 const { coded } = require('./errors');
-const { seal } = require('./headers');
+const { HAL, seal } = require('./headers');
 
 /**
  * Escape a string for html
@@ -91,8 +91,17 @@ function negotiate(
         : res.type('html').send(page(status, title, details, code)),
     // The envelope henri writes itself, like base/boom.js (base/answers.js)
     json: () => seal(res).json(body),
-    // Escaped as well: static analyzers treat every send() as an html sink
+    // A HAL client asked for JSON and spelled it the way this API answers
+    // it. `res.format()` matches the key literally, so without this line
+    // `Accept: application/hal+json` falls through to the text branch --
+    // which `res.boom.*` never did, and which a controller answering
+    // `res.notFound()` would have inherited
+    // `res.json()` rather than `send(JSON.stringify(...))`: the body carries
+    // a message, a static analyzer treats every `send()` as an html sink,
+    // and `type()` before `json()` keeps the media type this branch is for
     // eslint-disable-next-line sort-keys
+    [HAL]: () => seal(res).type(HAL).json(body),
+    // Escaped as well: static analyzers treat every send() as an html sink
     default: () =>
       res
         .type('txt')
@@ -100,6 +109,45 @@ function negotiate(
           escape(`${status} ${title}\n${code ? `${code}\n` : ''}${message}\n`)
         ),
   });
+}
+
+/**
+ * What an answer is allowed to say out loud.
+ *
+ * A record-level refusal answers 404 so that a record somebody may not see
+ * cannot be told from one that is not there -- and then the message told
+ * them anyway: "Not allowed to show this memo" on one branch and "Memo
+ * <id> not found" on the other, both of them henri's own text. A 404 that
+ * announces the refusal is exactly the oracle the 404 was chosen to avoid.
+ *
+ * So a message may be marked as a development aid (`expose: false`, the
+ * `http-errors` spelling, and it means here what it means there), and this
+ * is the one place that decides whether it leaves: outside production the
+ * reason is what a developer needs and nobody else is reading it, and in
+ * production the reason phrase is the whole answer. `notFound()` below
+ * already makes that call for the route 404, and this is the same call
+ * for the two refusals so the pair cannot drift.
+ *
+ * It is stricter than `notFound()` about where "outside production" ends,
+ * and deliberately: that message repeats the request line back to whoever
+ * sent it, which they wrote, while this one says something the client did
+ * not know. Only a development or a test process says it -- a staging
+ * deployment is on the internet the way production is.
+ *
+ * @param {Henri} henri the henri instance
+ * @param {number} status the status being answered
+ * @param {string} message the message the answer wanted to carry
+ * @param {boolean} [expose=true] false when the message is a development aid
+ * @returns {string} what is answered
+ */
+function spoken(henri, status, message, expose = true) {
+  if (expose !== false && message) {
+    return message;
+  }
+
+  return henri && (henri.isDev || henri.isTest) && message
+    ? message
+    : reason(status);
 }
 
 /**
@@ -172,8 +220,12 @@ function errorHandler(henri) {
     }
 
     // 4xx errors carry a message meant for the client (body parser, boom...)
+    // unless the error marked its own a development aid, which is what a
+    // record-level refusal does: `req.authorize()` rejects and lands here
     const exposed = status < 500 || henri.isDev || henri.isTest;
-    const message = exposed ? err.message : reason(status);
+    const message = exposed
+      ? spoken(henri, status, err.message, err.expose)
+      : reason(status);
     const extra = henri.isDev || henri.isTest ? { stack: err.stack } : {};
     const details = henri.isDev || henri.isTest ? err.stack || err.message : '';
 
@@ -225,4 +277,6 @@ module.exports = {
   negotiate,
   notFound,
   page,
+  reason,
+  spoken,
 };

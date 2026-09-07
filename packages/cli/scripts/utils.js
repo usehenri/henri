@@ -442,6 +442,50 @@ const names = (name) => {
   };
 };
 
+/**
+ * Ends the process once what was written has actually left it.
+ *
+ * `console.log` to a pipe is asynchronous: the bytes sit in the stream's
+ * buffer until the event loop drains them, and `process.exit()` throws away
+ * whatever has not gone yet. A command that prints a few lines never
+ * noticed. `henri analyze --json` grew past the pipe buffer and its output
+ * started arriving cut at exactly 8192 bytes, which a reader sees as a
+ * syntax error in the middle of a value rather than as a truncation --
+ * `packages/cli/__tests__/analyze.spec.js` failed that way on Node 24 and
+ * passed on Node 22, because how much a pipe takes before it blocks is not
+ * something a runtime promises.
+ *
+ * Writing nothing with a callback is the wait: the callback runs when
+ * everything queued before it has been handed to the operating system.
+ * Both streams are waited on -- a failure with a long list of problems goes
+ * out on stderr, and stderr is a pipe under a test runner too.
+ *
+ * @param {number} [code=0] the exit status
+ * @returns {void}
+ */
+const leave = (code = 0) => {
+  let pending = 2;
+
+  /**
+   * Exits once both streams have answered
+   *
+   * @returns {void}
+   */
+  const done = () => {
+    pending -= 1;
+
+    if (pending === 0) {
+      process.exit(code);
+    }
+  };
+
+  // Set as well as passed: a stream that never drains (a closed pipe) must
+  // not turn a clean run into a hang with the wrong status
+  process.exitCode = code;
+  process.stdout.write('', done);
+  process.stderr.write('', done);
+};
+
 module.exports = {
   DEFAULT_RENDERER,
   PACKAGE_MANAGERS,
@@ -457,6 +501,7 @@ module.exports = {
   helpHeader,
   insideGit,
   isProject,
+  leave,
   names,
   packageManagerChoice,
   pluralize,

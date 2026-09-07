@@ -409,8 +409,33 @@ class Policies extends BaseModule {
    *
    * A signed-in user gets the configured status, 404 by default: a 403
    * tells whoever asked that the record is there, which is half of what
-   * they wanted. An anonymous one gets a 401 and, in a browser, the login
-   * page -- the role guard's answer, for the same reason.
+   * they wanted. The message of that 404 does not leave a production
+   * process either -- see `PolicyError` in `base/policies.js`, because a
+   * 404 that says *why* it refused is the same oracle spelled in the body
+   * instead of the status.
+   *
+   * An anonymous one gets a 401 and, in a browser, the login page -- the
+   * role guard's answer, for the same reason.
+   *
+   * **And that 401 is an oracle this tranche did not close.** It is
+   * uniform when it is decided before anything is looked up, which is what
+   * the role guard and a record-less rule both do; it is not when it comes
+   * out of `res.resource()` (`base/hateoas.js`, `enforce`) or a
+   * `req.authorize(action, record)`, because reaching there means the
+   * record was loaded, and a record that does not exist answered 404 in a
+   * `before` hook long before any policy was asked. So on a route guarded
+   * only by a rule that takes a record, an anonymous visitor can tell an
+   * id that exists (401, or a redirect to the login page) from one that
+   * does not (404).
+   *
+   * It is left alone deliberately rather than overlooked. Answering the
+   * configured 404 here instead would close it and would take the login
+   * page away from every anonymous visitor of a scaffolded application,
+   * which is a trade about how henri feels and not only about what it
+   * leaks. The application-level answer exists today and is one word: a
+   * `roles` on the route turns an anonymous visitor away *before* the
+   * lookup, which is uniform, and a `show(user)` rule that refuses
+   * anonymous does the same at the gate.
    *
    * @param {*} user the user, or null
    * @param {string} action the action

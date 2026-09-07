@@ -2282,6 +2282,16 @@ declare namespace start {
         | { html: () => unknown; json?: () => unknown }
         | { html?: () => unknown; json: () => unknown }
     ): ExpressResponse;
+    /**
+     * The 404 for a record that is not there: the page for a browser, the
+     * boom envelope for an API client.
+     *
+     * `why` is for a developer -- it is answered outside production and
+     * dropped in it, so this 404 and the 404 a policy refusal answers are
+     * one answer. Use it rather than `res.boom.notFound()`, which says its
+     * message everywhere and answers JSON to a browser.
+     */
+    notFound(why?: string): ExpressResponse;
     /** With the Inertia renderer. */
     inertia?: {
       errors(errors: Record<string, string>): ExpressResponse;

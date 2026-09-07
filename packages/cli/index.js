@@ -6,6 +6,7 @@ const debug = require('debug')('henri:cli');
 
 const { commands, version } = require('./package.json');
 const { toCliError } = require('./scripts/errors');
+const { leave } = require('./scripts/utils');
 
 if (require.main === module) {
   const { detectPackageManager } = require('./scripts/utils');
@@ -123,7 +124,12 @@ module.exports = (pkg, args) => {
       help();
     }
 
-    fail(
+    // `fail()` used to end the process on the spot, so nothing after it
+    // ran. It now waits for what it wrote to leave the process before
+    // exiting, which means it returns -- and the caller has to stop
+    // itself, or an unknown command goes on to be required and reported a
+    // second time
+    return fail(
       command,
       new CliError('USAGE', `Unknown command "${command}"`, {
         hint: `Available commands: ${commands.join(', ')}`,
@@ -143,7 +149,7 @@ module.exports = (pkg, args) => {
   try {
     cmd = require(`./scripts/${command}`);
   } catch (error) {
-    fail(command, error, json);
+    return fail(command, error, json);
   }
 
   Promise.resolve()
@@ -213,7 +219,8 @@ function fail(command, error, json = false) {
     console.error((failure.cause || failure).stack);
   }
 
-  process.exit(failure.exitCode);
+  // Once what was just written has actually gone out (see utils.leave)
+  leave(failure.exitCode);
 }
 
 /**

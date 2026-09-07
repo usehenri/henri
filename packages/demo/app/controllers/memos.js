@@ -22,7 +22,9 @@ const loadMemo = async (req, res) => {
   req.memo = await Memo.findById(req.params.id);
 
   if (!req.memo) {
-    return res.boom.notFound(`Memo ${req.params.id} not found`);
+    // The same 404 a policy refusal answers, on purpose: see
+    // packages/core/src/base/http.js (`spoken`)
+    return res.notFound(`Memo ${req.params.id} not found`);
   }
 
   return undefined;
