@@ -16,7 +16,7 @@ answers and which keys `config/default.json` accepts.
 | `@usehenri/core`    | The `henri` global, the request and response helpers, the controller, model and routes files, the whole configuration.         |
 | `@usehenri/react`   | `withHenri`, `useHenri`, `request`, `RequestError`, the form components and the engine's `build()`.                            |
 | `@usehenri/inertia` | `useHenri`, `Form`, `pathFor`, `getRoute`, `request`, `resolvePage`, `henriViteConfig()`. `Link` and `Head` come from Inertia. |
-| `@usehenri/testing` | `setup`, `teardown`, `request`, `agent`, `henri`.                                                                              |
+| `@usehenri/testing` | `setup`, `teardown`, `request`, `agent`, `henri`, `inbox`, `enqueued`, the factories.                                          |
 
 ## What an editor needs
 

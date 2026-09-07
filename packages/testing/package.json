@@ -42,8 +42,10 @@
     "global-setup.mjs",
     "index.d.ts",
     "index.js",
+    "jobs.js",
     "loopback.d.ts",
     "loopback.js",
+    "mail.js",
     "setup-file.d.mts",
     "setup-file.mjs"
   ],

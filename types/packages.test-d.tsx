@@ -46,17 +46,22 @@ import '@usehenri/testing/setup-file';
 import {
   agent,
   build as buildRecord,
+  clearInbox,
+  clearJobs,
   create,
   createList,
   defineFactory,
+  enqueued,
+  inbox,
   request as testRequest,
   resetFactories,
   setup,
   teardown,
   type FactoryAttributes,
   type FactoryContext,
+  type Mail,
 } from '@usehenri/testing';
-import type { Henri } from '@usehenri/core';
+import type { Henri, Job } from '@usehenri/core';
 
 /** Asserts that `Actual` and `Expected` are the same type. */
 declare function expectType<Expected>(value: Expected): void;
@@ -220,6 +225,24 @@ defineFactory('proposal', { model: 'Proposal' });
 
 // @ts-expect-error `createList()` counts with a number
 createList('proposal', 'three');
+
+expectType<Mail[]>(inbox());
+expectType<Mail[]>(inbox({ deferred: true, subject: /confirm/iu }));
+expectType<Mail[]>(inbox((mail: Mail) => mail.to.includes('ada@example.com')));
+expectType<string | null>(inbox()[0].subject);
+expectType<string[]>(inbox()[0].to);
+expectType<boolean>(clearInbox());
+
+// @ts-expect-error the inbox holds no `body`, and a silent `[]` would be worse
+inbox({ body: 'hello' });
+
+expectType<Promise<Job[]>>(enqueued());
+expectType<Promise<Job[]>>(enqueued('welcome'));
+expectType<Promise<Job[]>>(enqueued({ queue: 'mail', state: null }));
+expectType<Promise<number>>(clearJobs());
+
+// @ts-expect-error a job has no such state
+enqueued({ state: 'waiting' });
 
 // --- the subpaths, so that every shipped declaration is compiled -----------
 

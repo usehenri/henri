@@ -139,6 +139,71 @@ A factory is named after its file and writes to the model of that name; `model: 
 
 Whatever a test asserts on belongs in the test. Everything else belongs in the factory.
 
+## Mail
+
+`inbox()` is the mail the application was asked to send during the test, oldest first. A plain array of plain objects, asserted on with the `expect` the suite already has:
+
+```js
+const { inbox, request } = require('@usehenri/testing');
+
+test('signing up sends the confirmation mail', async () => {
+  await request().post('/signup').send({ email: 'ada@example.com', password });
+
+  const [mail] = inbox();
+
+  expect(inbox()).toHaveLength(1);
+  expect(mail.to).toContain('ada@example.com');
+  expect(mail.subject).toBe('Confirm your address');
+  expect(mail.html).toContain('/confirm/');
+});
+```
+
+An entry carries `to`, `cc` and `bcc` (the addresses, whatever shape the mailer wrote them in), `from`, `subject`, `html`, `text`, the `mailer` and the `action` that rendered it, `deferred`, the `options` a `deliverLater()` was called with, and `message` -- the nodemailer payload itself, with everything the entry does not lift out (the attachments, the headers).
+
+**Both doors are watched.** A message leaves through `deliver()`, which hands the rendered payload to the transport, or through `deliverLater()`, which hands it to the delivery handler -- with [`@usehenri/jobs`](/guides/jobs/) a queue row, sent by a runner a test never starts. An inbox that watched one of them would answer differently depending on which packages are installed, so both are captured and `deferred` says which door it was. What a runner sends afterwards is a second entry, `deferred: false` this time, because two things really did happen:
+
+```js
+await henri.mailers.welcome.confirm(user).deliverLater();
+
+expect(inbox({ deferred: true })).toHaveLength(1);
+
+const [job] = await enqueued('henri/mail');
+
+await henri.jobs.performNow(job.name, job.args);
+
+expect(inbox({ deferred: false })).toHaveLength(1);
+```
+
+`inbox(filter)` narrows on `action`, `deferred`, `mailer`, `subject` and `to`, where a string is compared (an address without its case) and a regular expression tested. Anything a filter cannot say is a predicate: `inbox((mail) => mail.text.includes('unsubscribe'))`. A key the inbox does not hold is **refused** rather than ignored, because a filter that is silently dropped makes an assertion pass for the wrong reason.
+
+**The inbox is emptied before every test** by `@usehenri/testing/setup-file`, so nothing a test asserts on can come from the one before it; `clearInbox()` does the same by hand for a suite that boots henri another way. And it belongs to the application rather than to the process: it lives on the instance `setup()` booted, so a worker running its own boot reads its own mail, and `teardown()` takes it away with the instance.
+
+## Jobs
+
+`enqueued()` is what the queue holds. Not a copy of what went past: it reads the queue back, so the `args` have been through JSON exactly as the runner will read them, and a job enqueued by a model hook three layers down is in it like any other.
+
+```js
+const { enqueued } = require('@usehenri/testing');
+
+test('publishing a proposal notifies the reviewers', async () => {
+  await request().post('/proposals/1/publish');
+
+  const [job] = await enqueued('notify');
+
+  expect(await enqueued()).toHaveLength(1);
+  expect(job.args).toEqual({ proposalId: 1 });
+  expect(job.queue).toBe('default');
+});
+```
+
+A string is the job name, and a filter takes `name`, `queue`, `state`, `limit` and `offset`. The state is `pending` by default, which is what "enqueued" means -- a job a runner already performed is `done`, not gone: `{ state: 'dead' }` reads the dead letter queue and `{ state: null }` everything the table holds. A row is what `henri jobs:show` prints (`args`, `name`, `queue`, `priority`, `runAt`, `attempts`, `state`, `error`).
+
+Nothing performs a job on its own. `henri.jobs.performNow(job.name, job.args)` runs one here and now, which is how a test asserts on what a job _does_ rather than on the fact that it was enqueued.
+
+Both need `@usehenri/jobs`, which is optional and stays optional -- `@usehenri/testing` does not depend on it. An application with no queue is told so, with the install line (`HENRI_JOB_QUEUE_UNAVAILABLE`), rather than handed an empty list: an assertion that passes because the feature is missing is worse than no helper at all.
+
+`clearJobs()` forgets the jobs the queue holds, whatever their state, and answers how many. Nothing calls it for you, unlike the inbox: those are rows in the application's own database, so emptying them between tests is the suite's decision.
+
 ## Speed
 
 The setup file boots the application once per test file, and `fileParallelism: false` runs those files one at a time. That is the setting to keep while **the files share one database**, which is the usual case: a store with a `url` in `config/test.json` is one database, whatever runs against it, and two files emptying tables at the same time is not a suite you can read a failure from.
@@ -155,6 +220,9 @@ Before turning it on, look for what the files still share. The application's dir
 - `teardown()` stops it.
 - `request()` a supertest request bound to the running server.
 - `agent()` a supertest agent (keeps cookies between requests).
+- `inbox(filter)` the mail the application was asked to send; `clearInbox()` empties it.
+- `enqueued(filter)` the jobs the queue holds; `clearJobs(filter)` forgets them. Both need `@usehenri/jobs`.
+- `create`, `build`, `createList`, `defineFactory`, `resetFactories` the factories.
 - `henri` the running instance (also `global.henri`).
 - `supertest` the underlying module.
 
