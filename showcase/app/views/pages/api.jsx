@@ -44,6 +44,20 @@ const requests = (sample) => [
   },
   {
     accept: 'application/hal+json',
+    id: 'filtered',
+    note: 'A declared filter and a declared order. What may be asked for is the `filters` block of app/controllers/proposals.js and nothing else, the value is checked before the action runs, and the result is intersected with what the policy says the list is -- so a filter narrows it and can never widen it. The paging links carry both.',
+    path: '/proposals?filter[state]=submitted&sort=title&per_page=3',
+    title: 'A filtered, ordered page',
+  },
+  {
+    accept: 'application/hal+json',
+    id: 'filter-refused',
+    note: 'Nothing undeclared is filterable. `speakerId` is a column of the model and a column of the answer, and it is not something a client may search by: 422 with HENRI_FILTER_INVALID, before the action runs.',
+    path: '/proposals?filter[speakerId]=1',
+    title: 'A filter nobody declared',
+  },
+  {
+    accept: 'application/hal+json',
     id: 'resource',
     note: 'One resource. _links is built from the route helpers of this controller and filtered by the roles of the current user. There is no destroy link because config/routes.js says except: [destroy]: withdrawing is a member route that soft deletes instead.',
     path: `/proposals/${sample.proposal || 'unknown'}`,

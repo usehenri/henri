@@ -1094,12 +1094,18 @@ function back(req) {
  * flash -- the messages only, because henri cannot tell a password from a
  * title and the values would go through the session and the page.
  *
+ * The declared filters of `base/filters.js` are refused through this too,
+ * with a code and a summary of their own: a filter is a parameter, and one
+ * answer shape for both is the point.
+ *
  * @param {Express.Request} req the request
  * @param {Express.Response} res the response
  * @param {object} errors the messages, by field
+ * @param {object} [answer={}] `{ code, message }`, defaulting to the
+ *   parameter check's own
  * @returns {*} the answer
  */
-function refuse(req, res, errors) {
+function refuse(req, res, errors, { code = CODE, message = MESSAGE } = {}) {
   const target = back(req);
 
   if (target && typeof req.flash === 'function') {
@@ -1107,7 +1113,7 @@ function refuse(req, res, errors) {
   }
 
   const details = Object.entries(errors)
-    .map(([field, message]) => `${field} ${message}`)
+    .map(([field, reason]) => `${field} ${reason}`)
     .join('\n');
 
   return respond(res, {
@@ -1117,8 +1123,8 @@ function refuse(req, res, errors) {
         : res
             .status(422)
             .type('html')
-            .send(page(422, 'Unprocessable Entity', details, CODE)),
-    json: () => res.boom.badData(MESSAGE, { errors }, CODE),
+            .send(page(422, 'Unprocessable Entity', details, code)),
+    json: () => res.boom.badData(message, { errors }, code),
   });
 }
 
@@ -1155,10 +1161,15 @@ module.exports = {
   MESSAGE,
   RESERVED,
   TYPES,
+  // One value through one rule, whatever asks: the declared filters of
+  // base/filters.js coerce theirs with the same vocabulary and the same
+  // "a query string is textual" rule
+  coerce: value,
   declarations,
   fieldsFor,
   guard,
   inspect,
+  refuse,
   rule,
   // `base/answers.js` asks the same question in the other direction, so
   // there is one table of what each type is and one answer per type

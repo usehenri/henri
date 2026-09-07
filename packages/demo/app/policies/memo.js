@@ -45,6 +45,10 @@ module.exports = {
   // and never looks inside it
   scope: (user) => ({ ownerId: String((user && (user.id || user._id)) || '') }),
 
+  // The filtered list is the same list: a filter narrows what `scope`
+  // answered and can never widen it
+  search: (user) => Boolean(user),
+
   show: (user, memo) => owns(user, memo),
 
   update: (user, memo) => owns(user, memo),

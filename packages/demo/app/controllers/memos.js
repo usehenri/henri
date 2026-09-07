@@ -31,6 +31,22 @@ const loadMemo = async (req, res) => {
 module.exports = {
   before: { 'peek,show,update,destroy': loadMemo },
 
+  // What a client may narrow and order this list by, and nothing else: an
+  // undeclared name is a 422 before the action runs, and `contains` is
+  // named because a substring search over a text column is a scan (see
+  // base/filters.js). `body` is personal and stays out of both lists.
+  filters: {
+    search: {
+      default: '-createdAt',
+      sort: ['archivedAt', 'createdAt', 'title'],
+      where: {
+        archivedAt: { type: 'date' },
+        title: { operators: ['contains', 'starts'], type: 'string' },
+      },
+    },
+  },
+
+  // eslint-disable-next-line sort-keys -- the hooks and the declaration first
   create: async (req, res) => {
     const memo = await Memo.create(
       Object.assign(req.permit(...FIELDS), { ownerId: owner(req) })
@@ -54,6 +70,24 @@ module.exports = {
   // answer without the record, and this action never authorizes. That is
   // what config.policies.verify reports.
   peek: async (req, res) => res.json({ title: req.memo.title }),
+
+  // The filtered half of the list. The scope is what the policy says the
+  // list is, plus what this action is about -- a memo the author has not
+  // put away -- and a client filter is intersected with it, never merged
+  // into it: `?filter[archivedAt][gte]=...` answers nothing here rather
+  // than reaching the archive
+  search: async (req, res) => {
+    const { order, where } = await req.filters({
+      scope: { ...(await req.scope('memo')), archivedAt: null },
+    });
+    const { page, perPage, records, total } = await Memo.paginate({
+      ...req.pagination(),
+      order,
+      where,
+    });
+
+    return res.collection(records, { page, perPage, total });
+  },
 
   // Asks nothing either, but answers through res.resource(): the policy is
   // enforced there, because that is where the record finally is

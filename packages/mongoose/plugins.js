@@ -188,17 +188,20 @@ const paginate = (schema) => {
    *
    * @param {object} [options={}] `page` and `perPage` (as `req.pagination()`
    *   returns them; every other key it sets is ignored), `where` (the
-   *   filter), `sort`, `select`, `populate`, `lean` and `withDeleted`
+   *   filter), `sort` (`order` is the same key, so what `req.filters()`
+   *   answers reads the same on every adapter), `select`, `populate`,
+   *   `lean` and `withDeleted`
    * @returns {Promise<object>} `{ records, page, perPage, total, pages }`
    */
   schema.statics.paginate = async function paginate(options = {}) {
     const {
       lean = false,
+      order,
       page: wanted,
       perPage: size,
       populate,
       select,
-      sort,
+      sort = order,
       where = {},
       withDeleted = false,
     } = options;

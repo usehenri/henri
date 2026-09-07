@@ -11,9 +11,18 @@ const {
   RESERVED: ANSWER_KEYS,
   declarations: answered,
 } = require('./base/answers');
+const {
+  RESERVED: FILTER_KEYS,
+  declarations: filterDeclarations,
+} = require('./base/filters');
 
 /** The exports of a controller that describe it instead of answering */
-const RESERVED = new Set([...HOOK_KEYS, ...PARAM_KEYS, ...ANSWER_KEYS]);
+const RESERVED = new Set([
+  ...HOOK_KEYS,
+  ...PARAM_KEYS,
+  ...ANSWER_KEYS,
+  ...FILTER_KEYS,
+]);
 
 /**
  * Controllers module
@@ -39,10 +48,13 @@ class Controllers extends BaseModule {
     this._params = new Map();
     /** The compiled `answers` declarations, by `controller#action` */
     this._answers = new Map();
+    /** The compiled `filters` declarations, by `controller#action` */
+    this._filters = new Map();
 
     this.accepts = this.accepts.bind(this);
     this.answers = this.answers.bind(this);
     this.checks = this.checks.bind(this);
+    this.filters = this.filters.bind(this);
     this.configure = this.configure.bind(this);
     this.init = this.init.bind(this);
     this.reload = this.reload.bind(this);
@@ -111,6 +123,12 @@ class Controllers extends BaseModule {
         )) {
           this._answers.set(`${id}#${action}`, rules);
         }
+
+        for (const [action, declared] of Object.entries(
+          filterDeclarations(controller, id, actions)
+        )) {
+          this._filters.set(`${id}#${action}`, declared);
+        }
       }
     }
 
@@ -146,6 +164,7 @@ class Controllers extends BaseModule {
     this._modules.clear();
     this._params.clear();
     this._answers.clear();
+    this._filters.clear();
     await this.init();
 
     return this.name;
@@ -200,6 +219,22 @@ class Controllers extends BaseModule {
    */
   answers(key) {
     return this._answers.get(key) || null;
+  }
+
+  /**
+   * What an action declared a client may filter and order its list by,
+   * compiled but not yet bound to a model
+   *
+   * A controller exports it as `filters`, keyed by action the way `params`
+   * is. The columns are checked against the model at runlevel 5, where the
+   * models exist: see base/filters.js and Router#narrows.
+   *
+   * @param {string} key The controller name (ex: tasks#index)
+   * @returns {?object} The declaration, or null when there is none
+   * @memberof Controllers
+   */
+  filters(key) {
+    return this._filters.get(key) || null;
   }
 
   /**

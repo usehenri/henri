@@ -7,7 +7,7 @@ sidebar:
 
 Controllers live in `app/controllers`. Every `.js` file there is loaded on boot, reloaded on save and referenced from `config/routes.js` as `file#action`; a file in a subdirectory is prefixed with it (`app/controllers/admin/users.js` is `admin/users#index`).
 
-A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block, an optional `params` block saying what each action accepts and an optional `answers` block saying what each action answers. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
+A controller is a plain object of Express handlers, `(req, res)` or `(req, res, next)`, sync or async, plus an optional `before` block, an optional `params` block saying what each action accepts, an optional `answers` block saying what each action answers and an optional `filters` block saying what a list may be narrowed and ordered by. Models are globals, `henri` is a global, and `res.render()` hands data to the view.
 
 A `/** @type {import('@usehenri/core').Controller} */` line above `module.exports` is what gives `req` and `res` completion in an editor; the generators write it for you. See [Types](/reference/types/).
 
@@ -98,7 +98,7 @@ module.exports = {
 };
 ```
 
-A hook may also be given by name (`before: { show: 'loadTask' }`), which resolves to another export of the same controller. `before`, [`params`](#params-what-an-action-accepts) and [`answers`](#answers-what-an-action-answers) are never routable: they are the keys of a controller that are not actions.
+A hook may also be given by name (`before: { show: 'loadTask' }`), which resolves to another export of the same controller. `before`, [`params`](#params-what-an-action-accepts), [`answers`](#answers-what-an-action-answers) and [`filters`](#filters-what-a-list-may-be-narrowed-and-ordered-by) are never routable: they are the keys of a controller that are not actions.
 
 ## `params`: what an action accepts
 
@@ -255,6 +255,33 @@ The declaration is one level deep, like `params`: it describes the fields of the
 ### It is also the description of the answer
 
 [`henri openapi`](/guides/openapi/) refused to describe what a controller writes: such an operation carried the statuses henri produces, `x-henri.known: false` and no success status at all. A declared answer is exactly what it could not know, so an operation that has one carries a `200` with the schema — `$ref`ing the model's record schema for a field naming a model, the column's own schema for a field naming one, and `additionalProperties: false`, because the document says what the gate does.
+
+## `filters`: what a list may be narrowed and ordered by
+
+The fourth reserved key. `params` says what an action accepts; `filters` says what a client may **filter and sort a list by** — which columns, with which operators, and in which order — and refuses everything else with the same `422`:
+
+```js
+filters: {
+  index: {
+    where: {
+      state: { enum: ['submitted', 'accepted'], type: 'string' },
+      title: { operators: ['contains'], type: 'string' },
+    },
+    sort: ['submittedAt', 'title'],
+    default: '-submittedAt',
+  },
+},
+
+index: async (req, res) => {
+  const { order, where } = await req.filters();
+
+  return res.collection(
+    ...
+  );
+},
+```
+
+`req.filters()` intersects what the client asked for with what [the policy says the list is](/guides/policies/#scoping-a-list), so a filter narrows a list and can never widen it. Nothing undeclared is filterable, an order over a `text` or an `encrypted` column is refused at boot, and `henri openapi` describes the `filter[...]` parameters the same way it describes `params`. The whole of it is in [Filtering and sorting](/guides/filtering/).
 
 ## Implicit rendering
 

@@ -3,6 +3,7 @@ const path = require('path');
 const { DAY, MemoryStore } = require('./idempotency');
 const { AUTH_DEFAULTS, DEFAULTS: RATE_DEFAULTS } = require('./rate-limit');
 const { DEFAULTS: PAGE_DEFAULTS } = require('./pagination');
+const { DEFAULTS: FILTER_DEFAULTS } = require('./filters');
 const { identitiesConfig } = require('./identities');
 const { filterParameters } = require('./redact');
 
@@ -88,6 +89,11 @@ function settings(config, user = {}) {
         ? get('bodyLimit')
         : '1mb',
     filterParameters: filterParameters(config),
+    // What one request may ask a declared index for (see base/filters.js)
+    filters: {
+      maxFilters: positive(api.maxFilters, FILTER_DEFAULTS.maxFilters),
+      maxSort: positive(api.maxSort, FILTER_DEFAULTS.maxSort),
+    },
     idempotency:
       api.idempotency === false
         ? false

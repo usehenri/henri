@@ -957,7 +957,7 @@ disposition, filename, type })` is one call whatever the backend -- the
   answering renders `/<controller>/<action>` (`/<controller>` for `index`)
   with what it returned. `req.flash()` (`base/flash.js`) keeps one-shot messages in the
   express session and the views read them once through `flash`.
-- The second one is `params` (`base/params-schema.js`): what each action
+- The second is `params` (`base/params-schema.js`): what each action
   accepts, in the same shape (`all`, `'index,search'`), one rule per field in
   the henri schema vocabulary (`type`, `required`, `default`, `enum`) plus the
   bounds a request needs (`min`/`max`, `minLength`/`maxLength`, `pattern`,
@@ -1015,6 +1015,39 @@ disposition, filename, type })` is one call whatever the backend -- the
 - The fourth boundary is every entry point an application calls
   (`base/arguments.js`), after the configuration, the request and the
   answer: the
+- The fourth is `filters` (`base/filters.js`): what a client may narrow and
+  order an index by, declared per action in the same shape, and **nothing
+  undeclared is filterable or sortable** -- the position `ransack` is famous
+  for not taking. A `where` entry is a parameter rule plus `operators` and
+  `column`; `sort` is the columns a client may name and `default` the order
+  when it names none. The vocabulary is henri's and closed (`eq`, `ne`, `in`,
+  `nin`, `lt`, `lte`, `gt`, `gte`, `between`, `null`, `starts`, `ends`,
+  `contains`), turned into **the adapter's own condition** the way
+  `base/retention.js` spells its cutoff -- `Op` symbols on Sequelize, the `$`
+  spellings Mongoose and Drizzle share -- and never into SQL. Every type gets
+  the equalities, an ordered one gets the ranges, and **the three text
+  operators are opt-in per field** because `contains` on an unindexed column
+  is a scan a client can ask for repeatedly; a text value carrying `%` or `_`
+  is refused rather than escaped (no dialect agrees on an escape character
+  and sqlite has none), and on MongoDB it becomes a fully escaped literal
+  `$regex`. What can never be declared fails the **boot**
+  (`HENRI_FILTER_DECLARATION_INVALID`): an unknown column, a randomised
+  `encrypted` one, anything but an equality on a deterministic one, an order
+  over a `text`, `json` or `encrypted` column, a declared foreign key (a
+  lookup per term, the refusal `base/graphql-schema.js` makes) and a field
+  marked `personal: { expose: false }` (a filter over it is the value one bit
+  at a time). `2.controllers.js` compiles the block, `5.router.js` binds it to
+  the model and mounts the guard next to the parameter check, and
+  `req.filters([{ policy, scope }])` answers `{ where, order, sort, terms }`:
+  **the client's condition is intersected with `policy.scope(user)` with an
+  `and`**, so a filter narrows a list and can never widen it, and the order
+  ends with `externalId` so a page is stable. A request asking for anything
+  else is a 422 with `HENRI_FILTER_INVALID` before the action runs.
+  `base/pagination.js` already carries the query string into `next`/`prev`,
+  so the links carry the filter, and `henri openapi` writes one parameter per
+  comparison plus `x-henri.filters`. The guide is `guides/filtering.md`.
+- The fourth boundary is every entry point an application calls
+  (`base/arguments.js`), after the configuration and the request: the
   signature of roughly fifty of them, as data, in the same node vocabulary
   `config-schema.js` uses -- `config-validate.js` exports `problems()` so
   there is one walker and no second schema language, and it
@@ -1316,5 +1349,23 @@ queries.spec.js`, and on a real application by the showcase's cost test.
   detected in a job, in the console or across requests. There is no history
   of findings, no span (the join is the request id and nothing more) and no
   fix applied on anyone's behalf.
+- The declared filters (`filters` in a controller) are new. Two limits are
+  deliberate and in the guide. A **text value carrying `%` or `_` is
+  refused** rather than escaped: the wildcards are what the surface exists
+  to keep out, no dialect agrees on an escape character and sqlite has none
+  without an `ESCAPE` clause core would have to write as SQL -- so an
+  application that wants wildcard search writes that query itself. And the
+  three text operators are **case-insensitive on the collations the
+  adapters open by default** (`ILIKE` on postgres, `$options: 'i'` on
+  MongoDB, `LIKE` elsewhere); a binary collation matches exactly, which is
+  the database's decision. The condition and the order are covered on
+  sqlite offline and on the live PostgreSQL and MySQL of
+  `pnpm test:sql:live` (`packages/{drizzle,sequelize}/__tests__/
+filters.spec.js`), on MongoDB through the demo application core's suite
+  boots (`get /memos/search`), and on a real index page by the showcase.
+  MSSQL rides the Sequelize mapping and has no coverage of its own, like
+  the rest of that adapter. There is no `or` between filters, no free-text
+  search across columns, no cursor paging, no filtering across an
+  association and no operator an application can add.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.

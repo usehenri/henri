@@ -1031,6 +1031,60 @@ Usually:
 
 **Fix.** Declare the trait in the `traits` of the factory, or pass an override object instead. The message lists the traits it does have.
 
+## filter
+
+The filters and the order an index action declares, and what a request asks of them.
+
+### `HENRI_FILTER_ADAPTER_UNSUPPORTED`
+
+henri cannot turn a declared filter into a condition for this model's adapter.
+
+Usually:
+
+- a model whose adapter is not mongoose, sequelize or drizzle
+- a model that left the application between the boot and the request
+
+**Fix.** A filter goes through the model API of the three adapters henri ships. Name the model the action filters (`filters: { index: { model: 'Proposal' } }`) and make sure the store that holds it is the one the boot started.
+
+### `HENRI_FILTER_DECLARATION_INVALID`
+
+A controller declares filters henri cannot carry out, or asks for filters it did not declare.
+
+Usually:
+
+- a filter or a sort over a column the model does not have
+- a filter over a declared foreign key, a json column, or a field marked personal: { expose: false }
+- a filter over a randomised `encrypted` column, or anything but an equality over a deterministic one
+- a sort over a `text`, a `json` or an `encrypted` column
+- an operator that is not one, or that the declared type does not take
+- an action calling `req.filters()` without declaring `filters`
+
+**Fix.** The message names the controller, the action and the field. A filter is `{ type, enum, min, max, minLength, maxLength, pattern, operators, column }` over a column the model has; a sort is a list of column names. See the Filtering guide.
+
+### `HENRI_FILTER_INVALID`
+
+A request asks to filter or order a list by something the action did not declare.
+
+Usually:
+
+- a `filter[...]` name the action did not declare
+- an operator the field does not accept (`contains` is opt-in, per field)
+- a value of the wrong type, or a text value carrying `%` or `_`
+- a `sort` naming a column the action does not let a client order by
+- more terms than `config.api.maxFilters` or `config.api.maxSort`
+
+**Fix.** The 422 answer carries one message per term in `data.errors`. Ask for what the action declared, or declare what you want to be able to ask for.
+
+### `HENRI_FILTER_SCOPE_UNMERGEABLE`
+
+The condition a policy answered is not one a client filter can narrow.
+
+Usually:
+
+- a policy whose `scope(user)` answers something other than a plain object
+
+**Fix.** A filter is intersected with the scope so it can never widen the list, and henri cannot put a condition under a value it hands the ORM untouched. Answer a plain object from `scope(user)`, or hand `req.filters({ scope })` the condition to intersect.
+
 ## identity
 
 Signing in with somebody else's identity provider: the providers an application configures, the table the identities live in and the callback that binds one to an account.

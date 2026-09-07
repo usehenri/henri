@@ -3,14 +3,27 @@ const path = require('path');
 const supertest = require('supertest');
 
 const Henri = require('../henri');
-const { build } = require('../base/openapi');
+const { build, columnsOf, settingsOf } = require('../base/openapi');
 const { expand } = require('../base/routes');
 const { loadModules } = require('../utils');
 const { RESERVED: HOOK_KEYS } = require('../base/hooks');
 const { RESERVED: PARAM_KEYS, declarations } = require('../base/params-schema');
+const {
+  RESERVED: FILTER_KEYS,
+  declarations: filterDeclarations,
+  modelFor,
+  verify,
+} = require('../base/filters');
+const { mapOf } = require('../base/privacy');
 
 const demo = path.resolve(__dirname, '..', '..', '..', 'demo');
-const reserved = new Set([...HOOK_KEYS, ...PARAM_KEYS, 'globalId', 'identity']);
+const reserved = new Set([
+  ...HOOK_KEYS,
+  ...PARAM_KEYS,
+  ...FILTER_KEYS,
+  'globalId',
+  'identity',
+]);
 
 /**
  * The document of the demo application, built from its files the way
@@ -24,27 +37,50 @@ const describeDemo = () => {
   const controllers = loadModules(path.join(demo, 'app', 'controllers'), {
     keepDirectoryPath: true,
   });
+  const config = require(path.join(demo, 'config', 'default.json'));
+  const models = Object.values(loadModules(path.join(demo, 'app', 'models')));
+  const settings = settingsOf(config);
+  const hidden = new Set(
+    mapOf(models, { settings: settings.privacy, subject: null }).private
+  );
   const accepts = {};
   const actions = {};
+  const filters = {};
 
   for (const controller of Object.values(controllers)) {
     const names = Object.keys(controller).filter(
       (key) => !reserved.has(key) && typeof controller[key] === 'function'
     );
     const rules = declarations(controller, controller.identity, names);
+    const narrows = filterDeclarations(controller, controller.identity, names);
 
     for (const action of names) {
-      actions[`${controller.identity}#${action}`] = true;
-      accepts[`${controller.identity}#${action}`] = rules[action] || {};
+      const key = `${controller.identity}#${action}`;
+      const declared = narrows[action];
+      const model = declared
+        ? modelFor(models, declared, controller.identity)
+        : null;
+
+      actions[key] = true;
+      accepts[key] = rules[action] || {};
+      filters[key] = declared
+        ? verify(declared, {
+            columns: columnsOf(model || {}, settings),
+            hidden,
+            model: model && model.globalId,
+            where: key,
+          })
+        : null;
     }
   }
 
   return build({
     accepts,
     actions,
-    config: require(path.join(demo, 'config', 'default.json')),
+    config,
+    filters,
     info: { title: 'demo', version: '1.0.0' },
-    models: Object.values(loadModules(path.join(demo, 'app', 'models'))),
+    models,
     policies: Object.keys(loadModules(path.join(demo, 'app', 'policies'))),
     routes: expand(require(path.join(demo, 'app', 'routes.js'))),
   });
@@ -349,6 +385,105 @@ describe('the OpenAPI description', () => {
       // ... and one that opted out of idempotency answers no 422 at all
       expect(document.paths['/echo'].post.responses['422']).toBeUndefined();
       expect(document.paths['/echo'].post['x-henri'].params).toBeUndefined();
+    });
+
+    test('a declared filter is a parameter, spelled the way a client writes it', () => {
+      const search = document.paths['/memos/search'].get;
+      const named = Object.fromEntries(
+        search.parameters
+          .filter((parameter) => parameter.name)
+          .map((parameter) => [parameter.name, parameter])
+      );
+
+      // Every comparison the action declared, and nothing else
+      expect(
+        Object.keys(named)
+          .filter((name) => name.startsWith('filter['))
+          .sort()
+      ).toEqual([
+        'filter[archivedAt]',
+        'filter[archivedAt][between]',
+        'filter[archivedAt][gt]',
+        'filter[archivedAt][gte]',
+        'filter[archivedAt][in]',
+        'filter[archivedAt][lt]',
+        'filter[archivedAt][lte]',
+        'filter[archivedAt][ne]',
+        'filter[archivedAt][nin]',
+        'filter[archivedAt][null]',
+        'filter[title]',
+        'filter[title][contains]',
+        'filter[title][in]',
+        'filter[title][ne]',
+        'filter[title][nin]',
+        'filter[title][null]',
+        'filter[title][starts]',
+      ]);
+
+      expect(named['filter[archivedAt]'].schema).toEqual({
+        format: 'date-time',
+        type: 'string',
+      });
+      // A list is comma separated, which is what OpenAPI's form style with
+      // no explode is
+      expect(named['filter[title][in]']).toMatchObject({
+        explode: false,
+        schema: { items: { type: 'string' }, type: 'array' },
+        style: 'form',
+      });
+      expect(named['filter[archivedAt][between]'].schema).toMatchObject({
+        maxItems: 2,
+        minItems: 2,
+      });
+      expect(named['filter[archivedAt][null]'].schema).toEqual({
+        type: 'boolean',
+      });
+      expect(named['filter[title][contains]'].description).toContain(
+        '`%` and `_` are refused'
+      );
+
+      // ... and the order, with both spellings of every declared column
+      expect(named.sort.schema.items.enum).toEqual([
+        'archivedAt',
+        '-archivedAt',
+        'createdAt',
+        '-createdAt',
+        'title',
+        '-title',
+      ]);
+      expect(named.sort.schema.maxItems).toBe(3);
+
+      expect(search['x-henri'].enforced).toContain('filters');
+      expect(search['x-henri'].filters).toEqual({
+        model: 'Memo',
+        sort: ['archivedAt', 'createdAt', 'title'],
+        where: {
+          archivedAt: [
+            'between',
+            'eq',
+            'gt',
+            'gte',
+            'in',
+            'lt',
+            'lte',
+            'ne',
+            'nin',
+            'null',
+          ],
+          title: ['contains', 'eq', 'in', 'ne', 'nin', 'null', 'starts'],
+        },
+      });
+    });
+
+    test('an action that declares no filter is described with none', () => {
+      const index = document.paths['/memos'].get;
+
+      expect(index['x-henri'].filters).toBeUndefined();
+      expect(
+        index.parameters.filter(
+          (parameter) => parameter.name && parameter.name.startsWith('filter[')
+        )
+      ).toEqual([]);
     });
 
     test('a declared page replaces the paging parameter, never doubles it', () => {

@@ -25,6 +25,9 @@ import type {
   JobStats,
   EncryptionFieldStatus,
   ErasureReceipt,
+  FilterResult,
+  FilterSortTerm,
+  FilterTerm,
   ModelFile,
   Page,
   ParamRule,
@@ -351,6 +354,15 @@ req.permit({ title: true });
 // @ts-expect-error there is no `req.paginate`
 req.paginate();
 
+// req.filters(): the condition and the order of a declared index
+expectType<Promise<FilterResult>>(req.filters());
+req.filters({ policy: 'proposal' });
+req.filters({ scope: { state: 'accepted' } });
+req.filters({ scope: false });
+
+// @ts-expect-error the options bag takes `policy` and `scope`
+req.filters({ polcy: 'proposal' });
+
 // --- response ---------------------------------------------------------------
 
 res.render('/tasks/index', { data: { tasks: [] } });
@@ -606,6 +618,53 @@ expectType<Record<string, ParamRule> | null>(
 expectType<Record<string, AnswerRule> | null>(
   henri.controllers.answers('tasks#index')
 );
+expectType<object | null>(henri.controllers.filters('tasks#index'));
+
+const narrowed: Controller = {
+  filters: {
+    index: {
+      where: {
+        // the short form is the type itself
+        done: 'boolean',
+        state: { type: 'string', enum: ['draft', 'done'] },
+        // the column, when the name a client writes is not it
+        team: { type: 'string', column: 'teamId' },
+        title: { type: 'string', operators: ['contains', 'starts'] },
+      },
+      sort: ['createdAt', 'title'],
+      default: '-createdAt',
+    },
+    'index,search': { sort: { newest: 'createdAt' }, model: 'Task' },
+  },
+  index: async (req, res) => {
+    const { model, order, sort, terms, where } = await req.filters();
+
+    expectType<string>(model);
+    expectType<FilterSortTerm[]>(sort);
+    expectType<FilterTerm[]>(terms);
+
+    return res.collection([], { links: { self: `/tasks?${order}${where}` } });
+  },
+};
+
+expectType<Controller>(narrowed);
+
+const badFilter: Controller = {
+  filters: {
+    // @ts-expect-error an operator henri does not have
+    index: { where: { title: { type: 'string', operators: ['soundslike'] } } },
+  },
+};
+
+const requiredFilter: Controller = {
+  filters: {
+    // @ts-expect-error a filter is never required
+    index: { where: { title: { type: 'string', required: true } } },
+  },
+};
+
+expectType<Controller>(badFilter);
+expectType<Controller>(requiredFilter);
 
 // --- routes -----------------------------------------------------------------
 

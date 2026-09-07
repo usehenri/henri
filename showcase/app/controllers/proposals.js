@@ -149,10 +149,38 @@ module.exports = {
       trackId: { type: 'string' },
     },
     index: {
+      // The public id of an edition. It is a *reference*, which henri
+      // refuses as a declared filter because matching it is a lookup henri
+      // would have to make per term -- so it stays a parameter and the
+      // action resolves it into the scope below
       event: { type: 'uuid' },
-      // The same list the query below filters on: a state that is nobody's
-      // business is a 422 rather than a filter quietly ignored
-      state: { enum: PUBLIC_STATES, type: 'string' },
+    },
+  },
+
+  // ... and what a client may narrow and order this list by. Nothing
+  // undeclared is filterable: `?filter[speakerId]=1` and `?sort=abstract`
+  // are 422s before the action runs, and this block is what `henri openapi`
+  // describes the `filter[...]` parameters of GET /proposals from.
+  //
+  // `title` names `contains` because a substring search over a text column
+  // is a scan, and this application has thought about it; every other field
+  // gets the equality every type gets and nothing more. `abstract` is a
+  // `text` column and is in neither list: an unbounded order over one is a
+  // filesort over the whole table, which henri refuses at boot.
+  // eslint-disable-next-line sort-keys -- the request declarations first
+  filters: {
+    index: {
+      default: '-submittedAt',
+      sort: ['submittedAt', 'title'],
+      where: {
+        format: { enum: ['talk', 'workshop', 'lightning'], type: 'string' },
+        level: {
+          enum: ['beginner', 'intermediate', 'advanced'],
+          type: 'string',
+        },
+        state: { enum: PUBLIC_STATES, type: 'string' },
+        title: { operators: ['contains'], type: 'string' },
+      },
     },
   },
 
@@ -208,27 +236,44 @@ module.exports = {
     }),
 
   index: async (req, res) => {
-    const where = { state: PUBLIC_STATES };
-
-    if (PUBLIC_STATES.includes(req.query.state)) {
-      where.state = req.query.state;
-    }
+    // What this list *is*, before anything a visitor asked for: the states
+    // this conference publishes, and the edition they picked. henri
+    // intersects a client filter with it and never merges into it, so
+    // `?filter[state]=draft` answers nothing rather than reaching a draft
+    const scope = { state: PUBLIC_STATES };
 
     if (req.query.event) {
-      // The filter carries the public id of an edition; an unknown one
+      // The parameter carries the public id of an edition; an unknown one
       // matches nothing rather than everything
       const edition = await Event.findById(req.query.event);
 
-      where.eventId = edition ? edition.id : 0;
+      scope.eventId = edition ? edition.id : 0;
     }
 
+    const { order, terms, where } = await req.filters({ scope });
     const { records, page, perPage, total, pages } = await Proposal.paginate({
       ...req.pagination(),
       include: INCLUDE,
-      order: ['-submittedAt', '-id'],
+      order,
       where,
     });
     const proposals = await presented(records);
+    // What the page shows as chosen, and the query it carries into every
+    // link it builds -- the paging links `res.collection()` answers carry
+    // the same thing, because they are the url as it was asked for
+    const chosen = Object.fromEntries(
+      terms.map((term) => [term.name, term.value])
+    );
+    const query = Object.fromEntries([
+      ...terms.map((term) => [
+        term.operator === 'eq'
+          ? `filter[${term.name}]`
+          : `filter[${term.name}][${term.operator}]`,
+        term.value,
+      ]),
+      ['event', req.query.event || ''],
+      ['sort', req.query.sort || ''],
+    ]);
 
     return res.negotiate({
       html: async () => {
@@ -236,19 +281,18 @@ module.exports = {
 
         return res.render('/proposals/index', {
           data: {
+            chosen,
             editions: editions.map((event) => ({
               externalId: event.externalId,
               name: event.name,
               year: event.year,
             })),
-            filters: {
-              event: req.query.event || '',
-              state: req.query.state || '',
-            },
             page,
             pages,
             perPage,
             proposals,
+            query,
+            sort: req.query.sort || '',
             total,
           },
         });
