@@ -25,7 +25,6 @@
   },
   "files": [
     "bin",
-    "docs",
     "index.js",
     "src",
     "CHANGELOG.md",

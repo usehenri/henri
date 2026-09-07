@@ -58,7 +58,7 @@ const TARGETS = [
   'test',
 ];
 
-const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the openapi tool to learn the HTTP surface in one call -- every path, its guards, its request body and the answers henri itself produces -- and trust what it marks unknown. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor, audit and test. The guide tool serves the documentation of the henri version installed here: read it instead of guessing from memory. errors, logs, query, records, runtime_routes and request answer against the running application rather than its files: start with errors when something failed, and use request to check a fix without a browser.`;
+const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the openapi tool to learn the HTTP surface in one call -- every path, its guards, its request body and the answers henri itself produces -- and trust what it marks unknown. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor, audit and test. The guide tool serves the documentation of the henri version installed here -- the pages ship inside @usehenri/core, so they describe this application's framework rather than the latest release: read it instead of guessing from memory. errors, logs, query, records, runtime_routes and request answer against the running application rather than its files: start with errors when something failed, and use request to check a fix without a browser.`;
 
 /** The levels pen writes with */
 const LEVELS = ['error', 'warn', 'info', 'verbose', 'debug', 'silly'];
@@ -580,24 +580,25 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
       const installed = app.installed();
 
       if (!page) {
-        const pages = docs.index();
+        const pages = docs.index(app.cwd);
 
         return pages.length > 0
           ? ok({ count: pages.length, pages, versions: installed })
           : failed({
               code: 'HENRI_AGENT_NO_DOCS',
-              hint: 'Reinstall @usehenri/mcp',
-              message: 'the documentation was not shipped with this server',
+              hint: 'The pages ship with @usehenri/core: upgrade it, or read them on https://usehenri.io',
+              message:
+                'there is no documentation next to this application to read',
             });
       }
 
-      const found = docs.page(page);
+      const found = docs.page(page, app.cwd);
 
       return found
         ? ok(Object.assign({ versions: installed }, found))
         : failed({
             code: 'HENRI_AGENT_UNKNOWN_PAGE',
-            hint: 'Call guide without a page to list them',
+            hint: 'Call guide without a page to list the pages this version ships',
             message: `there is no documentation page named "${page}"`,
           });
     }

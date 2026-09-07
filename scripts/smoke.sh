@@ -87,6 +87,13 @@ mkdir -p "$tarballs"
 #    @usehenri/* and henri with the tarballs so that transitive workspace
 #    dependencies (disk -> mongoose, henri -> cli, ...) resolve locally too.
 # ---------------------------------------------------------------------------
+# What `changeset publish` runs first: the LICENSE, the README and the
+# documentation pages are copied into the packages. They are gitignored, so
+# packing without this step would produce tarballs npm never sees -- and the
+# pages are what `henri docs` reads back further down.
+log "scripts/prepublish.js"
+node "$root/scripts/prepublish.js" >/dev/null
+
 log "packing the workspace packages into $tarballs"
 overrides=""
 henri_tarball=""
@@ -210,6 +217,28 @@ pnpm exec henri audit --no-deps --fail-on=low
 # The description of what the scaffold exposes, from a real install: the
 # command has to ship, run without a database and produce a document the
 # scaffolded resource is actually in.
+# The documentation ships inside @usehenri/core, so an application carries
+# the pages of the version it runs and an agent reads them with nothing to
+# fetch. This is the only place that whole chain runs -- copied, packed,
+# installed, read back -- and a `files` array that forgot them fails here.
+log "henri docs"
+pnpm exec henri docs >/dev/null
+pnpm exec henri docs guides/routes --json >docs.json
+node -e '
+  const page = require("./docs.json");
+
+  if (
+    page.source.package !== "@usehenri/core" ||
+    !page.text.includes("config/routes.js")
+  ) {
+    console.error("henri docs did not read the pages of the installed core:", page.source);
+    process.exit(1);
+  }
+
+  console.log(`  ${page.slug} from ${page.source.package}@${page.source.version}`);
+'
+rm docs.json
+
 log "henri openapi"
 pnpm exec henri openapi --out openapi.json
 node -e '

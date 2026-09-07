@@ -77,14 +77,14 @@ Usually:
 
 ### `HENRI_AGENT_NO_DOCS`
 
-The MCP server has no documentation to serve.
+There is no documentation next to the application to read.
 
 Usually:
 
-- the documentation was not shipped with this build of the server
+- the henri installed here predates the documentation shipping with it
 - a partial or corrupted install
 
-**Fix.** Reinstall @usehenri/mcp.
+**Fix.** The pages ship with @usehenri/core: upgrade it, or read them on https://usehenri.io.
 
 ### `HENRI_AGENT_NO_RUNTIME`
 
@@ -148,7 +148,7 @@ Usually:
 - a typo in the page name
 - a page of another henri version
 
-**Fix.** Call the guide tool without a page to list the ones this server ships.
+**Fix.** Run `henri docs` (or call the guide tool without a page) to list the pages this version ships.
 
 ### `HENRI_AGENT_UNREACHABLE`
 

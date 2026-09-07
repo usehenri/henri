@@ -76,6 +76,20 @@ The generators write the one JSDoc line that binds a file to its shape
 controller, model or routes file is typed from the moment it exists. See
 [Types](/reference/types/).
 
+## The documentation, offline and version matched
+
+The pages of this site ship **inside the framework**: `scripts/prepublish.js` copies them into `@usehenri/core/docs` at publish time, so an application carries the documentation of the henri version it runs, with nothing to fetch.
+
+```bash
+henri docs                       # the index: every page and what it covers
+henri docs guides/policies       # one page, as markdown
+henri docs guides/policies --json
+```
+
+That is the answer to an agent recalling henri from its training data, which recalls a framework that was asleep for years: the pages next to the code are the ones that describe the code. They are read by `henri docs`, by the `guide` tool of the [MCP server](#the-henri-mcp-server) and by anything that opens `node_modules/@usehenri/core/docs/<page>.md` itself -- one copy, one version, three ways in.
+
+An agent that does have the network can read the whole site instead: [`/llms.txt`](https://usehenri.io/llms.txt) is the index in the [llmstxt.org](https://llmstxt.org/) format, and [`/llms-full.txt`](https://usehenri.io/llms-full.txt) is every page concatenated. Those describe the version deployed on usehenri.io, which is the latest one -- `henri docs` is the one that matches the application.
+
 ## Machine readable output
 
 Every informational command takes `--json`:

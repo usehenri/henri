@@ -520,6 +520,36 @@ const COMMANDS = [
   },
   {
     description: [
+      "henri's own documentation, read from the copy that ships with the",
+      'framework (@usehenri/core/docs): the pages of the version this',
+      'application runs, not the ones deployed on the website. Nothing is',
+      'fetched and nothing is booted, so it answers offline.',
+      '',
+      'Without a page it prints the index: every page, its slug and what it',
+      'covers. With a page it prints that page as markdown, so it can be',
+      'piped, and --json wraps it with the version it came from.',
+    ],
+    examples: [
+      {
+        command: 'henri docs',
+        description: 'Every page, with what it covers',
+      },
+      {
+        command: 'henri docs guides/routes',
+        description: 'One page, as markdown',
+      },
+      {
+        command: 'henri docs configuration --json',
+        description: '{ source, slug, title, description, url, text }',
+      },
+    ],
+    flags: [JSON_FLAG],
+    name: 'docs',
+    summary: "henri's documentation, offline, at the version installed",
+    usage: ['henri docs [page] [--json]'],
+  },
+  {
+    description: [
       'Checks the application against the henri conventions without starting',
       'it: model files singular and PascalCase, controllers lowercase and',
       'routed, every resources route backed by a controller, its actions and',

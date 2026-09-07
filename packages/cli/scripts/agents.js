@@ -867,6 +867,10 @@ This application asks for a person (\`config.user\`) and \`app/models/${facts.us
  */
 const commandSection = (facts) => {
   const rows = [
+    [
+      '`henri docs [page]`',
+      "henri's own documentation, offline, at the version installed",
+    ],
     ['`henri doctor [--json]`', 'The conventions check; run it after a change'],
     [
       '`henri audit [--json]`',

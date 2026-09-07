@@ -26,6 +26,7 @@ henri <command> [options]
 | `test [files ...]`            | Run the tests with Vitest.                                                   |
 | `clean`                       | Remove build artifacts and caches.                                           |
 | `about`                       | Print the versions of Node, henri and the packages installed in the project. |
+| `docs [page]`                 | Print henri's documentation, offline, at the version installed.              |
 | `audit`                       | Check the application against the ASVS and the OWASP Top 10.                 |
 | `analyze [module]`            | Boot the application and print the boot chart of its modules.                |
 | `flags`                       | The feature flags of this application, and flipping one, see below.          |
@@ -634,6 +635,20 @@ Four of its checks read your source for a known-dangerous _shape_ by pattern; no
 | `--json`               | `{ ok, findings: [{ severity, check, owasp, asvs, level, file, line, message, hint }], summary }`.         |
 
 A finding in `config/test.json` is reported one severity lower. The dependency step asks the package manager about the **production** dependencies at **high and critical** only, and says so as a `low` finding rather than failing when it cannot run at all. What is checked, what is deliberately not, and the table of what henri does for every application are on the [Security](/guides/security/) page.
+
+## `docs`
+
+```bash
+henri docs                        # every page, with what it covers
+henri docs guides/routes          # one page, as markdown
+henri docs configuration --json   # { source, slug, title, description, url, text }
+```
+
+Prints henri's own documentation from the copy that ships with the framework, so it answers for the version this application runs rather than for whatever the website says today. Nothing is fetched and nothing is booted, so it works offline and outside a project.
+
+The pages are `@usehenri/core/docs` -- `scripts/prepublish.js` copies `website/src/content/docs` into the package at publish time -- and they are looked for in the application first, then next to the command line. Without a page it prints the index: every slug with what it covers. With one it prints that page as markdown, with its frontmatter removed, so it can be piped. `--json` answers `{ source, count, pages }` for the index and `{ source, slug, title, description, url, text }` for a page; `source` says which package and which version answered.
+
+An unknown page exits `1` with `HENRI_AGENT_UNKNOWN_PAGE` and the near misses. The same pages are what the `guide` tool of [`henri mcp`](#mcp) serves, and the website publishes them as [`/llms.txt`](https://usehenri.io/llms.txt) (the index) and [`/llms-full.txt`](https://usehenri.io/llms-full.txt) (every page in one file).
 
 ## `mcp`
 
