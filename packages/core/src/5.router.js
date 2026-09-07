@@ -1122,6 +1122,20 @@ class Router extends BaseModule {
       user: this.publicUser(req.user),
     };
 
+    // The flags this page is allowed to know about, resolved for whoever
+    // is reading it -- the ones declared `expose: true` and no others,
+    // because the names of the features an application has not shipped are
+    // not something every response should carry to every browser. Absent
+    // when none is exposed, like `i18n` and `nonce`: a key that is always
+    // there and usually empty is a key every page learns to ignore
+    const flags = this.henri.flags
+      ? await this.henri.flags.exposed(req.user || null)
+      : {};
+
+    if (Object.keys(flags).length > 0) {
+      opts.flags = flags;
+    }
+
     // What this answer is in, and where a client reads the strings. The
     // catalogue itself is not here: a document embeds it once and an XHR
     // answer leaves it out, because the client that is asking already has
@@ -1444,6 +1458,11 @@ class Router extends BaseModule {
           this.policyOptions(req, res, options)
         );
       };
+
+      // Is a feature flag on for whoever is asking? The same question as
+      // `henri.flags.enabled()` with this request's user filled in, the
+      // way `req.can()` is `henri.can()` with it filled in
+      req.flag = (name) => this.henri.flags.enabled(name, req.user || null);
 
       req.scope = (name, context = {}) =>
         this.henri.policies.scope(

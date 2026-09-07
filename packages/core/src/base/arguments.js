@@ -352,6 +352,31 @@ const WHO = {
 };
 
 /**
+ * Who a feature flag is being asked about.
+ *
+ * A record carrying an `externalId`, or that identifier itself; `null` is
+ * nobody in particular, which is what an anonymous visitor is. A **number
+ * is refused here**, and that is the whole reason this is not `ANY`: a
+ * primary key is a plausible-looking argument that would bucket a person
+ * under an identifier nothing else in henri uses, silently and forever
+ * (see base/flags.js).
+ */
+const ACTOR = {
+  describe: 'a record carrying an externalId, or the identifier itself',
+  hint: "henri.flags.enabled('checkout', req.user)",
+  oneOf: [{ const: null }, { pattern: /\S/u, type: 'string' }, OBJECT],
+};
+
+/** The share of the actors a flag is rolled out to */
+const PERCENT = {
+  describe: 'a number from 0 to 100',
+  hint: "henri.flags.percentage('checkout', 25) turns it on for a quarter of the actors, and the same quarter every time",
+  max: 100,
+  min: 0,
+  type: 'number',
+};
+
+/**
  * An options bag: the keys it declares, and a near miss of one of them
  * refused by name. Everything else is left alone, the way the
  * configuration leaves an application's own keys alone.
@@ -733,6 +758,32 @@ const SIGNATURES = {
       ...FUNCTION,
     },
   ],
+
+  // `name` is another guard's: an undeclared flag is HENRI_FLAGS_UNKNOWN,
+  // which names the closest one declared -- more than a node could say
+  'henri.flags.disable': [
+    { by: 'HENRI_FLAGS_UNKNOWN', name: 'name' },
+    { name: 'actor', optional: true, ...ACTOR },
+  ],
+
+  'henri.flags.enable': [
+    { by: 'HENRI_FLAGS_UNKNOWN', name: 'name' },
+    { name: 'actor', optional: true, ...ACTOR },
+  ],
+
+  'henri.flags.enabled': [
+    { by: 'HENRI_FLAGS_UNKNOWN', name: 'name' },
+    { name: 'actor', optional: true, ...ACTOR },
+  ],
+
+  'henri.flags.exposed': [{ name: 'actor', optional: true, ...ACTOR }],
+
+  'henri.flags.percentage': [
+    { by: 'HENRI_FLAGS_UNKNOWN', name: 'name' },
+    { name: 'percent', ...PERCENT },
+  ],
+
+  'henri.flags.reset': [{ by: 'HENRI_FLAGS_UNKNOWN', name: 'name' }],
 
   'henri.i18n.catalogue': [{ name: 'locale', ...LOCALE }],
 
@@ -1207,6 +1258,7 @@ const UNCHECKED = {
   'req.can': 'the one implementation is henri.policies.can',
   'req.file':
     '@usehenri/uploads ships it, and it answers null for anything that is not a field it holds',
+  'req.flag': 'the one implementation is henri.flags.enabled',
   'req.logIn': "passport's, not henri's",
   'req.logOut': "passport's, not henri's",
   'req.logout': "passport's, not henri's",

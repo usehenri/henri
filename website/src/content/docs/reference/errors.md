@@ -1085,6 +1085,60 @@ Usually:
 
 **Fix.** A filter is intersected with the scope so it can never widen the list, and henri cannot put a condition under a value it hands the ORM untouched. Answer a plain object from `scope(user)`, or hand `req.filters({ scope })` the condition to intersect.
 
+## flags
+
+The feature flags of `config/flags.js`: the names an application declares, who each one is on for, and where that state is kept.
+
+### `HENRI_FLAGS_ACTOR_INVALID`
+
+A feature flag was asked about something carrying no public identifier.
+
+Usually:
+
+- a primary key, or any bare number, passed where the record was meant
+- a model declaring `options: { externalId: false }`, whose rows have no public identifier
+- an object that never came from a model and carries no externalId
+
+**Fix.** Hand over the record itself (`req.user`), or the uuid its `externalId` holds. Those are the only two spellings, because that uuid is what already leaves the server and what a rollout buckets people by.
+
+### `HENRI_FLAGS_DECLARATION_INVALID`
+
+`config/flags.js` holds something henri cannot read as a feature flag.
+
+Usually:
+
+- an entry whose value is neither true, false, nor an object
+- a name holding a space, or anything but letters, digits and a single - _ or . between them
+- a `group` that is not a function of the actor
+- a `default` that is not true or false
+
+**Fix.** Write every entry as `checkout: false`, or as an object taking `default`, `description`, `expose` and `group`. The file exports one plain object and nothing else.
+
+### `HENRI_FLAGS_STORE_UNUSABLE`
+
+The place a feature flag's state is kept cannot be used.
+
+Usually:
+
+- `config.flags.store` says "shared" and `config.shared` names no backend
+- the state file holds something other than an object of flag states
+- the directory the state file was pointed at cannot be written to
+- `config.flags.enabled` is false, so a write has nowhere to go
+
+**Fix.** Point `config.flags.store` at a writable path, or name a backend in `config.shared` so every process reads one switch. `henri flags` prints which of the two is in play.
+
+### `HENRI_FLAGS_UNKNOWN`
+
+A feature flag nothing declares was asked for.
+
+Usually:
+
+- a typo in the name, in the code or on the command line
+- a flag taken out of the declarations while something still reads it
+- a flag written into the code before it was written into the file
+
+**Fix.** Add the name to `config/flags.js` -- one line, `checkout: false` -- or correct it to whichever the message suggests. `henri flags` lists what this application has.
+
 ## identity
 
 Signing in with somebody else's identity provider: the providers an application configures, the table the identities live in and the callback that binds one to an account.

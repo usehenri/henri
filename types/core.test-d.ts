@@ -28,6 +28,7 @@ import type {
   FilterResult,
   FilterSortTerm,
   FilterTerm,
+  FlagState,
   ModelFile,
   Page,
   ParamRule,
@@ -1131,6 +1132,33 @@ expectType<Promise<number>>(
   henri.cache.scope('reports').fetch('daily', { force: true }, () => 1)
 );
 expectType<Cache>(henri.cache.scope('reports'));
+
+// --- the feature flags ------------------------------------------------------
+
+const flagsConfig: Configuration = {
+  flags: { enabled: true, refresh: '30s', store: 'shared' },
+};
+
+expectType<Configuration>(flagsConfig);
+
+expectType<Promise<boolean>>(henri.flags.enabled('checkout'));
+expectType<Promise<boolean>>(henri.flags.enabled('checkout', req.user));
+expectType<Promise<boolean>>(henri.flags.enabled('checkout', 'an-external-id'));
+expectType<Promise<Record<string, boolean>>>(henri.flags.exposed(req.user));
+expectType<Promise<FlagState[]>>(henri.flags.list());
+expectType<Promise<boolean>>(henri.flags.enable('checkout'));
+expectType<Promise<boolean>>(henri.flags.disable('checkout', req.user));
+expectType<Promise<boolean>>(henri.flags.percentage('checkout', 25));
+expectType<Promise<boolean>>(henri.flags.reset('checkout'));
+expectType<Promise<boolean>>(henri.flags.refresh());
+expectType<Promise<boolean>>(req.flag('checkout'));
+
+// @ts-expect-error a flag is named, always
+henri.flags.enabled();
+// @ts-expect-error a share is a number, not a string
+henri.flags.percentage('checkout', '25');
+// @ts-expect-error there is no such thing as a flag with a value
+henri.flags.enable('checkout', req.user, 'extra');
 
 const badCache: Configuration = {
   // @ts-expect-error `maxEntries` is a number of entries

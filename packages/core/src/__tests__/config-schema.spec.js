@@ -490,6 +490,7 @@ describe('the schema, the declarations and the documentation', () => {
     ['RateLimitConfig', rateLimitKeys],
     ['SharedConfig', () => Object.keys(SCHEMA.shared.keys)],
     ['CacheConfig', () => Object.keys(SCHEMA.cache.oneOf[1].keys)],
+    ['FlagsConfig', () => Object.keys(SCHEMA.flags.keys)],
     ['CspConfig', () => Object.keys(SCHEMA.csp.keys)],
     ['LogsConfig', () => Object.keys(SCHEMA.logs.keys)],
     ['TelemetryConfig', () => Object.keys(SCHEMA.telemetry.oneOf[1].keys)],

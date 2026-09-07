@@ -28,11 +28,12 @@ henri <command> [options]
 | `about`                       | Print the versions of Node, henri and the packages installed in the project. |
 | `audit`                       | Check the application against the ASVS and the OWASP Top 10.                 |
 | `analyze [module]`            | Boot the application and print the boot chart of its modules.                |
+| `flags`                       | The feature flags of this application, and flipping one, see below.          |
 | `webhooks`                    | The endpoints this application sends signed webhooks to, see below.          |
 | `maintenance`                 | Close the application, and open it again, without a deploy.                  |
 | `help [command]`              | Print the help.                                                              |
 
-`routes`, `openapi`, `analyze`, `generate`, `destroy`, `build` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
+`routes`, `openapi`, `analyze`, `generate`, `destroy`, `build`, `flags` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
 
 ## `new` and `init`
 
@@ -493,6 +494,28 @@ The append-only record of who read or changed personal data, read back. See [The
 | (none)        | The latest entries, newest first.                                                                                                                                    |
 | `about <who>` | Everything recorded about one person. The address is not in the table -- henri digests what you asked about -- so this still answers after the erasure took it away. |
 | `verify`      | Walks the hash chain and says whether a row was edited or removed, and where. Exits `1` on a break.                                                                  |
+
+## `flags`
+
+```bash
+henri flags [--all] [--json]
+henri flags:on <name> [<actor>] [--json]
+henri flags:off <name> [<actor>] [--json]
+henri flags:percentage <name> <0-100> [--json]
+henri flags:reset <name> [--json]
+```
+
+The feature flags of this application, read and flipped. They are declared in `config/flags.js`, and a name that is not in there is refused rather than written — see [Feature flags](/guides/feature-flags/). The actor of `:on` and `:off` is a public identifier (an `externalId`), never a primary key and never an email address.
+
+This is the one command that boots to **runlevel 2**: no models, no routes, no port. The reason somebody reaches for a kill switch is often that something else is broken, so turning a feature off does not need the database to be up.
+
+| Command                     | What it does                                                                                                                                          |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)                      | Every flag, what it answers for somebody henri knows nothing about, what has been done to it and when. `--all` adds the identifiers of the named set. |
+| `on <name> [actor]`         | On for everyone; with an actor, adds that one to the set the flag is on for and leaves everybody else alone.                                          |
+| `off <name> [actor]`        | Off for everyone, **and a reset**: the named set and the percentage go with it. With an actor, takes that one out of the set and nothing else.        |
+| `percentage <name> <0-100>` | On for a stable share of the actors — the same share every time. `0` clears the rollout without turning anything off.                                 |
+| `reset <name>`              | Forgets every flip: the declared default answers again and the group is asked again.                                                                  |
 
 ## `calls`
 

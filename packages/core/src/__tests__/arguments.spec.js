@@ -47,6 +47,7 @@ const INTERFACES = {
   CallsModule: 'henri.calls',
   ConfigModule: 'henri.config',
   EncryptionModule: 'henri.encryption',
+  FlagsModule: 'henri.flags',
   Henri: 'henri',
   I18nModule: 'henri.i18n',
   IdentitiesModule: 'henri.identities',

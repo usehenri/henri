@@ -30,7 +30,20 @@ module.exports = {
       sequence: ++counter,
     }),
 
+  // `req.flag()`: the same question as `henri.flags.enabled()`, with the
+  // user of this request already filled in
+  flags: async (req, res) =>
+    res.json({
+      _links: {},
+      checkout: await req.flag('checkout'),
+      staffTools: await req.flag('staffTools'),
+    }),
+
   frHello: async (req, res) => res.render('/hello', { data: hello(req) }),
+
+  // A flag nothing declares: a failure rather than a quiet false
+  ghostFlag: async (req, res) =>
+    res.json({ _links: {}, checkout: await req.flag('chekout') }),
 
   // What the i18n middleware decided, and what a controller does with it
   hello: async (req, res) => res.render('/hello', { data: hello(req) }),
