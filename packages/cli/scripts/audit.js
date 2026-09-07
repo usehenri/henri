@@ -74,6 +74,13 @@ const STANDARDS = { asvs: '4.0.3', owasp: 'Top 10:2021' };
  */
 const CHECKS = [
   {
+    asvs: 'V9.1.1',
+    check: 'assets.plaintext-prefix',
+    level: 1,
+    owasp: 'A02',
+    what: '"assets": { "prefix": "http://..." } in a production configuration: every script and stylesheet of every page is fetched over plaintext http',
+  },
+  {
     asvs: null,
     check: 'calls.address-from-any',
     level: null,
@@ -918,6 +925,26 @@ const configFindings = (config, { file, hasUser }) => {
         'a migration that drops a column or a table is applied in production without anybody approving it',
         `Remove "approve": false from the "migrations" block of ${file} and let henri refuse the ones it finds something in: "henri db:status" prints the token of each, and "migrations": { "approved": [...] } is where a reviewed migration is recorded`,
         'V14.1.1'
+      );
+    }
+  }
+
+  // An asset prefix over plaintext http is the whole application: every
+  // script, stylesheet and font of every page comes from it. A page served
+  // over https refuses to load one (mixed content, no override), and a page
+  // served over http loads whatever the path handed back -- which is a
+  // script this application runs on its own origin.
+  if (PRODUCTION_CONFIGS.includes(file) && isObject(config.assets)) {
+    const prefix = String(config.assets.prefix || '');
+
+    if (/^http:\/\//iu.test(prefix)) {
+      add(
+        'high',
+        'assets.plaintext-prefix',
+        OWASP.A02,
+        `assets.prefix is ${prefix}, so every script and stylesheet of every page is fetched over plaintext http: an https page refuses them outright, and an http one runs whatever answered`,
+        `Serve the assets over https in ${file} ("assets": { "prefix": "https://..." }), or take the prefix out and let this application serve them`,
+        'V9.1.1'
       );
     }
   }

@@ -88,12 +88,35 @@ function createWebpackHook(hook) {
 /**
  * Build the next.js configuration for an application
  *
+ * `assetPrefix` is `config.assets.prefix`, and **the environment variable is
+ * how it actually arrives**, in both of the processes this function runs in.
+ * `app/views/next.config.js` requires `./conf`, which calls this with
+ * nothing but a working directory, and next.js reads that file: under the
+ * `next build` henri spawns because there is no henri there at all, and --
+ * measured rather than assumed -- inside a booted application too, where
+ * next.js 16 answers a request through the configuration it loaded off disk
+ * rather than through the `conf` object it was constructed with. A prefix
+ * handed only to `next({ conf })` reaches the build manifest and never a tag
+ * of the document. So `build()` sets `HENRI_ASSET_PREFIX` on the child's
+ * environment and the engine sets it on its own before it calls this.
+ *
+ * The `assetPrefix` option is the explicit half, for a caller that has the
+ * value in hand (the engine passes it as well, so `engine.conf` says what
+ * next.js will do).
+ *
+ * `config/next.js` still gets the last word, like every other key here.
+ *
  * @param {string} [cwd=process.cwd()] the application directory
+ * @param {object} [options={}] `{ assetPrefix }`, from a booted henri
  * @returns {object} the next.js configuration
  */
-function createNextConfig(cwd = process.cwd()) {
+function createNextConfig(cwd = process.cwd(), options = {}) {
   const dir = path.resolve(cwd, 'app/views');
   const hooks = loadUserHooks(cwd);
+  const assetPrefix =
+    typeof options.assetPrefix === 'string'
+      ? options.assetPrefix
+      : process.env.HENRI_ASSET_PREFIX || '';
 
   let config = {
     sassOptions: {
@@ -107,6 +130,10 @@ function createNextConfig(cwd = process.cwd()) {
     // route (and the pages henri renders through res.render). Filesystem
     // routing stays enabled: next.js 16 refuses to render page files otherwise.
   };
+
+  if (assetPrefix) {
+    config.assetPrefix = assetPrefix;
+  }
 
   if (hooks.webpack) {
     debug(

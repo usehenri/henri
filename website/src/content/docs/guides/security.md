@@ -382,6 +382,15 @@ false` (`calls.kept-forever`: a [call log](/guides/calls/) holds the bodies
 users sent, so a copy of them that nothing ever sweeps is not a setting but
 an accumulation).
 
+**Every page loaded over plaintext http** — `assets.prefix` on an `http://`
+url in a configuration a production boot reads (`assets.plaintext-prefix`,
+high). The [asset prefix](/guides/views/#serving-the-assets-from-a-cdn) is
+where every script, stylesheet and font of every page comes from: over https
+the browser refuses them all as mixed content and the application paints
+nothing, and over http it runs whatever the path handed back. A path prefix
+on this origin and an `https://` host are both silent, and so is a
+development configuration, where a local asset server is the point.
+
 **A door that only looks shut** -- `maintenance.bypass: "loopback"` in a
 configuration a production boot reads (`maintenance.loopback-bypass`). It is
 an access control decision made on the peer address of the socket: on a

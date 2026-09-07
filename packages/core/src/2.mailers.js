@@ -79,6 +79,8 @@ class Mailers extends BaseModule {
     this._exposed = [];
     /** The delivery handler of deliverLater(), if the application set one */
     this._handler = null;
+    /** The handler every rendered message goes through, if there is one */
+    this._render = null;
     /** The deliveries the default handler still has in flight */
     this.pending = new Set();
     /** The mail views (app/views/mailers) */
@@ -401,6 +403,73 @@ class Mailers extends BaseModule {
     this._handler = handler;
 
     return true;
+  }
+
+  /**
+   * Register the handler every rendered message goes through, on its way to
+   * a delivery and on its way to a preview alike.
+   *
+   * **This is the seam a CSS inliner plugs into, and henri ships none.** A
+   * mail client is not a browser: Gmail drops a `<style>` element, Outlook
+   * honours about half of what is left and a `<link>` never loads at all, so
+   * the rules a mail is styled by have to end up in `style=""` attributes.
+   * Doing that correctly is a CSS parser, a selector engine with
+   * specificity, an html parser and an html serializer -- `juice` is all
+   * four and is what to reach for. What henri owns is the place to put it,
+   * and the guarantee about *when* it runs:
+   *
+   *     const juice = require('juice');
+   *
+   *     henri.mailers.onRender((message) => {
+   *       message.html = juice(message.html);
+   *     });
+   *
+   * The plain text part is already derived when the handler is called (see
+   * `Message#render`), so an inliner rewriting `html` can never leak a
+   * `style=""` attribute into `text/plain`.
+   *
+   * The handler receives the nodemailer payload and the message it came from
+   * (`{ mailer, action, view, layout }`); it may change the payload in place,
+   * answer a new one, or answer nothing. It runs before the message reaches
+   * a transport or a queue row, so throwing fails the render rather than
+   * sending something half-styled.
+   *
+   * @param {?function} handler the handler, or null to remove it
+   * @returns {boolean} success
+   * @memberof Mailers
+   */
+  onRender(handler) {
+    if (handler !== null && typeof handler !== 'function') {
+      this.henri.pen.error('mailers', 'the render handler must be a function');
+
+      return false;
+    }
+
+    this._render = handler;
+
+    return true;
+  }
+
+  /**
+   * Hand a rendered message to the render handler, if there is one
+   *
+   * @async
+   * @param {object} payload the rendered message (nodemailer's shape)
+   * @param {object} [context={}] `{ mailer, action, view, layout }`
+   * @returns {Promise<object>} the payload to deliver
+   * @throws whatever the handler throws
+   * @memberof Mailers
+   */
+  async rendered(payload, context = {}) {
+    if (!this._render) {
+      return payload;
+    }
+
+    const answer = await this._render(payload, context);
+
+    return answer && typeof answer === 'object' && !Array.isArray(answer)
+      ? answer
+      : payload;
   }
 
   /**

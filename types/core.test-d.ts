@@ -37,6 +37,7 @@ import type {
   Pagination,
   Policy,
   Reification,
+  RenderedMessage,
   PoliciesModule,
   PublicUser,
   Request,
@@ -1490,7 +1491,43 @@ henri.cache.fetch('visits');
 // @ts-expect-error a cache key is not built out of nothing
 henri.cache.get(null);
 
+// --- the asset prefix -------------------------------------------------------
+
+expectType<Configuration>({ assets: { prefix: 'https://cdn.example.com' } });
+expectType<Configuration>({ assets: { prefix: '/assets' } });
+
+const badAssets: Configuration = {
+  // @ts-expect-error a prefix is a string, not a host and a port
+  assets: { prefix: { host: 'cdn.example.com' } },
+};
+
+// --- the mailers, and the seam a css inliner plugs into ----------------------
+
+expectType<boolean>(
+  henri.mailers.onRender((message) => {
+    message.html = `<!-- inlined -->${message.html}`;
+  })
+);
+expectType<boolean>(
+  henri.mailers.onRender(async (message, context) => {
+    expectType<string>(context.mailer);
+    expectType<string>(context.action);
+    expectType<string>(context.view);
+    expectType<string | boolean>(context.layout);
+
+    return message;
+  })
+);
+expectType<boolean>(henri.mailers.onRender(null));
+expectType<boolean>(henri.mailers.onDeliverLater(null));
+expectType<Promise<RenderedMessage>>(henri.mailers.preview('auth', 'reset'));
+expectType<Promise<boolean>>(henri.mailers.drain());
+
+// @ts-expect-error the handler is a function or null, never a value
+henri.mailers.onRender('juice');
+
 export {
+  badAssets,
   badCache,
   badCsp,
   badLogs,

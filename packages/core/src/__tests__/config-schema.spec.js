@@ -522,6 +522,7 @@ describe('the schema, the declarations and the documentation', () => {
         ),
     ],
     ['InertiaConfig', () => Object.keys(SCHEMA.inertia.keys)],
+    ['AssetsConfig', () => Object.keys(SCHEMA.assets.keys)],
     ['MailersConfig', () => Object.keys(SCHEMA.mailers.keys)],
     ['I18nConfig', () => Object.keys(SCHEMA.i18n.oneOf[1].keys)],
     ['I18nFromConfig', () => Object.keys(SCHEMA.i18n.oneOf[1].keys.from.keys)],

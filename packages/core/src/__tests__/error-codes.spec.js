@@ -68,6 +68,7 @@ const SHAPED =
  * a new one goes here, and a name that would read as a code does not.
  */
 const ENVIRONMENT = new Set([
+  'HENRI_ASSET_PREFIX',
   'HENRI_CONFIG_JSON',
   'HENRI_CREDENTIALS_KEY',
   'HENRI_ENCRYPTION_KEYS',

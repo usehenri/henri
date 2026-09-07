@@ -103,6 +103,29 @@ app/views/mailers/layouts/mailer.text.hbs    the layout of the plain part
 
 An action that sets `text` itself wins over both.
 
+### Styling, and inlining CSS
+
+**henri does not inline CSS, and it is not going to.** Write the styles as `style=""` attributes: it is what the layout henri ships does, what `henri generate mailer` writes, and what every mail client agrees on. A `<style>` element in a mail view survives into the html untouched — henri neither reads it nor removes it — which means Gmail drops it, Outlook honours part of it, and a `<link>` never loads at all. The rules would simply not arrive.
+
+The reason for the refusal is that the honest version of "apply that `<style>` block to the elements it matches" is four things: a CSS parser, a selector engine that gets specificity right, an html parser and an html serializer. Anything smaller is a regular expression over rendered html, and a mail that comes back mangled cannot be fixed after it is sent. So henri owns the seam and not the inliner:
+
+```js
+// config/mail.js, app/modules/mail.js, or wherever the app boots
+const juice = require('juice');
+
+henri.mailers.onRender((message) => {
+  message.html = juice(message.html);
+});
+```
+
+`onRender` runs on **every** message henri renders — a delivery, a `deliverLater()` and a `/_mailers` preview alike — and it runs last:
+
+- Both parts already exist when the handler is called. The plain text part is derived from the html one, and that has happened by then, so an inliner rewriting `html` can never leak a `style=""` attribute into `text/plain`.
+- The handler receives the nodemailer payload and `{ mailer, action, view, layout }`. Change the payload in place or answer a new one; anything else is ignored.
+- It may be async, and it may throw. Throwing fails the render — the message is not sent — which is the answer you want from a broken inliner.
+
+[`juice`](https://www.npmjs.com/package/juice) is what to reach for; it is what most mail toolchains use, it keeps `@media` blocks in the `<style>` element where they belong, and it is one dependency in the application rather than one in the framework.
+
 ## The mails henri sends itself
 
 One mailer ships with henri: `auth`, the three messages of the [account flows](/guides/users/#the-mails) — confirm an address, reset a password, confirm a new address. It is registered only in an application that turned one of those flows on, and it is an ordinary mailer otherwise: it shows up on `/_mailers`, its views live behind yours, and it is overridden in the two usual ways.

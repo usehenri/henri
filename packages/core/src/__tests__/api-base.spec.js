@@ -7,6 +7,7 @@ const boom = require('../base/boom');
 const health = require('../base/health');
 const { errorHandler, notFound } = require('../base/http');
 const {
+  ASSET_DIRECTIVES,
   NONCE_SENTINEL,
   cachedCsp,
   createNonce,
@@ -304,6 +305,98 @@ describe('secure headers', () => {
     expect(
       cspDirectives({ secure: true })['upgrade-insecure-requests']
     ).toEqual([]);
+  });
+
+  // An asset prefix the policy does not know about is an application that
+  // boots, answers 200 and paints nothing: every script of the document
+  // refused, with the reason only in the browser console
+  describe('the asset prefix', () => {
+    test('names its origin in every directive that carries a built asset', () => {
+      const directives = cspDirectives({ origin: 'https://cdn.example.com' });
+
+      for (const name of ASSET_DIRECTIVES) {
+        expect(directives[name]).toContain("'self'");
+        expect(directives[name]).toContain('https://cdn.example.com');
+      }
+
+      expect(directives['script-src']).toEqual([
+        "'self'",
+        'https://cdn.example.com',
+      ]);
+      expect(directives['style-src']).toEqual([
+        "'self'",
+        "'unsafe-inline'",
+        'https://cdn.example.com',
+      ]);
+    });
+
+    test('leaves default-src alone: an asset host is not a framing source', () => {
+      const directives = cspDirectives({ origin: 'https://cdn.example.com' });
+
+      expect(directives['default-src']).toEqual(["'self'"]);
+      expect(directives['object-src']).toEqual(["'none'"]);
+      expect(directives['form-action']).toEqual(["'self'"]);
+      expect(directives['base-uri']).toEqual(["'self'"]);
+    });
+
+    test('keeps what development already allowed', () => {
+      const directives = cspDirectives({
+        isDev: true,
+        origin: 'https://cdn.example.com',
+      });
+
+      expect(directives['connect-src']).toEqual([
+        "'self'",
+        'ws:',
+        'wss:',
+        'https://cdn.example.com',
+      ]);
+      expect(directives['worker-src']).toEqual([
+        "'self'",
+        'blob:',
+        'https://cdn.example.com',
+      ]);
+    });
+
+    test('and it still goes with a nonce, which drops unsafe-inline', () => {
+      const directives = cspDirectives({
+        isDev: true,
+        nonce: "'nonce-abc'",
+        origin: 'https://cdn.example.com',
+      });
+
+      expect(directives['script-src']).toEqual([
+        "'self'",
+        "'unsafe-eval'",
+        'https://cdn.example.com',
+        "'nonce-abc'",
+      ]);
+    });
+
+    test('the header of a configured application carries it', async () => {
+      const res = await withHelmet(
+        fakeHenri({ assets: { prefix: 'https://cdn.example.com/' } })
+      ).get('/');
+      const header = res.headers['content-security-policy'];
+
+      expect(header).toContain("script-src 'self' https://cdn.example.com");
+      expect(header).toContain("default-src 'self';");
+    });
+
+    test('a path prefix is this origin, so the policy does not move', async () => {
+      const withPath = await withHelmet(
+        fakeHenri({ assets: { prefix: '/assets' } })
+      ).get('/');
+      const without = await withHelmet(fakeHenri()).get('/');
+
+      expect(withPath.headers['content-security-policy']).toBe(
+        without.headers['content-security-policy']
+      );
+    });
+
+    test('nothing configured changes nothing', () => {
+      expect(cspDirectives({ origin: null })).toEqual(cspDirectives());
+    });
   });
 
   test('upgrade-insecure-requests follows the protocol of the request', async () => {

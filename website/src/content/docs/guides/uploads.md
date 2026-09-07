@@ -310,6 +310,8 @@ Nothing is stored: there is no table of urls and no way to revoke one link. Rota
 
 The host is deliberately **outside** henri's signature, so a cache that forwards the path and the query forwards everything the signature is of. A provider-signed url is the opposite — SigV4 covers the host — so an object store names its public host in its own block (`storage.publicEndpoint`), and that host has to be one the provider itself answers on: an R2 custom domain or a MinIO behind a proxy, not an arbitrary cache in front of a bucket. A CDN with a signing scheme of its own (CloudFront key pairs, for instance) is that CDN's feature, and henri does not implement it.
 
+This is a cache **in front of this application**: it forwards `/_uploads/...` to henri, which checks the signature and streams the file. The other key with a host in it, [`assets.prefix`](/guides/views/#serving-the-assets-from-a-cdn), is the opposite — it names a host serving the files the production build wrote, which the application never looks at again. They are separate settings on purpose, and either can be set without the other.
+
 ## Variants
 
 A derived file is a file with a key, so the storage seam was already the right shape for one. Declare what you want by name:

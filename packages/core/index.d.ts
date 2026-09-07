@@ -871,6 +871,20 @@ declare namespace start {
     template?: string;
   }
 
+  /**
+   * `config.assets`: where the files the production build wrote are loaded
+   * from. Not `uploads.urls.cdn`, which is a cache in front of henri's own
+   * signed-url route -- this one names a host that serves the bundles.
+   */
+  interface AssetsConfig {
+    /**
+     * An absolute http(s) url (`https://cdn.example.com`) or a path
+     * (`/assets`). Used by the production build of the view engine, and
+     * named in the Content Security Policy so the browser accepts it.
+     */
+    prefix?: string;
+  }
+
   /** A duration: milliseconds, or `'250ms'`, `'30s'`, `'5m'`, `'2h'`, `'1d'`. */
   type Duration = number | string;
 
@@ -1049,6 +1063,8 @@ declare namespace start {
     /** View engine (`template`). */
     renderer?: 'inertia' | 'react' | 'template' | 'vue';
     inertia?: InertiaConfig;
+    /** Where the compiled assets are served from, and the policy that allows it. */
+    assets?: AssetsConfig;
     /** Opt-in to the unmaintained renderers. */
     experimental?: { vue?: boolean };
     stores?: Record<string, StoreConfig>;
@@ -4533,6 +4549,74 @@ declare namespace start {
     nodemailer: any;
   }
 
+  /** A message on its way out, in nodemailer's shape. */
+  interface RenderedMessage extends Record<string, unknown> {
+    html?: string;
+    text?: string;
+    subject?: string;
+    to?: unknown;
+    from?: unknown;
+  }
+
+  /** Which mailer action a rendered message came from. */
+  interface RenderedMessageContext {
+    mailer: string;
+    action: string;
+    /** The view that was rendered (`auth/reset`). */
+    view: string;
+    /** The layout it was wrapped in, or `false` for none. */
+    layout: string | boolean;
+  }
+
+  /**
+   * `henri.mailers`: `app/mailers`, reachable as
+   * `henri.mailers.<name>.<action>(...)`, plus the two seams below.
+   */
+  interface MailersModule {
+    name: 'mailers';
+    /** Every mailer of the application, and henri's own `auth`. */
+    [mailer: string]: any;
+    /**
+     * The handler `deliverLater()` hands rendered messages to.
+     * `@usehenri/jobs` registers one; `null` goes back to henri's own.
+     */
+    onDeliverLater(
+      handler:
+        | ((
+            message: RenderedMessage,
+            options: Record<string, unknown>
+          ) => unknown)
+        | null
+    ): boolean;
+    /**
+     * The handler every rendered message goes through, on its way to a
+     * delivery and on its way to a preview alike. **This is where a CSS
+     * inliner goes -- henri ships none** (see `guides/mail.md`):
+     *
+     *     henri.mailers.onRender((message) => {
+     *       message.html = juice(message.html);
+     *     });
+     *
+     * The plain text part is already derived when it runs, so rewriting
+     * `html` never leaks a `style=""` attribute into `text/plain`.
+     * Throwing fails the render instead of sending the message.
+     */
+    onRender(
+      handler:
+        | ((
+            message: RenderedMessage,
+            context: RenderedMessageContext
+          ) => RenderedMessage | void | Promise<RenderedMessage | void>)
+        | null
+    ): boolean;
+    /** Renders and delivers a mailer action in one call. */
+    deliver(mailer: string, action: string, ...args: unknown[]): Promise<any>;
+    /** Renders an action with the sample data of its `previews`. */
+    preview(mailer: string, action: string): Promise<RenderedMessage>;
+    /** Waits for the deliveries the default handler has in flight. */
+    drain(): Promise<boolean>;
+  }
+
   /**
    * `henri.graphql`: the module `@usehenri/graphql` ships. It is there when
    * the application depends on the package, and `undefined` when it does
@@ -5188,6 +5272,12 @@ declare namespace start {
      */
     telemetry: TelemetryModule;
     mail: MailModule;
+    /**
+     * `app/mailers`, and the two seams around a message: the delivery
+     * handler of `deliverLater()` and the render handler a CSS inliner
+     * plugs into (`onRender`).
+     */
+    mailers: MailersModule;
     /**
      * The catalogues of `config/locales`, the locale of a request and the
      * lookup. Always there; `enabled` is false, and everything is inert,

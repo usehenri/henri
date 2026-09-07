@@ -596,3 +596,120 @@ wait "$server_pid" 2>/dev/null || true
 server_pid=""
 
 log "csp.nonce -> $first, then $second, both written on every script"
+
+# ---------------------------------------------------------------------------
+# 8. The same build with `"assets": { "prefix": "https://cdn.example.test" }`:
+#    the document loads every compiled file from that host, the policy names
+#    its origin so the browser accepts them, and this application still
+#    serves the same files at the same paths -- which is what an origin-pull
+#    CDN pulls from. A prefix the policy did not name is an application that
+#    boots, answers 200 and then paints nothing, which is exactly the failure
+#    a unit test cannot show.
+# ---------------------------------------------------------------------------
+cdn=https://cdn.example.test
+
+log "henri build && henri server --production, with assets.prefix=$cdn"
+node -e "
+  const fs = require('fs');
+  const file = 'config/default.json';
+  const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+  config.assets = { prefix: '$cdn/' };
+  fs.writeFileSync(file, JSON.stringify(config, null, 2));
+"
+
+# The prefix is compiled into the bundle, not only stamped on the tags, so
+# the build has to run again
+pnpm exec henri build
+stop_mongod
+
+assets_log=$work/server-assets.log
+pnpm exec henri server --production >"$assets_log" 2>&1 &
+server_pid=$!
+
+status=""
+for _ in $(seq 1 60); do
+  status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/" || true)
+  [ "$status" = "200" ] && break
+  if ! kill -0 "$server_pid" 2>/dev/null; then
+    cat "$assets_log"
+    echo "henri server exited before answering with assets.prefix on" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+if [ "$status" != "200" ]; then
+  cat "$assets_log"
+  echo "GET / did not answer 200 with assets.prefix on (last: ${status:-none})" >&2
+  exit 1
+fi
+
+curl -sS -D "$work/headers-assets" -o "$work/page-assets.html" \
+  "http://127.0.0.1:$port/"
+
+# Every file the build wrote is loaded from the prefix...
+for pattern in "src=\"$cdn/" "href=\"$cdn/"; do
+  if ! grep -q "$pattern" "$work/page-assets.html"; then
+    grep -oE '<(script|link)[^>]*>' "$work/page-assets.html" >&2
+    echo "the document carries no $pattern tag" >&2
+    exit 1
+  fi
+done
+
+# ...and none of them from here
+if [ "$renderer" = inertia ]; then
+  local_assets='(src|href)="/assets/'
+else
+  local_assets='(src|href)="/_next/'
+fi
+
+if grep -qE "$local_assets" "$work/page-assets.html"; then
+  grep -oE "<(script|link)[^>]*>" "$work/page-assets.html" | grep -E "$local_assets" >&2
+  echo "a compiled asset is still loaded from this origin" >&2
+  exit 1
+fi
+
+# The policy names that origin, or the browser refuses every one of them
+policy=$(tr -d '\r' <"$work/headers-assets" |
+  sed -n 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: //p')
+
+for directive in script-src style-src font-src img-src connect-src; do
+  if ! printf '%s' "$policy" | grep -qE "$directive[^;]*$cdn"; then
+    printf '%s\n' "$policy" >&2
+    echo "$directive does not name $cdn: every asset of the page is refused" >&2
+    exit 1
+  fi
+done
+
+# default-src is deliberately left alone: an asset host is not a framing source
+if printf '%s' "$policy" | grep -qE "default-src[^;]*$cdn"; then
+  printf '%s\n' "$policy" >&2
+  echo "default-src names $cdn, which widens more than the assets" >&2
+  exit 1
+fi
+
+# The application still serves what it built, at the paths it always did:
+# an origin-pull CDN has to have something to pull. Inertia writes
+# `<script type="module" src>` and next.js `<script src defer>`, so the tag
+# is matched by its src and not by its shape
+asset=$(grep -oE "<script[^>]*src=\"$cdn/[^\"]*\"" "$work/page-assets.html" |
+  sed -n "s|.*src=\"$cdn\(/[^\"]*\)\"|\1|p" | head -1)
+
+if [ -z "$asset" ]; then
+  grep -oE '<script[^>]*>' "$work/page-assets.html" >&2
+  echo "no script to pull from the origin" >&2
+  exit 1
+fi
+
+asset_status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port$asset" || true)
+
+if [ "$asset_status" != "200" ]; then
+  echo "GET $asset answered $asset_status: the origin has nothing to pull" >&2
+  exit 1
+fi
+
+kill -TERM "$server_pid"
+wait "$server_pid" 2>/dev/null || true
+server_pid=""
+
+log "assets.prefix -> the document loads from $cdn, the policy allows it, and $asset is still served here"

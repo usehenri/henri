@@ -443,6 +443,64 @@ describe('inertia engine', () => {
       expect(res.body).not.toContain('<!--body-->');
     });
 
+    test('an asset prefix moves every built url, and only those', async () => {
+      const { engine, henri } = ready({
+        isDev: false,
+        isProduction: true,
+        settings: {
+          assets: { prefix: 'https://cdn.example.com/' },
+          renderer: 'inertia',
+        },
+      });
+
+      dirs.push(henri.dir);
+
+      const res = fakeRes();
+
+      await engine.render(
+        fakeReq('/tasks'),
+        res,
+        '/tasks/index',
+        Object.assign({ nonce: 'AbC-_123' }, OPTS)
+      );
+
+      expect(engine.assetBase).toBe('https://cdn.example.com/');
+      expect(res.body).toContain(
+        '<link rel="stylesheet" href="https://cdn.example.com/assets/main-abc.css" nonce="AbC-_123">'
+      );
+      expect(res.body).toContain(
+        '<script type="module" src="https://cdn.example.com/assets/main-abc.js" nonce="AbC-_123">'
+      );
+      expect(res.body).toContain(
+        '<link rel="modulepreload" href="https://cdn.example.com/assets/vendor-abc.js" nonce="AbC-_123">'
+      );
+      // The document itself is still this application's: only the files the
+      // build wrote moved
+      expect(res.body).toContain('rendered tasks/index');
+      expect(res.body).not.toContain('href="/assets/');
+      expect(res.body).not.toContain('src="/assets/');
+    });
+
+    test('the dev server ignores the prefix: there is no build to point at', async () => {
+      const { engine, henri } = ready({
+        settings: {
+          assets: { prefix: 'https://cdn.example.com' },
+          renderer: 'inertia',
+        },
+      });
+
+      dirs.push(henri.dir);
+      engine.vite = { transformIndexHtml: async (url, html) => html };
+      engine.readTemplate = () => engine.template;
+
+      const res = fakeRes();
+
+      await engine.render(fakeReq('/tasks'), res, '/tasks/index', OPTS);
+
+      expect(res.body).toContain('<script type="module" src="/main.jsx">');
+      expect(res.body).not.toContain('cdn.example.com');
+    });
+
     test('nonces the whole document, and says so to vite', async () => {
       const { engine, henri } = ready();
 

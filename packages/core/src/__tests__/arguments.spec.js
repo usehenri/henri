@@ -52,6 +52,7 @@ const INTERFACES = {
   I18nModule: 'henri.i18n',
   IdentitiesModule: 'henri.identities',
   MailModule: 'henri.mail',
+  MailersModule: 'henri.mailers',
   ModelModule: 'henri.model',
   Pen: 'henri.pen',
   PoliciesModule: 'henri.policies',

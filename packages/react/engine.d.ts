@@ -71,7 +71,24 @@ declare namespace ReactEngine {
    * the `config/webpack.js` and `config/next.js` hooks. This is what
    * `app/views/next.config.js` re-exports.
    */
-  export function createNextConfig(cwd?: string): Record<string, any>;
+  export function createNextConfig(
+    cwd?: string,
+    options?: {
+      /**
+       * `config.assets.prefix`, where the built assets are loaded from.
+       * Without it `HENRI_ASSET_PREFIX` is read, which is the channel that
+       * reaches next.js itself: it loads `app/views/next.config.js` off
+       * disk, in the build henri spawns and in a booted application alike.
+       */
+      assetPrefix?: string;
+    }
+  ): Record<string, any>;
+
+  /**
+   * `config.assets.prefix` of an application, without its trailing slashes.
+   * Reads henri's config module or a parsed `config/<env>.json`.
+   */
+  export function assetPrefixOf(config?: unknown): string;
 
   /** Creates `next.config.js` and `jsconfig.json` when they are missing. */
   export function ensureNextConfig(dir: string, pen: unknown): string[];

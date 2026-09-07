@@ -128,7 +128,7 @@ class Message {
         payload.text = htmlToText(payload.html);
       }
 
-      return payload;
+      return this.finish(payload);
     }
 
     const { html, text } = await this.henri.mailers.views.render({
@@ -144,7 +144,38 @@ class Message {
       payload.text = text;
     }
 
-    return payload;
+    return this.finish(payload);
+  }
+
+  /**
+   * The last thing that happens to a rendered message: the handler
+   * `henri.mailers.onRender()` registered, if there is one.
+   *
+   * **Both parts exist before this runs, and that is the point.** The plain
+   * text part is derived from the html one (`base/mail-text.js`), so a
+   * handler that rewrites the html -- a CSS inliner is the one henri
+   * expects, since it ships none -- cannot leak a `style=""` attribute into
+   * `text/plain`: by then there is nothing left to derive.
+   *
+   * @async
+   * @param {object} payload the rendered nodemailer message
+   * @returns {Promise<object>} the message to deliver
+   * @throws whatever the handler throws
+   * @memberof Message
+   */
+  async finish(payload) {
+    const { mailers } = this.henri;
+
+    if (!mailers || typeof mailers.rendered !== 'function') {
+      return payload;
+    }
+
+    return mailers.rendered(payload, {
+      action: this.action,
+      layout: this.layout,
+      mailer: this.mailer,
+      view: this.view,
+    });
   }
 
   /**

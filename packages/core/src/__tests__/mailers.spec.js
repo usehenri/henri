@@ -453,6 +453,155 @@ describe('mailers', () => {
     });
   });
 
+  // The seam a CSS inliner plugs into: henri ships none, and the guide says
+  // why (guides/mail.md). What is tested here is the contract that makes a
+  // three line `juice` call safe -- above all the order.
+  describe('onRender', () => {
+    test('every rendered message goes through the handler', async () => {
+      const { henri, module } = await boot();
+      const seen = [];
+
+      module.onRender((message, context) => {
+        seen.push(context);
+        message.html = `<!-- inlined -->${message.html}`;
+      });
+
+      await module.deliver('welcome', 'confirm', ada);
+
+      expect(seen).toEqual([
+        {
+          action: 'confirm',
+          layout: 'mailer',
+          mailer: 'welcome',
+          view: 'welcome/confirm',
+        },
+      ]);
+      expect(henri.sent[0].html).toMatch(/^<!-- inlined -->/u);
+    });
+
+    test('the text part is derived before the handler runs', async () => {
+      const { henri, module } = await boot();
+
+      // What an inliner does, in miniature: it writes style attributes on
+      // the html. The plain part must not have gained one -- it is derived
+      // from the html, and by now that has already happened
+      module.onRender((message) => {
+        message.html = message.html.replace(
+          /<h1>/u,
+          '<h1 style="color:#18181b">'
+        );
+      });
+
+      await module.deliver('welcome', 'confirm', ada);
+
+      expect(henri.sent[0].html).toContain('<h1 style="color:#18181b">');
+      expect(henri.sent[0].text).not.toContain('style');
+      expect(henri.sent[0].text).toContain('Hello Ada');
+    });
+
+    test('a message that brought its own html goes through it too', async () => {
+      const { henri, module } = await boot();
+
+      module.onRender((message) => ({
+        ...message,
+        html: message.html.replace('<p>', '<p style="margin:0">'),
+      }));
+
+      await module.deliver('welcome', 'plain', ada);
+
+      expect(henri.sent[0].html).toBe(
+        '<p style="margin:0">Written by hand</p>'
+      );
+      expect(henri.sent[0].text).toBe('Written by hand');
+    });
+
+    test('a preview is rendered through it as well', async () => {
+      const { module } = await boot({ isDev: true });
+
+      module.onRender((message) => {
+        message.subject = `[preview] ${message.subject}`;
+      });
+
+      const rendered = await module.preview('welcome', 'confirm');
+
+      expect(rendered.subject).toBe('[preview] Confirm ada@example.com');
+    });
+
+    test('deliverLater() hands the queue what the handler answered', async () => {
+      const { module } = await boot();
+      const queued = [];
+
+      module.onDeliverLater((message) => queued.push(message));
+      module.onRender((message) => {
+        message.html = `<!-- inlined -->${message.html}`;
+      });
+
+      await module.welcome.confirm(ada).deliverLater();
+
+      expect(queued[0].html).toMatch(/^<!-- inlined -->/u);
+    });
+
+    test('it may be async, and it may answer nothing', async () => {
+      const { henri, module } = await boot();
+
+      module.onRender(async (message) => {
+        await Promise.resolve();
+        message.subject = 'rewritten';
+      });
+
+      await module.deliver('welcome', 'confirm', ada);
+
+      expect(henri.sent[0].subject).toBe('rewritten');
+    });
+
+    test('a handler that throws fails the render, and sends nothing', async () => {
+      const { henri, module } = await boot();
+
+      module.onRender(() => {
+        throw new Error('the stylesheet does not parse');
+      });
+
+      await expect(module.deliver('welcome', 'confirm', ada)).rejects.toThrow(
+        'the stylesheet does not parse'
+      );
+      expect(henri.sent).toHaveLength(0);
+    });
+
+    test('the handler must be a function, and null removes it', async () => {
+      const { henri, module } = await boot();
+
+      expect(module.onRender('nope')).toBe(false);
+      expect(henri.logs).toContainEqual([
+        'error',
+        'mailers',
+        'the render handler must be a function',
+      ]);
+
+      module.onRender((message) => {
+        message.subject = 'rewritten';
+      });
+      expect(module.onRender(null)).toBe(true);
+
+      await module.deliver('welcome', 'confirm', ada);
+
+      expect(henri.sent[0].subject).toBe('Confirm ada@example.com');
+    });
+
+    test('an answer that is not a message is ignored', async () => {
+      const { henri, module } = await boot();
+
+      module.onRender((message) => {
+        message.subject = 'kept';
+
+        return 'nonsense';
+      });
+
+      await module.deliver('welcome', 'confirm', ada);
+
+      expect(henri.sent[0].subject).toBe('kept');
+    });
+  });
+
   describe('previews', () => {
     test('are development only, and nothing turns them on elsewhere', async () => {
       const off = await boot({ isDev: false });

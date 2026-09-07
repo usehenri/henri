@@ -73,6 +73,63 @@ describe('inertia shell helpers', () => {
     ]);
   });
 
+  // The asset prefix (config.assets.prefix): where the files the build
+  // wrote are loaded from
+  describe('the asset prefix', () => {
+    const manifest = {
+      '_shared.js': { css: ['assets/shared.css'], file: 'assets/shared.js' },
+      'main.jsx': {
+        css: ['assets/main.css'],
+        file: 'assets/main.js',
+        imports: ['_shared.js'],
+      },
+    };
+
+    test('assetPrefix() reads both shapes of configuration', () => {
+      const values = { assets: { prefix: 'https://cdn.example.com/' } };
+      const module = {
+        get: (key) => values[key],
+        has: (key) => Object.prototype.hasOwnProperty.call(values, key),
+      };
+
+      expect(shell.assetPrefix(values)).toBe('https://cdn.example.com');
+      expect(shell.assetPrefix(module)).toBe('https://cdn.example.com');
+      expect(shell.assetPrefix({})).toBe('');
+      expect(shell.assetPrefix(null)).toBe('');
+      expect(shell.assetPrefix({ assets: { prefix: 42 } })).toBe('');
+    });
+
+    test('assetBase() always ends in a slash, and is / without one', () => {
+      expect(shell.assetBase({ assets: { prefix: 'https://cdn.x///' } })).toBe(
+        'https://cdn.x/'
+      );
+      expect(shell.assetBase({ assets: { prefix: '/build' } })).toBe('/build/');
+      expect(shell.assetBase({})).toBe('/');
+    });
+
+    test('every tag of the document points at it', () => {
+      const tags = shell
+        .assetTags(manifest, 'main.jsx', 'https://cdn.example.com/')
+        .split('\n');
+
+      expect(tags).toEqual([
+        '<link rel="stylesheet" href="https://cdn.example.com/assets/main.css">',
+        '<link rel="stylesheet" href="https://cdn.example.com/assets/shared.css">',
+        '<script type="module" src="https://cdn.example.com/assets/main.js"></script>',
+        '<link rel="modulepreload" href="https://cdn.example.com/assets/shared.js">',
+      ]);
+    });
+
+    test('the nonce still lands on every one of them', () => {
+      const html = shell.withNonce(
+        shell.assetTags(manifest, 'main.jsx', 'https://cdn.example.com/'),
+        'abc123'
+      );
+
+      expect(html.match(/nonce="abc123"/gu)).toHaveLength(4);
+    });
+  });
+
   test('assetTags() complains about a missing entry', () => {
     expect(() => shell.assetTags({}, 'main.jsx')).toThrow(
       /not in the vite manifest/
