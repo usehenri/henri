@@ -188,7 +188,11 @@ describe(`decimal and bigint (${target.name})`, () => {
     });
   });
 
-  describe('querying', () => {
+  // Both of these blocks add a model to a store that is already started and
+  // start it again, which pushes; on MariaDB a push cannot read the schema
+  // back (target.introspects says why) so the table is never created.
+  // `mariadb.spec.js` compares and orders the same two types there
+  describe.skipIf(!target.introspects)('querying', () => {
     let Ledger;
 
     beforeAll(async () => {
@@ -340,7 +344,7 @@ describe(`decimal and bigint (${target.name})`, () => {
     });
   });
 
-  describe('the bounds a model declares', () => {
+  describe.skipIf(!target.introspects)('the bounds a model declares', () => {
     let Priced;
 
     beforeAll(async () => {

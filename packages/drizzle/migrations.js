@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const debug = require('debug')('henri:drizzle:migrations');
 const safety = require('./safety');
-const { coded, quiet } = require('./utils');
+const { coded, guarded, quiet } = require('./utils');
 
 const BREAKPOINT = '\n--> statement-breakpoint\n';
 const MIGRATIONS_TABLE = '__drizzle_migrations';
@@ -373,10 +373,29 @@ class Migrations {
     let recorded = [];
 
     if (adapter.db) {
-      const plan = await this.plan();
+      // The migration is already written, and this is bookkeeping on top of
+      // it: a database that was pushed to this schema has the change
+      // already, so the entry is recorded rather than left pending. A plan
+      // that cannot be read is a reason to leave it pending -- which is the
+      // safe answer, and the one `henri db:migrate` then acts on -- and
+      // never a reason to fail the command that wrote the file. It is said
+      // out loud rather than swallowed
+      try {
+        const plan = await this.plan();
 
-      if (plan.statements.length === 0 && (plan.drifted || []).length === 0) {
-        recorded = await this.markApplied();
+        if (plan.statements.length === 0 && (plan.drifted || []).length === 0) {
+          recorded = await this.markApplied();
+        }
+      } catch (error) {
+        const { henri } = adapter;
+
+        henri &&
+          henri.pen &&
+          henri.pen.warn(
+            adapter.adapterName,
+            `${tag} was written but the database could not be read back, so it stays pending: ${error.message}`
+          );
+        debug('generate: %s', error.message);
       }
     }
 
@@ -955,7 +974,12 @@ class Migrations {
       adapter.dialect.name === 'mysql'
         ? [imports, db, adapter.databaseName()]
         : [imports, db];
-    const plan = await quiet(() => kit[adapter.dialect.kit.push](...args));
+    const plan = await guarded(
+      'HENRI_MIGRATION_PUSH_FAILED',
+      `push: drizzle-kit could not read the ${adapter.dialect.name} schema of store ${adapter.name} back, and ended the process instead of saying why`,
+      'drizzle-kit renders its own progress and discards the error behind a failed one, so there is nothing more to print. The schema is what it could not read: `henri db:schema:dump` reads the same database back through henri and will say what is in it. On MariaDB this is drizzle-kit itself -- it cannot introspect a schema that holds a CHECK constraint, and a `json` column is one there -- so use `henri db:generate` and `henri db:migrate` and set `"sync": false` on the store.',
+      () => quiet(() => kit[adapter.dialect.kit.push](...args))
+    );
     // A table henri owns is not drizzle's to drop. The queue and the access
     // trail create their own through raw SQL (they have to work on a store
     // that has no models at all), so drizzle-kit sees them as tables the

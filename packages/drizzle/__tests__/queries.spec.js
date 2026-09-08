@@ -236,25 +236,31 @@ describe(`the query seam on ${target.name}`, () => {
     }
   });
 
-  test('include() is one call, which is why the detector counts calls', async () => {
-    const owner = await User.create({
-      email: 'grace@example.test',
-      name: 'Grace',
-      password: 'secret-enough',
-    });
+  // Eager loading is `LEFT JOIN LATERAL` on the MySQL dialect of
+  // drizzle-orm, and MariaDB has no LATERAL (target.eagerLoads says
+  // why); `mariadb.spec.js` asserts the syntax error
+  test.skipIf(!target.eagerLoads)(
+    'include() is one call, which is why the detector counts calls',
+    async () => {
+      const owner = await User.create({
+        email: 'grace@example.test',
+        name: 'Grace',
+        password: 'secret-enough',
+      });
 
-    for (let index = 0; index < 6; index += 1) {
-      await Task.create({ name: `owned ${index}`, ownerId: owner.id });
+      for (let index = 0; index < 6; index += 1) {
+        await Task.create({ name: `owned ${index}`, ownerId: owner.id });
+      }
+
+      const events = await recording(henri, () =>
+        Task.find({}, { include: ['owner'] })
+      );
+
+      // Six tasks, one owner each, one model call: on this adapter an eager
+      // load compiles to a single correlated subquery, so there is no lazy
+      // association for a loop to trip over
+      expect(events).toHaveLength(1);
+      expect(events[0].rows).toBe(6);
     }
-
-    const events = await recording(henri, () =>
-      Task.find({}, { include: ['owner'] })
-    );
-
-    // Six tasks, one owner each, one model call: on this adapter an eager
-    // load compiles to a single correlated subquery, so there is no lazy
-    // association for a loop to trip over
-    expect(events).toHaveLength(1);
-    expect(events[0].rows).toBe(6);
-  });
+  );
 });

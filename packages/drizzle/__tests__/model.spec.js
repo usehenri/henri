@@ -479,56 +479,62 @@ describe(`model API (${target.name})`, () => {
   });
 
   describe('associations', () => {
-    test('adds the foreign keys and eager loads with include', async () => {
-      const ada = await Author.create({ name: 'Ada' });
-      const bob = await Author.create({ name: 'Bob' });
-      const post = await Post.create({ authorId: ada.id, title: 'first' });
+    // Eager loading is `LEFT JOIN LATERAL` on the MySQL dialect of
+    // drizzle-orm, and MariaDB has no LATERAL (target.eagerLoads says
+    // why); `mariadb.spec.js` asserts the syntax error
+    test.skipIf(!target.eagerLoads)(
+      'adds the foreign keys and eager loads with include',
+      async () => {
+        const ada = await Author.create({ name: 'Ada' });
+        const bob = await Author.create({ name: 'Bob' });
+        const post = await Post.create({ authorId: ada.id, title: 'first' });
 
-      await Post.create({ authorId: ada.id, title: 'second' });
-      await Profile.create({ authorId: ada.id, bio: 'engine' });
+        await Post.create({ authorId: ada.id, title: 'second' });
+        await Profile.create({ authorId: ada.id, bio: 'engine' });
 
-      expect(Object.keys(Post.fields)).toContain('authorId');
-      expect(Object.keys(Profile.fields)).toContain('authorId');
+        expect(Object.keys(Post.fields)).toContain('authorId');
+        expect(Object.keys(Profile.fields)).toContain('authorId');
 
-      const loaded = await Post.where({ id: post.id })
-        .include('author')
-        .first();
+        const loaded = await Post.where({ id: post.id })
+          .include('author')
+          .first();
 
-      expect(loaded.author).toBeInstanceOf(Author);
-      expect(loaded.author.name).toBe('Ada');
-      // Nested records are serialized the same way: no primary key
-      const json = JSON.parse(JSON.stringify(loaded));
+        expect(loaded.author).toBeInstanceOf(Author);
+        expect(loaded.author.name).toBe('Ada');
+        // Nested records are serialized the same way: no primary key
+        const json = JSON.parse(JSON.stringify(loaded));
 
-      expect(json).toMatchObject({
-        author: { externalId: ada.externalId, name: 'Ada' },
-        title: 'first',
-      });
-      expect(json.id).toBeUndefined();
-      expect(json.author.id).toBeUndefined();
-      // The foreign key stays what it is: joins are made of primary keys
-      expect(json.authorId).toBe(ada.id);
+        expect(json).toMatchObject({
+          author: { externalId: ada.externalId, name: 'Ada' },
+          title: 'first',
+        });
+        expect(json.id).toBeUndefined();
+        expect(json.author.id).toBeUndefined();
+        // The foreign key stays what it is: joins are made of primary keys
+        expect(json.authorId).toBe(ada.id);
 
-      const authors = await Author.include('posts', 'profile').order('name');
+        const authors = await Author.include('posts', 'profile').order('name');
 
-      expect(authors[0].posts.map((entry) => entry.title)).toEqual([
-        'first',
-        'second',
-      ]);
-      expect(authors[0].posts[0]).toBeInstanceOf(Post);
-      expect(authors[0].profile.bio).toBe('engine');
-      expect(authors[1].posts).toEqual([]);
-      expect(authors[1].profile).toBeNull();
+        expect(authors[0].posts.map((entry) => entry.title)).toEqual([
+          'first',
+          'second',
+        ]);
+        expect(authors[0].posts[0]).toBeInstanceOf(Post);
+        expect(authors[0].profile.bio).toBe('engine');
+        expect(authors[1].posts).toEqual([]);
+        expect(authors[1].profile).toBeNull();
 
-      const nested = await Post.find({ include: ['author.posts'] });
+        const nested = await Post.find({ include: ['author.posts'] });
 
-      expect(nested[0].author.posts).toHaveLength(2);
-      expect(
-        (await Post.findByKey(post.id, { include: 'author' })).author.id
-      ).toBe(ada.id);
-      expect(
-        await Post.where({ authorId: bob.id }).include('author').count()
-      ).toBe(0);
-    });
+        expect(nested[0].author.posts).toHaveLength(2);
+        expect(
+          (await Post.findByKey(post.id, { include: 'author' })).author.id
+        ).toBe(ada.id);
+        expect(
+          await Post.where({ authorId: bob.id }).include('author').count()
+        ).toBe(0);
+      }
+    );
 
     test('rejects a foreign key to a missing row', async () => {
       const failed = await Post.create({

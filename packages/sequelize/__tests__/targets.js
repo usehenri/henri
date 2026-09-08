@@ -5,9 +5,23 @@ const { Sequelize } = require('sequelize');
  *
  * Nothing set: an in-memory sqlite database, as before, so `pnpm test`
  * stays fast and offline. With `HENRI_TEST_POSTGRES_URL`,
- * `HENRI_TEST_MYSQL_URL` or `HENRI_TEST_MSSQL_URL` in the environment the
- * same suites run against that server instead; `HENRI_TEST_SQL_DIALECT`
- * picks one when several are set (postgres, then mysql, then mssql).
+ * `HENRI_TEST_MYSQL_URL`, `HENRI_TEST_MARIADB_URL` or `HENRI_TEST_MSSQL_URL`
+ * in the environment the same suites run against that server instead;
+ * `HENRI_TEST_SQL_DIALECT` picks one when several are set (postgres, then
+ * mysql, then mariadb, then mssql).
+ *
+ * MariaDB is a **server** rather than a dialect here: Sequelize's own
+ * `mariadb` dialect needs the `mariadb` driver, which this package does not
+ * carry, and what henri reaches a MariaDB server with is the MySQL dialect
+ * over mysql2 (`mariadbRewrite` in `index.js` rewrites a `mariadb://` url
+ * for exactly that). So `name` stays `mysql` and `server` says which of the
+ * two answered -- and `Drift#serverDialect()` asks the server itself, which
+ * is what makes `henri db:status` right on both.
+ *
+ * The one suite that reaches a MariaDB server on purpose is
+ * `@usehenri/jobs`, whose helpers build their stores through this file: the
+ * queue's claim, its concurrency slots and its batches are SQL henri wrote
+ * itself, and running them on MariaDB is the whole point.
  *
  * The url in the environment is only used to connect and to create
  * databases: every store gets its own `henri_test_*` database so the test
@@ -22,13 +36,14 @@ const { Sequelize } = require('sequelize');
  */
 
 const ENV = {
+  mariadb: 'HENRI_TEST_MARIADB_URL',
   mssql: 'HENRI_TEST_MSSQL_URL',
   mysql: 'HENRI_TEST_MYSQL_URL',
   postgres: 'HENRI_TEST_POSTGRES_URL',
 };
 
 const ALIASES = {
-  mariadb: 'mysql',
+  mariadb: 'mariadb',
   mssql: 'mssql',
   mysql: 'mysql',
   pg: 'postgres',
@@ -37,23 +52,27 @@ const ALIASES = {
   sqlserver: 'mssql',
 };
 
+/** The order the servers are taken in when the environment names none */
+const ORDER = ['postgres', 'mysql', 'mariadb', 'mssql'];
+
 // One prefix per process, so parallel workers never pick the same name
 const RUN = `${process.pid.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 /**
- * The dialect asked for in the environment
+ * The server asked for in the environment
  *
- * @returns {string} sqlite, postgres, mysql or mssql
+ * @returns {string} sqlite, postgres, mysql, mariadb or mssql
  */
 const selected = () => {
   const wanted = ALIASES[String(process.env.HENRI_TEST_SQL_DIALECT || '')];
-  const names = wanted ? [wanted] : ['postgres', 'mysql', 'mssql'];
+  const names = wanted ? [wanted] : ORDER;
 
   return names.find((entry) => process.env[ENV[entry]]) || 'sqlite';
 };
 
-const name = selected();
-const baseUrl = process.env[ENV[name]] || null;
+const server = selected();
+const name = server === 'mariadb' ? 'mysql' : server;
+const baseUrl = process.env[ENV[server]] || null;
 const created = new Set();
 const databases = new Map();
 
@@ -289,6 +308,10 @@ const target = {
     // is not something a raw query in a suite should have to assume
     return name === 'mssql' ? `[${identifier}]` : `"${identifier}"`;
   },
+
+  // Which server answered: `name` is the dialect it speaks, this is what it
+  // is. The two differ for mariadb alone
+  server,
 
   /**
    * The store configuration of a database on the target

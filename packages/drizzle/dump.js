@@ -76,6 +76,62 @@ const NUMERIC =
   /^(?:tinyint|smallint|mediumint|int|integer|bigint|decimal|numeric|float|double|real|bit|year)\b/iu;
 
 /**
+ * Is the server behind this MySQL connection MariaDB?
+ *
+ * MariaDB answers the MySQL wire protocol, mysql2 connects to it and
+ * `"adapter": "mariadb"` points at it, so a dump can be taken from one.
+ * What it does not share is `information_schema.COLUMNS.COLUMN_DEFAULT`
+ * (see `mysqlDefault`), and the only way to tell the two apart is to ask.
+ *
+ * @param {Function} query Runs a statement and answers its rows
+ * @returns {Promise<boolean>} true when the server is MariaDB
+ */
+const isMariaDB = async (query) => {
+  const rows = await query('SELECT VERSION() AS version');
+  const [row] = rows || [];
+  const version = row && (row.version || row.VERSION);
+
+  return /mariadb/iu.test(String(version || ''));
+};
+
+/**
+ * The ` DEFAULT ...` of a MySQL column, or nothing when it has none
+ *
+ * The two servers answer `COLUMN_DEFAULT` differently, and the difference
+ * is not a spelling. MySQL answers the **value**: `hi` for a string, SQL
+ * NULL when there is no default, and `CURRENT_TIMESTAMP(3)` marked
+ * `DEFAULT_GENERATED` in `EXTRA` for a function. MariaDB (since 10.2.7)
+ * answers the **expression**: `'hi'` already quoted and escaped, the four
+ * letters `NULL` when there is none, `current_timestamp(3)` with nothing
+ * in `EXTRA`. So a value read from MySQL is quoted here unless it is
+ * numeric or generated, and one read from MariaDB is written as it came --
+ * which is what keeps `DEFAULT 'NULL'` out of a dump taken there (a string
+ * default that really is the word NULL arrives as `'NULL'`, quoted, so the
+ * two never collide).
+ *
+ * @param {object} row A row of information_schema.COLUMNS
+ * @param {boolean} maria Whether the server is MariaDB
+ * @returns {string} The clause, empty when the column has no default
+ */
+const mysqlDefault = (row, maria) => {
+  if (row.column_default === null) {
+    return '';
+  }
+
+  if (maria) {
+    return String(row.column_default) === 'NULL'
+      ? ''
+      : ` DEFAULT ${row.column_default}`;
+  }
+
+  const raw =
+    String(row.extra || '').includes('DEFAULT_GENERATED') ||
+    NUMERIC.test(row.data_type);
+
+  return ` DEFAULT ${raw ? row.column_default : literal(row.column_default)}`;
+};
+
+/**
  * Groups rows by one of their columns, keeping the order they arrived in
  *
  * @param {Array<object>} rows The rows
@@ -225,6 +281,7 @@ const postgres = async (query) => {
  * @returns {Promise<object>} The description
  */
 const mysql = async (query) => {
+  const maria = await isMariaDB(query);
   const columns = await query(
     `SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name,
             COLUMN_TYPE AS data_type, IS_NULLABLE AS nullable,
@@ -267,14 +324,8 @@ const mysql = async (query) => {
 
   for (const [name, rows] of groupBy(columns, 'table_name')) {
     const body = rows.map((row) => {
-      const extra = String(row.extra || '');
-      const auto = extra.includes('auto_increment');
-      const raw =
-        extra.includes('DEFAULT_GENERATED') || NUMERIC.test(row.data_type);
-      const value =
-        row.column_default === null
-          ? ''
-          : ` DEFAULT ${raw ? row.column_default : literal(row.column_default)}`;
+      const auto = String(row.extra || '').includes('auto_increment');
+      const value = mysqlDefault(row, maria);
 
       return `${backtick(row.column_name)} ${row.data_type}${
         row.nullable === 'NO' ? ' NOT NULL' : ''

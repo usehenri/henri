@@ -12,6 +12,19 @@ const { describeField, redact, scanActions } = require('../src/app');
 const { freePort, probe } = require('../src/runtime');
 const { version } = require('../package.json');
 
+// Every scaffolded application here is torn down by removing its whole
+// directory, and the process that held it does not always let go first: a
+// mongod the SIGKILL has not finished reaping writes one more file while
+// `rm` is walking the tree, and the removal raises ENOTEMPTY. Node retries
+// that one (with EBUSY, EMFILE, ENFILE and EPERM) when it is asked to,
+// which is what the last two keys say.
+const REMOVE = {
+  force: true,
+  maxRetries: 10,
+  recursive: true,
+  retryDelay: 100,
+};
+
 const henriBin = path.resolve(__dirname, '../../henri/bin/henri.js');
 const PORT = 47311;
 const mcpBin = path.resolve(__dirname, '../bin/henri-mcp.js');
@@ -267,7 +280,7 @@ describe('henri mcp', () => {
     if (client) {
       await client.close();
     }
-    fs.rmSync(dir, { force: true, recursive: true });
+    fs.rmSync(dir, REMOVE);
   });
 
   test('identifies itself and lists the tools and resources', async () => {
@@ -735,7 +748,7 @@ describe('henri mcp against a running application', () => {
       server.kill('SIGKILL');
       await ended;
     }
-    fs.rmSync(dir, { force: true, recursive: true });
+    fs.rmSync(dir, REMOVE);
   }, 30000);
 
   test('attaches to the server that is already running', async () => {
@@ -939,7 +952,7 @@ describe('henri mcp outside of an application', () => {
       timeout: 20000,
     });
 
-    fs.rmSync(dir, { force: true, recursive: true });
+    fs.rmSync(dir, REMOVE);
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('not a henri application');

@@ -113,40 +113,48 @@ describe('the schema dump', () => {
     fs.rmSync(dir, { force: true, recursive: true });
   });
 
-  test('describes the tables of the database and says where it is', async () => {
-    const adapter = adapterIn(dir, 'app.db', { sync: true });
+  // The four tests below take the dump *at a migration*, which needs the
+  // database to have been pushed to that schema. On MariaDB a push cannot
+  // read the schema back (target.introspects says why), so the migration
+  // stays pending and the dump is at none. The dump itself is exercised
+  // there by the tests that do not generate, and by `mariadb.spec.js`
+  test.skipIf(!target.introspects)(
+    'describes the tables of the database and says where it is',
+    async () => {
+      const adapter = adapterIn(dir, 'app.db', { sync: true });
 
-    await adapter.start();
-    await adapter.migrations.generate({ name: 'init' });
+      await adapter.start();
+      await adapter.migrations.generate({ name: 'init' });
 
-    const written = await adapter.dump.write();
-    const text = fs.readFileSync(written.file, 'utf8');
+      const written = await adapter.dump.write();
+      const text = fs.readFileSync(written.file, 'utf8');
 
-    expect(written.file).toBe(path.join(dir, 'db/schema.sql'));
-    expect(written.at).toBe('0000_init');
-    // The sessions table is the store's own and lives in its schema, so it
-    // is described like any other; the queue's and the trail's are not
-    expect(written.tables).toEqual([
-      'henri_sessions',
-      'notes',
-      'tasks',
-      'users',
-    ]);
-    expect(text).toContain('-- henri schema dump');
-    expect(text).toContain(`-- dialect: ${target.name}`);
-    expect(text).toContain('-- migration: 0000_init');
-    expect(Dump.at(text)).toBe('0000_init');
+      expect(written.file).toBe(path.join(dir, 'db/schema.sql'));
+      expect(written.at).toBe('0000_init');
+      // The sessions table is the store's own and lives in its schema, so it
+      // is described like any other; the queue's and the trail's are not
+      expect(written.tables).toEqual([
+        'henri_sessions',
+        'notes',
+        'tasks',
+        'users',
+      ]);
+      expect(text).toContain('-- henri schema dump');
+      expect(text).toContain(`-- dialect: ${target.name}`);
+      expect(text).toContain('-- migration: 0000_init');
+      expect(Dump.at(text)).toBe('0000_init');
 
-    // The tables are in name order, whatever order the models were added in
-    const order = ['henri_sessions', 'notes', 'tasks', 'users'].map((name) =>
-      text.indexOf(`CREATE TABLE ${adapter.dialect.quote(name)}`)
-    );
+      // The tables are in name order, whatever order the models were added in
+      const order = ['henri_sessions', 'notes', 'tasks', 'users'].map((name) =>
+        text.indexOf(`CREATE TABLE ${adapter.dialect.quote(name)}`)
+      );
 
-    expect(order).toEqual([...order].sort((one, two) => one - two));
-    expect(order.every((at) => at > 0)).toBe(true);
+      expect(order).toEqual([...order].sort((one, two) => one - two));
+      expect(order.every((at) => at > 0)).toBe(true);
 
-    await adapter.stop();
-  });
+      await adapter.stop();
+    }
+  );
 
   test('is byte identical from one run to the next', async () => {
     const adapter = adapterIn(dir, 'app.db', { sync: true });
@@ -182,65 +190,71 @@ describe('the schema dump', () => {
     await adapter.stop();
   });
 
-  test('loads back into an empty database, and dumps the same bytes', async () => {
-    const adapter = adapterIn(dir, 'app.db', { sync: true });
+  test.skipIf(!target.introspects)(
+    'loads back into an empty database, and dumps the same bytes',
+    async () => {
+      const adapter = adapterIn(dir, 'app.db', { sync: true });
 
-    await adapter.start();
-    await adapter.migrations.generate({ name: 'init' });
+      await adapter.start();
+      await adapter.migrations.generate({ name: 'init' });
 
-    const written = await adapter.dump.write();
-    const before = fs.readFileSync(written.file, 'utf8');
+      const written = await adapter.dump.write();
+      const before = fs.readFileSync(written.file, 'utf8');
 
-    await empty(adapter);
+      await empty(adapter);
 
-    const loaded = await adapter.dump.load();
+      const loaded = await adapter.dump.load();
 
-    expect(loaded.at).toBe('0000_init');
-    expect(loaded.statements).toBe(statementsOf(before).length);
-    expect((await adapter.dump.render()).text).toBe(before);
+      expect(loaded.at).toBe('0000_init');
+      expect(loaded.statements).toBe(statementsOf(before).length);
+      expect((await adapter.dump.render()).text).toBe(before);
 
-    // A load leaves db:status telling the truth
-    expect(await adapter.migrations.status()).toMatchObject({
-      applied: ['0000_init'],
-      pending: [],
-    });
+      // A load leaves db:status telling the truth
+      expect(await adapter.migrations.status()).toMatchObject({
+        applied: ['0000_init'],
+        pending: [],
+      });
 
-    await adapter.stop();
-  });
+      await adapter.stop();
+    }
+  );
 
-  test('records the migrations through the one it was taken at, and no more', async () => {
-    const first = adapterIn(dir, 'app.db', { sync: true });
+  test.skipIf(!target.introspects)(
+    'records the migrations through the one it was taken at, and no more',
+    async () => {
+      const first = adapterIn(dir, 'app.db', { sync: true });
 
-    await first.start();
-    await first.migrations.generate({ name: 'init' });
-    await first.dump.write();
-    await first.stop();
+      await first.start();
+      await first.migrations.generate({ name: 'init' });
+      await first.dump.write();
+      await first.stop();
 
-    // A migration written after the dump stays pending
-    const second = adapterIn(dir, 'app.db');
-    const Task = second.addModel(
-      {
-        ...taskModel,
-        schema: { ...taskModel.schema, priority: { type: 'integer' } },
-      },
-      'user'
-    );
+      // A migration written after the dump stays pending
+      const second = adapterIn(dir, 'app.db');
+      const Task = second.addModel(
+        {
+          ...taskModel,
+          schema: { ...taskModel.schema, priority: { type: 'integer' } },
+        },
+        'user'
+      );
 
-    expect(Task.name).toBe('Task');
-    await second.start();
-    await second.migrations.generate({ name: 'priority' });
-    await empty(second);
+      expect(Task.name).toBe('Task');
+      await second.start();
+      await second.migrations.generate({ name: 'priority' });
+      await empty(second);
 
-    const loaded = await second.dump.load();
+      const loaded = await second.dump.load();
 
-    expect(loaded.recorded).toEqual(['0000_init']);
-    expect(await second.migrations.status()).toMatchObject({
-      applied: ['0000_init'],
-      pending: ['0001_priority'],
-    });
+      expect(loaded.recorded).toEqual(['0000_init']);
+      expect(await second.migrations.status()).toMatchObject({
+        applied: ['0000_init'],
+        pending: ['0001_priority'],
+      });
 
-    await second.stop();
-  });
+      await second.stop();
+    }
+  );
 
   test('refuses a table it would create that is already there', async () => {
     const adapter = adapterIn(dir, 'app.db', { sync: true });
@@ -277,33 +291,36 @@ describe('the schema dump', () => {
     await adapter.stop();
   });
 
-  test('refuses a dump that is not there, or belongs to another folder', async () => {
-    const adapter = adapterIn(dir, 'app.db', { sync: true });
+  test.skipIf(!target.introspects)(
+    'refuses a dump that is not there, or belongs to another folder',
+    async () => {
+      const adapter = adapterIn(dir, 'app.db', { sync: true });
 
-    await adapter.start();
+      await adapter.start();
 
-    await expect(adapter.dump.load()).rejects.toMatchObject({
-      code: 'HENRI_MIGRATION_DUMP_UNKNOWN',
-      message: expect.stringContaining('no schema dump'),
-    });
+      await expect(adapter.dump.load()).rejects.toMatchObject({
+        code: 'HENRI_MIGRATION_DUMP_UNKNOWN',
+        message: expect.stringContaining('no schema dump'),
+      });
 
-    await adapter.migrations.generate({ name: 'init' });
+      await adapter.migrations.generate({ name: 'init' });
 
-    const { file } = await adapter.dump.write();
+      const { file } = await adapter.dump.write();
 
-    fs.writeFileSync(
-      file,
-      fs.readFileSync(file, 'utf8').replace('0000_init', '0007_elsewhere')
-    );
-    await empty(adapter);
+      fs.writeFileSync(
+        file,
+        fs.readFileSync(file, 'utf8').replace('0000_init', '0007_elsewhere')
+      );
+      await empty(adapter);
 
-    await expect(adapter.dump.load()).rejects.toMatchObject({
-      code: 'HENRI_MIGRATION_DUMP_UNKNOWN',
-      message: expect.stringContaining('0007_elsewhere'),
-    });
+      await expect(adapter.dump.load()).rejects.toMatchObject({
+        code: 'HENRI_MIGRATION_DUMP_UNKNOWN',
+        message: expect.stringContaining('0007_elsewhere'),
+      });
 
-    await adapter.stop();
-  });
+      await adapter.stop();
+    }
+  );
 
   test('says it is at no migration when the folder is empty', async () => {
     const adapter = adapterIn(dir, 'app.db', { sync: true });

@@ -897,15 +897,16 @@ await henri.model.stores.default.describe(); // what the database holds
 
 Sessions are stored in the database of the user model's store: a `henriSessions` collection on MongoDB, a `henri_sessions` table on a drizzle store, a table created by connect-session-sequelize on an mssql one (the `session` key of the store configures any of them).
 
-**Which one.** Two of the four SQL databases henri reaches are the same package under two names, so the choice is smaller than the list looks:
+**Which one.** MySQL and MariaDB are one package under two names, so the choice is smaller than the list looks:
 
-| The database   | The adapter                                                 | The ORM   |
-| -------------- | ----------------------------------------------------------- | --------- |
-| sqlite         | `drizzle` with `"dialect": "sqlite"`                        | Drizzle   |
-| PostgreSQL     | `postgresql`, or `drizzle` with `"dialect": "postgres"`     | Drizzle   |
-| MySQL, MariaDB | `mysql` / `mariadb`, or `drizzle` with `"dialect": "mysql"` | Drizzle   |
-| SQL Server     | `mssql`                                                     | Sequelize |
-| MongoDB        | `mongoose`, or `disk` for a local one                       | Mongoose  |
+| The database | The adapter                                               | The ORM   |
+| ------------ | --------------------------------------------------------- | --------- |
+| sqlite       | `drizzle` with `"dialect": "sqlite"`                      | Drizzle   |
+| PostgreSQL   | `postgresql`, or `drizzle` with `"dialect": "postgres"`   | Drizzle   |
+| MySQL        | `mysql`, or `drizzle` with `"dialect": "mysql"`           | Drizzle   |
+| MariaDB      | `mariadb` — the same package, with [two limits](#mariadb) | Drizzle   |
+| SQL Server   | `mssql`                                                   | Sequelize |
+| MongoDB      | `mongoose`, or `disk` for a local one                     | Mongoose  |
 
 Drizzle is henri's SQL data layer: it has the migrations, and `@usehenri/postgresql` and `@usehenri/mysql` are that adapter with the dialect and the driver already chosen. Sequelize is behind `mssql` alone, and the reason is narrow: Drizzle has no SQL Server dialect (drizzle-orm 0.45 ships pg, mysql, sqlite, singlestore and gel; drizzle-kit 0.31 generates for postgresql, mysql, sqlite, turso, singlestore and gel), so it is how henri reaches one. Everything an mssql store does differently from the rest -- no migrations, `henri db:status` instead -- follows from that.
 
@@ -1277,7 +1278,32 @@ pnpm add @usehenri/mysql
 }
 ```
 
-Use `"adapter": "mariadb"` with a `mariadb://` url for MariaDB; the same package handles both. Everything under [Drizzle](#drizzle) is true of it, including [what drizzle-kit will not alter on a MySQL push](#drizzle).
+Everything under [Drizzle](#drizzle) is true of it, including [what drizzle-kit will not alter on a MySQL push](#drizzle). `henri new my-app --adapter mysql` scaffolds it. Measured against MySQL 8.4.
+
+#### MariaDB
+
+`"adapter": "mariadb"` is the same package, and a `mariadb://` url is served by `mysql2`. MariaDB answers the MySQL wire protocol and henri compiles the same dialect for it, so most of what is on this page works there — but **two things do not, and neither is henri's to fix.** They are measured by `packages/drizzle/__tests__/mariadb.spec.js` against MariaDB 10.11 and 11.8, with drizzle-orm 0.45 and drizzle-kit 0.31:
+
+- **Eager loading does not work.** `include()` compiles to `LEFT JOIN LATERAL (...) ON TRUE` on drizzle-orm's MySQL dialect, and MariaDB has no `LATERAL` derived tables in any version. Every `include()` — and every `embeds` declaration, which reads through the same path — is a syntax error from the server. Load the association with a second query instead.
+- **`henri db:push` does not work, and neither does a development boot with the default `"sync"`.** drizzle-kit introspects before it pushes, and its check-constraint pass cannot read a MariaDB schema: MariaDB has no `JSON` type of its own (`JSON` is `LONGTEXT` with a `CHECK (json_valid(...))` next to it), so every `json` column — the user model's `roles`, on every application — leaves a check constraint the pass then reads the wrong column name out of. The first push of an empty database works and every one after it fails. henri catches it and answers `HENRI_MIGRATION_PUSH_FAILED` rather than letting the process end with no message.
+
+So a MariaDB store is set up with `"sync": false` and changed with `henri db:generate` then `henri db:migrate`, which do work:
+
+```json
+{
+  "stores": {
+    "default": {
+      "adapter": "mariadb",
+      "sync": false,
+      "url": "mariadb://user:password@localhost:3306/myapp"
+    }
+  }
+}
+```
+
+`henri db:generate` writes the migration whatever it can read back, and says so when it could not: the migration stays pending and `henri db:migrate` applies it. `henri db:schema:dump` and `henri db:schema:load` read and write MariaDB correctly, `henri db:status` lists what is pending, and `adapter.describe()` reports the columns in MariaDB's own spelling — `int(11)` where MySQL 8 says `int`, `longtext` where it says `json`.
+
+Everything else runs there and is exercised by the same suites (`pnpm test:sql:mariadb`): the model API, the schema format, the exact `decimal` and `bigint` types, time zones, validations, enums, slugs, filters, `res.csv()`, encrypted attributes, multi-tenancy, retention, the access trail, model versions, the call log with its `RANGE` partitions, and the background job queue with its claim, its concurrency slots and its batches. `henri new --adapter` does not offer `mariadb`.
 
 ### Disk
 
