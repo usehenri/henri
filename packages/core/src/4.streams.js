@@ -5,7 +5,7 @@ const debug = require('debug')('henri:streams');
 const { check } = require('./base/arguments');
 const { fail } = require('./base/errors');
 const { manyProcesses } = require('./base/shared');
-const { Registry, Stream, settings, topicOf } = require('./base/stream');
+const { Registry, Stream, field, settings, topicOf } = require('./base/stream');
 
 /**
  * The streams module: `henri.streams`.
@@ -192,10 +192,15 @@ class StreamsModule extends BaseModule {
   async publish(topic, event, data = null, options = {}) {
     check('henri.streams.publish', [topic, event, data, options]);
 
+    // The event is walked here and not only where the frame is built:
+    // `Registry#publish()` catches what a subscriber's `send()` throws, so
+    // a newline in it was a log line where somebody was listening and
+    // nothing at all where nobody was -- and the caller, whose mistake it
+    // is, heard about it neither way. The topic is walked here already
     return this.registry.publish(topicOf(topic), {
       data,
-      event,
-      id: options.id || null,
+      event: field('event', event),
+      id: field('id', options.id || null),
     });
   }
 
