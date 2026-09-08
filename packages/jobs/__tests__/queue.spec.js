@@ -31,12 +31,14 @@ describe(`queue (${target.name})`, () => {
       expect(jobs.names()).toEqual([
         'boom',
         'counter',
+        'exclusive',
         'henri/mail',
         'henri/retention',
         'mailers',
         'nested/deep',
         'ok',
         'slow',
+        'tenanted',
       ]);
     });
 

@@ -2,9 +2,25 @@
  * The tables `@usehenri/jobs` owns, and the DDL of every SQL dialect henri
  * can talk to.
  *
- * The queue never goes through a henri model: it owns two tables of its own
+ * The queue never goes through a henri model: it owns three tables of its own
  * so it cannot collide with the application's schema, and so a store that
  * has no models at all (a fresh application) still has a queue.
+ *
+ * ## The upgrade block
+ *
+ * These tables are `CREATE TABLE IF NOT EXISTS` and there is no migration
+ * chain behind them, so a table an older henri created is the table an
+ * installation still has. A **new table** is therefore free -- the guarded
+ * create makes it appear -- and a **new column** is not.
+ *
+ * `upgrade()` is the answer: the statements that bring an existing table up
+ * to what this version writes, every one of them idempotent, and every one
+ * of them **tolerated** by the store (see `SqlStore#install`). A database
+ * user who may not `ALTER` never fails a boot over a feature the
+ * application does not use; the feature itself asks whether its column is
+ * there (`SqlStore#concurrent`) and refuses with the install line when it is
+ * not. The same statements run on a fresh database, where they find their
+ * work already done.
  *
  * Every moment is stored as a BIGINT of milliseconds since the epoch rather
  * than a timestamp column: sqlite has no date type, MySQL, PostgreSQL and
@@ -22,6 +38,17 @@ const SAFE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const DIALECTS = {
   mssql: {
+    /**
+     * Adds a column, only when the table has none by that name
+     *
+     * @param {string} table The table name
+     * @param {string} column The column name
+     * @param {string} type The column type
+     * @returns {string} The statement
+     */
+    addColumn: (table, column, type) =>
+      `IF COL_LENGTH('${table}', '${column}') IS NULL ALTER TABLE [${table}] ADD ${column} ${type} NULL`,
+
     /**
      * Wraps a statement so it only runs when the index is missing
      *
@@ -44,6 +71,7 @@ const DIALECTS = {
       `IF OBJECT_ID('${table}', 'U') IS NULL ${statement}`,
 
     ifNotExists: '',
+    indexIfNotExists: '',
     inlineIndexes: false,
     int: 'INT',
     // MSSQL is the one dialect that treats NULLs as equal in a unique index
@@ -52,9 +80,16 @@ const DIALECTS = {
     text: 'NVARCHAR(MAX)',
   },
   mysql: {
+    // MySQL has no ADD COLUMN IF NOT EXISTS: a second run answers 1060,
+    // which the store tolerates like every other upgrade statement
+    addColumn: (table, column, type) =>
+      `ALTER TABLE \`${table}\` ADD COLUMN ${column} ${type} NULL`,
     ifNotExists: 'IF NOT EXISTS',
     // MySQL has no CREATE INDEX IF NOT EXISTS: the indexes are declared in
-    // the CREATE TABLE, which is guarded
+    // the CREATE TABLE, which is guarded. An index the create cannot carry
+    // (a `late` one, on a table that is already there) is written bare and
+    // tolerated when it answers 1061
+    indexIfNotExists: '',
     inlineIndexes: true,
     int: 'INT',
     partialUnique: false,
@@ -63,7 +98,10 @@ const DIALECTS = {
     text: 'MEDIUMTEXT',
   },
   postgres: {
+    addColumn: (table, column, type) =>
+      `ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS ${column} ${type} NULL`,
     ifNotExists: 'IF NOT EXISTS',
+    indexIfNotExists: 'IF NOT EXISTS',
     inlineIndexes: false,
     int: 'INTEGER',
     partialUnique: false,
@@ -71,7 +109,12 @@ const DIALECTS = {
     text: 'TEXT',
   },
   sqlite: {
+    // SQLite has no ADD COLUMN IF NOT EXISTS either: a second run answers
+    // "duplicate column name", which the store tolerates
+    addColumn: (table, column, type) =>
+      `ALTER TABLE "${table}" ADD COLUMN ${column} ${type} NULL`,
     ifNotExists: 'IF NOT EXISTS',
+    indexIfNotExists: 'IF NOT EXISTS',
     inlineIndexes: false,
     int: 'INTEGER',
     partialUnique: false,
@@ -79,6 +122,15 @@ const DIALECTS = {
     text: 'TEXT',
   },
 };
+
+/**
+ * The columns an older henri did not write, and the type they take.
+ *
+ * One entry per column added after a version that shipped: the create
+ * statement declares them and `upgrade()` adds them to a table that has
+ * them not.
+ */
+const ADDED = [{ column: 'concurrency_key', type: 'VARCHAR(190)' }];
 
 /**
  * The columns of the jobs table, in order
@@ -110,7 +162,38 @@ const jobColumns = (dialect) => [
   `error_stack ${dialect.text} NULL`,
   `history ${dialect.text} NULL`,
   'unique_key VARCHAR(190) NULL',
+  'concurrency_key VARCHAR(190) NULL',
   'PRIMARY KEY (id)',
+];
+
+/**
+ * The columns of the concurrency table, in order
+ *
+ * One row is one slot of one key: `(limit_key, slot)` is the primary key, so
+ * `slot` counts from zero to the job's limit and an INSERT is what takes it.
+ * That unique index is the whole bound -- see `SqlStore#takeSlot`.
+ *
+ * @param {object} dialect A dialect description
+ * @returns {Array<string>} The column definitions
+ */
+const limitColumns = (dialect) => [
+  'limit_key VARCHAR(190) NOT NULL',
+  `slot ${dialect.int} NOT NULL`,
+  'job_id VARCHAR(36) NULL',
+  'runner VARCHAR(120) NOT NULL',
+  'taken_at BIGINT NOT NULL',
+  'heartbeat_at BIGINT NOT NULL',
+  'PRIMARY KEY (limit_key, slot)',
+];
+
+/**
+ * The indexes of the concurrency table
+ *
+ * @param {string} table The table name
+ * @returns {Array<object>} `{ name, columns, unique }` entries
+ */
+const limitIndexes = (table) => [
+  { columns: ['heartbeat_at'], name: `${table}_stale`, unique: false },
 ];
 
 /**
@@ -150,21 +233,59 @@ const jobIndexes = (table) => [
     unique: false,
   },
   { columns: ['unique_key'], name: `${table}_unique`, unique: true },
+  // `late`: it arrived with a column an older table has not, so it belongs
+  // to the upgrade block on every dialect rather than to the create
+  {
+    columns: ['state', 'concurrency_key', 'run_at'],
+    late: true,
+    name: `${table}_limited`,
+    unique: false,
+  },
 ];
+
+/**
+ * The statement that creates one index
+ *
+ * @param {object} dialect A dialect description
+ * @param {string} table The table name
+ * @param {object} index An index description
+ * @returns {string} The statement
+ */
+const indexStatement = (dialect, table, index) => {
+  const filter =
+    index.unique && dialect.partialUnique
+      ? ` WHERE ${index.columns[0]} IS NOT NULL`
+      : '';
+  const statement = [
+    `CREATE ${index.unique ? 'UNIQUE ' : ''}INDEX`,
+    dialect.guardIndex ? '' : dialect.indexIfNotExists,
+    `${dialect.quote(index.name)} ON ${dialect.quote(table)} (${index.columns.join(', ')})${filter}`,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return dialect.guardIndex
+    ? dialect.guardIndex(table, index.name, statement)
+    : statement;
+};
 
 /**
  * The statements that create a table and its indexes, in order
  *
+ * An index marked `late` is left out: it names a column an older table does
+ * not have, so it is the upgrade block's, on every dialect at once.
+ *
  * @param {object} dialect A dialect description
  * @param {string} table The table name
  * @param {Array<string>} columns The column definitions
- * @param {Array<object>} indexes The indexes
+ * @param {Array<object>} all The indexes
  * @returns {Array<string>} The statements to run, in order
  */
-const statementsFor = (dialect, table, columns, indexes) => {
+const statementsFor = (dialect, table, columns, all) => {
   const quoted = dialect.quote(table);
   const definitions = [...columns];
   const statements = [];
+  const indexes = all.filter((index) => !index.late);
 
   if (dialect.inlineIndexes) {
     for (const index of indexes) {
@@ -191,26 +312,43 @@ const statementsFor = (dialect, table, columns, indexes) => {
   }
 
   for (const index of indexes) {
-    const filter =
-      index.unique && dialect.partialUnique
-        ? ` WHERE ${index.columns[0]} IS NOT NULL`
-        : '';
-    const statement = [
-      `CREATE ${index.unique ? 'UNIQUE ' : ''}INDEX`,
-      dialect.guardIndex ? '' : dialect.ifNotExists,
-      `${dialect.quote(index.name)} ON ${quoted} (${index.columns.join(', ')})${filter}`,
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    statements.push(
-      dialect.guardIndex
-        ? dialect.guardIndex(table, index.name, statement)
-        : statement
-    );
+    statements.push(indexStatement(dialect, table, index));
   }
 
   return statements;
+};
+
+/**
+ * The statements that bring a table an older henri created up to date
+ *
+ * Every one of them is idempotent and every one of them is tolerated by the
+ * store: a database user who may not `ALTER` never fails a boot over a
+ * feature the application does not use. What decides whether the feature
+ * works is asking the table, not whether these ran.
+ *
+ * @param {string} name The dialect (sqlite, postgres, mysql, mssql)
+ * @param {object} tables `{ jobs, schedules, limits }` table names
+ * @returns {Array<string>} The statements
+ * @throws {Error} When the dialect is unknown
+ */
+const upgrade = (name, tables) => {
+  const dialect = DIALECTS[name];
+
+  if (!dialect) {
+    throw coded(
+      'HENRI_JOB_UNSUPPORTED_STORE',
+      `@usehenri/jobs: unsupported SQL dialect "${name}"`
+    );
+  }
+
+  return [
+    ...ADDED.map((added) =>
+      dialect.addColumn(tables.jobs, added.column, added.type)
+    ),
+    ...jobIndexes(tables.jobs)
+      .filter((index) => index.late)
+      .map((index) => indexStatement(dialect, tables.jobs, index)),
+  ];
 };
 
 /**
@@ -220,7 +358,7 @@ const statementsFor = (dialect, table, columns, indexes) => {
  * database another runner already prepared, changes nothing.
  *
  * @param {string} name The dialect (sqlite, postgres, mysql, mssql)
- * @param {object} tables `{ jobs, schedules }` table names
+ * @param {object} tables `{ jobs, schedules, limits }` table names
  * @returns {Array<string>} The statements
  * @throws {Error} When the dialect or a table name is unknown
  */
@@ -251,6 +389,13 @@ const install = (name, tables) => {
       jobIndexes(tables.jobs)
     ),
     ...statementsFor(dialect, tables.schedules, scheduleColumns(dialect), []),
+    ...statementsFor(
+      dialect,
+      tables.limits,
+      limitColumns(dialect),
+      limitIndexes(tables.limits)
+    ),
+    ...upgrade(name, tables),
   ];
 };
 
@@ -258,7 +403,7 @@ const install = (name, tables) => {
  * The statements that drop the tables, newest first
  *
  * @param {string} name The dialect
- * @param {object} tables `{ jobs, schedules }` table names
+ * @param {object} tables `{ jobs, schedules, limits }` table names
  * @returns {Array<string>} The statements
  * @throws {Error} When the dialect is unknown
  */
@@ -272,9 +417,9 @@ const uninstall = (name, tables) => {
     );
   }
 
-  return [tables.schedules, tables.jobs].map(
+  return [tables.limits, tables.schedules, tables.jobs].map(
     (table) => `DROP TABLE IF EXISTS ${dialect.quote(table)}`
   );
 };
 
-module.exports = { DIALECTS, install, uninstall };
+module.exports = { ADDED, DIALECTS, install, uninstall, upgrade };

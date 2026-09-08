@@ -22,6 +22,7 @@ import type {
   IdentityResult,
   Job,
   JobDefinition,
+  JobLimits,
   JobStats,
   EncryptionFieldStatus,
   ErasureReceipt,
@@ -196,6 +197,7 @@ expectType<Promise<Job>>(jobs.performIn('5m', 'welcome', { userId: 1 }));
 expectType<Promise<Job>>(jobs.performAt(new Date(), 'welcome', null));
 expectType<Promise<Job[]>>(jobs.list({ state: 'pending' }));
 expectType<Promise<JobStats>>(jobs.stats());
+expectType<Promise<JobLimits>>(jobs.limits());
 expectType<Promise<Job | null>>(jobs.dead.retry('an-id'));
 expectType<Promise<number>>(jobs.dead.discardAll({ queue: 'mailers' }));
 
@@ -213,6 +215,33 @@ const welcome: JobDefinition = {
 };
 
 expectType<JobDefinition>(welcome);
+
+// A bound on the job itself, and one per key of its arguments
+const exclusive: JobDefinition = { concurrency: 1, perform: async () => null };
+const perTenant: JobDefinition = {
+  concurrency: { group: 'tenant-work', key: 'tenantId', limit: 3 },
+
+  perform: async () => null,
+};
+const computed: JobDefinition = {
+  concurrency: { key: (args) => args.account.id, limit: 2 },
+
+  perform: async () => null,
+};
+
+expectType<JobDefinition>(exclusive);
+expectType<JobDefinition>(perTenant);
+expectType<JobDefinition>(computed);
+expectType<string | null>((await jobs.perform('import')).concurrencyKey);
+
+const unbounded: JobDefinition = {
+  // @ts-expect-error a concurrency limit is a number or `{ limit }`
+  concurrency: { every: 3 },
+
+  perform: async () => null,
+};
+
+expectType<JobDefinition>(unbounded);
 
 // @ts-expect-error `pending` is a state, not a queue
 jobs.list({ state: 'sleeping' });

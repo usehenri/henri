@@ -23,6 +23,19 @@ const { keep } = require('../keys');
  *
  * Documents use the same field names as the SQL columns so the two backends
  * hand the queue the same rows.
+ *
+ * ## Concurrency limits
+ *
+ * The same as the SQL backend, for the same reason: a bound on how many of
+ * a job run at once cannot be counted inside the claim, so it is held by a
+ * collection whose `_id` is `<key>#<slot>`. An `insertOne` either writes it
+ * or answers 11000, which is exactly the primitive the SQL side gets from a
+ * primary key -- and the one thing MongoDB has no other way to give, having
+ * neither `SELECT ... FOR UPDATE` nor an advisory lock.
+ *
+ * A collection needs no upgrade: a document written by an older henri
+ * simply has no `concurrency_key`, which is what an unlimited job's row
+ * looks like anyway.
  */
 
 /** The collection is written with the SQL column names, on purpose */
@@ -38,7 +51,7 @@ class MongoStore {
    * Creates an instance of MongoStore.
    *
    * @param {object} adapter A henri mongoose (or disk) adapter
-   * @param {object} tables `{ jobs, schedules }` collection names
+   * @param {object} tables `{ jobs, schedules, limits }` collection names
    * @memberof MongoStore
    */
   constructor(adapter, tables) {
@@ -89,6 +102,29 @@ class MongoStore {
   }
 
   /**
+   * The concurrency slots collection
+   *
+   * @returns {object} A MongoDB collection
+   * @memberof MongoStore
+   */
+  limits() {
+    return this.database().collection(this.tables.limits);
+  }
+
+  /**
+   * Whether concurrency limits can be held here; they always can
+   *
+   * A collection has no columns to be missing, so there is nothing for an
+   * installation to upgrade and nothing to refuse.
+   *
+   * @returns {Promise<boolean>} true
+   * @memberof MongoStore
+   */
+  async concurrent() {
+    return true;
+  }
+
+  /**
    * A document, as the queue reads rows
    *
    * @param {?object} document A stored document
@@ -136,7 +172,12 @@ class MongoStore {
       }
     );
 
-    return [this.tables.jobs, this.tables.schedules];
+    await this.limits().createIndex(
+      { heartbeat_at: 1 },
+      { name: `${this.tables.limits}_stale` }
+    );
+
+    return [this.tables.jobs, this.tables.schedules, this.tables.limits];
   }
 
   /**
@@ -169,14 +210,18 @@ class MongoStore {
    * @memberof MongoStore
    */
   async uninstall() {
-    for (const name of [this.tables.jobs, this.tables.schedules]) {
+    for (const name of [
+      this.tables.jobs,
+      this.tables.schedules,
+      this.tables.limits,
+    ]) {
       await this.database()
         .collection(name)
         .drop()
         .catch(() => null);
     }
 
-    return [this.tables.schedules, this.tables.jobs];
+    return [this.tables.limits, this.tables.schedules, this.tables.jobs];
   }
 
   /**
@@ -209,6 +254,15 @@ class MongoStore {
     // partial unique index never sees it
     if (rest.unique_key === null || typeof rest.unique_key === 'undefined') {
       delete rest.unique_key;
+    }
+
+    // Likewise: an unlimited job has no `concurrency_key` field at all, and
+    // that is what a document an older henri wrote looks like
+    if (
+      rest.concurrency_key === null ||
+      typeof rest.concurrency_key === 'undefined'
+    ) {
+      delete rest.concurrency_key;
     }
 
     try {
@@ -265,10 +319,22 @@ class MongoStore {
    * @param {string} options.runner The runner id
    * @param {string} options.token A token unique to this claim
    * @param {number} options.now The current time
+   * @param {object} [options.key] The concurrency key a slot is held for
+   * @param {Array<string>} [options.names] Only these job names
+   * @param {Array<string>} [options.except] Every name but these
    * @returns {Promise<Array<object>>} The rows this runner owns
    * @memberof MongoStore
    */
-  async claim({ queues = [], limit = 1, runner, token, now }) {
+  async claim({
+    queues = [],
+    limit = 1,
+    runner,
+    token,
+    now,
+    key,
+    names,
+    except,
+  }) {
     // `includeResultMetadata: false` is the default of the v6+ driver and is
     // named here on purpose: under an older one findOneAndUpdate answers
     // `{ value }`, which would read as a win for every runner
@@ -278,6 +344,22 @@ class MongoStore {
 
     if (queues.length > 0) {
       filter.queue = { $in: queues };
+    }
+
+    // The two passes partition the pending documents by **name**, exactly as
+    // the SQL backend does
+    if (except && except.length > 0) {
+      filter.name = { $nin: except };
+    }
+
+    if (names && names.length > 0) {
+      filter.name = { $in: names };
+    }
+
+    if (key) {
+      // A document with no `concurrency_key` field matches `null`, which is
+      // what a job enqueued before the limit was declared looks like
+      filter.concurrency_key = key.own ? { $in: [key.value, null] } : key.value;
     }
 
     for (let taken = 0; taken < limit; taken += 1) {
@@ -314,6 +396,226 @@ class MongoStore {
     debug('claimed %d job(s) for %s', claimed.length, runner);
 
     return claimed;
+  }
+
+  /**
+   * The concurrency keys with work waiting, the most urgent first
+   *
+   * @param {object} options Options
+   * @param {number} options.now The current time
+   * @param {Array<string>} options.names The names of the limited jobs
+   * @param {Array<string>} [options.queues=[]] The queues to look at
+   * @param {number} [options.limit=100] How many keys at most
+   * @returns {Promise<Array<object>>} `{ key, name, total }` rows
+   * @memberof MongoStore
+   */
+  async waiting({ now, names, queues = [], limit = 100 }) {
+    if (!names || names.length === 0) {
+      return [];
+    }
+
+    const match = {
+      name: { $in: names },
+      run_at: { $lte: now },
+      state: 'pending',
+    };
+
+    if (queues.length > 0) {
+      match.queue = { $in: queues };
+    }
+
+    const rows = await this.jobs()
+      .aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: { key: '$concurrency_key', name: '$name' },
+            due: { $min: '$run_at' },
+            priority: { $min: '$priority' },
+            total: { $sum: 1 },
+          },
+        },
+        // Ordered, like an ORDER BY
+        // eslint-disable-next-line sort-keys
+        { $sort: { priority: 1, due: 1 } },
+        { $limit: Math.max(1, Number(limit) || 100) },
+      ])
+      .toArray();
+
+    return rows.map((row) => ({
+      key: row._id.key || null,
+      name: row._id.name,
+      total: row.total || 0,
+    }));
+  }
+
+  /**
+   * The `_id` of one slot
+   *
+   * The slot is an integer and it is always last, so the split on the final
+   * `#` gives the key back whatever the key holds.
+   *
+   * @param {string} key The concurrency key
+   * @param {number} slot The slot
+   * @returns {string} The document id
+   * @memberof MongoStore
+   */
+  slotId(key, slot) {
+    return `${key}#${slot}`;
+  }
+
+  /**
+   * Takes one of a key's slots, or answers null when they are all held
+   *
+   * **This is the bound.** An `insertOne` on a taken `_id` answers 11000 and
+   * writes nothing, which is the same refusal a primary key gives the SQL
+   * backend.
+   *
+   * @param {object} options Options
+   * @param {string} options.key The concurrency key
+   * @param {number} options.limit How many may run at once
+   * @param {string} options.runner The runner id
+   * @param {number} options.now The current time
+   * @returns {Promise<?number>} The slot this runner holds, or null
+   * @memberof MongoStore
+   */
+  async takeSlot({ key, limit, runner, now }) {
+    for (let slot = 0; slot < limit; slot += 1) {
+      try {
+        await this.limits().insertOne({
+          _id: this.slotId(key, slot),
+          heartbeat_at: now,
+          job_id: null,
+          limit_key: key,
+          runner,
+          slot,
+          taken_at: now,
+        });
+
+        return slot;
+      } catch (error) {
+        if (error.code !== 11000) {
+          throw error;
+        }
+
+        debug('slot %d of %s was taken first', slot, key);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Says which job a slot is being held for
+   *
+   * @param {string} key The concurrency key
+   * @param {number} slot The slot
+   * @param {?string} id The job id
+   * @param {number} now The current time
+   * @returns {Promise<void>} Resolves when written
+   * @memberof MongoStore
+   */
+  async holdSlot(key, slot, id, now) {
+    await this.limits().updateOne(
+      { _id: this.slotId(key, slot) },
+      { $set: { heartbeat_at: now, job_id: id } }
+    );
+  }
+
+  /**
+   * Gives a slot back
+   *
+   * @param {string} key The concurrency key
+   * @param {number} slot The slot
+   * @param {string} [runner] Only when this runner still holds it
+   * @returns {Promise<void>} Resolves when written
+   * @memberof MongoStore
+   */
+  async releaseSlot(key, slot, runner) {
+    const filter = { _id: this.slotId(key, slot) };
+
+    if (runner) {
+      filter.runner = runner;
+    }
+
+    await this.limits().deleteOne(filter);
+  }
+
+  /**
+   * Tells the database this runner still holds these slots
+   *
+   * @param {Array<object>} slots `{ key, slot }` entries
+   * @param {number} now The current time
+   * @param {string} runner The runner id
+   * @returns {Promise<void>} Resolves when written
+   * @memberof MongoStore
+   */
+  async heartbeatSlots(slots, now, runner) {
+    if (slots.length === 0) {
+      return;
+    }
+
+    await this.limits().updateMany(
+      {
+        _id: { $in: slots.map((held) => this.slotId(held.key, held.slot)) },
+        runner,
+      },
+      { $set: { heartbeat_at: now } }
+    );
+  }
+
+  /**
+   * Frees the slots of runners that stopped answering
+   *
+   * @param {object} options `now`, `stuckAfter` and `limit`
+   * @returns {Promise<Array<object>>} The slots that were freed
+   * @memberof MongoStore
+   */
+  async sweepSlots({ now, stuckAfter, limit = 100 }) {
+    const documents = await this.limits()
+      .find({ heartbeat_at: { $lt: now - stuckAfter } })
+      .sort({ heartbeat_at: 1 })
+      .limit(limit)
+      .toArray();
+
+    for (const document of documents) {
+      await this.limits().deleteOne({
+        _id: document._id,
+        heartbeat_at: document.heartbeat_at,
+      });
+    }
+
+    return documents.map((document) => ({
+      job: document.job_id || null,
+      key: document.limit_key,
+      runner: document.runner,
+      slot: document.slot,
+      takenAt: document.taken_at,
+    }));
+  }
+
+  /**
+   * Every slot being held right now
+   *
+   * @param {number} [limit=200] How many at most
+   * @returns {Promise<Array<object>>} The held slots
+   * @memberof MongoStore
+   */
+  async slots(limit = 200) {
+    const documents = await this.limits()
+      .find({})
+      .sort({ limit_key: 1, slot: 1 })
+      .limit(limit)
+      .toArray();
+
+    return documents.map((document) => ({
+      heartbeatAt: document.heartbeat_at,
+      job: document.job_id || null,
+      key: document.limit_key,
+      runner: document.runner,
+      slot: document.slot,
+      takenAt: document.taken_at,
+    }));
   }
 
   /**
@@ -674,7 +976,7 @@ class MongoStore {
  * Builds the MongoDB store of an adapter
  *
  * @param {object} adapter A henri mongoose (or disk) adapter
- * @param {object} tables `{ jobs, schedules }` collection names
+ * @param {object} tables `{ jobs, schedules, limits }` collection names
  * @returns {MongoStore} The store
  */
 const create = (adapter, tables) => new MongoStore(adapter, tables);

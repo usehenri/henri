@@ -119,6 +119,7 @@ describe('henri jobs', () => {
         store: 'default',
         tables: {
           jobs: 'henri_jobs',
+          limits: 'henri_jobs_limits',
           schedules: 'henri_jobs_schedules',
         },
       });
@@ -196,8 +197,12 @@ describe('henri jobs', () => {
       expect(status).toBe(0);
       expect(result.totals.done).toBe(1);
       expect(result.jobs).toEqual(
-        expect.arrayContaining(['boom', 'henri/mail', 'ping'])
+        expect.arrayContaining(['boom', 'henri/mail', 'import', 'ping'])
       );
+      expect(result.limits.declared).toEqual([
+        { group: 'import', job: 'import', keyed: true, limit: 1 },
+      ]);
+      expect(result.limits.held).toEqual([]);
       expect(result.recurring).toEqual([
         { job: 'ping', name: 'nightly', spec: 'cron:0 3 * * *' },
       ]);
@@ -311,6 +316,8 @@ describe('henri jobs', () => {
       expect(answer.stdout).toContain('pending');
       expect(answer.stdout).toContain('Recurring:');
       expect(answer.stdout).toContain('nightly -> ping');
+      expect(answer.stdout).toContain('Concurrency:');
+      expect(answer.stdout).toContain('import -> 1 at a time per key');
     });
   }, 300000);
 });

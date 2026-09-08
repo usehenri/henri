@@ -8,6 +8,19 @@ const { slot } = require('./keys');
 /** What a schedule waits before it looks again at an expression */
 const MINUTE = 60000;
 
+/**
+ * How many concurrency keys one tick looks at.
+ *
+ * A keyed limit (`key: 'tenantId'`) makes as many keys as there are tenants
+ * with work waiting, and a runner only ever has room for a handful of them:
+ * the store hands back the most urgent, which is the order the claim would
+ * have taken them in anyway.
+ */
+const KEYS_PER_TICK = 100;
+
+/** No job of this application declares a limit */
+const UNBOUNDED = { groups: new Map(), names: [] };
+
 /** The signals a runner stops on */
 const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGQUIT'];
 
@@ -53,6 +66,8 @@ class Runner {
 
     /** The jobs in flight: id -> { promise, token } */
     this.running = new Map();
+    /** The concurrency slots this runner holds: job id -> { key, slot } */
+    this.slots = new Map();
     this.stopping = false;
     this.stopped = null;
     this.loop = null;
@@ -375,25 +390,182 @@ class Runner {
       return 1;
     }
 
+    // The two passes partition the queue by job name: the first takes
+    // everything that declares no limit, in one statement, exactly as it
+    // always did; the second takes one row per concurrency slot it holds
+    const bounded = this.jobs.concurrent ? this.jobs.limited() : UNBOUNDED;
     const token = uuid();
+    const now = Date.now();
     const started = process.hrtime.bigint();
     const rows = await this.jobs.storeOrDie().claim({
+      except: bounded.names,
       limit: room,
-      now: Date.now(),
+      now,
       queues: this.queues,
       runner: this.id,
       token,
-    });
-
-    this.claimed.record(Number(process.hrtime.bigint() - started) / 1e9, {
-      'henri.jobs.claimed': rows.length,
     });
 
     for (const row of rows) {
       this.running.set(row.id, { promise: this.hold(row), token });
     }
 
-    return rows.length;
+    const left = room - rows.length;
+    const held =
+      left > 0 && bounded.names.length > 0
+        ? await this.throttled(bounded, left, now)
+        : 0;
+
+    this.claimed.record(Number(process.hrtime.bigint() - started) / 1e9, {
+      'henri.jobs.claimed': rows.length + held,
+    });
+
+    return rows.length + held;
+  }
+
+  /**
+   * Claims the jobs whose concurrency limit leaves room for them
+   *
+   * The permit comes **first**: a slot is taken, and only then is one row of
+   * that key claimed. The other order -- claim, discover the key is full,
+   * put the row back -- would make a full key spin this loop, because the
+   * cycle only sleeps when a tick claimed nothing.
+   *
+   * @param {object} bounded `{ names, groups }` from the queue
+   * @param {number} room How many jobs this runner still has room for
+   * @param {number} now The current time
+   * @returns {Promise<number>} How many jobs were claimed
+   * @memberof Runner
+   */
+  async throttled(bounded, room, now) {
+    const store = this.jobs.storeOrDie();
+    const waiting = await store.waiting({
+      limit: KEYS_PER_TICK,
+      names: bounded.names,
+      now,
+      queues: this.queues,
+    });
+    const seen = new Set();
+    let taken = 0;
+
+    for (const entry of waiting) {
+      if (taken >= room) {
+        break;
+      }
+
+      const bucket = this.jobs.bucket(entry, bounded);
+
+      // Two jobs of one group may answer for the same key: it is one bound,
+      // so it is asked for once
+      if (!bucket || seen.has(bucket.key.value)) {
+        continue;
+      }
+
+      seen.add(bucket.key.value);
+
+      // A key with room for three and a runner with room for three takes
+      // three: the slots run out (`takeSlot` answers null) or the key does
+      // (`claimOne` gives the permit straight back)
+      while (taken < room) {
+        const slot = await store.takeSlot({
+          key: bucket.key.value,
+          limit: bucket.limit,
+          now: Date.now(),
+          runner: this.id,
+        });
+
+        if (slot === null || !(await this.claimOne(bucket, slot, now))) {
+          break;
+        }
+
+        taken += 1;
+      }
+    }
+
+    return taken;
+  }
+
+  /**
+   * Claims one row of a key this runner holds a slot of
+   *
+   * @param {object} bucket `{ key, limit, names }`
+   * @param {number} slot The slot this runner took
+   * @param {number} now The current time
+   * @returns {Promise<boolean>} Whether a job was claimed
+   * @memberof Runner
+   */
+  async claimOne(bucket, slot, now) {
+    const store = this.jobs.storeOrDie();
+    const key = bucket.key.value;
+    const token = uuid();
+    let rows;
+
+    try {
+      rows = await store.claim({
+        key: bucket.key,
+        limit: 1,
+        names: bucket.names,
+        now,
+        queues: this.queues,
+        runner: this.id,
+        token,
+      });
+    } catch (error) {
+      await store.releaseSlot(key, slot, this.id).catch(() => null);
+      throw error;
+    }
+
+    const [row] = rows;
+
+    if (!row) {
+      // Another runner took the last row of this key in between: the permit
+      // goes back at once rather than waiting for the sweep
+      await store.releaseSlot(key, slot, this.id);
+
+      return false;
+    }
+
+    this.slots.set(row.id, { key, slot });
+    // Says what the slot is being held for, for `henri jobs:status`; the
+    // bound does not rest on it, so a failure here is a debug line
+    await store
+      .holdSlot(key, slot, row.id, Date.now())
+      .catch((error) => debug('holdSlot: %s', error.message));
+    this.running.set(row.id, { promise: this.hold(row), token });
+
+    return true;
+  }
+
+  /**
+   * Gives back the concurrency slot a job was performed under
+   *
+   * A slot that cannot be given back is freed by the sweep once its
+   * heartbeat goes stale, like the job of a runner that died.
+   *
+   * @param {string} id The job id
+   * @returns {Promise<void>} Resolves when it is back
+   * @memberof Runner
+   */
+  async free(id) {
+    const held = this.slots.get(id);
+
+    if (!held) {
+      return;
+    }
+
+    this.slots.delete(id);
+
+    try {
+      await this.jobs.storeOrDie().releaseSlot(held.key, held.slot, this.id);
+    } catch (error) {
+      this.log(
+        'warn',
+        'runner',
+        this.id,
+        `could not free the concurrency slot ${held.key}#${held.slot}:`,
+        error.message
+      );
+    }
   }
 
   /**
@@ -420,6 +592,11 @@ class Runner {
       this.log('error', 'runner', this.id, row.name, error.message);
       debug('%O', error);
     } finally {
+      // The slot goes back before the job leaves `running`, and in that
+      // order: `shutdown()` waits on the promises of what is running, so a
+      // job removed first would let the runner stop with its permit still
+      // held, to be freed by a sweep five minutes later
+      await this.free(row.id);
       this.running.delete(row.id);
     }
   }
@@ -449,6 +626,15 @@ class Runner {
     try {
       for (const [token, ids] of batches) {
         await this.jobs.storeOrDie().heartbeat(ids, now, token);
+      }
+
+      // The concurrency slots are refreshed by the same beat, and the sweep
+      // that frees a stale one uses the same `stuckAfter`: a slot outlives
+      // a runner by exactly as long as its jobs do
+      if (this.slots.size > 0) {
+        await this.jobs
+          .storeOrDie()
+          .heartbeatSlots([...this.slots.values()], now, this.id);
       }
 
       this.beatFailed = false;
@@ -503,12 +689,28 @@ class Runner {
     // `stuckAfter` has gone by, and the pruning is housekeeping
     this.sweepAt = now + Math.max(5000, Math.floor(this.stuckAfter / 10));
 
-    const recovered = await this.jobs
-      .storeOrDie()
-      .recover({ now, stuckAfter: this.stuckAfter });
+    const store = this.jobs.storeOrDie();
+    const recovered = await store.recover({ now, stuckAfter: this.stuckAfter });
 
     for (const row of recovered) {
       this.log('warn', row.name, row.id, 'recovered from', row.claimed_by);
+    }
+
+    if (this.jobs.concurrent) {
+      const freed = await store.sweepSlots({
+        now,
+        stuckAfter: this.stuckAfter,
+      });
+
+      for (const held of freed) {
+        this.log(
+          'warn',
+          'concurrency',
+          `${held.key}#${held.slot}`,
+          'freed from',
+          held.runner
+        );
+      }
     }
 
     if (this.keepCompleted > 0) {
@@ -692,4 +894,4 @@ class Runner {
   }
 }
 
-module.exports = { Runner, SIGNALS };
+module.exports = { KEYS_PER_TICK, Runner, SIGNALS };

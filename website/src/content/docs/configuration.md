@@ -788,24 +788,24 @@ Everything the [job queue](/guides/jobs/) reads, all of it optional. The queue i
 }
 ```
 
-| Key             | Default      | Description                                                                                                                                  |
-| --------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `store`         | `default`    | Which store of `stores` holds the queue.                                                                                                     |
-| `priority`      | `0`          | Priority of a job that names none; the higher, the sooner it is claimed.                                                                     |
-| `table`         | `henri_jobs` | Table (or collection) name; the schedules live in `<table>_schedules`. Letters, digits and underscores only.                                 |
-| `queue`         | `default`    | Queue of a job that names none.                                                                                                              |
-| `queues`        | all          | Queues a runner takes from when `henri jobs` is given no `--queue`.                                                                          |
-| `concurrency`   | `5`          | How many jobs one runner performs at once.                                                                                                   |
-| `maxAttempts`   | `5`          | Attempts before a job goes to the dead letter queue.                                                                                         |
-| `timeout`       | none         | How long one attempt may take, for jobs that set none.                                                                                       |
-| `backoff`       | see above    | Wait before the next attempt: `base × factor^(attempt − 1)`, capped at `max`, spread by `jitter` (0 to 1).                                   |
-| `pollInterval`  | `1s`         | How often a runner looks for work when the queue is empty (never under 50ms).                                                                |
-| `stuckAfter`    | `5m`         | Without a heartbeat for that long, a `running` job is taken to belong to a dead runner and put back. Keep it above the longest `timeout`.    |
-| `keepCompleted` | `1d`         | How long finished jobs are kept before a runner prunes them. `0` keeps them forever.                                                         |
-| `maxArgsBytes`  | `524288`     | Size limit of the serialized arguments of one job; over it the enqueue fails instead of storing a truncated payload.                         |
-| `mailQueue`     | `mailers`    | Queue of the messages [`deliverLater()`](/guides/mail/#delivering-later) hands over.                                                         |
-| `install`       | `true`       | Create the tables at boot. Set `false` in production and run `henri jobs:install` in the deploy.                                             |
-| `recurring`     | `{}`         | Schedules, by name: `job` (defaults to the name), `cron` **or** `every`, and optionally `args`, `queue` and `priority`. Cron is read in UTC. |
+| Key             | Default      | Description                                                                                                                                                |
+| --------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `store`         | `default`    | Which store of `stores` holds the queue.                                                                                                                   |
+| `priority`      | `0`          | Priority of a job that names none; the higher, the sooner it is claimed.                                                                                   |
+| `table`         | `henri_jobs` | Table (or collection) name; the schedules live in `<table>_schedules` and the concurrency slots in `<table>_limits`. Letters, digits and underscores only. |
+| `queue`         | `default`    | Queue of a job that names none.                                                                                                                            |
+| `queues`        | all          | Queues a runner takes from when `henri jobs` is given no `--queue`.                                                                                        |
+| `concurrency`   | `5`          | How many jobs one runner performs at once.                                                                                                                 |
+| `maxAttempts`   | `5`          | Attempts before a job goes to the dead letter queue.                                                                                                       |
+| `timeout`       | none         | How long one attempt may take, for jobs that set none.                                                                                                     |
+| `backoff`       | see above    | Wait before the next attempt: `base × factor^(attempt − 1)`, capped at `max`, spread by `jitter` (0 to 1).                                                 |
+| `pollInterval`  | `1s`         | How often a runner looks for work when the queue is empty (never under 50ms).                                                                              |
+| `stuckAfter`    | `5m`         | Without a heartbeat for that long, a `running` job is taken to belong to a dead runner and put back. Keep it above the longest `timeout`.                  |
+| `keepCompleted` | `1d`         | How long finished jobs are kept before a runner prunes them. `0` keeps them forever.                                                                       |
+| `maxArgsBytes`  | `524288`     | Size limit of the serialized arguments of one job; over it the enqueue fails instead of storing a truncated payload.                                       |
+| `mailQueue`     | `mailers`    | Queue of the messages [`deliverLater()`](/guides/mail/#delivering-later) hands over.                                                                       |
+| `install`       | `true`       | Create the tables at boot. Set `false` in production and run `henri jobs:install` in the deploy.                                                           |
+| `recurring`     | `{}`         | Schedules, by name: `job` (defaults to the name), `cron` **or** `every`, and optionally `args`, `queue` and `priority`. Cron is read in UTC.               |
 
 Every duration is a number of milliseconds or a string: `'250ms'`, `'30s'`, `'5m'`, `'2h'`, `'1d'`, `'1w'`.
 

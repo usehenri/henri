@@ -4844,6 +4844,12 @@ declare namespace start {
       runner: string | null;
     }>;
     uniqueKey: string | null;
+    /**
+     * The concurrency bucket the job counts against, `null` when its job
+     * declares no limit. It is the `concurrency.group` (the job's own name
+     * by default), plus `:<key>` when the job names one.
+     */
+    concurrencyKey: string | null;
   }
 
   /** The options of an enqueue. */
@@ -4879,6 +4885,28 @@ declare namespace start {
     signal: AbortSignal;
   }
 
+  /**
+   * How many of a job may run at once, across every runner.
+   *
+   * `henri jobs --concurrency` bounds one runner; this bounds the job. It
+   * belongs to the job and never to a call, so no caller can step outside a
+   * bound the job declared.
+   */
+  interface JobConcurrency {
+    /** How many at once. A whole number above zero. */
+    limit: number;
+    /**
+     * What partitions the bound: the name of an argument, or a function of
+     * them. Without one the whole job shares one bound.
+     */
+    key?: string | ((args: any) => unknown);
+    /**
+     * The bound's name, so several jobs may share one. The job's own name
+     * by default; two jobs of one group must agree on the limit.
+     */
+    group?: string;
+  }
+
   /** A file of `app/jobs`. */
   interface JobDefinition {
     perform(args: any, context: JobContext): unknown | Promise<unknown>;
@@ -4886,12 +4914,35 @@ declare namespace start {
     priority?: number;
     maxAttempts?: number;
     timeout?: number | string;
+    /** `3` is `{ limit: 3 }`; `false` (the default) is no bound at all. */
+    concurrency?: number | JobConcurrency | false | null;
     backoff?: {
       base?: number | string;
       factor?: number;
       max?: number | string;
       jitter?: number;
     };
+  }
+
+  /** The concurrency limits of an application, and the slots being held. */
+  interface JobLimits {
+    /** What the job files asked for. */
+    declared: Array<{
+      job: string;
+      group: string;
+      limit: number;
+      /** Whether the bound is partitioned by a key of the arguments. */
+      keyed: boolean;
+    }>;
+    /** What is holding a bound up right now. Never any job arguments. */
+    held: Array<{
+      key: string;
+      slot: number;
+      runner: string;
+      job: string | null;
+      takenAt: number;
+      heartbeatAt: number;
+    }>;
   }
 
   /** What the queue holds, by queue and state. */
@@ -4966,6 +5017,11 @@ declare namespace start {
     get(id: string): Promise<Job | null>;
     list(filter?: JobFilter): Promise<Job[]>;
     stats(): Promise<JobStats>;
+    /**
+     * The concurrency limits of the application and the slots being held --
+     * what a page of your own would show, since henri mounts none.
+     */
+    limits(): Promise<JobLimits>;
     /** The job names of the application. */
     names(): string[];
     /** The dead letter queue. */

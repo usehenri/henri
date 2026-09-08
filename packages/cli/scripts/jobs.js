@@ -179,14 +179,16 @@ const status = async (args) => {
     spec: entry.spec,
   }));
   let stats;
+  let limits;
 
   try {
     stats = await jobs.stats();
+    limits = await jobs.limits();
   } finally {
     await henri.stop();
   }
 
-  return { command: 'status', ok: true, recurring, ...stats };
+  return { command: 'status', limits, ok: true, recurring, ...stats };
 };
 
 /**
@@ -482,6 +484,23 @@ const print = (result) => {
       console.log('  Recurring:');
       result.recurring.forEach((entry) =>
         console.log(`    ${entry.name} -> ${entry.job} (${entry.spec})`)
+      );
+    }
+
+    if (result.limits && result.limits.declared.length > 0) {
+      console.log('');
+      console.log('  Concurrency:');
+      result.limits.declared.forEach((entry) =>
+        console.log(
+          `    ${entry.job} -> ${entry.limit} at a time${entry.keyed ? ' per key' : ''}${entry.group === entry.job ? '' : ` (group ${entry.group})`}`
+        )
+      );
+
+      // What is holding a limit up right now, which no other command says
+      result.limits.held.forEach((held) =>
+        console.log(
+          `    held ${held.key}#${held.slot} by ${held.runner}${held.job ? ` for ${held.job}` : ''}`
+        )
       );
     }
   }
