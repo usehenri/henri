@@ -1091,6 +1091,43 @@ describe('henri generate', () => {
       });
     });
 
+    test('writes an enum value back exactly, whatever is in it', () => {
+      // The values are written into JavaScript source, so escaping the
+      // quote and not the backslash lets a value ending in one close the
+      // string it was meant to stay inside -- and the file that comes out
+      // is either broken or quietly says something else
+      fs.writeFileSync(
+        path.join(app, 'app', 'models', 'Label.js'),
+        `module.exports = {
+  options: { timestamps: true },
+  schema: {
+    state: {
+      type: 'string',
+      enum: ['plain', "it's open", 'ends-with-a-backslash\\\\', 'a\\'b'],
+    },
+  },
+  store: 'default',
+};
+`
+      );
+
+      const written = henri(['g', 'scaffold', 'Label', 'state:string'], {
+        cwd: app,
+      });
+
+      expect(written.status).toBe(0);
+
+      // It parses at all, which is the first thing a broken escape costs
+      const labels = require(path.join(app, 'app/controllers/labels.js'));
+
+      expect(labels.params['create,update'].state.enum).toEqual([
+        'plain',
+        "it's open",
+        'ends-with-a-backslash\\',
+        "a'b",
+      ]);
+    });
+
     test('... which is what henri compiles at boot, for those two alone', () => {
       const compiled = declarations(
         controller,

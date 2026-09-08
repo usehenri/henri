@@ -134,7 +134,12 @@ const ruleFor = ({ enum: values, name, type }) => {
     return `      ${key}: '${type}',`;
   }
 
-  const listed = values.map((value) => `'${value.replace(/'/gu, "\\'")}'`);
+  // JSON.stringify rather than quotes of our own, the way `keyOf` above
+  // does it: escaping the quote and not the backslash is how a value
+  // ending in one closes the string it was supposed to stay inside, and
+  // this file writes JavaScript. Prettier runs over the result, so the
+  // double quotes become the house style's single ones on the way out
+  const listed = values.map((value) => JSON.stringify(value));
 
   return `      ${key}: { enum: [${listed.join(', ')}], type: '${type}' },`;
 };
