@@ -62,27 +62,21 @@ docker run -d --name henri-pg -e POSTGRES_USER=henri -e POSTGRES_PASSWORD=henri 
 HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:5432/henri_test pnpm test:sql
 ```
 
-**SQL Server is the third one, and it is not in the CI.** `@usehenri/mssql`
-is the only way an application reaches Sequelize, so it is the dialect that
-matters most here and the one nothing ever ran against; `compose.yaml` has
-the server and `pnpm test:sql:mssql` points the `sequelize`, `mssql`, `jobs`
-and `webhooks` projects at it. Whether it becomes a fourth service container
-on every pull request is a cost decision and it belongs to whoever pays for
-the minutes. What it would take: a `Live SQL Server` job shaped exactly like
-`Live MySQL`, one `mcr.microsoft.com/mssql/server:2022-latest` service with
-`ACCEPT_EULA` and `MSSQL_SA_PASSWORD` and a `sqlcmd` health command, and
-`HENRI_TEST_MSSQL_URL` on `pnpm test:sql:mssql`. Developer edition is free
-for that, so there is no licence in the way. What it would cost: the image
-is about 1.5GB unpacked -- three or four times the postgres one -- so a
-minute or so of pull, ten to twenty seconds of boot before it answers, and
-roughly a minute of tests, on top of the checkout and the install every job
-already pays; call it four runner-minutes a run, in parallel with the
-others. There is no arm64 build, which does not matter on
-`ubuntu-latest` and means Apple Silicon runs it under Docker Desktop's
-amd64 emulation locally (it works, and starts in about twenty seconds).
-Until then it runs locally, and a tranche that touches
-`@usehenri/sequelize`, `@usehenri/jobs` or `@usehenri/webhooks` should run
-it.
+**SQL Server and MariaDB are the third and fourth, and both are in the CI
+now** (`Live SQL Server`, `Live MariaDB`), alongside `Live PostgreSQL` and
+`Live MySQL` and `continue-on-error` like them, so none of the four blocks a
+pull request. They were added after each of them turned up defects in a
+published package on the day it was first run -- `decimal` read back through
+a double and a constraint name in a 422 body on SQL Server, a
+`db:schema:dump` that wrote `DEFAULT 'NULL'` on every nullable column and a
+drift that could never close on MariaDB. Neither is cheap: SQL Server's
+image is about 1.5GB unpacked, three or four times the postgres one, so a
+minute of pull, ten to twenty seconds of boot and roughly a minute of tests,
+which is why that job runs the four projects that reach a server rather than
+the whole suite; MariaDB is two or three minutes. There is no arm64 build of
+SQL Server, which does not matter on `ubuntu-latest` and means Apple Silicon
+runs it under Docker Desktop's amd64 emulation locally (it works, and starts
+in about twenty seconds). Locally, `compose.yaml` has both.
 
 ```bash
 HENRI_MSSQL_PORT=51433 pnpm db:up            # or just `pnpm db:up` on 1433
@@ -1897,9 +1891,10 @@ array that forgot them fails.
   Server and MariaDB are both exercised now** (`pnpm db:up` brings both,
   `pnpm test:sql:mssql` points the `sequelize`, `mssql` and `jobs` suites at
   the first and `pnpm test:sql:mariadb` points the SQL suites at the second)
-  and **neither is in the CI**, which is a cost decision rather than an
-  oversight. What is _still_ only offline on SQL Server is what has no
-  Sequelize suite at all -- multi-tenancy, the call log. The
+  and **both are in the CI** (`Live SQL Server`, `Live MariaDB`,
+  `continue-on-error` like the other two). What is _still_ only offline on
+  SQL Server is what has no Sequelize suite at all -- multi-tenancy for the
+  models, the call log; the queue's tenancy does run there. The
   `postgresql` and `mysql` suites are thin now that those packages are
   `@usehenri/drizzle` with a dialect chosen -- they check the choosing and
   reach the server; the model API, the schema format and the migrations are
