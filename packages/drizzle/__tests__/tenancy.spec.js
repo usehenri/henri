@@ -1,4 +1,4 @@
-const { build } = require('./helpers');
+const { build, target } = require('./helpers');
 
 /**
  * The property this whole feature exists for, written as a test:
@@ -196,27 +196,33 @@ describe('multi-tenancy: tenant A never reaches tenant B', () => {
       expect(await as('acme', () => Invoice.findByKey(theirs.id))).toBe(null);
     });
 
-    test('an eager loaded association carries the tenant', async () => {
-      const mine = await as('acme', () =>
-        Invoice.findOne({ reference: 'a-1' })
-      );
+    // Eager loading is `LEFT JOIN LATERAL` on the MySQL dialect of
+    // drizzle-orm, and MariaDB has no LATERAL (target.eagerLoads says
+    // why); `mariadb.spec.js` asserts the syntax error
+    test.skipIf(!target.eagerLoads)(
+      'an eager loaded association carries the tenant',
+      async () => {
+        const mine = await as('acme', () =>
+          Invoice.findOne({ reference: 'a-1' })
+        );
 
-      await as('acme', () =>
-        Line.create({ invoiceId: mine.id, label: 'ours' })
-      );
+        await as('acme', () =>
+          Line.create({ invoiceId: mine.id, label: 'ours' })
+        );
 
-      // The same invoice id, written by somebody else: an include that did
-      // not carry the tenant would hand it over with the parent
-      await as('globex', () =>
-        Line.create({ invoiceId: mine.id, label: 'theirs' })
-      );
+        // The same invoice id, written by somebody else: an include that did
+        // not carry the tenant would hand it over with the parent
+        await as('globex', () =>
+          Line.create({ invoiceId: mine.id, label: 'theirs' })
+        );
 
-      const loaded = await as('acme', () =>
-        Invoice.include('lines').where({ reference: 'a-1' }).first()
-      );
+        const loaded = await as('acme', () =>
+          Invoice.include('lines').where({ reference: 'a-1' }).first()
+        );
 
-      expect(loaded.lines.map((line) => line.label)).toEqual(['ours']);
-    });
+        expect(loaded.lines.map((line) => line.label)).toEqual(['ours']);
+      }
+    );
   });
 
   describe('writing', () => {

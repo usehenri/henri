@@ -24,8 +24,9 @@ pnpm format                           # prettier 3 (`pnpm format:check` in CI)
 pnpm build                            # rollup build of @usehenri/react
 pnpm --filter @usehenri/website dev   # docs site (Astro + Starlight); `build` and `preview` too
 scripts/smoke.sh                      # scaffold an app from the packed workspace and boot it
-pnpm db:up                            # postgres, mysql, mongo, redis and sql server (compose.yaml)
-pnpm test:sql:live                    # the SQL suites against the live postgres, then mysql
+pnpm db:up                            # postgres, mysql, mariadb, mongo, redis and sql server (compose.yaml)
+pnpm test:sql:live                    # the SQL suites against the live postgres, then mysql, then mariadb
+pnpm test:sql:mariadb                 # the same suites against a live MariaDB
 pnpm test:sql:mssql                   # the sequelize, jobs and webhooks suites against SQL Server
 pnpm test:s3                          # @usehenri/s3 against a live object store (MinIO, below)
 pnpm test:showcase                    # the showcase application's own suite (needs postgres)
@@ -41,12 +42,19 @@ installing where that download is unwanted.
 
 The SQL suites (`@usehenri/drizzle`, its dialect packages and
 `@usehenri/sequelize`) run on sqlite by default, offline. Point
-`HENRI_TEST_POSTGRES_URL`, `HENRI_TEST_MYSQL_URL` or `HENRI_TEST_MSSQL_URL`
+`HENRI_TEST_POSTGRES_URL`, `HENRI_TEST_MYSQL_URL`, `HENRI_TEST_MARIADB_URL`
+or `HENRI_TEST_MSSQL_URL`
 at a server and the same
 suites run on it instead, each store in a `henri_test_*` database of its own
 (created and dropped by `packages/*/__tests__/targets.js`);
-`HENRI_TEST_SQL_DIALECT` picks one when several are set. The CI runs them that
-way in the `Live PostgreSQL` and `Live MySQL` jobs, on service containers:
+`HENRI_TEST_SQL_DIALECT` picks one when several are set. MariaDB is a
+**server** and not a dialect there: `target.name` stays `mysql` (henri
+compiles the same dialect and mysql2 is the driver either way) and
+`target.server` says which of the two answered, which is what the two
+measured booleans `target.eagerLoads` and `target.introspects` and the
+column spellings of `dialect.spec.js` branch on. The CI runs postgres and
+mysql that way in the `Live PostgreSQL` and `Live MySQL` jobs, on service
+containers:
 
 ```bash
 docker run -d --name henri-pg -e POSTGRES_USER=henri -e POSTGRES_PASSWORD=henri \
@@ -133,7 +141,7 @@ has to be named per record or per process. An application's own suite keeps
 | `packages/mongoose`            | `@usehenri/mongoose`  | MongoDB adapter (Mongoose 9)                                                                                                                                                                                                                                                                                         |
 | `packages/disk`                | `@usehenri/disk`      | Zero-config local MongoDB (mongodb-memory-server) on top of mongoose                                                                                                                                                                                                                                                 |
 | `packages/drizzle`             | `@usehenri/drizzle`   | henri's SQL data layer: Drizzle ORM (sqlite, postgres, mysql) with drizzle-kit migrations (`henri db:*`). The default of `henri new`, on sqlite                                                                                                                                                                      |
-| `packages/postgresql`, `mysql` | `@usehenri/*`         | `@usehenri/drizzle` with the dialect and the driver chosen; `mariadb` is served by `@usehenri/mysql`                                                                                                                                                                                                                 |
+| `packages/postgresql`, `mysql` | `@usehenri/*`         | `@usehenri/drizzle` with the dialect and the driver chosen; `mariadb` is served by `@usehenri/mysql`, with two limits the server imposes (see the gaps)                                                                                                                                                              |
 | `packages/sequelize`           | `@usehenri/sequelize` | Sequelize 6, only under `@usehenri/mssql`: Drizzle has no SQL Server dialect                                                                                                                                                                                                                                         |
 | `packages/mssql`               | `@usehenri/mssql`     | SQL Server, on `@usehenri/sequelize`. No migrations; `henri db:status` reports the drift                                                                                                                                                                                                                             |
 | `packages/react`               | `@usehenri/react`     | Next.js 16 view engine (pages router), `withHenri`, `useHenri`, form components; supported and frozen                                                                                                                                                                                                                |
@@ -1799,14 +1807,15 @@ the LICENSE and a README into every public package at publish time
   development and production, the full scaffold) but is younger than the React
   one; its options may still change.
 - The SQL adapters run their suites against sqlite by default and against a
-  live PostgreSQL, MySQL or SQL Server with `HENRI_TEST_POSTGRES_URL` /
-  `HENRI_TEST_MYSQL_URL` / `HENRI_TEST_MSSQL_URL` (see above). **SQL Server
-  is exercised now** (`pnpm db:up` brings one, `pnpm test:sql:mssql` points
-  the `sequelize`, `mssql` and `jobs` suites at it) and it is **not in the
-  CI**, which is a cost decision rather than an oversight: the image is
-  1.5GB, has no arm64 build, and the run is a minute. What is _still_ only
-  offline there is what has no Sequelize suite at all -- multi-tenancy, the
-  call log -- and no adapter is exercised against MariaDB. The
+  live PostgreSQL, MySQL, MariaDB or SQL Server with
+  `HENRI_TEST_POSTGRES_URL` / `HENRI_TEST_MYSQL_URL` /
+  `HENRI_TEST_MARIADB_URL` / `HENRI_TEST_MSSQL_URL` (see above). **SQL
+  Server and MariaDB are both exercised now** (`pnpm db:up` brings both,
+  `pnpm test:sql:mssql` points the `sequelize`, `mssql` and `jobs` suites at
+  the first and `pnpm test:sql:mariadb` points the SQL suites at the second)
+  and **neither is in the CI**, which is a cost decision rather than an
+  oversight. What is _still_ only offline on SQL Server is what has no
+  Sequelize suite at all -- multi-tenancy, the call log. The
   `postgresql` and `mysql` suites are thin now that those packages are
   `@usehenri/drizzle` with a dialect chosen -- they check the choosing and
   reach the server; the model API, the schema format and the migrations are
@@ -1834,8 +1843,10 @@ the LICENSE and a README into every public package at publish time
   demo application core's suite boots. It runs on SQL Server too
   (`pnpm test:sql:mssql`), where `values` is null on an `enum` column and
   that is the right answer: there is no `ENUM` in that catalogue because
-  there is none in that dialect. mariadb is not exercised
-  (`@usehenri/mysql`'s dialect entry is what a mariadb store would use). Deliberately left: **no row counts**
+  there is none in that dialect. On MariaDB it runs and answers that
+  server's own spelling -- `int(11)` where MySQL 8 says `int`, `longtext`
+  where it says `json`, and `HENRI_MIGRATION_PUSH_FAILED` for the one case
+  that needs a push. Deliberately left: **no row counts**
   (`SELECT count(*)` is a scan per table, and the `query` tool already
   answers it), **no columns for a table no model claims** -- they are named
   and nothing else, because `DESCRIBE <table>` through the query endpoint
@@ -1861,6 +1872,43 @@ the LICENSE and a README into every public package at publish time
   development boot create the tables that are missing and report the ones
   whose columns drifted (`Migrations#completeMySQLPlan`); a mysql schema
   change needs `henri db:generate` then `henri db:migrate`.
+- **MariaDB is served by `@usehenri/mysql` and two things do not work
+  there**, neither of them henri's, both measured against 10.11.19 and
+  11.8.9 by `packages/drizzle/__tests__/mariadb.spec.js` (`pnpm
+test:sql:mariadb`, the compose service, `HENRI_TEST_MARIADB_URL`).
+  **`include()` is a syntax error**: drizzle-orm 0.45's MySQL dialect eager
+  loads with `LEFT JOIN LATERAL (...) ON TRUE` and MariaDB has no `LATERAL`
+  derived tables in any version, so `include` and the `embeds` that read
+  through it raise 1064; henri writes none of that SQL and has no seam to
+  write it differently (`Relation#toArray` hands the `with` tree to
+  `db.query.<table>.findMany`). **A push cannot read the schema back**:
+  drizzle-kit 0.31 introspects first, and its check-constraint pass reads
+  `row["TABLE_NAME"]` out of rows its own query labelled `table_name` --
+  dead code on MySQL 8, which has no check constraints there, and live on
+  MariaDB, where `JSON` is `LONGTEXT` plus a `CHECK (json_valid(...))` and
+  the user model's `roles` is a `json` column. The first push of an empty
+  database works and every one after it fails, so `henri db:push` and a
+  development boot with the default `"sync"` are out; `"sync": false` plus
+  `henri db:generate` and `henri db:migrate` are the way, and
+  `db:schema:dump`/`load`, `db:status` and `describe()` all work. What
+  henri did fix around it: `Migrations#plan()` runs drizzle-kit through
+  `guarded()` (`utils.js`), so a library ending the process with
+  `process.exit(1)` and no message becomes `HENRI_MIGRATION_PUSH_FAILED` on
+  every dialect; `generate()` writes the migration and warns rather than
+  failing when it cannot read the database back afterwards; `dump.js` reads
+  MariaDB's `COLUMN_DEFAULT`, which is an SQL **expression** (`NULL` for
+  none, `'hi'` already quoted, `current_timestamp(3)` with no
+  `DEFAULT_GENERATED`) and used to put `DEFAULT 'NULL'` on every nullable
+  column of a dump; and `packages/sequelize/drift.js` asks the server what
+  it is (`serverDialect()`) so a `json` column is not reported as
+  permanently drifted (`LONGTEXT instead of JSON`, with an `ALTER` that
+  changes nothing). Everything else runs: the model API, the exact types,
+  time zones, validations, enums, slugs, filters, csv, encryption,
+  multi-tenancy, retention, the trail, versions, the call log with its
+  `RANGE` partitions, and the job queue's claim, slots and batches --
+  through the sequelize target, which is how `@usehenri/jobs` reaches a
+  server. `henri new --adapter` does not offer `mariadb`, and **no CI job
+  runs any of this**.
 - `henri generate scaffold|crud` write the pages of the application's renderer
   (`.jsx` for inertia, `.js` for react) and controllers that follow the adapter
   of the default store (`scripts/adapters.js` maps it to the mongoose,

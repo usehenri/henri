@@ -2,9 +2,30 @@ const dialects = require('../dialects');
 const { ValidationError } = require('../validation');
 const { build, target } = require('./helpers');
 
-// The columns the schema types are compiled to, per dialect. sqlite has
+// The columns the schema types are compiled to, per server. sqlite has
 // four storage classes, postgres and mysql keep the henri types apart.
+//
+// MariaDB compiles the same MySQL dialect and spells two of the twelve
+// columns differently, which is the server and not henri: it keeps the
+// display width MySQL 8 dropped (`int(11)`), and it has no JSON type --
+// `JSON` is an alias for `LONGTEXT` with a `CHECK (json_valid(...))` next
+// to it, so `settings` reads back as `longtext`. Measured on MariaDB 10.11
+// and 11.8 against MySQL 8.4.
 const COLUMNS = {
+  mariadb: {
+    active: 'tinyint(1)',
+    amount: 'double',
+    external_id: 'varchar(36)',
+    id: 'int(11)',
+    key: 'varchar(36)',
+    level: "enum('low','high')",
+    notes: 'text',
+    ratio: 'float',
+    settings: 'longtext',
+    title: 'varchar(255)',
+    total: 'int(11)',
+    when: 'datetime(3)',
+  },
   mysql: {
     active: 'tinyint(1)',
     amount: 'double',
@@ -159,7 +180,7 @@ describe(`schema on ${target.name}`, () => {
       rows.map((row) => [row.name, String(row.type).toLowerCase()])
     );
 
-    expect(columns).toEqual(COLUMNS[target.name]);
+    expect(columns).toEqual(COLUMNS[target.server]);
   });
 
   test('stores and reads every type back', async () => {

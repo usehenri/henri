@@ -115,7 +115,10 @@ describe('drift', () => {
     expect(report.clean).toBe(true);
     expect(report.statements).toEqual([]);
     expect(report.store).toBe('default');
-    expect(report.dialect).toBe(target.name);
+    // The **server**, not the dialect of the connection: a MariaDB reached
+    // with Sequelize's mysql dialect says `mariadb` here, because that is
+    // what the comparison was made against (`Drift#serverDialect`)
+    expect(report.dialect).toBe(target.server);
 
     await adapter.stop();
   });

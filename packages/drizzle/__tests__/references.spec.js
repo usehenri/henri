@@ -135,21 +135,27 @@ describe(`references (${target.name})`, () => {
     expect((await adapter.externalIdsOf('Note', [note.id])).size).toBe(0);
   });
 
-  test('an eager loaded association still holds the key core checks against', async () => {
-    const ada = await Author.create({ name: 'Eager' });
-    const post = await Post.create({ authorId: ada.id, title: 'included' });
-    const loaded = await Post.findByKey(post.id, { include: 'author' });
+  // Eager loading is `LEFT JOIN LATERAL` on the MySQL dialect of
+  // drizzle-orm, and MariaDB has no LATERAL (target.eagerLoads says
+  // why); `mariadb.spec.js` asserts the syntax error
+  test.skipIf(!target.eagerLoads)(
+    'an eager loaded association still holds the key core checks against',
+    async () => {
+      const ada = await Author.create({ name: 'Eager' });
+      const post = await Post.create({ authorId: ada.id, title: 'included' });
+      const loaded = await Post.findByKey(post.id, { include: 'author' });
 
-    // What core's exit gate reads to take the public identifier for free:
-    // the loaded instance still carries the primary key its parent's
-    // foreign key names, so the identity can be checked rather than assumed
-    expect(loaded.author.id).toBe(ada.id);
-    expect(loaded.author.externalId).toBe(ada.externalId);
-    expect(loaded.authorId).toBe(ada.id);
-    // ... and the serialization does not, which is why the live instance is
-    // what gets read
-    expect(loaded.toJSON().author.id).toBeUndefined();
-  });
+      // What core's exit gate reads to take the public identifier for free:
+      // the loaded instance still carries the primary key its parent's
+      // foreign key names, so the identity can be checked rather than assumed
+      expect(loaded.author.id).toBe(ada.id);
+      expect(loaded.author.externalId).toBe(ada.externalId);
+      expect(loaded.authorId).toBe(ada.id);
+      // ... and the serialization does not, which is why the live instance is
+      // what gets read
+      expect(loaded.toJSON().author.id).toBeUndefined();
+    }
+  );
 
   test('a soft deleted row still has a public identifier to give', async () => {
     const edition = await Edition.create({ year: 2026 });

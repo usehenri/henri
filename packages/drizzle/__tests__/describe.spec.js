@@ -137,20 +137,27 @@ describe('describe: what the database holds', () => {
     );
   });
 
-  test('says a table is missing rather than inventing its columns', async () => {
-    const table = adapter.tableNameOfKey('Invoice');
+  // Skipped on MariaDB, where the push that puts the table back cannot run
+  // (target.introspects says why). What is being asserted -- that a missing
+  // table is reported and not invented -- is read from the catalogue and
+  // has nothing to do with the server; the push at the end is what does
+  test.skipIf(!target.introspects)(
+    'says a table is missing rather than inventing its columns',
+    async () => {
+      const table = adapter.tableNameOfKey('Invoice');
 
-    await adapter.query(`DROP TABLE ${adapter.dialect.quote(table)}`);
+      await adapter.query(`DROP TABLE ${adapter.dialect.quote(table)}`);
 
-    const report = await adapter.describe();
+      const report = await adapter.describe();
 
-    expect(of(report, 'Invoice')).toMatchObject({
-      columns: [],
-      exists: false,
-      indexes: [],
-    });
+      expect(of(report, 'Invoice')).toMatchObject({
+        columns: [],
+        exists: false,
+        indexes: [],
+      });
 
-    // Put it back for whatever runs next in this file
-    await adapter.migrations.push({ interactive: false });
-  });
+      // Put it back for whatever runs next in this file
+      await adapter.migrations.push({ interactive: false });
+    }
+  );
 });

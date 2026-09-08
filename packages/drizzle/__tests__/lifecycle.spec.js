@@ -6,6 +6,7 @@ const {
   Drizzle,
   build,
   fakeHenri,
+  target,
   taskModel,
   tmpdir,
   userModel,
@@ -231,34 +232,40 @@ describe('lifecycle', () => {
     await adapter.stop();
   });
 
-  test('calls associate(models) once, even across restarts', async () => {
-    const { adapter } = build();
-    const calls = [];
+  // The second start pushes into a database that already holds the tables,
+  // which is the shape MariaDB cannot introspect (target.introspects says
+  // why). `mariadb.spec.js` asserts that refusal
+  test.skipIf(!target.introspects)(
+    'calls associate(models) once, even across restarts',
+    async () => {
+      const { adapter } = build();
+      const calls = [];
 
-    adapter.addModel(
-      {
-        /**
-         * Records the call
-         *
-         * @param {object} models The models
-         * @returns {void}
-         */
-        associate: (models) => calls.push(Object.keys(models)),
-        globalId: 'Post',
-        identity: 'post',
-        schema: { title: 'string' },
-      },
-      'user'
-    );
-    adapter.addModel(
-      { globalId: 'User', identity: 'user', schema: {} },
-      'user'
-    );
+      adapter.addModel(
+        {
+          /**
+           * Records the call
+           *
+           * @param {object} models The models
+           * @returns {void}
+           */
+          associate: (models) => calls.push(Object.keys(models)),
+          globalId: 'Post',
+          identity: 'post',
+          schema: { title: 'string' },
+        },
+        'user'
+      );
+      adapter.addModel(
+        { globalId: 'User', identity: 'user', schema: {} },
+        'user'
+      );
 
-    await adapter.start();
-    await adapter.stop();
-    await adapter.start();
-    await adapter.stop();
-    expect(calls).toEqual([['Post', 'User']]);
-  });
+      await adapter.start();
+      await adapter.stop();
+      await adapter.start();
+      await adapter.stop();
+      expect(calls).toEqual([['Post', 'User']]);
+    }
+  );
 });

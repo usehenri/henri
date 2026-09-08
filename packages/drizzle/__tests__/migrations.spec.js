@@ -65,78 +65,85 @@ describe('migrations', () => {
     fs.rmSync(dir, { force: true, recursive: true });
   });
 
-  test('generate writes drizzle-kit files and records them on a pushed database', async () => {
-    const adapter = adapterIn(dir);
+  // The "records them" half is what needs a push: on MariaDB the migration
+  // is written and stays pending instead, because the database cannot be
+  // read back (target.introspects says why) -- which `mariadb.spec.js`
+  // asserts, warning and all
+  test.skipIf(!target.introspects)(
+    'generate writes drizzle-kit files and records them on a pushed database',
+    async () => {
+      const adapter = adapterIn(dir);
 
-    adapter.addModel(taskModel, 'user');
-    adapter.addModel(userModel, 'user');
-    await adapter.start();
+      adapter.addModel(taskModel, 'user');
+      adapter.addModel(userModel, 'user');
+      await adapter.start();
 
-    expect(await adapter.migrations.status()).toEqual({
-      applied: [],
-      folder: path.join(dir, 'db/migrations'),
-      pending: [],
-      review: [],
-    });
+      expect(await adapter.migrations.status()).toEqual({
+        applied: [],
+        folder: path.join(dir, 'db/migrations'),
+        pending: [],
+        review: [],
+      });
 
-    const first = await adapter.migrations.generate({ name: 'Create tasks' });
+      const first = await adapter.migrations.generate({ name: 'Create tasks' });
 
-    expect(first.tag).toBe('0000_create_tasks');
-    expect(first.file).toBe(
-      path.join(dir, 'db/migrations/0000_create_tasks.sql')
-    );
-    expect(first.statements.length).toBeGreaterThan(3);
-    expect(first.recorded).toEqual(['0000_create_tasks']);
+      expect(first.tag).toBe('0000_create_tasks');
+      expect(first.file).toBe(
+        path.join(dir, 'db/migrations/0000_create_tasks.sql')
+      );
+      expect(first.statements.length).toBeGreaterThan(3);
+      expect(first.recorded).toEqual(['0000_create_tasks']);
 
-    const sql = fs.readFileSync(first.file, 'utf8');
-    const journal = JSON.parse(
-      fs.readFileSync(
-        path.join(dir, 'db/migrations/meta/_journal.json'),
-        'utf8'
-      )
-    );
-    const snapshot = JSON.parse(
-      fs.readFileSync(
-        path.join(dir, 'db/migrations/meta/0000_snapshot.json'),
-        'utf8'
-      )
-    );
+      const sql = fs.readFileSync(first.file, 'utf8');
+      const journal = JSON.parse(
+        fs.readFileSync(
+          path.join(dir, 'db/migrations/meta/_journal.json'),
+          'utf8'
+        )
+      );
+      const snapshot = JSON.parse(
+        fs.readFileSync(
+          path.join(dir, 'db/migrations/meta/0000_snapshot.json'),
+          'utf8'
+        )
+      );
 
-    expect(sql).toContain(expected.create);
-    expect(sql).toContain('--> statement-breakpoint');
-    expect(journal).toMatchObject({
-      dialect: target.dialect.kit.dialect,
-      entries: [
-        {
-          breakpoints: true,
-          idx: 0,
-          tag: '0000_create_tasks',
-          when: expect.any(Number),
-        },
-      ],
-      version: '7',
-    });
-    // Postgres snapshots are keyed by schema and table
-    expect(
-      Object.keys(snapshot.tables)
-        .map((key) => key.replace(/^public\./, ''))
-        .sort()
-    ).toEqual(['henri_sessions', 'tasks', 'users']);
-    expect(snapshot.prevId).toBe('00000000-0000-0000-0000-000000000000');
+      expect(sql).toContain(expected.create);
+      expect(sql).toContain('--> statement-breakpoint');
+      expect(journal).toMatchObject({
+        dialect: target.dialect.kit.dialect,
+        entries: [
+          {
+            breakpoints: true,
+            idx: 0,
+            tag: '0000_create_tasks',
+            when: expect.any(Number),
+          },
+        ],
+        version: '7',
+      });
+      // Postgres snapshots are keyed by schema and table
+      expect(
+        Object.keys(snapshot.tables)
+          .map((key) => key.replace(/^public\./, ''))
+          .sort()
+      ).toEqual(['henri_sessions', 'tasks', 'users']);
+      expect(snapshot.prevId).toBe('00000000-0000-0000-0000-000000000000');
 
-    // The database was pushed to this schema: nothing pending
-    expect(await adapter.migrations.status()).toMatchObject({
-      applied: ['0000_create_tasks'],
-      pending: [],
-    });
-    expect((await adapter.migrations.generate()).file).toBeNull();
-    expect(await adapter.migrations.migrate()).toEqual({
-      applied: [],
-      pending: [],
-      review: [],
-    });
-    await adapter.stop();
-  });
+      // The database was pushed to this schema: nothing pending
+      expect(await adapter.migrations.status()).toMatchObject({
+        applied: ['0000_create_tasks'],
+        pending: [],
+      });
+      expect((await adapter.migrations.generate()).file).toBeNull();
+      expect(await adapter.migrations.migrate()).toEqual({
+        applied: [],
+        pending: [],
+        review: [],
+      });
+      await adapter.stop();
+    }
+  );
 
   test('migrate applies the pending migrations on a fresh database', async () => {
     const first = adapterIn(dir);

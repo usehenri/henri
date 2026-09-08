@@ -31,8 +31,8 @@ The first test run downloads a MongoDB binary for the disk adapter
 
 `@usehenri/sequelize`, its dialect packages and `@usehenri/drizzle` run their
 suites on sqlite, so `pnpm test` needs no server and no network. Point
-`HENRI_TEST_POSTGRES_URL`, `HENRI_TEST_MYSQL_URL` or `HENRI_TEST_MSSQL_URL`
-at a server and the same
+`HENRI_TEST_POSTGRES_URL`, `HENRI_TEST_MYSQL_URL`, `HENRI_TEST_MARIADB_URL`
+or `HENRI_TEST_MSSQL_URL` at a server and the same
 suites run against it, each store in a `henri_test_*` database of its own,
 dropped when the file is done (`HENRI_TEST_SQL_DIALECT` picks one when
 several variables are set). The account needs the right to create databases:
@@ -42,15 +42,21 @@ docker run -d --name henri-pg -e POSTGRES_USER=henri -e POSTGRES_PASSWORD=henri 
   -e POSTGRES_DB=henri_test -p 5432:5432 postgres:17
 docker run -d --name henri-mysql -e MYSQL_ROOT_PASSWORD=henri \
   -e MYSQL_DATABASE=henri_test -p 3306:3306 mysql:8
+docker run -d --name henri-mariadb -e MARIADB_ROOT_PASSWORD=henri \
+  -e MARIADB_DATABASE=henri_test -p 3307:3306 mariadb:11.8
 
 HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:5432/henri_test pnpm test:sql
 HENRI_TEST_MYSQL_URL=mysql://root:henri@127.0.0.1:3306/henri_test pnpm test:sql
+HENRI_TEST_MARIADB_URL=mysql://root:henri@127.0.0.1:3307/henri_test pnpm test:sql
 ```
 
-`pnpm db:up` starts all of them from `compose.yaml`, SQL Server included.
-That third one is the dialect `@usehenri/mssql` actually runs on, and the CI
-does **not** have it -- so run it yourself when a change touches
-`@usehenri/sequelize`, `@usehenri/jobs` or `@usehenri/webhooks`:
+`pnpm db:up` starts all of them from `compose.yaml`, SQL Server and MariaDB
+included. Neither of those two is in the CI, so run them yourself when a
+change touches what they cover.
+
+SQL Server is the dialect `@usehenri/mssql` actually runs on, so run it when
+a change touches `@usehenri/sequelize`, `@usehenri/jobs` or
+`@usehenri/webhooks`:
 
 ```bash
 HENRI_MSSQL_PORT=51433 pnpm db:up
@@ -59,6 +65,19 @@ HENRI_MSSQL_PORT=51433 pnpm test:sql:mssql
 
 There is no arm64 image for SQL Server; on Apple Silicon Docker Desktop runs
 the amd64 one under emulation, which works.
+
+MariaDB is a server rather than a dialect: henri compiles the MySQL dialect
+for it and mysql2 is the driver either way, so `target.name` stays `mysql`
+and `target.server` says which of the two answered. Two things do not work
+there and neither is henri's -- eager loading, and a `henri db:push` on a
+schema that already has a `json` column; `packages/drizzle/__tests__/mariadb.spec.js`
+asserts both, and the tests elsewhere that need them are skipped on
+`target.eagerLoads` / `target.introspects`.
+
+```bash
+HENRI_MARIADB_PORT=13306 pnpm db:up
+HENRI_MARIADB_PORT=13306 pnpm test:sql:mariadb
+```
 
 ## Pull requests
 
