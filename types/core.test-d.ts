@@ -21,6 +21,8 @@ import type {
   IdentityProvider,
   IdentityResult,
   Job,
+  JobBatch,
+  JobBatchHandle,
   JobDefinition,
   JobLimits,
   JobStats,
@@ -233,6 +235,43 @@ expectType<JobDefinition>(exclusive);
 expectType<JobDefinition>(perTenant);
 expectType<JobDefinition>(computed);
 expectType<string | null>((await jobs.perform('import')).concurrencyKey);
+
+// A batch: these jobs, and one that runs when they are all done
+const batch = await jobs.batch({
+  args: { accountId: 'acc_1' },
+  callback: 'import/finished',
+  jobs: [
+    'import/row',
+    ['import/row', { row: 2 }],
+    ['import/row', { row: 3 }, { priority: -5 }],
+    { args: { row: 4 }, name: 'import/row', options: { queue: 'imports' } },
+  ],
+  name: 'acme import',
+  queue: 'imports',
+});
+
+expectType<JobBatchHandle>(batch);
+expectType<number>(batch.total);
+expectType<boolean>(batch.finished);
+expectType<string[]>(batch.jobs);
+expectType<Promise<JobBatchHandle>>(batch.reload());
+expectType<Promise<JobBatch | null>>(jobs.batches.get(batch.id));
+expectType<Promise<JobBatch[]>>(jobs.batches.list({ finished: false }));
+expectType<Promise<Job[]>>(jobs.batches.jobs(batch.id, { state: 'dead' }));
+expectType<Promise<boolean>>(jobs.batches.discard(batch.id));
+expectType<string | null>((await jobs.perform('import')).batchId);
+
+// The other half: a batch built by a function, sealed when it resolves
+expectType<Promise<JobBatchHandle>>(
+  jobs.batch({ callback: 'import/finished' }, async (open) => {
+    await open.add('import/row', { row: 1 });
+    await open.addAll([['import/row', { row: 2 }]]);
+  })
+);
+
+// @ts-expect-error the counts reach the callback under `batch`, so its own
+// arguments have to be an object
+jobs.batch({ args: 'acc_1', callback: 'import/finished' });
 
 const unbounded: JobDefinition = {
   // @ts-expect-error a concurrency limit is a number or `{ limit }`

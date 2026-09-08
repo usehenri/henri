@@ -174,6 +174,7 @@ const normalize = (config = {}) => {
     store: value.store || DEFAULTS.store,
     stuckAfter: duration(value.stuckAfter, duration(DEFAULTS.stuckAfter)),
     tables: {
+      batches: `${table(value.table || DEFAULTS.table)}_batches`,
       jobs: table(value.table || DEFAULTS.table),
       limits: `${table(value.table || DEFAULTS.table)}_limits`,
       schedules: `${table(value.table || DEFAULTS.table)}_schedules`,

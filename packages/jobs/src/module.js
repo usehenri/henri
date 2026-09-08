@@ -59,6 +59,14 @@ class JobsModule extends BaseModule {
         this.ready().dead.retryAll(filter, options),
     };
 
+    /** Reading the batches back, see @usehenri/jobs */
+    this.batches = {
+      discard: (id) => this.ready().batches.discard(id),
+      get: (id) => this.ready().batches.get(id),
+      jobs: (id, filter) => this.ready().batches.jobs(id, filter),
+      list: (filter) => this.ready().batches.list(filter),
+    };
+
     this.init = this.init.bind(this);
     this.stop = this.stop.bind(this);
     this.reload = this.reload.bind(this);
@@ -358,6 +366,24 @@ class JobsModule extends BaseModule {
    */
   performNow(name, args) {
     return this.ready().performNow(name, args);
+  }
+
+  /**
+   * Makes a batch: these jobs, and one that runs when they are all done
+   *
+   * The callback runs once every job has reached a terminal state, `dead`
+   * included, and is handed the counts under `batch`.
+   *
+   * @param {object} [options] `callback`, `args`, `name`, `jobs`, plus the
+   *   callback's own `queue`, `priority`, `maxAttempts`, `timeout`, `wait`
+   *   and `at`
+   * @param {function} [build] Adds the jobs itself; the batch is sealed
+   *   when it resolves
+   * @returns {Promise<object>} The batch
+   * @memberof JobsModule
+   */
+  batch(options, build) {
+    return this.ready().batch(options, build);
   }
 
   /**

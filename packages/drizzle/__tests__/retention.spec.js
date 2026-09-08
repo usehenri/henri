@@ -161,6 +161,7 @@ describe(`the access trail on ${target.name}`, () => {
       'henri_calls',
       'henri_identities',
       'henri_jobs',
+      'henri_jobs_batches',
       'henri_jobs_limits',
       'henri_jobs_schedules',
       'henri_trail',

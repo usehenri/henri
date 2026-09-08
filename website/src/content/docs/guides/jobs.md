@@ -298,6 +298,133 @@ The bound stores one thing on the job row: `concurrency_key`, the bucket it coun
 - A job already **in the queue** when the limit was declared carries no key. It is not left behind: a row with no key belongs to its job's own bucket, so adding a limit takes effect on the backlog — which is the moment you would be adding it.
 - On MongoDB there is nothing to upgrade: a document simply has no such field.
 
+## Batches
+
+Forty jobs, and one that runs when they are all done: an import that resizes every image and then sends the mail, a nightly report compiled from a page of work per account.
+
+```js
+const batch = await henri.jobs.batch({
+  name: `import ${account.id}`, // a label, for henri jobs:batches
+  callback: 'import/finished', // the job that runs when they are done
+  args: { accountId: account.id }, // its own arguments
+  queue: 'imports', // and its queue, priority, maxAttempts, timeout, wait, at
+
+  jobs: rows.map((row) => ['import/row', { id: row.id }]),
+});
+
+batch.id; // the batch
+batch.total; // 40
+batch.jobs; // the ids of the jobs it enqueued
+```
+
+A job of the list is `'name'`, `['name', args]`, `['name', args, options]` or `{ name, args, options }` — the options being `perform()`'s own, so one job of a batch can have its own queue or priority.
+
+The callback is an ordinary job of `app/jobs`, and it is handed the counts under `batch`:
+
+```js
+// app/jobs/import/finished.js
+module.exports = {
+  perform: async ({ accountId, batch }) => {
+    // batch: { id, name, total, done, failed, succeeded }
+    const account = await Account.findById(accountId);
+
+    await henri.mailers.imports.done(account, batch).deliverLater();
+  },
+};
+```
+
+The `batch` key is henri's, so an `args` of your own that carries one is overwritten; and because the counts go in there, `args` has to be a plain object.
+
+When there are too many jobs to write out — a cursor over a table, a stream — the second argument builds the batch instead, and the batch is sealed when it resolves:
+
+```js
+const batch = await henri.jobs.batch(
+  { callback: 'import/finished' },
+  async (open) => {
+    for await (const row of rows) {
+      await open.add('import/row', { id: row.id });
+    }
+  }
+);
+```
+
+A **batch is built where it is created**. `add()` is a call on the handle that `batch()` answered, and once the batch is sealed it refuses (`HENRI_JOB_BATCH_CLOSED`) — there is no adding a job to a batch from another process later, because that is exactly the race that would let a callback run with work still on its way in. A builder that throws leaves the batch unsealed on purpose: the jobs it added still run, the callback never does, and `henri jobs:batches` shows it. Without either a list or a function the batch comes back open, and `batch.seal()` closes it when you are ready.
+
+### A batch finishes, it does not succeed
+
+The callback runs once **every job of the batch has reached a terminal state** — `dead` included — and it is handed the counts. A batch whose last job failed is a finished batch with a failure in it, and what that means is the application's to decide: a callback that only ran when everything succeeded would be a callback that never runs and nobody notices.
+
+So `failed` is a number the callback reads, `henri jobs:dead` has the rows, and `henri.jobs.batches.jobs(id, { state: 'dead' })` is the list of what went wrong in this batch.
+
+An **empty** batch (`jobs: []`) has nothing to wait for and finishes the moment it is made. A batch with no `callback` at all is a counter you can look at.
+
+### Exactly once, and never early
+
+Two promises, and they rest on the same three writes.
+
+`total` is written **once**, when the batch is sealed, and never moves again. `done` is advanced by **one statement per terminal outcome**, and that statement is the whole of it:
+
+```sql
+UPDATE henri_jobs_batches
+   SET done = done + 1, failed = failed + ?, updated_at = ?
+ WHERE id = ? AND finished_at IS NULL
+   AND EXISTS (SELECT 1 FROM henri_jobs
+                WHERE id = ? AND batch_id = ? AND claim_token = ?
+                  AND state IN ('done', 'dead'))
+```
+
+- The counter is **never read into the process to be written back**. `done = done + 1` is evaluated by the engine under a row lock of its own — PostgreSQL and MySQL re-evaluate the row after waiting for the writer in front, MSSQL takes an update lock, sqlite serializes its writers outright — so four runners finishing at the same instant make four increments and not one. MongoDB's `$inc` is the same guarantee on a document.
+- The `EXISTS` is what makes it exactly once: the counter only moves while the job row still holds **the claim token of the attempt that wrote its outcome**, and that is true of exactly one runner. A runner whose heartbeat went stale had its job taken away and its outcome refused — it counts nothing, and the runner that took the job over counts it once when it finishes. (On MongoDB the check is a `findOne` before the `$inc`, and it is exact for the same reason: a document that is terminal and holds this token can never be claimed, recovered or written again.)
+- `finished_at IS NULL` stops a batch that has already called its callback from ever counting again.
+
+So `done` reaches `total` after the last job of the batch is terminal, and not before — which is what the callback's own test asserts, by asking the database what is left of its batch at the moment it runs.
+
+The callback is then enqueued under a **unique key of the batch's own**, the way a [recurring](#recurring-jobs) occurrence is: two runners that both saw the last outcome send the same insert, the index refuses one of them, and it is answered with the job the other one enqueued. The batch is stamped finished _after_ that, so a process dying in between leaves it unfinished and the next sweep settles it again — settling is idempotent, which is the point.
+
+### What a batch is not
+
+- **It is not a transaction.** A runner that dies mid-batch leaves its job to be recovered, the counter unmoved and the batch unfinished until that job reaches an outcome — which is the right answer, and the reason the counter cannot be advanced at claim time.
+- **It is not atomic with your database** either: [the queue is not in your transaction](#the-queue-is-not-in-your-transaction), so a batch enqueued inside one that rolls back is a batch that runs, callback and all. Enqueue after the commit when the order matters.
+- **A job cannot be added to a batch that is sealed**, and that refusal is asked of the table rather than of the handle in your process's memory.
+- **A batch is not a pipeline.** There is no order between its jobs, no batch inside a batch, and no cancelling one.
+
+Two things leave a batch short of its total with every job of it terminal: a runner killed between writing an outcome and counting it, and a job buried by the recovery of a dead runner, whose outcome no attempt of anybody's ever wrote. The runner's sweep answers both — it counts the rows of a batch that has not moved for `jobs.stuckAfter` and settles it — so the callback is late by a sweep rather than never. That count only ever moves a batch **forward**, so a finished job pruned out of the table can never undo one.
+
+A job of a batch that is [put back](#retries-and-the-dead-letter-queue) gives its slot back first, so it is counted once when it finishes rather than twice; a job of a batch that is **discarded** leaves that batch unfinished for good, and `henri.jobs.batches.discard(id)` is the way to forget it.
+
+### What a batch looks like from the outside
+
+```bash
+henri jobs:batches                 # what is running, and what it is waiting for
+henri jobs:batches --finished
+henri jobs:list --batch <id>       # the jobs of one batch
+henri jobs:status                  # says which batches are still running
+```
+
+```
+  4f0e8f2c-...  running   38/40 done, 1 dead  import acme
+      -> import/finished (not enqueued yet)
+```
+
+```js
+await henri.jobs.batches.get(id); // one batch and its counts
+await henri.jobs.batches.list({ finished: false });
+await henri.jobs.batches.jobs(id, { state: 'dead' });
+await henri.jobs.batches.discard(id);
+```
+
+A finished batch is kept for `jobs.keepCompleted`, like a finished job, and pruned by the same sweep.
+
+### The table, and an upgrade
+
+A batch stores one column on the job row (`batch_id`) and one table of its own (`henri_jobs_batches`). The queue's tables are created with `CREATE TABLE IF NOT EXISTS` and there is no migration chain behind them, so — exactly as for the [concurrency key](#the-column-and-an-upgrade) — a **new table** appears on its own and a **new column** does not.
+
+`henri jobs:install`, which the boot already runs unless `jobs.install` is false, adds both, and the `ALTER` is idempotent and **tolerated**: a database user who may not alter the table fails no boot. What decides whether batches work is asking the database, not whether that statement ran:
+
+- An application that makes no batch **is not affected at all**. Its inserts name the columns that are there.
+- `henri.jobs.batch()` on a store that has neither **is refused** with `HENRI_JOB_BATCH_UNINSTALLED`, naming `henri jobs:install`. A batch is refused rather than run with a counter nothing can hold — there is nothing declared in a file to fail a boot over, so the refusal is at the call.
+- On MongoDB there is nothing to upgrade: a document has no such field, and a collection appears when something is written into it.
+
 ## A job a package ships
 
 A package that does work of its own registers its job on the queue rather than asking every application to write a file that would only forward the call:
@@ -401,22 +528,23 @@ module.exports = {
   index: async (req, res) => {
     await req.authorize('read', 'Jobs');
 
-    const [stats, dead, limits] = await Promise.all([
+    const [stats, dead, limits, batches] = await Promise.all([
       henri.jobs.stats(),
       henri.jobs.dead.list({ limit: 50 }),
       henri.jobs.limits(),
+      henri.jobs.batches.list({ finished: false }),
     ]);
 
-    return { dead, limits, stats };
+    return { batches, dead, limits, stats };
   },
 };
 ```
 
-`stats()`, `list()`, `get()`, `limits()` and the whole `dead.*` API are the same calls `henri jobs:*` makes, and every one of those commands takes `--json`, so a script, a Grafana exporter or a page all read the same numbers. What henri owns instead of a page is the [telemetry](/guides/telemetry/): the queue depth by queue and state, and how long claiming takes — the two numbers a screenshot cannot alert on.
+`stats()`, `list()`, `get()`, `limits()`, `batches.*` and the whole `dead.*` API are the same calls `henri jobs:*` makes, and every one of those commands takes `--json`, so a script, a Grafana exporter or a page all read the same numbers. What henri owns instead of a page is the [telemetry](/guides/telemetry/): the queue depth by queue and state, and how long claiming takes — the two numbers a screenshot cannot alert on.
 
 ## Storage
 
-The queue owns three tables of its own, `henri_jobs`, `henri_jobs_schedules` and `henri_jobs_limits`, and reaches them through the store adapter's own surface — `query()` on the SQL adapters, the collections on MongoDB. **No henri model is involved**, so the queue cannot collide with the application's schema, does not follow its model conventions and works on a store that has no models at all.
+The queue owns four tables of its own, `henri_jobs`, `henri_jobs_schedules`, `henri_jobs_limits` and `henri_jobs_batches`, and reaches them through the store adapter's own surface — `query()` on the SQL adapters, the collections on MongoDB. **No henri model is involved**, so the queue cannot collide with the application's schema, does not follow its model conventions and works on a store that has no models at all.
 
 Every moment is stored as a `BIGINT` of milliseconds since the epoch rather than a timestamp column: sqlite has no date type, the SQL servers disagree on the precision and the zone of a bare `TIMESTAMP`, and the claim compares `run_at` to the runner's clock — a comparison that has to mean the same thing everywhere.
 
@@ -430,17 +558,7 @@ Every adapter is supported: `drizzle` (sqlite, postgres, mysql), `postgresql`, `
 
 ## What is not here
 
-**Batching** — forty jobs and one that runs when they are all done — is not in henri yet. It is the next thing the queue wants, and the shape it will take is settled, so that an application does not build something today that has to be unbuilt:
-
-- A batch **finishes**, it does not **succeed**. The callback runs once every job of the batch has reached a terminal state, `dead` included, and is handed the counts. A batch whose last job fails is a finished batch with a failure in it, and pretending otherwise means a callback that never runs and nobody notices.
-- The callback runs **exactly once**, and that rests on where the counter is advanced: by the same token-guarded write that records an attempt's outcome, so a job recovered from a dead runner and performed again does not count twice.
-- A batch is **not a transaction**. A runner that dies mid-batch leaves its job `pending`, the batch's counter unmoved and the batch unfinished until that job reaches an outcome — which is the right answer, and the reason the counter cannot be advanced at claim time.
-- It is **not atomic with your database** either, for the reason above: [the queue is not in your transaction](#the-queue-is-not-in-your-transaction), so a batch enqueued inside one that rolls back is a batch that runs.
-- Adding a job to a batch that has finished is **refused**, not swallowed.
-
-What it needs that is not there yet is a second column on the job row and a table for the batches, which is the same upgrade question the concurrency key answered — so it is a tranche of its own rather than a paragraph of this one.
-
-Also deliberately absent: a mounted dashboard ([above](#no-dashboard-and-what-to-build-one-from)), priorities that change after an enqueue, and a way to cancel a job that a runner is already performing — JavaScript cannot stop a function that is running, which is why `timeout` aborts a signal and hopes.
+Deliberately absent: a mounted dashboard ([above](#no-dashboard-and-what-to-build-one-from)), priorities that change after an enqueue, an order between the jobs of a [batch](#batches) or a batch inside one, and a way to cancel a job that a runner is already performing — JavaScript cannot stop a function that is running, which is why `timeout` aborts a signal and hopes.
 
 ## Jobs or workers?
 

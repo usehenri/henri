@@ -36,6 +36,9 @@ describe('queue (mongodb)', () => {
     });
 
     await jobs.start();
+    // The callback of a batch asks the queue what is left of it, which is
+    // what an application's own henri has
+    henri.jobs = jobs;
   }, 120000);
 
   afterAll(async () => {
@@ -57,8 +60,120 @@ describe('queue (mongodb)', () => {
       await jobs.store.releaseSlot(held.key, held.slot);
     }
 
+    for (const batch of await jobs.store.listBatches({ limit: 200 })) {
+      await jobs.store.removeBatch(batch.id);
+    }
+
     global.__henriJobsRuns = [];
+    global.__henriJobsCallbacks = [];
     live.reset();
+  });
+
+  describe('batches', () => {
+    /**
+     * The callbacks performed in this process
+     *
+     * @returns {Array<object>} What each of them saw
+     */
+    const callbacks = () => global.__henriJobsCallbacks || [];
+
+    test('a collection needs no upgrade to hold a batch', async () => {
+      // The SQL backends need a column and a table; a document simply has a
+      // field, and a collection appears when something is written into it
+      expect(await jobs.store.batched()).toBe(true);
+      expect(jobs.batched).toBe(true);
+    });
+
+    test('the callback runs once, with the counts, dead jobs included', async () => {
+      const batch = await jobs.batch({
+        callback: 'batch/finished',
+        jobs: [
+          ['batch/member', { token: 'mongo-1' }],
+          ['batch/member', { token: 'mongo-2' }],
+          ['batch/member', { fail: true, token: 'mongo-3' }],
+        ],
+        name: 'on mongodb',
+      });
+
+      await Promise.all(
+        [0, 1, 2].map(() =>
+          new Runner(jobs, { concurrency: 3, recurring: false }).once()
+        )
+      );
+      // The callback is enqueued once the last job is written down, so it
+      // is claimed by the pass that follows
+      await new Runner(jobs, { recurring: false }).once();
+
+      expect(callbacks()).toHaveLength(1);
+      expect(callbacks()[0].unfinished).toBe(0);
+      expect(callbacks()[0].batch).toEqual({
+        done: 3,
+        failed: 1,
+        id: batch.id,
+        name: 'on mongodb',
+        succeeded: 2,
+        total: 3,
+      });
+
+      const stored = await jobs.batches.get(batch.id);
+
+      expect(stored.finished).toBe(true);
+      expect(stored.callbackId).not.toBeNull();
+      expect(await jobs.list({ name: 'batch/finished' })).toHaveLength(1);
+    }, 60000);
+
+    test('an outcome the document refused counts nothing', async () => {
+      const batch = await jobs.batch({
+        jobs: [['batch/member', { token: 'mongo-zombie' }, { maxAttempts: 2 }]],
+      });
+      const [claimed] = await jobs.store.claim({
+        limit: 1,
+        now: Date.now(),
+        queues: [],
+        runner: 'zombie',
+        token: 'zombie-token',
+      });
+
+      await jobs.store.update(claimed.id, { heartbeat_at: 0 });
+      await jobs.store.recover({ now: Date.now(), stuckAfter: 1000 });
+      await new Runner(jobs, { recurring: false }).once();
+
+      expect((await jobs.batches.get(batch.id)).done).toBe(1);
+
+      // And now the runner everybody gave up on writes its outcome: the
+      // document no longer holds its token, so neither the outcome nor the
+      // count lands
+      await jobs.run(claimed, { runner: 'zombie' });
+
+      expect((await jobs.batches.get(batch.id)).done).toBe(1);
+    }, 60000);
+
+    test('the sweep settles a batch nothing else counted', async () => {
+      const batch = await jobs.batch({
+        callback: 'batch/finished',
+        jobs: [['batch/member', { token: 'mongo-swept' }]],
+      });
+      const advance = jobs.store.advanceBatch.bind(jobs.store);
+
+      jobs.store.advanceBatch = async () => null;
+
+      try {
+        await new Runner(jobs, { recurring: false }).once();
+      } finally {
+        jobs.store.advanceBatch = advance;
+      }
+
+      expect((await jobs.batches.get(batch.id)).done).toBe(0);
+
+      await jobs.reconcile({ before: Date.now() + 1 });
+      await jobs.reconcile({ before: Date.now() + 1 });
+
+      const stored = await jobs.batches.get(batch.id);
+
+      expect(stored.done).toBe(1);
+      expect(stored.finished).toBe(true);
+      expect(await jobs.list({ name: 'batch/finished' })).toHaveLength(1);
+    }, 60000);
   });
 
   describe('concurrency limits', () => {

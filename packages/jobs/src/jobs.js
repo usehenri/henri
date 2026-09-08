@@ -4,12 +4,13 @@ const debug = require('debug')('henri:jobs');
 
 const { JobError, JobStoreError, JobTimeoutError } = require('./errors');
 const { deserialize, serialize } = require('./serialize');
-const { keep } = require('./keys');
-const { duration, runAt } = require('./duration');
+const { callback: callbackKey, keep } = require('./keys');
+const { duration, iso, runAt } = require('./duration');
 const { keyOf, load, validate } = require('./definitions');
 const { normalize, recurring } = require('./config');
 const { storeFor } = require('./store');
 const { toNumber, HISTORY_LIMIT } = require('./store/sql');
+const { Batch, declaration, toBatch } = require('./batch');
 
 /** The states a job goes through */
 const STATES = ['pending', 'running', 'done', 'dead'];
@@ -35,17 +36,8 @@ const MAIL_JOB = 'henri/mail';
  */
 const RETENTION_JOB = 'henri/retention';
 
-/**
- * A moment, as the API hands it out
- *
- * @param {*} value A timestamp in milliseconds
- * @returns {?string} An ISO string, or null
- */
-const at = (value) => {
-  const number = toNumber(value);
-
-  return number === null ? null : new Date(number).toISOString();
-};
+/** A moment, as the API hands it out */
+const at = iso;
 
 /**
  * A stored row, as the API hands it out
@@ -63,6 +55,7 @@ const toJob = (row) => {
   return {
     args: deserialize(row.args),
     attempts: toNumber(row.attempts) || 0,
+    batchId: row.batch_id || null,
     claimedAt: at(row.claimed_at),
     claimedBy: row.claimed_by || null,
     concurrencyKey: row.concurrency_key || null,
@@ -121,6 +114,8 @@ class Jobs {
     this.runners = new Set();
     /** Whether the store can hold a concurrency key; see start() */
     this.concurrent = false;
+    /** Whether the store can hold a batch; see start() */
+    this.batched = false;
 
     /**
      * The retry policy of a job whose file this runner does not have: the
@@ -136,6 +131,14 @@ class Jobs {
       list: (filter) => this.list({ ...filter, state: 'dead' }),
       retry: (id, opts) => this.retry(id, opts),
       retryAll: (filter, opts) => this.retryAll(filter, opts),
+    };
+
+    /** Reading the batches back; `batch()` is what makes one */
+    this.batches = {
+      discard: (id) => this.discardBatch(id),
+      get: (id) => this.getBatch(id),
+      jobs: (id, filter) => this.list({ ...(filter || {}), batch: id }),
+      list: (filter) => this.listBatches(filter),
     };
   }
 
@@ -199,6 +202,7 @@ class Jobs {
     }
 
     this.concurrent = await this.store.concurrent();
+    this.batched = await this.store.batched();
 
     const bounded = Object.values(this.definitions).filter(
       (definition) => definition.concurrency
@@ -546,6 +550,8 @@ class Jobs {
    * @param {string} [options.id] The id to give the job, so a caller racing
    *   another on the same `unique` key can tell whether it is the one that
    *   enqueued it (the recurring schedules use it)
+   * @param {string} [options.batch] The batch to count it into; `batch()`
+   *   is what makes one, and a batch that is sealed refuses
    * @returns {Promise<object>} The enqueued job
    * @throws {JobError} HENRI_JOB_UNKNOWN, or HENRI_JOB_INVALID_ARGUMENTS
    *   cannot be stored
@@ -553,6 +559,10 @@ class Jobs {
    */
   async perform(name, args = null, options = {}) {
     const definition = this.definition(name);
+
+    if (options.batch) {
+      await this.openBatch(options.batch);
+    }
 
     // A job a package defined after the boot may declare a limit the store
     // has no column for; the enqueue is where that is caught, because
@@ -573,6 +583,7 @@ class Jobs {
     const row = {
       args: serialize(args, { maxBytes: this.config.maxArgsBytes }),
       attempts: 0,
+      batch_id: options.batch || null,
       claim_token: null,
       claimed_at: null,
       claimed_by: null,
@@ -839,6 +850,340 @@ class Jobs {
   }
 
   /**
+   * Refuses to store a batch this store has nowhere to put it
+   *
+   * The concurrency limit's refusal, for the same reason and with the same
+   * shape: the tables of the queue have no migration chain behind them, so
+   * a new column and a new table arrive through the tolerated upgrade block
+   * of the install -- and what decides at runtime is asking the table.
+   * Running a batch that counts nothing would be worse than refusing it.
+   *
+   * @returns {object} The store
+   * @throws {JobError} HENRI_JOB_BATCH_UNINSTALLED
+   * @memberof Jobs
+   */
+  batchable() {
+    if (!this.batched) {
+      throw new JobError(
+        'HENRI_JOB_BATCH_UNINSTALLED',
+        `The "${this.config.store}" store has no ${this.config.tables.batches} table (or no ${this.config.tables.jobs}.batch_id column) to hold a batch`,
+        {
+          hint: 'Run `henri jobs:install` once with a user that may create a table and alter one; the queue itself keeps working without it, and a batch would not',
+        }
+      );
+    }
+
+    return this.storeOrDie();
+  }
+
+  /**
+   * The batch a job may still be added to
+   *
+   * Asked of the table rather than of the handle: "adding a job to a batch
+   * that has finished is refused" is a promise about the batch, not about
+   * the object in this process's memory.
+   *
+   * @param {string} id The batch id
+   * @returns {Promise<object>} The stored row
+   * @throws {JobError} HENRI_JOB_BATCH_CLOSED when it is sealed or gone
+   * @memberof Jobs
+   */
+  async openBatch(id) {
+    const store = this.batchable();
+    const row = await store.findBatch(id);
+
+    if (!row || row.sealed_at) {
+      throw new JobError(
+        'HENRI_JOB_BATCH_CLOSED',
+        row
+          ? `The batch ${id} is closed: it holds ${toNumber(row.total)} job(s) and was sealed at ${at(row.sealed_at)}`
+          : `There is no batch ${id}`,
+        {
+          batch: id,
+          hint: 'A batch is built where it is created: add every job before it is sealed, or make another batch',
+        }
+      );
+    }
+
+    return row;
+  }
+
+  /**
+   * Makes a batch: these jobs, and one that runs when they are all done
+   *
+   * The callback runs once every job of the batch has reached a terminal
+   * state, `dead` included, and it is handed the counts under `batch` --
+   * see `./batch.js` for the whole of the argument.
+   *
+   * @param {object} [options={}] Options
+   * @param {string} [options.callback] The job to run when it finishes
+   * @param {object} [options.args] The callback's own arguments; the counts
+   *   are added to them under `batch`
+   * @param {string} [options.name] A label, for `henri jobs:batches`
+   * @param {Array} [options.jobs] The jobs, as `'name'`, `['name', args]`,
+   *   `['name', args, options]` or `{ name, args, options }`
+   * @param {string} [options.queue] The callback's queue; `priority`,
+   *   `maxAttempts`, `timeout`, `wait` and `at` are read the same way
+   * @param {function} [build] Adds the jobs itself, when there are too many
+   *   to write out: it is given the batch and the batch is sealed when it
+   *   resolves
+   * @returns {Promise<Batch>} The batch, sealed unless it was given neither
+   *   `jobs` nor a function
+   * @throws {JobError} HENRI_JOB_BATCH_UNINSTALLED, HENRI_JOB_INVALID_BATCH
+   *   or HENRI_JOB_UNKNOWN when the callback is not a job
+   * @memberof Jobs
+   */
+  async batch(options = {}, build) {
+    const store = this.batchable();
+    const declared = declaration(options);
+
+    if (declared.jobs && typeof build === 'function') {
+      throw new JobError(
+        'HENRI_JOB_INVALID_BATCH',
+        'The batch was given both a list of jobs and a function to add them',
+        { hint: 'Pass `jobs`, or a function, and not both' }
+      );
+    }
+
+    // A callback nothing answers to is refused here rather than when the
+    // last job of the batch finishes, which is minutes later and elsewhere
+    if (declared.callback) {
+      this.definition(declared.callback);
+    }
+
+    const now = Date.now();
+    const row = await store.createBatch({
+      callback: declared.callback,
+      callback_args: serialize(declared.args, {
+        maxBytes: this.config.maxArgsBytes,
+      }),
+      callback_id: null,
+      callback_options: JSON.stringify(declared.options),
+      created_at: now,
+      done: 0,
+      failed: 0,
+      finished_at: null,
+      id: randomUUID(),
+      name: declared.name,
+      sealed_at: null,
+      total: 0,
+      updated_at: now,
+    });
+    const batch = new Batch(this, row);
+
+    debug('batch %s -> %s', batch.id, declared.callback || 'no callback');
+
+    // A list, even an empty one, is a batch that says what it holds: it is
+    // sealed here and now. No list at all leaves it open for the caller
+    if (declared.jobs) {
+      await batch.addAll(declared.jobs);
+
+      return batch.seal();
+    }
+
+    if (typeof build === 'function') {
+      // A builder that throws leaves the batch unsealed on purpose: its
+      // jobs run, its callback never does, and `henri jobs:batches` shows
+      // it. Sealing what an application abandoned half way through would
+      // call the callback for a batch that was never a batch
+      await build(batch);
+
+      return batch.seal();
+    }
+
+    return batch;
+  }
+
+  /**
+   * One batch
+   *
+   * @param {string} id The batch id
+   * @returns {Promise<?object>} The batch, or null
+   * @memberof Jobs
+   */
+  async getBatch(id) {
+    return toBatch(await this.batchable().findBatch(id));
+  }
+
+  /**
+   * The batches of the queue, the newest first
+   *
+   * @param {object} [filter={}] `finished`, `limit`, `offset`
+   * @returns {Promise<Array<object>>} The batches
+   * @memberof Jobs
+   */
+  async listBatches(filter = {}) {
+    const rows = await this.batchable().listBatches(filter);
+
+    return rows.map(toBatch);
+  }
+
+  /**
+   * Forgets a batch, leaving its jobs alone
+   *
+   * The way out of a batch that can never finish because one of its jobs
+   * was discarded: what is left of it counts against nothing.
+   *
+   * @param {string} id The batch id
+   * @returns {Promise<boolean>} Whether there was one to forget
+   * @memberof Jobs
+   */
+  async discardBatch(id) {
+    return this.batchable().removeBatch(id);
+  }
+
+  /**
+   * Counts one terminal outcome into the batch of a job, and settles it
+   *
+   * @param {object} row The row whose outcome was just written
+   * @param {object} [options={}] `failed`, whether it died
+   * @returns {Promise<?object>} The batch, when this outcome finished it
+   * @memberof Jobs
+   */
+  async advance(row, options = {}) {
+    if (!row.batch_id || !this.batched) {
+      return null;
+    }
+
+    try {
+      const batch = await this.storeOrDie().advanceBatch({
+        failed: Boolean(options.failed),
+        id: row.batch_id,
+        job: row.id,
+        now: Date.now(),
+        token: row.claim_token,
+      });
+
+      return await this.settle(batch);
+    } catch (error) {
+      // Never fail an attempt whose outcome is already written over the
+      // bookkeeping of its batch: the sweep settles what this missed
+      this.log(
+        'warn',
+        row.name,
+        row.id,
+        `could not count into the batch ${row.batch_id}:`,
+        error.message
+      );
+      debug('%O', error);
+
+      return null;
+    }
+  }
+
+  /**
+   * Enqueues the callback of a batch whose jobs are all terminal
+   *
+   * Idempotent, and that is the point: the callback is enqueued under a
+   * unique key of the batch's own (`./keys.js`), so a second settle -- from
+   * another runner, or from the sweep after a runner was killed between
+   * writing an outcome and counting it -- answers the job that is already
+   * in the queue instead of enqueuing a second one. The batch is stamped
+   * finished **after** the enqueue, so that gap is what the sweep repairs.
+   *
+   * @param {?object} row A batch row
+   * @returns {Promise<?object>} The batch, when this call finished it
+   * @memberof Jobs
+   */
+  async settle(row) {
+    if (!row || !row.sealed_at || row.finished_at) {
+      return null;
+    }
+
+    const store = this.storeOrDie();
+    const total = toNumber(row.total) || 0;
+    const done = toNumber(row.done) || 0;
+
+    if (done < total) {
+      return null;
+    }
+
+    const failed = toNumber(row.failed) || 0;
+    const counts = {
+      done,
+      failed,
+      id: row.id,
+      name: row.name || null,
+      succeeded: Math.max(0, done - failed),
+      total,
+    };
+    let job = null;
+
+    if (row.callback) {
+      const options = deserialize(row.callback_options) || {};
+
+      // The unique key is the arbiter and the id is not: two runners
+      // settling at once send the same insert, and the one the index
+      // refuses is answered with the job the other one enqueued -- which
+      // `insert()` only does for a row it did not write itself
+      job = await this.perform(
+        row.callback,
+        { ...(deserialize(row.callback_args) || {}), batch: counts },
+        { ...options, unique: callbackKey(row.id) }
+      );
+    }
+
+    await store.finishBatch({
+      callback: job && job.id,
+      id: row.id,
+      now: Date.now(),
+    });
+
+    this.log(
+      'info',
+      'batch',
+      row.id,
+      `finished: ${counts.succeeded} done, ${counts.failed} dead`,
+      job ? `-> ${row.callback} ${job.id}` : '(no callback)'
+    );
+
+    return toBatch(await store.findBatch(row.id));
+  }
+
+  /**
+   * Settles the batches nothing else will
+   *
+   * Two things leave a batch short of its total with every job of it
+   * terminal, and one sweep answers both: a runner killed between writing
+   * an outcome and counting it, and a job buried by the recovery of a dead
+   * runner, whose outcome no attempt of anybody's ever wrote. Counting the
+   * rows is what decides -- and it only ever moves a batch forward, so a
+   * finished job pruned out of the table cannot undo one.
+   *
+   * @param {object} options Options
+   * @param {number} options.before Only batches untouched since that moment
+   * @param {number} [options.limit=50] How many one sweep looks at
+   * @returns {Promise<Array<object>>} The batches this sweep finished
+   * @memberof Jobs
+   */
+  async reconcile({ before, limit = 50 }) {
+    if (!this.batched) {
+      return [];
+    }
+
+    const store = this.storeOrDie();
+    const open = await store.openBatches({ before, limit });
+    const finished = [];
+
+    for (const row of open) {
+      const counted = await store.countBatch(row.id);
+      const batch = await store.syncBatch({
+        done: counted.done,
+        failed: counted.failed,
+        id: row.id,
+        now: Date.now(),
+      });
+      const settled = await this.settle(batch);
+
+      if (settled) {
+        finished.push(settled);
+      }
+    }
+
+    return finished;
+  }
+
+  /**
    * Puts a job back in its queue
    *
    * Its attempt count starts over, so the retry policy applies again. Works
@@ -875,6 +1220,18 @@ class Jobs {
     }
 
     const now = Date.now();
+
+    // A job that was counted into a batch and is put back will reach a
+    // terminal state a second time, so it gives its slot back first: a
+    // batch that has already finished never moves again, which is what the
+    // guard of releaseBatch() says
+    if (row.batch_id && this.batched && row.state !== 'pending') {
+      await store.releaseBatch({
+        failed: row.state === 'dead',
+        id: row.batch_id,
+        now,
+      });
+    }
 
     await store.update(id, {
       attempts: 0,
@@ -1092,7 +1449,11 @@ class Jobs {
     await store.update(
       row.id,
       {
-        claim_token: null,
+        // A job of a batch keeps the token of the claim that wrote this,
+        // and that is what makes the counting exactly once: the batch is
+        // advanced by the runner whose token is on the row, which is the
+        // one whose outcome landed (see SqlStore#advanceBatch)
+        claim_token: row.batch_id ? row.claim_token : null,
         duration_ms: finished - started,
         error_message: null,
         error_stack: null,
@@ -1109,6 +1470,9 @@ class Jobs {
     const job = toJob(await store.find(row.id));
 
     this.lost(row, job);
+    // The counter of a batch is advanced by the write above and by nothing
+    // else: an outcome that was refused counts nothing (see advanceBatch)
+    await this.advance(row, { failed: false });
 
     return { job, state: 'done' };
   }
@@ -1194,7 +1558,10 @@ class Jobs {
     await store.update(
       row.id,
       {
-        claim_token: null,
+        // Kept on a terminal row of a batch, for the reason attempt()
+        // gives; a failure that goes back to its queue is claimed again
+        // and gets a token of its own
+        claim_token: dead && row.batch_id ? row.claim_token : null,
         duration_ms: took,
         error_message: message,
         error_stack: (error && error.stack) || null,
@@ -1222,6 +1589,12 @@ class Jobs {
     const job = toJob(await store.find(row.id));
 
     this.lost(row, job);
+
+    // A batch counts what is terminal: an attempt going back to its queue
+    // with a backoff is not an outcome, and the batch waits for it
+    if (dead) {
+      await this.advance(row, { failed: true });
+    }
 
     return { error, job, state: dead ? 'dead' : 'pending' };
   }

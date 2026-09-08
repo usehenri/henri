@@ -608,23 +608,23 @@ class Runner {
    * @memberof Runner
    */
   async beat() {
-    const batches = new Map();
+    const claims = new Map();
 
     for (const [id, entry] of this.running) {
-      const ids = batches.get(entry.token) || [];
+      const ids = claims.get(entry.token) || [];
 
       ids.push(id);
-      batches.set(entry.token, ids);
+      claims.set(entry.token, ids);
     }
 
-    if (batches.size === 0) {
+    if (claims.size === 0) {
       return;
     }
 
     const now = Date.now();
 
     try {
-      for (const [token, ids] of batches) {
+      for (const [token, ids] of claims) {
         await this.jobs.storeOrDie().heartbeat(ids, now, token);
       }
 
@@ -713,8 +713,29 @@ class Runner {
       }
     }
 
+    // The batches nothing else will settle: one killed between the outcome
+    // of its last job and the counting of it, and one whose last job was
+    // buried by the recovery above, which wrote an outcome no attempt owns.
+    // The window is the same clock, for the same reason
+    if (this.jobs.batched) {
+      const settled = await this.jobs.reconcile({
+        before: now - this.stuckAfter,
+      });
+
+      for (const batch of settled) {
+        this.log('warn', 'batch', batch.id, 'settled by the sweep');
+      }
+    }
+
     if (this.keepCompleted > 0) {
       await this.jobs.storeOrDie().prune(now - this.keepCompleted);
+
+      if (this.jobs.batched) {
+        await this.jobs
+          .storeOrDie()
+          .pruneBatches(now - this.keepCompleted)
+          .catch((error) => debug('pruneBatches: %s', error.message));
+      }
     }
   }
 

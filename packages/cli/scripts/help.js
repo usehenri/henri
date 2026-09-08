@@ -1003,8 +1003,8 @@ const COMMANDS = [
       'puts back the jobs a runner died on. Several runners are meant to run',
       'at once against one database. It stops on SIGINT, SIGTERM and SIGQUIT,',
       'finishing the jobs it already claimed. Without a command it runs;',
-      'install, status, list, dead, show, perform, retry and discard drive',
-      'the queue from the outside.',
+      'install, status, list, batches, dead, show, perform, retry and discard',
+      'drive the queue from the outside.',
     ],
     examples: [
       {
@@ -1045,6 +1045,11 @@ const COMMANDS = [
         description: 'list/retry/discard: how many, and which job or state',
         flag: '--limit=<n> --name=<job> --state=<state>',
       },
+      {
+        description:
+          'list: only the jobs of one batch; batches: only the finished ones',
+        flag: '--batch=<id> --finished',
+      },
       { description: 'retry, discard: every matching job', flag: '--all' },
       {
         description: 'perform: enqueue it later instead of now',
@@ -1072,8 +1077,14 @@ const COMMANDS = [
         name: 'status',
       },
       {
-        description: 'the jobs of the queue (--state, --queue, --name)',
+        description:
+          'the jobs of the queue (--state, --queue, --name, --batch)',
         name: 'list',
+      },
+      {
+        description:
+          'the batches: what each is waiting for, and its callback (--finished)',
+        name: 'batches',
       },
       { description: 'the dead letter queue', name: 'dead' },
       {

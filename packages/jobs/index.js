@@ -8,6 +8,7 @@ const store = require('./src/store');
 const JobsModule = require('./src/module');
 
 const { Jobs, MAIL_JOB, STATES, toJob } = require('./src/jobs');
+const { Batch, toBatch } = require('./src/batch');
 const { Runner } = require('./src/runner');
 const { duration } = require('./src/duration');
 
@@ -26,6 +27,7 @@ const { duration } = require('./src/duration');
 const create = (henri, options = {}) => new Jobs(henri, options);
 
 module.exports = create;
+module.exports.Batch = Batch;
 module.exports.Jobs = Jobs;
 module.exports.JobsModule = JobsModule;
 module.exports.MAIL_JOB = MAIL_JOB;
@@ -39,4 +41,5 @@ module.exports.duration = duration;
 module.exports.errors = errors;
 module.exports.serialize = serialize;
 module.exports.store = store;
+module.exports.toBatch = toBatch;
 module.exports.toJob = toJob;

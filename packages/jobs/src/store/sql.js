@@ -59,6 +59,23 @@ const { keep } = require('../keys');
  * `name IN (...) AND concurrency_key = ?` for the pass that takes one
  * limited row. With no limited job in the application the statement is what
  * it always was, down to its parameters.
+ *
+ * ## Batches
+ *
+ * A batch counts its jobs, and a counter read, added to and written back is
+ * the lost update every textbook opens with -- two runners finishing at the
+ * same instant would both read 39 and both write 40. So the counter is
+ * **never read to be written**: `advanceBatch()` is one statement,
+ * `SET done = done + 1`, which every engine evaluates under a row lock of
+ * its own (sqlite serializes its writers outright), so the increments of
+ * four runners are four increments.
+ *
+ * What makes it exactly once is the `EXISTS` in that same statement: the
+ * counter only moves while the job row still holds **this runner's claim
+ * token** and is already terminal -- which is true of exactly one runner,
+ * the one whose token-guarded outcome write landed. A runner whose write
+ * was refused because it had been recovered from counts nothing, and the
+ * runner that took the job over counts once when it finishes.
  */
 
 /** The columns of the jobs table, in insert order */
@@ -87,6 +104,24 @@ const COLUMNS = [
   'history',
   'unique_key',
   'concurrency_key',
+  'batch_id',
+];
+
+/** The columns of the batches table, in insert order */
+const BATCH_COLUMNS = [
+  'id',
+  'name',
+  'callback',
+  'callback_args',
+  'callback_options',
+  'callback_id',
+  'total',
+  'done',
+  'failed',
+  'created_at',
+  'updated_at',
+  'sealed_at',
+  'finished_at',
 ];
 
 /** How many attempts of a job are kept in its history */
@@ -194,7 +229,7 @@ class SqlStore {
    * @param {string} options.dialect sqlite, postgres, mysql or mssql
    * @param {boolean} [options.dollars=false] The driver numbers its
    *   placeholders (`$1`), as node-postgres does
-   * @param {object} options.tables `{ jobs, schedules, limits }` table names
+   * @param {object} options.tables `{ jobs, schedules, limits, batches }` table names
    * @memberof SqlStore
    */
   constructor(adapter, { dialect, dollars = false, tables }) {
@@ -205,6 +240,8 @@ class SqlStore {
     this.kind = 'sql';
     /** Whether the table has `concurrency_key`; asked once, see concurrent() */
     this.limits = null;
+    /** Whether the store can hold a batch; asked once, see batched() */
+    this.batches = null;
   }
 
   /**
@@ -331,6 +368,7 @@ class SqlStore {
     }
 
     this.limits = null;
+    this.batches = null;
 
     return statements;
   }
@@ -363,6 +401,64 @@ class SqlStore {
     }
 
     return this.limits;
+  }
+
+  /**
+   * Whether this store can hold a batch
+   *
+   * Asked once, of the database rather than of what the install answered,
+   * for the reason `concurrent()` gives: an installation that upgraded
+   * henri without running the install, or whose database user may not
+   * `ALTER`, has the tables an older version wrote and the queue works
+   * exactly as it did. Both halves are asked, because a batch needs the
+   * column that ties a job to it *and* the table that counts.
+   *
+   * @returns {Promise<boolean>} true when a batch can be stored
+   * @memberof SqlStore
+   */
+  async batched() {
+    if (typeof this.batches === 'boolean') {
+      return this.batches;
+    }
+
+    try {
+      // Reads nothing: the planner still has to resolve both
+      await this.select(`SELECT batch_id FROM ${this.tables.jobs} WHERE 1 = 0`);
+      await this.select(`SELECT id FROM ${this.tables.batches} WHERE 1 = 0`);
+      this.batches = true;
+    } catch (error) {
+      debug('no batches here: %s', error.message);
+      this.batches = false;
+    }
+
+    return this.batches;
+  }
+
+  /**
+   * The columns of the jobs table an insert may name
+   *
+   * A table an older henri wrote has neither `concurrency_key` nor
+   * `batch_id`, and an application that uses neither must not notice: the
+   * insert names the columns that are there, so the queue works exactly as
+   * it did.
+   *
+   * @returns {Promise<Array<string>>} The column names
+   * @memberof SqlStore
+   */
+  async columns() {
+    const missing = [];
+
+    if (!(await this.concurrent())) {
+      missing.push('concurrency_key');
+    }
+
+    if (!(await this.batched())) {
+      missing.push('batch_id');
+    }
+
+    return missing.length === 0
+      ? COLUMNS
+      : COLUMNS.filter((column) => !missing.includes(column));
   }
 
   /**
@@ -406,12 +502,7 @@ class SqlStore {
    * @memberof SqlStore
    */
   async insert(job) {
-    // A table an older henri wrote has no `concurrency_key` at all, and an
-    // application with no limited job must not notice: the insert names the
-    // columns that are there, so the queue works exactly as it did
-    const columns = (await this.concurrent())
-      ? COLUMNS
-      : COLUMNS.filter((column) => column !== 'concurrency_key');
+    const columns = await this.columns();
     const values = columns.map((column) =>
       typeof job[column] === 'undefined' ? null : job[column]
     );
@@ -975,11 +1066,12 @@ class SqlStore {
   /**
    * Lists jobs
    *
-   * @param {object} [options={}] `state`, `queue`, `name`, `limit`, `offset`
+   * @param {object} [options={}] `state`, `queue`, `name`, `batch`, `limit`,
+   *   `offset`
    * @returns {Promise<Array<object>>} The rows
    * @memberof SqlStore
    */
-  async list({ state, queue, name, limit = 50, offset = 0 } = {}) {
+  async list({ state, queue, name, batch, limit = 50, offset = 0 } = {}) {
     const filter = [];
     const params = [];
     // The driver binds what it is given: `LIMIT '25'` is text where sqlite
@@ -1000,6 +1092,11 @@ class SqlStore {
     if (name) {
       filter.push('name = ?');
       params.push(name);
+    }
+
+    if (batch) {
+      filter.push('batch_id = ?');
+      params.push(batch);
     }
 
     const where = filter.length > 0 ? `WHERE ${filter.join(' AND ')}` : '';
@@ -1223,6 +1320,299 @@ class SqlStore {
       names
     );
   }
+
+  /**
+   * Records a batch
+   *
+   * @param {object} batch A batch row, in database shape
+   * @returns {Promise<object>} The batch, read back
+   * @memberof SqlStore
+   */
+  async createBatch(batch) {
+    const values = BATCH_COLUMNS.map((column) =>
+      typeof batch[column] === 'undefined' ? null : batch[column]
+    );
+
+    await this.run(
+      `INSERT INTO ${this.tables.batches} (${BATCH_COLUMNS.join(', ')}) VALUES (${marks(BATCH_COLUMNS)})`,
+      values
+    );
+
+    return this.findBatch(batch.id);
+  }
+
+  /**
+   * One batch by id
+   *
+   * @param {string} id The batch id
+   * @returns {Promise<?object>} The row, or null
+   * @memberof SqlStore
+   */
+  async findBatch(id) {
+    const [row] = await this.select(
+      `SELECT * FROM ${this.tables.batches} WHERE id = ?`,
+      [id]
+    );
+
+    return row || null;
+  }
+
+  /**
+   * Closes a batch to new jobs and writes down how many it holds
+   *
+   * `total` is written once and never moves again, which is what makes
+   * "the counter reached the total" mean "every job of the batch is
+   * terminal". Nothing settles before this: the guard of `settleBatch()`
+   * asks for `sealed_at`, so a batch whose first job finished while the
+   * fortieth was still being enqueued does not call its callback early.
+   *
+   * @param {object} options Options
+   * @param {string} options.id The batch id
+   * @param {number} options.total How many jobs it holds
+   * @param {number} options.now The current time
+   * @returns {Promise<?object>} The batch, or null when it was sealed
+   *   already (or is gone)
+   * @memberof SqlStore
+   */
+  async sealBatch({ id, total, now }) {
+    await this.run(
+      `UPDATE ${this.tables.batches} SET total = ?, sealed_at = ?, updated_at = ? WHERE id = ? AND sealed_at IS NULL`,
+      [total, now, now, id]
+    );
+
+    const row = await this.findBatch(id);
+
+    return row && toNumber(row.sealed_at) === now ? row : null;
+  }
+
+  /**
+   * Counts one terminal outcome into its batch
+   *
+   * One statement, and it is the whole of the exactly-once claim:
+   *
+   * - `done = done + 1` is evaluated by the engine under its own row lock,
+   *   so two runners finishing at the same instant make two increments and
+   *   not one. It is never read into this process to be written back.
+   * - the `EXISTS` is the guard: the job row has to still hold **this
+   *   runner's claim token** and be terminal, which is true only of the
+   *   runner whose token-guarded outcome write landed. A runner that was
+   *   recovered from wrote nothing and counts nothing.
+   * - `finished_at IS NULL` stops a batch that has already called its
+   *   callback from counting anything more.
+   *
+   * @param {object} options Options
+   * @param {string} options.id The batch id
+   * @param {string} options.job The job that reached a terminal state
+   * @param {string} options.token The claim token its outcome was written
+   *   under
+   * @param {boolean} options.failed Whether it died rather than finished
+   * @param {number} options.now The current time
+   * @returns {Promise<?object>} The batch as it is now, or null
+   * @memberof SqlStore
+   */
+  async advanceBatch({ id, job, token, failed, now }) {
+    await this.run(
+      `UPDATE ${this.tables.batches} SET done = done + 1, failed = failed + ?, updated_at = ? WHERE id = ? AND finished_at IS NULL AND EXISTS (SELECT 1 FROM ${this.tables.jobs} WHERE id = ? AND batch_id = ? AND claim_token = ? AND state IN ('done', 'dead'))`,
+      [failed ? 1 : 0, now, id, job, id, token]
+    );
+
+    return this.findBatch(id);
+  }
+
+  /**
+   * Gives a batch its slot back, when a job of it is put back in the queue
+   *
+   * A dead job that is retried will reach a terminal state a second time
+   * and count a second time, which would take `done` past what the batch
+   * holds. A finished batch never moves again, which is what the guard
+   * says.
+   *
+   * @param {object} options Options
+   * @param {string} options.id The batch id
+   * @param {boolean} options.failed Whether the job was in the dead letter
+   *   queue
+   * @param {number} options.now The current time
+   * @returns {Promise<void>} Resolves when written
+   * @memberof SqlStore
+   */
+  async releaseBatch({ id, failed, now }) {
+    await this.run(
+      `UPDATE ${this.tables.batches} SET done = done - 1, failed = ${failed ? 'failed - 1' : 'failed'}, updated_at = ? WHERE id = ? AND finished_at IS NULL AND done > 0`,
+      [now, id]
+    );
+  }
+
+  /**
+   * Says a batch has finished, and what enqueued its callback
+   *
+   * The callback is enqueued *before* this is written, so a process that
+   * dies in between leaves the batch unfinished and the next sweep settles
+   * it again -- the enqueue is idempotent (`../keys.js`).
+   *
+   * @param {object} options Options
+   * @param {string} options.id The batch id
+   * @param {?string} options.callback The id of the callback job
+   * @param {number} options.now The current time
+   * @returns {Promise<void>} Resolves when written
+   * @memberof SqlStore
+   */
+  async finishBatch({ id, callback, now }) {
+    await this.run(
+      `UPDATE ${this.tables.batches} SET finished_at = ?, callback_id = ?, updated_at = ? WHERE id = ? AND finished_at IS NULL`,
+      [now, callback || null, now, id]
+    );
+  }
+
+  /**
+   * What a batch's jobs actually say, read from the queue itself
+   *
+   * The repair the sweep uses: a runner killed between writing an
+   * outcome and counting it leaves a batch one short forever, and a job
+   * buried by the recovery of a dead runner was never counted by anybody.
+   * Counting the rows answers both.
+   *
+   * @param {string} id The batch id
+   * @returns {Promise<object>} `{ done, failed }`
+   * @memberof SqlStore
+   */
+  async countBatch(id) {
+    const rows = await this.select(
+      `SELECT state, COUNT(*) AS total FROM ${this.tables.jobs} WHERE batch_id = ? AND state IN ('done', 'dead') GROUP BY state`,
+      [id]
+    );
+    const counted = { done: 0, failed: 0 };
+
+    for (const row of rows) {
+      const total = toNumber(row.total) || 0;
+
+      counted.done += total;
+
+      if (row.state === 'dead') {
+        counted.failed += total;
+      }
+    }
+
+    return counted;
+  }
+
+  /**
+   * Moves a batch's counters up to what its jobs say
+   *
+   * Only ever **forward**: a job pruned after it finished is a row that is
+   * no longer counted, and a batch must not walk backwards over one.
+   *
+   * @param {object} options Options
+   * @param {string} options.id The batch id
+   * @param {number} options.done How many jobs are terminal
+   * @param {number} options.failed How many of them died
+   * @param {number} options.now The current time
+   * @returns {Promise<?object>} The batch as it is now
+   * @memberof SqlStore
+   */
+  async syncBatch({ id, done, failed, now }) {
+    await this.run(
+      `UPDATE ${this.tables.batches} SET done = ?, failed = ?, updated_at = ? WHERE id = ? AND finished_at IS NULL AND done < ?`,
+      [done, failed, now, id, done]
+    );
+
+    return this.findBatch(id);
+  }
+
+  /**
+   * The batches that were sealed and have not finished
+   *
+   * @param {object} options Options
+   * @param {number} options.before Only those untouched since that moment
+   * @param {number} [options.limit=50] How many at most
+   * @returns {Promise<Array<object>>} The rows
+   * @memberof SqlStore
+   */
+  async openBatches({ before, limit = 50 }) {
+    const page =
+      this.dialect === 'mssql'
+        ? 'ORDER BY updated_at ASC OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY'
+        : 'ORDER BY updated_at ASC LIMIT ?';
+
+    return this.select(
+      `SELECT * FROM ${this.tables.batches} WHERE finished_at IS NULL AND sealed_at IS NOT NULL AND updated_at < ? ${page}`,
+      [before, Math.max(1, Number(limit) || 50)]
+    );
+  }
+
+  /**
+   * Lists batches, the ones still running first
+   *
+   * @param {object} [options={}] `finished`, `limit`, `offset`
+   * @returns {Promise<Array<object>>} The rows
+   * @memberof SqlStore
+   */
+  async listBatches({ finished, limit = 50, offset = 0 } = {}) {
+    const rows = Math.max(1, Number(limit) || 50);
+    const from = Math.max(0, Number(offset) || 0);
+    const filter =
+      typeof finished === 'boolean'
+        ? `WHERE finished_at IS ${finished ? 'NOT NULL' : 'NULL'}`
+        : '';
+    const page =
+      this.dialect === 'mssql'
+        ? 'OFFSET ? ROWS FETCH NEXT ? ROWS ONLY'
+        : 'LIMIT ? OFFSET ?';
+    const paging = this.dialect === 'mssql' ? [from, rows] : [rows, from];
+
+    return this.select(
+      `SELECT * FROM ${this.tables.batches} ${filter} ORDER BY created_at DESC, id ASC ${page}`,
+      paging
+    );
+  }
+
+  /**
+   * Forgets a batch
+   *
+   * @param {string} id The batch id
+   * @returns {Promise<boolean>} Whether there was one
+   * @memberof SqlStore
+   */
+  async removeBatch(id) {
+    if (!(await this.findBatch(id))) {
+      return false;
+    }
+
+    await this.run(`DELETE FROM ${this.tables.batches} WHERE id = ?`, [id]);
+
+    return true;
+  }
+
+  /**
+   * Deletes the batches that finished before a moment
+   *
+   * @param {number} before A timestamp
+   * @param {number} [limit=1000] How many one pass deletes
+   * @returns {Promise<number>} How many were deleted
+   * @memberof SqlStore
+   */
+  async pruneBatches(before, limit = 1000) {
+    const page =
+      this.dialect === 'mssql'
+        ? 'ORDER BY finished_at ASC OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY'
+        : 'ORDER BY finished_at ASC LIMIT ?';
+    const rows = await this.select(
+      `SELECT id FROM ${this.tables.batches} WHERE finished_at IS NOT NULL AND finished_at < ? ${page}`,
+      [before, limit]
+    );
+
+    if (rows.length === 0) {
+      return 0;
+    }
+
+    const ids = rows.map((row) => row.id);
+
+    await this.run(
+      `DELETE FROM ${this.tables.batches} WHERE id IN (${marks(ids)})`,
+      ids
+    );
+
+    return ids.length;
+  }
 }
 
 /**
@@ -1278,6 +1668,7 @@ const create = (adapter, tables) => {
 };
 
 module.exports = {
+  BATCH_COLUMNS,
   COLUMNS,
   DUPLICATE,
   HISTORY_LIMIT,

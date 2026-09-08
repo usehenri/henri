@@ -4850,6 +4850,8 @@ declare namespace start {
      * by default), plus `:<key>` when the job names one.
      */
     concurrencyKey: string | null;
+    /** The batch this job counts into, `null` when it is not in one. */
+    batchId: string | null;
   }
 
   /** The options of an enqueue. */
@@ -4865,6 +4867,12 @@ declare namespace start {
     timeout?: number | string;
     /** A key no other job of the queue may hold. */
     unique?: string;
+    /**
+     * The batch to count the job into. `henri.jobs.batch()` is what makes
+     * one, and a batch that has been sealed refuses
+     * (`HENRI_JOB_BATCH_CLOSED`).
+     */
+    batch?: string;
   }
 
   /** What a job's `perform(args, context)` receives as its context. */
@@ -4973,8 +4981,85 @@ declare namespace start {
     state?: 'pending' | 'running' | 'done' | 'dead';
     queue?: string;
     name?: string;
+    /** Only the jobs of one batch. */
+    batch?: string;
     limit?: number;
     offset?: number;
+  }
+
+  /**
+   * A batch: a set of jobs, and one job that runs when they are all done.
+   *
+   * A batch **finishes**, it does not succeed: the callback runs once every
+   * job has reached a terminal state, `dead` included, and is handed these
+   * counts under `batch`. It runs exactly once, and never before the last
+   * job of the batch is terminal.
+   */
+  interface JobBatch {
+    id: string;
+    /** The label the batch was given, if any. */
+    name: string | null;
+    /** The job that runs when it finishes, `null` when it has none. */
+    callback: string | null;
+    /** The id of the enqueued callback, once it has been. */
+    callbackId: string | null;
+    /** How many jobs it holds; written when it is sealed, and fixed. */
+    total: number;
+    /** How many of them are terminal. */
+    done: number;
+    /** How many of those died. */
+    failed: number;
+    /** `done - failed`. */
+    succeeded: number;
+    /** Whether it is closed to new jobs. */
+    sealed: boolean;
+    /** Whether every job of it is terminal and the callback was enqueued. */
+    finished: boolean;
+    /** Moments are ISO strings. */
+    createdAt: string | null;
+    updatedAt: string | null;
+    sealedAt: string | null;
+    finishedAt: string | null;
+  }
+
+  /** One job of a batch, however it is written. */
+  type JobBatchEntry =
+    | string
+    | [string, unknown?, JobOptions?]
+    | { name: string; args?: unknown; options?: JobOptions };
+
+  /** What `henri.jobs.batch()` takes. */
+  interface JobBatchOptions extends JobOptions {
+    /** A label, for `henri jobs:batches`. */
+    name?: string;
+    /** The job to run when the batch finishes. */
+    callback?: string;
+    /**
+     * The callback's own arguments. The counts are added to them under
+     * `batch`, so this has to be a plain object.
+     */
+    args?: Record<string, unknown> | null;
+    /** The jobs of the batch. */
+    jobs?: JobBatchEntry[];
+  }
+
+  /**
+   * A batch in hand: what adds jobs to it and closes it.
+   *
+   * Its counters are what the database said when it was last read, so
+   * `reload()` is how they are refreshed.
+   */
+  interface JobBatchHandle extends JobBatch {
+    /** The ids of the jobs this handle enqueued. */
+    jobs: string[];
+    /** Adds one job; refuses once the batch is sealed. */
+    add(name: string, args?: unknown, options?: JobOptions): Promise<Job>;
+    /** Adds several, in any of the shapes `batch({ jobs })` takes. */
+    addAll(list: JobBatchEntry[]): Promise<Job[]>;
+    /** Closes the batch, and settles it when nothing was left to wait for. */
+    seal(): Promise<JobBatchHandle>;
+    /** Reads the counters back. */
+    reload(): Promise<JobBatchHandle>;
   }
 
   /**
@@ -5014,6 +5099,29 @@ declare namespace start {
     ): Promise<Job>;
     /** Performs a job here and now, without the queue (tests, console). */
     performNow(name: string, args?: unknown): Promise<unknown>;
+    /**
+     * Makes a batch: these jobs, and one that runs when they are all done.
+     *
+     * With `jobs` (or a function that adds them) the batch comes back
+     * sealed; with neither, it is open and `seal()` closes it.
+     */
+    batch(
+      options?: JobBatchOptions,
+      build?: (batch: JobBatchHandle) => unknown | Promise<unknown>
+    ): Promise<JobBatchHandle>;
+    /** Reading the batches back; `batch()` is what makes one. */
+    batches: {
+      get(id: string): Promise<JobBatch | null>;
+      list(filter?: {
+        finished?: boolean;
+        limit?: number;
+        offset?: number;
+      }): Promise<JobBatch[]>;
+      /** The jobs of a batch. */
+      jobs(id: string, filter?: JobFilter): Promise<Job[]>;
+      /** Forgets a batch, leaving its jobs alone. */
+      discard(id: string): Promise<boolean>;
+    };
     get(id: string): Promise<Job | null>;
     list(filter?: JobFilter): Promise<Job[]>;
     stats(): Promise<JobStats>;

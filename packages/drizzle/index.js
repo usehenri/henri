@@ -1370,6 +1370,7 @@ class Drizzle {
       queue,
       `${queue}_schedules`,
       `${queue}_limits`,
+      `${queue}_batches`,
       name(calls.table, 'henri_calls'),
       name(identities.table, 'henri_identities'),
       name(trail.table, 'henri_trail'),
