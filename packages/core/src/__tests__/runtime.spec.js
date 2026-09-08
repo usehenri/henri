@@ -118,6 +118,41 @@ describe('runtime rules (no application)', () => {
     );
   });
 
+  test("scrub masks henri's own secrets under whatever name they arrive", () => {
+    // Every other rule here matches a *key*, which is right for a request
+    // body and not enough for the rows of the `query` tool: the key there is
+    // whatever the SQL said, and `SELECT password AS p FROM users` renames
+    // the column to something no rule knows
+    const { BOUND } = require('../base/password');
+    const { PREFIX } = require('../base/encryption');
+    const row = {
+      argon: '$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA',
+      bcrypt: '$2b$12$abcdefghijklmnopqrstuvwxyz',
+      bound: `${BOUND}abcdefghij`,
+      envelope: `${PREFIX}:v1:r:9f3a1c07:AbCdEfGh`,
+    };
+
+    expect(scrub(row, { filters: [] })).toEqual({
+      argon: '[FILTERED]',
+      bcrypt: '[FILTERED]',
+      bound: '[FILTERED]',
+      envelope: '[FILTERED]',
+    });
+
+    // ... and nothing a developer actually asked to see
+    expect(
+      scrub(
+        { note: 'a normal value', price: '19.99', title: '$5 off' },
+        { filters: [] }
+      )
+    ).toEqual({ note: 'a normal value', price: '19.99', title: '$5 off' });
+
+    // At every depth, since a row may carry json
+    expect(
+      scrub({ meta: { kept: [{ hash: row.bcrypt }] } }, { filters: [] })
+    ).toEqual({ meta: { kept: [{ hash: '[FILTERED]' }] } });
+  });
+
   test('scrub masks a personal field name exactly, not as a substring', () => {
     expect(
       scrub(

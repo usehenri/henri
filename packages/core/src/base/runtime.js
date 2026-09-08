@@ -1,6 +1,8 @@
 const util = require('util');
 
 const { currentRequestId } = require('./request-id');
+const { PREFIX: ENVELOPE } = require('./encryption');
+const { BOUND } = require('./password');
 const { filterParameters, redact, redactUrl } = require('./redact');
 
 /**
@@ -139,6 +141,12 @@ const KEYWORDS = [
 ];
 
 /** A field name a `where` may carry */
+/** `$2b$12$...`, the shape `base/password.js` writes and reads */
+const BCRYPT_HASH = /^\$2[abxy]\$\d{2}\$/u;
+
+/** `$argon2id$v=19$m=...`, the other one */
+const ARGON2_HASH = /^\$argon2(?:i|d|id)\$v=\d+\$/u;
+
 const FIELD = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Strings and comments, in the order they must be removed */
@@ -173,6 +181,71 @@ function bound(text, max = LIMITS.message) {
 }
 
 /**
+ * A secret henri recognises by its shape rather than by the name it arrived
+ * under.
+ *
+ * Everything else here masks by *key*: the substrings of
+ * `config.filterParameters`, and the field names the models marked
+ * `personal`. That is exactly right for a request body, where the key is the
+ * name the client sent -- and it is not enough for the rows of the `query`
+ * tool, where the key is whatever the SQL said. `SELECT password AS p FROM
+ * users` renames the column to something no rule knows, and the hash goes
+ * into an agent's context in full.
+ *
+ * So a value is read too. Only two shapes are, and both are henri's own and
+ * unmistakable: a password hash (bcrypt, argon2, or one bound to its row)
+ * and an encrypted column's envelope. Neither can be a legitimate value a
+ * developer asked to see, so there is no false positive to trade against --
+ * and neither is a guess about what secrets look like in general, which is
+ * why the guide still says a deliberate `SELECT` can exfiltrate and the tool
+ * is development-only for that reason.
+ *
+ * @param {*} value anything
+ * @returns {boolean} true when it is one of henri's own secrets
+ */
+function secret(value) {
+  if (typeof value !== 'string' || value.length < 8) {
+    return false;
+  }
+
+  return (
+    value.startsWith(BOUND) ||
+    value.startsWith(`${ENVELOPE}:`) ||
+    BCRYPT_HASH.test(value) ||
+    ARGON2_HASH.test(value)
+  );
+}
+
+/**
+ * A copy of a value with every secret henri recognises by its shape masked,
+ * at every depth
+ *
+ * @param {*} value the redacted copy, walked again
+ * @returns {*} the same value with the shaped secrets masked
+ */
+function masked(value) {
+  if (secret(value)) {
+    return '[FILTERED]';
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(masked);
+  }
+
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+
+  const out = {};
+
+  for (const [key, entry] of Object.entries(value)) {
+    out[key] = masked(entry);
+  }
+
+  return out;
+}
+
+/**
  * A copy of a value with the filtered keys masked and `password` masked
  * whatever the configuration says
  *
@@ -185,7 +258,7 @@ function scrub(value, { filters, keys }) {
     ? filters
     : filters.concat(['password']);
 
-  return redact(value, all, { keys });
+  return masked(redact(value, all, { keys }));
 }
 
 /**
