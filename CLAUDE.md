@@ -794,11 +794,20 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   answers JSON even to a browser, so the shape gave the two apart even when
   the words matched -- and it is what `henri generate scaffold` writes.
   `config.policies.status: 403` keeps its message: that application decided
-  to tell them. What is _not_ closed, and is argued in `refusal()`: the 401
-  an **anonymous** visitor gets is uniform only when it is decided before
+  to tell them. The **anonymous** half is `config.policies.anonymous`,
+  argued in `refusal()`: that 401 is uniform only when it is decided before
   anything is looked up, so on a route guarded only by a record-level rule
-  an anonymous visitor still tells an id that exists from one that does not
-  -- a `roles` on the route answers at the gate, before the lookup. `policy: true` on a route registers the guard next to
+  an anonymous visitor could tell an id that exists from one that does not.
+  `challenge` (the default) is what henri has always done; `uniform` hands
+  an anonymous visitor exactly the error a signed-in stranger gets --
+  `policies.status`, the same `expose`, and **no `redirect`**, since a 404
+  page setting a `Location` would leak through the header -- and the cost,
+  said in the hint and in the guide, is the login-page affordance for a
+  bookmarked link. A `roles` on the route still answers at the gate, before
+  the lookup, and needs no key; `henri audit` says nothing about either
+  value, because the audit reports what an application weakened and this is
+  a default henri chose plus a hardening it may opt into.
+  `policy: true` on a route registers the guard next to
   the role guard rather than instead of it; what the gate cannot decide is
   enforced by `res.resource()` (unless the action already asked that question)
   and reported by `config.policies.verify`. `res.resource`/`res.collection`

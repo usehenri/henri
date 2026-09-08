@@ -32,13 +32,18 @@ const reserved = new Set([
  * `params` each of them declared, compiled by the same `declarations()` the
  * boot compiles them with
  *
+ * @param {object} [overrides={}] configuration keys to change first
  * @returns {object} the document
  */
-const describeDemo = () => {
+const describeDemo = (overrides = {}) => {
   const controllers = loadModules(path.join(demo, 'app', 'controllers'), {
     keepDirectoryPath: true,
   });
-  const config = require(path.join(demo, 'config', 'default.json'));
+  const config = Object.assign(
+    {},
+    require(path.join(demo, 'config', 'default.json')),
+    overrides
+  );
   const models = Object.values(loadModules(path.join(demo, 'app', 'models')));
   const settings = settingsOf(config);
   const hidden = new Set(
@@ -321,6 +326,35 @@ describe('the OpenAPI description', () => {
         'there is no such file in app/policies'
       );
       expect(document.paths['/ghost'].get['x-henri'].policy).toBe(false);
+    });
+
+    test('a uniform anonymous refusal takes the 401 out of the document', () => {
+      // `config.policies.anonymous: "uniform"` means a policy answers a
+      // visitor who is not signed in what it answers everybody, so a route
+      // guarded only by one has no 401 left to describe. A document that
+      // still claimed it would be describing an answer the application
+      // cannot give (base/policies.js)
+      const uniform = describeDemo({ policies: { anonymous: 'uniform' } });
+      const memos = uniform.paths['/memos/{id}'].get;
+
+      expect(memos.responses['401']).toBeUndefined();
+      expect(memos.responses['404']).toBeDefined();
+      expect(memos.description).toContain(
+        'whether or not anybody is signed in'
+      );
+      expect(uniform.components.responses.NotFound.description).toContain(
+        'config.policies.anonymous'
+      );
+
+      // A `roles` on the route still refuses an anonymous visitor before
+      // any lookup, so its 401 stays whatever this key says
+      expect(uniform.paths['/admin'].get.responses['401']).toBeDefined();
+
+      // And the default is unchanged: the demo's own document keeps both
+      expect(document.paths['/memos/{id}'].get.responses['401']).toBeDefined();
+      expect(document.paths['/memos/{id}'].get.description).toContain(
+        'or 401 when nobody is signed in'
+      );
     });
 
     test('a mutating route takes Idempotency-Key unless it opted out', () => {

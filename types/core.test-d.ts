@@ -1217,6 +1217,7 @@ expectType<Promise<{ id: number }>>(req.authorize('update', { id: 1 }));
 expectType<Promise<any>>(req.scope('proposal'));
 expectType<Promise<any>>(henri.policies.scope(req.user, 'proposal'));
 expectType<403 | 404>(henri.policies.settings.status);
+expectType<'challenge' | 'uniform'>(henri.policies.settings.anonymous);
 expectType<string[]>(henri.policies.names());
 
 const proposalPolicy: Policy = {
@@ -1237,12 +1238,18 @@ const badPolicyRoute: RoutesFile = {
 };
 
 const policiesConfig: Configuration = {
-  policies: { status: 403, verify: false },
+  policies: { anonymous: 'uniform', status: 403, verify: false },
 };
 
 const badPolicies: Configuration = {
   // @ts-expect-error a refusal answers 403 or 404, nothing else
   policies: { status: 401 },
+};
+
+const badAnonymous: Configuration = {
+  // @ts-expect-error an anonymous refusal challenges or is uniform; there is
+  // no third behaviour, and a status is what `status` is for
+  policies: { anonymous: 'hide' },
 };
 
 const badFlow: Configuration = {
@@ -1603,6 +1610,7 @@ export {
   cacheConfig,
   badConfig,
   badFlow,
+  badAnonymous,
   badPolicies,
   badPolicyRoute,
   badShared,

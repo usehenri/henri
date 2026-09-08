@@ -650,14 +650,24 @@ declare namespace start {
   /**
    * `config.policies`: what henri does with the answer of a policy in
    * `app/policies`. Writing the file is what turns policies on; this key
-   * only holds the two decisions an application may differ on.
+   * only holds the decisions an application may differ on.
    */
   interface PoliciesConfig {
     /**
+     * What a refusal answers somebody who is not signed in
+     * (`'challenge'`). `'challenge'` is a `401` and, in a browser, the
+     * login page. `'uniform'` answers them exactly what it answers a
+     * signed-in stranger -- `status`, the same message rule, and no
+     * redirect -- so a record they may not see cannot be told from one
+     * that is not there; the cost is that a bookmarked link gets a `404`
+     * instead of the login page, and giving them a way back is yours.
+     */
+    anonymous?: 'challenge' | 'uniform';
+    /**
      * What a refusal answers a signed-in user (`404`). `403` says the
      * record is there and off limits; `404` says nothing at all. An
-     * anonymous visitor always gets a `401` and, in a browser, the login
-     * page.
+     * anonymous visitor gets a `401` and, in a browser, the login page,
+     * unless `anonymous` is `'uniform'`.
      */
     status?: 403 | 404;
     /**
@@ -3748,7 +3758,11 @@ declare namespace start {
   interface PoliciesModule {
     name: 'policies';
     /** `config.policies`, normalized. */
-    settings: { status: 403 | 404; verify: boolean };
+    settings: {
+      anonymous: 'challenge' | 'uniform';
+      status: 403 | 404;
+      verify: boolean;
+    };
     /** The names of the loaded policies. */
     names(): string[];
     size(): number;

@@ -940,9 +940,16 @@ const SCHEMA = {
   },
 
   policies: {
-    describe: 'an object of policy settings ({ status, verify })',
+    describe: 'an object of policy settings ({ anonymous, status, verify })',
     hint: 'Policies live in app/policies; the key only says what a refusal answers',
     keys: {
+      anonymous: {
+        default: 'challenge',
+        describe: "'challenge' or 'uniform'",
+        enum: ['challenge', 'uniform'],
+        hint: "'uniform' answers a visitor who is not signed in whatever a signed-in stranger gets, every refusal including the route gate, so a bookmarked link to a record they may see once signed in 404s instead of offering the login page: give them a way back, or put roles on the route",
+        type: 'string',
+      },
       status: {
         default: 404,
         describe: '403 or 404',

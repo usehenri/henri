@@ -2,6 +2,7 @@
 const supertest = require('supertest');
 const Henri = require('../henri');
 const {
+  ANONYMOUS,
   PolicyError,
   identityOf,
   needsRecord,
@@ -63,23 +64,40 @@ const signUp = async (app, email, roles = null) => {
 };
 
 describe('policies (the pieces)', () => {
-  test('policiesConfig defaults to a 404 and to verifying', () => {
-    expect(policiesConfig(null)).toEqual({ status: 404, verify: true });
+  test('policiesConfig defaults to a 404, to challenging and to verifying', () => {
+    expect(policiesConfig(null)).toEqual({
+      anonymous: 'challenge',
+      status: 404,
+      verify: true,
+    });
   });
 
   test('policiesConfig reads what the application asked for', () => {
     const config = {
-      get: () => ({ status: 403, verify: false }),
+      get: () => ({ anonymous: 'uniform', status: 403, verify: false }),
       has: () => true,
     };
 
-    expect(policiesConfig(config)).toEqual({ status: 403, verify: false });
+    expect(policiesConfig(config)).toEqual({
+      anonymous: 'uniform',
+      status: 403,
+      verify: false,
+    });
   });
 
   test('policiesConfig ignores a status henri does not answer', () => {
     const config = { get: () => ({ status: 418 }), has: () => true };
 
     expect(policiesConfig(config).status).toBe(404);
+  });
+
+  test('policiesConfig ignores an anonymous answer henri does not have', () => {
+    const config = { get: () => ({ anonymous: 'hide' }), has: () => true };
+
+    // Not a third behaviour, and not a boot failure here either: the schema
+    // refuses the value before this ever runs (base/config-schema.js)
+    expect(policiesConfig(config).anonymous).toBe('challenge');
+    expect(ANONYMOUS).toEqual(['challenge', 'uniform']);
   });
 
   test('policiesConfig refuses a value that is not an object', () => {
@@ -184,6 +202,34 @@ describe('policies (demo app, disk store)', () => {
     delete global.henri;
     process.env.SKIP_WORKERS = skipWorkers;
   });
+
+  /** A uuid v7 shaped id no record has */
+  const gone = '01a00000-0000-7000-8000-000000000000';
+
+  /**
+   * Runs a body with the instance believing it is in production, which is
+   * the switch `base/http.js` reads. The suite runs under `NODE_ENV=test`,
+   * and what is being asserted is what a deployment answers.
+   *
+   * Both indistinguishability blocks below use it -- the signed-in half and
+   * the anonymous one -- because both are about what leaves a deployment.
+   *
+   * @param {function} fn what to run
+   * @returns {Promise<*>} whatever it answered
+   */
+  const asProduction = async (fn) => {
+    Object.assign(henri, { isDev: false, isProduction: true, isTest: false });
+
+    try {
+      return await fn();
+    } finally {
+      Object.assign(henri, {
+        isDev: false,
+        isProduction: false,
+        isTest: true,
+      });
+    }
+  };
 
   describe('the registry', () => {
     test('loads app/policies and finds them by model or controller name', () => {
@@ -370,32 +416,6 @@ describe('policies (demo app, disk store)', () => {
   // one answer, so these assert the two are *equal* rather than checking
   // each against a sentence. Either side gaining a word fails them.
   describe('a refusal and a record that is not there are one answer', () => {
-    /** A uuid v7 shaped id no record has */
-    const gone = '01a00000-0000-7000-8000-000000000000';
-
-    /**
-     * Runs a body with the instance believing it is in production, which
-     * is the switch `base/http.js` reads. The suite runs under
-     * `NODE_ENV=test`, and what is being asserted is what a deployment
-     * answers.
-     *
-     * @param {function} fn what to run
-     * @returns {Promise<*>} whatever it answered
-     */
-    const asProduction = async (fn) => {
-      Object.assign(henri, { isDev: false, isProduction: true, isTest: false });
-
-      try {
-        return await fn();
-      } finally {
-        Object.assign(henri, {
-          isDev: false,
-          isProduction: false,
-          isTest: true,
-        });
-      }
-    };
-
     /**
      * The two answers a stranger gets: the memo somebody else owns, and a
      * memo that does not exist
@@ -506,6 +526,251 @@ describe('policies (demo app, disk store)', () => {
       expect(
         new PolicyError({ action: 'show', policy: 'memo', status: 404 }).expose
       ).toBe(false);
+    });
+  });
+
+  // The other half of the same property, for the visitor who is not signed
+  // in. `config.policies.anonymous` is the switch, and both of its values
+  // are asserted: with `uniform` the two answers are *equal*, and with
+  // `challenge` -- the default -- the documented difference is still there,
+  // so nothing closes by accident and nothing regresses in silence.
+  describe('the anonymous half, and the key that closes it', () => {
+    /**
+     * Runs a body with `config.policies.anonymous` set to a value.
+     *
+     * The settings object is what `refusal()` reads per request, so this
+     * moves the same knob `policiesConfig()` fills at boot without booting
+     * a second application (the demo boots once per file, see beforeAll).
+     *
+     * @param {string} value `challenge` or `uniform`
+     * @param {function} fn what to run
+     * @returns {Promise<*>} whatever it answered
+     */
+    const asAnonymousMode = async (value, fn) => {
+      const before = henri.policies.settings.anonymous;
+
+      henri.policies.settings.anonymous = value;
+
+      try {
+        return await fn();
+      } finally {
+        henri.policies.settings.anonymous = before;
+      }
+    };
+
+    /**
+     * The two answers a visitor who is not signed in gets: the memo
+     * somebody owns, and a memo that does not exist. No agent, so no
+     * session cookie -- which is also what waives the CSRF check for the
+     * mutating half (see base/csrf.js)
+     *
+     * @param {function} send `(id) => supertest request`
+     * @param {string} accept the Accept header
+     * @returns {Promise<Array<object>>} the refused answer, then the absent one
+     */
+    const strangers = (send, accept) =>
+      Promise.all(
+        [mine.externalId, gone].map((id) =>
+          send(id).set('Accept', accept).redirects(0)
+        )
+      );
+
+    describe('with "uniform"', () => {
+      test('the JSON bodies are identical, on the path res.resource() guards', async () => {
+        const [refused, absent] = await asAnonymousMode('uniform', () =>
+          asProduction(() =>
+            strangers((id) => request.get(`/memos/${id}`), 'application/json')
+          )
+        );
+
+        expect(refused.status).toBe(absent.status);
+        expect(refused.status).toBe(404);
+        expect(refused.body).toEqual(absent.body);
+        expect(refused.text).toBe(absent.text);
+        expect(refused.headers['content-type']).toBe(
+          absent.headers['content-type']
+        );
+        expect(refused.headers.vary).toBe(absent.headers.vary);
+        expect(refused.body.message).toBe('Not Found');
+      });
+
+      test('and on the path req.authorize() throws from', async () => {
+        const [refused, absent] = await asAnonymousMode('uniform', () =>
+          asProduction(() =>
+            strangers(
+              (id) => request.patch(`/memos/${id}`).send({ title: 'x' }),
+              'application/json'
+            )
+          )
+        );
+
+        expect(refused.status).toBe(absent.status);
+        expect(refused.status).toBe(404);
+        expect(refused.body).toEqual(absent.body);
+        expect(refused.headers.vary).toBe(absent.headers.vary);
+        // A thrown refusal carries a stack and a code; neither leaves, and
+        // a record that never existed had neither to answer with
+        expect(refused.body.data).toBeUndefined();
+        expect(refused.body.code).toBeUndefined();
+      });
+
+      test('the pages a browser gets are identical, Location included', async () => {
+        const [refused, absent] = await asAnonymousMode('uniform', () =>
+          asProduction(() =>
+            strangers((id) => request.get(`/memos/${id}`), 'text/html')
+          )
+        );
+
+        expect(refused.status).toBe(absent.status);
+        expect(refused.text).toBe(absent.text);
+        expect(refused.headers['content-type']).toBe(
+          absent.headers['content-type']
+        );
+        expect(refused.headers.vary).toBe(absent.headers.vary);
+        // The one that would have leaked through a header rather than a
+        // body: a 404 page that still said where to log in
+        expect(refused.headers.location).toBeUndefined();
+        expect(absent.headers.location).toBeUndefined();
+        expect(refused.text).toContain('404 Not Found');
+      });
+
+      test('a HAL client gets the same envelope for both', async () => {
+        const [refused, absent] = await asAnonymousMode('uniform', () =>
+          asProduction(() =>
+            strangers(
+              (id) => request.get(`/memos/${id}`),
+              'application/hal+json'
+            )
+          )
+        );
+
+        for (const answer of [refused, absent]) {
+          expect(answer.status).toBe(404);
+          expect(answer.headers['content-type']).toContain(
+            'application/hal+json'
+          );
+        }
+
+        expect(refused.text).toBe(absent.text);
+      });
+
+      test('the gate answers it too: one rule, no exception', async () => {
+        // `index` is decided before any lookup and so gives nothing away,
+        // and it is *still* uniform: a key whose meaning depended on
+        // whether the rule took a record would be a rule with a hole in
+        // it, and this is the affordance the guide says the key costs
+        const [gate, roles] = await asAnonymousMode('uniform', () =>
+          asProduction(() =>
+            Promise.all(
+              ['/memos', '/admin'].map((path) =>
+                request.get(path).set('Accept', 'text/html').redirects(0)
+              )
+            )
+          )
+        );
+
+        expect(gate.status).toBe(404);
+        expect(gate.headers.location).toBeUndefined();
+
+        // A `roles` on the route is untouched: it refuses before the
+        // lookup for a reason that has nothing to do with any record, so
+        // it keeps the login page whatever this key says
+        expect(roles.status).toBe(302);
+        expect(roles.headers.location).toBe('/login');
+      });
+
+      test('a signed-in stranger is answered exactly as before', async () => {
+        // The half #418 closed does not move: the key is only ever read
+        // when there is no user
+        const [refused, absent] = await asAnonymousMode('uniform', () =>
+          asProduction(() =>
+            Promise.all(
+              [mine.externalId, gone].map((id) =>
+                stranger.agent
+                  .get(`/memos/${id}`)
+                  .set('Accept', 'application/json')
+              )
+            )
+          )
+        );
+
+        expect(refused.status).toBe(404);
+        expect(refused.body).toEqual(absent.body);
+      });
+
+      test('the account flows still answer one thing at one price', async () => {
+        // `base/accounts.js` writes its answer before it looks anything up,
+        // deliberately, and this key has nothing to do with it. Asserted
+        // here because a change to what a refusal says is exactly the kind
+        // of change that would quietly reach the flows
+        const [known, unknown] = await asAnonymousMode('uniform', () =>
+          asProduction(() =>
+            Promise.all(
+              [ownerEmail, 'nobody-at-all@usehenri.io'].map((email) =>
+                request
+                  .post('/password/forgot')
+                  .set('Accept', 'application/json')
+                  .send({ email })
+              )
+            )
+          )
+        );
+
+        expect(known.status).toBe(202);
+        expect(known.status).toBe(unknown.status);
+        expect(known.body).toEqual(unknown.body);
+      });
+    });
+
+    describe('with "challenge", the default', () => {
+      test('the JSON answers still differ, which is what the key is for', async () => {
+        const [refused, absent] = await asAnonymousMode('challenge', () =>
+          asProduction(() =>
+            strangers((id) => request.get(`/memos/${id}`), 'application/json')
+          )
+        );
+
+        expect(refused.status).toBe(401);
+        expect(absent.status).toBe(404);
+        expect(refused.body).not.toEqual(absent.body);
+      });
+
+      test('a browser is asked to sign in for the one that exists', async () => {
+        const [refused, absent] = await asAnonymousMode('challenge', () =>
+          asProduction(() =>
+            strangers((id) => request.get(`/memos/${id}`), 'text/html')
+          )
+        );
+
+        expect(refused.status).toBe(302);
+        expect(refused.headers.location).toBe('/login');
+        expect(absent.status).toBe(404);
+      });
+
+      test('and it is the default: nothing changes for an application that says nothing', () => {
+        expect(henri.policies.settings.anonymous).toBe('challenge');
+      });
+    });
+
+    test('the refusal itself is what carries the decision', () => {
+      // Below the HTTP layer, so the property is readable in one place:
+      // under `uniform` an anonymous refusal *is* the signed-in one
+      const anonymous = () => henri.policies.refusal(null, 'show', null, {});
+
+      expect(anonymous()).toMatchObject({ redirect: '/login', status: 401 });
+
+      henri.policies.settings.anonymous = 'uniform';
+
+      try {
+        expect(anonymous()).toMatchObject({ redirect: null, status: 404 });
+        expect(anonymous().expose).toBe(false);
+        // A caller naming a status still wins, whoever is asking
+        expect(
+          henri.policies.refusal(null, 'show', null, { status: 403 }).status
+        ).toBe(403);
+      } finally {
+        henri.policies.settings.anonymous = 'challenge';
+      }
     });
   });
 
