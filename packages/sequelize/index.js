@@ -9,6 +9,7 @@ const {
   lookup,
   paginate,
   publicId,
+  restoring,
   slugged,
   validations,
 } = require('./plugins');
@@ -335,7 +336,9 @@ class Sql {
     this.nameUniqueConstraints(attributes, model);
 
     const instance = lookup(
-      paginate(connector.define(model.globalId, attributes, options)),
+      restoring(
+        paginate(connector.define(model.globalId, attributes, options))
+      ),
       external,
       this.henri,
       declaredSlug

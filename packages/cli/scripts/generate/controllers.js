@@ -314,10 +314,13 @@ ${validationHelper(opts)}`,
       opts,
       `req.${opts.lower} = await byId(${opts.doc}.findById(req.params.id));`
     ),
+  // `update()` rather than `set()` then `save()`: henri adds it to a
+  // Mongoose document (Mongoose 7 removed its own), and it is the call
+  // that puts the attributes back when the store refuses the write, so
+  // the record this action still holds never carries a refused value
   update: (opts) => `
     try {
-      req.${opts.lower}.set(req.permit(...FIELDS));
-      await req.${opts.lower}.save();
+      await req.${opts.lower}.update(req.permit(...FIELDS));
     } catch (error) {
       ${invalidCall(opts, 'edit')}
     }

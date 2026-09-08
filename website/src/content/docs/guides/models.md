@@ -174,6 +174,42 @@ for (const post of await Post.find({ status: 'draft' })) {
 
 The refusal is measured against the fields the write actually names, so a mass update that does not touch the validated field goes through, and so does a soft delete. A rule that only reads its value takes one parameter and never refuses anything.
 
+### What a record holds after a refused write
+
+`record.update(attrs)` sets the attributes and saves them, and only the second half can fail. So the obvious question is what the record in your hand holds once it has:
+
+```js
+try {
+  await post.update(req.permit('title', 'views'));
+} catch (error) {
+  // post.views — the value the store just refused, or the one it holds?
+}
+```
+
+**It holds the values it had before the call.** A write the store refused puts back every attribute it set, on all three adapters, so the record a controller still has after a 422 is the record as it is stored — safe to render, to log, and to write to again.
+
+That last one is the reason. Before this rule, the refused value stayed on the record and the _next_ `update()` was measured against it, so a second write naming a different field entirely was refused for a field it never named — and on the Sequelize path it was not refused at all, because Sequelize narrows the statement to the fields the call named, so the row kept the old value while the record went on saying the refused one. A record that cannot be written to again and a record that lies, from the same line of code.
+
+A refusal here means what [`henri.model.errors()`](#validation-errors) means: a rule of `validates`, the schema's own `required` or `enum`, and the unique index — the database's refusal is put back the same way, because a single-row `INSERT` or `UPDATE` is refused whole and there is no half-written row for the record to disagree with. Anything else — a hook of yours that throws, a connection that drops — is not a refusal and puts nothing back; that matters for an `afterUpdate` hook in particular, because by then the row has moved and the record should say so.
+
+Three things this deliberately is not:
+
+- **It is not a reload.** Nothing is read back, a refusal costs no query, and what goes back on the record is what the record held. A row another process moved in the meantime is exactly as stale as it was before the call.
+- **It is not the value you asked for.** `post.views` after the refusal is what is stored. What the person typed is still in the `req.permit()` result you passed in, which is where a form repopulates from.
+- **It is not `set()` + `save()`.** Those are two steps because you wrote two, and the values stay on the record between them on purpose — it is the way to keep what a person typed on the record itself:
+
+  ```js
+  post.set(req.permit('title', 'views'));
+
+  try {
+    await post.save();
+  } catch (error) {
+    // post.views is what they typed, and the form can be built from it
+  }
+  ```
+
+On a `mongoose` or `disk` store, `record.update()` is henri's own: Mongoose removed `Document.prototype.update` in version 7, and `set()` then `save()` was the only spelling. It is back, it means the same thing it means on the other two, and it is what the generated controllers write.
+
 ### What henri does not check
 
 - **`unique` is not a validation, and henri does not pretend otherwise.** A `SELECT` before an `INSERT` answers a question about a moment that has already passed: two requests both find nothing and both write. The unique index is what actually holds, so the database refuses the second one and `henri.model.errors()` turns that refusal into `{ field: 'must be unique' }` — [the same shape](#validation-errors) as everything above. What you give up is the message arriving before the round trip; what you get is a guarantee rather than a near-miss.

@@ -340,7 +340,9 @@ describe('the scaffolded resource follows the adapter', () => {
     const controller = read(app, 'app/controllers/tasks.js');
 
     expect(controller).toContain('byId(Task.findById(req.params.id))');
-    expect(controller).toContain('req.task.set(req.permit(...FIELDS))');
+    // The one henri adds to a Mongoose document, because it is the call
+    // that puts the attributes back when the store refuses the write
+    expect(controller).toContain('req.task.update(req.permit(...FIELDS))');
     expect(controller).toContain('req.task.deleteOne()');
     expect(controller).toContain('CastError');
   });

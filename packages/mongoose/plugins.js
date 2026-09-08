@@ -226,6 +226,87 @@ const toInt = (value, fallback) => {
   return Number.isFinite(number) && number > 0 ? number : fallback;
 };
 
+// The MongoDB duplicate key error, whatever the driver calls it. It is
+// the other half of what `henri.model.errors()` calls a refused write
+// (`base/model-errors.js`), and the only half Mongoose does not name.
+const DUPLICATE_KEY = 11000;
+
+/**
+ * Is this the store refusing the write, rather than something else going
+ * wrong? The same question `henri.model.errors()` answers on every
+ * adapter, asked here because an adapter reaches for no part of core.
+ *
+ * @param {*} error What the write threw
+ * @returns {boolean} true for a validation failure or a duplicate key
+ */
+const refused = (error) =>
+  Boolean(error) &&
+  (error.name === 'ValidationError' ||
+    error.code === DUPLICATE_KEY ||
+    Boolean(error.cause && error.cause.code === DUPLICATE_KEY));
+
+/**
+ * Adds `doc.update(attrs)`: set the attributes and save, and put them back
+ * when the store refuses the write.
+ *
+ * Mongoose 7 removed `Document.prototype.update`, so this document had
+ * nothing but `set()` then `save()` while the other two adapters had one
+ * call -- and the models guide tells an application to write
+ * `article.update({ ... })` in the two places it explains a mass write
+ * that henri refuses. This is that call, on this adapter, spelled the way
+ * it is on the other two.
+ *
+ * The rollback is henri's rule and it is the same sentence on all three;
+ * the whole argument is written down once, in `@usehenri/drizzle`'s
+ * `model.js` above `rollbackOf()`. What is put back is each attribute the
+ * call named and whether the document had it marked modified, and only
+ * when the store refused: a `post('save')` hook that throws is not a
+ * refusal, and by then the document is written.
+ *
+ * @param {object} schema The Mongoose schema
+ * @returns {object} The schema
+ */
+const updating = (schema) => {
+  /**
+   * Sets attributes and saves, putting them back when the store refuses
+   *
+   * @param {object} attrs The attributes
+   * @param {object} [options={}] `save()` options (`unsafe` for the roles)
+   * @returns {Promise<object>} The document
+   */
+  schema.methods.update = async function updateOrRollBack(attrs, options = {}) {
+    // The own enumerable keys, which is what `set()` writes as well
+    const kept =
+      attrs === null || typeof attrs !== 'object'
+        ? []
+        : Object.keys(attrs).map((field) => [
+            field,
+            this.get(field),
+            this.isModified(field),
+          ]);
+
+    this.set(attrs);
+
+    try {
+      return await this.save(options);
+    } catch (error) {
+      if (refused(error)) {
+        for (const [field, value, modified] of kept) {
+          this.set(field, value);
+
+          if (!modified) {
+            this.unmarkModified(field);
+          }
+        }
+      }
+
+      throw error;
+    }
+  };
+
+  return schema;
+};
+
 /**
  * Adds `Model.paginate()`: one call for a page of documents and the
  * counters `res.collection()` wants
@@ -837,5 +918,6 @@ module.exports = {
   paranoid,
   slugged,
   updateValues,
+  updating,
   validations,
 };

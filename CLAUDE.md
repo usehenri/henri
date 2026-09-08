@@ -708,7 +708,22 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   `HENRI_MODEL_VALIDATION_UNCHECKED_WRITE`. **henri does not claim
   `unique`**: a check before an insert is a race, so the index stays what
   holds and `model-errors.js` turns the duplicate into
-  `{ field: 'must be unique' }`. The guide is `guides/models.md`
+  `{ field: 'must be unique' }`. **A write the store refused puts back
+  every attribute it set**: `record.update(attrs)` is `set()` then
+  `save()`, so a refusal used to leave the refused value on the record and
+  the next `update()` was measured against it -- refused for a field it
+  never named on drizzle and mongoose, and silently _not_ refused on
+  sequelize, which narrows the statement to the fields the call names. The
+  rollback is per adapter (`packages/drizzle/model.js` `rollbackOf()`,
+  which carries the whole argument, `restoring()` in
+  `packages/sequelize/plugins.js`, `updating()` in
+  `packages/mongoose/plugins.js` -- which also _adds_ `doc.update()`,
+  removed by Mongoose 7, so the call the guide names exists on all three).
+  It fires for what `henri.model.errors()` calls a refusal and nothing
+  else, so an `afterUpdate` hook that throws leaves the record saying what
+  the row now says; `set()` + `save()` stays two steps and keeps what was
+  set, which is how a form keeps what a person typed. The guide is
+  `guides/models.md`
   (`#validations`), which is also where the boundary with `params` is
   argued: `params` checks what arrives, `validates` what is written, and a
   job, a seed or a console has no request.
@@ -2127,11 +2142,6 @@ false` columns of the user model), sqlite offline and the live PostgreSQL
   (`HENRI_MODEL_VALIDATION_UNCHECKED_WRITE`), and `Model.upsert()` on
   Sequelize is treated as a partial write, so a required column it does
   not name is left to the database's `NOT NULL`.
-- Separate from the above and **not fixed**: on the drizzle adapter
-  `instance.update(attrs)` is `set()` then `save()`, so a write refused by
-  a validation leaves the refused value on the in-memory instance and the
-  next `update()` on that same instance is measured against it. A record
-  read again is fine; only the object in hand is stale.
 - Enum predicates and scopes are new. What was **deliberately left**: the
   bang (argued above), a scope that answers records, an `or` between two
   values (`{ status: { $in: [...] } }` is not portable by hand -- that is
