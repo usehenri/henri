@@ -1901,6 +1901,44 @@ describe('henri doctor: the packages an application installed', () => {
     expect(run(agreeing).names).not.toContain('deps.version');
     cleanup(agreeing);
   });
+
+  test('reports a playwright config with no @playwright/test', () => {
+    app = minimal({}, { dependencies: { '@usehenri/core': '^1.1.0' } });
+    install(app, '@usehenri/core', { version: '1.1.0' });
+
+    // Nothing yet: an application with no browser suite is asked for nothing
+    expect(run(app).names).not.toContain('deps.playwright');
+
+    fs.writeFileSync(
+      path.join(app, 'playwright.config.js'),
+      "module.exports = { globalSetup: '@usehenri/testing/playwright' };\n"
+    );
+
+    const { ok, problems } = run(app);
+
+    // The suite does not run, and the application is otherwise fine
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'deps.playwright',
+        file: 'package.json',
+        hint: expect.stringContaining('playwright install'),
+        level: 'warning',
+        message: expect.stringContaining('playwright.config.js'),
+      })
+    );
+  });
+
+  test('and says nothing once @playwright/test is declared', () => {
+    app = minimal({}, { devDependencies: { '@playwright/test': '^1.63.0' } });
+
+    fs.writeFileSync(
+      path.join(app, 'playwright.config.mjs'),
+      'export default {};\n'
+    );
+
+    expect(run(app).names).not.toContain('deps.playwright');
+  });
 });
 
 describe('henri doctor: the schema of a store', () => {

@@ -70,8 +70,21 @@ instance under a symbol, so the inbox is per-application and the setup file
 empties it before every test. `enqueued()`/`clearJobs()`
 (`packages/testing/jobs.js`) read `henri.jobs` back rather than intercepting
 anything, and answer `HENRI_JOB_QUEUE_UNAVAILABLE` with the install line when
-the application has no queue -- never an empty list, which would pass. `packages/demo` is such an app and is what core's
-tests boot; `showcase/test/factories` is the worked example.
+the application has no queue -- never an empty list, which would pass.
+`@usehenri/testing/playwright` (`packages/testing/playwright.mjs`) is the
+browser suite's boot: a Playwright `globalSetup` that starts the application
+once for the run on a kernel-assigned port and exports
+`PLAYWRIGHT_TEST_BASE_URL`, which is what `use.baseURL` falls back to in
+every worker -- anything written in `use` wins over it, measured against
+Playwright 1.63.0, and the setup names a project that pins another url rather
+than letting the browser go somewhere else in silence. Playwright is the
+application's dependency and this repository has none: nothing here imports
+it, nothing re-measures it, and `henri doctor` reports a `playwright.config.*`
+with no `@playwright/test` (`deps.playwright`). It touches no data -- one
+server for the run is one database for the run -- so seeding is a global
+setup of the application's own wrapping `boot(config)`. `packages/demo` is
+such an app and is what core's tests boot; `showcase/test/factories` is the
+worked example.
 
 Every project runs its test files at the same time, core included: each of
 its files boots the demo application on a port the kernel assigns and a

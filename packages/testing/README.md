@@ -156,6 +156,35 @@ without a queue is told what to install rather than handed an empty list.
 main process. Tests only get HTTP access through `request()` (no `henri` or
 model globals in the workers) since global setup runs in another process.
 
+## Browser tests
+
+`@usehenri/testing/playwright` is the same boot under
+[Playwright](https://playwright.dev), and the whole of what an application
+writes for one:
+
+```js
+// playwright.config.js
+module.exports = {
+  globalSetup: '@usehenri/testing/playwright',
+  testDir: './test/browser',
+};
+```
+
+The port is the kernel's answer to `listen(0)`, so it does not exist when
+`playwright.config.js` is read. The global setup boots henri and exports
+`PLAYWRIGHT_TEST_BASE_URL`, which is what Playwright's `use.baseURL` falls
+back to in every worker — measured against Playwright 1.63.0, along with the
+rest of that precedence: anything written in `use` **wins over** the variable,
+and henri says so rather than letting the browser go somewhere else in
+silence.
+
+Playwright is the application's dependency: this package never imports it, and
+`henri doctor` reports a `playwright.config.*` with no `@playwright/test` in
+`package.json`. The database is left alone — one server for the run is one
+database for the run, so seeding belongs to a global setup of your own that
+wraps `boot(config)` from this subpath. See
+[the guide](https://usehenri.io/guides/testing/#browser-tests).
+
 ```bash
 henri test                   # vitest run
 henri test --watch           # vitest in watch mode
