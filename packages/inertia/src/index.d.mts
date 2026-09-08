@@ -15,6 +15,24 @@ export interface PathHelper {
 /** The path helpers a page received, filtered by the roles of the user. */
 export type Paths = Record<string, PathHelper>;
 
+declare global {
+  /**
+   * The path helpers of this application. `@usehenri/core` declares it empty
+   * and `.henri/types.d.ts` -- which `henri types` writes from
+   * `config/routes.js` -- fills it in. Declared here too so this package
+   * types on its own.
+   */
+  interface HenriPaths {}
+}
+
+/**
+ * A path helper name: the union this application declares once
+ * `.henri/types.d.ts` exists, and any string until it does.
+ */
+export type PathName = keyof HenriPaths extends never
+  ? string
+  : Extract<keyof HenriPaths, string>;
+
 /** The current user, as it may leave the server. */
 export interface PublicUser {
   id: string;
@@ -106,11 +124,11 @@ export interface HenriView {
    * - `undefined` when the route is unknown to this user
    */
   pathFor(
-    path?: string | null,
+    path?: PathName | null,
     params?: string | Record<string, unknown> | null
   ): PathHelper | string | undefined;
   /** The route of a helper (`'route-not-found'` when it is unknown). */
-  getRoute(route?: string | null, id?: string | null): string;
+  getRoute(route?: PathName | null, id?: string | null): string;
 }
 
 /** The view options of the page being rendered. */
@@ -170,14 +188,14 @@ export declare function useTranslation(): {
 /** A path helper, curried over the `paths` of a page. */
 export declare function pathFor(
   paths?: Paths,
-  path?: string | null,
+  path?: PathName | null,
   params?: string | Record<string, unknown> | null
 ): PathHelper | string | undefined;
 
 /** The route of a helper (`'route-not-found'` when it is unknown). */
 export declare function getRoute(
   paths?: Paths,
-  route?: string | null,
+  route?: PathName | null,
   id?: string | null
 ): string;
 

@@ -25,3 +25,7 @@ packages/core/docs/
 
 # Local, gitignored configuration overrides (see showcase/README.md)
 **/config/dev.json
+
+# Written by `henri types` over the fixture application, and kept byte
+# identical by packages/cli/__tests__/types.spec.js
+types/generated.d.ts

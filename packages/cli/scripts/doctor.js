@@ -7,6 +7,12 @@ const { validate } = require('@usehenri/core/src/base/config-validate');
 const { readCatalogues } = require('@usehenri/core/src/base/i18n');
 const { controllerOf, expand, singularize } = require('./routing');
 const {
+  FILE: TYPES_FILE,
+  FORMAT: TYPES_FORMAT,
+  markerOf: typesMarker,
+  stampOf: typesStampOf,
+} = require('@usehenri/core/src/base/types');
+const {
   detectPackageManager,
   isProject,
   readConfig,
@@ -14,6 +20,23 @@ const {
   resolvePackageJson,
   validInstall,
 } = require('./utils');
+
+/**
+ * The digest the declarations would carry if they were written now, so a
+ * file that no longer describes this application can be told from one that
+ * does. `null` when the application cannot be described at all, which is a
+ * failure of its own and is reported by the checks above.
+ *
+ * @param {string} dir The application directory
+ * @returns {?string} The digest, or null
+ */
+const typesStamp = (dir) => {
+  try {
+    return typesStampOf(require('./types').describe(dir).description);
+  } catch {
+    return null;
+  }
+};
 
 /**
  * `henri doctor`: is this application coherent?
@@ -2091,6 +2114,55 @@ const check = (dir = process.cwd()) => {
         hint: 'Copy vitest.config.js from a fresh henri app (setupFiles: @usehenri/testing/setup-file) and add vitest + @usehenri/testing to devDependencies',
       }
     );
+  }
+
+  // --- generated declarations -----------------------------------------------
+  // `.henri/types.d.ts` is written by every development boot, every hot
+  // reload, `henri build` and `henri types`, so a missing one is not a
+  // problem: the next boot writes it. A file that is *there* and no longer
+  // describes this application is, because an editor and an agent are both
+  // reading it as if it did.
+  if (exists(TYPES_FILE)) {
+    const claim = typesMarker(read(TYPES_FILE));
+    const now = typesStamp(dir);
+
+    if (!now) {
+      // Nothing to compare it with: a check that cannot be sure says nothing
+    } else if (!claim || claim.format !== TYPES_FORMAT) {
+      problem(
+        'warning',
+        'types.foreign',
+        `${TYPES_FILE} was not written by this henri (no marker, or an older format)`,
+        {
+          file: TYPES_FILE,
+          hint: 'henri types rewrites it from app/models and config/routes.js',
+        }
+      );
+    } else if (claim.app !== now) {
+      problem(
+        'warning',
+        'types.stale',
+        `${TYPES_FILE} is out of date: the models or the routes have changed since it was written`,
+        {
+          file: TYPES_FILE,
+          hint: 'henri types rewrites it (so does the next `henri server`). Until it does, an editor and a coding agent are both reading columns and path helpers this application no longer has',
+        }
+      );
+    }
+
+    try {
+      fs.accessSync(path.join(dir, TYPES_FILE), fs.constants.W_OK);
+    } catch {
+      problem(
+        'warning',
+        'types.unwritable',
+        `${TYPES_FILE} cannot be rewritten (permissions)`,
+        {
+          file: TYPES_FILE,
+          hint: 'Fix the permissions of .henri/ so the development server can keep it current, or delete the file',
+        }
+      );
+    }
   }
 
   // --- dependencies ---------------------------------------------------------

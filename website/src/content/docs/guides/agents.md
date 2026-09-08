@@ -73,8 +73,34 @@ editing a controller sees the signature of `res.render()`, the twelve names on
 
 The generators write the one JSDoc line that binds a file to its shape
 (`/** @type {import('@usehenri/core').Controller} */`), so a generated
-controller, model or routes file is typed from the moment it exists. See
-[Types](/reference/types/).
+controller, model or routes file is typed from the moment it exists.
+
+The other half is generated from the application rather than shipped with the
+framework. `.henri/types.d.ts` holds an interface per model — its columns,
+their types, the union of an `enum` column's values — and the union of every
+path helper `config/routes.js` expands to. Every development boot and every
+hot reload writes it, so it is there without anyone running anything;
+[`henri types`](/reference/cli/#types) writes it where no server has run, and
+`henri build` writes it in CI.
+
+Reading it is already useful: it is the shortest accurate answer to "what is
+this column called" and "what is this route's helper". Checking it is the
+point:
+
+```bash
+# one file
+# @ts-check   <- the first line of app/controllers/posts.js
+# or the whole application, in jsconfig.json: "checkJs": true
+npx tsc --noEmit -p jsconfig.json
+```
+
+`post.titel`, `post.status = 'published'` on a column whose `enum` says
+`live`, and `pathFor('taks_path')` are then compile errors rather than a page
+that renders `undefined` and a link that goes nowhere — which is the
+difference between a mistake an agent can correct itself and one nobody sees.
+What is _not_ caught is a static henri does not own (`Model.findAll` and its
+neighbours are `any`, because the three ORMs disagree), and
+[Types](/reference/types/) says exactly where that line is.
 
 ## The documentation, offline and version matched
 
@@ -96,6 +122,7 @@ Every informational command takes `--json`:
 
 ```bash
 henri routes --json      # the expanded routes with their helpers and roles
+henri types --json       # the models and the path helpers it wrote, and what it skipped
 henri doctor --json      # the report, with one entry per problem
 henri generate scaffold Post title:string! --json
 henri destroy scaffold Post --json
@@ -170,13 +197,14 @@ An agent should read `--checks` before it reads the findings: it says what the a
 
 `henri mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io/) server over stdio for the application in the current directory. `henri new` writes a `.mcp.json` that starts it, so an MCP-aware editor or agent picks it up with no configuration.
 
-Tools that read the files, without starting anything:
+Tools that work from the files, without starting anything (`generate`, `destroy` and `types` write, the rest only read):
 
 | Tool          | What it does                                                                        |
 | ------------- | ----------------------------------------------------------------------------------- |
 | `routes`      | The expanded routes with their verbs, paths, controllers, helpers and roles.        |
 | `openapi`     | The [OpenAPI 3.1 description](/guides/openapi/) of the HTTP surface, in one call.   |
 | `models`      | The models and their schemas.                                                       |
+| `types`       | Writes `.henri/types.d.ts`, the models and the path helpers as types.               |
 | `controllers` | The controllers and their actions.                                                  |
 | `config`      | The configuration of the app, including which adapter and renderer it uses.         |
 | `doctor`      | The `henri doctor` report.                                                          |

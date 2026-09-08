@@ -251,6 +251,7 @@ class App {
       help: require(path.join(this.cliDir, 'scripts', 'help')),
       openapi: require(path.join(this.cliDir, 'scripts', 'openapi')),
       routing: require(path.join(this.cliDir, 'scripts', 'routing')),
+      types: require(path.join(this.cliDir, 'scripts', 'types')),
       utils: require(path.join(this.cliDir, 'scripts', 'utils')),
       version: require(path.join(this.cliDir, 'package.json')).version,
     };
@@ -349,6 +350,18 @@ class App {
    */
   openapi() {
     return this.cli.openapi.describe(this.cwd);
+  }
+
+  /**
+   * Writes `.henri/types.d.ts` from the models and the routes, and answers
+   * what went into it
+   *
+   * @returns {object} `{ file, format, models, paths, skipped }`
+   */
+  types() {
+    const { description, file } = this.cli.types.generate(this.cwd);
+
+    return { file, ...description };
   }
 
   /**

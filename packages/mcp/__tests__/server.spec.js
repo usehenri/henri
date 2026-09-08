@@ -295,6 +295,7 @@ describe('henri mcp', () => {
       'routes',
       'runtime_routes',
       'test',
+      'types',
     ]);
 
     const generate = tools.find((tool) => tool.name === 'generate');
@@ -313,6 +314,20 @@ describe('henri mcp', () => {
       'henri://routes',
       'henri://runtime',
     ]);
+  });
+
+  test('types: the declarations of the models and the path helpers', async () => {
+    const { isError, structuredContent } = await call(client, 'types');
+
+    expect(isError).toBe(false);
+    expect(structuredContent.file).toBe('.henri/types.d.ts');
+    expect(structuredContent.skipped).toEqual([]);
+    expect(structuredContent.models.map((model) => model.name)).toContain(
+      'Task'
+    );
+    expect(structuredContent.paths.map((path) => path.name)).toContain(
+      'index_tasks_path'
+    );
   });
 
   test('openapi: a valid 3.1 description of what the application exposes', async () => {

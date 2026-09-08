@@ -48,6 +48,7 @@ const BOOLEAN_FLAGS = [
   'skip-install',
   'skip-workers',
   'sql',
+  'stdout',
   'summary',
   'version',
   'wait',

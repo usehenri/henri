@@ -259,9 +259,39 @@ node -e '
 '
 rm openapi.json
 
+# The declarations of the application's own models and routes, on a real
+# install. `henri build` writes them too, which is what the check after it
+# reads back; the point here is that the generator runs off the packed
+# packages and writes a file that parses -- a syntax error in it would turn
+# every other declaration in the editor off, and nothing else in this script
+# would notice
+log "henri types"
+pnpm exec henri types
+node -e '
+  const fs = require("fs");
+  const source = fs.readFileSync(".henri/types.d.ts", "utf8");
+  const missing = ["declare const Task: TaskModel;", "  index_tasks_path: true;"]
+    .filter((line) => !source.includes(line));
+
+  if (missing.length > 0) {
+    console.error("henri types wrote no usable declarations:", missing);
+    process.exit(1);
+  }
+
+  if (!/^\/\/ henri:types \d+ app=[0-9a-f]+$/m.test(source)) {
+    console.error("henri types wrote no marker for henri doctor to compare");
+    process.exit(1);
+  }
+'
+
 log "henri build"
 pnpm exec henri build
 stop_mongod
+
+[ -f "$app/.henri/types.d.ts" ] || {
+  echo "henri build did not write .henri/types.d.ts" >&2
+  exit 1
+}
 
 # A drizzle store brings its schema up with migrations, and a production
 # boot applies nothing it was not asked to: a deploy writes the first
