@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/uploads",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "henri file uploads: bounded multipart parsing, files typed by their bytes and a storage seam",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",
