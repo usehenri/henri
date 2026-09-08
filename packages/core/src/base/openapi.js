@@ -298,6 +298,10 @@ function settingsOf(config) {
       Number(api.maxSort) > 0 ? Number(api.maxSort) : FILTER_DEFAULTS.maxSort,
     perPage:
       Number(api.perPage) > 0 ? Number(api.perPage) : PAGE_DEFAULTS.perPage,
+    // What a policy answers somebody who is not signed in: `uniform` means
+    // the route's own guard never produces a 401, so the document must not
+    // describe one (`config.policies.anonymous`, base/policies.js)
+    policyAnonymous: policies.anonymous === 'uniform' ? 'uniform' : 'challenge',
     policyStatus: policies.status === 403 ? 403 : 404,
     port: Number(read('port', 3000)) || 3000,
     privacy: privacyConfig(stub),
@@ -1492,7 +1496,11 @@ function responsesOf(settings) {
       'The client asked for an API version this route does not serve (`Accept: application/vnd.henri.vN+json`).'
     ),
     NotFound: named(
-      'Nothing here, or nothing this caller may know about: a policy refuses a signed-in caller with a 404 by default, so a record they may not read reads as one that does not exist (`config.policies.status`).'
+      `Nothing here, or nothing this caller may know about: a policy refuses a signed-in caller with a 404 by default, so a record they may not read reads as one that does not exist (\`config.policies.status\`).${
+        settings.policyAnonymous === 'uniform'
+          ? ' This application answers a caller who is not signed in the same way (`config.policies.anonymous`), so a refusal and an absence are one answer for everybody.'
+          : ''
+      }`
     ),
     TooManyRequests: Object.assign(
       {
@@ -1692,7 +1700,11 @@ function guardResponses(route, settings, rules) {
   const idempotent =
     mutating && settings.idempotency && route.idempotent !== false;
 
-  if (roles || route.policy) {
+  // A role refuses an anonymous visitor with a 401 whatever else is set.
+  // A policy does too, unless the application asked for `uniform`, which
+  // answers them what it answers everybody -- so a route guarded only by a
+  // policy then has no 401 to describe
+  if (roles || (route.policy && settings.policyAnonymous !== 'uniform')) {
     responses['401'] = reference('Unauthorized');
   }
 
@@ -1770,7 +1782,13 @@ function operationDescription(
   if (route.policy) {
     lines.push(
       policy
-        ? `Policy: \`app/policies/${policy}.js\`. A refusal answers ${settings.policyStatus}, or 401 when nobody is signed in; the rules that need the record are answered by the action rather than by the gate.`
+        ? `Policy: \`app/policies/${policy}.js\`. A refusal answers ${
+            settings.policyStatus
+          }${
+            settings.policyAnonymous === 'uniform'
+              ? ', whether or not anybody is signed in'
+              : ', or 401 when nobody is signed in'
+          }; the rules that need the record are answered by the action rather than by the gate.`
         : `Policy: the route asks for \`${route.policy === true ? controller : route.policy}\`, and there is no such file in app/policies. henri fails closed: every request to this route is refused with a ${settings.policyStatus}.`
     );
   }

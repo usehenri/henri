@@ -146,10 +146,10 @@ two things pick it up:
 
 ## What a refusal answers
 
-| Who                  | Status                                                                       |
-| -------------------- | ---------------------------------------------------------------------------- |
-| An anonymous visitor | `401`, and the login page in a browser: "log in and try again" leaks nothing |
-| A signed-in user     | `config.policies.status`, **`404`** by default                               |
+| Who                  | Status                                                                                                                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| An anonymous visitor | `401`, and the login page in a browser: "log in and try again" leaks nothing. `config.policies.anonymous` is what changes it |
+| A signed-in user     | `config.policies.status`, **`404`** by default                                                                               |
 
 404 is the default on purpose: a `403` tells whoever asked that the record is
 there, which is half of what they wanted. Set `"policies": { "status": 403 }`
@@ -196,14 +196,66 @@ them, and the message is the useful half of that.
 The reason always reaches your logs, whatever the environment — the
 `policies denied` line carries it.
 
-:::caution[An anonymous visitor can still tell the two apart]
-The `401` above is uniform only when it is decided before anything is looked
-up. A rule that takes a record cannot be, so on a route guarded **only** by
-such a rule an anonymous visitor gets the login page for an id that exists and
-a 404 for one that does not. Put a `roles` on the route (or write a
-`show(user)` rule that refuses anonymous) and they are turned away at the
-gate, before the lookup, which is uniform.
+### An anonymous visitor, and what telling them costs
+
+The `401` above is uniform only when it is decided **before** anything is
+looked up. A rule that takes a record cannot be: reaching it means the record
+was loaded, and one that does not exist answered `404` in a `before` hook long
+before the policy was asked. So on a route guarded **only** by such a rule, an
+anonymous visitor gets the login page for an id that exists and a `404` for
+one that does not — which is the same oracle, one visitor further out.
+
+Two ways to close it, and the first is free:
+
+**Decide before the lookup.** A `roles` on the route turns an anonymous
+visitor away at the gate, and so does a rule that answers without a record
+(`show: (user) => Boolean(user)`). Both are uniform because neither has looked
+anything up, and this is the answer for most routes.
+
+**Or say that a refusal never names who is asking**, with
+`config.policies.anonymous`:
+
+```json
+{
+  "policies": { "anonymous": "uniform" }
+}
+```
+
+| Value                     | An anonymous refusal answers                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `"challenge"` _(default)_ | `401`, and a redirect to `user.loginPath` in a browser                                                |
+| `"uniform"`               | exactly what a signed-in stranger gets: `policies.status`, the same message rule, and **no redirect** |
+
+With `"uniform"` and the default `status`, a record somebody may not see and a
+record that is not there are one answer — same status, same body, same
+`Vary`, no `Location` — on both paths (`res.resource()` and a
+`req.authorize()` that throws), in JSON and in HTML. The `Location` is part of
+it on purpose: a `404` page that still said where to log in would give it away
+through a header instead of a body.
+
+It is **every** policy refusal, the route gate included — `index` on a
+policy-guarded resource answers the `404` too, even though the gate decided it
+before any lookup and gave nothing away. A key that meant one thing for a rule
+taking a record and another for a rule that does not would be a rule with a
+hole in it, and the hole is where the leak lives.
+
+:::caution[It costs the login page]
+A visitor who follows a bookmarked link to something they could see perfectly
+well once signed in gets a `404` instead of being asked to sign in, and
+nothing in that answer tells them signing in would help. **Giving them a way
+back is then yours**: a sign-in link in the layout, an application 404 page
+that says "signed in? try again", or a `roles` on the routes where being asked
+to log in is the right answer.
+
+That last one composes, and is usually what you want: `roles` refuses an
+anonymous visitor **before** the lookup, so it keeps the login page whatever
+this key says, and `"uniform"` then covers the signed-in stranger the role let
+through. Nothing about a signed-in user changes either way.
 :::
+
+A caller still wins one call at a time —
+`req.authorize('update', proposal, { status: 403 })` answers `403` to anybody,
+signed in or not.
 
 ## The links a page is not given
 

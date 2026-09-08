@@ -48,7 +48,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `user`             | `user`        | Name of the user model, or an object (below). See [Users](/guides/users/).                                                                                                                                                                |
 | `baseRole`         |               | Role, or list of roles, given to every new user.                                                                                                                                                                                          |
 | `externalIds`      |               | What henri does with the internal identifier of a record: which one a lookup takes, and what a foreign key serializes as, below.                                                                                                          |
-| `policies`         |               | Record-level authorization: what a refusal answers and whether an unasked policy is reported, see below. See [Policies](/guides/policies/).                                                                                               |
+| `policies`         |               | Record-level authorization: what a refusal answers, signed in or not, and whether an unasked policy is reported, see below. See [Policies](/guides/policies/).                                                                            |
 | `tenancy`          | `false`       | Multi-tenancy: where the tenant of a request comes from, and what a request naming somebody else's answers. It turns nothing on for a model: a model does, with `options: { tenant: true }`. See [Multi-tenancy](/guides/multi-tenancy/). |
 | `trustProxy`       | `true`        | Express `trust proxy`: `true`, a hop count or a list of addresses; `X-Forwarded-*` headers are honoured. Set `false` without a proxy.                                                                                                     |
 | `csrf`             | `true`        | `false` disables the [CSRF protection](/guides/users/#csrf); an object configures the origin check, below.                                                                                                                                |
@@ -114,19 +114,28 @@ to declare before henri can translate it.
 
 What henri does with the answer of a policy in `app/policies`. The key is
 never what turns policies on -- writing the file is -- and it is only about
-the two decisions an application may reasonably differ on. See
+the decisions an application may reasonably differ on. See
 [Policies](/guides/policies/).
 
-| Key      | Default | Description                                                                                                                                                                                                  |
-| -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `status` | `404`   | What a refusal answers a signed-in user: `404` says nothing about whether the record exists, `403` says it is there and off limits. An anonymous visitor always gets a `401` (the login page, in a browser). |
-| `verify` | `true`  | Report a route that declared a policy henri could not answer without the record, whose action then answered without ever asking. `false` turns the line off.                                                 |
+| Key         | Default       | Description                                                                                                                                                                                                                                                                                                                     |
+| ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anonymous` | `"challenge"` | What a refusal answers somebody who is not signed in. `"challenge"` is a `401`, and the login page in a browser. `"uniform"` answers them exactly what a signed-in stranger gets -- `status`, the same message rule, no redirect -- so a record they may not see cannot be told from one that is not there. See the cost below. |
+| `status`    | `404`         | What a refusal answers a signed-in user: `404` says nothing about whether the record exists, `403` says it is there and off limits.                                                                                                                                                                                             |
+| `verify`    | `true`        | Report a route that declared a policy henri could not answer without the record, whose action then answered without ever asking. `false` turns the line off.                                                                                                                                                                    |
 
 ```json
 {
-  "policies": { "status": 403, "verify": true }
+  "policies": { "anonymous": "uniform", "status": 404, "verify": true }
 }
 ```
+
+`"anonymous": "uniform"` costs the login page: a visitor following a
+bookmarked link to a record they may perfectly well see once signed in gets a
+`404` rather than being asked to sign in, and giving them a way back is the
+application's job. It applies to every policy refusal, the route gate
+included. A `roles` on the route is untouched -- it refuses before any lookup,
+so it keeps the login page whatever this key says -- and is the answer for a
+route where being asked to sign in is the right thing.
 
 ## The `mailers` object
 

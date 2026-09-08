@@ -108,10 +108,14 @@ class Policies extends BaseModule {
     }
 
     if (this._policies.size > 0) {
+      const { anonymous, status } = this.settings;
+
       pen.info(
         'policies',
         `${this._policies.size} loaded`,
-        `a refusal answers ${this.settings.status}`
+        anonymous === 'uniform'
+          ? `a refusal answers ${status}, signed in or not`
+          : `a refusal answers ${status} (401 and the login page while anonymous)`
       );
     }
 
@@ -415,27 +419,49 @@ class Policies extends BaseModule {
    * instead of the status.
    *
    * An anonymous one gets a 401 and, in a browser, the login page -- the
-   * role guard's answer, for the same reason.
+   * role guard's answer, for the same reason -- unless
+   * `config.policies.anonymous` says otherwise.
    *
-   * **And that 401 is an oracle this tranche did not close.** It is
-   * uniform when it is decided before anything is looked up, which is what
-   * the role guard and a record-less rule both do; it is not when it comes
-   * out of `res.resource()` (`base/hateoas.js`, `enforce`) or a
+   * **And that 401 is the other half of the oracle**, which is what
+   * `config.policies.anonymous` decides. It is uniform when it is decided
+   * before anything is looked up, which is what the role guard and a
+   * record-less rule both do; it is not when it comes out of
+   * `res.resource()` (`base/hateoas.js`, `enforce`) or a
    * `req.authorize(action, record)`, because reaching there means the
    * record was loaded, and a record that does not exist answered 404 in a
    * `before` hook long before any policy was asked. So on a route guarded
-   * only by a rule that takes a record, an anonymous visitor can tell an
+   * only by a rule that takes a record, an anonymous visitor could tell an
    * id that exists (401, or a redirect to the login page) from one that
    * does not (404).
    *
-   * It is left alone deliberately rather than overlooked. Answering the
-   * configured 404 here instead would close it and would take the login
-   * page away from every anonymous visitor of a scaffolded application,
-   * which is a trade about how henri feels and not only about what it
-   * leaks. The application-level answer exists today and is one word: a
-   * `roles` on the route turns an anonymous visitor away *before* the
-   * lookup, which is uniform, and a `show(user)` rule that refuses
-   * anonymous does the same at the gate.
+   * `anonymous: 'uniform'` closes it by refusing to know who is asking:
+   * the anonymous visitor is handed exactly the error a signed-in stranger
+   * is handed -- the configured status, the same `expose`, and **no
+   * `redirect`**, because a 404 page that still set a `Location` would say
+   * through the header what the body stopped saying. With the default
+   * `status` that is byte for byte what a record that is not there
+   * answers.
+   *
+   * It is read here and nowhere else, so it covers **every** refusal a
+   * policy makes -- the route gate's included, where nothing was leaking
+   * because nothing had been looked up. That is deliberate: a key meaning
+   * one thing for a rule that takes a record and another for a rule that
+   * does not is a rule with a hole in it, and the hole is where the leak
+   * lives.
+   *
+   * It is not the default, and the cost is why: a visitor following a
+   * bookmarked link to something they may perfectly well see once signed
+   * in gets a 404 rather than being asked to sign in, and giving them a
+   * way back is then the application's job. `challenge` is the default and
+   * is what henri has always done.
+   *
+   * Neither value is the only answer. A `roles` on the route turns an
+   * anonymous visitor away *before* the lookup, which is uniform whatever
+   * this key says, and a `show(user)` rule that refuses anonymous does the
+   * same at the gate; this key is for the route that deliberately has no
+   * role and whose only guard is a rule that takes a record.
+   *
+   * A caller naming a `status` still wins over both, one call at a time.
    *
    * @param {*} user the user, or null
    * @param {string} action the action
@@ -447,14 +473,16 @@ class Policies extends BaseModule {
   refusal(user, action, record, options = {}) {
     const opts = typeof options === 'string' ? { policy: options } : options;
     const name = this.nameFor(record, opts || {});
-    const anonymous = !user;
+    // Not "is this visitor anonymous" but "is this refusal allowed to say
+    // so": under `uniform` it is not, and everything below follows
+    const challenge = !user && this.settings.anonymous !== 'uniform';
     const status =
-      (options && options.status) || (anonymous ? 401 : this.settings.status);
+      (options && options.status) || (challenge ? 401 : this.settings.status);
 
     return new PolicyError({
       action,
       policy: name,
-      redirect: anonymous ? userConfig(this.henri.config).loginPath : null,
+      redirect: challenge ? userConfig(this.henri.config).loginPath : null,
       status,
     });
   }

@@ -55,10 +55,30 @@
 /** Settings of `config.policies` when the key is absent */
 const { stamp } = require('./errors');
 
-const DEFAULTS = Object.freeze({ status: 404, verify: true });
+const DEFAULTS = Object.freeze({
+  anonymous: 'challenge',
+  status: 404,
+  verify: true,
+});
 
 /** The statuses a refusal may answer */
 const STATUSES = [403, 404];
+
+/**
+ * What a refusal answers somebody who is not signed in.
+ *
+ * `challenge` is what henri has always done and stays the default: a 401,
+ * and the login page in a browser, because "log in and try again" is the
+ * useful answer to somebody who simply is not signed in yet.
+ *
+ * `uniform` answers them exactly what it answers a signed-in stranger --
+ * the configured status, no login page, no `Location` -- which with the
+ * default 404 is byte for byte what a record that is not there answers.
+ * Every refusal a policy makes, the route gate's included; it closes the
+ * last difference #418 left open and costs the login affordance to do it.
+ * See `Policies#refusal`, where both halves are argued.
+ */
+const ANONYMOUS = ['challenge', 'uniform'];
 
 /**
  * Exports of a policy file that describe it instead of being actions.
@@ -89,7 +109,7 @@ const HELPER = /^([a-z_][a-z0-9_]*)_(.+)_path$/iu;
  * Normalizes the `policies` configuration key
  *
  * @param {object} config henri's config module (or anything with get/has)
- * @returns {{status: number, verify: boolean}} the settings
+ * @returns {{anonymous: string, status: number, verify: boolean}} the settings
  * @throws {TypeError} when `config.policies` is not an object
  */
 function policiesConfig(config) {
@@ -104,12 +124,18 @@ function policiesConfig(config) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw stamp(
       new TypeError(
-        `config.policies must be an object ({ status, verify }): status is ${STATUSES.join(
+        `config.policies must be an object ({ anonymous, status, verify }): status is ${STATUSES.join(
           ' or '
-        )} and decides what a refusal answers, verify says whether an unenforced policy is reported`
+        )} and decides what a refusal answers somebody who is signed in, anonymous is ${ANONYMOUS.join(
+          ' or '
+        )} and decides what one who is not gets, verify says whether an unenforced policy is reported`
       ),
       'HENRI_CONFIG_INVALID'
     );
+  }
+
+  if (ANONYMOUS.includes(raw.anonymous)) {
+    settings.anonymous = raw.anonymous;
   }
 
   if (STATUSES.includes(raw.status)) {
@@ -129,7 +155,11 @@ function policiesConfig(config) {
  * It carries the status the configuration asked for, so `base/http.js`
  * answers it the way it answers any other 4xx: the negotiated page or the
  * boom body. An anonymous visitor gets a 401 and, in a browser, the login
- * page: "log in and try again" is the useful answer and it leaks nothing.
+ * page -- "log in and try again" is the useful answer -- unless
+ * `config.policies.anonymous` is `uniform`, which builds them the same
+ * error a signed-in stranger gets, `redirect` included: a 404 page that
+ * still set a `Location` would say through the header what the body no
+ * longer does.
  *
  * **The message of a 404 does not leave a production process.** The whole
  * point of answering 404 rather than 403 is that a record somebody may not
@@ -238,6 +268,7 @@ function parseHelper(helper) {
 }
 
 module.exports = {
+  ANONYMOUS,
   DEFAULTS,
   LINK_ACTIONS,
   PolicyError,
