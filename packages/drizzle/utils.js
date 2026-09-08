@@ -1,6 +1,9 @@
 // Keys whose values must never reach the logs
 const SECRET_KEYS = /^(pass(word)?|secret|token|auth)$/i;
 
+// What marks the Error `guarded()` throws in place of a process.exit
+const EXITED = Symbol('henri.drizzle.exited');
+
 /**
  * Masks the password of a connection url (user:secret@host -> user:***@host)
  *
@@ -229,6 +232,12 @@ const quiet = async (fn) => {
  * The cause is gone by then (the library discarded it) and the message says
  * so rather than inventing one.
  *
+ * The window is counted rather than saved and restored per call: two stores
+ * pushing at the same time would otherwise put each other's replacement
+ * back, and the one left behind is a `process.exit` that throws for the
+ * life of the process. The real function goes back when the last of them
+ * is done, and the marker is this module's so any of them recognizes it.
+ *
  * @param {string} code The henri error code to raise
  * @param {string} message What to say when the call ends the process
  * @param {string} hint What to do about it
@@ -237,25 +246,37 @@ const quiet = async (fn) => {
  * @throws {Error} The coded error, when fn ended the process
  */
 const guarded = async (code, message, hint, fn) => {
-  const { exit } = process;
-  const marker = Symbol('henri.exit');
+  if (guarded.depth === 0) {
+    guarded.exit = process.exit;
+    process.exit = (status) => {
+      throw Object.assign(new Error('the process was ended'), {
+        [EXITED]: status,
+      });
+    };
+  }
 
-  process.exit = (status) => {
-    throw Object.assign(new Error(message), { [marker]: status });
-  };
+  guarded.depth += 1;
 
   try {
     return await fn();
   } catch (error) {
-    if (error && typeof error === 'object' && marker in error) {
+    if (error && typeof error === 'object' && EXITED in error) {
       throw coded(code, message, hint);
     }
 
     throw error;
   } finally {
-    process.exit = exit;
+    guarded.depth -= 1;
+
+    if (guarded.depth === 0) {
+      process.exit = guarded.exit;
+      guarded.exit = null;
+    }
   }
 };
+
+guarded.depth = 0;
+guarded.exit = null;
 
 module.exports = {
   coded,

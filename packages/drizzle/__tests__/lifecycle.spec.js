@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const dialects = require('../dialects');
-const { redact } = require('../utils');
+const { guarded, redact } = require('../utils');
 const {
   Drizzle,
   build,
@@ -79,6 +79,43 @@ describe('configuration', () => {
       password: '***',
       url: 'postgres://felix:***@db.local:5432/henri',
     });
+  });
+});
+
+describe('a library that ends the process', () => {
+  const raise = () =>
+    guarded('HENRI_MIGRATION_PUSH_FAILED', 'it exited', 'do this', async () => {
+      process.exit(1);
+    });
+
+  test('becomes a coded error instead of an exit', async () => {
+    const before = process.exit;
+
+    await expect(raise()).rejects.toMatchObject({
+      code: 'HENRI_MIGRATION_PUSH_FAILED',
+      hint: 'do this',
+      message: 'it exited',
+    });
+    expect(process.exit).toBe(before);
+  });
+
+  test('lets every other failure through untouched', async () => {
+    const before = process.exit;
+
+    await expect(
+      guarded('HENRI_MIGRATION_PUSH_FAILED', 'it exited', 'do this', () =>
+        Promise.reject(new Error('something else'))
+      )
+    ).rejects.toThrow('something else');
+    expect(process.exit).toBe(before);
+  });
+
+  test('two at once put the real one back, and only once', async () => {
+    const before = process.exit;
+    const results = await Promise.allSettled([raise(), raise()]);
+
+    expect(results.map((one) => one.status)).toEqual(['rejected', 'rejected']);
+    expect(process.exit).toBe(before);
   });
 });
 
