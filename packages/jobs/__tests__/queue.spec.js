@@ -29,6 +29,8 @@ describe(`queue (${target.name})`, () => {
       // `henri/mail` and `henri/retention` are the jobs the package ships,
       // for the mailers and for `henri.retention`
       expect(jobs.names()).toEqual([
+        'batch/finished',
+        'batch/member',
         'boom',
         'counter',
         'exclusive',

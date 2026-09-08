@@ -399,7 +399,7 @@ All three exit with `1` when the key is missing or wrong, naming the file and `H
 
 ```bash
 henri jobs [--queue=<a,b>] [--concurrency=<n>] [--once] [--no-recurring]
-henri jobs:install | jobs:status | jobs:list | jobs:dead | jobs:show <id>
+henri jobs:install | jobs:status | jobs:list | jobs:batches | jobs:dead | jobs:show <id>
 henri jobs:perform <name> [json] [--in=<duration>] [--at=<date>] [--queue=<name>] [--now]
 henri jobs:retry <id> | --all      |  henri jobs:discard <id> | --all      [--json]
 ```
@@ -408,16 +408,17 @@ Runs and drives the [job queue](/guides/jobs/) of `@usehenri/jobs`, in the same 
 
 Without a command, `henri jobs` runs a worker: it claims jobs, performs up to `--concurrency` of them at once (`jobs.concurrency`, five by default), honours the recurring schedules, puts back the jobs of runners that died and stops on `SIGINT`, `SIGTERM` or `SIGQUIT` after finishing what it had claimed. `--queue=mailers,reports` limits it to some queues; `--once` performs what is due and exits instead of looping, which is what a cron entry wants; `--no-recurring` leaves the schedules alone.
 
-| Command                 | What it does                                                                                                                                                                                                    |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `install`               | Creates `henri_jobs`, `henri_jobs_schedules` and `henri_jobs_limits` and their indexes, and adds the columns a table an older henri wrote has not. Idempotent; run it in a deploy that sets `"install": false`. |
-| `status`                | Counts by queue and state, the timings of the finished jobs, how long the oldest due job has waited, the schedules, the concurrency limits and the slots being held.                                            |
-| `list`                  | The jobs, newest change first (`--state`, `--queue`, `--name`, `--limit`).                                                                                                                                      |
-| `dead`                  | The dead letter queue.                                                                                                                                                                                          |
-| `show <id>`             | One job with its arguments, its error, its stack and the history of every attempt.                                                                                                                              |
-| `perform <name> [json]` | Enqueues a job by hand; `--in=<duration>` or `--at=<date>` for later, `--now` to run it inline instead.                                                                                                         |
-| `retry <id>`            | Puts a dead job back in its queue, attempts reset. `--all` (with `--queue`/`--name`) for every matching one.                                                                                                    |
-| `discard <id>`          | Deletes a dead job for good. `--all` (with `--queue`/`--name`) for every matching one.                                                                                                                          |
+| Command                 | What it does                                                                                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `install`               | Creates `henri_jobs`, `henri_jobs_schedules`, `henri_jobs_limits` and `henri_jobs_batches` and their indexes, and adds the columns a table an older henri wrote has not. Idempotent; run it in a deploy that sets `"install": false`. |
+| `status`                | Counts by queue and state, the timings of the finished jobs, how long the oldest due job has waited, the schedules, the concurrency limits and the slots being held, and the batches still running.                                   |
+| `list`                  | The jobs, newest change first (`--state`, `--queue`, `--name`, `--batch`, `--limit`).                                                                                                                                                 |
+| `batches`               | The [batches](/guides/jobs/#batches): what each is waiting for, and the callback it enqueued. `--finished` for the ones that are done.                                                                                                |
+| `dead`                  | The dead letter queue.                                                                                                                                                                                                                |
+| `show <id>`             | One job with its arguments, its error, its stack and the history of every attempt.                                                                                                                                                    |
+| `perform <name> [json]` | Enqueues a job by hand; `--in=<duration>` or `--at=<date>` for later, `--now` to run it inline instead.                                                                                                                               |
+| `retry <id>`            | Puts a dead job back in its queue, attempts reset. `--all` (with `--queue`/`--name`) for every matching one.                                                                                                                          |
+| `discard <id>`          | Deletes a dead job for good. `--all` (with `--queue`/`--name`) for every matching one.                                                                                                                                                |
 
 `--wait` is a global flag (it belongs to `--inspect`), which is why the delay of an enqueue is `--in`.
 

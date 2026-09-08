@@ -36,6 +36,17 @@ const { keep } = require('../keys');
  * A collection needs no upgrade: a document written by an older henri
  * simply has no `concurrency_key`, which is what an unlimited job's row
  * looks like anyway.
+ *
+ * ## Batches
+ *
+ * `$inc` is atomic on one document, so the counter of a batch is advanced
+ * the way the SQL backend advances its own: never read into this process to
+ * be written back. What the SQL backend puts in the same statement -- the
+ * `EXISTS` saying the job row still holds this runner's claim token -- is
+ * two operations here, and it is exact all the same: a job document whose
+ * outcome was written under this token is **terminal**, and a terminal
+ * document is never recovered, never re-claimed and never written by anyone
+ * else. So once the check passes, it stays true.
  */
 
 /** The collection is written with the SQL column names, on purpose */
@@ -51,7 +62,7 @@ class MongoStore {
    * Creates an instance of MongoStore.
    *
    * @param {object} adapter A henri mongoose (or disk) adapter
-   * @param {object} tables `{ jobs, schedules, limits }` collection names
+   * @param {object} tables `{ jobs, schedules, limits, batches }` collection names
    * @memberof MongoStore
    */
   constructor(adapter, tables) {
@@ -112,6 +123,16 @@ class MongoStore {
   }
 
   /**
+   * The batches collection
+   *
+   * @returns {object} A MongoDB collection
+   * @memberof MongoStore
+   */
+  batches() {
+    return this.database().collection(this.tables.batches);
+  }
+
+  /**
    * Whether concurrency limits can be held here; they always can
    *
    * A collection has no columns to be missing, so there is nothing for an
@@ -121,6 +142,19 @@ class MongoStore {
    * @memberof MongoStore
    */
   async concurrent() {
+    return true;
+  }
+
+  /**
+   * Whether a batch can be held here; it always can
+   *
+   * A collection appears when something is written into it, so there is
+   * nothing to upgrade and nothing to refuse -- see `concurrent()`.
+   *
+   * @returns {Promise<boolean>} true
+   * @memberof MongoStore
+   */
+  async batched() {
     return true;
   }
 
@@ -172,12 +206,24 @@ class MongoStore {
       }
     );
 
+    await this.index({ batch_id: 1 }, { name: `${this.tables.jobs}_batch` });
+
     await this.limits().createIndex(
       { heartbeat_at: 1 },
       { name: `${this.tables.limits}_stale` }
     );
 
-    return [this.tables.jobs, this.tables.schedules, this.tables.limits];
+    await this.batches().createIndex(
+      { finished_at: 1, updated_at: 1 },
+      { name: `${this.tables.batches}_open` }
+    );
+
+    return [
+      this.tables.jobs,
+      this.tables.schedules,
+      this.tables.limits,
+      this.tables.batches,
+    ];
   }
 
   /**
@@ -214,6 +260,7 @@ class MongoStore {
       this.tables.jobs,
       this.tables.schedules,
       this.tables.limits,
+      this.tables.batches,
     ]) {
       await this.database()
         .collection(name)
@@ -221,7 +268,12 @@ class MongoStore {
         .catch(() => null);
     }
 
-    return [this.tables.limits, this.tables.schedules, this.tables.jobs];
+    return [
+      this.tables.batches,
+      this.tables.limits,
+      this.tables.schedules,
+      this.tables.jobs,
+    ];
   }
 
   /**
@@ -263,6 +315,11 @@ class MongoStore {
       typeof rest.concurrency_key === 'undefined'
     ) {
       delete rest.concurrency_key;
+    }
+
+    // And a job that belongs to no batch has no `batch_id`
+    if (rest.batch_id === null || typeof rest.batch_id === 'undefined') {
+      delete rest.batch_id;
     }
 
     try {
@@ -740,11 +797,12 @@ class MongoStore {
   /**
    * Lists jobs
    *
-   * @param {object} [options={}] `state`, `queue`, `name`, `limit`, `offset`
+   * @param {object} [options={}] `state`, `queue`, `name`, `batch`, `limit`,
+   *   `offset`
    * @returns {Promise<Array<object>>} The rows
    * @memberof MongoStore
    */
-  async list({ state, queue, name, limit = 50, offset = 0 } = {}) {
+  async list({ state, queue, name, batch, limit = 50, offset = 0 } = {}) {
     const filter = {};
 
     if (state) {
@@ -757,6 +815,10 @@ class MongoStore {
 
     if (name) {
       filter.name = name;
+    }
+
+    if (batch) {
+      filter.batch_id = batch;
     }
 
     const documents = await this.jobs()
@@ -970,13 +1032,256 @@ class MongoStore {
   async pruneSchedules(names) {
     await this.schedules().deleteMany({ _id: { $nin: names } });
   }
+
+  /**
+   * Records a batch
+   *
+   * @param {object} batch A batch row
+   * @returns {Promise<object>} The batch, read back
+   * @memberof MongoStore
+   */
+  async createBatch(batch) {
+    const { id, ...rest } = batch;
+
+    await this.batches().insertOne({ _id: id, ...rest });
+
+    return this.findBatch(id);
+  }
+
+  /**
+   * One batch by id
+   *
+   * @param {string} id The batch id
+   * @returns {Promise<?object>} The row, or null
+   * @memberof MongoStore
+   */
+  async findBatch(id) {
+    return this.row(await this.batches().findOne({ _id: id }));
+  }
+
+  /**
+   * Closes a batch to new jobs and writes down how many it holds
+   *
+   * @param {object} options `id`, `total` and `now`
+   * @returns {Promise<?object>} The batch, or null when it was sealed
+   *   already
+   * @memberof MongoStore
+   */
+  async sealBatch({ id, total, now }) {
+    const document = await this.batches().findOneAndUpdate(
+      { _id: id, sealed_at: null },
+      { $set: { sealed_at: now, total, updated_at: now } },
+      { includeResultMetadata: false, returnDocument: 'after' }
+    );
+
+    return this.row(document);
+  }
+
+  /**
+   * Counts one terminal outcome into its batch
+   *
+   * The check and the `$inc` are two operations and the pair is still
+   * exact: a job document that is terminal **and** still holds this
+   * runner's claim token was written by this runner and can never be
+   * claimed, recovered or written again, so nothing can make the check stale
+   * between here and the increment. `$inc` itself is atomic on the document.
+   *
+   * @param {object} options `id`, `job`, `token`, `failed` and `now`
+   * @returns {Promise<?object>} The batch as it is now, or null
+   * @memberof MongoStore
+   */
+  async advanceBatch({ id, job, token, failed, now }) {
+    const owned = await this.jobs().findOne({
+      _id: job,
+      batch_id: id,
+      claim_token: token,
+      state: { $in: ['done', 'dead'] },
+    });
+
+    if (!owned) {
+      return this.findBatch(id);
+    }
+
+    const document = await this.batches().findOneAndUpdate(
+      { _id: id, finished_at: null },
+      {
+        $inc: { done: 1, failed: failed ? 1 : 0 },
+        $set: { updated_at: now },
+      },
+      { includeResultMetadata: false, returnDocument: 'after' }
+    );
+
+    return this.row(document) || this.findBatch(id);
+  }
+
+  /**
+   * Gives a batch its slot back, when a job of it is put back in the queue
+   *
+   * @param {object} options `id`, `failed` and `now`
+   * @returns {Promise<void>} Resolves when written
+   * @memberof MongoStore
+   */
+  async releaseBatch({ id, failed, now }) {
+    await this.batches().updateOne(
+      { _id: id, done: { $gt: 0 }, finished_at: null },
+      { $inc: { done: -1, failed: failed ? -1 : 0 }, $set: { updated_at: now } }
+    );
+  }
+
+  /**
+   * Says a batch has finished, and what enqueued its callback
+   *
+   * @param {object} options `id`, `callback` and `now`
+   * @returns {Promise<void>} Resolves when written
+   * @memberof MongoStore
+   */
+  async finishBatch({ id, callback, now }) {
+    await this.batches().updateOne(
+      { _id: id, finished_at: null },
+      {
+        $set: {
+          callback_id: callback || null,
+          finished_at: now,
+          updated_at: now,
+        },
+      }
+    );
+  }
+
+  /**
+   * What a batch's jobs actually say, read from the queue itself
+   *
+   * @param {string} id The batch id
+   * @returns {Promise<object>} `{ done, failed }`
+   * @memberof MongoStore
+   */
+  async countBatch(id) {
+    const rows = await this.jobs()
+      .aggregate([
+        { $match: { batch_id: id, state: { $in: ['done', 'dead'] } } },
+        { $group: { _id: '$state', total: { $sum: 1 } } },
+      ])
+      .toArray();
+    const counted = { done: 0, failed: 0 };
+
+    for (const row of rows) {
+      counted.done += row.total;
+
+      if (row._id === 'dead') {
+        counted.failed += row.total;
+      }
+    }
+
+    return counted;
+  }
+
+  /**
+   * Moves a batch's counters up to what its jobs say, never backwards
+   *
+   * @param {object} options `id`, `done`, `failed` and `now`
+   * @returns {Promise<?object>} The batch as it is now
+   * @memberof MongoStore
+   */
+  async syncBatch({ id, done, failed, now }) {
+    await this.batches().updateOne(
+      { _id: id, done: { $lt: done }, finished_at: null },
+      { $set: { done, failed, updated_at: now } }
+    );
+
+    return this.findBatch(id);
+  }
+
+  /**
+   * The batches that were sealed and have not finished
+   *
+   * @param {object} options `before` and `limit`
+   * @returns {Promise<Array<object>>} The rows
+   * @memberof MongoStore
+   */
+  async openBatches({ before, limit = 50 }) {
+    const documents = await this.batches()
+      .find({
+        finished_at: null,
+        sealed_at: { $ne: null },
+        updated_at: { $lt: before },
+      })
+      .sort({ updated_at: 1 })
+      .limit(Math.max(1, Number(limit) || 50))
+      .toArray();
+
+    return documents.map((document) => this.row(document));
+  }
+
+  /**
+   * Lists batches, the newest first
+   *
+   * @param {object} [options={}] `finished`, `limit`, `offset`
+   * @returns {Promise<Array<object>>} The rows
+   * @memberof MongoStore
+   */
+  async listBatches({ finished, limit = 50, offset = 0 } = {}) {
+    const filter =
+      typeof finished === 'boolean'
+        ? { finished_at: finished ? { $ne: null } : null }
+        : {};
+    const documents = await this.batches()
+      .find(filter)
+      // eslint-disable-next-line sort-keys
+      .sort({ created_at: -1, _id: 1 })
+      .skip(offset)
+      .limit(limit)
+      .toArray();
+
+    return documents.map((document) => this.row(document));
+  }
+
+  /**
+   * Forgets a batch
+   *
+   * @param {string} id The batch id
+   * @returns {Promise<boolean>} Whether there was one
+   * @memberof MongoStore
+   */
+  async removeBatch(id) {
+    const result = await this.batches().deleteOne({ _id: id });
+
+    return (result.deletedCount || 0) > 0;
+  }
+
+  /**
+   * Deletes the batches that finished before a moment
+   *
+   * @param {number} before A timestamp
+   * @param {number} [limit=1000] How many one pass deletes
+   * @returns {Promise<number>} How many were deleted
+   * @memberof MongoStore
+   */
+  async pruneBatches(before, limit = 1000) {
+    const documents = await this.batches()
+      .find({ finished_at: { $lt: before, $ne: null } })
+      .sort({ finished_at: 1 })
+      .limit(limit)
+      .project({ _id: 1 })
+      .toArray();
+
+    if (documents.length === 0) {
+      return 0;
+    }
+
+    const ids = documents.map((document) => document._id);
+
+    await this.batches().deleteMany({ _id: { $in: ids } });
+
+    return ids.length;
+  }
 }
 
 /**
  * Builds the MongoDB store of an adapter
  *
  * @param {object} adapter A henri mongoose (or disk) adapter
- * @param {object} tables `{ jobs, schedules, limits }` collection names
+ * @param {object} tables `{ jobs, schedules, limits, batches }` collection
+ *   names
  * @returns {MongoStore} The store
  */
 const create = (adapter, tables) => new MongoStore(adapter, tables);

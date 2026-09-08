@@ -1284,6 +1284,30 @@ Usually:
 
 The background job queue of @usehenri/jobs.
 
+### `HENRI_JOB_BATCH_CLOSED`
+
+A job was added to a batch that is closed.
+
+Usually:
+
+- a job added to a batch that was already sealed
+- a batch built from somewhere other than the call that made it
+- a batch id that names no batch, or one the sweep pruned
+
+**Fix.** A batch is built where it is created: add every job before it is sealed (`jobs: [...]`, or the function `henri.jobs.batch()` takes), or make another batch. A batch that has finished has already called its callback and never counts anything again.
+
+### `HENRI_JOB_BATCH_UNINSTALLED`
+
+A batch was asked for and the queue has nowhere to count it.
+
+Usually:
+
+- a queue installed by a henri older than 1.3, whose table has no `batch_id` column and no batches table
+- `jobs.install: false` with no `henri jobs:install` since the upgrade
+- a database user that may not create a table, or alter one
+
+**Fix.** Run `henri jobs:install` once with a user that may create a table and alter one. The queue works without them -- a batch does not, and is refused rather than run with a counter nothing can hold.
+
 ### `HENRI_JOB_CONCURRENCY_CONFLICT`
 
 Two jobs share a concurrency group and disagree on how many may run.
@@ -1305,6 +1329,19 @@ Usually:
 - a model instance passed whole instead of its id
 
 **Fix.** The arguments of a job are stored as JSON: pass ids and plain values, and look the records up inside `perform()`.
+
+### `HENRI_JOB_INVALID_BATCH`
+
+A batch declaration cannot be read.
+
+Usually:
+
+- a `jobs` list holding something that is not a name, a list or an object
+- a callback that is not the name of a job
+- callback arguments that are not a plain object
+- both a `jobs` list and a function to add them
+
+**Fix.** `henri.jobs.batch({ callback: 'report/compile', jobs: [['resize', { id }]] })`, or a function that calls `batch.add()` itself. The counts reach the callback under `batch`, which is why its own arguments have to be an object.
 
 ### `HENRI_JOB_INVALID_CONCURRENCY`
 

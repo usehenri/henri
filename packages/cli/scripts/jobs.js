@@ -5,6 +5,7 @@ const { usage } = require('./help');
 const { validInstall } = require('./utils');
 
 const COMMANDS = [
+  'batches',
   'dead',
   'discard',
   'install',
@@ -180,15 +181,48 @@ const status = async (args) => {
   }));
   let stats;
   let limits;
+  let batches;
 
   try {
     stats = await jobs.stats();
     limits = await jobs.limits();
+    // What is still being waited for, which is the only half of a batch a
+    // status can be wrong about
+    batches = jobs.queue.batched
+      ? await jobs.batches.list({ finished: false, limit: 20 })
+      : [];
   } finally {
     await henri.stop();
   }
 
-  return { command: 'status', limits, ok: true, recurring, ...stats };
+  return { batches, command: 'status', limits, ok: true, recurring, ...stats };
+};
+
+/**
+ * Lists the batches
+ *
+ * @param {object} args CLI arguments
+ * @returns {Promise<object>} The result of the command
+ */
+const batches = async (args) => {
+  const henri = await boot();
+  const jobs = await queueOf(henri);
+
+  try {
+    const found = await jobs.batches.list({
+      finished: args.finished === true ? true : undefined,
+      limit: Number(args.limit) || 50,
+    });
+
+    return {
+      batches: found,
+      command: 'batches',
+      ok: true,
+      total: found.length,
+    };
+  } finally {
+    await henri.stop();
+  }
 };
 
 /**
@@ -204,6 +238,7 @@ const list = async (args, state) => {
 
   try {
     const found = await jobs.list({
+      batch: typeof args.batch === 'string' ? args.batch : undefined,
       limit: Number(args.limit) || 50,
       name: typeof args.name === 'string' ? args.name : undefined,
       queue: typeof args.queue === 'string' ? args.queue : undefined,
@@ -439,6 +474,40 @@ const printJobs = (jobs) => {
 };
 
 /**
+ * Prints a list of batches
+ *
+ * A batch says what it is waiting for: the counts, and whether the callback
+ * has been enqueued. No arguments -- what a job was given is the
+ * application's data, and `henri jobs:show <id>` is where it is read.
+ *
+ * @param {Array<object>} batches The batches
+ * @returns {void}
+ */
+const printBatches = (batches) => {
+  if (batches.length === 0) {
+    console.log('  No batch');
+
+    return;
+  }
+
+  for (const batch of batches) {
+    const state = batch.finished
+      ? 'finished'
+      : (batch.sealed && 'running') || 'open';
+
+    console.log(
+      `  ${batch.id}  ${state.padEnd(8)} ${batch.done}/${batch.total} done, ${batch.failed} dead${batch.name ? `  ${batch.name}` : ''}`
+    );
+
+    if (batch.callback) {
+      console.log(
+        `      -> ${batch.callback}${batch.callbackId ? ` ${batch.callbackId}` : ' (not enqueued yet)'}`
+      );
+    }
+  }
+};
+
+/**
  * Prints a result for humans
  *
  * @param {object} result What a command returned
@@ -503,6 +572,16 @@ const print = (result) => {
         )
       );
     }
+
+    if (result.batches && result.batches.length > 0) {
+      console.log('');
+      console.log('  Batches still running:');
+      printBatches(result.batches);
+    }
+  }
+
+  if (result.command === 'batches') {
+    printBatches(result.batches);
   }
 
   if (result.command === 'list' || result.command === 'dead') {
@@ -516,6 +595,11 @@ const print = (result) => {
     console.log(
       `  attempts ${job.attempts}/${job.maxAttempts}, run at ${job.runAt}`
     );
+
+    if (job.batchId) {
+      console.log(`  batch ${job.batchId}`);
+    }
+
     console.log(`  args ${JSON.stringify(job.args)}`);
 
     if (job.error) {
@@ -555,6 +639,7 @@ const print = (result) => {
 };
 
 const RUNNERS = {
+  batches,
   dead: (args) => list(args, 'dead'),
   discard,
   install,
@@ -567,8 +652,8 @@ const RUNNERS = {
 };
 
 /**
- * Runs `henri jobs [run|install|status|list|dead|show|perform|retry|discard]`
- * (`henri jobs:<command>` too). Without a command it runs a worker.
+ * Runs `henri jobs [run|install|status|list|batches|dead|show|perform|retry|
+ * discard]` (`henri jobs:<command>` too). Without a command it runs a worker.
  *
  * With --json the result is printed as one JSON object on stdout.
  *

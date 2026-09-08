@@ -118,6 +118,7 @@ describe('henri jobs', () => {
         ok: true,
         store: 'default',
         tables: {
+          batches: 'henri_jobs_batches',
           jobs: 'henri_jobs',
           limits: 'henri_jobs_limits',
           schedules: 'henri_jobs_schedules',
@@ -203,10 +204,30 @@ describe('henri jobs', () => {
         { group: 'import', job: 'import', keyed: true, limit: 1 },
       ]);
       expect(result.limits.held).toEqual([]);
+      expect(result.batches).toEqual([]);
       expect(result.recurring).toEqual([
         { job: 'ping', name: 'nightly', spec: 'cron:0 3 * * *' },
       ]);
       expect(result.timings[0].runs).toBe(1);
+    });
+
+    test('lists the batches, and the jobs of one', () => {
+      const listed = run(['jobs:batches']);
+
+      expect(listed.status).toBe(0);
+      expect(listed.result).toMatchObject({
+        batches: [],
+        command: 'batches',
+        ok: true,
+        total: 0,
+      });
+
+      // The filter is a filter, not a state: an unknown batch is an empty
+      // list rather than every job of the queue
+      const jobs = run(['jobs:list', '--batch=nope']);
+
+      expect(jobs.status).toBe(0);
+      expect(jobs.result.jobs).toEqual([]);
     });
 
     test('drives the dead letter queue', () => {

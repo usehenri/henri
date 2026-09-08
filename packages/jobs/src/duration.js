@@ -89,4 +89,24 @@ const runAt = (options = {}, now = Date.now()) => {
   return now + (duration(wait, 0) || 0);
 };
 
-module.exports = { duration, runAt };
+/**
+ * A stored moment, as the API hands it out
+ *
+ * Every moment the queue stores is a BIGINT of milliseconds, and every
+ * moment it answers with is an ISO string. Some drivers read a BIGINT back
+ * as a string, so the number is taken first.
+ *
+ * @param {*} value A timestamp in milliseconds
+ * @returns {?string} An ISO string, or null
+ */
+const iso = (value) => {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isNaN(number) ? null : new Date(number).toISOString();
+};
+
+module.exports = { duration, iso, runAt };

@@ -2,7 +2,7 @@
  * The tables `@usehenri/jobs` owns, and the DDL of every SQL dialect henri
  * can talk to.
  *
- * The queue never goes through a henri model: it owns three tables of its own
+ * The queue never goes through a henri model: it owns four tables of its own
  * so it cannot collide with the application's schema, and so a store that
  * has no models at all (a fresh application) still has a queue.
  *
@@ -130,7 +130,10 @@ const DIALECTS = {
  * statement declares them and `upgrade()` adds them to a table that has
  * them not.
  */
-const ADDED = [{ column: 'concurrency_key', type: 'VARCHAR(190)' }];
+const ADDED = [
+  { column: 'concurrency_key', type: 'VARCHAR(190)' },
+  { column: 'batch_id', type: 'VARCHAR(36)' },
+];
 
 /**
  * The columns of the jobs table, in order
@@ -163,6 +166,7 @@ const jobColumns = (dialect) => [
   `history ${dialect.text} NULL`,
   'unique_key VARCHAR(190) NULL',
   'concurrency_key VARCHAR(190) NULL',
+  'batch_id VARCHAR(36) NULL',
   'PRIMARY KEY (id)',
 ];
 
@@ -194,6 +198,50 @@ const limitColumns = (dialect) => [
  */
 const limitIndexes = (table) => [
   { columns: ['heartbeat_at'], name: `${table}_stale`, unique: false },
+];
+
+/**
+ * The columns of the batches table, in order
+ *
+ * A batch counts: `total` is what was enqueued under it and is written once,
+ * when the batch is sealed; `done` and `failed` are advanced by the same
+ * token-guarded write that records an attempt's outcome, one statement per
+ * job. `finished_at` is stamped after the callback has been enqueued, so a
+ * crash in between leaves the batch unfinished and the sweep settles it
+ * again -- the enqueue is idempotent (see `../keys.js`).
+ *
+ * @param {object} dialect A dialect description
+ * @returns {Array<string>} The column definitions
+ */
+const batchColumns = (dialect) => [
+  'id VARCHAR(36) NOT NULL',
+  'name VARCHAR(190) NULL',
+  'callback VARCHAR(120) NULL',
+  `callback_args ${dialect.text} NULL`,
+  `callback_options ${dialect.text} NULL`,
+  'callback_id VARCHAR(36) NULL',
+  `total ${dialect.int} NOT NULL`,
+  `done ${dialect.int} NOT NULL`,
+  `failed ${dialect.int} NOT NULL`,
+  'created_at BIGINT NOT NULL',
+  'updated_at BIGINT NOT NULL',
+  'sealed_at BIGINT NULL',
+  'finished_at BIGINT NULL',
+  'PRIMARY KEY (id)',
+];
+
+/**
+ * The indexes of the batches table
+ *
+ * @param {string} table The table name
+ * @returns {Array<object>} `{ name, columns, unique }` entries
+ */
+const batchIndexes = (table) => [
+  {
+    columns: ['finished_at', 'updated_at'],
+    name: `${table}_open`,
+    unique: false,
+  },
 ];
 
 /**
@@ -239,6 +287,12 @@ const jobIndexes = (table) => [
     columns: ['state', 'concurrency_key', 'run_at'],
     late: true,
     name: `${table}_limited`,
+    unique: false,
+  },
+  {
+    columns: ['batch_id'],
+    late: true,
+    name: `${table}_batch`,
     unique: false,
   },
 ];
@@ -327,7 +381,7 @@ const statementsFor = (dialect, table, columns, all) => {
  * works is asking the table, not whether these ran.
  *
  * @param {string} name The dialect (sqlite, postgres, mysql, mssql)
- * @param {object} tables `{ jobs, schedules, limits }` table names
+ * @param {object} tables `{ jobs, schedules, limits, batches }` table names
  * @returns {Array<string>} The statements
  * @throws {Error} When the dialect is unknown
  */
@@ -358,7 +412,7 @@ const upgrade = (name, tables) => {
  * database another runner already prepared, changes nothing.
  *
  * @param {string} name The dialect (sqlite, postgres, mysql, mssql)
- * @param {object} tables `{ jobs, schedules, limits }` table names
+ * @param {object} tables `{ jobs, schedules, limits, batches }` table names
  * @returns {Array<string>} The statements
  * @throws {Error} When the dialect or a table name is unknown
  */
@@ -395,6 +449,12 @@ const install = (name, tables) => {
       limitColumns(dialect),
       limitIndexes(tables.limits)
     ),
+    ...statementsFor(
+      dialect,
+      tables.batches,
+      batchColumns(dialect),
+      batchIndexes(tables.batches)
+    ),
     ...upgrade(name, tables),
   ];
 };
@@ -403,7 +463,7 @@ const install = (name, tables) => {
  * The statements that drop the tables, newest first
  *
  * @param {string} name The dialect
- * @param {object} tables `{ jobs, schedules, limits }` table names
+ * @param {object} tables `{ jobs, schedules, limits, batches }` table names
  * @returns {Array<string>} The statements
  * @throws {Error} When the dialect is unknown
  */
@@ -417,7 +477,7 @@ const uninstall = (name, tables) => {
     );
   }
 
-  return [tables.limits, tables.schedules, tables.jobs].map(
+  return [tables.batches, tables.limits, tables.schedules, tables.jobs].map(
     (table) => `DROP TABLE IF EXISTS ${dialect.quote(table)}`
   );
 };

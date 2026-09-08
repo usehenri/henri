@@ -1237,13 +1237,42 @@ duration, rows, requestId, source, callsite }` -- and the N+1 detector is
   the table_ rather than trusting it ran: an application with no limit is
   unaffected either way, and one that declares a limit the table cannot hold
   fails the boot (`HENRI_JOB_LIMIT_UNINSTALLED`) rather than running it
-  unbounded. `henri.jobs.recur(name, entry)` is the seam a
+  unbounded. **A batch is a set of jobs and one that runs when they are all
+  done** (`henri.jobs.batch({ callback, args, jobs })`, or a function that
+  adds them, sealed when it resolves). A batch **finishes**, it does not
+  succeed: the callback runs once every job has reached a terminal state,
+  `dead` included, and is handed the counts under `batch`. Three writes
+  carry it. `total` is written once, when the batch is sealed, and never
+  moves. `done` is advanced by **one statement per terminal outcome** --
+  `SET done = done + 1 ... WHERE finished_at IS NULL AND EXISTS (the job row
+still holds this runner's claim token and is terminal)` -- so the counter
+  is never read into the process to be written back (four runners finishing
+  at once make four increments; sqlite serializes its writers and the
+  servers re-evaluate the row under their own lock) and it moves for
+  **exactly one** runner, the one whose token-guarded outcome write landed;
+  MongoDB is `$inc` plus that same check as a `findOne`, exact because a
+  terminal document holding this token can never be claimed again. The
+  callback is then enqueued under a unique key of the batch's own -- the
+  recurring occurrence's primitive, and a key `keys.js` keeps for the life
+  of the row -- and `finished_at` is stamped **after** it, so settling is
+  idempotent and a process dying in between is repaired by the sweep. That
+  sweep is the other half: it counts the rows of a batch that has not moved
+  for `stuckAfter`, which answers both a runner killed between the outcome
+  and the count and a job the recovery buried, and it only ever moves a
+  batch forward. A job put back gives its slot back
+  (`releaseBatch`), and a batch is built where it is created -- adding to a
+  sealed one is `HENRI_JOB_BATCH_CLOSED`, asked of the table. Its column
+  (`batch_id`) and its table (`henri_jobs_batches`) arrive through the same
+  tolerated `ALTER` inside the idempotent install, and `batch()` on a store
+  that has neither is `HENRI_JOB_BATCH_UNINSTALLED` rather than a counter
+  nothing can hold. `henri.jobs.recur(name, entry)` is the seam a
   framework module uses to ask for a schedule the configuration did not
   write (`henri.retention` is the one that does); an entry the application
   declared under the same name wins. `henri jobs` runs a worker (`--queue`,
-  `--concurrency`, `--once`), `henri jobs:install|status|list|dead|show|
-perform|retry|discard` drive it; `jobs:status` and `henri.jobs.limits()`
-  report the limits and the slots held. The module also registers
+  `--concurrency`, `--once`), `henri jobs:install|status|list|batches|dead|
+show|perform|retry|discard` drive it; `jobs:status` and
+  `henri.jobs.limits()` report the limits and the slots held, and
+  `henri.jobs.batches.*` the batches. The module also registers
   `henri.mailers.onDeliverLater()`, so `deliverLater()` enqueues the rendered
   message as the built-in `henri/mail` job.
 - Outbound webhooks live in `@usehenri/webhooks`, which peer-depends on core
@@ -1715,8 +1744,8 @@ the LICENSE and a README into every public package at publish time
   collations. On a drizzle store the answer carries `migrations` rather
   than `drift`, which is what `henri db:status` answers there.
 - The tables henri owns in a drizzle store (`henri_jobs`,
-  `henri_jobs_schedules`, `henri_jobs_limits`, `henri_trail`, `henri_calls`,
-  `henri_versions`)
+  `henri_jobs_schedules`, `henri_jobs_limits`, `henri_jobs_batches`,
+  `henri_trail`, `henri_calls`, `henri_versions`)
   are created through
   raw SQL, so drizzle-kit sees them as tables the schema no longer wants.
   `Drizzle#reservedTables()` is what keeps a push from dropping them, and
@@ -1843,19 +1872,26 @@ concurrency.spec.js` proves the negative property the way `claim.spec.js`
   not. It runs on sqlite offline and on the live PostgreSQL and MySQL, and
   the same file also downgrades a table (`ALTER TABLE ... DROP COLUMN`) to
   prove the upgrade path on a real server; MongoDB has its own in
-  `mongo.spec.js`, MSSQL only its DDL. What is **left**: **batching** (a set
-  of jobs plus one that runs when they are all done) -- the promises are
-  decided and written in `guides/jobs.md#what-is-not-here`, and what it needs
-  is another column plus a table, which is the same upgrade question and so
-  a tranche of its own. There is **no dashboard and there will not be one**;
+  `mongo.spec.js`, MSSQL only its DDL. **Batches** are proved the same way
+  (`packages/jobs/__tests__/batch.spec.js`, and a `batches` block in
+  `mongo.spec.js`): a queue and a pool per runner, and the callback itself
+  recording what it saw -- one entry per run, plus how many jobs of its
+  batch were still waiting or running at that moment, read from the
+  database, because neither "exactly once" nor "never early" can be seen by
+  counting rows afterwards. The suite covers a half-failed batch, a job
+  buried by the recovery, a zombie runner writing its outcome after the job
+  was performed again, and the crash between an outcome and its count. What
+  is **left** of a batch: no order between its jobs, no batch inside one, no
+  cancelling, and no adding to a batch from another process (which is the
+  race the seal exists to close). There is **no dashboard and there will not be one**;
   the argument is in the same guide (`#no-dashboard-and-what-to-build-one-from`)
   and it is that `/_routes`, `/_openapi.json` and `/_mailers` describe the
   _application_ while a queue page would display its _data_ -- job arguments,
   which the privacy tranche marks personal -- and that the place a dashboard
   is wanted is production, where henri must mount none. `henri.jobs.limits()`
-  next to `stats()`, `list()` and `dead.*`, plus `--json` on every command,
-  is what an application builds its own read-only page from, behind its own
-  policy.
+  and `henri.jobs.batches.*` next to `stats()`, `list()` and `dead.*`, plus
+  `--json` on every command, is what an application builds its own read-only
+  page from, behind its own policy.
 - The call log (`config.calls`) is new. Its table, its join, its bodies and
   its bounded delete are covered on sqlite offline and on the live
   PostgreSQL and MySQL of `pnpm test:sql:live`

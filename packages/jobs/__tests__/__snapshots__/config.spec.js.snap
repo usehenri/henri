@@ -98,6 +98,7 @@ exports[`the schema > writes the DDL of mssql 1`] = `
   history NVARCHAR(MAX) NULL,
   unique_key VARCHAR(190) NULL,
   concurrency_key VARCHAR(190) NULL,
+  batch_id VARCHAR(36) NULL,
   PRIMARY KEY (id)
 );
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_claim' AND object_id = OBJECT_ID('henri_jobs')) CREATE INDEX [henri_jobs_claim] ON [henri_jobs] (state, queue, priority, run_at);
@@ -125,8 +126,27 @@ IF OBJECT_ID('henri_jobs_limits', 'U') IS NULL CREATE TABLE [henri_jobs_limits] 
   PRIMARY KEY (limit_key, slot)
 );
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_limits_stale' AND object_id = OBJECT_ID('henri_jobs_limits')) CREATE INDEX [henri_jobs_limits_stale] ON [henri_jobs_limits] (heartbeat_at);
+IF OBJECT_ID('henri_jobs_batches', 'U') IS NULL CREATE TABLE [henri_jobs_batches] (
+  id VARCHAR(36) NOT NULL,
+  name VARCHAR(190) NULL,
+  callback VARCHAR(120) NULL,
+  callback_args NVARCHAR(MAX) NULL,
+  callback_options NVARCHAR(MAX) NULL,
+  callback_id VARCHAR(36) NULL,
+  total INT NOT NULL,
+  done INT NOT NULL,
+  failed INT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  sealed_at BIGINT NULL,
+  finished_at BIGINT NULL,
+  PRIMARY KEY (id)
+);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_batches_open' AND object_id = OBJECT_ID('henri_jobs_batches')) CREATE INDEX [henri_jobs_batches_open] ON [henri_jobs_batches] (finished_at, updated_at);
 IF COL_LENGTH('henri_jobs', 'concurrency_key') IS NULL ALTER TABLE [henri_jobs] ADD concurrency_key VARCHAR(190) NULL;
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_limited' AND object_id = OBJECT_ID('henri_jobs')) CREATE INDEX [henri_jobs_limited] ON [henri_jobs] (state, concurrency_key, run_at)"
+IF COL_LENGTH('henri_jobs', 'batch_id') IS NULL ALTER TABLE [henri_jobs] ADD batch_id VARCHAR(36) NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_limited' AND object_id = OBJECT_ID('henri_jobs')) CREATE INDEX [henri_jobs_limited] ON [henri_jobs] (state, concurrency_key, run_at);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_batch' AND object_id = OBJECT_ID('henri_jobs')) CREATE INDEX [henri_jobs_batch] ON [henri_jobs] (batch_id)"
 `;
 
 exports[`the schema > writes the DDL of mysql 1`] = `
@@ -155,6 +175,7 @@ exports[`the schema > writes the DDL of mysql 1`] = `
   history MEDIUMTEXT NULL,
   unique_key VARCHAR(190) NULL,
   concurrency_key VARCHAR(190) NULL,
+  batch_id VARCHAR(36) NULL,
   PRIMARY KEY (id),
   KEY \`henri_jobs_claim\` (state, queue, priority, run_at),
   KEY \`henri_jobs_token\` (claim_token),
@@ -182,8 +203,27 @@ CREATE TABLE IF NOT EXISTS \`henri_jobs_limits\` (
   PRIMARY KEY (limit_key, slot),
   KEY \`henri_jobs_limits_stale\` (heartbeat_at)
 );
+CREATE TABLE IF NOT EXISTS \`henri_jobs_batches\` (
+  id VARCHAR(36) NOT NULL,
+  name VARCHAR(190) NULL,
+  callback VARCHAR(120) NULL,
+  callback_args MEDIUMTEXT NULL,
+  callback_options MEDIUMTEXT NULL,
+  callback_id VARCHAR(36) NULL,
+  total INT NOT NULL,
+  done INT NOT NULL,
+  failed INT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  sealed_at BIGINT NULL,
+  finished_at BIGINT NULL,
+  PRIMARY KEY (id),
+  KEY \`henri_jobs_batches_open\` (finished_at, updated_at)
+);
 ALTER TABLE \`henri_jobs\` ADD COLUMN concurrency_key VARCHAR(190) NULL;
-CREATE INDEX \`henri_jobs_limited\` ON \`henri_jobs\` (state, concurrency_key, run_at)"
+ALTER TABLE \`henri_jobs\` ADD COLUMN batch_id VARCHAR(36) NULL;
+CREATE INDEX \`henri_jobs_limited\` ON \`henri_jobs\` (state, concurrency_key, run_at);
+CREATE INDEX \`henri_jobs_batch\` ON \`henri_jobs\` (batch_id)"
 `;
 
 exports[`the schema > writes the DDL of postgres 1`] = `
@@ -212,6 +252,7 @@ exports[`the schema > writes the DDL of postgres 1`] = `
   history TEXT NULL,
   unique_key VARCHAR(190) NULL,
   concurrency_key VARCHAR(190) NULL,
+  batch_id VARCHAR(36) NULL,
   PRIMARY KEY (id)
 );
 CREATE INDEX IF NOT EXISTS "henri_jobs_claim" ON "henri_jobs" (state, queue, priority, run_at);
@@ -239,8 +280,27 @@ CREATE TABLE IF NOT EXISTS "henri_jobs_limits" (
   PRIMARY KEY (limit_key, slot)
 );
 CREATE INDEX IF NOT EXISTS "henri_jobs_limits_stale" ON "henri_jobs_limits" (heartbeat_at);
+CREATE TABLE IF NOT EXISTS "henri_jobs_batches" (
+  id VARCHAR(36) NOT NULL,
+  name VARCHAR(190) NULL,
+  callback VARCHAR(120) NULL,
+  callback_args TEXT NULL,
+  callback_options TEXT NULL,
+  callback_id VARCHAR(36) NULL,
+  total INTEGER NOT NULL,
+  done INTEGER NOT NULL,
+  failed INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  sealed_at BIGINT NULL,
+  finished_at BIGINT NULL,
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS "henri_jobs_batches_open" ON "henri_jobs_batches" (finished_at, updated_at);
 ALTER TABLE "henri_jobs" ADD COLUMN IF NOT EXISTS concurrency_key VARCHAR(190) NULL;
-CREATE INDEX IF NOT EXISTS "henri_jobs_limited" ON "henri_jobs" (state, concurrency_key, run_at)"
+ALTER TABLE "henri_jobs" ADD COLUMN IF NOT EXISTS batch_id VARCHAR(36) NULL;
+CREATE INDEX IF NOT EXISTS "henri_jobs_limited" ON "henri_jobs" (state, concurrency_key, run_at);
+CREATE INDEX IF NOT EXISTS "henri_jobs_batch" ON "henri_jobs" (batch_id)"
 `;
 
 exports[`the schema > writes the DDL of sqlite 1`] = `
@@ -269,6 +329,7 @@ exports[`the schema > writes the DDL of sqlite 1`] = `
   history TEXT NULL,
   unique_key VARCHAR(190) NULL,
   concurrency_key VARCHAR(190) NULL,
+  batch_id VARCHAR(36) NULL,
   PRIMARY KEY (id)
 );
 CREATE INDEX IF NOT EXISTS "henri_jobs_claim" ON "henri_jobs" (state, queue, priority, run_at);
@@ -296,6 +357,25 @@ CREATE TABLE IF NOT EXISTS "henri_jobs_limits" (
   PRIMARY KEY (limit_key, slot)
 );
 CREATE INDEX IF NOT EXISTS "henri_jobs_limits_stale" ON "henri_jobs_limits" (heartbeat_at);
+CREATE TABLE IF NOT EXISTS "henri_jobs_batches" (
+  id VARCHAR(36) NOT NULL,
+  name VARCHAR(190) NULL,
+  callback VARCHAR(120) NULL,
+  callback_args TEXT NULL,
+  callback_options TEXT NULL,
+  callback_id VARCHAR(36) NULL,
+  total INTEGER NOT NULL,
+  done INTEGER NOT NULL,
+  failed INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  sealed_at BIGINT NULL,
+  finished_at BIGINT NULL,
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS "henri_jobs_batches_open" ON "henri_jobs_batches" (finished_at, updated_at);
 ALTER TABLE "henri_jobs" ADD COLUMN concurrency_key VARCHAR(190) NULL;
-CREATE INDEX IF NOT EXISTS "henri_jobs_limited" ON "henri_jobs" (state, concurrency_key, run_at)"
+ALTER TABLE "henri_jobs" ADD COLUMN batch_id VARCHAR(36) NULL;
+CREATE INDEX IF NOT EXISTS "henri_jobs_limited" ON "henri_jobs" (state, concurrency_key, run_at);
+CREATE INDEX IF NOT EXISTS "henri_jobs_batch" ON "henri_jobs" (batch_id)"
 `;

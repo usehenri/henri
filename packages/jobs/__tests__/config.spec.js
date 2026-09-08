@@ -20,6 +20,7 @@ describe('configuration', () => {
     expect(config.keepCompleted).toBe(86400000);
     expect(config.install).toBe(true);
     expect(config.tables).toEqual({
+      batches: 'henri_jobs_batches',
       jobs: 'henri_jobs',
       limits: 'henri_jobs_limits',
       schedules: 'henri_jobs_schedules',
@@ -49,6 +50,7 @@ describe('configuration', () => {
     expect(config.stuckAfter).toBe(600000);
     expect(config.timeout).toBe(120000);
     expect(config.tables).toEqual({
+      batches: 'queue_batches',
       jobs: 'queue',
       limits: 'queue_limits',
       schedules: 'queue_schedules',
@@ -133,6 +135,8 @@ describe('definitions', () => {
     const definitions = load(path.join(APP, 'app', 'jobs'), normalize());
 
     expect(Object.keys(definitions).sort()).toEqual([
+      'batch/finished',
+      'batch/member',
       'boom',
       'counter',
       'exclusive',
@@ -309,6 +313,7 @@ describe('starting', () => {
 describe('the claim statement', () => {
   const { SqlStore } = require('../src/store/sql');
   const tables = {
+    batches: 'henri_jobs_batches',
     jobs: 'henri_jobs',
     limits: 'henri_jobs_limits',
     schedules: 'henri_jobs_schedules',
@@ -466,6 +471,7 @@ describe('the claim statement', () => {
 
 describe('the schema', () => {
   const tables = {
+    batches: 'henri_jobs_batches',
     jobs: 'henri_jobs',
     limits: 'henri_jobs_limits',
     schedules: 'henri_jobs_schedules',
@@ -480,6 +486,7 @@ describe('the schema', () => {
 
   test('drops the tables newest first', () => {
     expect(uninstall('postgres', tables)).toEqual([
+      'DROP TABLE IF EXISTS "henri_jobs_batches"',
       'DROP TABLE IF EXISTS "henri_jobs_limits"',
       'DROP TABLE IF EXISTS "henri_jobs_schedules"',
       'DROP TABLE IF EXISTS "henri_jobs"',
@@ -496,16 +503,21 @@ describe('the schema', () => {
     );
   });
 
-  test('adds the concurrency column to a table an older henri wrote', () => {
+  test('adds the columns an older henri did not write', () => {
     for (const dialect of ['sqlite', 'postgres', 'mysql', 'mssql']) {
       const statements = upgrade(dialect, tables);
 
-      // The column and the index it serves, and nothing else: an upgrade
-      // touches an existing table, so it says exactly what it changes
-      expect(statements).toHaveLength(2);
+      // The two columns and the indexes they serve, and nothing else: an
+      // upgrade touches an existing table, so it says exactly what it
+      // changes. The batches table itself is a *new* table, so the guarded
+      // CREATE of the install is all it needs
+      expect(statements).toHaveLength(4);
       expect(statements[0]).toContain('concurrency_key');
       expect(statements[0]).toMatch(/ALTER TABLE/u);
-      expect(statements[1]).toContain('henri_jobs_limited');
+      expect(statements[1]).toContain('batch_id');
+      expect(statements[1]).toMatch(/ALTER TABLE/u);
+      expect(statements[2]).toContain('henri_jobs_limited');
+      expect(statements[3]).toContain('henri_jobs_batch');
 
       // Every one of them is part of the install, so a fresh database and an
       // upgraded one end up with the same table
@@ -529,6 +541,7 @@ describe('the schema', () => {
   test('refuses a table name that is not a plain identifier', () => {
     expect(() =>
       install('postgres', {
+        batches: 'b',
         jobs: 'jobs"; DROP TABLE users; --',
         limits: 'l',
         schedules: 's',
