@@ -307,7 +307,7 @@ class JobsModule extends BaseModule {
    * @param {string} name The job name (its file under app/jobs)
    * @param {*} [args] What perform() receives
    * @param {object} [options] `wait`, `at`, `queue`, `priority`,
-   *   `maxAttempts`, `timeout`, `unique`
+   *   `maxAttempts`, `timeout`, `unique`, `batch`, `tenant`
    * @returns {Promise<object>} The enqueued job
    * @memberof JobsModule
    */

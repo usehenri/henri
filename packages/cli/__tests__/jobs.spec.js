@@ -230,6 +230,43 @@ describe('henri jobs', () => {
       expect(jobs.result.jobs).toEqual([]);
     });
 
+    test('carries a tenant through the enqueue, the listing and the show', () => {
+      // This application is not multi-tenant, so nothing is stamped on its
+      // own -- what is proved here is the plumbing: the flag reaches the
+      // column, the column reaches the filter, and the filter is a filter
+      const enqueued = run([
+        'jobs',
+        'perform',
+        'ping',
+        '{"of":"acme"}',
+        '--tenant',
+        'acme',
+      ]);
+
+      expect(enqueued.status).toBe(0);
+      expect(enqueued.result.job.tenant).toBe('acme');
+
+      const mine = run(['jobs:list', '--tenant', 'acme']);
+
+      expect(mine.status).toBe(0);
+      expect(mine.result.jobs.map((job) => job.id)).toEqual([
+        enqueued.result.job.id,
+      ]);
+
+      // Another tenant's listing does not carry it, and neither does a
+      // tenant nothing was enqueued for
+      expect(run(['jobs:list', '--tenant', 'globex']).result.jobs).toEqual([]);
+
+      const shown = run(['jobs', 'show', enqueued.result.job.id]);
+
+      expect(shown.result.job.tenant).toBe('acme');
+
+      expect(
+        run(['jobs:discard', '--all', '--state=pending', '--tenant=acme'])
+          .status
+      ).toBe(0);
+    });
+
     test('drives the dead letter queue', () => {
       expect(run(['jobs', 'perform', 'boom']).status).toBe(0);
       expect(run(['jobs', '--once']).status).toBe(0);

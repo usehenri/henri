@@ -69,6 +69,118 @@ describe('queue (mongodb)', () => {
     live.reset();
   });
 
+  describe('tenants', () => {
+    /**
+     * The same property `./tenancy.spec.js` proves against SQL, on the
+     * backend that needs no upgrade to hold the field: **tenant A's runner
+     * never performs or lists tenant B's jobs.**
+     */
+    let multi = null;
+    let scoped = null;
+
+    /**
+     * Every scope a `scope` job recorded
+     *
+     * @returns {Array<object>} What each attempt saw
+     */
+    const scopes = () => global.__henriJobScopes || [];
+
+    beforeAll(async () => {
+      multi = fakeHenri({
+        cwd: path.join(__dirname, 'fixtures', 'app'),
+        settings: { tenancy: { from: { user: 'tenantId' } } },
+      });
+      scoped = new Jobs(multi, {
+        adapter,
+        config: { backoff: { jitter: 0 } },
+        cwd: multi.cwd(),
+      });
+
+      await scoped.start();
+      multi.jobs = scoped;
+    }, 60000);
+
+    beforeEach(() => {
+      global.__henriJobScopes = [];
+    });
+
+    test('a collection needs no upgrade to hold a tenant', async () => {
+      // A field appears when it is written, so there is nothing to alter
+      // and nothing to refuse -- and a document an older henri wrote is a
+      // job of no tenant, which is exactly what it was
+      expect(await scoped.store.tenanted()).toBe(true);
+      expect(scoped.tenanted).toBe(true);
+    });
+
+    test('an enqueue inside a tenant carries it, and one outside does not', async () => {
+      const mine = await multi.tenancy.run('acme', () =>
+        scoped.perform('ok', { of: 'acme' })
+      );
+      const nobody = await scoped.perform('ok', { of: 'nobody' });
+
+      expect(mine.tenant).toBe('acme');
+      expect(nobody.tenant).toBeNull();
+    });
+
+    test('a listing of one tenant is that tenant only', async () => {
+      await multi.tenancy.run('acme', () => scoped.perform('ok', { n: 1 }));
+      await multi.tenancy.run('globex', () => scoped.perform('ok', { n: 2 }));
+      await scoped.perform('ok', { n: 3 });
+
+      const acme = await scoped.list({ tenant: 'acme' });
+
+      expect(acme).toHaveLength(1);
+      expect(acme[0].args.n).toBe(1);
+      expect(await scoped.list({ limit: 50 })).toHaveLength(3);
+    });
+
+    test('naming another tenant while one is in scope is refused', async () => {
+      const error = await multi.tenancy
+        .run('acme', () => scoped.perform('ok', null, { tenant: 'globex' }))
+        .then(
+          () => null,
+          (thrown) => thrown
+        );
+
+      expect(error.code).toBe('HENRI_TENANT_CROSS_WRITE');
+      expect(await scoped.count()).toBe(0);
+    });
+
+    test('the runner enters the tenant the document names', async () => {
+      await multi.tenancy.run('acme', () =>
+        scoped.perform('scope', { token: 'a' })
+      );
+      await scoped.perform('scope', { token: 'none' });
+
+      await new Runner(scoped, { concurrency: 2, recurring: false }).once();
+
+      const seen = scopes().sort((left, right) =>
+        left.token < right.token ? -1 : 1
+      );
+
+      expect(seen).toEqual([
+        { row: 'acme', scope: 'acme', token: 'a' },
+        { row: null, scope: null, token: 'none' },
+      ]);
+    });
+
+    test('a discard of one tenant leaves the other in the collection', async () => {
+      const mine = await multi.tenancy.run('acme', () =>
+        scoped.perform('ok', null, { maxAttempts: 1 })
+      );
+      const theirs = await multi.tenancy.run('globex', () =>
+        scoped.perform('ok', null, { maxAttempts: 1 })
+      );
+
+      await scoped.store.update(mine.id, { state: 'dead' });
+      await scoped.store.update(theirs.id, { state: 'dead' });
+
+      expect(await scoped.dead.discardAll({ tenant: 'acme' })).toBe(1);
+      expect(await scoped.get(mine.id)).toBeNull();
+      expect(await scoped.get(theirs.id)).not.toBeNull();
+    });
+  });
+
   describe('batches', () => {
     /**
      * The callbacks performed in this process

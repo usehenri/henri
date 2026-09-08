@@ -109,6 +109,7 @@ class Tenancy extends BaseModule {
     this.unscoped = this.unscoped.bind(this);
     this.require = this.require.bind(this);
     this.markFor = this.markFor.bind(this);
+    this.columnFor = this.columnFor.bind(this);
     this.conditionFor = this.conditionFor.bind(this);
     this.checkWrite = this.checkWrite.bind(this);
     this.resolve = this.resolve.bind(this);
@@ -348,6 +349,33 @@ class Tenancy extends BaseModule {
     }
 
     return mark;
+  }
+
+  /**
+   * The column a model's tenant lives in, by model name.
+   *
+   * `null` when tenancy is off and when the model is shared, which is the
+   * question a caller that is not an adapter actually has: the version
+   * store asks it to decide whose record a version is about, and answering
+   * `null` for a `Country` is what keeps a shared model's history shared.
+   *
+   * It reads the marks the adapters filled in while they built, so a model
+   * this module has never been asked about answers `null` -- the same
+   * `null` an unmarked model answers, and safe for the same reason: it is
+   * only ever used to *add* a tenant to a row, never to skip a condition.
+   *
+   * @param {string} model the model name (`Invoice`)
+   * @returns {?string} the column, or null
+   * @memberof Tenancy
+   */
+  columnFor(model) {
+    if (!this.enabled) {
+      return null;
+    }
+
+    const mark = this.marks.get(model);
+
+    return mark ? mark.column : null;
   }
 
   /**

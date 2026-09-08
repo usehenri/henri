@@ -46,12 +46,20 @@ const { toNumber } = require('./store/sql');
 /** The widest a batch name may be: the column that holds it */
 const NAME_LENGTH = 190;
 
-/** The options of the callback that are passed to `perform()` */
+/**
+ * The options of the callback that are passed to `perform()`.
+ *
+ * `tenant` is one of them and is the only one henri fills in by itself
+ * (`Jobs#batch`): the callback is enqueued by a runner long after the
+ * request that made the batch is gone, so the tenant has to travel with
+ * the batch or the callback would be performed outside every tenant.
+ */
 const CALLBACK_OPTIONS = [
   'at',
   'maxAttempts',
   'priority',
   'queue',
+  'tenant',
   'timeout',
   'wait',
 ];

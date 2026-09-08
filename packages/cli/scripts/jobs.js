@@ -88,6 +88,20 @@ const queues = (args) =>
     .filter(Boolean);
 
 /**
+ * The tenant named by --tenant
+ *
+ * A listing that names a tenant a table cannot hold is refused by the queue
+ * itself (`HENRI_JOB_TENANT_UNINSTALLED`), so nothing is checked here.
+ *
+ * @param {object} args CLI arguments
+ * @returns {(string|undefined)} The tenant, or nothing
+ */
+const tenant = (args) =>
+  typeof args.tenant === 'string' && args.tenant !== ''
+    ? args.tenant
+    : undefined;
+
+/**
  * Runs a worker process until a signal stops it
  *
  * @param {object} args CLI arguments
@@ -243,6 +257,7 @@ const list = async (args, state) => {
       name: typeof args.name === 'string' ? args.name : undefined,
       queue: typeof args.queue === 'string' ? args.queue : undefined,
       state: state || (typeof args.state === 'string' ? args.state : undefined),
+      tenant: tenant(args),
     });
 
     return {
@@ -328,7 +343,12 @@ const perform = async (args) => {
 
   try {
     if (args.now === true) {
-      const result = await jobs.performNow(name, payload);
+      // Inline, so there is no row to carry a tenant: --tenant is the
+      // scope the job is performed in, which is what the row would have
+      // decided (`Jobs#scoped`)
+      const result = await jobs.queue.scoped(tenant(args), () =>
+        jobs.performNow(name, payload)
+      );
 
       return {
         command: 'perform',
@@ -343,6 +363,7 @@ const perform = async (args) => {
     const job = await jobs.perform(name, payload, {
       at: typeof args.at === 'string' ? args.at : undefined,
       queue: typeof args.queue === 'string' ? args.queue : undefined,
+      ...(typeof args.tenant === 'string' ? { tenant: args.tenant } : {}),
       wait: typeof args.in === 'string' ? args.in : undefined,
     });
 
@@ -387,6 +408,7 @@ const retry = async (args) => {
     const requeued = await jobs.dead.retryAll({
       name: typeof args.name === 'string' ? args.name : undefined,
       queue: typeof args.queue === 'string' ? args.queue : undefined,
+      tenant: tenant(args),
     });
 
     return { command: 'retry', ok: true, requeued };
@@ -432,6 +454,7 @@ const discard = async (args) => {
     const discarded = await jobs.dead.discardAll({
       name: typeof args.name === 'string' ? args.name : undefined,
       queue: typeof args.queue === 'string' ? args.queue : undefined,
+      tenant: tenant(args),
     });
 
     return { command: 'discard', discarded, ok: true };
@@ -464,7 +487,9 @@ const printJobs = (jobs) => {
 
   for (const job of jobs) {
     console.log(
-      `  ${job.id}  ${job.state.padEnd(7)} ${job.queue}/${job.name}  ${job.attempts}/${job.maxAttempts}  ${job.runAt}`
+      `  ${job.id}  ${job.state.padEnd(7)} ${job.queue}/${job.name}  ${job.attempts}/${job.maxAttempts}  ${job.runAt}${
+        job.tenant ? `  @${job.tenant}` : ''
+      }`
     );
 
     if (job.error) {
@@ -595,6 +620,10 @@ const print = (result) => {
     console.log(
       `  attempts ${job.attempts}/${job.maxAttempts}, run at ${job.runAt}`
     );
+
+    if (job.tenant) {
+      console.log(`  tenant ${job.tenant}`);
+    }
 
     if (job.batchId) {
       console.log(`  batch ${job.batchId}`);

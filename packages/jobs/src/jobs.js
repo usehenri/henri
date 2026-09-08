@@ -16,6 +16,16 @@ const { Batch, declaration, toBatch } = require('./batch');
 const STATES = ['pending', 'running', 'done', 'dead'];
 
 /**
+ * The widest a tenant may be: the column it is indexed in.
+ *
+ * The 190 of `base/tenancy.js` and of a webhook endpoint's `owner`, for
+ * the same reason -- it is what MySQL indexes in a utf8mb4 key. The number
+ * is repeated rather than imported because this package raises core's
+ * codes without importing core (see `./errors.js`).
+ */
+const MAX_TENANT = 190;
+
+/**
  * The name of the job that sends a mail `deliverLater()` handed over.
  *
  * `henri.mailers` renders the message before it hands it to the queue, so
@@ -72,6 +82,7 @@ const toJob = (row) => {
     runAt: at(row.run_at),
     startedAt: at(row.started_at),
     state: row.state,
+    tenant: row.tenant || null,
     timeout: toNumber(row.timeout_ms),
     uniqueKey: row.unique_key || null,
     updatedAt: at(row.updated_at),
@@ -116,6 +127,8 @@ class Jobs {
     this.concurrent = false;
     /** Whether the store can hold a batch; see start() */
     this.batched = false;
+    /** Whether the store can stamp a job's tenant; see start() */
+    this.tenanted = false;
 
     /**
      * The retry policy of a job whose file this runner does not have: the
@@ -203,6 +216,22 @@ class Jobs {
 
     this.concurrent = await this.store.concurrent();
     this.batched = await this.store.batched();
+    this.tenanted = await this.store.tenanted();
+
+    // The upgrade has to be honest. An application that turned tenancy on
+    // and whose table cannot hold the column would enqueue rows with no
+    // tenant, and a runner would then perform every one of them outside
+    // every tenant -- which is not "unscoped", it is "wrong, quietly". The
+    // `_UNINSTALLED` precedent: fail the boot and name what is missing
+    if (this.multitenant() && !this.tenanted) {
+      throw new JobError(
+        'HENRI_JOB_TENANT_UNINSTALLED',
+        `@usehenri/jobs: config.tenancy is on and the "${this.config.store}" store has no ${this.config.tables.jobs}.tenant column to stamp a job's tenant in`,
+        {
+          hint: 'Run `henri jobs:install` once with a user that may alter the table; the queue itself keeps working without the column, and a job would then carry no tenant at all',
+        }
+      );
+    }
 
     const bounded = Object.values(this.definitions).filter(
       (definition) => definition.concurrency
@@ -552,6 +581,10 @@ class Jobs {
    *   enqueued it (the recurring schedules use it)
    * @param {string} [options.batch] The batch to count it into; `batch()`
    *   is what makes one, and a batch that is sealed refuses
+   * @param {?string} [options.tenant] The tenant this job belongs to;
+   *   defaults to the tenant of the request or job it is enqueued from
+   *   when the application is multi-tenant (`henri.tenancy`). `null` is a
+   *   job of no tenant, and the runner enters none for it
    * @returns {Promise<object>} The enqueued job
    * @throws {JobError} HENRI_JOB_UNKNOWN, or HENRI_JOB_INVALID_ARGUMENTS
    *   cannot be stored
@@ -609,6 +642,7 @@ class Jobs {
       run_at: when,
       started_at: null,
       state: 'pending',
+      tenant: this.tenantOf(options),
       timeout_ms: duration(options.timeout, definition.timeout),
       unique_key: options.unique || null,
       updated_at: now,
@@ -695,6 +729,130 @@ class Jobs {
   }
 
   /**
+   * `henri.tenancy`, when the application has one and turned it on
+   *
+   * Core is a peer dependency and the queue runs against a henri stand-in
+   * in its own suites, so every reach for a module of core's is guarded the
+   * way the reach for `henri.pen` is.
+   *
+   * @returns {?object} The tenancy module, or null
+   * @memberof Jobs
+   */
+  tenancy() {
+    const tenancy = this.henri && this.henri.tenancy;
+
+    return tenancy && tenancy.enabled ? tenancy : null;
+  }
+
+  /**
+   * Is this application multi-tenant?
+   *
+   * @returns {boolean} yes or no
+   * @memberof Jobs
+   */
+  multitenant() {
+    return Boolean(this.tenancy());
+  }
+
+  /**
+   * The tenant a job is enqueued for: what the caller named, else the
+   * tenant in scope.
+   *
+   * `henri.webhooks.emit()`'s `owner` rule, one word changed, and for the
+   * same reason: an enqueue inside a request belongs to that request's
+   * tenant without the caller repeating it, and an application that is not
+   * multi-tenant is exactly where it was -- the column holds null.
+   *
+   * Naming a tenant still wins, including naming `null`, which is how a
+   * platform-wide job is enqueued from inside a customer's request: the
+   * runner then enters no tenant and the job says `unscoped()` itself.
+   * Naming a **different** tenant while one is in scope is refused, for
+   * `HENRI_TENANT_CROSS_WRITE`'s reason one layer up: a job stamped with
+   * somebody else's tenant is performed in somebody else's data, with
+   * arguments that came from this one.
+   *
+   * @param {object} [options={}] What `perform()` was given
+   * @returns {?string} The tenant to stamp
+   * @throws {JobError} HENRI_TENANT_CROSS_WRITE, HENRI_TENANT_INVALID
+   * @memberof Jobs
+   */
+  tenantOf(options = {}) {
+    const tenancy = this.tenancy();
+    const scope = (tenancy && tenancy.current()) || null;
+    const said = Object.prototype.hasOwnProperty.call(options, 'tenant');
+
+    if (!said) {
+      return scope;
+    }
+
+    const named =
+      options.tenant === null ||
+      typeof options.tenant === 'undefined' ||
+      options.tenant === ''
+        ? null
+        : String(options.tenant);
+
+    // The width and not the shape: `base/tenancy.js` owns what a tenant may
+    // look like and has already checked anything that came from a request.
+    // What the queue owns is its column, and a value truncated to fit it is
+    // two tenants sharing a prefix and therefore sharing their jobs
+    if (named && named.length > MAX_TENANT) {
+      throw new JobError(
+        'HENRI_TENANT_INVALID',
+        `a tenant is at most ${MAX_TENANT} characters and this one is ${named.length}`,
+        {
+          hint: 'An identifier is never truncated to fit: two tenants sharing a prefix would share their jobs',
+        }
+      );
+    }
+
+    if (scope && named && named !== scope) {
+      throw new JobError(
+        'HENRI_TENANT_CROSS_WRITE',
+        `a job was enqueued for the tenant '${named}' while the tenant in scope is '${scope}'`,
+        {
+          hint: `henri refuses rather than obeying: a runner enters the tenant the row names, so this job would read and write '${named}' data with arguments that came from '${scope}'. Enqueue it inside henri.tenancy.run('${named}', () => ...), or say tenant: null when it belongs to no tenant`,
+        }
+      );
+    }
+
+    return named;
+  }
+
+  /**
+   * Runs something as the tenant a job row names.
+   *
+   * **This is the half of the column that matters.** A job's `perform()`
+   * runs in another process, minutes later, with no request behind it --
+   * and a tenanted model touched with no tenant in scope raises
+   * `HENRI_TENANT_REQUIRED` rather than reading every tenant's rows. So
+   * the runner enters the tenant the *row* carries before it calls
+   * `perform()`, and a whole class of jobs stops needing a first line that
+   * says `henri.tenancy.run(args.tenant, ...)`.
+   *
+   * A row with **no** tenant enters nothing, deliberately: null is not
+   * "every tenant". That is what a job enqueued before the column existed
+   * looks like, what a recurring schedule looks like, and what
+   * `tenant: null` asked for -- and all three behave exactly as they did,
+   * which is to say the refusal fires on the first tenanted model call
+   * unless the job says `henri.tenancy.unscoped()` itself.
+   *
+   * @param {?string} tenant The tenant the row names
+   * @param {function} work What to run
+   * @returns {*} Whatever the work answered
+   * @memberof Jobs
+   */
+  scoped(tenant, work) {
+    const tenancy = this.tenancy();
+
+    if (!tenant || !tenancy || typeof tenancy.run !== 'function') {
+      return work();
+    }
+
+    return tenancy.run(tenant, work);
+  }
+
+  /**
    * The store, once the queue is started
    *
    * @returns {object} The store backend
@@ -729,9 +887,11 @@ class Jobs {
   /**
    * The jobs of the queue, newest change first
    *
-   * @param {object} [filter={}] `state`, `queue`, `name`, `limit`, `offset`
+   * @param {object} [filter={}] `state`, `queue`, `name`, `tenant`,
+   *   `limit`, `offset`
    * @returns {Promise<Array<object>>} The jobs
-   * @throws {JobError} HENRI_JOB_UNKNOWN_STATE for an unknown state
+   * @throws {JobError} HENRI_JOB_UNKNOWN_STATE for an unknown state, or
+   *   HENRI_JOB_TENANT_UNINSTALLED for a tenant the table cannot hold
    * @memberof Jobs
    */
   async list(filter = {}) {
@@ -745,9 +905,39 @@ class Jobs {
       );
     }
 
-    const rows = await this.storeOrDie().list(filter);
+    const store = this.storeOrDie();
+
+    this.filterable(filter);
+
+    const rows = await store.list(filter);
 
     return rows.map(toJob);
+  }
+
+  /**
+   * Refuses a tenant filter this store has no column to answer.
+   *
+   * Listing every tenant's jobs because the column is missing would answer
+   * the wrong question with a straight face, which is worse than saying
+   * the column is not there.
+   *
+   * @param {object} [filter={}] A filter
+   * @returns {object} The same filter
+   * @throws {JobError} HENRI_JOB_TENANT_UNINSTALLED
+   * @memberof Jobs
+   */
+  filterable(filter = {}) {
+    if (filter.tenant && !this.tenanted) {
+      throw new JobError(
+        'HENRI_JOB_TENANT_UNINSTALLED',
+        `The "${this.config.store}" store has no ${this.config.tables.jobs}.tenant column, so the jobs of one tenant cannot be told from another's`,
+        {
+          hint: 'Run `henri jobs:install` once with a user that may alter the table; the rows enqueued before it ran carry no tenant and no listing will find them under one',
+        }
+      );
+    }
+
+    return filter;
   }
 
   /**
@@ -952,13 +1142,24 @@ class Jobs {
     }
 
     const now = Date.now();
+    // The callback is enqueued by a runner, minutes later, with no request
+    // behind it -- so the tenant of the batch travels with the batch. It
+    // rides in `callback_options`, which is already stored and already
+    // handed to `perform()`, rather than in a column of its own: the
+    // batches table would need the same upgrade block for one value that
+    // is only ever read once
+    const scope = this.tenantOf({});
+    const callbackOptions =
+      scope && !Object.prototype.hasOwnProperty.call(declared.options, 'tenant')
+        ? { ...declared.options, tenant: scope }
+        : declared.options;
     const row = await store.createBatch({
       callback: declared.callback,
       callback_args: serialize(declared.args, {
         maxBytes: this.config.maxArgsBytes,
       }),
       callback_id: null,
-      callback_options: JSON.stringify(declared.options),
+      callback_options: JSON.stringify(callbackOptions),
       created_at: now,
       done: 0,
       failed: 0,
@@ -1291,7 +1492,7 @@ class Jobs {
    */
   async discardAll(filter = {}) {
     return this.storeOrDie().remove({
-      ...filter,
+      ...this.filterable(filter),
       state: filter.state || 'dead',
     });
   }
@@ -1429,6 +1630,7 @@ class Jobs {
         name: row.name,
         queue: row.queue,
         runner: options.runner || null,
+        tenant: row.tenant || null,
       },
       signal: controller.signal,
     };
@@ -1494,8 +1696,14 @@ class Jobs {
    * @memberof Jobs
    */
   async invoke(definition, context, controller, timeout) {
+    // The tenant of the row, entered here and nowhere else: `perform()` is
+    // the one thing in an attempt that touches the application's models,
+    // and everything around it (the outcome write, the batch counter) is
+    // raw SQL through the adapter, which tenancy never narrows anyway
     const call = Promise.resolve().then(() =>
-      definition.perform(context.job.args, context)
+      this.scoped(context.job.tenant, () =>
+        definition.perform(context.job.args, context)
+      )
     );
 
     if (!timeout) {

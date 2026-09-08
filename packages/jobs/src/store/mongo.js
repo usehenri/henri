@@ -35,7 +35,8 @@ const { keep } = require('../keys');
  *
  * A collection needs no upgrade: a document written by an older henri
  * simply has no `concurrency_key`, which is what an unlimited job's row
- * looks like anyway.
+ * looks like anyway. The same is true of `tenant`, which is why
+ * `tenanted()` answers yes here and asks nothing.
  *
  * ## Batches
  *
@@ -159,6 +160,21 @@ class MongoStore {
   }
 
   /**
+   * Whether a tenant can be stamped here; it always can
+   *
+   * A field appears when it is written, so there is nothing to upgrade and
+   * nothing to refuse -- see `concurrent()`. A document an older henri
+   * wrote has no `tenant`, which is what a job of no tenant looks like
+   * anyway.
+   *
+   * @returns {Promise<boolean>} true
+   * @memberof MongoStore
+   */
+  async tenanted() {
+    return true;
+  }
+
+  /**
    * A document, as the queue reads rows
    *
    * @param {?object} document A stored document
@@ -207,6 +223,13 @@ class MongoStore {
     );
 
     await this.index({ batch_id: 1 }, { name: `${this.tables.jobs}_batch` });
+
+    /* eslint-disable sort-keys */
+    await this.index(
+      { tenant: 1, state: 1, run_at: 1 },
+      { name: `${this.tables.jobs}_tenant` }
+    );
+    /* eslint-enable sort-keys */
 
     await this.limits().createIndex(
       { heartbeat_at: 1 },
@@ -320,6 +343,12 @@ class MongoStore {
     // And a job that belongs to no batch has no `batch_id`
     if (rest.batch_id === null || typeof rest.batch_id === 'undefined') {
       delete rest.batch_id;
+    }
+
+    // And a job of no tenant has no `tenant`, which is what every document
+    // an older henri wrote looks like
+    if (rest.tenant === null || typeof rest.tenant === 'undefined') {
+      delete rest.tenant;
     }
 
     try {
@@ -797,12 +826,20 @@ class MongoStore {
   /**
    * Lists jobs
    *
-   * @param {object} [options={}] `state`, `queue`, `name`, `batch`, `limit`,
-   *   `offset`
+   * @param {object} [options={}] `state`, `queue`, `name`, `batch`,
+   *   `tenant`, `limit`, `offset`
    * @returns {Promise<Array<object>>} The rows
    * @memberof MongoStore
    */
-  async list({ state, queue, name, batch, limit = 50, offset = 0 } = {}) {
+  async list({
+    state,
+    queue,
+    name,
+    batch,
+    tenant,
+    limit = 50,
+    offset = 0,
+  } = {}) {
     const filter = {};
 
     if (state) {
@@ -821,6 +858,10 @@ class MongoStore {
       filter.batch_id = batch;
     }
 
+    if (tenant) {
+      filter.tenant = tenant;
+    }
+
     const documents = await this.jobs()
       .find(filter)
       // eslint-disable-next-line sort-keys
@@ -835,11 +876,11 @@ class MongoStore {
   /**
    * Deletes jobs
    *
-   * @param {object} [options={}] `id`, `state`, `queue`, `name`
+   * @param {object} [options={}] `id`, `state`, `queue`, `name`, `tenant`
    * @returns {Promise<number>} How many documents were deleted
    * @memberof MongoStore
    */
-  async remove({ id, state, queue, name } = {}) {
+  async remove({ id, state, queue, name, tenant } = {}) {
     const filter = {};
 
     if (id) {
@@ -856,6 +897,10 @@ class MongoStore {
 
     if (name) {
       filter.name = name;
+    }
+
+    if (tenant) {
+      filter.tenant = tenant;
     }
 
     if (Object.keys(filter).length === 0) {

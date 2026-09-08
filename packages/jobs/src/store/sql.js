@@ -76,6 +76,20 @@ const { keep } = require('../keys');
  * the one whose token-guarded outcome write landed. A runner whose write
  * was refused because it had been recovered from counts nothing, and the
  * runner that took the job over counts once when it finishes.
+ *
+ * ## The tenant
+ *
+ * `tenant` is a column like `concurrency_key` and `batch_id`: it arrives
+ * through the tolerated upgrade block, `tenanted()` asks the table whether
+ * it is there, and the insert names the columns that are. It is written by
+ * the enqueue and read by a listing.
+ *
+ * It is deliberately **not** in the claim. A runner performs every
+ * tenant's work, and narrowing the claim would give one customer's backlog
+ * a runner of its own -- a scheduling feature, with a fairness question
+ * attached, and not this. What the column decides is which tenant the
+ * runner *enters* before it calls `perform()` (`Jobs#scoped`), which is a
+ * different question with a different answer.
  */
 
 /** The columns of the jobs table, in insert order */
@@ -105,6 +119,7 @@ const COLUMNS = [
   'unique_key',
   'concurrency_key',
   'batch_id',
+  'tenant',
 ];
 
 /** The columns of the batches table, in insert order */
@@ -242,6 +257,8 @@ class SqlStore {
     this.limits = null;
     /** Whether the store can hold a batch; asked once, see batched() */
     this.batches = null;
+    /** Whether the table has `tenant`; asked once, see tenanted() */
+    this.tenants = null;
   }
 
   /**
@@ -369,6 +386,7 @@ class SqlStore {
 
     this.limits = null;
     this.batches = null;
+    this.tenants = null;
 
     return statements;
   }
@@ -435,12 +453,40 @@ class SqlStore {
   }
 
   /**
+   * Whether the jobs table has the column a tenant is stamped in
+   *
+   * Asked once, of the table itself rather than of what the install
+   * answered, for the reason `concurrent()` gives. An application that is
+   * not multi-tenant never notices either answer: the column holds null
+   * for every row it writes.
+   *
+   * @returns {Promise<boolean>} true when `tenant` is there
+   * @memberof SqlStore
+   */
+  async tenanted() {
+    if (typeof this.tenants === 'boolean') {
+      return this.tenants;
+    }
+
+    try {
+      // Reads nothing: the planner still has to resolve the column
+      await this.select(`SELECT tenant FROM ${this.tables.jobs} WHERE 1 = 0`);
+      this.tenants = true;
+    } catch (error) {
+      debug('no tenant column: %s', error.message);
+      this.tenants = false;
+    }
+
+    return this.tenants;
+  }
+
+  /**
    * The columns of the jobs table an insert may name
    *
-   * A table an older henri wrote has neither `concurrency_key` nor
-   * `batch_id`, and an application that uses neither must not notice: the
-   * insert names the columns that are there, so the queue works exactly as
-   * it did.
+   * A table an older henri wrote has none of `concurrency_key`, `batch_id`
+   * and `tenant`, and an application that uses none of them must not
+   * notice: the insert names the columns that are there, so the queue works
+   * exactly as it did.
    *
    * @returns {Promise<Array<string>>} The column names
    * @memberof SqlStore
@@ -454,6 +500,10 @@ class SqlStore {
 
     if (!(await this.batched())) {
       missing.push('batch_id');
+    }
+
+    if (!(await this.tenanted())) {
+      missing.push('tenant');
     }
 
     return missing.length === 0
@@ -1066,12 +1116,20 @@ class SqlStore {
   /**
    * Lists jobs
    *
-   * @param {object} [options={}] `state`, `queue`, `name`, `batch`, `limit`,
-   *   `offset`
+   * @param {object} [options={}] `state`, `queue`, `name`, `batch`,
+   *   `tenant`, `limit`, `offset`
    * @returns {Promise<Array<object>>} The rows
    * @memberof SqlStore
    */
-  async list({ state, queue, name, batch, limit = 50, offset = 0 } = {}) {
+  async list({
+    state,
+    queue,
+    name,
+    batch,
+    tenant,
+    limit = 50,
+    offset = 0,
+  } = {}) {
     const filter = [];
     const params = [];
     // The driver binds what it is given: `LIMIT '25'` is text where sqlite
@@ -1099,6 +1157,11 @@ class SqlStore {
       params.push(batch);
     }
 
+    if (tenant) {
+      filter.push('tenant = ?');
+      params.push(tenant);
+    }
+
     const where = filter.length > 0 ? `WHERE ${filter.join(' AND ')}` : '';
     const page =
       this.dialect === 'mssql'
@@ -1115,11 +1178,11 @@ class SqlStore {
   /**
    * Deletes jobs
    *
-   * @param {object} [options={}] `id`, `state`, `queue`, `name`
+   * @param {object} [options={}] `id`, `state`, `queue`, `name`, `tenant`
    * @returns {Promise<number>} How many rows were deleted
    * @memberof SqlStore
    */
-  async remove({ id, state, queue, name } = {}) {
+  async remove({ id, state, queue, name, tenant } = {}) {
     const filter = [];
     const params = [];
 
@@ -1128,6 +1191,7 @@ class SqlStore {
       ['state', state],
       ['queue', queue],
       ['name', name],
+      ['tenant', tenant],
     ]) {
       if (value) {
         filter.push(`${column} = ?`);

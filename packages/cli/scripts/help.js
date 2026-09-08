@@ -1020,6 +1020,10 @@ const COMMANDS = [
         description: 'The dead letter queue, as JSON',
       },
       {
+        command: 'henri jobs:list --tenant acme',
+        description: "One customer's jobs, in a multi-tenant application",
+      },
+      {
         command: 'henri jobs:retry --all',
         description: 'Put every dead job back in its queue',
       },
@@ -1050,6 +1054,11 @@ const COMMANDS = [
           'list: only the jobs of one batch; batches: only the finished ones',
         flag: '--batch=<id> --finished',
       },
+      {
+        description:
+          'list, dead, retry, discard: one tenant only; perform: the tenant to stamp',
+        flag: '--tenant=<id>',
+      },
       { description: 'retry, discard: every matching job', flag: '--all' },
       {
         description: 'perform: enqueue it later instead of now',
@@ -1078,7 +1087,7 @@ const COMMANDS = [
       },
       {
         description:
-          'the jobs of the queue (--state, --queue, --name, --batch)',
+          'the jobs of the queue (--state, --queue, --name, --batch, --tenant)',
         name: 'list',
       },
       {
@@ -1521,6 +1530,11 @@ const COMMANDS = [
       },
       { description: 'how many versions to print (25)', flag: '--limit=<n>' },
       {
+        description:
+          'one tenant only; without it these commands read every tenant, and show/restore run as the tenant the row names',
+        flag: '--tenant=<id>',
+      },
+      {
         description: 'restore an inexact reconstruction anyway',
         flag: '--force',
       },
@@ -1543,9 +1557,9 @@ const COMMANDS = [
       },
     ],
     usage: [
-      'henri versions [<Model> [<record>]] [--event=<name>] [--limit=<n>] [--json]',
-      'henri versions:show <id> [--json]',
-      'henri versions:restore <id> [--force] [--json]',
+      'henri versions [<Model> [<record>]] [--event=<name>] [--limit=<n>] [--tenant=<id>] [--json]',
+      'henri versions:show <id> [--tenant=<id>] [--json]',
+      'henri versions:restore <id> [--force] [--tenant=<id>] [--json]',
     ],
   },
   {

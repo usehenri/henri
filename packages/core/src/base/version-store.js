@@ -22,6 +22,18 @@
  * gives: sqlite has no date type and the other four dialects disagree about
  * the precision and the time zone of a bare `TIMESTAMP`.
  *
+ * ## The upgrade block
+ *
+ * This table is `CREATE TABLE IF NOT EXISTS` and there is no migration
+ * chain behind it, so a table an older henri created is the table an
+ * installation still has -- the queue's problem, and the queue's answer
+ * (`packages/jobs/src/store/schema.js`). `ADDED` names the columns a later
+ * henri writes, `upgrade()` turns them into idempotent statements, and
+ * `install()` **tolerates** every one of them: a database user who may not
+ * `ALTER` never fails a boot over a column the application does not need.
+ * What decides at runtime is asking the table (`tenanted()`), never
+ * whether the `ALTER` ran.
+ *
  * Ordering is by `id`, which is a uuid version 7: 48 bits of milliseconds
  * and then a counter, so it sorts by the moment it was made without a
  * sequence column and without the unique index the trail needs. Two
@@ -54,11 +66,32 @@ const COLUMNS = [
   'request_id',
   'meta',
   'erased_at',
+  'tenant',
 ];
 
 /** What each dialect calls the things this table needs */
+/**
+ * The columns an older henri did not write, and the type they take.
+ *
+ * One entry per column added after a version that shipped. 190 is the
+ * width `base/tenancy.js` gives a tenant: what MySQL indexes in a utf8mb4
+ * key, and never truncated to fit.
+ */
+const ADDED = [{ column: 'tenant', type: 'VARCHAR(190)' }];
+
 const DIALECTS = {
   mssql: {
+    /**
+     * Adds a column, only when the table has none by that name
+     *
+     * @param {string} table the table name
+     * @param {string} column the column name
+     * @param {string} type the column type
+     * @returns {string} the statement
+     */
+    addColumn: (table, column, type) =>
+      `IF COL_LENGTH('${table}', '${column}') IS NULL ALTER TABLE [${table}] ADD ${column} ${type} NULL`,
+
     /**
      * Wraps a statement so it only runs when the index is missing
      *
@@ -81,26 +114,42 @@ const DIALECTS = {
       `IF OBJECT_ID('${table}', 'U') IS NULL ${statement}`,
 
     ifNotExists: '',
+    indexIfNotExists: '',
     inlineIndexes: false,
     quote: (identifier) => `[${identifier}]`,
     text: 'NVARCHAR(MAX)',
   },
   mysql: {
+    // MySQL has no ADD COLUMN IF NOT EXISTS: a second run answers 1060,
+    // which the install tolerates like every other upgrade statement
+    addColumn: (table, column, type) =>
+      `ALTER TABLE \`${table}\` ADD COLUMN ${column} ${type} NULL`,
     ifNotExists: 'IF NOT EXISTS',
     // MySQL has no CREATE INDEX IF NOT EXISTS: the indexes go in the
-    // CREATE TABLE, which is guarded
+    // CREATE TABLE, which is guarded. An index the create cannot carry (a
+    // `late` one, on a table that is already there) is written bare and
+    // tolerated when it answers 1061
+    indexIfNotExists: '',
     inlineIndexes: true,
     quote: (identifier) => `\`${identifier}\``,
     text: 'MEDIUMTEXT',
   },
   postgres: {
+    addColumn: (table, column, type) =>
+      `ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS ${column} ${type} NULL`,
     ifNotExists: 'IF NOT EXISTS',
+    indexIfNotExists: 'IF NOT EXISTS',
     inlineIndexes: false,
     quote: (identifier) => `"${identifier}"`,
     text: 'TEXT',
   },
   sqlite: {
+    // SQLite has no ADD COLUMN IF NOT EXISTS either: a second run answers
+    // "duplicate column name", which the install tolerates
+    addColumn: (table, column, type) =>
+      `ALTER TABLE "${table}" ADD COLUMN ${column} ${type} NULL`,
     ifNotExists: 'IF NOT EXISTS',
+    indexIfNotExists: 'IF NOT EXISTS',
     inlineIndexes: false,
     quote: (identifier) => `"${identifier}"`,
     text: 'TEXT',
@@ -128,6 +177,11 @@ const columnsFor = (dialect) => [
   'request_id VARCHAR(64) NULL',
   `meta ${dialect.text} NULL`,
   'erased_at BIGINT NULL',
+  // Whose record this version is about, read off the record itself. Null
+  // on a shared model, on an application that is not multi-tenant, and on
+  // every row written before this column existed -- which is why a scoped
+  // read takes the nulls with it (see `conditions()`)
+  'tenant VARCHAR(190) NULL',
   'PRIMARY KEY (id)',
 ];
 
@@ -151,18 +205,48 @@ const indexesFor = (table) => [
   { columns: ['at'], name: `${table}_at`, unique: false },
   { columns: ['actor'], name: `${table}_actor`, unique: false },
   { columns: ['request_id'], name: `${table}_request`, unique: false },
+  // `late`: it names a column an older table has not, so it belongs to the
+  // upgrade block on every dialect rather than to the create
+  {
+    columns: ['tenant', 'at'],
+    late: true,
+    name: `${table}_tenant`,
+    unique: false,
+  },
 ];
 
 /**
- * Every statement that creates the table and its indexes, in order
+ * The statement that creates one index
+ *
+ * @param {object} dialect a dialect description
+ * @param {string} table the table name
+ * @param {object} index an index description
+ * @returns {string} the statement
+ */
+const indexStatement = (dialect, table, index) => {
+  const statement = [
+    `CREATE ${index.unique ? 'UNIQUE ' : ''}INDEX`,
+    dialect.guardIndex ? '' : dialect.indexIfNotExists,
+    `${dialect.quote(index.name)} ON ${dialect.quote(table)} (${index.columns.join(
+      ', '
+    )})`,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return dialect.guardIndex
+    ? dialect.guardIndex(table, index.name, statement)
+    : statement;
+};
+
+/**
+ * The dialect of a name, or a readable refusal
  *
  * @param {string} name the dialect (sqlite, postgres, mysql, mssql)
- * @param {string} table the table name
- * @returns {Array<string>} the statements, all of them idempotent
+ * @returns {object} the dialect description
  * @throws HENRI_VERSION_UNSUPPORTED_STORE on a dialect henri cannot talk to
- * @throws HENRI_CONFIG_INVALID on a table name that is not an identifier
  */
-const install = (name, table) => {
+const dialectOf = (name) => {
   const dialect = DIALECTS[name];
 
   if (!dialect) {
@@ -171,6 +255,47 @@ const install = (name, table) => {
       `versions cannot be kept in a ${name} store`
     );
   }
+
+  return dialect;
+};
+
+/**
+ * The statements that bring a table an older henri created up to date.
+ *
+ * Every one of them is idempotent and every one of them is **tolerated**
+ * by `SqlVersions#install()`: a database user who may not `ALTER` never
+ * fails a boot over a column the application does not need. What decides
+ * whether the column is usable is asking the table (`tenanted()`), not
+ * whether these ran.
+ *
+ * @param {string} name the dialect (sqlite, postgres, mysql, mssql)
+ * @param {string} table the table name
+ * @returns {Array<string>} the statements
+ * @throws HENRI_VERSION_UNSUPPORTED_STORE on an unknown dialect
+ */
+const upgrade = (name, table) => {
+  const dialect = dialectOf(name);
+
+  return [
+    ...ADDED.map((added) => dialect.addColumn(table, added.column, added.type)),
+    ...indexesFor(table)
+      .filter((index) => index.late)
+      .map((index) => indexStatement(dialect, table, index)),
+  ];
+};
+
+/**
+ * Every statement that creates the table, its indexes and the columns a
+ * table an older henri wrote has not, in order
+ *
+ * @param {string} name the dialect (sqlite, postgres, mysql, mssql)
+ * @param {string} table the table name
+ * @returns {Array<string>} the statements, all of them idempotent
+ * @throws HENRI_VERSION_UNSUPPORTED_STORE on a dialect henri cannot talk to
+ * @throws HENRI_CONFIG_INVALID on a table name that is not an identifier
+ */
+const install = (name, table) => {
+  const dialect = dialectOf(name);
 
   if (!SAFE_NAME.test(table)) {
     throw fail(
@@ -181,7 +306,9 @@ const install = (name, table) => {
 
   const quoted = dialect.quote(table);
   const definitions = [...columnsFor(dialect)];
-  const indexes = indexesFor(table);
+  // An index marked `late` names a column an older table does not have, so
+  // it is the upgrade block's, on every dialect at once
+  const indexes = indexesFor(table).filter((index) => !index.late);
   const statements = [];
 
   if (dialect.inlineIndexes) {
@@ -204,27 +331,13 @@ const install = (name, table) => {
     dialect.guardTable ? dialect.guardTable(table, create) : create
   );
 
-  if (dialect.inlineIndexes) {
-    return statements;
+  if (!dialect.inlineIndexes) {
+    for (const index of indexes) {
+      statements.push(indexStatement(dialect, table, index));
+    }
   }
 
-  for (const index of indexes) {
-    const statement = [
-      `CREATE ${index.unique ? 'UNIQUE ' : ''}INDEX`,
-      dialect.guardIndex ? '' : dialect.ifNotExists,
-      `${dialect.quote(index.name)} ON ${quoted} (${index.columns.join(', ')})`,
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    statements.push(
-      dialect.guardIndex
-        ? dialect.guardIndex(table, index.name, statement)
-        : statement
-    );
-  }
-
-  return statements;
+  return [...statements, ...upgrade(name, table)];
 };
 
 /** Errors that mean the object was created by another process first */
@@ -285,6 +398,8 @@ class SqlVersions {
     this.dollars = dollars;
     this.table = table;
     this.kind = 'sql';
+    /** Whether the table has `tenant`; asked once, see tenanted() */
+    this.tenants = null;
   }
 
   /**
@@ -346,11 +461,21 @@ class SqlVersions {
    */
   async install() {
     const statements = install(this.dialect, this.table);
+    // The upgrade block is tolerated whatever it answers: it touches a
+    // table an older henri created, and a user who may not `ALTER` must
+    // not fail the boot of an application that never asked for the column
+    // it adds. What needs the column asks for it by name (`tenanted()`)
+    const soft = new Set(upgrade(this.dialect, this.table));
 
     for (const statement of statements) {
       try {
         await this.run(statement);
       } catch (error) {
+        if (soft.has(statement)) {
+          debug('upgrade statement did not apply: %s', error.message);
+          continue;
+        }
+
         if (!ALREADY_THERE.test(reasons(error))) {
           throw error;
         }
@@ -359,7 +484,55 @@ class SqlVersions {
       }
     }
 
+    this.tenants = null;
+
     return statements;
+  }
+
+  /**
+   * Whether the table has the column a record's tenant is written in.
+   *
+   * Asked once, of the table itself rather than of what the install
+   * answered: an installation that upgraded henri without the `ALTER`
+   * having run has the table an older version wrote, and versioning works
+   * exactly as it did -- for an application that is not multi-tenant. One
+   * that *is* fails the boot instead of writing rows nothing can scope
+   * (`4.versions.js`).
+   *
+   * @returns {Promise<boolean>} true when `tenant` is there
+   * @memberof SqlVersions
+   */
+  async tenanted() {
+    if (typeof this.tenants === 'boolean') {
+      return this.tenants;
+    }
+
+    try {
+      // Reads nothing: the planner still has to resolve the column
+      await this.select(`SELECT tenant FROM ${this.table} WHERE 1 = 0`);
+      this.tenants = true;
+    } catch (error) {
+      debug('no tenant column: %s', error.message);
+      this.tenants = false;
+    }
+
+    return this.tenants;
+  }
+
+  /**
+   * The columns an insert may name
+   *
+   * A table an older henri wrote has no `tenant`, and an application that
+   * is not multi-tenant must not notice: the insert names the columns that
+   * are there.
+   *
+   * @returns {Promise<Array<string>>} the column names
+   * @memberof SqlVersions
+   */
+  async columns() {
+    return (await this.tenanted())
+      ? COLUMNS
+      : COLUMNS.filter((column) => column !== 'tenant');
   }
 
   /**
@@ -391,14 +564,15 @@ class SqlVersions {
    * @memberof SqlVersions
    */
   async append(row) {
-    const values = COLUMNS.map((column) =>
+    const columns = await this.columns();
+    const values = columns.map((column) =>
       typeof row[column] === 'undefined' ? null : row[column]
     );
 
     await this.run(
-      `INSERT INTO ${this.table} (${COLUMNS.join(', ')}) VALUES (${COLUMNS.map(
-        () => '?'
-      ).join(', ')})`,
+      `INSERT INTO ${this.table} (${columns.join(', ')}) VALUES (${columns
+        .map(() => '?')
+        .join(', ')})`,
       values
     );
 
@@ -514,6 +688,17 @@ class SqlVersions {
     if (Number.isFinite(filter.until)) {
       parts.push('at <= ?');
       params.push(filter.until);
+    }
+
+    // A tenant takes the rows of no tenant with it, and that is a decision
+    // rather than an oversight: `tenant IS NULL` is what a **shared**
+    // model's history looks like, and hiding a shared model's versions
+    // from every tenant would be worse than showing them to each. It is
+    // also what every row written before the column existed looks like,
+    // which the upgrade note in `guides/versions.md` says out loud
+    if (typeof filter.tenant === 'string' && filter.tenant !== '') {
+      parts.push('(tenant = ? OR tenant IS NULL)');
+      params.push(filter.tenant);
     }
 
     return {
@@ -679,8 +864,24 @@ class MongoVersions {
     await collection.createIndex({ at: -1 });
     await collection.createIndex({ actor: 1 });
     await collection.createIndex({ request_id: 1 });
+    // eslint-disable-next-line sort-keys
+    await collection.createIndex({ tenant: 1, at: -1 });
 
     return [`${this.table}.record`, `${this.table}.at`];
+  }
+
+  /**
+   * Whether a tenant can be written here; it always can
+   *
+   * A field appears when it is written, so there is nothing to upgrade and
+   * nothing to refuse. A document an older henri wrote simply has no
+   * `tenant`, which is what a shared model's version looks like anyway.
+   *
+   * @returns {Promise<boolean>} true
+   * @memberof MongoVersions
+   */
+  async tenanted() {
+    return true;
   }
 
   /**
@@ -741,6 +942,16 @@ class MongoVersions {
       if (Number.isFinite(filter.until)) {
         query.at.$lte = filter.until;
       }
+    }
+
+    // The SQL half's `(tenant = ? OR tenant IS NULL)`, and a document that
+    // never had the field is the third spelling of the same thing
+    if (typeof filter.tenant === 'string' && filter.tenant !== '') {
+      query.$or = [
+        { tenant: filter.tenant },
+        { tenant: null },
+        { tenant: { $exists: false } },
+      ];
     }
 
     return query;
@@ -931,6 +1142,7 @@ const storeFor = (adapter, table) => {
 };
 
 module.exports = {
+  ADDED,
   COLUMNS,
   DIALECTS,
   MongoVersions,
@@ -940,4 +1152,5 @@ module.exports = {
   reasons,
   storeFor,
   toNumber,
+  upgrade,
 };

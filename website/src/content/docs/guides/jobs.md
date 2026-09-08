@@ -425,6 +425,116 @@ A batch stores one column on the job row (`batch_id`) and one table of its own (
 - `henri.jobs.batch()` on a store that has neither **is refused** with `HENRI_JOB_BATCH_UNINSTALLED`, naming `henri jobs:install`. A batch is refused rather than run with a counter nothing can hold — there is nothing declared in a file to fail a boot over, so the refusal is at the call.
 - On MongoDB there is nothing to upgrade: a document has no such field, and a collection appears when something is written into it.
 
+## Tenants
+
+If the application is [multi-tenant](/guides/multi-tenancy/), a job row carries
+the tenant it belongs to and the runner enters it before calling `perform()`.
+Nothing is asked of you on either side:
+
+```js
+// in a controller, inside a request that resolved to `acme`
+await henri.jobs.perform('invoice-reminder', { invoiceId: invoice.externalId });
+```
+
+```js
+// app/jobs/invoice-reminder.js
+module.exports = {
+  // No `henri.tenancy.run()` here: the runner is already inside `acme`
+  perform: async ({ invoiceId }) => {
+    const invoice = await Invoice.findById(invoiceId);
+
+    await henri.mailers.billing.reminder(invoice).deliverLater();
+  },
+};
+```
+
+That is the whole point of the column. A tenanted model touched with no tenant
+in scope raises `HENRI_TENANT_REQUIRED` rather than reading every tenant's rows,
+so before this the first line of every job that touched one had to put the
+tenant back by hand — and forgetting it was a job that failed, was retried five
+times and landed in the dead letter queue.
+
+**Null is not every tenant.** A job with no tenant on its row enters no scope,
+and the refusal fires exactly as it did:
+
+- a job enqueued from a script, the console or `henri jobs:perform`;
+- a [recurring](#recurring-jobs) occurrence, which no request enqueued;
+- one enqueued with `tenant: null`, which is how a platform-wide job is asked
+  for from inside a customer's request;
+- every row that was already in the queue when the column arrived.
+
+All four behave the way they always did: a job that means every tenant says
+`henri.tenancy.unscoped()` itself, and one that means a particular tenant says
+`henri.tenancy.run()`.
+
+Naming a tenant wins over the one in scope, and naming a **different** one while
+a tenant is in scope is refused (`HENRI_TENANT_CROSS_WRITE`) — a job stamped
+with somebody else's tenant is performed in somebody else's data, with arguments
+that came from this one. A fan-out says so out loud:
+
+```js
+await henri.tenancy.unscoped(async () => {
+  for (const tenant of accounts) {
+    await henri.jobs.perform('nightly-report', null, { tenant });
+  }
+});
+```
+
+A **batch** carries the tenant it was made in, on the batch rather than on each
+job: its jobs are enqueued by the request that made it and are stamped like any
+other, and the callback is enqueued by a runner minutes later, so it rides in
+the callback's options. `henri.jobs.batch({ tenant })` names one explicitly.
+
+Reading it back:
+
+```bash
+henri jobs:list --tenant acme
+henri jobs:dead --tenant acme --json
+henri jobs:retry --all --tenant acme
+henri jobs:discard --all --tenant acme
+henri jobs:perform welcome '{"userId":1}' --tenant acme
+```
+
+```js
+await henri.jobs.list({ tenant: 'acme', state: 'pending' });
+```
+
+`henri jobs:show <id>` prints the tenant, and every job in `--json` output
+carries a `tenant`.
+
+**The claim is deliberately not narrowed by tenant.** A runner performs every
+tenant's work, and `henri jobs --tenant acme` does not exist: a runner per
+customer is a scheduling decision with a fairness question attached, and it is
+not this. What the column decides is which tenant the runner _enters_, not which
+rows it takes.
+
+### The column, and an upgrade
+
+`tenant` is a column on the job row and arrives the way
+[`concurrency_key`](#the-column-and-an-upgrade) and
+[`batch_id`](#the-table-and-an-upgrade) did: a tolerated `ALTER` inside the
+idempotent install, with the store asking the table rather than trusting the
+statement ran.
+
+- An application that is **not multi-tenant is not affected at all**: no column
+  is asked for, nothing is stamped, and its inserts name the columns that are
+  there.
+- An application with `config.tenancy` on whose table has no `tenant` column
+  **fails the boot** with `HENRI_JOB_TENANT_UNINSTALLED`, naming
+  `henri jobs:install`. Enqueuing every job with no tenant and performing them
+  all outside every one is not the same as performing them across all of them,
+  and it is not something to discover in production.
+- `henri jobs:list --tenant` on such a table is **refused** with the same code
+  rather than answered with every tenant's rows.
+- The rows already in the queue keep their null tenant and are performed exactly
+  as they were. There is no backfill to run, because there is nothing to fill
+  in: henri does not know which tenant a job that never said belonged to.
+- On MongoDB there is nothing to upgrade: a document simply has no such field.
+
+For most people the upgrade is the next deploy and nothing else — the boot runs
+the install, the install adds the column. `henri jobs:install` with a user that
+may `ALTER` is the answer when it is not.
+
 ## A job a package ships
 
 A package that does work of its own registers its job on the queue rather than asking every application to write a file that would only forward the call:
@@ -504,6 +614,7 @@ const stats = await henri.jobs.stats();
 // }
 
 await henri.jobs.list({ state: 'pending', queue: 'mailers' });
+await henri.jobs.list({ tenant: 'acme' });
 await henri.jobs.get(id);
 await henri.jobs.count({ state: 'dead' });
 ```
