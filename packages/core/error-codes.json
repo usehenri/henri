@@ -802,6 +802,16 @@
     {
       "area": "config",
       "causes": [
+        "`script-src` and `scriptSrc` written side by side in the same `directives` object",
+        "an example copied from helmet's documentation pasted next to one of henri's"
+      ],
+      "code": "HENRI_CONFIG_CSP_DUPLICATE_DIRECTIVE",
+      "fix": "helmet accepts both spellings and they mean one directive, so keep one of the two. henri does not pick a winner by key order: which array survived would depend on how the JSON happened to be written.",
+      "what": "config.helmet.contentSecurityPolicy.directives names one directive twice, in both of helmet's spellings."
+    },
+    {
+      "area": "config",
+      "causes": [
         "`HENRI_CONFIG__port=` with nothing after the equals sign",
         "a deployment that sets a variable it does not have a value for"
       ],

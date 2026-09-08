@@ -1791,14 +1791,26 @@ const SCHEMA = {
 
   helmet: {
     describe: 'an object of helmet options, or false to disable helmet',
-    hint: "What is written here is merged over henri's defaults rather than replacing them; false takes every security header off at once",
+    hint: "Merged over henri's defaults key by key, and a Content Security Policy directive written here replaces henri's array rather than adding to it (config.csp.add adds); false takes every security header off at once",
     oneOf: [{ const: false }, { type: 'object', unknown: 'allow' }],
   },
 
   csp: {
     describe: 'an object of Content Security Policy settings',
-    hint: "The policy itself is helmet's: config.helmet.contentSecurityPolicy",
+    hint: "The policy itself is helmet's (config.helmet.contentSecurityPolicy); this is the nonce and the sources to add to what henri built",
     keys: {
+      add: {
+        describe:
+          'an object of directive names, each with a list of sources to add',
+        hint: 'Added to what henri built rather than replacing it, so the asset origin, the nonce and the development sources stay: { "csp": { "add": { "script-src": ["https://plausible.io"] } } }',
+        type: 'record',
+        values: {
+          describe: 'a list of Content Security Policy sources',
+          hint: 'Source expressions as the header spells them, quotes included: "https://plausible.io", "\'unsafe-hashes\'", "data:"',
+          of: text(),
+          type: 'array',
+        },
+      },
       nonce: {
         default: false,
         describe: 'true to give every response a nonce',
