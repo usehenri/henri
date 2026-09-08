@@ -24,8 +24,9 @@ pnpm format                           # prettier 3 (`pnpm format:check` in CI)
 pnpm build                            # rollup build of @usehenri/react
 pnpm --filter @usehenri/website dev   # docs site (Astro + Starlight); `build` and `preview` too
 scripts/smoke.sh                      # scaffold an app from the packed workspace and boot it
-pnpm db:up                            # postgres, mysql and mongo for local dev (compose.yaml)
+pnpm db:up                            # postgres, mysql, mongo, redis and sql server (compose.yaml)
 pnpm test:sql:live                    # the SQL suites against the live postgres, then mysql
+pnpm test:sql:mssql                   # the sequelize, jobs and webhooks suites against SQL Server
 pnpm test:s3                          # @usehenri/s3 against a live object store (MinIO, below)
 pnpm test:showcase                    # the showcase application's own suite (needs postgres)
 pnpm db:down                          # stop them (`db:reset` also deletes the data)
@@ -40,16 +41,44 @@ installing where that download is unwanted.
 
 The SQL suites (`@usehenri/drizzle`, its dialect packages and
 `@usehenri/sequelize`) run on sqlite by default, offline. Point
-`HENRI_TEST_POSTGRES_URL` or `HENRI_TEST_MYSQL_URL` at a server and the same
+`HENRI_TEST_POSTGRES_URL`, `HENRI_TEST_MYSQL_URL` or `HENRI_TEST_MSSQL_URL`
+at a server and the same
 suites run on it instead, each store in a `henri_test_*` database of its own
 (created and dropped by `packages/*/__tests__/targets.js`);
-`HENRI_TEST_SQL_DIALECT` picks one when both are set. The CI runs them that
+`HENRI_TEST_SQL_DIALECT` picks one when several are set. The CI runs them that
 way in the `Live PostgreSQL` and `Live MySQL` jobs, on service containers:
 
 ```bash
 docker run -d --name henri-pg -e POSTGRES_USER=henri -e POSTGRES_PASSWORD=henri \
   -e POSTGRES_DB=henri_test -p 5432:5432 postgres:17
 HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:5432/henri_test pnpm test:sql
+```
+
+**SQL Server is the third one, and it is not in the CI.** `@usehenri/mssql`
+is the only way an application reaches Sequelize, so it is the dialect that
+matters most here and the one nothing ever ran against; `compose.yaml` has
+the server and `pnpm test:sql:mssql` points the `sequelize`, `mssql`, `jobs`
+and `webhooks` projects at it. Whether it becomes a fourth service container
+on every pull request is a cost decision and it belongs to whoever pays for
+the minutes. What it would take: a `Live SQL Server` job shaped exactly like
+`Live MySQL`, one `mcr.microsoft.com/mssql/server:2022-latest` service with
+`ACCEPT_EULA` and `MSSQL_SA_PASSWORD` and a `sqlcmd` health command, and
+`HENRI_TEST_MSSQL_URL` on `pnpm test:sql:mssql`. Developer edition is free
+for that, so there is no licence in the way. What it would cost: the image
+is about 1.5GB unpacked -- three or four times the postgres one -- so a
+minute or so of pull, ten to twenty seconds of boot before it answers, and
+roughly a minute of tests, on top of the checkout and the install every job
+already pays; call it four runner-minutes a run, in parallel with the
+others. There is no arm64 build, which does not matter on
+`ubuntu-latest` and means Apple Silicon runs it under Docker Desktop's
+amd64 emulation locally (it works, and starts in about twenty seconds).
+Until then it runs locally, and a tranche that touches
+`@usehenri/sequelize`, `@usehenri/jobs` or `@usehenri/webhooks` should run
+it.
+
+```bash
+HENRI_MSSQL_PORT=51433 pnpm db:up            # or just `pnpm db:up` on 1433
+HENRI_MSSQL_PORT=51433 pnpm test:sql:mssql
 ```
 
 Applications built with henri run their own tests with `henri test`, which
@@ -1755,9 +1784,14 @@ the LICENSE and a README into every public package at publish time
   development and production, the full scaffold) but is younger than the React
   one; its options may still change.
 - The SQL adapters run their suites against sqlite by default and against a
-  live PostgreSQL or MySQL server with `HENRI_TEST_POSTGRES_URL` /
-  `HENRI_TEST_MYSQL_URL` (see above); MSSQL is only covered offline (its
-  generated DDL), and no adapter is exercised against MariaDB. The
+  live PostgreSQL, MySQL or SQL Server with `HENRI_TEST_POSTGRES_URL` /
+  `HENRI_TEST_MYSQL_URL` / `HENRI_TEST_MSSQL_URL` (see above). **SQL Server
+  is exercised now** (`pnpm db:up` brings one, `pnpm test:sql:mssql` points
+  the `sequelize`, `mssql` and `jobs` suites at it) and it is **not in the
+  CI**, which is a cost decision rather than an oversight: the image is
+  1.5GB, has no arm64 build, and the run is a minute. What is _still_ only
+  offline there is what has no Sequelize suite at all -- multi-tenancy, the
+  call log -- and no adapter is exercised against MariaDB. The
   `postgresql` and `mysql` suites are thin now that those packages are
   `@usehenri/drizzle` with a dialect chosen -- they check the choosing and
   reach the server; the model API, the schema format and the migrations are
@@ -1765,7 +1799,8 @@ the LICENSE and a README into every public package at publish time
   `@usehenri/sequelize`'s own suites still run on sqlite and, when a server
   is there, on PostgreSQL and MySQL: not because an application reaches
   those through Sequelize any more, but because they are the servers
-  available to exercise the base class MSSQL rides on. The mssql
+  available to exercise the base class MSSQL rides on, and because the CI
+  runs them. The mssql
   adapter has no migrations and is not getting any: `sequelize.sync()`
   creates the tables that are missing in development, a production boot
   changes nothing unless the store sets `sync: true`, and `henri db:status`
@@ -1773,18 +1808,19 @@ the LICENSE and a README into every public package at publish time
   it and the models disagree about, with `--sql` writing the DDL for a
   person to review. Generated, versioned migrations are Drizzle's, and
   `website/src/content/docs/upgrading.md` has the path from one to the
-  other. The drift comparison is exercised on sqlite, PostgreSQL and MySQL;
-  on MSSQL neither it nor the DDL it would write is covered, and sqlite
-  reports a column change without a statement because it has no
-  `ALTER COLUMN`.
+  other. The drift comparison is exercised on sqlite, PostgreSQL, MySQL and
+  SQL Server -- including the `ALTER` it writes, run against the server that
+  has to accept it -- and sqlite reports a column change without a statement
+  because it has no `ALTER COLUMN`.
 - `adapter.describe()` is new. It is covered on sqlite offline and on the
   live PostgreSQL and MySQL of `pnpm test:sql:live` for both SQL adapters
   (`packages/{drizzle,sequelize}/__tests__/describe.spec.js`), and on
   MongoDB by `packages/mongoose/__tests__/describe.spec.js` and through the
-  demo application core's suite boots. MSSQL rides the Sequelize
-  implementation with no coverage of its own, like the rest of that
-  adapter, and mariadb is not exercised (`@usehenri/mysql`'s dialect entry
-  is what a mariadb store would use). Deliberately left: **no row counts**
+  demo application core's suite boots. It runs on SQL Server too
+  (`pnpm test:sql:mssql`), where `values` is null on an `enum` column and
+  that is the right answer: there is no `ENUM` in that catalogue because
+  there is none in that dialect. mariadb is not exercised
+  (`@usehenri/mysql`'s dialect entry is what a mariadb store would use). Deliberately left: **no row counts**
   (`SELECT count(*)` is a scan per table, and the `query` tool already
   answers it), **no columns for a table no model claims** -- they are named
   and nothing else, because `DESCRIBE <table>` through the query endpoint
@@ -1865,9 +1901,9 @@ the LICENSE and a README into every public package at publish time
   in the prebuilt binaries and absent from some distribution packages, and
   `HENRI_UPLOAD_VARIANT_FAILED` is what an application sees when it is.
 - `@usehenri/webhooks` is new in 1.2. The endpoints are covered on sqlite
-  (and on a live PostgreSQL or MySQL with `pnpm test:sql:live`) and on
-  MongoDB; MSSQL only has its generated DDL covered offline, like the rest
-  of that adapter. The address rules are exercised with a resolver of the
+  (and on a live PostgreSQL or MySQL with `pnpm test:sql:live`), on SQL
+  Server (`pnpm test:sql:mssql`, which is the one of the three that runs
+  this project) and on MongoDB. The address rules are exercised with a resolver of the
   suite's own rather than against the network, and the deliveries against a
   loopback server, which is exactly what the rules refuse -- so the tests
   that prove a refusal and the tests that prove a delivery are different
@@ -1908,22 +1944,27 @@ the LICENSE and a README into every public package at publish time
   `packages/{sequelize,drizzle}/__tests__/retention.spec.js`, which run on
   sqlite offline and on the live PostgreSQL and MySQL of
   `pnpm test:sql:live`. The showcase proves both on a real application
-  (`showcase/test/retention.test.js`). MSSQL has only its generated DDL
-  covered, like the rest of that adapter.
+  (`showcase/test/retention.test.js`), and the Sequelize file also runs on
+  the SQL Server of `pnpm test:sql:mssql`.
 - `@usehenri/jobs` is new in 1.1. Its claim is covered against sqlite,
   PostgreSQL, MySQL and MongoDB (`packages/jobs/__tests__/claim.spec.js`,
   `mongo.spec.js`; `pnpm test:sql:live` runs the SQL ones on real servers with
-  concurrent connection pools). MSSQL only has its generated DDL and claim
-  statement covered offline, like the rest of that adapter.
+  concurrent connection pools). **SQL Server too**: `pnpm test:sql:mssql`
+  runs the same file with four runners and their own pools, so
+  `UPDATE ... WHERE id IN (SELECT TOP (n) ... WITH (UPDLOCK, READPAST))` --
+  the SKIP LOCKED of that dialect -- is a measured claim rather than a
+  snapshotted string.
 - The **concurrency limits** are new. `packages/jobs/__tests__/
 concurrency.spec.js` proves the negative property the way `claim.spec.js`
   proves the claim -- a queue and a connection pool per runner, and the jobs
   themselves recording their overlap (`__tests__/live.js`), because a count
   taken afterwards cannot tell two jobs that overlapped from two that did
-  not. It runs on sqlite offline and on the live PostgreSQL and MySQL, and
-  the same file also downgrades a table (`ALTER TABLE ... DROP COLUMN`) to
-  prove the upgrade path on a real server; MongoDB has its own in
-  `mongo.spec.js`, MSSQL only its DDL. **Batches** are proved the same way
+  not. It runs on sqlite offline and on the live PostgreSQL, MySQL and SQL
+  Server, and the same file also downgrades a table
+  (`ALTER TABLE ... DROP COLUMN`) to prove the upgrade path on a real
+  server -- on SQL Server the index has to come off the column first, which
+  is what `dropIndex()` in the jobs helpers is for; MongoDB has its own in
+  `mongo.spec.js`. **Batches** are proved the same way
   (`packages/jobs/__tests__/batch.spec.js`, and a `batches` block in
   `mongo.spec.js`): a queue and a pool per runner, and the callback itself
   recording what it saw -- one entry per run, plus how many jobs of its
@@ -1949,8 +1990,9 @@ concurrency.spec.js` proves the negative property the way `claim.spec.js`
   (`packages/drizzle/__tests__/calls.spec.js`), and on MongoDB through the
   demo application core's suite boots. The **partitions only exist on
   PostgreSQL and MySQL**, so that half of the suite is skipped offline;
-  MSSQL has neither partitions nor coverage beyond its generated DDL, like
-  the rest of that adapter. There is no tracing (no span, no propagation
+  the call log has no Sequelize suite at all, so SQL Server is covered
+  there only by its generated DDL (and has no partitions either). There is
+  no tracing (no span, no propagation
   header: the join is the request id and nothing more), no capture of a
   streamed or non-JSON body, and no cross-process ceiling.
 - Model versioning (`options: { versioned: true }`) is new. It is covered
@@ -1958,8 +2000,8 @@ concurrency.spec.js` proves the negative property the way `claim.spec.js`
   `pnpm test:sql:live` (`packages/{drizzle,sequelize}/__tests__/
 versions.spec.js`), and on MongoDB through the demo application core's
   suite boots (`Memo` and `User` are versioned there, which is what
-  exercises the password rule and the envelopes). MSSQL has only its
-  generated DDL covered, like the rest of that adapter. A **mass write is
+  exercises the password rule and the envelopes), and on SQL Server through
+  `pnpm test:sql:mssql`. A **mass write is
   refused rather than recorded row by row**, and that is the tranche's one
   real trade: an application that wants a version per row loops over the
   records (or passes `{ individualHooks: true }` on Sequelize). There is
@@ -1979,17 +2021,27 @@ versions.spec.js`), and on MongoDB through the demo application core's
   the field) rather than reading a value back changed: it has no seam to
   keep the digits as text and cast for a comparison. That is unreachable
   through `henri new` -- sqlite goes to Drizzle and Sequelize is only
-  under `@usehenri/mssql` -- and MSSQL itself has only its generated DDL
-  covered, like the rest of that adapter. henri ships no arithmetic and
-  rounds nothing: a value that does not fit the scale is a validation
+  under `@usehenri/mssql`. **`@usehenri/mssql` refuses `decimal` for the
+  same reason**, found by running these suites against a real SQL Server:
+  tedious reads every DECIMAL as `value / Math.pow(10, scale)`
+  (`lib/value-parser.js`, `readNumeric`), so `DECIMAL(12, 2)` -2.50 comes
+  back -2.5 and `DECIMAL(38, 10)` 12345678901234567890.1234567891 comes
+  back 12345678901234567000 -- silently, which is the whole thing
+  `base/exact.js` exists to stop. There is no driver option and no parser
+  above it (Sequelize's mssql `parserStore` is handed the number tedious
+  already made), so refusing is the only answer that is not a lie; an
+  amount there goes in a `bigint` of cents. A `bigint` **is** exact on SQL
+  Server -- tedious hands that one back as a string -- and the suite writes
+  and reads both ends of the signed 64-bit range. henri ships no arithmetic
+  and rounds nothing: a value that does not fit the scale is a validation
   failure, and what to do about it is the application's.
 - The query seam and the N+1 detector (`config.queries`) are new. They are
   covered on sqlite offline and on the live PostgreSQL and MySQL of
   `pnpm test:sql:live` (`packages/{drizzle,sequelize}/__tests__/
 queries.spec.js`), on MongoDB by `packages/mongoose/__tests__/
 queries.spec.js`, and on a real application by the showcase's cost test.
-  MSSQL rides the Sequelize mapping and has no coverage of its own, like the
-  rest of that adapter. Three limits are deliberate and in the guide: the
+  and on SQL Server through `pnpm test:sql:mssql`. Three limits are
+  deliberate and in the guide: the
   detector counts **model calls**, so a statement count is a different
   number and the showcase keeps one counter of each, labelled; a Mongoose
   `populate` reports one event per operation rather than one per model call,
@@ -2012,8 +2064,8 @@ queries.spec.js`, and on a real application by the showcase's cost test.
   `pnpm test:sql:live` (`packages/{drizzle,sequelize}/__tests__/
 filters.spec.js`), on MongoDB through the demo application core's suite
   boots (`get /memos/search`), and on a real index page by the showcase.
-  MSSQL rides the Sequelize mapping and has no coverage of its own, like
-  the rest of that adapter. There is no `or` between filters, no free-text
+  and on SQL Server through `pnpm test:sql:mssql`. There is no `or` between
+  filters, no free-text
   search across columns, no cursor paging, no filtering across an
   association and no operator an application can add.
 - `res.csv()` is new. What was **deliberately left**: no other delimiter
@@ -2054,8 +2106,7 @@ filters.spec.js`), on MongoDB through the demo application core's suite
 false` columns of the user model), sqlite offline and the live PostgreSQL
   and MySQL of `pnpm test:sql:live`
   (`packages/{drizzle,sequelize}/__tests__/embeds.spec.js`, which also
-  count the statements). MSSQL rides the Sequelize path with no coverage of
-  its own, like the rest of that adapter.
+  count the statements), and SQL Server through `pnpm test:sql:mssql`.
 - Model validations (`validates`) are new, and this is the tranche that
   landed the declaration plus the validators that work identically on all
   three. What was **deliberately left**: no `unique` (argued above and in
@@ -2071,8 +2122,7 @@ false` columns of the user model), sqlite offline and the live PostgreSQL
   `validate` object -- which is why a `validate` function there now fails
   the boot pointing at `validates` rather than doing nothing. Coverage:
   sqlite and MongoDB offline, PostgreSQL and MySQL through
-  `pnpm test:sql:live`; MSSQL rides the Sequelize wiring with no coverage
-  of its own, like the rest of that adapter. Two known holes henri refuses
+  `pnpm test:sql:live`, and SQL Server through `pnpm test:sql:mssql`. Two known holes henri refuses
   rather than checks are in the error catalogue
   (`HENRI_MODEL_VALIDATION_UNCHECKED_WRITE`), and `Model.upsert()` on
   Sequelize is treated as a partial write, so a required column it does
@@ -2099,8 +2149,9 @@ model` gained `status:string:enum=draft,live` in the CLI tranche below,
   (`packages/{drizzle,mongoose,sequelize}/__tests__/enums.spec.js`, plus
   the demo application in `packages/core/src/__tests__/enums.spec.js`),
   PostgreSQL and MySQL through `pnpm test:sql:live`, and the showcase's
-  `Proposal` on a real application. MSSQL rides the Sequelize wiring with
-  no coverage of its own, like the rest of that adapter.
+  `Proposal` on a real application, and SQL Server through
+  `pnpm test:sql:mssql` (where an `enum` is an `NVARCHAR` held by an `isIn`
+  rule, since that dialect has no `ENUM` column of its own).
 - Multi-tenancy (`config.tenancy`) is new, and this tranche landed the
   column, the resolution, the query default and the refusals. The negative
   property -- tenant A cannot read or write tenant B's rows -- is proved on
@@ -2113,8 +2164,10 @@ model` gained `status:string:enum=draft,live` in the CLI tranche below,
   and the refused sign-in -- is
   `packages/core/src/__tests__/tenancy-http.spec.js`, which boots the demo
   application with `HENRI_CONFIG_JSON__tenancy`. MSSQL rides the
-  Sequelize wiring and has **no coverage of its own**, like the rest of that
-  adapter. What was **deliberately left**: `henri_jobs` carries no `tenant`
+  Sequelize wiring and has **no coverage of its own**: the rest of that
+  adapter runs against a real SQL Server now
+  (`pnpm test:sql:mssql`), but there is no Sequelize tenancy suite for it
+  to point at. What was **deliberately left**: `henri_jobs` carries no `tenant`
   column, so a job's tenant travels in its arguments and
   `henri jobs:list --tenant` does not exist -- the queue's tables are
   `CREATE TABLE IF NOT EXISTS` with no migration path, so adding a column
@@ -2142,9 +2195,10 @@ model` gained `status:string:enum=draft,live` in the CLI tranche below,
   Coverage: sqlite and MongoDB offline, PostgreSQL and MySQL through
   `pnpm test:sql:live`, the demo application's own `Article` resource for
   the router and the HAL links, and
-  `packages/cli/__tests__/generate.spec.js` for the generator. MSSQL
-  rides the Sequelize wiring with no coverage of its own, like the rest
-  of that adapter.
+  `packages/cli/__tests__/generate.spec.js` for the generator, and SQL
+  Server through `pnpm test:sql:mssql` -- which is what found that a
+  duplicate slug answered the name SQL Server gave the constraint instead
+  of the field (`Sql#nameUniqueConstraints`).
 - The migration safety checks are new. What they read is **one file**: a
   migration that is safe on its own and catastrophic next to the deploy it
   ships with is not something a file can show, so the deploy order is not

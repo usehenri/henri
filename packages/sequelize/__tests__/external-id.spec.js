@@ -36,7 +36,12 @@ describe(`external id (${target.name})`, () => {
     expect(task.externalId).toMatch(UUIDV7);
     expect(attribute.field).toBe('external_id');
     expect(attribute.allowNull).toBe(false);
-    expect(attribute.unique).toBe(true);
+    // `true` everywhere but SQL Server, where henri names the constraint so
+    // that a duplicate answers the field and not `UQ__Tasks__32DD1E4C`
+    // (../index.js, nameUniqueConstraints)
+    expect(attribute.unique).toBe(
+      target.name === 'mssql' ? 'Task_externalId_unique' : true
+    );
     // A function default is generated per row and never lands in the DDL
     expect(typeof attribute.defaultValue).toBe('function');
   });

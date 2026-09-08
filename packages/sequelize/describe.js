@@ -65,7 +65,10 @@ const attributesOf = (model) => {
  * its own and `describeTable()` hands the values back in `special`, while
  * mysql spells them inside the type. `values` means the same thing on both
  * here, so that a reader never has to parse a type string on one dialect
- * and read a field on the other.
+ * and read a field on the other. sqlite and SQL Server have no such column
+ * -- an `enum` is TEXT or NVARCHAR there, held by an `isIn` validator
+ * (./schema.js) -- so `values` is null on those two, which is what the
+ * database holds and the whole point of asking it.
  *
  * @param {string} type The type describeTable() answered
  * @returns {?Array<string>} The values, or null when it is not an enum

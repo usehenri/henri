@@ -5,15 +5,20 @@
 #   pnpm db:up             start them and wait until they answer
 #   pnpm test:sql:live     the SQL suites against postgres, then against mysql
 #   pnpm test:sql:postgres one of the two on its own
+#   pnpm test:sql:mssql    the sequelize, jobs and webhooks suites on SQL Server
 #   pnpm test:redis        the shared store suite against the redis below
 #   pnpm db:down           stop them, keeping the data
 #   pnpm db:reset          stop them and delete the data
+#
+# The `Live PostgreSQL` and `Live MySQL` jobs are the two the CI runs; the
+# SQL Server below is local only, and the note beside it says what putting it
+# in the CI would cost.
 #
 # Nothing else in the repository needs Docker: `pnpm test` runs on sqlite and
 # an in-process MongoDB, offline. The host ports can be moved when something
 # else already listens on them:
 #
-#   HENRI_POSTGRES_PORT=55432 HENRI_MYSQL_PORT=53306 pnpm db:up
+#   HENRI_POSTGRES_PORT=55432 HENRI_MYSQL_PORT=53306 HENRI_MSSQL_PORT=51433 pnpm db:up
 
 name: henri
 
@@ -67,6 +72,41 @@ services:
       timeout: 5s
       retries: 20
 
+  # SQL Server, which is the one server `@usehenri/mssql` (and the
+  # `@usehenri/sequelize` under it) can be exercised against. Developer
+  # edition, which is free for development and testing; `ACCEPT_EULA` is the
+  # image's own switch and is set here the way the others set a root password.
+  #
+  # Two things are different from the servers above. There is no arm64 image,
+  # so on Apple Silicon this runs under Docker Desktop's amd64 emulation --
+  # slower to start, and it wants the 2GB SQL Server asks for. And the
+  # password is not `henri`: SQL Server enforces its own policy (eight
+  # characters over three of upper, lower, digit and symbol) and refuses to
+  # start without one, so `HENRI_TEST_MSSQL_URL` carries this one.
+  #
+  #   pnpm test:sql:mssql
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: 'Y'
+      MSSQL_SA_PASSWORD: Henri_Passw0rd
+      MSSQL_PID: Developer
+    ports:
+      - '${HENRI_MSSQL_PORT:-1433}:1433'
+    volumes:
+      - mssql:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          '/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1"',
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
   # The shared store of `config.shared`: where the rate limit, the sign-in
   # lockout and the idempotency keys are counted when an application runs
   # more than one process. `@usehenri/redis` talks to it, and its suites run
@@ -85,3 +125,4 @@ volumes:
   postgres:
   mysql:
   mongo:
+  mssql:

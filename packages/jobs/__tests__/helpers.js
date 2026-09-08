@@ -97,6 +97,41 @@ const build = async (options = {}) => {
 };
 
 /**
+ * Drops an index, whatever the dialect spells it
+ *
+ * The downgrade helpers of the upgrade suites take a table back to what an
+ * older henri wrote, and dropping an index is the one statement the four
+ * dialects have no common spelling for: MySQL puts it on the table,
+ * PostgreSQL and sqlite take the name alone, and SQL Server needs both
+ * (`DROP INDEX <name> ON <table>`) -- and refuses to drop a column an index
+ * still covers, which is what made these suites the only two that could
+ * not run against it.
+ *
+ * @param {object} store A SqlStore
+ * @param {string} table The table the index is on
+ * @param {string} index The index name
+ * @returns {Promise<void>} Resolves when it is gone, or was never there
+ */
+const dropIndex = async (store, table, index) => {
+  const spellings = [
+    `DROP INDEX IF EXISTS ${index} ON ${table}`,
+    `DROP INDEX IF EXISTS ${index}`,
+    `ALTER TABLE ${table} DROP INDEX ${index}`,
+  ];
+
+  for (const statement of spellings) {
+    const dropped = await store.run(statement).then(
+      () => true,
+      () => false
+    );
+
+    if (dropped) {
+      return;
+    }
+  }
+};
+
+/**
  * Stops the adapters a suite opened
  *
  * @param {Array<object>} adapters The adapters
@@ -108,4 +143,12 @@ const close = async (adapters) => {
   }
 };
 
-module.exports = { adapterFor, build, close, fakeHenri, sharedKey, target };
+module.exports = {
+  adapterFor,
+  build,
+  close,
+  dropIndex,
+  fakeHenri,
+  sharedKey,
+  target,
+};

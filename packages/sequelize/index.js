@@ -330,6 +330,10 @@ class Sql {
       });
     }
 
+    // Last, so that it covers every unique column: the ones the model file
+    // declared and the three henri adds (externalId, slug, email)
+    this.nameUniqueConstraints(attributes, model);
+
     const instance = lookup(
       paginate(connector.define(model.globalId, attributes, options)),
       external,
@@ -433,6 +437,46 @@ class Sql {
       type: DataTypes.STRING(lengthOf(declaration)),
       unique: true,
     };
+
+    return attributes;
+  }
+
+  /**
+   * Gives every unique column a constraint name, on SQL Server only
+   *
+   * A duplicate answers `{ field: 'must be unique' }` on every adapter --
+   * the sentence `henri.model.errors()` promises, and the one a slug rests
+   * on, since henri never claims `unique` as a validation. On SQL Server it
+   * did not: an inline `UNIQUE` is named by the server
+   * (`UQ__Articles__32DD1E4C`), Sequelize looks that name up in
+   * `Model.uniqueKeys` -- which is keyed by the name it computed itself --
+   * misses, and hands the constraint name back **as the field**. So a
+   * duplicate slug answered
+   * `{ UQ__Articles__32DD1E4C507CA19A: 'UQ__Articles__32DD1E4C507CA19A must
+   * be unique' }`, which is not a field of anything and puts the database's
+   * internal naming in a 422 body.
+   *
+   * Naming the constraint is what makes that lookup hit, and it is done
+   * here rather than in ./schema.js so that the columns henri adds itself
+   * are covered too. Only on mssql: the other three dialects report the
+   * column on their own, and renaming a constraint there would move one in
+   * every database that already exists.
+   *
+   * @param {object} attributes The Sequelize attributes, changed in place
+   * @param {object} model The model file (`globalId`)
+   * @returns {object} The attributes
+   * @memberof Sql
+   */
+  nameUniqueConstraints(attributes, model) {
+    if (this.ensureConnector().getDialect() !== 'mssql') {
+      return attributes;
+    }
+
+    for (const [field, attribute] of Object.entries(attributes)) {
+      if (attribute && attribute.unique === true) {
+        attribute.unique = `${model.globalId}_${field}_unique`;
+      }
+    }
 
     return attributes;
   }

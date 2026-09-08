@@ -1,14 +1,19 @@
 // `decimal` and `bigint` on the Sequelize adapter.
 //
 // This adapter is reachable through `@usehenri/mssql` and nothing else,
-// because Drizzle has no SQL Server dialect -- so the round trip is proved
-// on the servers that are there to exercise the base class, the PostgreSQL
-// and MySQL of `pnpm test:sql:live`, and offline the suite proves the one
-// thing that runs everywhere: the refusal. Sequelize reads a sqlite
-// DECIMAL through a double and a BIGINT past 2^53 loses its digits, and
-// there is no seam in this adapter to store the digits as text and cast
-// for a comparison the way @usehenri/drizzle does on sqlite, so a model
-// asking for either fails the boot naming the model and the field.
+// because Drizzle has no SQL Server dialect. The round trip runs on all
+// three live servers -- the PostgreSQL and MySQL of `pnpm test:sql:live`,
+// which exercise the base class, and the SQL Server of
+// `pnpm test:sql:mssql`, which is the one an application actually reaches
+// -- and offline the suite proves what runs everywhere: the refusals.
+//
+// There are two of those, and both are a driver reading an exact column
+// through a double. Sequelize reads a sqlite DECIMAL that way and loses a
+// BIGINT past 2^53, and tedious reads every SQL Server DECIMAL that way
+// (measured, not assumed: see `what mssql refuses` below). There is no
+// seam in this adapter to store the digits as text and cast for a
+// comparison the way @usehenri/drizzle does on sqlite, so a model asking
+// for a type its dialect would change fails the boot naming the field.
 const { DataTypes } = require('sequelize');
 const { normalizeSchema } = require('../schema');
 const { build, target } = require('./helpers');
@@ -56,7 +61,7 @@ describe(`decimal and bigint (${target.name})`, () => {
     });
 
     test('every other dialect takes them', () => {
-      for (const dialect of ['postgres', 'mysql', 'mssql']) {
+      for (const dialect of ['postgres', 'mysql']) {
         const { attributes } = normalizeSchema(
           {
             amount: { precision: 12, scale: 2, type: 'decimal' },
@@ -68,6 +73,38 @@ describe(`decimal and bigint (${target.name})`, () => {
         expect(attributes.amount.type.toSql()).toMatch(/DECIMAL\(12, ?2\)/u);
         expect(String(attributes.reference.type.key)).toBe('BIGINT');
       }
+    });
+  });
+
+  // The same downgrade one type narrower, and it was found by running these
+  // suites against a real SQL Server: tedious reads every DECIMAL as
+  // `value / Math.pow(10, scale)`, so DECIMAL(12, 2) -2.50 comes back -2.5
+  // and DECIMAL(38, 10) 12345678901234567890.1234567891 comes back
+  // 12345678901234567000. A BIGINT is handed back as a string and is exact
+  describe('what mssql refuses', () => {
+    test('a decimal on mssql fails the boot naming the driver', () => {
+      let error = null;
+
+      try {
+        normalizeSchema(
+          { amount: { precision: 12, scale: 2, type: 'decimal' } },
+          { dialect: 'mssql', model: 'Invoice' }
+        );
+      } catch (thrown) {
+        error = thrown;
+      }
+
+      expect(error.code).toBe('HENRI_MODEL_TYPE_UNSUPPORTED');
+      expect(error.message).toMatch(/tedious driver reads every DECIMAL/u);
+    });
+
+    test('a bigint is taken: tedious hands that one back as a string', () => {
+      const { attributes } = normalizeSchema(
+        { reference: { type: 'bigint' } },
+        { dialect: 'mssql', model: 'Invoice' }
+      );
+
+      expect(String(attributes.reference.type.key)).toBe('BIGINT');
     });
   });
 
@@ -115,6 +152,19 @@ describe(`decimal and bigint (${target.name})`, () => {
 
   // On a live server, the same round trip the other two adapters prove
   const live = target.name === 'sqlite' ? describe.skip : describe;
+  // SQL Server carries the bigint half of it and refuses the other, so the
+  // model it runs is the model without the decimals
+  const noDecimal = target.name === 'mssql';
+  const roundTripModel =
+    target.name === 'mssql'
+      ? {
+          ...invoiceModel,
+          schema: {
+            name: invoiceModel.schema.name,
+            reference: invoiceModel.schema.reference,
+          },
+        }
+      : invoiceModel;
 
   live('the round trip', () => {
     let adapter;
@@ -122,7 +172,7 @@ describe(`decimal and bigint (${target.name})`, () => {
 
     beforeAll(async () => {
       ({ adapter } = build());
-      Invoice = adapter.addModel(invoiceModel);
+      Invoice = adapter.addModel(roundTripModel);
       await adapter.start();
       await adapter.connector.sync({ force: true });
     });
@@ -131,33 +181,42 @@ describe(`decimal and bigint (${target.name})`, () => {
       await adapter.stop();
     });
 
-    test('a decimal comes back at its scale, exactly', async () => {
-      for (const [given, expected] of [
-        ['19.99', '19.99'],
-        [19.99, '19.99'],
-        ['19.9900', '19.99'],
-        ['-2.5', '-2.50'],
-      ]) {
-        const created = await Invoice.create({ amount: given, name: 'x' });
-        const read = await Invoice.findByPk(created.id);
+    test.skipIf(noDecimal)(
+      'a decimal comes back at its scale, exactly',
+      async () => {
+        for (const [given, expected] of [
+          ['19.99', '19.99'],
+          [19.99, '19.99'],
+          ['19.9900', '19.99'],
+          ['-2.5', '-2.50'],
+        ]) {
+          const created = await Invoice.create({ amount: given, name: 'x' });
+          const read = await Invoice.findByPk(created.id);
 
-        expect(created.amount).toBe(expected);
-        expect(read.amount).toBe(expected);
-        expect(JSON.parse(JSON.stringify(read)).amount).toBe(expected);
+          expect(created.amount).toBe(expected);
+          expect(read.amount).toBe(expected);
+          expect(JSON.parse(JSON.stringify(read)).amount).toBe(expected);
+        }
       }
-    });
+    );
 
-    test('a cent added a hundred times is a dollar, exactly', async () => {
-      const created = await Invoice.create({ amount: '1.00', name: 'cents' });
+    test.skipIf(noDecimal)(
+      'a cent added a hundred times is a dollar, exactly',
+      async () => {
+        const created = await Invoice.create({ amount: '1.00', name: 'cents' });
 
-      expect((await Invoice.findByPk(created.id)).amount).toBe('1.00');
-    });
+        expect((await Invoice.findByPk(created.id)).amount).toBe('1.00');
+      }
+    );
 
-    test('0.1 + 0.2 is refused rather than stored', async () => {
-      await expect(
-        Invoice.create({ name: 'float', rate: 0.1 + 0.2 })
-      ).rejects.toThrow(/at most 4 decimal places/u);
-    });
+    test.skipIf(noDecimal)(
+      '0.1 + 0.2 is refused rather than stored',
+      async () => {
+        await expect(
+          Invoice.create({ name: 'float', rate: 0.1 + 0.2 })
+        ).rejects.toThrow(/at most 4 decimal places/u);
+      }
+    );
 
     test('a bigint past 2^53 comes back whole', async () => {
       for (const reference of [
@@ -174,10 +233,16 @@ describe(`decimal and bigint (${target.name})`, () => {
       }
     });
 
-    test('the bounds of the column are refused, not rounded', async () => {
-      await expect(
-        Invoice.create({ amount: '19.999', name: 'precise' })
-      ).rejects.toThrow(/at most 2 decimal places/u);
+    test.skipIf(noDecimal)(
+      'the bounds of a decimal are refused, not rounded',
+      async () => {
+        await expect(
+          Invoice.create({ amount: '19.999', name: 'precise' })
+        ).rejects.toThrow(/at most 2 decimal places/u);
+      }
+    );
+
+    test('the bounds of a bigint are refused, not rounded', async () => {
       await expect(
         Invoice.create({ name: 'past', reference: '9223372036854775808' })
       ).rejects.toThrow(/between -9223372036854775808/u);

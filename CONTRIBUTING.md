@@ -31,10 +31,11 @@ The first test run downloads a MongoDB binary for the disk adapter
 
 `@usehenri/sequelize`, its dialect packages and `@usehenri/drizzle` run their
 suites on sqlite, so `pnpm test` needs no server and no network. Point
-`HENRI_TEST_POSTGRES_URL` or `HENRI_TEST_MYSQL_URL` at a server and the same
+`HENRI_TEST_POSTGRES_URL`, `HENRI_TEST_MYSQL_URL` or `HENRI_TEST_MSSQL_URL`
+at a server and the same
 suites run against it, each store in a `henri_test_*` database of its own,
-dropped when the file is done (`HENRI_TEST_SQL_DIALECT` picks one when both
-variables are set). The account needs the right to create databases:
+dropped when the file is done (`HENRI_TEST_SQL_DIALECT` picks one when
+several variables are set). The account needs the right to create databases:
 
 ```bash
 docker run -d --name henri-pg -e POSTGRES_USER=henri -e POSTGRES_PASSWORD=henri \
@@ -45,6 +46,19 @@ docker run -d --name henri-mysql -e MYSQL_ROOT_PASSWORD=henri \
 HENRI_TEST_POSTGRES_URL=postgres://henri:henri@127.0.0.1:5432/henri_test pnpm test:sql
 HENRI_TEST_MYSQL_URL=mysql://root:henri@127.0.0.1:3306/henri_test pnpm test:sql
 ```
+
+`pnpm db:up` starts all of them from `compose.yaml`, SQL Server included.
+That third one is the dialect `@usehenri/mssql` actually runs on, and the CI
+does **not** have it -- so run it yourself when a change touches
+`@usehenri/sequelize`, `@usehenri/jobs` or `@usehenri/webhooks`:
+
+```bash
+HENRI_MSSQL_PORT=51433 pnpm db:up
+HENRI_MSSQL_PORT=51433 pnpm test:sql:mssql
+```
+
+There is no arm64 image for SQL Server; on Apple Silicon Docker Desktop runs
+the amd64 one under emulation, which works.
 
 ## Pull requests
 

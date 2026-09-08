@@ -184,7 +184,15 @@ describe('mssql database adapter', () => {
     expect(tasks).toContain('[name] NVARCHAR(255) NOT NULL');
     expect(tasks).toContain('[createdAt] DATETIMEOFFSET NOT NULL');
 
-    expect(users).toContain('[email] NVARCHAR(255) NOT NULL UNIQUE');
+    expect(users).toContain('[email] NVARCHAR(255) NOT NULL');
+    // Every unique column is a *named* constraint here and only here: SQL
+    // Server names an inline UNIQUE itself and Sequelize then reports the
+    // constraint name where the column belongs, so a duplicate answered
+    // `{ UQ__Users__A9D10534: ... }` instead of `{ email: ... }`
+    expect(users).toContain('CONSTRAINT [User_email_unique] UNIQUE ([email])');
+    expect(users).toContain(
+      'CONSTRAINT [User_externalId_unique] UNIQUE ([external_id])'
+    );
     expect(users).toContain('[password] NVARCHAR(255) NOT NULL');
     // No JSON type on mssql: TEXT with a JSON getter and setter
     expect(users).toContain(`[roles] NVARCHAR(MAX) DEFAULT N'["member"]'`);

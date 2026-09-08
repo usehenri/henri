@@ -4,33 +4,37 @@ const { Sequelize } = require('sequelize');
  * The database the adapter suites run on.
  *
  * Nothing set: an in-memory sqlite database, as before, so `pnpm test`
- * stays fast and offline. With `HENRI_TEST_POSTGRES_URL` or
- * `HENRI_TEST_MYSQL_URL` in the environment the same suites run against
- * that server instead; `HENRI_TEST_SQL_DIALECT` picks one when both are
- * set (postgres wins otherwise).
+ * stays fast and offline. With `HENRI_TEST_POSTGRES_URL`,
+ * `HENRI_TEST_MYSQL_URL` or `HENRI_TEST_MSSQL_URL` in the environment the
+ * same suites run against that server instead; `HENRI_TEST_SQL_DIALECT`
+ * picks one when several are set (postgres, then mysql, then mssql).
  *
  * The url in the environment is only used to connect and to create
  * databases: every store gets its own `henri_test_*` database so the test
  * files, which vitest runs in parallel, never share a table. They are
  * dropped when the file is done (`cleanup()`, called by the helpers).
  *
- * Only `@usehenri/mssql` reaches Sequelize now, and no CI job runs a SQL
- * Server. The PostgreSQL and MySQL servers are what is available to
- * exercise the base class that adapter rides on, which is why these suites
- * still run against them.
+ * Only `@usehenri/mssql` reaches Sequelize now, so SQL Server is the server
+ * that matters here and `compose.yaml` has one (`pnpm test:sql:mssql`). The
+ * PostgreSQL and MySQL servers stay: they are what the CI runs, and they
+ * exercise the same base class on the two dialects an application used to
+ * reach through it.
  */
 
 const ENV = {
+  mssql: 'HENRI_TEST_MSSQL_URL',
   mysql: 'HENRI_TEST_MYSQL_URL',
   postgres: 'HENRI_TEST_POSTGRES_URL',
 };
 
 const ALIASES = {
   mariadb: 'mysql',
+  mssql: 'mssql',
   mysql: 'mysql',
   pg: 'postgres',
   postgres: 'postgres',
   postgresql: 'postgres',
+  sqlserver: 'mssql',
 };
 
 // One prefix per process, so parallel workers never pick the same name
@@ -39,11 +43,11 @@ const RUN = `${process.pid.toString(36)}${Math.random().toString(36).slice(2, 6)
 /**
  * The dialect asked for in the environment
  *
- * @returns {string} sqlite, postgres or mysql
+ * @returns {string} sqlite, postgres, mysql or mssql
  */
 const selected = () => {
   const wanted = ALIASES[String(process.env.HENRI_TEST_SQL_DIALECT || '')];
-  const names = wanted ? [wanted] : ['postgres', 'mysql'];
+  const names = wanted ? [wanted] : ['postgres', 'mysql', 'mssql'];
 
   return names.find((entry) => process.env[ENV[entry]]) || 'sqlite';
 };
@@ -93,13 +97,41 @@ const databaseFor = (key) => {
 };
 
 /**
+ * What SQL Server needs and the other two do not
+ *
+ * The driver: pnpm links strictly, so `require('tedious')` from inside the
+ * sequelize package resolves to nothing. It is a devDependency of this one
+ * and its path is handed over; `pg`, `mysql2` and `sqlite3` are found
+ * because Sequelize declares them itself.
+ *
+ * And the timeouts: tedious gives a request 15 seconds, which is plenty for
+ * one statement (a `CREATE DATABASE` takes 200ms on an idle server) and not
+ * enough for thirty test files asking for one at the same moment --
+ * SQL Server serializes those on the `model` database, and a run under
+ * emulation queues behind itself. The statement is not slow, it is waiting,
+ * so the answer is to wait for it rather than to run the files one at a
+ * time.
+ *
+ * @returns {object} Sequelize options, empty on every other dialect
+ */
+const driverOptions = () =>
+  name === 'mssql'
+    ? {
+        dialectModulePath: require.resolve('tedious'),
+        dialectOptions: {
+          options: { connectTimeout: 60000, requestTimeout: 120000 },
+        },
+      }
+    : {};
+
+/**
  * The connection to the server itself, opened once per test file
  *
  * @returns {object} A Sequelize instance
  */
 const adminClient = () => {
   if (!admin) {
-    admin = new Sequelize(baseUrl, { logging: false });
+    admin = new Sequelize(baseUrl, { logging: false, ...driverOptions() });
   }
 
   return admin;
@@ -122,6 +154,11 @@ const createDatabase = async (database) => {
     if (rows.length === 0) {
       await client.query(`CREATE DATABASE "${database}"`);
     }
+  } else if (name === 'mssql') {
+    // SQL Server has no `IF NOT EXISTS` on CREATE DATABASE
+    await client.query(
+      `IF DB_ID(N'${database}') IS NULL CREATE DATABASE [${database}]`
+    );
   } else {
     await client.query(`CREATE DATABASE IF NOT EXISTS \`${database}\``);
   }
@@ -142,10 +179,17 @@ const createDatabase = async (database) => {
  */
 const dropDatabase = async (database) => {
   const client = adminClient();
-  const statement =
-    name === 'postgres'
-      ? `DROP DATABASE IF EXISTS "${database}"`
-      : `DROP DATABASE IF EXISTS \`${database}\``;
+  // SQL Server refuses to drop a database a connection still holds and has
+  // no `WITH (FORCE)`: SINGLE_USER is how the last pool is thrown out
+  const statements = {
+    mssql:
+      `IF DB_ID(N'${database}') IS NOT NULL BEGIN ` +
+      `ALTER DATABASE [${database}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; ` +
+      `DROP DATABASE [${database}]; END`,
+    mysql: `DROP DATABASE IF EXISTS \`${database}\``,
+    postgres: `DROP DATABASE IF EXISTS "${database}"`,
+  };
+  const statement = statements[name] || statements.mysql;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
@@ -200,8 +244,9 @@ const target = {
     }
   },
 
-  // The dialect keeps a native ENUM column type
-  enums: name !== 'sqlite',
+  // The dialect keeps a native ENUM column type. SQL Server has none, so
+  // like sqlite it takes the `isIn` path of ./schema.js
+  enums: name !== 'sqlite' && name !== 'mssql',
   live: Boolean(baseUrl),
   name,
 
@@ -235,8 +280,15 @@ const target = {
    * @param {string} identifier A table or column name
    * @returns {string} The quoted identifier
    */
-  quote: (identifier) =>
-    name === 'mysql' ? `\`${identifier}\`` : `"${identifier}"`,
+  quote: (identifier) => {
+    if (name === 'mysql') {
+      return `\`${identifier}\``;
+    }
+
+    // SQL Server quotes with brackets unless QUOTED_IDENTIFIER is on, which
+    // is not something a raw query in a suite should have to assume
+    return name === 'mssql' ? `[${identifier}]` : `"${identifier}"`;
+  },
 
   /**
    * The store configuration of a database on the target
@@ -253,7 +305,11 @@ const target = {
       };
     }
 
-    return { dialect: name, url: urlFor(databaseFor(key)) };
+    return {
+      dialect: name,
+      ...driverOptions(),
+      url: urlFor(databaseFor(key)),
+    };
   },
 };
 

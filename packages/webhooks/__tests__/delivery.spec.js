@@ -83,6 +83,19 @@ describe('a delivery, end to end', () => {
     registered = [jobs.define(name, job), jobs.define(name, job)];
   }, 60000);
 
+  // Every test in this file registers, emits and works, so nothing pending
+  // is ever meant to survive into the next one -- and a delivery that
+  // failed leaves a retry due 250ms later, which the test after it performs
+  // as one of its own. That never showed on sqlite and shows on SQL Server,
+  // where a test takes longer than the backoff: `performed: 2` where the
+  // test asked for one. The queue is emptied between tests rather than the
+  // backoff lengthened, because the wait is what the retry tests measure
+  beforeEach(async () => {
+    for (const state of ['pending', 'running', 'done', 'dead']) {
+      await jobs.store.remove({ state });
+    }
+  });
+
   test('the delivery job is registered on the queue, once', () => {
     // And an application that wrote its own would win, as it does for mail
     expect(registered).toEqual([true, false]);

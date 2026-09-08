@@ -1,4 +1,4 @@
-const { build } = require('./helpers');
+const { build, target } = require('./helpers');
 const { modelErrors } = require('@usehenri/core/src/base/model-errors');
 
 /**
@@ -49,7 +49,12 @@ describe('slugs on a sequelize store', () => {
 
     test('is unique and not null', () => {
       expect(Article.rawAttributes.slug.allowNull).toBe(false);
-      expect(Article.rawAttributes.slug.unique).toBe(true);
+      // `true` everywhere but SQL Server, where henri names the constraint
+      // so that a duplicate answers `{ slug: ... }` and not the name SQL
+      // Server gave it (../index.js, nameUniqueConstraints)
+      expect(Article.rawAttributes.slug.unique).toBe(
+        target.name === 'mssql' ? 'Article_slug_unique' : true
+      );
     });
 
     test('is filled from the source field on insert', async () => {
