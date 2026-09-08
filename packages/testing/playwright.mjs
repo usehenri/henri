@@ -96,7 +96,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const { setup, teardown } = require('./index.js');
-const { serverUrl } = require('./url.js');
+const { serverUrl, withoutTrailingSlashes } = require('./url.js');
 
 /**
  * The urls a configuration pins that are not the application that was just
@@ -116,7 +116,10 @@ const pinnedElsewhere = (config, url) => {
   for (const project of (config && config.projects) || []) {
     const baseURL = project && project.use && project.use.baseURL;
 
-    if (typeof baseURL !== 'string' || baseURL.replace(/\/+$/u, '') === url) {
+    if (
+      typeof baseURL !== 'string' ||
+      withoutTrailingSlashes(baseURL) === url
+    ) {
       continue;
     }
 

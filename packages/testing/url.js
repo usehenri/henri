@@ -21,6 +21,29 @@
 const WILDCARDS = new Set(['::', '0.0.0.0']);
 
 /**
+ * A url with its trailing slashes taken off, walked rather than matched.
+ *
+ * `/\/+$/` is the polynomial-ReDoS shape a static analyser flags, and this
+ * repository has replaced it three times already -- the rule written in the
+ * headers that were fixed is: walk, don't match. It is a url from a socket
+ * rather than from a request, so this is a defect and not an incident, and
+ * the walk costs nothing either way.
+ *
+ * @param {string} value the url
+ * @returns {string} the url without its trailing slashes
+ */
+function withoutTrailingSlashes(value) {
+  const text = String(value);
+  let end = text.length;
+
+  while (end > 0 && text[end - 1] === '/') {
+    end -= 1;
+  }
+
+  return text.slice(0, end);
+}
+
+/**
  * The host part of a url for a bound address
  *
  * @param {object} address What `httpServer.address()` answered
@@ -53,10 +76,10 @@ const serverUrl = (henri) => {
   // answers null: neither is a url this can build, so the instance's own
   // line is the best there is
   if (!address || typeof address !== 'object') {
-    return server && server.url ? server.url.replace(/\/+$/, '') : null;
+    return server && server.url ? withoutTrailingSlashes(server.url) : null;
   }
 
   return `http://${hostOf(address)}:${address.port}`;
 };
 
-module.exports = { serverUrl };
+module.exports = { serverUrl, withoutTrailingSlashes };
