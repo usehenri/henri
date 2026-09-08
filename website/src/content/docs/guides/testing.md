@@ -212,6 +212,83 @@ Files may run at the same time when **each file gets a database of its own**, wh
 
 Before turning it on, look for what the files still share. The application's directory is the usual answer: an upload root, a receipt directory, a fixture file written by one test and read by another. Anything written there has to be named per record or per process. Then prove it: run the suite ten times, not once. A suite that is fast and flaky is worse than a slow one.
 
+## Browser tests
+
+A [Playwright](https://playwright.dev) suite drives a real browser against a running application, which is one boot for the whole run rather than one per file. `@usehenri/testing/playwright` is that boot, and the whole of what an application writes for it:
+
+```bash
+pnpm add -D @playwright/test
+pnpm exec playwright install
+```
+
+```js
+// playwright.config.js
+module.exports = {
+  globalSetup: '@usehenri/testing/playwright',
+  testDir: './test/browser',
+};
+```
+
+```js
+// test/browser/home.spec.js
+const { expect, test } = require('@playwright/test');
+
+test('a visitor can sign up', async ({ page }) => {
+  await page.goto('/signup');
+  await page.fill('#email', 'ada@example.test');
+  await page.fill('#password', 'a-password-for-the-tests');
+  await page.click('button[type=submit]');
+
+  await expect(page.locator('h1')).toHaveText('Welcome');
+});
+```
+
+`page.goto('/signup')` is a relative path and it reaches the application, on a port nobody chose.
+
+**Why a global setup and not a `baseURL`.** The port is the kernel's answer to `listen(0)`, which happens when henri boots — long after `playwright.config.js` was read. A `baseURL` written in the config file cannot know it. `globalSetup` runs after the config and before the first worker is forked, which is the one window where the number exists and can still be handed to the workers, and Playwright's own fallback is what carries it: `use.baseURL` defaults to `process.env.PLAYWRIGHT_TEST_BASE_URL`, read in the worker when the fixture is set up rather than when the config is loaded.
+
+Measured against **Playwright 1.63.0**, because a claim about another project's precedence is worth nothing without a version:
+
+- a `PLAYWRIGHT_TEST_BASE_URL` exported from a global setup is what `baseURL` answers in every worker;
+- **anything in `use` wins over it** — a `baseURL` in the config file, in a project, or in a `test.use()` beats the variable outright. henri does not fight that: it says so, naming the project and both urls, so a browser that reaches nothing is not something you find out by reading a blank page;
+- `use: { baseURL: undefined }` is not a pin. Reading the variable in the config file, where it is not set yet, writes an explicit `undefined` and still falls through — so the mistake is harmless;
+- `globalSetup` takes a bare package specifier, so the line above needs no `require.resolve` and works the same in a CommonJS or an ESM config file;
+- a function returned from `globalSetup` is run as the global teardown, which is how the application is stopped.
+
+**What a browser test has.** The page, and nothing else. A Playwright worker is another process, so `henri`, the models, `inbox()` and `enqueued()` are not in it — the same limit `@usehenri/testing/global-setup` has under Vitest, for the same reason. A browser test drives the application through the application: it signs up, it fills the form, it reads the page. Assertions about what the application _did_ — the mail it sent, the job it enqueued — stay in the Vitest suite, where they are one process away from the answer.
+
+**What it does about the database: nothing, on purpose.** One server for the whole run is one database for the whole run, and the tests are in other processes, in parallel by default; there is no moment this could empty a table without racing a request in flight, so a `beforeEach` that truncates would be a promise it cannot keep. What it does promise is an empty start — under `NODE_ENV=test` henri loads `config/test.json`, which points at a database of its own (`":memory:"` on the sqlite store, `<name>_test` on a server), so the run begins on an empty schema and, on sqlite, leaves nothing behind.
+
+Seeding is the application's, and its place is a global setup of your own that wraps this one. It runs in the same process as the boot, so `henri`, the models and the factories are all in hand:
+
+```js
+// test/browser/global-setup.mjs
+import { create } from '@usehenri/testing';
+import { boot } from '@usehenri/testing/playwright';
+
+export default async function globalSetup(config) {
+  const { teardown } = await boot(config);
+
+  await create('user', { email: 'ada@example.test' });
+
+  return teardown; // playwright runs it at the end of the run
+}
+```
+
+```js
+// playwright.config.js
+module.exports = {
+  globalSetup: './test/browser/global-setup.mjs',
+  testDir: './test/browser',
+};
+```
+
+The `.mjs` is the one detail worth knowing: Playwright loads a global setup either way, and `@usehenri/testing/playwright` is an ES module, so a wrapper written as CommonJS would need `await import()` rather than `require()` on a Node older than 22.12.
+
+A suite that wants to assume a state between tests wants `workers: 1` as well: with several workers the records one test makes are there for the next one, whichever file it is in.
+
+**Playwright is yours, not henri's.** `@usehenri/testing` does not depend on it and never imports it — Playwright is what loads that file, so an application without the package never reaches it. `henri new` does not add it either: a browser and a few hundred megabytes are not something a scaffold should decide for you. What does notice is [`henri doctor`](/reference/cli/#doctor), which reports a `playwright.config.*` sitting next to a `package.json` that does not depend on `@playwright/test` (`deps.playwright`), with the two install lines.
+
 ## API
 
 `@usehenri/testing` exports:
@@ -227,6 +304,8 @@ Before turning it on, look for what the files still share. The application's dir
 - `supertest` the underlying module.
 
 Without the setup file, boot from the test file itself with `beforeAll(() => setup())` and `afterAll(() => teardown())`. To boot once for the whole run instead of once per file, use `globalSetup: ['@usehenri/testing/global-setup']`: henri then runs in Vitest's main process, tests only reach it over HTTP through `request()`, and `henri` or the model globals are not available in the workers.
+
+Two subpaths sit next to it. `@usehenri/testing/loopback` binds every host-less `listen()` to `127.0.0.1`, for a suite that boots henri its own way. `@usehenri/testing/playwright` is the same one-boot-per-run under Playwright instead of Vitest, and exports `boot(config)` for a global setup of your own.
 
 ## Running
 

@@ -42,6 +42,10 @@ import InertiaEngine from '@usehenri/inertia/engine';
 import withHenriSubpath from '@usehenri/react/withHenri';
 import bindTestServersToLoopback from '@usehenri/testing/loopback';
 import globalSetup from '@usehenri/testing/global-setup';
+import playwrightSetup, {
+  boot as playwrightBoot,
+  type PlaywrightBoot,
+} from '@usehenri/testing/playwright';
 import '@usehenri/testing/setup-file';
 import {
   agent,
@@ -249,6 +253,17 @@ enqueued({ state: 'waiting' });
 expectType<typeof withHenri>(withHenriSubpath);
 expectType<boolean>(bindTestServersToLoopback());
 expectType<Promise<() => Promise<boolean>>>(globalSetup());
+expectType<Promise<() => Promise<boolean>>>(playwrightSetup());
+expectType<Promise<PlaywrightBoot>>(playwrightBoot());
+
+declare const booted: PlaywrightBoot;
+expectType<string>(booted.url);
+expectType<Henri>(booted.henri);
+expectType<Promise<boolean>>(booted.teardown());
+
+// @ts-expect-error the boot answers a url, a henri and a teardown
+booted.port;
+
 expectType<string>(InertiaEngine.componentName('/tasks/'));
 expectType<Promise<{ client: string; duration: number; ssr: string | null }>>(
   InertiaEngine.build({ cwd: '/app' })

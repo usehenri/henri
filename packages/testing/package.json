@@ -29,6 +29,10 @@
       "default": "./loopback.js"
     },
     "./package.json": "./package.json",
+    "./playwright": {
+      "types": "./playwright.d.mts",
+      "default": "./playwright.mjs"
+    },
     "./setup-file": {
       "types": "./setup-file.d.mts",
       "default": "./setup-file.mjs"
@@ -46,8 +50,11 @@
     "loopback.d.ts",
     "loopback.js",
     "mail.js",
+    "playwright.d.mts",
+    "playwright.mjs",
     "setup-file.d.mts",
-    "setup-file.mjs"
+    "setup-file.mjs",
+    "url.js"
   ],
   "engines": {
     "node": ">=22"

@@ -242,6 +242,14 @@ const STORE_KEYS = {
 /** How many keys of a difference are named before the count takes over */
 const NAMED = 5;
 
+/**
+ * What Playwright reads as its configuration, in the order it looks for it
+ * (`resolveConfigFileFromDirectory`, playwright 1.63)
+ */
+const PLAYWRIGHT_CONFIGS = ['ts', 'js', 'mts', 'mjs', 'cts', 'cjs'].map(
+  (extension) => `playwright.config.${extension}`
+);
+
 /** `{name}` in a translation, with `{{` and `}}` as the literal braces */
 const PLACEHOLDER = /\{\{|\}\}|\{([a-z0-9_.]+)\}/giu;
 
@@ -2340,6 +2348,26 @@ const check = (dir = process.cwd()) => {
         }
       );
     }
+  }
+
+  // A browser suite is the one place henri points at a package it does not
+  // ship and cannot load: `@usehenri/testing/playwright` boots the
+  // application and writes `PLAYWRIGHT_TEST_BASE_URL`, and Playwright is
+  // what loads that file. Without the package nothing runs it, and nothing
+  // says why -- so a playwright.config next to a package.json that does not
+  // ask for it is reported here.
+  const playwrightConfig = PLAYWRIGHT_CONFIGS.find((file) => exists(file));
+
+  if (playwrightConfig && !declared['@playwright/test']) {
+    problem(
+      'warning',
+      'deps.playwright',
+      `${playwrightConfig} is here and package.json does not depend on @playwright/test`,
+      {
+        file: 'package.json',
+        hint: `${pm === 'npm' ? 'npm install --save-dev' : `${pm} add -D`} @playwright/test, then install the browsers with ${pm === 'npm' ? 'npx' : `${pm} exec`} playwright install`,
+      }
+    );
   }
 
   // --- security -------------------------------------------------------------

@@ -12,7 +12,10 @@
  */
 import { createRequire } from 'node:module';
 
-const { setup, teardown } = createRequire(import.meta.url)('./index.js');
+const require = createRequire(import.meta.url);
+
+const { setup, teardown } = require('./index.js');
+const { serverUrl } = require('./url.js');
 
 /**
  * Global setup entry
@@ -22,7 +25,10 @@ const { setup, teardown } = createRequire(import.meta.url)('./index.js');
 export default async function globalSetup() {
   const henri = await setup();
 
-  process.env.HENRI_TEST_URL = henri.server.url;
+  // The address the listener was actually given, not the `localhost` line
+  // the terminal prints: the server binds 127.0.0.1 under NODE_ENV=test and
+  // `localhost` resolves to ::1 first on most machines (see ./url.js)
+  process.env.HENRI_TEST_URL = serverUrl(henri);
 
   return teardown;
 }
