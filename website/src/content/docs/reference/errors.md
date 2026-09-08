@@ -801,6 +801,17 @@ Usually:
 
 **Fix.** Set `HENRI_CREDENTIALS_KEY`, or put config/credentials/<env>.key back. The key never belongs in a commit.
 
+### `HENRI_CONFIG_CSP_DUPLICATE_DIRECTIVE`
+
+config.helmet.contentSecurityPolicy.directives names one directive twice, in both of helmet's spellings.
+
+Usually:
+
+- `script-src` and `scriptSrc` written side by side in the same `directives` object
+- an example copied from helmet's documentation pasted next to one of henri's
+
+**Fix.** helmet accepts both spellings and they mean one directive, so keep one of the two. henri does not pick a winner by key order: which array survived would depend on how the JSON happened to be written.
+
 ### `HENRI_CONFIG_ENV_EMPTY`
 
 An environment override is set but empty.

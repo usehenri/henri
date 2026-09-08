@@ -858,6 +858,17 @@ declare namespace start {
    */
   interface CspConfig {
     /**
+     * Sources to add to what henri built, by directive name
+     * (`{ "script-src": ["https://plausible.io"] }`). Added rather than
+     * replacing, so the origin of `config.assets.prefix`, the nonce and
+     * the development sources stay where they are --
+     * `config.helmet.contentSecurityPolicy.directives` is still the way
+     * to replace a directive outright. A directive henri does not set is
+     * seeded from `default-src`, which is what the browser was falling
+     * back to for it.
+     */
+    add?: Record<string, string[]>;
+    /**
      * `true` gives every response a fresh nonce (`res.locals.cspNonce`,
      * `req._henri.nonce`, the `nonce` view option), names it in
      * `script-src` and takes `'unsafe-inline'` out of that directive. The

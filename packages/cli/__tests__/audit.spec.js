@@ -439,6 +439,16 @@ describe('henri audit', () => {
       policy({ 'default-src': ["'self'", "'unsafe-inline'"] }).names
     ).toContain('csp.script-unsafe-inline');
 
+    // Helmet accepts both spellings and they are one directive, so a check
+    // that only read the hyphenated one said nothing about the other half
+    // of the applications that write this key
+    expect(
+      policy({ scriptSrc: ["'self'", "'unsafe-inline'"] }).names
+    ).toContain('csp.script-unsafe-inline');
+    expect(
+      policy({ defaultSrc: ["'self'", "'unsafe-inline'"] }).names
+    ).toContain('csp.script-unsafe-inline');
+
     // With a nonce beside it the browser ignores 'unsafe-inline' anyway
     expect(
       policy({ 'script-src': ["'unsafe-inline'", "'nonce-abc'"] }).names
@@ -446,6 +456,14 @@ describe('henri audit', () => {
     expect(policy({ 'script-src': ["'self'"] }).names).not.toContain(
       'csp.script-unsafe-inline'
     );
+    // A script-src that is fine wins over a default-src that is not, in
+    // either spelling
+    expect(
+      policy({
+        defaultSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+      }).names
+    ).not.toContain('csp.script-unsafe-inline');
   });
 
   test('reports the bounds a configuration removes', () => {

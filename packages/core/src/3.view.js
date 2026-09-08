@@ -1,6 +1,6 @@
 const BaseModule = require('./base/module');
 const { assetOrigin, assetPrefix } = require('./base/assets');
-const { nonceEnabled } = require('./base/headers');
+const { cspLosses, nonceEnabled } = require('./base/headers');
 const { suggestedRenderer } = require('./base/renderer');
 
 const allowed = {
@@ -151,6 +151,11 @@ class View extends BaseModule {
    * wonder, and the boot line says both where the urls point and that the
    * policy already allows them.
    *
+   * That last half is a claim, so it is checked rather than asserted: an
+   * application whose `config.helmet` replaced one of the asset directives
+   * no longer names the origin there (`base/headers.js` says which, and
+   * warns), and this line says nothing about a policy it no longer knows.
+   *
    * @param {object} config henri's config module
    * @param {object} pen the pen
    * @returns {string} the prefix, or '' when there is none
@@ -174,12 +179,15 @@ class View extends BaseModule {
     }
 
     const origin = assetOrigin(prefix);
+    const lost = origin ? cspLosses({ config, isDev: this.henri.isDev }) : {};
+    const named =
+      origin && !Object.keys(lost).some((name) => lost[name].includes(origin));
 
     pen.info(
       'view',
       `assets from ${prefix}`,
       this.henri.isProduction ? '' : '(production builds only)',
-      origin ? `${origin} is named in the content security policy` : ''
+      named ? `${origin} is named in the content security policy` : ''
     );
 
     return prefix;

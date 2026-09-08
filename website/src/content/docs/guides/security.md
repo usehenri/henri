@@ -110,6 +110,51 @@ production. Development adds `'unsafe-inline'` and `'unsafe-eval'` to
 `script-src`, plus websockets and blob workers, because that is what Vite,
 Turbopack and React Refresh need to hot reload.
 
+### Adding one source: `csp.add`
+
+To let one more origin in — an analytics script, a font host, a Sentry ingest
+— name it in `config.csp.add`:
+
+```json
+{ "csp": { "add": { "script-src": ["https://plausible.io"] } } }
+```
+
+That is **added** to the directive henri built. Everything else it holds stays:
+the origin of [`assets.prefix`](/guides/views/#serving-the-assets-from-a-cdn),
+the [nonce](#the-nonce), and `'unsafe-inline'`/`'unsafe-eval'` in
+development. A directive henri does not set (`frame-src`, say) is seeded from
+`default-src`, which is what the browser was already falling back to for it, so
+adding a source never quietly takes `'self'` away.
+
+`config.helmet.contentSecurityPolicy.directives` still does what it has always
+done, which is the other half of the pair: it **replaces** the array outright.
+That is how an application takes something out — henri's `'unsafe-inline'` from
+`style-src`, `data:` from `img-src` — and it is deliberately not a union, since
+a union would make removal unsayable.
+
+Replacing is not silent any more. henri compares what it built with what the
+application will send, and the boot names every source that went with the
+array:
+
+```
+warn  server  config.helmet replaced 1 content security policy directive
+              => script-src no longer names 'unsafe-eval' https://cdn.example.com
+              => https://cdn.example.com is the origin of config.assets.prefix: a
+                 browser refuses every file the build wrote from a directive that
+                 does not name it
+              => config.csp.add adds a source and keeps the rest
+```
+
+Two more things about the two spellings. helmet accepts `scriptSrc` and
+`script-src` and they are one directive, so henri folds them before the merge:
+`{ "scriptSrc": [...] }` overrides `script-src`, which is what it means, and no
+longer fails the boot with a duplicate-directive error naming a directive you
+never wrote. Writing _both_ spellings in one `directives` object is refused
+(`HENRI_CONFIG_CSP_DUPLICATE_DIRECTIVE`) rather than resolved by JSON key
+order.
+
+### The nonce
+
 `"csp": { "nonce": true }` is how an application gets rid of that
 `'unsafe-inline'`. Every response then draws a fresh value -- 16 bytes of the
 system CSPRNG, base64url, 22 characters -- the header names it
@@ -118,6 +163,16 @@ run. henri takes `'unsafe-inline'` out of `script-src` itself when you turn
 this on, rather than asking you to: a `script-src` naming a nonce makes the
 browser ignore `'unsafe-inline'` anyway, so leaving it in would only make the
 header claim a fallback nothing honours.
+
+The nonce is put into `script-src` **after** everything else, so replacing that
+directive through `config.helmet` cannot drop it — and the `'unsafe-inline'`
+rule above applies to the array you wrote too, for the same reason it applies
+to henri's. It is the one thing an override is never making a statement about:
+the value is drawn per response, so no configuration file can name it, and
+`"csp": { "nonce": true }` is already you asking for it. Turning the policy off
+entirely (`"helmet": { "contentSecurityPolicy": false }`) while leaving nonces
+on is a contradiction henri warns about at boot rather than papering over: the
+value is generated and written into the markup, and nothing allows it.
 
 The nonce reaches your code three ways, all of them the same value:
 
@@ -455,7 +510,8 @@ with nobody having read it. See
 **Settings that open a door** — a `script-src` (or, without one, a
 `default-src`) written by the application that allows `'unsafe-inline'` with no
 nonce beside it, which lets an injected `<script>` run like the application's
-own (`csp.script-unsafe-inline`); a `cors` that accepts any origin, or reflects
+own (`csp.script-unsafe-inline`, read in both of helmet's spellings, `scriptSrc`
+as well as `script-src`); a `cors` that accepts any origin, or reflects
 the caller while allowing credentials (`cors.permissive`); `trustProxy: true`
 written by hand, which lets a client choose the address it is rate limited by
 (`trust-proxy.permissive`); a `filterParameters` array that replaces the

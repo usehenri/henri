@@ -1050,7 +1050,12 @@ const configFindings = (config, { file, hasUser }) => {
 
   // Henri never ships 'unsafe-inline' in a production script-src: one that
   // is there was written by this application, and it undoes the directive --
-  // an injected <script> runs like any other
+  // an injected <script> runs like any other.
+  //
+  // Both of helmet's spellings are read: `scriptSrc` and `script-src` are
+  // one directive to helmet and to henri, so a check that only knew the
+  // hyphenated one said nothing about the other half of the applications
+  // that write this key
   const directives =
     isObject(config.helmet) &&
     isObject(config.helmet.contentSecurityPolicy) &&
@@ -1058,7 +1063,10 @@ const configFindings = (config, { file, hasUser }) => {
       ? config.helmet.contentSecurityPolicy.directives
       : null;
   const scriptSrc = directives
-    ? directives['script-src'] || directives['default-src']
+    ? directives['script-src'] ||
+      directives.scriptSrc ||
+      directives['default-src'] ||
+      directives.defaultSrc
     : null;
   const sources = Array.isArray(scriptSrc) ? scriptSrc.map(String) : [];
 

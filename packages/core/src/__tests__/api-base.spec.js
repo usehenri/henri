@@ -9,9 +9,13 @@ const { errorHandler, notFound } = require('../base/http');
 const {
   ASSET_DIRECTIVES,
   NONCE_SENTINEL,
+  announceLosses,
   cachedCsp,
   createNonce,
+  cspAdditions,
   cspDirectives,
+  cspLosses,
+  directivesFor,
   merge,
   nonceEnabled,
   normalizeVersion,
@@ -494,6 +498,220 @@ describe('secure headers', () => {
     expect(open.headers['cross-origin-resource-policy']).toBe('cross-origin');
   });
 
+  // `config.helmet` replaces an array and `config.csp.add` adds to it. What
+  // used to happen instead was measured on a booted application: an
+  // application adding one script origin lost the asset origin, the nonce
+  // and the development sources with the array it replaced, and the answer
+  // was a well formed header and a 200
+  describe('composing the policy', () => {
+    const assets = { prefix: 'https://cdn.example.com' };
+
+    test('csp.add keeps everything henri put in the directive', async () => {
+      const res = await withHelmet(
+        fakeHenri(
+          {
+            assets,
+            csp: { add: { 'script-src': ['https://plausible.io'] } },
+          },
+          { isDev: true }
+        )
+      ).get('/');
+
+      expect(res.headers['content-security-policy']).toContain(
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.example.com https://plausible.io;"
+      );
+    });
+
+    test("and it reads helmet's other spelling of a directive name", () => {
+      const camel = directivesFor(
+        fakeHenri({ csp: { add: { scriptSrc: ['https://plausible.io'] } } })
+      );
+
+      expect(camel['script-src']).toEqual(["'self'", 'https://plausible.io']);
+      expect(
+        cspAdditions(fakeHenri({ csp: { add: { scriptSrc: [] } } }).config)
+      ).toBeNull();
+      expect(cspAdditions(fakeHenri().config)).toBeNull();
+    });
+
+    test('a directive henri does not set is seeded from default-src', () => {
+      const directives = directivesFor(
+        fakeHenri({ csp: { add: { 'frame-src': ['https://youtube.com'] } } })
+      );
+
+      // Not `frame-src https://youtube.com`, which would take away the
+      // 'self' the browser was falling back to
+      expect(directives['frame-src']).toEqual([
+        "'self'",
+        'https://youtube.com',
+      ]);
+    });
+
+    test('a directive the application deleted stays deleted', () => {
+      const directives = directivesFor(
+        fakeHenri({
+          csp: { add: { 'connect-src': ['https://api.example.com'] } },
+          helmet: {
+            contentSecurityPolicy: { directives: { 'connect-src': null } },
+          },
+        })
+      );
+
+      expect(directives['connect-src']).toBeNull();
+    });
+
+    test('config.helmet still replaces, and csp.add composes with it', () => {
+      const directives = directivesFor(
+        fakeHenri({
+          assets,
+          csp: { add: { 'script-src': ['https://cdn.example.com'] } },
+          helmet: {
+            contentSecurityPolicy: {
+              directives: { 'script-src': ["'self'", 'https://plausible.io'] },
+            },
+          },
+        })
+      );
+
+      expect(directives['script-src']).toEqual([
+        "'self'",
+        'https://plausible.io',
+        'https://cdn.example.com',
+      ]);
+    });
+
+    test("an application can still take one of henri's sources out", () => {
+      const directives = directivesFor(
+        fakeHenri({
+          helmet: {
+            contentSecurityPolicy: { directives: { 'style-src': ["'self'"] } },
+          },
+        })
+      );
+
+      expect(directives['style-src']).toEqual(["'self'"]);
+    });
+
+    // Helmet dashifies both, so they are one directive to it -- and used to
+    // be two keys to the merge, which helmet then refused at boot naming a
+    // directive the application never wrote
+    test('scriptSrc overrides script-src instead of failing the boot', async () => {
+      const res = await withHelmet(
+        fakeHenri({
+          assets,
+          helmet: {
+            contentSecurityPolicy: {
+              directives: { scriptSrc: ["'self'", 'https://plausible.io'] },
+            },
+          },
+        })
+      ).get('/');
+
+      expect(res.headers['content-security-policy']).toContain(
+        "script-src 'self' https://plausible.io;"
+      );
+      expect(res.headers['content-security-policy']).not.toContain('scriptSrc');
+    });
+
+    test('the same directive in both spellings is refused', () => {
+      const henri = fakeHenri({
+        helmet: {
+          contentSecurityPolicy: {
+            directives: { 'script-src': ["'self'"], scriptSrc: ["'none'"] },
+          },
+        },
+      });
+
+      expect(() => secureHeaders(henri)).toThrow(/names script-src twice/u);
+      expect(() => secureHeaders(henri)).toThrow(
+        expect.objectContaining({
+          code: 'HENRI_CONFIG_CSP_DUPLICATE_DIRECTIVE',
+        })
+      );
+    });
+
+    test('what an override took out is named at boot', () => {
+      const said = [];
+      const henri = fakeHenri(
+        {
+          assets,
+          helmet: {
+            contentSecurityPolicy: {
+              directives: { 'script-src': ["'self'", 'https://plausible.io'] },
+            },
+          },
+        },
+        { isDev: true, pen: { warn: (...args) => said.push(args) } }
+      );
+
+      expect(cspLosses(henri)).toEqual({
+        'script-src': [
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          'https://cdn.example.com',
+        ],
+      });
+
+      secureHeaders(henri);
+
+      expect(said).toHaveLength(1);
+      expect(said[0].join(' ')).toContain('replaced 1 content security policy');
+      expect(said[0].join(' ')).toContain(
+        "script-src no longer names 'unsafe-inline' 'unsafe-eval' https://cdn.example.com"
+      );
+      expect(said[0].join(' ')).toContain('config.assets.prefix');
+      expect(said[0].join(' ')).toContain('config.csp.add');
+    });
+
+    test('an application that lost nothing hears nothing', () => {
+      expect(cspLosses(fakeHenri({ assets }))).toEqual({});
+      expect(
+        cspLosses(
+          fakeHenri({
+            assets,
+            csp: { add: { 'script-src': ['https://plausible.io'] } },
+          })
+        )
+      ).toEqual({});
+      // A directive henri never set is not a loss
+      expect(
+        cspLosses(
+          fakeHenri({
+            helmet: {
+              contentSecurityPolicy: {
+                directives: { 'frame-src': ["'self'", 'https://youtube.com'] },
+              },
+            },
+          })
+        )
+      ).toEqual({});
+      expect(announceLosses(fakeHenri({ assets }), null)).toEqual([]);
+    });
+
+    // A policy the application turned off is a decision; a nonce with no
+    // policy to name it is a contradiction
+    test('helmet false and contentSecurityPolicy false are decisions', () => {
+      expect(cspLosses(fakeHenri({ assets, helmet: false }))).toEqual({});
+      expect(
+        cspLosses(
+          fakeHenri({ assets, helmet: { contentSecurityPolicy: false } })
+        )
+      ).toEqual({});
+      expect(
+        directivesFor(fakeHenri({ helmet: { contentSecurityPolicy: false } }))
+      ).toBeNull();
+      expect(
+        announceLosses(
+          fakeHenri({
+            csp: { nonce: true },
+            helmet: { contentSecurityPolicy: false },
+          }),
+          null
+        ).join(' ')
+      ).toContain('named by nothing');
+    });
+  });
+
   test('helpers', () => {
     expect(normalizeVersion('V2')).toBe('v2');
     expect(normalizeVersion(1)).toBe('v1');
@@ -568,6 +786,49 @@ describe('the content security policy nonce', () => {
     // A style="" attribute cannot carry a nonce, and React sets them
     expect(dev['style-src']).toEqual(["'self'", "'unsafe-inline'"]);
     expect(dev['style-src']).not.toContain(nonce);
+  });
+
+  // The value is drawn per response, so nothing an application writes in a
+  // config/*.json can name it: an override replacing script-src is never a
+  // statement about the nonce, and used to drop it in silence
+  test('an override of script-src cannot drop it', async () => {
+    const res = await withNonce(
+      fakeHenri({
+        assets: { prefix: 'https://cdn.example.com' },
+        csp: { nonce: true },
+        helmet: {
+          contentSecurityPolicy: {
+            directives: { 'script-src': ["'self'", 'https://plausible.io'] },
+          },
+        },
+      })
+    ).get('/');
+
+    expect(res.headers['content-security-policy']).toContain(
+      `script-src 'self' https://plausible.io 'nonce-${res.body.nonce}'`
+    );
+    expect(res.body.mirrored).toBe(res.headers['content-security-policy']);
+  });
+
+  // The header says what the browser does, whoever wrote the array
+  test("and it takes 'unsafe-inline' out of the array the application wrote", async () => {
+    const res = await withNonce(
+      fakeHenri({
+        csp: { nonce: true },
+        helmet: {
+          contentSecurityPolicy: {
+            directives: { scriptSrc: ["'self'", "'unsafe-inline'"] },
+          },
+        },
+      })
+    ).get('/');
+
+    const scriptSrc = res.headers['content-security-policy']
+      .split(';')
+      .map((one) => one.trim())
+      .find((one) => one.startsWith('script-src '));
+
+    expect(scriptSrc).toBe(`script-src 'self' 'nonce-${res.body.nonce}'`);
   });
 
   // Next reads the nonce off the request header, and

@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const helmet = require('helmet');
 
 const { assetOrigin, assetPrefix } = require('./assets');
+const { fail } = require('./errors');
 
 /**
  * Secure headers (helmet), API versioning and JSON content negotiation.
@@ -151,6 +152,260 @@ function merge(base, extra) {
 }
 
 /**
+ * ---------------------------------------------------------------------------
+ * Composing a policy: `config.helmet` replaces, `config.csp` adds
+ * ---------------------------------------------------------------------------
+ *
+ * `config.helmet` is merged over henri's own options and `merge()` replaces
+ * arrays. For every other helmet option that is right -- `referrerPolicy:
+ * { policy: 'no-referrer' }` is one value, and an application writing it
+ * means it. For the Content Security Policy it was a trap, and the trap was
+ * measured on a booted application rather than assumed. This:
+ *
+ *     "assets": { "prefix": "https://cdn.example.com" },
+ *     "csp": { "nonce": true },
+ *     "helmet": { "contentSecurityPolicy": { "directives": {
+ *       "script-src": ["'self'", "https://plausible.io"] } } }
+ *
+ * used to answer `script-src 'self' https://plausible.io`, where henri had
+ * built `script-src 'self' https://cdn.example.com 'nonce-h7Qk...'`. Three
+ * things left with the array and none of them was named in the answer: the
+ * origin of `config.assets.prefix`, so every script the build wrote is
+ * refused and the application boots, answers 200 and paints nothing; the
+ * nonce, so `csp.nonce: true` was on and named nowhere while the renderer
+ * kept stamping it on the tags; and, in development, `'unsafe-inline'` and
+ * `'unsafe-eval'`, which is the hot reload. The header stayed well formed
+ * throughout, which is why nothing said anything.
+ *
+ * A fourth was worse. helmet accepts both spellings of a directive name and
+ * dashifies them, so `scriptSrc` and `script-src` are one directive to it --
+ * but two keys to a deep merge, and helmet then **refused the pair**:
+ * `Content-Security-Policy received a duplicate directive "script-src"`,
+ * thrown out of `secureHeaders()` at boot, naming a directive the
+ * application never wrote.
+ *
+ * Three things changed:
+ *
+ * **The two spellings are folded before the merge** (`canonicalDirectives`).
+ * `scriptSrc` now overrides `script-src`, which is what it obviously meant,
+ * and the boot no longer fails on a spelling helmet itself accepts. An
+ * application spelling *one* directive twice in its *own* object is still
+ * refused (`HENRI_CONFIG_CSP_DUPLICATE_DIRECTIVE`), because there is no
+ * reading of that which is not a mistake and picking a winner by JSON key
+ * order would be henri guessing.
+ *
+ * **`config.csp.add` composes.** An application adding one origin -- an
+ * analytics script, a font host, a Sentry ingest -- is not making a
+ * statement about the rest of the directive, and it should not have to
+ * repeat what henri put there to keep it. `{ "csp": { "add": {
+ * "script-src": ["https://plausible.io"] } } }` adds the source and leaves
+ * the asset origin, the nonce and the development sources where they were.
+ * It runs *after* `config.helmet`, so the two compose in one direction and
+ * one order: helmet replaces, `csp.add` adds.
+ *
+ * **The nonce is applied last, after both.** It is the one thing an
+ * override cannot be making a statement about: the value is drawn per
+ * response, so there is no way to write it in a `config/*.json` array, and
+ * `csp.nonce: true` is already the application asking for it. So the nonce
+ * goes into whatever `script-src` ends up being -- and henri's rule about
+ * `'unsafe-inline'` next to a nonce (see `cspDirectives`) applies to that
+ * final array too, an application's own included, because it is a statement
+ * about what the browser does and not about taste.
+ *
+ * And what an override *did* take out is said out loud: `cspLosses()` walks
+ * henri's own directives against the ones the application will actually
+ * send, and `secureHeaders()` names every source that is gone in one boot
+ * line, the asset origin called out for what it is.
+ *
+ * Two candidates were rejected:
+ *
+ * - **Unioning the arrays of `config.helmet` itself.** It reads well until
+ *   an application wants henri's `'unsafe-inline'` out of `style-src`, or
+ *   `data:` out of `img-src` -- legitimate things to want, and a union
+ *   makes them unsayable without a second `replace` spelling next to the
+ *   first. `config.helmet` is the raw helmet option bag and means exactly
+ *   what helmet means; the composing verb belongs in a key of henri's own.
+ * - **Refusing the boot when an override drops the asset origin.** henri
+ *   cannot know that it is wrong: an application may serve its fonts and
+ *   images from the CDN and its scripts from here, and a `script-src`
+ *   without the origin is then correct. A refusal on a guess is worse than
+ *   a warning that names the guess, which is the position
+ *   `base/embeds.js` already takes on a relation that overran its bound.
+ */
+
+/**
+ * helmet's other spelling of a directive name: `scriptSrc` is `script-src`.
+ * Its own `dashify`, so the two are one directive here as well.
+ *
+ * @param {string} name a directive name, in either spelling
+ * @returns {string} the canonical, hyphenated name
+ */
+const dashify = (name) =>
+  name.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
+
+/**
+ * The list a directive holds. helmet takes an array or a bare string; a
+ * `null` (delete), a Set or its disable symbol are none of those.
+ *
+ * @param {*} value what a directive holds
+ * @returns {?Array<*>} the sources, or null when it is not a list
+ */
+function sourcesOf(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  return typeof value === 'string' ? [value] : null;
+}
+
+/**
+ * An override's directives, every name in helmet's canonical spelling
+ *
+ * @param {object} directives what `config.helmet` wrote
+ * @returns {object} the same directives, hyphenated
+ * @throws {Error} HENRI_CONFIG_CSP_DUPLICATE_DIRECTIVE on two spellings of one
+ */
+function canonicalDirectives(directives) {
+  const result = {};
+  const seen = new Map();
+
+  for (const name of Object.keys(directives)) {
+    const canonical = dashify(name);
+
+    if (seen.has(canonical)) {
+      throw fail(
+        'HENRI_CONFIG_CSP_DUPLICATE_DIRECTIVE',
+        `config.helmet.contentSecurityPolicy.directives names ${canonical} twice, as "${seen.get(canonical)}" and as "${name}"`
+      );
+    }
+
+    seen.set(canonical, name);
+    result[canonical] = directives[name];
+  }
+
+  return result;
+}
+
+/**
+ * `config.helmet`, ready to merge: `permissionsPolicy` taken out (henri's
+ * own, and helmet refuses a key it does not know) and the directive names
+ * of the policy folded to one spelling.
+ *
+ * @param {object} custom what `config.helmet` holds
+ * @returns {object} the options helmet is given
+ */
+function helmetOptions(custom) {
+  const options = Object.assign({}, custom);
+
+  delete options.permissionsPolicy;
+
+  const policy = options.contentSecurityPolicy;
+
+  if (isPlainObject(policy) && isPlainObject(policy.directives)) {
+    options.contentSecurityPolicy = Object.assign({}, policy, {
+      directives: canonicalDirectives(policy.directives),
+    });
+  }
+
+  return options;
+}
+
+/**
+ * The sources `config.csp.add` asks for, by canonical directive name.
+ *
+ * Two spellings of one directive are concatenated rather than refused: both
+ * are additions, so there is no ambiguity about what was meant.
+ *
+ * @param {object} config `henri.config`
+ * @returns {?object} `{ '<directive>': ['<source>'] }`, or null for none
+ */
+function cspAdditions(config) {
+  const csp = config && config.has('csp') ? config.get('csp') : null;
+  const add = csp && isPlainObject(csp.add) ? csp.add : null;
+
+  if (!add) {
+    return null;
+  }
+
+  const result = {};
+
+  for (const name of Object.keys(add)) {
+    const sources = Array.isArray(add[name]) ? add[name].map(String) : [];
+
+    if (sources.length > 0) {
+      const canonical = dashify(name);
+
+      result[canonical] = (result[canonical] || []).concat(sources);
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+/**
+ * `config.csp.add` applied to the directives an application will send.
+ *
+ * A directive the policy does not carry is seeded from `default-src`, which
+ * is what the browser was falling back to for it: adding one source to
+ * `frame-src` must not be a way of quietly taking `'self'` away from it.
+ * A directive the application deleted (`null`) stays deleted -- the
+ * fallback it chose is what it asked for.
+ *
+ * @param {object} directives the directives so far
+ * @param {?object} add what `config.csp.add` holds
+ * @returns {object} the directives, with the additions
+ */
+function withAdditions(directives, add) {
+  if (!add) {
+    return directives;
+  }
+
+  const result = Object.assign({}, directives);
+
+  for (const name of Object.keys(add)) {
+    const current = result[name];
+
+    if (typeof current !== 'undefined' && !sourcesOf(current)) {
+      continue;
+    }
+
+    const base = sourcesOf(current) || sourcesOf(result['default-src']) || [];
+
+    result[name] = base.concat(
+      add[name].filter((source) => !base.includes(source))
+    );
+  }
+
+  return result;
+}
+
+/**
+ * The nonce, and henri's rule about `'unsafe-inline'` next to one, applied
+ * to whatever `script-src` ended up being.
+ *
+ * Last of the three passes on purpose (see the block above): the value is
+ * drawn per response, so no configuration file can name it, and an override
+ * replacing `script-src` is therefore never a statement about it.
+ *
+ * @param {object} directives the directives so far
+ * @param {(string|function|null)} nonce the nonce source expression
+ * @returns {object} the directives, with the nonce
+ */
+function withNonce(directives, nonce) {
+  const sources = sourcesOf(directives['script-src']);
+
+  if (!nonce || !sources) {
+    return directives;
+  }
+
+  return Object.assign({}, directives, {
+    'script-src': sources
+      .filter((source) => source !== "'unsafe-inline'")
+      .concat(nonce),
+  });
+}
+
+/**
  * The Content-Security-Policy directives
  *
  * Helmet's defaults, plus `blob:` images and without the `https:` wildcards
@@ -239,17 +494,141 @@ function cspDirectives({
     }
   }
 
-  if (nonce) {
-    directives['script-src'] = directives['script-src']
-      .filter((source) => source !== "'unsafe-inline'")
-      .concat(nonce);
-  }
-
   if (!secure) {
     delete directives['upgrade-insecure-requests'];
   }
 
-  return directives;
+  // `withNonce` is where the rule lives; `secureHeaders` applies it after
+  // the merge instead, so an override cannot drop the nonce
+  return withNonce(directives, nonce);
+}
+
+/**
+ * The directives an application actually sends: henri's own, replaced key
+ * by key by `config.helmet`, added to by `config.csp.add`, and the nonce
+ * last. One function, so what the boot warns about and what the middleware
+ * sends cannot drift.
+ *
+ * @param {Henri} henri the henri instance
+ * @param {object} [options={}] options
+ * @param {(string|function|null)} [options.nonce=null] the nonce source expression
+ * @param {boolean} [options.secure=false] the request arrived over https
+ * @returns {?object} the directives, or null when the policy is off
+ */
+function directivesFor(henri, { nonce = null, secure = false } = {}) {
+  const { config } = henri;
+  const custom = config.has('helmet') ? config.get('helmet') : {};
+  const origin = assetOrigin(assetPrefix(config));
+  const mine = cspDirectives({ isDev: henri.isDev, origin, secure });
+  const policy = isPlainObject(custom)
+    ? helmetOptions(custom).contentSecurityPolicy
+    : null;
+
+  if (policy === false) {
+    return null;
+  }
+
+  const replaced =
+    isPlainObject(policy) && isPlainObject(policy.directives)
+      ? merge(mine, policy.directives)
+      : mine;
+
+  return withNonce(withAdditions(replaced, cspAdditions(config)), nonce);
+}
+
+/**
+ * Henri's own directives as it would have sent them, the nonce's effect on
+ * `script-src` included but not the nonce itself.
+ *
+ * A loss is measured against this rather than against the raw defaults:
+ * with `csp.nonce` on henri takes `'unsafe-inline'` out of `script-src`
+ * itself, so reporting it as something an override dropped would name a
+ * source that was never going to be sent.
+ *
+ * @param {Henri} henri the henri instance
+ * @returns {object} the directives
+ */
+function ownDirectives(henri) {
+  const { config } = henri;
+  const origin = assetOrigin(assetPrefix(config));
+  const mine = cspDirectives({ isDev: henri.isDev, origin });
+
+  if (!nonceEnabled(config)) {
+    return mine;
+  }
+
+  const sources = sourcesOf(mine['script-src']) || [];
+
+  return Object.assign({}, mine, {
+    'script-src': sources.filter((source) => source !== "'unsafe-inline'"),
+  });
+}
+
+/**
+ * The sources of henri's own policy that an application no longer sends,
+ * by directive.
+ *
+ * This is the whole of "nothing henri does is silent": `config.helmet`
+ * replaces an array, which is what it has always meant and what it keeps
+ * meaning, and this is what says which of henri's sources went with it --
+ * the asset origin, the development sources, `'none'` on a directive that
+ * was closed. An application that meant it reads one line at boot; one that
+ * did not reads the reason its page is blank.
+ *
+ * @param {Henri} henri the henri instance
+ * @returns {object} `{ '<directive>': ['<source>'] }`, empty when nothing was lost
+ */
+function cspLosses(henri) {
+  const { config } = henri;
+  const custom = config.has('helmet') ? config.get('helmet') : {};
+
+  if (custom === false) {
+    return {};
+  }
+
+  const sent = directivesFor(henri);
+
+  if (!sent) {
+    // `contentSecurityPolicy: false` is not a loss, it is a decision
+    return {};
+  }
+
+  const mine = ownDirectives(henri);
+  const lost = {};
+
+  for (const name of Object.keys(mine)) {
+    const sources = sourcesOf(mine[name]) || [];
+    const kept = sourcesOf(sent[name]) || [];
+    const missing = sources.filter((source) => !kept.includes(source));
+
+    if (missing.length > 0) {
+      lost[name] = missing;
+    }
+  }
+
+  return lost;
+}
+
+/**
+ * Does any directive carry a function?
+ *
+ * @param {*} directives the directives
+ * @returns {boolean} true when one source is a function
+ */
+function hasFunctionSource(directives) {
+  if (!isPlainObject(directives)) {
+    return false;
+  }
+
+  for (const name of Object.keys(directives)) {
+    const sources = sourcesOf(directives[name]);
+
+    if (sources && sources.some((source) => typeof source === 'function')) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -271,6 +650,10 @@ function cspDirectives({
  * a helmet that answered an error -- returns null, and the caller falls back
  * to helmet computing the header per request.
  *
+ * A directive carrying a function of its own is never cached, whatever it
+ * serializes to: helmet calls it per request and this reads it once, so a
+ * cached header would freeze whatever it answered against the stub.
+ *
  * @param {object} options the `contentSecurityPolicy` options helmet is given
  * @returns {?{name: string, prefix: string, suffix: string}} the split header
  */
@@ -278,6 +661,10 @@ function cachedCsp(options) {
   let name = null;
   let value = null;
   let failed = null;
+
+  if (hasFunctionSource(options && options.directives)) {
+    return null;
+  }
 
   try {
     helmet.contentSecurityPolicy(options)(
@@ -309,6 +696,65 @@ function cachedCsp(options) {
 }
 
 /**
+ * Say, once at boot, what an override took out of henri's own policy.
+ *
+ * The asset origin gets a line of its own: it is the one source in the list
+ * that henri put there on the application's behalf rather than out of an
+ * opinion, and losing it is the difference between a page and a blank one.
+ *
+ * @param {Henri} henri the henri instance
+ * @param {?string} origin the origin serving the assets
+ * @returns {Array<string>} the lines said, for the tests
+ */
+function announceLosses(henri, origin) {
+  const { config } = henri;
+
+  // `csp.nonce` with no policy to name it: a value drawn per response, put
+  // on every script tag by the renderer, and allowed by nothing
+  if (nonceEnabled(config) && !directivesFor(henri)) {
+    const line =
+      '=> config.csp.nonce is on and config.helmet turned the policy off: the nonce is generated, written into the markup and named by nothing';
+
+    if (henri.pen && typeof henri.pen.warn === 'function') {
+      henri.pen.warn('server', 'the content security policy is off', line);
+    }
+
+    return [line];
+  }
+
+  const lost = cspLosses(henri);
+  const names = Object.keys(lost);
+
+  if (names.length === 0) {
+    return [];
+  }
+
+  const lines = names.map(
+    (name) => `=> ${name} no longer names ${lost[name].join(' ')}`
+  );
+
+  if (origin && names.some((name) => lost[name].includes(origin))) {
+    lines.push(
+      `=> ${origin} is the origin of config.assets.prefix: a browser refuses every file the build wrote from a directive that does not name it`
+    );
+  }
+
+  lines.push(
+    '=> config.csp.add adds a source and keeps the rest: { "csp": { "add": { "script-src": ["https://plausible.io"] } } }'
+  );
+
+  if (henri.pen && typeof henri.pen.warn === 'function') {
+    henri.pen.warn(
+      'server',
+      `config.helmet replaced ${names.length} content security policy directive${names.length > 1 ? 's' : ''}`,
+      ...lines
+    );
+  }
+
+  return lines;
+}
+
+/**
  * The helmet middleware for a henri instance
  *
  * `config.helmet` is merged into the options (`false` disables helmet
@@ -319,6 +765,12 @@ function cachedCsp(options) {
  * know. Two middlewares are built so that `upgrade-insecure-requests` follows
  * the protocol the request came in on (`req.secure`, which honours
  * `config.trustProxy` and `X-Forwarded-Proto`).
+ *
+ * The `directives` of the policy are the one thing that does not simply
+ * merge: `directivesFor()` composes them (`config.helmet` replaces,
+ * `config.csp.add` adds, the nonce goes last) and what an override took out
+ * of henri's own is warned about once, here, at boot -- see the block above
+ * `dashify`.
  *
  * With `csp.nonce` on, every response also gets a fresh nonce
  * (`res.locals.cspNonce`) that `script-src` names, and the header it just
@@ -340,10 +792,10 @@ function secureHeaders(henri) {
   }
 
   const cors = Boolean(config.has('cors') && config.get('cors'));
-  const options = isPlainObject(custom) ? Object.assign({}, custom) : {};
-  const requested = options.permissionsPolicy;
-
-  delete options.permissionsPolicy;
+  const requested = isPlainObject(custom)
+    ? custom.permissionsPolicy
+    : undefined;
+  const options = isPlainObject(custom) ? helmetOptions(custom) : {};
 
   /**
    * The `Permissions-Policy` value to send, or null for none
@@ -368,6 +820,8 @@ function secureHeaders(henri) {
   // document whose every script the browser refuses
   const origin = assetOrigin(assetPrefix(config));
 
+  announceLosses(henri, origin);
+
   /**
    * The helmet options for one protocol and one nonce source
    *
@@ -377,15 +831,7 @@ function secureHeaders(henri) {
    */
   const optionsFor = (secure, nonce) => {
     const defaults = {
-      contentSecurityPolicy: {
-        directives: cspDirectives({
-          isDev: henri.isDev,
-          nonce,
-          origin,
-          secure,
-        }),
-        useDefaults: false,
-      },
+      contentSecurityPolicy: { directives: {}, useDefaults: false },
     };
 
     if (cors) {
@@ -396,7 +842,19 @@ function secureHeaders(henri) {
       defaults.strictTransportSecurity = false;
     }
 
-    return merge(defaults, options);
+    const merged = merge(defaults, options);
+
+    // The directives do not merge, they compose: helmet replaces, csp.add
+    // adds, the nonce goes last. Everything else of `contentSecurityPolicy`
+    // -- reportOnly, useDefaults, false -- merges as it always did
+    if (isPlainObject(merged.contentSecurityPolicy)) {
+      merged.contentSecurityPolicy.directives = directivesFor(henri, {
+        nonce,
+        secure,
+      });
+    }
+
+    return merged;
   };
 
   /**
@@ -672,10 +1130,14 @@ module.exports = {
   NONCE_SENTINEL,
   PERMISSIONS_POLICY,
   VERSION_TYPE,
+  announceLosses,
   apiVersion,
   cachedCsp,
   createNonce,
+  cspAdditions,
   cspDirectives,
+  cspLosses,
+  directivesFor,
   isInertiaPage,
   jsonType,
   jsonTypes,
