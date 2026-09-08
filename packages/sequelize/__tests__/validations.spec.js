@@ -13,6 +13,11 @@ const postModel = (validates) => ({
   options: { timestamps: true },
   schema: {
     body: { type: 'text' },
+    // A number no test ever validates, so that `increment` has something to
+    // write. It used to be `id`, which SQL Server refuses to update at all:
+    // an IDENTITY column is not assignable there, `SET [id]=[id]+0`
+    // included
+    rank: { type: 'integer' },
     slug: { type: 'string' },
     status: { enum: ['draft', 'live'], type: 'string' },
     title: { required: true, type: 'string' },
@@ -220,7 +225,7 @@ describe('validations on a sequelize store', () => {
       expect(error.message).toMatch(/Post\.increment\(\) writes without/u);
       // A field nothing validates still increments
       await expect(
-        Post.increment('id', { by: 0, where: { id: post.id } })
+        Post.increment('rank', { by: 1, where: { id: post.id } })
       ).resolves.toBeDefined();
       await adapter.stop();
     });

@@ -34,6 +34,21 @@ const ENUM_ERROR = /category: must be one of urgent, high, medium, low/;
 const asJson = (value) =>
   typeof value === 'string' ? JSON.parse(value) : value;
 
+/**
+ * The tables of a store, whatever `showAllTables()` answered
+ *
+ * Sequelize is not the same shape on every dialect: sqlite, postgres and
+ * mysql answer names and mssql answers `{ tableName, schema }`. ../describe.js
+ * carries the same normalization for the same reason.
+ *
+ * @param {object} adapter A started adapter
+ * @returns {Promise<Array<string>>} The table names
+ */
+const tablesOf = async (adapter) =>
+  (await adapter.connector.getQueryInterface().showAllTables()).map((entry) =>
+    entry && typeof entry === 'object' ? entry.tableName : String(entry)
+  );
+
 describe('sequelize adapter', () => {
   describe('constructor', () => {
     test('builds the connector from the configuration', () => {
@@ -137,9 +152,7 @@ describe('sequelize adapter', () => {
     });
 
     test('registers models and syncs their tables', async () => {
-      const tables = await adapter.connector
-        .getQueryInterface()
-        .showAllTables();
+      const tables = await tablesOf(adapter);
 
       expect(Object.keys(adapter.getModels())).toEqual(['Task', 'Note']);
       expect(tables).toEqual(expect.arrayContaining(['Tasks', 'my_notes']));
@@ -484,7 +497,11 @@ describe('sequelize adapter', () => {
     });
 
     test('stores roles as JSON with the base role as default', async () => {
-      expect(User.rawAttributes.roles.type).toBeInstanceOf(DataTypes.JSON);
+      // SQL Server has no JSON column: ../index.js writes TEXT with a JSON
+      // getter and setter there, which is what the roles read back through
+      expect(User.rawAttributes.roles.type).toBeInstanceOf(
+        target.name === 'mssql' ? DataTypes.TEXT : DataTypes.JSON
+      );
 
       const [[row]] = await adapter.query(
         `SELECT roles FROM ${users} WHERE email = ?`,
@@ -555,9 +572,7 @@ describe('sequelize adapter', () => {
       await adapter.start();
 
       const store = await adapter.getSessionConnector(session.Store);
-      const tables = await adapter.connector
-        .getQueryInterface()
-        .showAllTables();
+      const tables = await tablesOf(adapter);
 
       expect(store).toBeInstanceOf(session.Store);
       expect(tables).toContain('henri_sessions');
@@ -576,9 +591,7 @@ describe('sequelize adapter', () => {
 
       await adapter.start();
 
-      const tables = await adapter.connector
-        .getQueryInterface()
-        .showAllTables();
+      const tables = await tablesOf(adapter);
 
       expect(tables).toContain(Item.getTableName());
 

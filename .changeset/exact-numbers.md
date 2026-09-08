@@ -17,8 +17,8 @@ what every dialect henri writes carries) and a `scale` (digits after the
 point, 4 by default). `bigint` is a signed 64-bit integer and takes
 neither. Per dialect: `numeric(p, s)`/`bigint` on PostgreSQL,
 `decimal(p, s)`/`bigint` on MySQL, `Decimal128`/BSON `BigInt` on MongoDB,
-`DECIMAL(p, s)`/`BIGINT` on SQL Server, and `text` on sqlite, which has
-neither an exact decimal nor a 64-bit integer better-sqlite3 hands back
+`BIGINT` on SQL Server (which takes no `decimal`, below), and `text` on
+sqlite, which has neither an exact decimal nor a 64-bit integer better-sqlite3 hands back
 whole. The stored value is exact everywhere; on sqlite a comparison and an
 order go through a cast, `INTEGER` for a `bigint` (exact, sqlite carries
 64 bits) and `REAL` for a `decimal` -- the one approximation, and the guide
@@ -48,11 +48,15 @@ column. henri does not round money.
 model `DECIMAL`, `NUMERIC` and `BIGINT` resolve to the exact types instead
 of a double and a 32-bit integer; in a sequelize model
 `DataTypes.DECIMAL(10, 2)` is read as the henri decimal and gets the same
-string boundary. Two things are refused at boot instead of downgraded, both
-naming the model and the field (`HENRI_MODEL_TYPE_UNSUPPORTED`): either
+string boundary. Three things are refused at boot instead of downgraded,
+each naming the model and the field (`HENRI_MODEL_TYPE_UNSUPPORTED`): either
 type on a sqlite store served by `@usehenri/sequelize`, whose driver reads
 both through a JavaScript number; and a bare `DataTypes.DECIMAL`, which
-MySQL makes `DECIMAL(10, 0)`.
+MySQL makes `DECIMAL(10, 0)`. `decimal` on an `@usehenri/mssql` store is a
+third, for the first reason: `tedious` reads every `DECIMAL` as
+`value / Math.pow(10, scale)`, so the column comes back a double. A
+`bigint` there is exact -- that driver hands one back as a string -- so an
+amount on SQL Server goes in a `bigint` of cents.
 
 `henri generate model thing price:decimal` writes `precision: 12, scale: 2`,
 because the default is rarely what money wants.

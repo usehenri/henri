@@ -1,7 +1,14 @@
 const { randomUUID } = require('crypto');
 
 const live = require('./live');
-const { adapterFor, build, close, sharedKey, target } = require('./helpers');
+const {
+  adapterFor,
+  build,
+  close,
+  dropIndex,
+  sharedKey,
+  target,
+} = require('./helpers');
 const { Runner } = require('../src/runner');
 
 /**
@@ -481,10 +488,7 @@ describe(`upgrading a queue an older henri installed (${target.name})`, () => {
   const downgrade = async () => {
     const { jobs: table } = jobs.config.tables;
 
-    await store.run(`DROP INDEX IF EXISTS ${table}_limited`).catch(() => null);
-    await store
-      .run(`ALTER TABLE ${table} DROP INDEX ${table}_limited`)
-      .catch(() => null);
+    await dropIndex(store, table, `${table}_limited`);
     await store.run(`ALTER TABLE ${table} DROP COLUMN concurrency_key`);
     store.limits = null;
     jobs.concurrent = await store.concurrent();

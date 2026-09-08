@@ -102,12 +102,16 @@ describe('describe: what the database holds', () => {
     const report = await adapter.describe();
     const kind = column(of(report, 'Invoice'), 'kind');
     // PostgreSQL keeps the values beside the type and MySQL inside it, and
-    // both answer the same list here; sqlite has no enum at all, so
-    // Sequelize writes TEXT and there is nothing to read back
-    const expected =
-      adapter.ensureConnector().getDialect() === 'sqlite'
-        ? null
-        : ['credit', 'debit'];
+    // both answer the same list here. sqlite and SQL Server have no enum
+    // column at all -- Sequelize writes TEXT and NVARCHAR and henri holds
+    // the values with an `isIn` validator (../schema.js) -- so there is
+    // nothing in the catalogue to read back, and `describe()` says what
+    // the database holds and not what the model file declared
+    const expected = ['sqlite', 'mssql'].includes(
+      adapter.ensureConnector().getDialect()
+    )
+      ? null
+      : ['credit', 'debit'];
 
     expect(kind.values).toEqual(expected);
   });

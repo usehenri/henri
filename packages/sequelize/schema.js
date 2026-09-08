@@ -242,7 +242,23 @@ const decorateExact = (
   if (dialect === 'sqlite') {
     throw coded(
       'HENRI_MODEL_TYPE_UNSUPPORTED',
-      `Field '${field}' of ${model} is a ${exact.type}, which @usehenri/sequelize cannot carry on sqlite: the driver reads it through a JavaScript number and the value would come back changed. Use @usehenri/drizzle, which stores both exactly on sqlite, or put the store on postgres, mysql or mssql`
+      `Field '${field}' of ${model} is a ${exact.type}, which @usehenri/sequelize cannot carry on sqlite: the driver reads it through a JavaScript number and the value would come back changed. Use @usehenri/drizzle, which stores both exactly on sqlite, or put the store on postgres or mysql`
+    );
+  }
+
+  // The same downgrade, one type narrower. tedious reads every DECIMAL and
+  // NUMERIC as `value / Math.pow(10, scale)` (lib/value-parser.js
+  // `readNumeric`), so the column comes back a double however it was
+  // declared: measured against SQL Server 2022, DECIMAL(12, 2) -2.50 reads
+  // back -2.5 and DECIMAL(38, 10) 12345678901234567890.1234567891 reads
+  // back 12345678901234567000. There is no option and no parser above it
+  // -- Sequelize's mssql parserStore is handed the number tedious already
+  // made -- so the digits are gone before henri sees them. A BIGINT is not
+  // affected: tedious hands that one back as a string.
+  if (dialect === 'mssql' && exact.type === 'decimal') {
+    throw coded(
+      'HENRI_MODEL_TYPE_UNSUPPORTED',
+      `Field '${field}' of ${model} is a decimal, which @usehenri/mssql cannot carry: the tedious driver reads every DECIMAL through a JavaScript number, so the value comes back changed -- 12345678901234567890.1234567891 reads back as 12345678901234567000. A 'bigint' is exact on SQL Server, so store the amount in its smallest unit (cents) and format it in the application`
     );
   }
 

@@ -345,11 +345,13 @@ So `0.1 + 0.2` arrives as `0.30000000000000004` and fails validation instead of 
 | MySQL and MariaDB (`drizzle`, `mysql`) | `decimal(p, s)`            | `bigint`                   |
 | sqlite (`drizzle`)                     | `text`, holding the digits | `text`, holding the digits |
 | MongoDB (`disk`, `mongoose`)           | `Decimal128`               | a BSON 64-bit integer      |
-| SQL Server (`mssql`)                   | `DECIMAL(p, s)`            | `BIGINT`                   |
+| SQL Server (`mssql`)                   | refused at boot            | `BIGINT`                   |
 
 sqlite has neither an exact decimal nor a 64-bit integer its driver hands back whole (better-sqlite3 reads `9223372036854775807` back as `9223372036854776000`), so the drizzle adapter keeps the digits in a `text` column, which round-trips the value exactly. A comparison is a different question from a value, and text answers it wrongly — `'9.99' > '10'` lexicographically — so **a comparison and an order** are the one thing that goes through a cast: `CAST(col AS INTEGER)` for a `bigint`, which sqlite carries on 64 bits and is therefore exact, and `CAST(col AS REAL)` for a `decimal`, which is a double and is the one approximation henri ships for these types — accurate to about sixteen significant digits, the same answer PostgreSQL gives for every value a person writes down. An equality is not cast at all: the stored text is canonical, so `=` is exact.
 
 `@usehenri/sequelize` **refuses both types on sqlite** at boot, naming the model and the field ([`HENRI_MODEL_TYPE_UNSUPPORTED`](/reference/errors/#henri_model_type_unsupported)), and points at `@usehenri/drizzle`: it reads a sqlite `DECIMAL` through a double and loses the digits of a `BIGINT` past 2^53, and it has no seam to store the value as text and cast for a comparison the way the drizzle adapter does. It is a corner `henri new` cannot produce — sqlite goes to Drizzle, and Sequelize is reachable only under [`mssql`](#mssql-1) — and the adapter says so rather than reading a value back changed.
+
+`@usehenri/mssql` **refuses `decimal`** at boot for the same reason one type narrower, and this one is measured against a real SQL Server: the `tedious` driver reads every `DECIMAL` and `NUMERIC` as `value / Math.pow(10, scale)`, so the column comes back a JavaScript double however it was declared. `DECIMAL(12, 2)` `-2.50` reads back as `-2.5` and `DECIMAL(38, 10)` `12345678901234567890.1234567891` reads back as `12345678901234567000`. There is no driver option for it and no parser above it — Sequelize's mssql parser store is handed the number `tedious` already made — so the digits are gone before henri sees them, and refusing is the only thing that is not a lie. **`bigint` is exact on SQL Server**: `tedious` hands a `BIGINT` back as a string, and the suite writes and reads the two ends of the signed 64-bit range. An amount on an mssql store therefore goes in a `bigint` of its smallest unit — cents — and is formatted in the application.
 
 ### The Sequelize spellings
 
@@ -1307,6 +1309,8 @@ pnpm add @usehenri/mssql
 The global is a real Sequelize model, so `findAll`, `findByPk`, `Model.scope()`, `Op` in a where, `options: { indexes, scopes, hooks }` and the rest of that documentation apply, and `options: { paranoid: true }` is Sequelize's own, so `restore()`, `{ paranoid: false }` and `{ force: true }` behave exactly as it describes. None of that is true of the other SQL adapters, which are Drizzle.
 
 #### The schema of an mssql store
+
+**A unique column is a named constraint here, and only here.** SQL Server names an inline `UNIQUE` itself -- `UQ__Articles__32DD1E4C507CA19A` -- and Sequelize then cannot tell which column a violation was about: it looks the constraint name up among the ones it computed itself, misses, and reports the constraint name where the column belongs. So a duplicate slug used to answer `{ UQ__Articles__32DD1E4C507CA19A: 'UQ__Articles__32DD1E4C507CA19A must be unique' }` instead of the `{ slug: 'must be unique' }` [every other store answers](#validation-errors). henri writes `CONSTRAINT [Article_slug_unique] UNIQUE ([slug])` instead, which is what makes that lookup hit. It covers the columns a model declares and the ones henri adds (`externalId`, `slug`, `email`), it is the same name in every database, and it changes nothing on the other three dialects, which report the column on their own.
 
 This adapter has no migrations, and henri does not pretend otherwise: `sequelize.sync()` creates the tables that are **missing** and never alters a table that already exists. That is enough in development and it is not a way to change a live database, so henri is explicit about where each half applies.
 

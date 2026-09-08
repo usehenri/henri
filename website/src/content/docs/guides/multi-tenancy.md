@@ -469,9 +469,10 @@ Written down rather than discovered:
 - **No `henri tenants` command.** There is no list of tenants, because henri
   holds none: a tenant is a string in a column, and what the set of them is
   belongs to the application's own `Account` model.
-- **Nothing is exercised on MSSQL**, like the rest of that adapter. The
-  Sequelize wiring is written and reviewed and has no suite of its own; the
-  proofs are on Drizzle (sqlite offline, PostgreSQL and MySQL under
-  `pnpm test:sql:live`) and on MongoDB.
+- **Nothing is exercised on MSSQL.** The rest of `@usehenri/sequelize` runs
+  against a real SQL Server now (`pnpm test:sql:mssql`), but the tenancy
+  wiring there is written and reviewed and has no suite of its own to point
+  at it; the proofs are on Drizzle (sqlite offline, PostgreSQL and MySQL
+  under `pnpm test:sql:live`) and on MongoDB.
 - **No per-tenant connection, schema or key.** That is option 2, and this
   page said why.
