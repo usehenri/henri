@@ -162,6 +162,34 @@ Options go under the `inertia` key of your configuration: `ssr: false` renders e
 Supported, and frozen. The engine is built on the Next.js pages router, which Next.js has deprecated: henri keeps it working, on Next.js 16, and does not follow it into the app router. The contract that hands a controller's data to a page (`withHenri` reading `req._henri` on the server) has no equivalent in the app router or in server components, so this engine stays where it is. Existing applications keep working and keep getting fixes; new ones are better off on [Inertia](#inertia), which is the default.
 :::
 
+### When Next.js removes the pages router
+
+The caution above says henri does not follow Next.js into the app router. This is the other half of that sentence: what happens to an application that is on this engine when the pages router finally goes.
+
+**Deprecated is not removed.** Next.js 16 ships the pages router and this engine runs on it. `next` is a peer dependency, which means the application owns the version: nothing henri does can move it, and nothing Next.js does reaches an application that has not upgraded.
+
+**What henri commits to.** The React engine keeps working, and keeps getting fixes, on the Next.js majors that carry the pages router. It is frozen in the sense that it gains no app-router features, not in the sense that it is abandoned.
+
+**When the pages router is removed from a Next.js major, henri does not chase it.** An application then has two answers, and neither of them is a surprise henri springs on the day:
+
+1. **Stay.** Pin the last Next.js major that has the pages router. This needs nothing from henri — it is a version in the application's own `package.json` — and it is the right answer for an application that is finished, or one whose next change is a rewrite anyway. What it costs is the rest of that major's security fixes, on the application's own clock.
+2. **Move to Inertia.** There is no automatic conversion and there will not be one: the two engines put the data in different places, so the pages are rewritten. What that actually means is small enough to write down:
+
+| React engine                                                   | Inertia                                                                     |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `export default withHenri(Page)`                               | a plain component; `const { data } = useHenri()`                            |
+| props on the page component                                    | `useHenri()`, at any depth                                                  |
+| `next/link`                                                    | `Link` from `@usehenri/inertia`                                             |
+| `@usehenri/react/forms` (`Form`, `Input`, `Select`, `useForm`) | `Form` from `@usehenri/inertia`                                             |
+| `router.push('/tasks')` after a submit                         | the controller redirects; Inertia follows it                                |
+| a failed write is a `422` the form reads field by field        | the controller calls `res.inertia.errors()` and renders the form page again |
+| `getRoute` / `pathFor`                                         | `getRoute` / `pathFor`, unchanged                                           |
+| `.js` pages under `app/views/pages`                            | `.jsx` pages in the same place                                              |
+
+**What does not change**: `config/routes.js`, the controllers' `res.render()` calls, the models, the policies, the tests that go through `@usehenri/testing`. The router is henri's in both engines, which is why the move is a view-layer rewrite and not a port.
+
+**What would change this decision.** One thing: an app-router equivalent of the contract this engine rests on — a supported way for a server component to read what henri attached to the request, the way `withHenri` reads `req._henri`. Passing it through the url is not that; it would put a controller's data in a place the client chooses. If that seam appears, the calculation is worth redoing, and until it does, an app-router engine would be a second way to write a henri application that henri could not hold to the same promises.
+
 Choose it anyway when you want what Next.js gives you and Vite does not: `next/image` and `next/font`, the file-system page fallback (a `GET` no route matches still renders a page of the same name), the Next.js plugin ecosystem, or an existing pages-router application you are moving onto henri. What you give up is the app router, server components and streaming: a page under `app/views/app` would bypass `withHenri` and the controllers, and the engine warns when that directory exists.
 
 [Next.js](https://nextjs.org/) (16, pages router, Turbopack) renders the pages in `app/views/pages` and injects the data sent by your controllers.
