@@ -739,6 +739,16 @@
     {
       "area": "cli",
       "causes": [
+        "`.henri/` is not writable (a read-only checkout, a container volume, another user's files)",
+        "something else already holds the name `.henri/types.d.ts`"
+      ],
+      "code": "HENRI_CLI_TYPES_UNWRITABLE",
+      "fix": "Check the permissions of `.henri/` in the application, or print the declarations instead with `henri types --stdout`.",
+      "what": "The generated declarations could not be written."
+    },
+    {
+      "area": "cli",
+      "causes": [
         "an unknown command or generator",
         "a missing or invalid argument",
         "a flag given a value it does not accept"

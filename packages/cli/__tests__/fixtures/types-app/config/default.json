@@ -1,0 +1,13 @@
+{
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "sqlite",
+      "url": "file:.henri/app.db"
+    }
+  },
+  "user": {
+    "model": "user",
+    "public": ["name"]
+  }
+}

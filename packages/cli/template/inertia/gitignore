@@ -8,7 +8,8 @@
 /build
 /app/views/dist
 
-# henri runtime (model globals for the linter)
+# henri runtime (the model globals the linter reads, the declarations
+# `henri types` writes, the sqlite database)
 /.henri
 
 # configuration: config/default.json is committed, secrets live in .env

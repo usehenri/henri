@@ -19,6 +19,30 @@ const ENGINES = {
 };
 
 /**
+ * Write `.henri/types.d.ts` from the models and the routes.
+ *
+ * A build that cannot write it still builds: the declarations are a
+ * convenience for an editor and a typecheck, and nothing at runtime reads
+ * them, so a read-only checkout is not a failed build.
+ *
+ * @param {string} cwd The application directory
+ * @returns {boolean} Whether it was written
+ */
+const writeTypes = (cwd) => {
+  try {
+    const { file } = require('./types').generate(cwd);
+
+    console.log(`> ${file} written`);
+
+    return true;
+  } catch (error) {
+    console.log(`> ${error.message} (skipping the declarations)`);
+
+    return false;
+  }
+};
+
+/**
  * Build the production views without booting henri (no database needed)
  *
  * @returns {Promise<void>} Resolves when the build is done
@@ -31,6 +55,13 @@ const main = async () => {
   process.env.FORCE_BUILD = 'true';
 
   const cwd = process.cwd();
+
+  // Before the views, and for every renderer including the ones with
+  // nothing to build: a CI job that builds and then typechecks needs the
+  // declarations to be there, and the development server that usually
+  // writes them never ran here (see scripts/types.js)
+  writeTypes(cwd);
+
   const config = readConfig(cwd, 'production');
   const renderer = String(config.renderer || 'template').toLowerCase();
   const name = ENGINES[renderer];

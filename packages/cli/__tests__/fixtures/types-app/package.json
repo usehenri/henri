@@ -1,0 +1,9 @@
+{
+  "name": "types-fixture",
+  "private": true,
+  "henri": true,
+  "description": "The application `henri types` is generated from in the suite",
+  "dependencies": {
+    "@usehenri/drizzle": "^1.2.0"
+  }
+}

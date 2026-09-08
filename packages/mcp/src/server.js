@@ -236,6 +236,30 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
   );
 
   server.registerTool(
+    'types',
+    {
+      annotations: { readOnlyHint: false },
+      description:
+        'Writes .henri/types.d.ts and answers what went into it: one interface per model of this application (its columns with their types, the union of an enum column\'s values, the methods henri adds) and the union of every path helper config/routes.js expands to. Run it after editing a model or the routes, then typecheck: with `// @ts-check` at the top of a file, or `"checkJs": true` in jsconfig.json, `npx tsc --noEmit -p jsconfig.json` turns a wrong column name, a wrong enum value and a misspelled path helper into errors instead of a page that renders undefined. A record is closed and a model is open, so a static henri does not own is `any` rather than an error. `skipped` names what could not be described.',
+      inputSchema: {},
+      title: 'Generate the application declarations',
+    },
+    async () => {
+      try {
+        return ok(app.types());
+      } catch (error) {
+        return failed({
+          code: error.code || 'HENRI_CLI_FAILED',
+          hint:
+            error.hint ||
+            'config/routes.js and the files of app/models must load; run doctor for the details',
+          message: error.message,
+        });
+      }
+    }
+  );
+
+  server.registerTool(
     'openapi',
     {
       annotations: { readOnlyHint: true },

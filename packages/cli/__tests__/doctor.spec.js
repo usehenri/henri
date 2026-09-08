@@ -1609,6 +1609,89 @@ module.exports = Metrics;
     expect(run(app).names).not.toContain('agents.stale');
   });
 
+  // --- the generated declarations --------------------------------------------
+
+  test('says nothing when .henri/types.d.ts was never written', () => {
+    // Every development boot writes it; a missing one is not a problem
+    expect(run(app).names.filter((name) => name.startsWith('types.'))).toEqual(
+      []
+    );
+  });
+
+  test('reports declarations the models have moved on from', () => {
+    const model = path.join(app, 'app/models/Task.js');
+    const original = fs.readFileSync(model, 'utf8');
+
+    henri(['types'], { cwd: app });
+    expect(run(app).names).not.toContain('types.stale');
+
+    fs.writeFileSync(
+      model,
+      original.replace('schema: {', "schema: {\n    kind: { type: 'string' },")
+    );
+
+    const { ok, problems } = run(app);
+
+    fs.writeFileSync(model, original);
+    fs.rmSync(path.join(app, '.henri'), { force: true, recursive: true });
+
+    // Wrong, but nothing an application cannot run: a warning
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'types.stale',
+        file: '.henri/types.d.ts',
+        hint: expect.stringContaining('henri types rewrites it'),
+        level: 'warning',
+        message: expect.stringContaining('out of date'),
+      })
+    );
+  });
+
+  test('reports declarations this henri did not write', () => {
+    const dir = path.join(app, '.henri');
+
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'types.d.ts'),
+      'declare const Task: any;\n'
+    );
+
+    const { problems } = run(app);
+
+    fs.rmSync(dir, { force: true, recursive: true });
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'types.foreign',
+        file: '.henri/types.d.ts',
+        level: 'warning',
+      })
+    );
+  });
+
+  test('reports declarations it could not rewrite', () => {
+    const dir = path.join(app, '.henri');
+    const file = path.join(dir, 'types.d.ts');
+
+    henri(['types'], { cwd: app });
+    fs.chmodSync(file, 0o444);
+
+    const { problems } = run(app);
+
+    fs.chmodSync(file, 0o644);
+    fs.rmSync(dir, { force: true, recursive: true });
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'types.unwritable',
+        file: '.henri/types.d.ts',
+        hint: expect.stringContaining('permissions of .henri/'),
+        level: 'warning',
+      })
+    );
+  });
+
   test('reports a page written for the renderer the configuration does not name', () => {
     const page = path.join(app, 'app/views/pages/tasks/show.jsx');
     const original = fs.readFileSync(page, 'utf8');

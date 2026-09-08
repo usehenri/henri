@@ -730,6 +730,17 @@ Usually:
 
 **Fix.** Run the install command the message prints, then run the command again.
 
+### `HENRI_CLI_TYPES_UNWRITABLE`
+
+The generated declarations could not be written.
+
+Usually:
+
+- `.henri/` is not writable (a read-only checkout, a container volume, another user's files)
+- something else already holds the name `.henri/types.d.ts`
+
+**Fix.** Check the permissions of `.henri/` in the application, or print the declarations instead with `henri types --stdout`.
+
 ### `HENRI_CLI_USAGE`
 
 The command was called wrongly.

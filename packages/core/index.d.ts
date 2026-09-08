@@ -3050,14 +3050,114 @@ declare namespace start {
     pages: number;
   }
 
+  // ---------------------------------------------------------------------------
+  // What `.henri/types.d.ts` is written against
+  // ---------------------------------------------------------------------------
+  //
+  // `henri types` writes an interface per model of an application, from its
+  // model files. These are the pieces it builds on, hand-written here so a
+  // signature changes in one place. See `guides/types.md`.
+
+  /**
+   * A query that is still being built and answers `T` when it is awaited: a
+   * Mongoose `Query`, a Drizzle `Relation`, or a plain promise on Sequelize.
+   *
+   * The index signature is the honest part. `Model.find()` chains on two
+   * adapters (`.sort().limit().select()`) and resolves on the third, and
+   * declaring one of those as the truth would turn correct code into an
+   * error everywhere else. Awaiting always works, and that is what is typed.
+   */
+  interface ModelQuery<T> extends PromiseLike<T> {
+    [key: string]: any;
+  }
+
+  /** What a record has whatever the adapter behind its store. */
+  interface RecordBase {
+    /**
+     * The primary key. It never leaves the server: `externalId` is the
+     * public identifier, and `findById()` takes that one (see
+     * `base/references.js`).
+     */
+    id: any;
+    save(...args: any[]): Promise<any>;
+    get(...args: any[]): any;
+    set(...args: any[]): any;
+    toJSON(): Record<string, any>;
+  }
+
+  /** A record of a `disk` or `mongoose` store: a Mongoose document. */
+  interface MongooseRecord extends RecordBase {
+    /** Deletes it -- a soft delete on a `paranoid` model. */
+    deleteOne(...args: any[]): Promise<any>;
+    toObject(...args: any[]): Record<string, any>;
+    populate(...args: any[]): any;
+    markModified(field: string): void;
+    isModified(field?: string): boolean;
+    readonly isNew: boolean;
+  }
+
+  /** A record of an `mssql` store: a Sequelize instance. */
+  interface SequelizeRecord extends RecordBase {
+    update(values: Record<string, any>, ...args: any[]): Promise<any>;
+    destroy(...args: any[]): Promise<any>;
+    reload(...args: any[]): Promise<any>;
+    changed(...args: any[]): any;
+    previous(...args: any[]): any;
+    increment(...args: any[]): Promise<any>;
+    decrement(...args: any[]): Promise<any>;
+  }
+
+  /** A record of a `drizzle`, `mysql`, `postgresql` or `mariadb` store. */
+  interface DrizzleRecord extends RecordBase {
+    update(values: Record<string, any>, ...args: any[]): Promise<any>;
+    destroy(...args: any[]): Promise<any>;
+    reload(...args: any[]): Promise<any>;
+    changed(): string[];
+    previousAttributes(): Record<string, any>;
+    dirtyAttributes(): Record<string, any>;
+    merge(row: Record<string, any>): void;
+    toObject(...args: any[]): Record<string, any>;
+    readonly isNew: boolean;
+  }
+
+  /**
+   * What every model answers, on every adapter, plus everything else the
+   * ORM behind it puts there.
+   *
+   * The declared members are the ones henri owns and guarantees. The index
+   * signature is the rest of the ORM: `findAll` on Sequelize, `where` and
+   * `pluck` on Drizzle, `aggregate` on Mongoose. They are `any` rather than
+   * absent, because a generated declaration that refused them would break
+   * code that runs.
+   */
+  interface ModelStatics<T = any> {
+    /**
+     * The record of a public identifier -- the `externalId`, or the slug of
+     * a model that declared one -- and `null` for anything else. A primary
+     * key answers the same `null` an unknown uuid does.
+     */
+    findById(id: any, ...args: any[]): ModelQuery<T | null>;
+    /** The record of a primary key: the lookup for one you already hold. */
+    findByKey(id: any, ...args: any[]): ModelQuery<T | null>;
+    /** The record of an `externalId`, explicitly. */
+    findByExternalId(id: any, ...args: any[]): ModelQuery<T | null>;
+    findOne(...args: any[]): ModelQuery<T | null>;
+    find(...args: any[]): ModelQuery<T[]>;
+    create(attributes: any, ...args: any[]): Promise<any>;
+    /** One page and its counters, the same shape on every adapter. */
+    paginate(options?: Record<string, any>): Promise<Page<T>>;
+    [key: string]: any;
+  }
+
   /**
    * The store adapters, as `henri.model.stores` holds them.
    *
    * The ORM models themselves are not typed here: their shape is the ORM's
    * (a Mongoose `Model`, a Sequelize `ModelStatic`, a Drizzle model class),
    * and henri only adds `paginate()` and, on Mongoose with
-   * `options.paranoid`, the soft-delete statics. Type a model in your own
-   * application if you want more than `any` from the globals.
+   * `options.paranoid`, the soft-delete statics. `henri types` writes the
+   * interface of every model of an application into `.henri/types.d.ts`,
+   * which is where the globals stop being `any`.
    */
   interface StoreAdapter {
     /** The kind of adapter (`mysql`, `disk`, ...). */
@@ -5562,6 +5662,24 @@ declare global {
    * without requiring anything.
    */
   var henri: start.Henri;
+
+  /**
+   * The path helpers of this application, keyed `<action>_<controller>_path`.
+   *
+   * Empty here, and filled in by `.henri/types.d.ts`, which `henri types`
+   * writes from `config/routes.js`. An application that has never generated
+   * that file leaves it empty, and an empty registry means `pathFor()` and
+   * `getRoute()` take any string -- exactly where an application was before.
+   */
+  interface HenriPaths {}
+
+  /**
+   * A path helper name: the union of what this application declares once
+   * `.henri/types.d.ts` exists, and `string` until it does.
+   */
+  type HenriPathName = keyof HenriPaths extends never
+    ? string
+    : Extract<keyof HenriPaths, string>;
 }
 
 export = start;

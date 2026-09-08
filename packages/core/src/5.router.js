@@ -22,6 +22,7 @@ const { jsonTypes, noStore, seal, versionGuard } = require('./base/headers');
 const { idempotency } = require('./base/idempotency');
 const { limiter, shutdown } = require('./base/rate-limit');
 const openapi = require('./base/openapi');
+const types = require('./base/types');
 const { table } = require('./base/routes');
 const flash = require('./base/flash');
 const { implicit, track } = require('./base/hooks');
@@ -229,6 +230,7 @@ class Router extends BaseModule {
     }
 
     await this.startView(reload);
+    this.writeTypes();
 
     return this.name;
   }
@@ -318,6 +320,65 @@ class Router extends BaseModule {
       policies: policies ? policies.names() : null,
       routes: Object.values(this.routes),
     });
+  }
+
+  /**
+   * The models and the path helpers of this application, as TypeScript
+   * (`base/types.js`). `henri types` builds the same file from the files,
+   * without booting.
+   *
+   * @returns {{description: object, source: string}} the file and what it says
+   * @memberof Router
+   */
+  types() {
+    const { config, model } = this.henri;
+
+    return types.build({
+      config,
+      models: (model && model.models) || [],
+      routes: Object.values(this.routes),
+    });
+  }
+
+  /**
+   * Writes `.henri/types.d.ts` into the project.
+   *
+   * On every development boot and every hot reload, the way
+   * `3.model.js` writes the model globals the linter reads: an agent
+   * editing this application needs the file to be there without being told
+   * to run anything, and `.henri/` is gitignored, so nothing churns.
+   *
+   * Not in production (there is no editor there, and the filesystem may be
+   * read only) and not in a test process. A write that fails is a debug
+   * line and never a failed boot: a generated convenience must not be able
+   * to stop an application.
+   *
+   * @returns {boolean} whether the file was written
+   * @memberof Router
+   */
+  writeTypes() {
+    // `isTest` as well as `isDev`, and not only because the two cannot both
+    // be true: a suite that flips `isDev` to exercise a development branch
+    // would otherwise write into the application it booted, which every
+    // other test file of that suite is using at the same time
+    if (this.henri.isTest || !this.henri.isDev) {
+      return false;
+    }
+
+    try {
+      const { source } = this.types();
+      const file = path.resolve(this.henri.cwd(), types.FILE);
+
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, source);
+      debug('wrote %s', types.FILE);
+
+      return true;
+    } catch (error) {
+      debug('unable to write %s: %s', types.FILE, error.message);
+
+      return false;
+    }
   }
 
   /**

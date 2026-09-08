@@ -531,7 +531,7 @@ const intro = (facts) => {
 
   return `# ${facts.name}: conventions for coding agents
 
-A [henri](https://usehenri.io) application: Rails-like MVC for Node.js, CommonJS on the server, renderer \`${facts.renderer}\`, store ${store}. Everything here is read from this application by \`henri generate agents\`, so it says what is in front of you rather than what henri can do, and \`henri doctor\` reports it when the two drift apart. Keep the \`/** @type ... */\` line the generators write above \`module.exports\`: \`jsconfig.json\` points at the types every package ships, so \`req\`, \`res\` and \`henri\` complete instead of being guessed.${more}`;
+A [henri](https://usehenri.io) application: Rails-like MVC for Node.js, CommonJS on the server, renderer \`${facts.renderer}\`, store ${store}. Everything here is read from this application by \`henri generate agents\`, so it says what is in front of you rather than what henri can do, and \`henri doctor\` reports it when the two drift apart. Keep the \`/** @type ... */\` line the generators write above \`module.exports\`: \`jsconfig.json\` points at the types every package ships, so \`req\`, \`res\` and \`henri\` complete instead of being guessed. \`.henri/types.d.ts\` is generated from this application's own models and routes -- read it to know what a column is called, and add \`// @ts-check\` to a file (or \`"checkJs": true\` to \`jsconfig.json\`) to have \`npx tsc --noEmit -p jsconfig.json\` say so.${more}`;
 };
 
 /**
@@ -877,6 +877,10 @@ const commandSection = (facts) => {
       'The security check (`--checks` says what it looks for)',
     ],
     ['`henri routes --json`', 'The expanded routes, helpers and guards'],
+    [
+      '`henri types`',
+      'Rewrites `.henri/types.d.ts`: every model and every path helper, as types',
+    ],
     ['`henri test [files]`', "The tests (exits with vitest's code)"],
     [
       '`henri generate\\|destroy ... --json`',

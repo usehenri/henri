@@ -20,6 +20,7 @@ henri <command> [options]
 | `runner <code\|file\|->`      | Run an expression or a file inside a booted application and exit.            |
 | `routes`                      | Print the routes table of `config/routes.js`.                                |
 | `openapi`                     | Write the OpenAPI 3.1 description of what the application exposes.           |
+| `types`                       | Write the models and the path helpers of the application as TypeScript.      |
 | `generate <what> <name>`, `g` | Generate code, see below.                                                    |
 | `destroy <what> <name>`, `d`  | Remove what a generator created.                                             |
 | `build`                       | Build the production views without starting the server.                      |
@@ -34,7 +35,7 @@ henri <command> [options]
 | `maintenance`                 | Close the application, and open it again, without a deploy.                  |
 | `help [command]`              | Print the help.                                                              |
 
-`routes`, `openapi`, `analyze`, `generate`, `destroy`, `build`, `flags` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
+`routes`, `openapi`, `types`, `analyze`, `generate`, `destroy`, `build`, `flags` and `clean` refuse to run outside an application (a `package.json` with a `henri` key and an `app/views/pages` directory). `server`, `console` and `test` need an application too.
 
 ## `new` and `init`
 
@@ -309,6 +310,35 @@ henri build
 ```
 
 Builds the production views without booting henri, so it needs no database: `next build` for the React renderer, the client and server Vite bundles for the Inertia renderer. The `template` renderer needs no build. It reads `config/production.json` (falling back to `default.json`) and sets `NODE_ENV=production` and `FORCE_BUILD`. Use it in a Docker build stage or in CI; `henri server --production` builds on first boot when no build exists.
+
+It writes `.henri/types.d.ts` first, for every renderer including the ones with nothing to build, so a CI job that builds and then typechecks finds the declarations there. A build that cannot write them still builds.
+
+## `types`
+
+```bash
+henri types [--stdout] [--json]
+```
+
+Writes `.henri/types.d.ts`: an interface per model of the application and the union of every path helper `config/routes.js` expands to, read from `app/models` and the routes file without booting anything. A record carries exactly its columns, so `article.titel` is an error; an `enum` column is the union of its values, so a wrong one is too; and `pathFor()` takes the helper names this application really has.
+
+The development server writes the same file on every boot and every hot reload, and `henri build` writes it too, so the command is for the times there is no server: a fresh checkout, a CI job, or a coding agent that has just edited a model and wants to typecheck before it runs anything. `.henri/` is gitignored, so nothing reaches a diff.
+
+```text
+.henri/types.d.ts written
+
+  3 models, 27 columns
+  16 path helpers
+
+  Errors are opt-in: `// @ts-check` at the top of a file, or
+  `"checkJs": true` in jsconfig.json for the whole application.
+```
+
+| Flag       | Effect                                                                        |
+| ---------- | ----------------------------------------------------------------------------- |
+| `--stdout` | Print the declarations instead of writing the file.                           |
+| `--json`   | `{ file, format, models, paths, skipped }` — what it read, and where it went. |
+
+A model henri cannot read is named in `skipped` and the others are still described: an application mid-edit gets the declarations of what parses rather than nothing at all. Exits `1` with `HENRI_CLI_TYPES_UNWRITABLE` when the file cannot be written, and `3` outside an application. [Types](/reference/types/) is the full page.
 
 ## `test`
 
@@ -606,6 +636,8 @@ Every problem carries a stable `check` name to branch on, a `level` (`error` or 
 **What the catalogues disagree about.** The other half of "a missing key is findable", and the half that does not need the application to have been asked for one: every file of `config/locales` is read and compared with the default locale's. `i18n.incomplete` (a warning) names the keys one locale has and another has not — each of those falls back, so the page renders and the language is half there. `i18n.orphan` is the same difference the other way, which is usually a rename that happened in one file. `i18n.placeholders` is the one that reaches a person: a key whose `{name}` values differ between locales renders a literal `{count}` on somebody's page, because a value nobody passed is printed as its own placeholder. `i18n.locale` and `i18n.default` are errors rather than warnings — a locale the configuration names and no file answers raises `HENRI_LOCALE_UNKNOWN`. An application with no `config/locales` directory gets none of this, and no line saying so.
 
 **What `AGENTS.md` and the views claim.** `agents.stale` (a warning) when `AGENTS.md` no longer describes the application. A file `henri generate agents` wrote carries a digest of what the application was, so the check is exact and catches every drift the file could carry — a model added, a package installed, a route changed — not only the renderer and the store; a file written by hand is compared on the renderer and the store its own sentence names, which are the two that send a generated file the wrong way. Either way an agent reading it would write pages and controllers this application cannot run. Then `views.renderer` when a page imports the other view engine, or carries an extension the configured one does not resolve. Every file under `app/views/pages` is read, not only the ones a `resources` route names: the Inertia engine resolves a page through `import.meta.glob('./pages/**/*.jsx')`, so a `.js` file there is loaded by nothing and says so nowhere, and that is exactly the page no route points at.
+
+**What the generated declarations claim.** `.henri/types.d.ts` ([Types](/reference/types/)) is written by every development boot, every hot reload, `henri build` and `henri types`, so a missing one is not a problem: the next boot writes it, and this command says nothing. A file that is _there_ and no longer describes the application is `types.stale` (a warning) — the marker it carries holds a digest of the models and the routes it was written from, so the check is exact — and one written by hand or by an older henri is `types.foreign`. `types.unwritable` is the file the development server cannot keep current. Each of the three is an editor and a coding agent reading columns and path helpers this application does not have.
 
 **The schema of a store.** One question is asked over a connection, and `--no-reach` skips it along with the shared store: `schema.behind` when the store answers and `db/migrations` holds migrations it has not applied, and `schema.unreachable` when it did not answer — because a store that is down and a store that is behind are different problems with different fixes. The store adapter and its driver are resolved from the application, so neither fires before `node_modules` is there; `deps.installed` is what says so until then. Drift itself, what a database and the models disagree about column by column, needs the models loaded and stays with [`db:status`](#db). Two file-only checks sit next to it: `schema.migrations-ignored` (migrations next to a store whose adapter can never apply them) and `schema.migrations-pending` (a drizzle store whose production configuration does not set `"migrate": true`). The same connection answers `schema.unreviewed`: a pending migration a production [`db:migrate`](#db) would refuse, named with what was found in it and the token that approves it, so the deploy is not where you find out. See [Migration safety](/guides/models/#migration-safety).
 

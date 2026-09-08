@@ -1,5 +1,5 @@
 {
-  "//": "Editors read this: `types` loads henri's declarations, so `henri`, `req`, `res`, the routes file and the model files get completion and inline documentation with nothing to install. Turn `checkJs` on to have the annotations checked too; declare the model globals you use (`declare const Task: any`) in a .d.ts of your own when you do.",
+  "//": "Editors read this: `types` loads henri's declarations, so `henri`, `req`, `res`, the routes file and the model files get completion and inline documentation with nothing to install, and `.henri/types.d.ts` -- which `henri types` and every development boot write from this application's own models and routes -- types the model globals and the path helpers. Turn `checkJs` on to have all of it actually checked, or put `// @ts-check` at the top of one file.",
   "compilerOptions": {
     "allowJs": true,
     "checkJs": false,
@@ -9,5 +9,6 @@
     "target": "es2023",
     "types": ["@usehenri/core"]
   },
-  "exclude": ["node_modules", "app/views", ".henri"]
+  "include": ["**/*.js", "**/*.d.ts", ".henri/types.d.ts"],
+  "exclude": ["node_modules", "app/views"]
 }

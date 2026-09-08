@@ -1413,6 +1413,46 @@ const COMMANDS = [
   },
   {
     description: [
+      'Writes .henri/types.d.ts: an interface per model of this application',
+      'and the union of every path helper config/routes.js expands to, from',
+      'the model files and the routes file, without booting anything.',
+      '',
+      'A record carries exactly its columns, so article.titel is an error;',
+      'an enum column is the union of its values, so a wrong one is too; and',
+      'pathFor() takes the helper names this application really has.',
+      '',
+      'The development server writes the same file on every boot and every',
+      'hot reload, and henri build writes it too, so this command is for the',
+      'times there is no server: a fresh checkout, a CI job, or an agent',
+      'that has just edited a model and wants to typecheck before it runs.',
+      '',
+      'Errors are opt-in. An editor shows completion with nothing to turn',
+      'on; add // @ts-check at the top of a file, or "checkJs": true in',
+      'jsconfig.json, to have them checked.',
+    ],
+    examples: [
+      {
+        command: 'henri types',
+        description: 'Write the file and say what it covers',
+      },
+      {
+        command: 'henri types --stdout',
+        description: 'Print the declarations instead of writing them',
+      },
+    ],
+    flags: [
+      {
+        description: 'print the declarations instead of writing the file',
+        flag: '--stdout',
+      },
+      JSON_FLAG,
+    ],
+    name: 'types',
+    summary: 'the models and the path helpers of this application, as types',
+    usage: ['henri types [--stdout] [--json]'],
+  },
+  {
+    description: [
       'The history of the models that say options: { versioned: true }.',
       'One row per change: when, the record, the event, the attributes that',
       'moved from what to what, who did it and during which request.',
