@@ -43,9 +43,15 @@ describe('henri openapi', () => {
       model: 'Task',
       source: 'resources',
     });
-    expect(create.requestBody.content['application/json'].schema).toEqual({
-      $ref: '#/components/schemas/TaskInput',
-    });
+    // The scaffold declares what its writes accept, so the body is that
+    // declaration; the columns of the model stay in `TaskInput`, which the
+    // body's description names and a `crud` action that declares nothing
+    // still points at
+    expect(
+      create.requestBody.content['application/json'].schema.properties.name
+    ).toEqual({ type: 'string' });
+    expect(create.requestBody.description).toContain('TaskInput');
+    expect(document.components.schemas.TaskInput).toBeDefined();
     expect(create.responses['201'].headers.Location).toBeDefined();
     // The scaffold has no user model, so henri mounts no session endpoints
     expect(document.paths['/login']).toBeUndefined();
@@ -65,7 +71,11 @@ describe('henri openapi', () => {
     });
 
     /**
-     * Adds a `params` export to the scaffolded controller
+     * Replaces the `params` export of the scaffolded controller.
+     *
+     * The scaffold writes one of its own now (`create,update`, the columns
+     * typed), so the block goes in last: a later key of an object literal
+     * is the one the module ends up with.
      *
      * @param {string} block The block, as source
      * @returns {object} The document `henri openapi` writes for it
@@ -73,7 +83,7 @@ describe('henri openapi', () => {
     const withParams = (block) => {
       fs.writeFileSync(
         controller(),
-        original.replace('module.exports = {', `module.exports = {\n${block}\n`)
+        `${original.trimEnd().replace(/\};$/u, `${block}\n};`)}\n`
       );
 
       return JSON.parse(henri(['openapi'], { cwd: app }).stdout);
@@ -137,14 +147,35 @@ describe('henri openapi', () => {
       expect(stdout).toContain('tasks#index');
     });
 
-    test('a scaffolded application declares none, and nothing is invented', () => {
+    test('a scaffolded application declares its two writes and no more', () => {
       const document = JSON.parse(henri(['openapi'], { cwd: app }).stdout);
+      const create = document.paths['/tasks'].post;
 
+      // `henri generate scaffold` writes a params block for create and
+      // update: the columns of the model, typed, with the values of an
+      // enum column. Nothing else declares anything, so an index still
+      // carries no parameters and no 422
       expect(document.info['x-henri'].params).toBeUndefined();
       expect(document.paths['/tasks'].get['x-henri'].params).toBeUndefined();
       expect(document.paths['/tasks'].get.responses['422']).toBeUndefined();
-      expect(document.paths['/tasks'].post.responses['422']).toEqual({
-        $ref: '#/components/responses/IdempotencyMismatch',
+      expect(create['x-henri'].params).toEqual({
+        fields: ['category', 'done', 'name'],
+      });
+      // A mutating route answers 422 for two reasons now, and says so
+      expect(create.responses['422']).toEqual({
+        $ref: '#/components/responses/UnprocessableEntity',
+      });
+      // The body is what the action accepts rather than the model's
+      // writable columns, which is the point of declaring it
+      expect(
+        create.requestBody.content['application/json'].schema.properties
+      ).toEqual({
+        category: {
+          enum: ['urgent', 'high', 'medium', 'low'],
+          type: 'string',
+        },
+        done: { type: 'boolean' },
+        name: { type: 'string' },
       });
     });
   });

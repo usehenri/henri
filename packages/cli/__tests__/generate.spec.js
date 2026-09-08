@@ -4,6 +4,11 @@ const { parse } = require('@babel/parser');
 
 const { hooksFor } = require('@usehenri/core/src/base/hooks');
 const { modelErrors } = require('@usehenri/core/src/base/model-errors');
+const {
+  coerce,
+  declarations,
+  inspect,
+} = require('@usehenri/core/src/base/params-schema');
 
 const { TYPES, parseAttributes } = require('../scripts/generate');
 const {
@@ -759,7 +764,7 @@ describe('henri generate', () => {
         delete global.Post;
       });
 
-      test('has the seven resources actions and a before block', () => {
+      test('has the seven resources actions, a before and a params block', () => {
         expect(Object.keys(controller).sort()).toEqual([
           'before',
           'create',
@@ -767,6 +772,7 @@ describe('henri generate', () => {
           'edit',
           'index',
           'new',
+          'params',
           'show',
           'update',
         ]);
@@ -965,6 +971,7 @@ describe('henri generate', () => {
         'create',
         'destroy',
         'index',
+        'params',
         'update',
       ]);
       expect(Object.keys(controller.before)).toEqual(['update,destroy']);
@@ -1006,6 +1013,196 @@ describe('henri generate', () => {
       } finally {
         delete global.Category;
       }
+    });
+  });
+
+  describe('the params block', () => {
+    // The `henri new` shape: a model written by hand with the marks no
+    // `name:type` pair can express, and the generator run over it
+    const declared = `module.exports = {
+  options: { timestamps: true },
+  schema: {
+    amount: { type: 'decimal', precision: 12, scale: 2 },
+    customerId: { type: 'integer', references: { model: 'Post' } },
+    note: { type: 'string', personal: { expose: false } },
+    placedAt: { type: 'date' },
+    quantity: { type: 'integer', required: true },
+    shipped: { type: 'boolean' },
+    state: { type: 'string', enum: ['open', 'sent'], default: 'open' },
+  },
+  store: 'default',
+};
+`;
+    const attributes = [
+      'amount:decimal',
+      'customerId:integer',
+      'note:string',
+      'placedAt:date',
+      'quantity:integer!',
+      'shipped:boolean',
+      'state:string',
+    ];
+    let controller;
+
+    /**
+     * The rules of one action, compiled the way `2.controllers.js` compiles
+     * them at boot: a declaration henri cannot carry out throws here, which
+     * is the point of asking the real compiler rather than reading strings
+     *
+     * @param {string} action The action name
+     * @returns {object} The compiled rules, by field
+     */
+    const rulesFor = (action) =>
+      declarations(
+        controller,
+        'orders',
+        Object.keys(controller).filter(
+          (key) => typeof controller[key] === 'function'
+        )
+      )[action];
+
+    beforeAll(() => {
+      fs.writeFileSync(path.join(app, 'app', 'models', 'Order.js'), declared);
+
+      const result = henri(['g', 'scaffold', 'Order', ...attributes], {
+        cwd: app,
+      });
+
+      if (result.status !== 0) {
+        throw new Error(result.stdout + result.stderr);
+      }
+
+      controller = require(path.join(app, 'app/controllers/orders.js'));
+    });
+
+    test('declares the type of every attribute a request may set', () => {
+      // One selector: what separates a create from an update is `required`,
+      // which is not copied, so the two accept the same thing
+      expect(Object.keys(controller.params)).toEqual(['create,update']);
+      // The short form, and the model's own types: what a request holds is
+      // what the columns are
+      expect(controller.params['create,update']).toEqual({
+        amount: 'decimal',
+        note: 'string',
+        placedAt: 'date',
+        quantity: 'integer',
+        shipped: 'boolean',
+        state: { enum: ['open', 'sent'], type: 'string' },
+      });
+    });
+
+    test('... which is what henri compiles at boot, for those two alone', () => {
+      const compiled = declarations(
+        controller,
+        'orders',
+        Object.keys(controller).filter(
+          (key) => typeof controller[key] === 'function'
+        )
+      );
+
+      expect(Object.keys(compiled).sort()).toEqual(['create', 'update']);
+      expect(compiled.create.shipped).toEqual({ type: 'boolean' });
+      // An index takes its page from req.pagination(), a show its id from
+      // the path: a declaration there would say what neither needs said
+      expect(compiled.index).toBeUndefined();
+      expect(compiled.show).toBeUndefined();
+    });
+
+    test('a form body is coerced into what the columns hold', () => {
+      const { errors, values } = inspect(rulesFor('create'), {
+        body: {
+          amount: '19.99',
+          placedAt: '2026-01-02',
+          quantity: '3',
+          shipped: 'true',
+        },
+        is: () => false,
+        method: 'POST',
+        params: {},
+        query: {},
+      });
+
+      expect(errors).toEqual({});
+      expect(values.quantity).toBe(3);
+      expect(values.shipped).toBe(true);
+      expect(values.placedAt).toBeInstanceOf(Date);
+      // An exact value stays the digits it arrived as (base/exact.js)
+      expect(values.amount).toBe('19.99');
+    });
+
+    test('... and a value of the wrong shape never reaches the model', () => {
+      const { errors } = inspect(rulesFor('update'), {
+        body: { quantity: 'banana', shipped: 'yes please' },
+        is: () => false,
+        method: 'PATCH',
+        params: {},
+        query: {},
+      });
+
+      expect(errors).toEqual({
+        quantity: 'must be a whole number',
+        shipped: 'must be true or false',
+      });
+    });
+
+    test('a column that never leaves is still typed: a write is not an answer', () => {
+      const code = read(app, 'app/controllers/orders.js');
+
+      expect(controller.params['create,update'].note).toBe('string');
+      expect(code).toMatch(/const FIELDS = \[[\s\S]*'note'/u);
+      expect(read(app, 'app/views/pages/orders/_form.jsx')).not.toContain(
+        'note'
+      );
+    });
+
+    test('a column naming another model is not typed, and says why', () => {
+      const code = read(app, 'app/controllers/orders.js');
+
+      // A foreign key is published as the target's externalId, so only the
+      // application knows whether a request carries that or the column's
+      // own value -- `henri openapi` leaves it untyped too
+      expect(controller.params['create,update'].customerId).toBeUndefined();
+      expect(code).toContain('customerId names another model.');
+      expect(code).toContain('Permitted by FIELDS and not declared here:');
+    });
+
+    test('required is not copied, because the word means two things', () => {
+      const code = read(app, 'app/controllers/orders.js');
+
+      // `quantity` is required by the model and is optional here. The two
+      // rules are not the same rule: a parameter is required when the key
+      // arrived at all, while the model asks Rails' presence -- so the
+      // empty string a form posts for an untouched input passes the first
+      // and is refused by the second
+      expect(controller.params['create,update'].quantity).toBe('integer');
+      expect(coerce(rulesFor('create').quantity, '', true)).toEqual({});
+      expect(code).toContain('here it means "the key was absent"');
+    });
+
+    test('... and the enum is, because nothing can send the list here', () => {
+      const code = read(app, 'app/controllers/orders.js');
+
+      // A page is handed `Order.enums` by the controller, but this block is
+      // compiled at runlevel 2 and the models are built at 3: there is no
+      // model to ask, so the values are a literal and the file says so
+      expect(coerce(rulesFor('create').state, 'sent', true)).toEqual({
+        value: 'sent',
+      });
+      expect(coerce(rulesFor('create').state, 'void', true)).toEqual({
+        error: 'must be one of open, sent',
+      });
+      expect(code).toContain('The `enum` is a copy and the model is the');
+    });
+
+    test('nothing to type is no block at all', () => {
+      const result = henri(['g', 'crud', 'Blank'], { cwd: app });
+
+      expect(result.status).toBe(0);
+
+      const blank = require(path.join(app, 'app/controllers/blanks.js'));
+
+      expect(blank.params).toBeUndefined();
+      expect(read(app, 'app/controllers/blanks.js')).not.toContain('params:');
     });
   });
 

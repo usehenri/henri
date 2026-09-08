@@ -42,6 +42,18 @@ const TYPES = [
 /** What `price:decimal` writes: money, which is what people mean by one */
 const DECIMAL_SETTINGS = { precision: 12, scale: 2 };
 
+/**
+ * The types a generated `params` rule copies an `enum` for: the two whose
+ * values a model file writes as strings, which is what `henri generate`
+ * itself can write (`status:string:enum=draft,live`).
+ *
+ * The parameter vocabulary takes an `enum` on more than these
+ * (`APPLIES.enum` in base/params-schema.js) and checks every value against
+ * the type, so a list this generator cannot be sure of is left to the model
+ * rather than guessed into a rule that would fail the boot.
+ */
+const ENUMERABLE = ['string', 'text'];
+
 const VIEWS = ['index', '_form', 'new', 'edit', 'show'];
 
 /** The extension of a page, per renderer */
@@ -808,6 +820,67 @@ const isObject = (value) =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 /**
+ * What the model file says one attribute is, whichever way it wrote it: the
+ * definition object, the bare type a short file writes (`title: 'string'`),
+ * or the `name:type` pair of the command line when the file says nothing
+ * about that attribute at all.
+ *
+ * @param {*} written what the model file has under that name
+ * @param {object} fallback the parsed `name:type` pair
+ * @returns {object} the definition
+ */
+const definitionOf = (written, fallback) => {
+  if (isObject(written)) {
+    return written;
+  }
+
+  return typeof written === 'string' && written !== ''
+    ? { type: written }
+    : fallback;
+};
+
+/**
+ * The values a column may hold, when a generated rule can copy them: a
+ * non-empty list of strings on a type that reads them as strings.
+ *
+ * @param {object} definition the column definition
+ * @returns {?Array<string>} the values, or null
+ */
+const enumOf = (definition) => {
+  const values = definition.enum;
+
+  return ENUMERABLE.includes(definition.type) &&
+    Array.isArray(values) &&
+    values.length > 0 &&
+    values.every((value) => typeof value === 'string')
+    ? values
+    : null;
+};
+
+/**
+ * The model a column points at, when it says so (`references: { model }` on
+ * the SQL adapters, `ref` on Mongoose).
+ *
+ * The same test `base/openapi.js` makes, and for the same reason: henri
+ * reads no field name to decide what points where, so a column that says
+ * nothing is an opaque value (see base/references.js).
+ *
+ * @param {object} definition the column definition
+ * @returns {?string} the model name, or null
+ */
+const referenceOf = (definition) => {
+  if (typeof definition.ref === 'string' && definition.ref !== '') {
+    return definition.ref;
+  }
+
+  const model = isObject(definition.references)
+    ? definition.references.model
+    : null;
+
+  return typeof model === 'string' && model !== '' ? model : null;
+};
+
+/**
  * The model file of a resource, read off the disk without booting henri.
  *
  * The one way this command reads a model: `--slug` was the first caller and
@@ -889,22 +962,50 @@ const hasSlug = (doc, opts = {}) => {
  * whether it is stripped is `config.privacy.expose`, which is per
  * environment, and a page is one file for all of them.
  *
+ * The same read answers what the controller's `params` block declares, and
+ * it is a different list: a hidden column is still something a request may
+ * *set*, so it is typed there while it is on no page, and a column that
+ * names another model is typed nowhere at all -- henri publishes a foreign
+ * key as the target's `externalId`, so only the application knows whether a
+ * request carries that or the column's own value, which is the reason
+ * `henri openapi` leaves one untyped in a request body too.
+ *
  * @param {string} doc The model's global id (ex: Task)
  * @param {string[]} [attributes=[]] The attributes as typed on the command line
- * @returns {{fields: Array<object>, hidden: Array<string>}} what to write
- *   ({ enum, name, required } per visible field) and what never leaves
+ * @returns {{accepted: Array<object>, fields: Array<object>, hidden:
+ *   Array<string>, references: Array<string>, untyped: Array<string>}} what
+ *   a request may hold ({ name, type }), what to write on a page
+ *   ({ enum, name, required } per visible field), what never leaves, what
+ *   names another model, and what carries a type henri does not have
  */
 const fieldsOf = (doc, attributes = []) => {
   const typed = parseAttributes(attributes);
   const model = modelFileOf(doc);
   const declared =
     isObject(model) && isObject(model.schema) ? model.schema : {};
+  const accepted = [];
   const fields = [];
   const hidden = [];
+  const references = [];
+  const untyped = [];
 
   for (const name of Object.keys(typed)) {
-    const definition = isObject(declared[name]) ? declared[name] : typed[name];
+    const definition = definitionOf(declared[name], typed[name]);
     const personal = definition.personal;
+
+    if (referenceOf(definition)) {
+      references.push(name);
+    } else if (TYPES.includes(definition.type)) {
+      accepted.push({
+        enum: enumOf(definition),
+        name,
+        type: definition.type,
+      });
+    } else {
+      // A type henri does not have is a column an adapter brought, and
+      // there is no rule to write for it: it stays permitted and unchecked
+      untyped.push(name);
+    }
 
     if (isObject(personal) && personal.expose === false) {
       hidden.push(name);
@@ -918,7 +1019,7 @@ const fieldsOf = (doc, attributes = []) => {
     });
   }
 
-  return { fields, hidden };
+  return { accepted, fields, hidden, references, untyped };
 };
 
 /**
@@ -933,17 +1034,23 @@ const fieldsOf = (doc, attributes = []) => {
  */
 const resourceOf = (name, attributes = [], opts = {}) => {
   const named = names(name);
-  const { fields, hidden } = fieldsOf(named.doc, attributes);
+  const { accepted, fields, hidden, references, untyped } = fieldsOf(
+    named.doc,
+    attributes
+  );
 
   return {
     ...named,
+    accepted,
     api: apiOf(process.cwd()),
     fields,
     hasEnums: fields.some((field) => field.enum),
     hidden,
     keys: extractKeys(attributes),
+    references,
     renderer: rendererOf(process.cwd()),
     slug: hasSlug(named.doc, opts),
+    untyped,
   };
 };
 
