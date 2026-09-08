@@ -5,6 +5,8 @@ const {
   APIS,
   FILE,
   FORMAT,
+  RECORDS,
+  STATICS,
   build,
   describe: describeApp,
   markerOf,
@@ -411,5 +413,25 @@ describe('base/types', () => {
     );
 
     expect(APIS).toEqual(cli.APIS);
+  });
+
+  test('every model API has a record base and a statics interface', () => {
+    // The two tables the renderer reads. A model API with a record base and
+    // no statics interface would silently fall back to the open
+    // `ModelStatics`, which is the answer for an adapter henri does not
+    // know rather than for one it does
+    expect(Object.keys(STATICS).sort()).toEqual(Object.keys(RECORDS).sort());
+    expect(Object.keys(RECORDS).sort()).toEqual(
+      [...new Set(Object.values(APIS))].sort()
+    );
+
+    const declarations = fs.readFileSync(
+      path.join(ROOT, 'packages', 'core', 'index.d.ts'),
+      'utf8'
+    );
+
+    for (const name of [...Object.values(RECORDS), ...Object.values(STATICS)]) {
+      expect(declarations).toContain(`  interface ${name}`);
+    }
   });
 });

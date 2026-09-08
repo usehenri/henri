@@ -47,16 +47,31 @@
  * user model's own), and nothing else. That is what makes a wrong column
  * name an error, which is the point of the file.
  *
- * A **model** is open: `ModelStatics` carries what henri itself guarantees
- * on all three adapters -- `findById`, `findByKey`, `findByExternalId`,
- * `paginate` and the enum scopes -- and an index signature for everything
- * else. It has to be. `Model.find()` answers a chainable Mongoose `Query`,
- * a Sequelize promise and a Drizzle `Relation`; `Model.update()` takes its
- * arguments in one order on Sequelize and the other on Drizzle. Declaring
- * one of those three as the truth would turn correct code into an error on
- * the other two, and an honest `any` beats an invented signature -- the
- * same answer `base/openapi.js` gives when it cannot know what an action
- * returns.
+ * A **model** is as closed as its adapter lets it be, which is not the
+ * same answer for the three. `ModelGuarantees` is the measured
+ * intersection -- `findById`, `findByKey`, `findByExternalId`, `findOne`,
+ * `create` and `paginate`, and not `find()`, which a Sequelize model does
+ * not have at all -- and each adapter gets an interface of its own on top
+ * of it, picked here by the adapter of the model's store the same way the
+ * record base already is.
+ *
+ * Two of those three stay open. A Mongoose model's statics are Mongoose's
+ * (`aggregate`, `insertMany`, `watch`, the `EventEmitter` it inherits) and
+ * a Sequelize model's are Sequelize's, at whatever version the application
+ * installed: enumerating either would pin someone else's API to a henri
+ * release, and an ORM that added one static would turn code that runs into
+ * an error. So the index signature stays there, and an honest `any` beats
+ * an invented signature -- the same answer `base/openapi.js` gives when it
+ * cannot know what an action returns.
+ *
+ * The third does not. A drizzle model is henri's own class
+ * (`@usehenri/drizzle/model.js`), released in lockstep with core, and its
+ * statics are the same 83 whatever the model declares -- so
+ * `DrizzleModelStatics` lists them and nothing else, which is what makes
+ * `Task.fnid()` an error on the adapter `henri new` scaffolds by default.
+ * The names it lists are also the names `base/enums.js` refuses a scope to
+ * claim, so a model that would collide with one of them fails the boot
+ * rather than reaching this file.
  *
  * What the record type is *not* is a promise that the value is there: a
  * column henri cannot type (a nested schema, a Mongoose `ObjectId`, a
@@ -100,7 +115,7 @@ const { SLUG } = require('./slug');
  * The format of the file. The marker at the end carries it, so `henri
  * doctor` can tell a file this version wrote from one an older henri did.
  */
-const FORMAT = 1;
+const FORMAT = 2;
 
 /** Where the file goes, relative to the application */
 const FILE = '.henri/types.d.ts';
@@ -137,6 +152,26 @@ const RECORDS = {
 };
 
 /**
+ * The statics interface of each model API, declared by hand next to the
+ * record ones. A store whose adapter is not one of these gets
+ * `ModelStatics`, which is the measured intersection of the three plus an
+ * index signature.
+ *
+ * The split is what lets each one say what its adapter answers rather than
+ * what the loosest of the three does: a Sequelize model has no `find()` at
+ * all, a Mongoose `find()` chains, and a Drizzle `find()` is a plain
+ * promise whose `.sort()` is a `TypeError`. `DrizzleModelStatics` is also
+ * the one that is *closed* -- that class is henri's own, so `Task.fnid()`
+ * is an error there and stays an `any` on the two adapters whose surface
+ * belongs to an ORM.
+ */
+const STATICS = {
+  drizzle: 'DrizzleModelStatics',
+  mongoose: 'MongooseModelStatics',
+  sequelize: 'SequelizeModelStatics',
+};
+
+/**
  * The declarations the file borrows from `@usehenri/core`, aliased once at
  * the top.
  *
@@ -147,6 +182,9 @@ const RECORDS = {
 const BORROWED = [
   { generic: true, name: 'ModelQuery' },
   { generic: true, name: 'ModelStatics' },
+  { generic: true, name: 'DrizzleModelStatics' },
+  { generic: true, name: 'MongooseModelStatics' },
+  { generic: true, name: 'SequelizeModelStatics' },
   { generic: false, name: 'RecordBase' },
   { generic: false, name: 'DrizzleRecord' },
   { generic: false, name: 'MongooseRecord' },
@@ -700,15 +738,13 @@ function recordOf(model) {
  */
 function staticsOf(model) {
   const record = `${model.name}Record`;
-  const opening = `interface ${model.name}Model extends HenriModelStatics<${record}> {`;
+  const base = `Henri${STATICS[model.api] || 'ModelStatics'}`;
+  const opening = `interface ${model.name}Model extends ${base}<${record}> {`;
   const lines = [
     `/** The \`${model.name}\` model: a global in every file of this application. */`,
     // Where prettier would break it, break it in the same place
     ...(opening.length > 80
-      ? [
-          `interface ${model.name}Model`,
-          `  extends HenriModelStatics<${record}> {`,
-        ]
+      ? [`interface ${model.name}Model`, `  extends ${base}<${record}> {`]
       : [opening]),
   ];
 
@@ -855,9 +891,9 @@ function header(description) {
     '//',
     '// A record carries exactly the columns of its model file plus the ones',
     '// henri adds, so a wrong column name is an error. A model carries what',
-    '// henri guarantees on every adapter and stays open for the rest: the',
-    '// three ORMs answer different things to `find()`, and an honest `any`',
-    '// beats a signature that is right on one of them.',
+    '// the adapter of its store answers: closed on a drizzle store, where',
+    '// the model class belongs to henri, and open on the two where it',
+    '// belongs to an ORM at whatever version this application installed.',
     '//',
     '// An editor reads it through `jsconfig.json`. Errors are opt-in: add',
     '// `// @ts-check` at the top of a file, or turn `checkJs` on for the',
@@ -876,7 +912,7 @@ function preamble(models) {
 
   for (const model of models) {
     used.add(RECORDS[model.api] || 'RecordBase');
-    used.add('ModelStatics');
+    used.add(STATICS[model.api] || 'ModelStatics');
     model.slug && used.add('ModelQuery');
   }
 
@@ -949,6 +985,7 @@ module.exports = {
   FORMAT,
   MARKER,
   RECORDS,
+  STATICS,
   TYPES,
   build,
   describe,

@@ -103,7 +103,7 @@ interface TaskRecord extends HenriDrizzleRecord {
   isDraft(): boolean;
 }
 
-interface TaskModel extends HenriModelStatics<TaskRecord> {
+interface TaskModel extends HenriDrizzleModelStatics<TaskRecord> {
   enums: { status: readonly ('draft' | 'in_review' | 'live')[] };
   draft(where?: Record<string, any>): Record<string, any>;
 }
@@ -133,20 +133,57 @@ interface HenriPaths {
 - **The path helpers**, one key per helper, so `pathFor('taks_path')` and
   `getRoute('index_task_path')` are compile errors in both view packages.
 
-### What it deliberately leaves open
+### How much of a model is closed
 
-A record is closed; a model is not. `findById`, `findByKey`,
-`findByExternalId`, `findBySlug`, `paginate`, `enums` and the enum scopes are
-typed, and every other static is `any` — because `Model.find()` answers a
-chainable Mongoose `Query`, a Sequelize promise and a Drizzle `Relation`, and
-`Model.update()` takes its arguments in one order on Sequelize and the other
-on Drizzle. Declaring one of the three as the truth would turn code that runs
-into an error on the other two. An honest `any` is the same answer
-[`henri openapi`](/guides/openapi/) gives when it cannot know what an action
-answers.
+A record is always closed. A model is as closed as the adapter of its store
+lets it be, and that is not the same answer for the three.
 
-The consequence is worth stating plainly: a **wrong column, a wrong enum value
-and a wrong path helper are caught**; a wrong _static_ is not.
+What every model has, whatever the adapter, is `findById`, `findByKey`,
+`findByExternalId`, `findOne`, `create` and `paginate`, plus `findBySlug`,
+`enums` and the enum scopes when the model asks for them. That list is the
+measured intersection of the three model APIs, and `find()` is deliberately
+not in it: a Sequelize model has no `find` at all, so `Model.find()` on an
+`mssql` store is a `TypeError` — and an error here rather than an `any` that
+compiles.
+
+On top of that, each adapter gets an interface of its own, picked from the
+store the model lives in the same way its record base already is:
+
+| Store                                       | The model interface     | Closed?                                                                                                                                                      |
+| ------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `drizzle`, `postgresql`, `mysql`, `mariadb` | `DrizzleModelStatics`   | **Yes.** The model class is henri's own, released with core, so the 83 statics it has are listed and a name that is not there is an error.                   |
+| `disk`, `mongoose`                          | `MongooseModelStatics`  | No. `find()` is declared as the chainable `Query` it is; the rest is Mongoose's own surface, at whatever version the application installed, and stays `any`. |
+| `mssql`                                     | `SequelizeModelStatics` | No. `findAll()` is declared; the rest is Sequelize's. There is no `find()`.                                                                                  |
+| anything else                               | `ModelStatics`          | No. henri does not know the ORM, so everything but the six guarantees is `any`.                                                                              |
+
+The two that stay open stay open on purpose. Enumerating Mongoose's or
+Sequelize's statics would pin someone else's API to a henri release, and an
+ORM that added one would turn code that runs into an error — the same reason
+[`henri openapi`](/guides/openapi/) refuses to describe what a controller
+writes. A drizzle model is different in kind: that class is
+`@usehenri/drizzle/model.js`, it moves when henri moves, and
+`packages/drizzle/__tests__/statics.spec.js` builds a model and compares its
+statics with the declaration, so the list cannot drift.
+
+So on the adapter `henri new` scaffolds by default:
+
+```js
+Task.fnid('018f…'); // an error: no such static
+Task.published(); // an error: no such scope
+Task.find().sort(); // an error: a drizzle find() is a promise, where() is the chain
+Task.aggregate([]); // an error: that is Mongoose's
+await Task.where({ urgent: true }).limit(5); // fine, and typed TaskRecord[]
+```
+
+and on a mongoose or mssql store the first four still compile, because
+nothing henri can measure says they should not.
+
+Two things the closed one costs, worth knowing before you meet them:
+`Task[someName]` is an error where an index signature allowed it, and a
+static henri adds to the drizzle model class in a release you have not
+upgraded to is not in your copy of the declarations — which is the same
+version skew [`henri doctor`](/reference/cli/#doctor) already reports as
+`deps.version`.
 
 ### When henri cannot read something
 
@@ -320,5 +357,5 @@ wrong column, a wrong enum value and a misspelled path helper are all errors.
 The two do not compete — the hand-written files describe henri and are
 published to npm, the generated one describes an application and is never
 published — and the generated file is built out of the hand-written ones
-(`ModelStatics`, `ModelQuery`, `RecordBase` and the three adapter record
-types), so a signature changes in one place.
+(`ModelQuery`, the four statics interfaces and the four record ones), so a
+signature changes in one place.

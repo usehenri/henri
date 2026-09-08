@@ -349,11 +349,34 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   and `settingsOf()` from `base/openapi.js` rather than reading a model a
   second way, so the two cannot disagree. A **record is closed** -- the
   columns of the file plus the ones the adapters add, so `article.titel` is
-  an error -- and a **model is open**: `ModelStatics` in
-  `packages/core/index.d.ts` carries what henri guarantees everywhere
-  (`findById`, `findByKey`, `findByExternalId`, `paginate`, the enum scopes,
-  `enums`) and an index signature for the rest, because `find()` answers a
-  Mongoose `Query`, a Sequelize promise and a Drizzle `Relation`. A
+  an error -- and a **model is as closed as its adapter lets it be**.
+  `ModelGuarantees` in `packages/core/index.d.ts` is the _measured_
+  intersection of the three model APIs (`findById`, `findByKey`,
+  `findByExternalId`, `findOne`, `create`, `paginate`) and does **not**
+  hold `find()`, because a Sequelize model has none -- it was dropped in
+  Sequelize 4, so `Model.find()` on an mssql store is a `TypeError`. On top
+  of it sit three interfaces the renderer picks by the adapter of the
+  model's store, the way it already picks the record base (`RECORDS` and
+  `STATICS` in `base/types.js`). `MongooseModelStatics` and
+  `SequelizeModelStatics` **keep the index signature**: the rest of that
+  surface belongs to an ORM, at whatever version the application installed,
+  and enumerating it would pin someone else's API to a henri release.
+  `DrizzleModelStatics` is **closed** -- no index signature -- because that
+  model class is henri's own (`@usehenri/drizzle/model.js`), released in
+  lockstep with core, and its statics are the same 83 whatever the model
+  declares (measured across `paranoid`, `slug`, `versioned`, `externalId`
+  and the user model, which add nothing but `setRoles`). So on the adapter
+  `henri new` scaffolds by default a typo in a static (`Task.fnid()`), a
+  scope that does not exist (`Task.published()`) and a call from the wrong
+  ORM (`Task.aggregate()`) are all compile errors, and `Task.find().sort()`
+  is one too, because a drizzle `find()` is a plain promise and `where()`
+  is the chain (`DrizzleRelation`). The price, said in the guide: `Task[key]`
+  is an error there, and henri's own bookkeeping statics are declared
+  `@internal` rather than left out. `packages/drizzle/__tests__/
+statics.spec.js` builds a model and compares its statics with the
+  declaration, so the list cannot drift; the names it closes are also the
+  ones `base/enums.js` refuses a generated scope, so a collision fails the
+  boot rather than reaching this file. A
   `decimal` and a `bigint` are `string` (`base/exact.js`), an `enum` is the
   union of its values, and a column marked `personal: { expose: false }` is
   on the record because the mark is about answers. `5.router.js` writes the

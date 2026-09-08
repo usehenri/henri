@@ -3262,16 +3262,16 @@ declare namespace start {
   }
 
   /**
-   * What every model answers, on every adapter, plus everything else the
-   * ORM behind it puts there.
+   * What every model answers whatever the adapter behind its store.
    *
-   * The declared members are the ones henri owns and guarantees. The index
-   * signature is the rest of the ORM: `findAll` on Sequelize, `where` and
-   * `pluck` on Drizzle, `aggregate` on Mongoose. They are `any` rather than
-   * absent, because a generated declaration that refused them would break
-   * code that runs.
+   * These six are the measured intersection of the three model APIs, and
+   * they are the only statics that can be promised without knowing which
+   * one a store is on. `find()` is deliberately not among them: a
+   * Sequelize model has no `find` at all (it was dropped in Sequelize 4),
+   * so the three per-API interfaces below are where it is declared, once
+   * each, with what that adapter actually answers.
    */
-  interface ModelStatics<T = any> {
+  interface ModelGuarantees<T = any> {
     /**
      * The record of a public identifier -- the `externalId`, or the slug of
      * a model that declared one -- and `null` for anything else. A primary
@@ -3283,11 +3283,288 @@ declare namespace start {
     /** The record of an `externalId`, explicitly. */
     findByExternalId(id: any, ...args: any[]): ModelQuery<T | null>;
     findOne(...args: any[]): ModelQuery<T | null>;
-    find(...args: any[]): ModelQuery<T[]>;
     create(attributes: any, ...args: any[]): Promise<any>;
     /** One page and its counters, the same shape on every adapter. */
     paginate(options?: Record<string, any>): Promise<Page<T>>;
+  }
+
+  /**
+   * What henri guarantees, plus everything else the ORM behind the store
+   * puts there.
+   *
+   * This is the open one, and it is what a model gets when henri cannot
+   * tell which model API its store is on -- a store naming an adapter
+   * that is not one of henri's. The index signature is the rest of that
+   * unknown ORM, `any` rather than absent, because a declaration that
+   * refused it would break code that runs.
+   *
+   * A model whose adapter *is* known gets `MongooseModelStatics`,
+   * `SequelizeModelStatics` or `DrizzleModelStatics` instead: `henri types`
+   * picks by the adapter of the model's store, the same way it picks the
+   * record base.
+   */
+  interface ModelStatics<T = any> extends ModelGuarantees<T> {
     [key: string]: any;
+  }
+
+  /**
+   * A model of a `disk` or `mongoose` store: a Mongoose `Model`.
+   *
+   * Open, and it has to be: the rest of the surface is Mongoose's own
+   * (`aggregate`, `countDocuments`, `distinct`, `insertMany`, `watch`, the
+   * `EventEmitter` it inherits), at whatever version the application
+   * installed. Enumerating it here would pin someone else's API to a henri
+   * release, and a Mongoose that added one static would turn code that
+   * runs into an error. `find()` is declared because henri documents it and
+   * because it is the one call whose *shape* differs across the three.
+   */
+  interface MongooseModelStatics<T = any> extends ModelStatics<T> {
+    /** A chainable Mongoose `Query`: `.sort()`, `.limit()`, `.select()`. */
+    find(...args: any[]): ModelQuery<T[]>;
+  }
+
+  /**
+   * A model of an `mssql` store: a Sequelize model class.
+   *
+   * Open, for the reason `MongooseModelStatics` is open: `findAndCountAll`,
+   * `bulkCreate`, `upsert`, `scope`, every hook name and the rest belong to
+   * Sequelize, not to henri.
+   *
+   * There is no `find()` here on purpose. Sequelize dropped it in 4, and
+   * `Model.find()` on an `mssql` store is a `TypeError` at runtime -- which
+   * is why it is an error here rather than an `any` that compiles.
+   */
+  interface SequelizeModelStatics<T = any> extends ModelStatics<T> {
+    /** The rows matching a `where`, as a promise. Sequelize does not chain. */
+    findAll(...args: any[]): Promise<T[]>;
+  }
+
+  /**
+   * A relation of a `drizzle` store: henri's own chainable query
+   * (`@usehenri/drizzle/relation.js`), awaited for the rows.
+   *
+   * Closed, like the model below and for the same reason: this class is
+   * henri's, versioned with henri.
+   */
+  interface DrizzleRelation<T = any> extends PromiseLike<T[]> {
+    /** Narrows it; the conditions of a chain are intersected. */
+    where(condition?: Record<string, any>): DrizzleRelation<T>;
+    order(...order: any[]): DrizzleRelation<T>;
+    limit(limit: number): DrizzleRelation<T>;
+    offset(offset: number): DrizzleRelation<T>;
+    include(...includes: any[]): DrizzleRelation<T>;
+    select(...fields: string[]): DrizzleRelation<T>;
+    /** Adds the columns a `hidden` schema keeps out of a read. */
+    withHidden(): DrizzleRelation<T>;
+    /** Adds the soft-deleted rows (`options.paranoid`). */
+    withDeleted(): DrizzleRelation<T>;
+    /** Only the soft-deleted rows (`options.paranoid`). */
+    onlyDeleted(): DrizzleRelation<T>;
+    toArray(): Promise<T[]>;
+    first(): Promise<T | null>;
+    last(): Promise<T | null>;
+    count(): Promise<number>;
+    exists(): Promise<boolean>;
+    pluck(field: string): Promise<any[]>;
+    update(attributes: Record<string, any>, options?: any): Promise<number>;
+    destroy(options?: any): Promise<number>;
+    restore(options?: any): Promise<number>;
+    paginate(options?: Record<string, any>): Promise<Page<T>>;
+    catch(reject?: any): Promise<any>;
+    finally(done?: any): Promise<T[]>;
+    /** @internal The model this relation reads. */
+    Model: any;
+    /** @internal What the chain has accumulated so far. */
+    state: Record<string, any>;
+    /** @internal */
+    clone(patch?: Record<string, any>): DrizzleRelation<T>;
+    /** @internal */
+    whereSQL(): any;
+    /** @internal */
+    deletedSQL(): any;
+    /** @internal */
+    orderSQL(): any;
+  }
+
+  /**
+   * A model of a `drizzle`, `mysql`, `postgresql` or `mariadb` store.
+   *
+   * **This one is closed**, and it is the only one that can be: the class
+   * is henri's own (`@usehenri/drizzle/model.js`) rather than an ORM's, it
+   * is released in lockstep with `@usehenri/core`, and its statics are the
+   * same 83 whatever a model declares -- measured across `paranoid`,
+   * `slug`, `versioned`, `externalId` and the user model, which add
+   * nothing but `setRoles`. So a name that is not here is a name a model
+   * does not have, and `Task.fnid()` is an error rather than an `any` that
+   * compiles and answers `undefined`.
+   *
+   * The price of closing it is that `Task[someString]` is an error too, and
+   * that the members marked `@internal` -- henri's own bookkeeping, which
+   * no application should call -- are declared all the same, because
+   * leaving them out would make a call that runs an error. What keeps this
+   * list honest is `packages/drizzle/__tests__/statics.spec.js`, which
+   * builds a model and compares its statics with these names: adding one to
+   * the class without adding it here fails that suite.
+   */
+  interface DrizzleModelStatics<T = any> extends ModelGuarantees<T> {
+    // --- reading -------------------------------------------------------
+    /**
+     * The rows matching a `where`, as a promise. It does **not** chain:
+     * `find().sort()` is a `TypeError` here, and `where()` is the chain.
+     */
+    find(where?: Record<string, any>, options?: any): Promise<T[]>;
+    /** The same call, under the name Sequelize uses. */
+    findAll(where?: Record<string, any>, options?: any): Promise<T[]>;
+    /** Every row, as a promise. */
+    all(): Promise<T[]>;
+    /** The record of a slug, when the model declares one, or null. */
+    findBySlug(slug: string, ...args: any[]): ModelQuery<T | null>;
+    /** The record of a primary key, under the name Sequelize uses. */
+    findByPk(id: any, options?: any): Promise<T | null>;
+    first(): Promise<T | null>;
+    last(): Promise<T | null>;
+    count(where?: Record<string, any>): Promise<number>;
+    /** The same call, under the name Mongoose uses. */
+    countDocuments(where?: Record<string, any>): Promise<number>;
+    exists(where?: Record<string, any>): Promise<boolean>;
+    pluck(field: string, where?: Record<string, any>): Promise<any[]>;
+    // --- the chain -----------------------------------------------------
+    /** A relation of everything, to narrow. */
+    query(): DrizzleRelation<T>;
+    where(condition?: Record<string, any>): DrizzleRelation<T>;
+    order(...order: any[]): DrizzleRelation<T>;
+    limit(limit: number): DrizzleRelation<T>;
+    include(...includes: any[]): DrizzleRelation<T>;
+    withHidden(): DrizzleRelation<T>;
+    withDeleted(): DrizzleRelation<T>;
+    onlyDeleted(): DrizzleRelation<T>;
+    relation(where?: Record<string, any>, options?: any): DrizzleRelation<T>;
+    // --- writing -------------------------------------------------------
+    /** An unsaved instance. */
+    build(attributes?: Record<string, any>): T;
+    /** How many rows were written. */
+    update(
+      where: Record<string, any>,
+      attributes: Record<string, any>,
+      options?: any
+    ): Promise<number>;
+    /** The same call, under the name Mongoose uses. */
+    updateMany(
+      where: Record<string, any>,
+      attributes: Record<string, any>,
+      options?: any
+    ): Promise<number>;
+    destroy(where?: Record<string, any>, options?: any): Promise<number>;
+    /** The same call, under the name Mongoose uses. */
+    deleteMany(where?: Record<string, any>, options?: any): Promise<number>;
+    /** Brings soft-deleted rows back (`options.paranoid`). */
+    restore(where?: Record<string, any>, options?: any): Promise<number>;
+    findByIdAndUpdate(
+      id: any,
+      attributes: Record<string, any>,
+      options?: any
+    ): Promise<T | null>;
+    findByIdAndDelete(id: any): Promise<T | null>;
+    findByIdAndRemove(id: any): Promise<T | null>;
+    findOneAndUpdate(
+      where: Record<string, any>,
+      attributes: Record<string, any>,
+      options?: any
+    ): Promise<T | null>;
+    findOneAndDelete(where: Record<string, any>): Promise<T | null>;
+    // --- associations and the table ------------------------------------
+    belongsTo(target: any, options?: Record<string, any>): any;
+    hasMany(target: any, options?: Record<string, any>): any;
+    hasOne(target: any, options?: Record<string, any>): any;
+    hasAssociation(kind: string, target: any, options?: any): any;
+    associations: Record<string, any>;
+    /** The global id of the model (`Task`). */
+    modelName: string;
+    /** The table it reads. */
+    tableName: string;
+    // --- what the model declares ---------------------------------------
+    /** Does it carry an `externalId`? */
+    externalId: boolean;
+    /** Does it soft-delete? */
+    paranoid: boolean;
+    /** Does it carry `createdAt` and `updatedAt`? */
+    timestamps: boolean;
+    /** The `options.slug` of the model, when it declares one. */
+    slug: any;
+    /** The `options.versioned` of the model, when it declares one. */
+    versioned: any;
+    /** The `validates` block of the model file. */
+    validations: Record<string, any>;
+    /** The tenancy of the model, when it is tenanted. */
+    tenant: any;
+    /** @internal The store adapter behind it. */
+    adapter: any;
+    /** @internal The drizzle table. */
+    table: any;
+    /** @internal The drizzle database handle. */
+    db(): any;
+    /** @internal The henri schema it was built from. */
+    definition: Record<string, any>;
+    /** @internal Its columns, by field. */
+    fields: Record<string, any>;
+    /** @internal The fields kept out of a read. */
+    hidden: any;
+    /** @internal The primary key column. */
+    key: string;
+    /** @internal The application's hooks. */
+    hooks: Record<string, any>;
+    /** @internal henri's own hooks. */
+    internalHooks: Record<string, any>;
+    // --- henri's own bookkeeping ---------------------------------------
+    // Declared because the interface is closed and a call that runs must
+    // not be an error. None of these is API: they are what the adapter
+    // calls on itself, and they change without a changeset.
+    /** @internal */
+    addField(name: string, definition: any): void;
+    /** @internal */
+    applySlug(kind: string, data: any, instance?: any): void;
+    /** @internal */
+    bindable(options: any, where: any, known: any): any;
+    /** @internal */
+    castId(id: any): any;
+    /** @internal */
+    checkSlugMassWrite(what: any, instead: any, attributes: any): void;
+    /** @internal */
+    checkValidations(values: any, options?: any): void;
+    /** @internal */
+    checkValidationsMassWrite(what: any, instead: any, attributes: any): void;
+    /** @internal */
+    column(field: string): any;
+    /** @internal */
+    destroyWhere(where: any, options?: any): Promise<number>;
+    /** @internal */
+    externalIdsWhere(where: any, limit?: number): Promise<string[]>;
+    /** @internal */
+    hydrate(row: any, options?: any): T;
+    /** @internal */
+    insert(values: any): Promise<Record<string, any>>;
+    /** @internal */
+    internalId(id: any): Promise<any>;
+    /** @internal */
+    isValidId(id: any): boolean;
+    /** @internal */
+    prepare(kind: any, attributes: any, options: any, instance?: any): any;
+    /** @internal */
+    run(fn: any): Promise<any>;
+    /** @internal */
+    runHooks(name: string, ...args: any[]): Promise<any>;
+    /** @internal */
+    seedFor(kind: any, data: any, instance?: any): any;
+    /** @internal */
+    selection(options?: any): Record<string, any>;
+    /** @internal */
+    setWhere(where: any, values: any): Promise<number>;
+    /** @internal */
+    translateError(error: any): Error;
+    /** @internal */
+    updateById(id: any, values: any): Promise<Record<string, any> | null>;
+    /** @internal */
+    updateWhere(where: any, attributes: any, options?: any): Promise<number>;
   }
 
   /**
