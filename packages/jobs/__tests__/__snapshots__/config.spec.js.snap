@@ -97,6 +97,7 @@ exports[`the schema > writes the DDL of mssql 1`] = `
   error_stack NVARCHAR(MAX) NULL,
   history NVARCHAR(MAX) NULL,
   unique_key VARCHAR(190) NULL,
+  concurrency_key VARCHAR(190) NULL,
   PRIMARY KEY (id)
 );
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_claim' AND object_id = OBJECT_ID('henri_jobs')) CREATE INDEX [henri_jobs_claim] ON [henri_jobs] (state, queue, priority, run_at);
@@ -113,7 +114,19 @@ IF OBJECT_ID('henri_jobs_schedules', 'U') IS NULL CREATE TABLE [henri_jobs_sched
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   PRIMARY KEY (name)
-)"
+);
+IF OBJECT_ID('henri_jobs_limits', 'U') IS NULL CREATE TABLE [henri_jobs_limits] (
+  limit_key VARCHAR(190) NOT NULL,
+  slot INT NOT NULL,
+  job_id VARCHAR(36) NULL,
+  runner VARCHAR(120) NOT NULL,
+  taken_at BIGINT NOT NULL,
+  heartbeat_at BIGINT NOT NULL,
+  PRIMARY KEY (limit_key, slot)
+);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_limits_stale' AND object_id = OBJECT_ID('henri_jobs_limits')) CREATE INDEX [henri_jobs_limits_stale] ON [henri_jobs_limits] (heartbeat_at);
+IF COL_LENGTH('henri_jobs', 'concurrency_key') IS NULL ALTER TABLE [henri_jobs] ADD concurrency_key VARCHAR(190) NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'henri_jobs_limited' AND object_id = OBJECT_ID('henri_jobs')) CREATE INDEX [henri_jobs_limited] ON [henri_jobs] (state, concurrency_key, run_at)"
 `;
 
 exports[`the schema > writes the DDL of mysql 1`] = `
@@ -141,6 +154,7 @@ exports[`the schema > writes the DDL of mysql 1`] = `
   error_stack MEDIUMTEXT NULL,
   history MEDIUMTEXT NULL,
   unique_key VARCHAR(190) NULL,
+  concurrency_key VARCHAR(190) NULL,
   PRIMARY KEY (id),
   KEY \`henri_jobs_claim\` (state, queue, priority, run_at),
   KEY \`henri_jobs_token\` (claim_token),
@@ -157,7 +171,19 @@ CREATE TABLE IF NOT EXISTS \`henri_jobs_schedules\` (
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   PRIMARY KEY (name)
-)"
+);
+CREATE TABLE IF NOT EXISTS \`henri_jobs_limits\` (
+  limit_key VARCHAR(190) NOT NULL,
+  slot INT NOT NULL,
+  job_id VARCHAR(36) NULL,
+  runner VARCHAR(120) NOT NULL,
+  taken_at BIGINT NOT NULL,
+  heartbeat_at BIGINT NOT NULL,
+  PRIMARY KEY (limit_key, slot),
+  KEY \`henri_jobs_limits_stale\` (heartbeat_at)
+);
+ALTER TABLE \`henri_jobs\` ADD COLUMN concurrency_key VARCHAR(190) NULL;
+CREATE INDEX \`henri_jobs_limited\` ON \`henri_jobs\` (state, concurrency_key, run_at)"
 `;
 
 exports[`the schema > writes the DDL of postgres 1`] = `
@@ -185,6 +211,7 @@ exports[`the schema > writes the DDL of postgres 1`] = `
   error_stack TEXT NULL,
   history TEXT NULL,
   unique_key VARCHAR(190) NULL,
+  concurrency_key VARCHAR(190) NULL,
   PRIMARY KEY (id)
 );
 CREATE INDEX IF NOT EXISTS "henri_jobs_claim" ON "henri_jobs" (state, queue, priority, run_at);
@@ -201,7 +228,19 @@ CREATE TABLE IF NOT EXISTS "henri_jobs_schedules" (
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   PRIMARY KEY (name)
-)"
+);
+CREATE TABLE IF NOT EXISTS "henri_jobs_limits" (
+  limit_key VARCHAR(190) NOT NULL,
+  slot INTEGER NOT NULL,
+  job_id VARCHAR(36) NULL,
+  runner VARCHAR(120) NOT NULL,
+  taken_at BIGINT NOT NULL,
+  heartbeat_at BIGINT NOT NULL,
+  PRIMARY KEY (limit_key, slot)
+);
+CREATE INDEX IF NOT EXISTS "henri_jobs_limits_stale" ON "henri_jobs_limits" (heartbeat_at);
+ALTER TABLE "henri_jobs" ADD COLUMN IF NOT EXISTS concurrency_key VARCHAR(190) NULL;
+CREATE INDEX IF NOT EXISTS "henri_jobs_limited" ON "henri_jobs" (state, concurrency_key, run_at)"
 `;
 
 exports[`the schema > writes the DDL of sqlite 1`] = `
@@ -229,6 +268,7 @@ exports[`the schema > writes the DDL of sqlite 1`] = `
   error_stack TEXT NULL,
   history TEXT NULL,
   unique_key VARCHAR(190) NULL,
+  concurrency_key VARCHAR(190) NULL,
   PRIMARY KEY (id)
 );
 CREATE INDEX IF NOT EXISTS "henri_jobs_claim" ON "henri_jobs" (state, queue, priority, run_at);
@@ -245,5 +285,17 @@ CREATE TABLE IF NOT EXISTS "henri_jobs_schedules" (
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   PRIMARY KEY (name)
-)"
+);
+CREATE TABLE IF NOT EXISTS "henri_jobs_limits" (
+  limit_key VARCHAR(190) NOT NULL,
+  slot INTEGER NOT NULL,
+  job_id VARCHAR(36) NULL,
+  runner VARCHAR(120) NOT NULL,
+  taken_at BIGINT NOT NULL,
+  heartbeat_at BIGINT NOT NULL,
+  PRIMARY KEY (limit_key, slot)
+);
+CREATE INDEX IF NOT EXISTS "henri_jobs_limits_stale" ON "henri_jobs_limits" (heartbeat_at);
+ALTER TABLE "henri_jobs" ADD COLUMN concurrency_key VARCHAR(190) NULL;
+CREATE INDEX IF NOT EXISTS "henri_jobs_limited" ON "henri_jobs" (state, concurrency_key, run_at)"
 `;

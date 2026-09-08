@@ -175,6 +175,7 @@ const normalize = (config = {}) => {
     stuckAfter: duration(value.stuckAfter, duration(DEFAULTS.stuckAfter)),
     tables: {
       jobs: table(value.table || DEFAULTS.table),
+      limits: `${table(value.table || DEFAULTS.table)}_limits`,
       schedules: `${table(value.table || DEFAULTS.table)}_schedules`,
     },
     timeout: duration(value.timeout, DEFAULTS.timeout),

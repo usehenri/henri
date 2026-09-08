@@ -1,7 +1,7 @@
 const debug = require('debug')('henri:jobs:sql');
 
 const { JobStoreError } = require('../errors');
-const { install, uninstall } = require('./schema');
+const { install, uninstall, upgrade } = require('./schema');
 const { keep } = require('../keys');
 
 /**
@@ -32,6 +32,33 @@ const { keep } = require('../keys');
  * The claim stamps a fresh `claim_token` on the rows it took, so the rows
  * are read back with an exact `WHERE claim_token = ?` rather than by
  * guessing which of the candidates were won.
+ *
+ * ## Concurrency limits
+ *
+ * A job may declare how many of it may run at once across every runner
+ * (`concurrency`). That bound is **not** in the claim statement, and it
+ * cannot be: a `SELECT COUNT(*) ... WHERE state = 'running'` inside the
+ * claim is read at the statement's own snapshot, so two runners racing both
+ * see the same free room, both take it and both commit. `FOR UPDATE SKIP
+ * LOCKED` does not help -- it locks the candidate *rows*, so the second
+ * runner steps over them and claims the next ones instead. Making the count
+ * exact needs a lock on something shared per key, and that is
+ * `pg_advisory_xact_lock` on PostgreSQL, `GET_LOCK` on MySQL,
+ * `sp_getapplock` on MSSQL and nothing at all on MongoDB: four mechanisms,
+ * one of them missing.
+ *
+ * So the bound lives in a table (`<jobs>_limits`), and the primitive is the
+ * one every backend agrees on: **a unique index refusing a duplicate**. One
+ * row is one slot, `(limit_key, slot)` is the primary key, and a runner
+ * takes a slot by inserting it -- exactly one insert per slot wins. A runner
+ * takes the permit *first* and claims one row of that key second, so a job
+ * is never claimed only to be put back, which would spin the runner's loop.
+ *
+ * The claim statement itself gains one predicate and keeps its shape:
+ * `name NOT IN (...)` for the pass that takes the unlimited work, and
+ * `name IN (...) AND concurrency_key = ?` for the pass that takes one
+ * limited row. With no limited job in the application the statement is what
+ * it always was, down to its parameters.
  */
 
 /** The columns of the jobs table, in insert order */
@@ -59,6 +86,7 @@ const COLUMNS = [
   'error_stack',
   'history',
   'unique_key',
+  'concurrency_key',
 ];
 
 /** How many attempts of a job are kept in its history */
@@ -74,7 +102,7 @@ const HISTORY_LIMIT = 10;
  * by intent, so that failure means it is done, not that it broke.
  */
 const ALREADY_THERE =
-  /already exists|duplicate key|duplicate table|there is already an object named/i;
+  /already exists|duplicate key|duplicate table|duplicate column|duplicate key name|there is already an object named/i;
 
 /**
  * Errors that mean a unique index refused the row.
@@ -166,7 +194,7 @@ class SqlStore {
    * @param {string} options.dialect sqlite, postgres, mysql or mssql
    * @param {boolean} [options.dollars=false] The driver numbers its
    *   placeholders (`$1`), as node-postgres does
-   * @param {object} options.tables `{ jobs, schedules }` table names
+   * @param {object} options.tables `{ jobs, schedules, limits }` table names
    * @memberof SqlStore
    */
   constructor(adapter, { dialect, dollars = false, tables }) {
@@ -175,6 +203,8 @@ class SqlStore {
     this.dollars = dollars;
     this.tables = tables;
     this.kind = 'sql';
+    /** Whether the table has `concurrency_key`; asked once, see concurrent() */
+    this.limits = null;
   }
 
   /**
@@ -270,16 +300,28 @@ class SqlStore {
   /**
    * Creates the tables and the indexes; idempotent
    *
+   * The upgrade block (`schema.upgrade()`) is tolerated whatever it answers:
+   * it touches a table an older henri created, and a user who may not
+   * `ALTER` must not fail the boot of an application that never asked for
+   * the column it adds. What the column is needed for asks for it by name
+   * (`concurrent()`), and says so with the install line.
+   *
    * @returns {Promise<Array<string>>} The statements that ran
    * @memberof SqlStore
    */
   async install() {
     const statements = install(this.dialect, this.tables);
+    const soft = new Set(upgrade(this.dialect, this.tables));
 
     for (const statement of statements) {
       try {
         await this.run(statement);
       } catch (error) {
+        if (soft.has(statement)) {
+          debug('upgrade statement did not apply: %s', error.message);
+          continue;
+        }
+
         if (!ALREADY_THERE.test(reasons(error))) {
           throw error;
         }
@@ -288,7 +330,39 @@ class SqlStore {
       }
     }
 
+    this.limits = null;
+
     return statements;
+  }
+
+  /**
+   * Whether the jobs table has the column concurrency limits need
+   *
+   * Asked once, of the table itself rather than of what the install
+   * answered: an installation that upgraded henri without running the
+   * install, or whose database user may not `ALTER`, has the table an older
+   * version wrote and the queue works exactly as it did.
+   *
+   * @returns {Promise<boolean>} true when `concurrency_key` is there
+   * @memberof SqlStore
+   */
+  async concurrent() {
+    if (typeof this.limits === 'boolean') {
+      return this.limits;
+    }
+
+    try {
+      // Reads nothing: the planner still has to resolve the column
+      await this.select(
+        `SELECT concurrency_key FROM ${this.tables.jobs} WHERE 1 = 0`
+      );
+      this.limits = true;
+    } catch (error) {
+      debug('no concurrency_key column: %s', error.message);
+      this.limits = false;
+    }
+
+    return this.limits;
   }
 
   /**
@@ -332,13 +406,19 @@ class SqlStore {
    * @memberof SqlStore
    */
   async insert(job) {
-    const values = COLUMNS.map((column) =>
+    // A table an older henri wrote has no `concurrency_key` at all, and an
+    // application with no limited job must not notice: the insert names the
+    // columns that are there, so the queue works exactly as it did
+    const columns = (await this.concurrent())
+      ? COLUMNS
+      : COLUMNS.filter((column) => column !== 'concurrency_key');
+    const values = columns.map((column) =>
       typeof job[column] === 'undefined' ? null : job[column]
     );
 
     try {
       await this.run(
-        `INSERT INTO ${this.tables.jobs} (${COLUMNS.join(', ')}) VALUES (${marks(COLUMNS)})`,
+        `INSERT INTO ${this.tables.jobs} (${columns.join(', ')}) VALUES (${marks(columns)})`,
         values
       );
     } catch (error) {
@@ -394,11 +474,20 @@ class SqlStore {
   /**
    * The claim statement of this dialect, and its parameters
    *
-   * @param {object} options `queues`, `limit`, `runner`, `token`, `now`
+   * @param {object} options Options
+   * @param {Array<string>} options.queues The queues to take from
+   * @param {number} options.limit How many rows at most
+   * @param {string} options.runner The runner id
+   * @param {string} options.token A token unique to this claim
+   * @param {number} options.now The current time
+   * @param {object} [options.key] `{ value, own }`, the concurrency key this
+   *   pass holds a slot for; `own` when it is the group's own bucket
+   * @param {Array<string>} [options.names] Only these job names
+   * @param {Array<string>} [options.except] Every name but these
    * @returns {{sql: string, params: Array}} The statement
    * @memberof SqlStore
    */
-  claimStatement({ queues, limit, runner, token, now }) {
+  claimStatement({ queues, limit, runner, token, now, key, names, except }) {
     const table = this.tables.jobs;
     const set = [
       `state = 'running'`,
@@ -417,6 +506,31 @@ class SqlStore {
     if (queues.length > 0) {
       filter.push(`queue IN (${marks(queues)})`);
       filterParams.push(...queues);
+    }
+
+    // The two passes partition the pending rows by **name**, so every row
+    // belongs to exactly one of them: a job that gained a limit is taken by
+    // the second pass from that moment on, and one that lost its limit goes
+    // back to the first even though its rows still carry a key
+    if (except && except.length > 0) {
+      filter.push(`name NOT IN (${marks(except)})`);
+      filterParams.push(...except);
+    }
+
+    if (names && names.length > 0) {
+      filter.push(`name IN (${marks(names)})`);
+      filterParams.push(...names);
+    }
+
+    if (key) {
+      // A row enqueued before the limit was declared carries no key at all;
+      // it belongs to the group's own bucket, which is what `key.own` says
+      filter.push(
+        key.own
+          ? '(concurrency_key = ? OR concurrency_key IS NULL)'
+          : 'concurrency_key = ?'
+      );
+      filterParams.push(key.value);
     }
 
     const where = filter.join(' AND ');
@@ -458,12 +572,27 @@ class SqlStore {
    * @param {string} options.runner The runner id
    * @param {string} options.token A token unique to this claim
    * @param {number} options.now The current time
+   * @param {object} [options.key] The concurrency key a slot is held for
+   * @param {Array<string>} [options.names] Only these job names
+   * @param {Array<string>} [options.except] Every name but these
    * @returns {Promise<Array<object>>} The rows this runner owns
    * @memberof SqlStore
    */
-  async claim({ queues = [], limit = 1, runner, token, now }) {
+  async claim({
+    queues = [],
+    limit = 1,
+    runner,
+    token,
+    now,
+    key,
+    names,
+    except,
+  }) {
     const { params, sql } = this.claimStatement({
+      except,
+      key,
       limit,
+      names,
       now,
       queues,
       runner,
@@ -476,6 +605,224 @@ class SqlStore {
       `SELECT * FROM ${this.tables.jobs} WHERE claim_token = ? AND state = 'running' ORDER BY priority ASC, run_at ASC, id ASC`,
       [token]
     );
+  }
+
+  /**
+   * The concurrency keys with work waiting, the most urgent first
+   *
+   * One row per `(concurrency_key, name)` pair, so the caller can map a row
+   * that carries no key -- enqueued before the limit was declared -- onto
+   * the group it belongs to, which only the definitions know.
+   *
+   * @param {object} options Options
+   * @param {number} options.now The current time
+   * @param {Array<string>} options.names The names of the limited jobs
+   * @param {Array<string>} [options.queues=[]] The queues to look at
+   * @param {number} [options.limit=100] How many keys at most
+   * @returns {Promise<Array<object>>} `{ key, name, total }` rows
+   * @memberof SqlStore
+   */
+  async waiting({ now, names, queues = [], limit = 100 }) {
+    if (!names || names.length === 0) {
+      return [];
+    }
+
+    const filter = [
+      `state = 'pending'`,
+      'run_at <= ?',
+      `name IN (${marks(names)})`,
+    ];
+    const params = [now, ...names];
+
+    if (queues.length > 0) {
+      filter.push(`queue IN (${marks(queues)})`);
+      params.push(...queues);
+    }
+
+    const page =
+      this.dialect === 'mssql'
+        ? 'OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY'
+        : 'LIMIT ?';
+    const rows = await this.select(
+      `SELECT concurrency_key, name, COUNT(*) AS total FROM ${this.tables.jobs} WHERE ${filter.join(' AND ')} GROUP BY concurrency_key, name ORDER BY MIN(priority) ASC, MIN(run_at) ASC ${page}`,
+      [...params, Math.max(1, Number(limit) || 100)]
+    );
+
+    return rows.map((row) => ({
+      key: row.concurrency_key || null,
+      name: row.name,
+      total: toNumber(row.total) || 0,
+    }));
+  }
+
+  /**
+   * Takes one of a key's slots, or answers null when they are all held
+   *
+   * **This is the bound.** `(limit_key, slot)` is the primary key, so of
+   * every runner inserting the same slot exactly one succeeds and the others
+   * are refused by the index -- no transaction, no affected-row count, no
+   * dialect of its own. The slots are tried in order, so a key at its limit
+   * costs `limit` refused inserts and nothing else.
+   *
+   * @param {object} options Options
+   * @param {string} options.key The concurrency key
+   * @param {number} options.limit How many may run at once
+   * @param {string} options.runner The runner id
+   * @param {number} options.now The current time
+   * @returns {Promise<?number>} The slot this runner holds, or null
+   * @memberof SqlStore
+   */
+  async takeSlot({ key, limit, runner, now }) {
+    const held = await this.select(
+      `SELECT slot FROM ${this.tables.limits} WHERE limit_key = ?`,
+      [key]
+    );
+    const taken = new Set(held.map((row) => toNumber(row.slot)));
+
+    for (let slot = 0; slot < limit; slot += 1) {
+      if (taken.has(slot)) {
+        continue;
+      }
+
+      try {
+        await this.run(
+          `INSERT INTO ${this.tables.limits} (limit_key, slot, job_id, runner, taken_at, heartbeat_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          [key, slot, null, runner, now, now]
+        );
+
+        return slot;
+      } catch (error) {
+        if (!DUPLICATE.test(reasons(error))) {
+          throw error;
+        }
+
+        debug('slot %d of %s was taken first', slot, key);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Says which job a slot is being held for
+   *
+   * @param {string} key The concurrency key
+   * @param {number} slot The slot
+   * @param {?string} id The job id
+   * @param {number} now The current time
+   * @returns {Promise<void>} Resolves when written
+   * @memberof SqlStore
+   */
+  async holdSlot(key, slot, id, now) {
+    await this.run(
+      `UPDATE ${this.tables.limits} SET job_id = ?, heartbeat_at = ? WHERE limit_key = ? AND slot = ?`,
+      [id, now, key, slot]
+    );
+  }
+
+  /**
+   * Gives a slot back
+   *
+   * @param {string} key The concurrency key
+   * @param {number} slot The slot
+   * @param {string} [runner] Only when this runner still holds it
+   * @returns {Promise<void>} Resolves when written
+   * @memberof SqlStore
+   */
+  async releaseSlot(key, slot, runner) {
+    const own = runner ? ' AND runner = ?' : '';
+    const params = runner ? [key, slot, runner] : [key, slot];
+
+    await this.run(
+      `DELETE FROM ${this.tables.limits} WHERE limit_key = ? AND slot = ?${own}`,
+      params
+    );
+  }
+
+  /**
+   * Tells the database this runner still holds these slots
+   *
+   * @param {Array<object>} slots `{ key, slot }` entries
+   * @param {number} now The current time
+   * @param {string} runner The runner id
+   * @returns {Promise<void>} Resolves when written
+   * @memberof SqlStore
+   */
+  async heartbeatSlots(slots, now, runner) {
+    for (const held of slots) {
+      await this.run(
+        `UPDATE ${this.tables.limits} SET heartbeat_at = ? WHERE limit_key = ? AND slot = ? AND runner = ?`,
+        [now, held.key, held.slot, runner]
+      );
+    }
+  }
+
+  /**
+   * Frees the slots of runners that stopped answering
+   *
+   * The bound rests on this being slower than the heartbeat: a slot is
+   * refreshed four times per `stuckAfter`, and freeing one that is still
+   * held would let a second runner perform alongside the first. It is the
+   * same condition the recovery of a claimed job already rests on.
+   *
+   * @param {object} options Options
+   * @param {number} options.now The current time
+   * @param {number} options.stuckAfter How long without a heartbeat is dead
+   * @param {number} [options.limit=100] How many one sweep frees
+   * @returns {Promise<Array<object>>} The slots that were freed
+   * @memberof SqlStore
+   */
+  async sweepSlots({ now, stuckAfter, limit = 100 }) {
+    const page =
+      this.dialect === 'mssql'
+        ? 'ORDER BY heartbeat_at ASC OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY'
+        : 'ORDER BY heartbeat_at ASC LIMIT ?';
+    const rows = await this.select(
+      `SELECT * FROM ${this.tables.limits} WHERE heartbeat_at < ? ${page}`,
+      [now - stuckAfter, limit]
+    );
+
+    for (const row of rows) {
+      await this.run(
+        `DELETE FROM ${this.tables.limits} WHERE limit_key = ? AND slot = ? AND heartbeat_at = ?`,
+        [row.limit_key, toNumber(row.slot), toNumber(row.heartbeat_at)]
+      );
+    }
+
+    return rows.map((row) => ({
+      job: row.job_id || null,
+      key: row.limit_key,
+      runner: row.runner,
+      slot: toNumber(row.slot),
+      takenAt: toNumber(row.taken_at),
+    }));
+  }
+
+  /**
+   * Every slot being held right now
+   *
+   * @param {number} [limit=200] How many at most
+   * @returns {Promise<Array<object>>} The held slots
+   * @memberof SqlStore
+   */
+  async slots(limit = 200) {
+    const page =
+      this.dialect === 'mssql'
+        ? 'OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY'
+        : 'LIMIT ?';
+    const rows = await this.select(
+      `SELECT * FROM ${this.tables.limits} ORDER BY limit_key ASC, slot ASC ${page}`,
+      [limit]
+    );
+
+    return rows.map((row) => ({
+      heartbeatAt: toNumber(row.heartbeat_at),
+      job: row.job_id || null,
+      key: row.limit_key,
+      runner: row.runner,
+      slot: toNumber(row.slot),
+      takenAt: toNumber(row.taken_at),
+    }));
   }
 
   /**

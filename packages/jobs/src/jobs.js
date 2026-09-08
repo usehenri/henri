@@ -6,7 +6,7 @@ const { JobError, JobStoreError, JobTimeoutError } = require('./errors');
 const { deserialize, serialize } = require('./serialize');
 const { keep } = require('./keys');
 const { duration, runAt } = require('./duration');
-const { load, validate } = require('./definitions');
+const { keyOf, load, validate } = require('./definitions');
 const { normalize, recurring } = require('./config');
 const { storeFor } = require('./store');
 const { toNumber, HISTORY_LIMIT } = require('./store/sql');
@@ -65,6 +65,7 @@ const toJob = (row) => {
     attempts: toNumber(row.attempts) || 0,
     claimedAt: at(row.claimed_at),
     claimedBy: row.claimed_by || null,
+    concurrencyKey: row.concurrency_key || null,
     createdAt: at(row.created_at),
     duration: toNumber(row.duration_ms),
     error: message ? { message, stack: row.error_stack || null } : null,
@@ -118,6 +119,8 @@ class Jobs {
     this.definitions = {};
     this.started = false;
     this.runners = new Set();
+    /** Whether the store can hold a concurrency key; see start() */
+    this.concurrent = false;
 
     /**
      * The retry policy of a job whose file this runner does not have: the
@@ -195,6 +198,24 @@ class Jobs {
       }
     }
 
+    this.concurrent = await this.store.concurrent();
+
+    const bounded = Object.values(this.definitions).filter(
+      (definition) => definition.concurrency
+    );
+
+    this.conflicts(bounded);
+
+    if (bounded.length > 0 && !this.concurrent) {
+      throw new JobError(
+        'HENRI_JOB_LIMIT_UNINSTALLED',
+        `@usehenri/jobs: ${bounded.map((one) => one.name).join(', ')} declare a concurrency limit, and the "${this.config.store}" store has no ${this.config.tables.jobs}.concurrency_key column to hold it`,
+        {
+          hint: 'Run `henri jobs:install` once with a user that may alter the table; the queue itself keeps working without it, and the limit would not',
+        }
+      );
+    }
+
     this.started = true;
 
     const missing = this.config.recurring
@@ -255,6 +276,100 @@ class Jobs {
         },
         this.config
       ),
+    };
+  }
+
+  /**
+   * Refuses two jobs that share a group and disagree on its limit
+   *
+   * A group is a plain string declared in a file, so this is knowable at
+   * boot -- and it has to be answered there, because the two jobs would
+   * otherwise take slots of the same key counting to different numbers and
+   * the bound would be whichever of them asked last.
+   *
+   * @param {Array<object>} bounded The definitions that declare a limit
+   * @returns {void}
+   * @throws {JobError} HENRI_JOB_CONCURRENCY_CONFLICT when two disagree
+   * @memberof Jobs
+   */
+  conflicts(bounded) {
+    const limits = new Map();
+
+    for (const definition of bounded) {
+      const { group, limit } = definition.concurrency;
+      const first = limits.get(group);
+
+      if (first && first.limit !== limit) {
+        throw new JobError(
+          'HENRI_JOB_CONCURRENCY_CONFLICT',
+          `The jobs "${first.name}" and "${definition.name}" share the concurrency group "${group}" and ask for different limits (${first.limit} and ${limit})`,
+          {
+            hint: 'Jobs that share a group share one bound: give them the same limit, or a group each',
+            job: definition.name,
+          }
+        );
+      }
+
+      if (!first) {
+        limits.set(group, { limit, name: definition.name });
+      }
+    }
+  }
+
+  /**
+   * The jobs that declare a concurrency limit, by group
+   *
+   * The runner asks for this every tick: the names are what partitions the
+   * claim into its two passes, and the groups are what says how many slots
+   * a key has.
+   *
+   * @returns {object} `{ names, groups }`
+   * @memberof Jobs
+   */
+  limited() {
+    const groups = new Map();
+    const names = [];
+
+    for (const definition of Object.values(this.definitions)) {
+      if (!definition.concurrency) {
+        continue;
+      }
+
+      const { group, limit } = definition.concurrency;
+      const entry = groups.get(group) || { limit, names: [] };
+
+      entry.names.push(definition.name);
+      groups.set(group, entry);
+      names.push(definition.name);
+    }
+
+    return { groups, names: names.sort() };
+  }
+
+  /**
+   * What a key with work waiting needs to be claimed from
+   *
+   * @param {object} entry `{ key, name }`, as the store's `waiting()` gives
+   * @param {object} [bounded] What `limited()` answered, when the caller
+   *   already has it (the runner asks once per tick, not once per key)
+   * @returns {?object} `{ key, limit, names }`, or null when the job is gone
+   * @memberof Jobs
+   */
+  bucket(entry, bounded = this.limited()) {
+    const definition = this.definitions[entry.name];
+
+    if (!definition || !definition.concurrency) {
+      return null;
+    }
+
+    const { group, limit } = definition.concurrency;
+    const value = entry.key || group;
+    const held = bounded.groups.get(group);
+
+    return {
+      key: { own: value === group, value },
+      limit,
+      names: held ? held.names : [definition.name],
     };
   }
 
@@ -438,6 +553,21 @@ class Jobs {
    */
   async perform(name, args = null, options = {}) {
     const definition = this.definition(name);
+
+    // A job a package defined after the boot may declare a limit the store
+    // has no column for; the enqueue is where that is caught, because
+    // enqueuing it unbounded is the one answer that breaks the guarantee
+    if (definition.concurrency && !this.concurrent) {
+      throw new JobError(
+        'HENRI_JOB_LIMIT_UNINSTALLED',
+        `The job "${name}" declares a concurrency limit, and the "${this.config.store}" store has no ${this.config.tables.jobs}.concurrency_key column to hold it`,
+        {
+          hint: 'Run `henri jobs:install` once with a user that may alter the table',
+          job: name,
+        }
+      );
+    }
+
     const now = Date.now();
     const when = runAt(options, now);
     const row = {
@@ -446,6 +576,7 @@ class Jobs {
       claim_token: null,
       claimed_at: null,
       claimed_by: null,
+      concurrency_key: keyOf(definition, args),
       created_at: now,
       duration_ms: null,
       error_message: null,
@@ -678,6 +809,33 @@ class Jobs {
       ),
       totals,
     };
+  }
+
+  /**
+   * What the concurrency limits are, and which of their slots are held
+   *
+   * The pair an operator needs and no log line carries: what the
+   * application asked for, and what is holding it up right now. It carries
+   * job ids and runner names and no arguments -- what a job was given is
+   * the application's data, and `henri jobs:show <id>` is where it is read
+   * by somebody who may.
+   *
+   * @returns {Promise<object>} `{ declared, held }`
+   * @memberof Jobs
+   */
+  async limits() {
+    const declared = Object.values(this.definitions)
+      .filter((definition) => definition.concurrency)
+      .map((definition) => ({
+        group: definition.concurrency.group,
+        job: definition.name,
+        keyed: Boolean(definition.concurrency.key),
+        limit: definition.concurrency.limit,
+      }))
+      .sort((one, other) => one.job.localeCompare(other.job));
+    const held = this.concurrent ? await this.storeOrDie().slots() : [];
+
+    return { declared, held };
   }
 
   /**

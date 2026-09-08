@@ -121,7 +121,7 @@ henri jobs --no-recurring                   # ignore the schedules
 
 The runner boots the application to the models (runlevel 4): no HTTP server, no views, no `app/workers`. It claims a batch of jobs, performs up to `concurrency` of them at a time, and polls every `jobs.pollInterval` (one second) when the queue is empty.
 
-**Several runners are meant to run at once against one database**, on one machine or on twenty. A job is never performed twice because two of them raced: claiming is a single statement on every dialect, so it is its own transaction, and the state is part of that statement's own `WHERE`. PostgreSQL takes `FOR UPDATE SKIP LOCKED`, MySQL an `UPDATE ... ORDER BY ... LIMIT`, MSSQL `UPDLOCK, READPAST`, sqlite a subquery (its writers are serialized anyway), and MongoDB one atomic `findOneAndUpdate` per document. The rows a claim took carry a token it reads them back by, so a runner only ever sees the jobs it actually won.
+**Several runners are meant to run at once against one database**, on one machine or on twenty. A job is never performed twice because two of them raced: claiming is a single statement on every dialect, so it is its own transaction, and the state is part of that statement's own `WHERE`. PostgreSQL takes `FOR UPDATE SKIP LOCKED`, MySQL an `UPDATE ... ORDER BY ... LIMIT`, MSSQL `UPDLOCK, READPAST`, sqlite a subquery (its writers are serialized anyway), and MongoDB one atomic `findOneAndUpdate` per document. The rows a claim took carry a token it reads them back by, so a runner only ever sees the jobs it actually won. A job that declares [how many of it may run at once](#how-many-at-once) is claimed by a second pass of the same statement, one row per permit the runner holds.
 
 On `SIGINT`, `SIGTERM` or `SIGQUIT` the runner stops claiming, finishes what it is holding, writes the outcomes and exits — the usual restart of a deployment loses nothing. A runner that is killed outright leaves its jobs `running`; another runner notices that nothing has refreshed their heartbeat for `jobs.stuckAfter` (five minutes) and puts them back.
 
@@ -134,6 +134,20 @@ The outcome of an attempt carries the token of the claim it belongs to, so a run
 Two runners never perform one job at the same time — that is the guarantee above — but the queue is **at least once**, not exactly once. A runner that is killed after `perform()` returned and before the outcome reached the database leaves the job `running`; five minutes later another runner takes it back and performs it again. There is no way around that without a transaction spanning your code and the database, which a job does not have.
 
 So write a job the way you would write a webhook handler: charge the card with an idempotency key, `find` before you `create`, update by id rather than incrementing blindly. `job.id` is stable across attempts of the same job and is the natural key to deduplicate on.
+
+### The queue is not in your transaction
+
+The queue reaches its own tables through the store adapter's raw `query()`, which does **not** join an open model transaction. So this enqueues a job that runs whatever happens next:
+
+```js
+await henri.model.stores.default.transaction(async () => {
+  await Invoice.create({ ... });
+  await henri.jobs.perform('invoice/send', { id });  // already written
+  throw new Error('rolled back');                    // the invoice is gone
+});
+```
+
+That is the trade every database-backed queue makes in one direction or the other, and henri makes it towards **the job always running**: a queue that joined your transaction would silently hold work back whenever a request failed late, and a job that runs for a record that no longer exists is a `findById` returning `null`, which a job should survive anyway. Enqueue after the commit when the order matters, and write jobs that check.
 
 ## Retries and the dead letter queue
 
@@ -199,6 +213,90 @@ module.exports = {
 The job lands in the dead letter queue like any other, so `henri jobs:dead`, `henri jobs:show <id>` and `henri jobs:retry <id>` still apply — it just gets there without the wait. [Outbound webhooks](/guides/webhooks/) use this for every failure a retry cannot fix.
 
 Jobs that succeed are kept for `jobs.keepCompleted` (a day) so their timings can be read, then pruned by the runner.
+
+## How many at once
+
+`henri jobs --concurrency` bounds a **runner**: how many jobs that process performs at a time. What an application usually wants is a bound on a **job** — never more than one `import` anywhere, at most three per tenant — and that is a different number, because it has to hold across every runner on every machine.
+
+A job declares it:
+
+```js
+// app/jobs/import.js
+module.exports = {
+  concurrency: 1, // one at a time, whatever is running it
+
+  perform: async ({ accountId }) => {
+    /* ... */
+  },
+};
+```
+
+```js
+// app/jobs/tenant/rebuild.js
+module.exports = {
+  // Three at a time per tenant, and no bound at all between tenants
+  concurrency: { limit: 3, key: 'tenantId' },
+
+  perform: async ({ tenantId }) => {
+    /* ... */
+  },
+};
+```
+
+`key` is the name of an argument, or a function of them (`key: (args) => args.account.id`). Without one the whole job shares one bound. `group` gives several jobs one bound between them:
+
+```js
+// app/jobs/tenant/import.js and app/jobs/tenant/export.js
+module.exports = {
+  concurrency: { limit: 2, group: 'tenant-io', key: 'tenantId' },
+  // ...
+};
+```
+
+Two jobs of one group must agree on the limit, or the boot says so (`HENRI_JOB_CONCURRENCY_CONFLICT`) — a group is one bound, and it cannot count to two numbers at once.
+
+**The limit belongs to the job and never to a call.** There is no `concurrency` option on `perform()`: an option would let one caller step outside the bound the job declared, which is the one thing a bound is for.
+
+### What it guarantees, and on what
+
+A runner takes a **permit** before it takes the work. The permits live in a table the queue owns (`henri_jobs_limits`), one row per slot, with `(limit_key, slot)` as its primary key: a runner takes a slot by inserting it, and of every runner inserting the same slot exactly one succeeds. That is the same primitive `unique` jobs already rest on, and it is the only one that means the same thing on PostgreSQL, MySQL, MSSQL, sqlite **and** MongoDB, where an `insertOne` answers 11000.
+
+It is deliberately not counted inside the claim. A `SELECT COUNT(*) ... WHERE state = 'running'` there is read at the statement's own snapshot, so two runners racing both see the same free room, both take it and both commit; `FOR UPDATE SKIP LOCKED` does not help, because it locks the candidate _rows_ and the second runner simply steps over them to the next ones. Making the count exact needs a lock on something shared per key — `pg_advisory_xact_lock`, `GET_LOCK`, `sp_getapplock`, and nothing at all on MongoDB. Four mechanisms, one of them missing.
+
+The claim statement itself keeps its shape and gains one predicate: `name NOT IN (...)` on the pass that takes the unlimited work, `name IN (...) AND concurrency_key = ?` with a limit of one on the pass that takes a row the runner holds a permit for. An application with no limited job sends the statement it always sent, parameter for parameter.
+
+The permit comes first and the work second, on purpose. The other order — claim a job, discover its key is full, put it back — makes a full key spin the runner's loop at full speed doing nothing, because the loop only sleeps when a tick claimed nothing.
+
+**What the bound rests on, said plainly:**
+
+- **The heartbeat.** A runner refreshes its permits four times per `jobs.stuckAfter`, and a permit nobody has refreshed for that long is freed — the same rule, and the same clock, that puts a dead runner's jobs back. A runner that goes quiet for five minutes and comes back still performing its job has lost its permit, exactly as it has lost its job. This is the same condition [at least once](#at-least-once) already rests on: keep `stuckAfter` above the longest a job may take.
+- **A deploy that lowers a limit** may overlap while the permits taken under the old one drain. Raising a limit takes effect at once.
+- **A rolling deploy that adds one.** A runner still on the old code does not know the job is bounded and claims it the way it always did, until it is replaced — the same window as a runner that does not have a new job's file at all. Restart the runners.
+- **`performNow()` is not the queue**, so it takes no permit and counts against nothing. Neither does a job you call yourself.
+
+`henri jobs:status` prints what was asked for and what is holding it up:
+
+```
+  Concurrency:
+    import -> 1 at a time
+    tenant/rebuild -> 3 at a time per key
+    held tenant/rebuild:acme#0 by web-3:41:2f8c for 4f0e...
+```
+
+```js
+const { declared, held } = await henri.jobs.limits();
+```
+
+### The column, and an upgrade
+
+The bound stores one thing on the job row: `concurrency_key`, the bucket it counts against. The queue's tables are created with `CREATE TABLE IF NOT EXISTS` and there is no migration chain behind them, so a **new table** appears on its own and a **new column** does not.
+
+`henri jobs:install` — which the boot already runs unless `jobs.install` is false — adds it, and the statement that adds it is idempotent and **tolerated**: a database user who may not `ALTER` fails no boot. What decides whether limits work is asking the table, not whether that statement ran:
+
+- An application that declares no limit **is not affected at all**. Its inserts name the columns that are there and its claim never mentions the new one.
+- An application that declares one and whose table has no column for it **fails the boot** with `HENRI_JOB_LIMIT_UNINSTALLED`, naming `henri jobs:install`. A limit that is silently not applied is worse than one that refuses to start.
+- A job already **in the queue** when the limit was declared carries no key. It is not left behind: a row with no key belongs to its job's own bucket, so adding a limit takes effect on the backlog — which is the moment you would be adding it.
+- On MongoDB there is nothing to upgrade: a document simply has no such field.
 
 ## A job a package ships
 
@@ -287,9 +385,38 @@ await henri.jobs.count({ state: 'dead' });
 
 Every moment a job carries (`runAt`, `createdAt`, `startedAt`, `finishedAt`, `claimedAt`, `updatedAt`) is an ISO string; `duration` is in milliseconds.
 
+## No dashboard, and what to build one from
+
+henri mounts no queue dashboard, in any environment, and will not. This is a decision rather than a gap, so here is the argument.
+
+The obvious counter is that `/_routes`, `/_openapi.json` and `/_mailers` are already pages henri mounts in development, behind loopback, and one more would cost nothing. But look at what those three show: an application's **routes**, its **API description**, its **mail templates**. Every one of them is a description of the application, written by the people reading it. A queue page is the first that would show the application's **data** — a job's arguments are the customer's email address, the invoice being rebuilt, the account being merged. henri spends a whole [privacy](/guides/privacy/) tranche making sure fields marked personal do not reach an answer it builds; printing them in a browser tab because a page is convenient would be that decision made twice, differently. And a queue page that hides the arguments cannot tell you why a job died, which is the only reason to open it.
+
+The second half is where a dashboard is actually wanted, which is production. There henri must not mount one at all: a route that exists in production has to be authenticated, authorized, rate limited, CSRF-defended and kept out of `henri audit`'s way, and every mounted admin runtime people have come to resent got there one reasonable feature at a time. A page henri ships is a page henri chooses the auth model of. A page **you** ship goes behind your `roles`, your [policy](/guides/policies/), your own decision about who may read an argument — and it shows up in `henri routes`, `henri audit` and your own tests like any other route.
+
+So the answer is a read-only page of your own, over an API that is already there:
+
+```js
+// app/controllers/admin/jobs.js
+module.exports = {
+  index: async (req, res) => {
+    await req.authorize('read', 'Jobs');
+
+    const [stats, dead, limits] = await Promise.all([
+      henri.jobs.stats(),
+      henri.jobs.dead.list({ limit: 50 }),
+      henri.jobs.limits(),
+    ]);
+
+    return { dead, limits, stats };
+  },
+};
+```
+
+`stats()`, `list()`, `get()`, `limits()` and the whole `dead.*` API are the same calls `henri jobs:*` makes, and every one of those commands takes `--json`, so a script, a Grafana exporter or a page all read the same numbers. What henri owns instead of a page is the [telemetry](/guides/telemetry/): the queue depth by queue and state, and how long claiming takes — the two numbers a screenshot cannot alert on.
+
 ## Storage
 
-The queue owns two tables of its own, `henri_jobs` and `henri_jobs_schedules`, and reaches them through the store adapter's own surface — `query()` on the SQL adapters, the collections on MongoDB. **No henri model is involved**, so the queue cannot collide with the application's schema, does not follow its model conventions and works on a store that has no models at all.
+The queue owns three tables of its own, `henri_jobs`, `henri_jobs_schedules` and `henri_jobs_limits`, and reaches them through the store adapter's own surface — `query()` on the SQL adapters, the collections on MongoDB. **No henri model is involved**, so the queue cannot collide with the application's schema, does not follow its model conventions and works on a store that has no models at all.
 
 Every moment is stored as a `BIGINT` of milliseconds since the epoch rather than a timestamp column: sqlite has no date type, the SQL servers disagree on the precision and the zone of a bare `TIMESTAMP`, and the claim compares `run_at` to the runner's clock — a comparison that has to mean the same thing everywhere.
 
@@ -300,6 +427,20 @@ henri jobs:install         # creates the tables and the indexes; idempotent
 The tables are also created when the application boots with a queue, so development needs nothing. In production, where the application may not be allowed to create tables, run `henri jobs:install` once as part of the deploy and set `"install": false` so the boot stops trying.
 
 Every adapter is supported: `drizzle` (sqlite, postgres, mysql), `postgresql`, `mysql`, `mariadb`, `mssql`, `mongoose` and `disk`. MongoDB claims one document at a time with `findOneAndUpdate`, which is atomic on a standalone `mongod` as much as on a replica set, so the guarantee holds there too — at the cost of one round trip per job instead of one per batch.
+
+## What is not here
+
+**Batching** — forty jobs and one that runs when they are all done — is not in henri yet. It is the next thing the queue wants, and the shape it will take is settled, so that an application does not build something today that has to be unbuilt:
+
+- A batch **finishes**, it does not **succeed**. The callback runs once every job of the batch has reached a terminal state, `dead` included, and is handed the counts. A batch whose last job fails is a finished batch with a failure in it, and pretending otherwise means a callback that never runs and nobody notices.
+- The callback runs **exactly once**, and that rests on where the counter is advanced: by the same token-guarded write that records an attempt's outcome, so a job recovered from a dead runner and performed again does not count twice.
+- A batch is **not a transaction**. A runner that dies mid-batch leaves its job `pending`, the batch's counter unmoved and the batch unfinished until that job reaches an outcome — which is the right answer, and the reason the counter cannot be advanced at claim time.
+- It is **not atomic with your database** either, for the reason above: [the queue is not in your transaction](#the-queue-is-not-in-your-transaction), so a batch enqueued inside one that rolls back is a batch that runs.
+- Adding a job to a batch that has finished is **refused**, not swallowed.
+
+What it needs that is not there yet is a second column on the job row and a table for the batches, which is the same upgrade question the concurrency key answered — so it is a tranche of its own rather than a paragraph of this one.
+
+Also deliberately absent: a mounted dashboard ([above](#no-dashboard-and-what-to-build-one-from)), priorities that change after an enqueue, and a way to cancel a job that a runner is already performing — JavaScript cannot stop a function that is running, which is why `timeout` aborts a signal and hopes.
 
 ## Jobs or workers?
 

@@ -1509,7 +1509,7 @@ const SCHEMA = {
       table: text({
         default: 'henri_jobs',
         describe: 'a table name: letters, digits and underscores only',
-        hint: 'henri creates it, and the schedules live next to it in <table>_schedules',
+        hint: 'henri creates it; the schedules live in <table>_schedules and the concurrency slots in <table>_limits',
         pattern: /^[A-Za-z_][A-Za-z0-9_]*$/u,
       }),
       timeout: {

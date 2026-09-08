@@ -1369,6 +1369,7 @@ class Drizzle {
     return new Set([
       queue,
       `${queue}_schedules`,
+      `${queue}_limits`,
       name(calls.table, 'henri_calls'),
       name(identities.table, 'henri_identities'),
       name(trail.table, 'henri_trail'),

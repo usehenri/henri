@@ -11,6 +11,152 @@ const { JobError } = require('./errors');
  * is the job `mail/welcome`.
  */
 
+/** The widest a concurrency key may be: the column that holds it */
+const KEY_LENGTH = 190;
+
+/**
+ * Reads a job's `concurrency` declaration
+ *
+ * `1` is `{ limit: 1 }`; a `key` is a field of the arguments or a function
+ * of them, and a `group` is the name several jobs share a bound under. The
+ * default group is the job's own name, so a limit is that job's alone
+ * unless it says otherwise.
+ *
+ * The limit belongs to the **job**, never to the call: an option of
+ * `perform()` would let one caller step outside a bound the job declared,
+ * which is the one thing a bound is for.
+ *
+ * @param {string} name The job name
+ * @param {(number|object|null)} value What the file declared
+ * @returns {?object} `{ group, key, limit }`, or null
+ * @throws {JobError} HENRI_JOB_INVALID_CONCURRENCY on anything else
+ */
+const concurrency = (name, value) => {
+  if (value === null || typeof value === 'undefined' || value === false) {
+    return null;
+  }
+
+  const declared = typeof value === 'number' ? { limit: value } : value;
+  const refuse = (why) => {
+    throw new JobError(
+      'HENRI_JOB_INVALID_CONCURRENCY',
+      `The job "${name}" declares a concurrency limit that cannot be read: ${why}`,
+      {
+        hint: '`concurrency: 3`, or `concurrency: { limit: 3, key: "tenantId" }` to bound each key of its own',
+        job: name,
+      }
+    );
+  };
+
+  if (typeof declared !== 'object') {
+    refuse('it is neither a number nor an object');
+  }
+
+  const limit = Number(declared.limit);
+
+  if (!Number.isInteger(limit) || limit < 1) {
+    refuse(
+      `its limit is ${JSON.stringify(declared.limit)}, not a whole number above zero`
+    );
+  }
+
+  const group =
+    typeof declared.group === 'undefined' || declared.group === null
+      ? name
+      : declared.group;
+
+  if (typeof group !== 'string' || group === '') {
+    refuse('its group is not a name');
+  }
+
+  if (group.length > KEY_LENGTH) {
+    refuse(`its group is longer than ${KEY_LENGTH} characters`);
+  }
+
+  const { key } = declared;
+
+  if (
+    typeof key !== 'undefined' &&
+    key !== null &&
+    typeof key !== 'string' &&
+    typeof key !== 'function'
+  ) {
+    refuse('its key is neither the name of an argument nor a function of them');
+  }
+
+  return {
+    group,
+    key:
+      typeof key === 'string'
+        ? (args) => (args ? args[key] : null)
+        : key || null,
+    limit,
+  };
+};
+
+/**
+ * The concurrency key of one call, or null when the job is unbounded
+ *
+ * A key that resolves to nothing is the group's own bucket, which is also
+ * where a job enqueued before the limit was declared sits: the two mean the
+ * same thing, so they share a bound rather than each getting one.
+ *
+ * @param {object} definition A validated definition
+ * @param {*} args What perform() will receive
+ * @returns {?string} The key to store
+ * @throws {JobError} HENRI_JOB_INVALID_CONCURRENCY when the key cannot be read
+ */
+const keyOf = (definition, args) => {
+  const bound = definition && definition.concurrency;
+
+  if (!bound) {
+    return null;
+  }
+
+  if (!bound.key) {
+    return bound.group;
+  }
+
+  let value;
+
+  try {
+    value = bound.key(args);
+  } catch (error) {
+    throw new JobError(
+      'HENRI_JOB_INVALID_CONCURRENCY',
+      `The concurrency key of "${definition.name}" could not be read: ${error.message}`,
+      { cause: error, job: definition.name }
+    );
+  }
+
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return bound.group;
+  }
+
+  if (typeof value === 'object') {
+    throw new JobError(
+      'HENRI_JOB_INVALID_CONCURRENCY',
+      `The concurrency key of "${definition.name}" is an object; it has to be a value that names one bound`,
+      { job: definition.name }
+    );
+  }
+
+  const key = `${bound.group}:${String(value)}`;
+
+  if (key.length > KEY_LENGTH) {
+    throw new JobError(
+      'HENRI_JOB_INVALID_CONCURRENCY',
+      `The concurrency key of "${definition.name}" is ${key.length} characters, over the ${KEY_LENGTH} that are stored`,
+      {
+        hint: 'A key names a bound, so it is an id or a tenant name; hash it yourself if it has to be longer',
+        job: definition.name,
+      }
+    );
+  }
+
+  return key;
+};
+
 /**
  * Reads and checks one definition
  *
@@ -41,6 +187,7 @@ const validate = (name, definition, defaults) => {
           : defaults.backoff.jitter,
       max: duration(backoff.max, defaults.backoff.max),
     },
+    concurrency: concurrency(name, definition.concurrency),
     maxAttempts: Math.max(
       1,
       Number(definition.maxAttempts) || defaults.maxAttempts
@@ -86,4 +233,4 @@ const load = (location, defaults) => {
   return definitions;
 };
 
-module.exports = { load, validate };
+module.exports = { KEY_LENGTH, concurrency, keyOf, load, validate };

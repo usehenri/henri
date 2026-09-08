@@ -393,6 +393,16 @@ class JobsModule extends BaseModule {
   }
 
   /**
+   * The concurrency limits of the application, and the slots being held
+   *
+   * @returns {Promise<object>} `{ declared, held }`
+   * @memberof JobsModule
+   */
+  limits() {
+    return this.ready().limits();
+  }
+
+  /**
    * The job names of the application
    *
    * @returns {Array<string>} The names

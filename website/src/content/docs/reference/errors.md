@@ -1284,6 +1284,17 @@ Usually:
 
 The background job queue of @usehenri/jobs.
 
+### `HENRI_JOB_CONCURRENCY_CONFLICT`
+
+Two jobs share a concurrency group and disagree on how many may run.
+
+Usually:
+
+- two jobs of one `concurrency.group` asking for different limits
+- a group renamed in one file and not in the other
+
+**Fix.** Jobs that share a concurrency group share one bound, so they have to agree on it: give them the same `limit`, or a `group` each.
+
 ### `HENRI_JOB_INVALID_ARGUMENTS`
 
 The arguments of a job cannot be stored.
@@ -1294,6 +1305,20 @@ Usually:
 - a model instance passed whole instead of its id
 
 **Fix.** The arguments of a job are stored as JSON: pass ids and plain values, and look the records up inside `perform()`.
+
+### `HENRI_JOB_INVALID_CONCURRENCY`
+
+A job declares a concurrency limit henri cannot read.
+
+Usually:
+
+- a `concurrency` that is neither a number nor `{ limit }`
+- a limit that is not a whole number above zero
+- a `key` that is neither the name of an argument nor a function
+- a key function that threw, or answered an object
+- a key longer than the 190 characters the column holds
+
+**Fix.** `concurrency: 3` bounds the job itself; `concurrency: { limit: 3, key: 'tenantId' }` bounds each key of its own. A key names one bound, so it is an id or a name -- hash it yourself if it has to be longer.
 
 ### `HENRI_JOB_INVALID_CRON`
 
@@ -1342,6 +1367,18 @@ Usually:
 - a cron expression that can never come round (February 30th)
 
 **Fix.** A schedule is `{ job, cron | every, args?, queue? }` and its `job` is the name of a file in app/jobs. The message names the entry that is wrong.
+
+### `HENRI_JOB_LIMIT_UNINSTALLED`
+
+A job declares a concurrency limit and the queue's table cannot hold it.
+
+Usually:
+
+- a queue installed by a henri older than 1.3, whose table has no `concurrency_key` column
+- `jobs.install: false` with no `henri jobs:install` since the upgrade
+- a database user that may not ALTER the table
+
+**Fix.** Run `henri jobs:install` once with a user that may alter the table. The queue works without the column -- a job that declares a limit does not, and is refused rather than run unbounded.
 
 ### `HENRI_JOB_QUEUE_NOT_STARTED`
 

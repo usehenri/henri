@@ -556,6 +556,12 @@ module.exports = {
   // How long one attempt may take; the job is failed when it runs over
   timeout: '5m',
 
+  // How many of this job may run at once, across every runner. Uncomment to
+  // bound it: \`1\` for one at a time, \`{ limit: 3, key: 'tenantId' }\` for
+  // three per key of the arguments. \`henri jobs --concurrency\` bounds a
+  // runner; this bounds the job
+  // concurrency: 1,
+
   perform: async (args, { henri, job, signal }) => {
     henri.pen.info('${lower}', job.id, \`attempt \${job.attempt}\`);
     // Throw to fail the attempt: it is retried with an exponential backoff.

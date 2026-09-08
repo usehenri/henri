@@ -1201,12 +1201,36 @@ duration, rows, requestId, source, callsite }` -- and the N+1 detector is
   dialect (`FOR UPDATE SKIP LOCKED`, `UPDATE ... ORDER BY ... LIMIT`,
   `UPDLOCK, READPAST`, a subquery on sqlite, `findOneAndUpdate` on MongoDB)
   and the claimed rows are read back by the token it stamped, so two runners
-  never perform one job. `henri.jobs.recur(name, entry)` is the seam a
+  never perform one job. **A job bounds itself across every runner**
+  (`concurrency: 1`, or `{ limit, key, group }`), which `--concurrency` --
+  a bound on one _runner_ -- never could. The bound is **not** counted
+  inside the claim: a `COUNT(*)` there reads the statement's own snapshot,
+  so two runners both see the same room, and `SKIP LOCKED` locks the
+  candidate rows rather than the count. Making it exact needs a lock per key,
+  which is `pg_advisory_xact_lock`, `GET_LOCK`, `sp_getapplock` and nothing
+  at all on MongoDB. So it lives in a third table the queue owns
+  (`henri_jobs_limits`), one row per slot with `(limit_key, slot)` as its
+  primary key: **a unique index refusing a duplicate**, the one primitive
+  that means the same thing on all five backends. The permit is taken
+  _before_ the row is claimed, never after -- claim-then-put-back spins the
+  loop, which only sleeps when a tick claimed nothing. The claim keeps its
+  shape and gains one predicate: `name NOT IN (...)` on the unlimited pass
+  (byte identical when nothing is limited) and
+  `name IN (...) AND concurrency_key = ?` with a limit of one on the other,
+  partitioned by **name** so a job that gains or loses a limit is always in
+  exactly one pass. The bound rests on the heartbeat, the same clock the
+  recovery does. The one column it stores (`concurrency_key`) is added by a
+  **tolerated** `ALTER` inside the idempotent install, and the store _asks
+  the table_ rather than trusting it ran: an application with no limit is
+  unaffected either way, and one that declares a limit the table cannot hold
+  fails the boot (`HENRI_JOB_LIMIT_UNINSTALLED`) rather than running it
+  unbounded. `henri.jobs.recur(name, entry)` is the seam a
   framework module uses to ask for a schedule the configuration did not
   write (`henri.retention` is the one that does); an entry the application
   declared under the same name wins. `henri jobs` runs a worker (`--queue`,
   `--concurrency`, `--once`), `henri jobs:install|status|list|dead|show|
-perform|retry|discard` drive it. The module also registers
+perform|retry|discard` drive it; `jobs:status` and `henri.jobs.limits()`
+  report the limits and the slots held. The module also registers
   `henri.mailers.onDeliverLater()`, so `deliverLater()` enqueues the rendered
   message as the built-in `henri/mail` job.
 - Outbound webhooks live in `@usehenri/webhooks`, which peer-depends on core
@@ -1678,7 +1702,8 @@ the LICENSE and a README into every public package at publish time
   collations. On a drizzle store the answer carries `migrations` rather
   than `drift`, which is what `henri db:status` answers there.
 - The tables henri owns in a drizzle store (`henri_jobs`,
-  `henri_jobs_schedules`, `henri_trail`, `henri_calls`, `henri_versions`)
+  `henri_jobs_schedules`, `henri_jobs_limits`, `henri_trail`, `henri_calls`,
+  `henri_versions`)
   are created through
   raw SQL, so drizzle-kit sees them as tables the schema no longer wants.
   `Drizzle#reservedTables()` is what keeps a push from dropping them, and
@@ -1797,6 +1822,27 @@ the LICENSE and a README into every public package at publish time
   `mongo.spec.js`; `pnpm test:sql:live` runs the SQL ones on real servers with
   concurrent connection pools). MSSQL only has its generated DDL and claim
   statement covered offline, like the rest of that adapter.
+- The **concurrency limits** are new. `packages/jobs/__tests__/
+concurrency.spec.js` proves the negative property the way `claim.spec.js`
+  proves the claim -- a queue and a connection pool per runner, and the jobs
+  themselves recording their overlap (`__tests__/live.js`), because a count
+  taken afterwards cannot tell two jobs that overlapped from two that did
+  not. It runs on sqlite offline and on the live PostgreSQL and MySQL, and
+  the same file also downgrades a table (`ALTER TABLE ... DROP COLUMN`) to
+  prove the upgrade path on a real server; MongoDB has its own in
+  `mongo.spec.js`, MSSQL only its DDL. What is **left**: **batching** (a set
+  of jobs plus one that runs when they are all done) -- the promises are
+  decided and written in `guides/jobs.md#what-is-not-here`, and what it needs
+  is another column plus a table, which is the same upgrade question and so
+  a tranche of its own. There is **no dashboard and there will not be one**;
+  the argument is in the same guide (`#no-dashboard-and-what-to-build-one-from`)
+  and it is that `/_routes`, `/_openapi.json` and `/_mailers` describe the
+  _application_ while a queue page would display its _data_ -- job arguments,
+  which the privacy tranche marks personal -- and that the place a dashboard
+  is wanted is production, where henri must mount none. `henri.jobs.limits()`
+  next to `stats()`, `list()` and `dead.*`, plus `--json` on every command,
+  is what an application builds its own read-only page from, behind its own
+  policy.
 - The call log (`config.calls`) is new. Its table, its join, its bodies and
   its bounded delete are covered on sqlite offline and on the live
   PostgreSQL and MySQL of `pnpm test:sql:live`
