@@ -308,6 +308,96 @@ the boot line says which it is. The [retention sweep](/guides/retention/)
 is what prunes them, so `henri retention:sweep --yes` takes the old ones
 away along with everything else.
 
+## Tenants
+
+If the application is [multi-tenant](/guides/multi-tenancy/), every version
+carries the tenant of the record it is about, and `henri.versions` is scoped
+exactly the way a tenanted model is.
+
+**The tenant is read off the record, not off the scope.** A version describes a
+record, and whose record it is is written on the record — so a sweep that runs
+`henri.tenancy.unscoped()` over every customer still writes rows that name the
+right one. A model with no `options.tenant` is shared and its versions name no
+tenant, which is the correct answer rather than a gap.
+
+**A read is narrowed, and a read with no tenant is refused.** Inside a tenant,
+`list()`, `count()`, `of()` and `get()` answer that tenant's rows and the rows
+of no tenant; outside one, with tenancy on, they raise `HENRI_TENANT_REQUIRED`
+rather than handing back every customer's old values. That is
+`HENRI_POLICY_SCOPE_REQUIRED`'s instinct again: a table nobody narrowed is
+everybody's rows. `henri.tenancy.unscoped()` is the one way past, and it is what
+an operator report says out loud.
+
+```js
+// a history page: already inside the tenant of the request
+const history = await henri.versions.of(invoice);
+
+// a cross-tenant report: says so
+const lately = await henri.tenancy.unscoped(() =>
+  henri.versions.list({ limit: 100 })
+);
+```
+
+A version of another tenant's record answers `null` from `get()` rather than a
+refusal — `Model.findById()`'s own answer, because "it is there but not yours"
+is the oracle a 404 exists to close.
+
+**A restore that creates is refused across the boundary.** `restore()` on a
+record that still exists is an update, and the model layer already only found
+this tenant's row. On a record that is **gone** it creates one, and a create is
+stamped with the tenant in scope — so restoring somebody else's version would
+materialize their old values as your row, under their identifier. That is
+`HENRI_VERSION_CROSS_TENANT`, and `henri.tenancy.unscoped()` is how a record is
+deliberately moved.
+
+The three commands run across every tenant, because an operator at a shell holds
+the database and means all of them; `--tenant` narrows them to one, and
+`versions:show` and `versions:restore` run **as the tenant the row names**,
+which is what makes them work at all on a tenanted model:
+
+```bash
+henri versions Invoice                    # every tenant
+henri versions Invoice --tenant acme      # one
+henri versions:show <id>                  # reified as the tenant of the row
+henri versions:restore <id> --tenant acme
+```
+
+### The column, and an upgrade
+
+`tenant` is a column on `henri_versions` and arrives the way the queue's own
+late columns do: an idempotent `ALTER` inside the install, **tolerated**, with
+the store asking the table rather than trusting the statement ran. For most
+people that is the next deploy and nothing else.
+
+- An application that is **not multi-tenant is not affected at all**: nothing is
+  stamped, nothing is narrowed, and the insert names the columns that are there.
+- An application with `config.tenancy` on whose table cannot hold the column
+  **fails the boot** with `HENRI_VERSION_TENANT_UNINSTALLED`. A history nothing
+  can scope is worse than one that refuses to start: with every row null, a read
+  narrowed to a tenant is every tenant's rows.
+
+  ```sql
+  ALTER TABLE henri_versions ADD COLUMN tenant VARCHAR(190) NULL;
+  ```
+
+- **The rows written before the column are null**, and a null row is nobody's —
+  which means every tenant's listing shows them. That is deliberate: null is
+  also what a shared model's history looks like, and hiding those rows from
+  everybody would lose it. If that matters, backfill them once from the records
+  they name, which is the only place the answer exists:
+
+  ```sql
+  UPDATE henri_versions AS v
+     SET tenant = (SELECT i.tenant_id FROM invoices AS i
+                    WHERE i.external_id = v.record)
+   WHERE v.model = 'Invoice' AND v.tenant IS NULL;
+  ```
+
+  A row whose record has since been deleted cannot be backfilled, and
+  `versions:restore` refuses it rather than guessing.
+
+- On MongoDB there is nothing to upgrade: a document simply has no such field.
+
 ## Where the rows live
 
 One table henri owns (`henri_versions`), reached through the store adapter

@@ -1474,6 +1474,18 @@ Usually:
 
 **Fix.** Set `jobs.store` to one of the names of the `stores` block, or leave it out to use the default store.
 
+### `HENRI_JOB_TENANT_UNINSTALLED`
+
+This application is multi-tenant and the queue has nowhere to write a job's tenant.
+
+Usually:
+
+- a queue installed by a henri older than 1.4, whose table has no `tenant` column
+- `jobs.install: false` with no `henri jobs:install` since `config.tenancy` was turned on
+- a database user that may not alter a table
+
+**Fix.** Run `henri jobs:install` once with a user that may alter the table. The queue works without the column, and a multi-tenant application does not: every job would be enqueued with no tenant and performed outside every one of them, which is not the same as being performed across all of them. The rows already in the table keep their null tenant and are performed exactly as they were.
+
 ### `HENRI_JOB_TIMEOUT`
 
 An attempt ran past the job’s timeout.
@@ -2757,6 +2769,17 @@ Usually:
 
 Model versioning: the `versioned` mark on a model, the table its history lives in, and reading a record back out of it.
 
+### `HENRI_VERSION_CROSS_TENANT`
+
+A version of another tenant's record was about to be written back as a new record here.
+
+Usually:
+
+- a `henri versions:restore` of a record that no longer exists, made as a tenant other than the one the version names
+- a restore of a version written before `henri_versions` had its `tenant` column, so henri cannot tell whose record it was
+
+**Fix.** Restore it as the tenant it belongs to (`henri versions:restore --tenant <id>`, or `henri.tenancy.run()`), or say `henri.tenancy.unscoped()` when moving a record between tenants is what you mean. Restoring a record that is _gone_ creates it again, and a create is stamped with the tenant in scope -- so henri refuses rather than materializing somebody else's record here. Updating a record that still exists is never refused: the model layer only ever found this tenant's row.
+
 ### `HENRI_VERSION_DISABLED`
 
 The versions were read back and this application keeps none.
@@ -2813,6 +2836,17 @@ Usually:
 - the model says both `versioned` and `options: { externalId: false }`
 
 **Fix.** A version names the record it is about by its `externalId`, because that is the identifier that already leaves the server (see the models guide). Take `externalId: false` off the model, or stop versioning it.
+
+### `HENRI_VERSION_TENANT_UNINSTALLED`
+
+This application is multi-tenant and the version table has no `tenant` column.
+
+Usually:
+
+- a version table created by a henri older than 1.4, whose `ALTER TABLE ... ADD COLUMN tenant` has not run
+- a database user that may not alter a table
+
+**Fix.** Boot once with a database user that may `ALTER`, or run `ALTER TABLE henri_versions ADD COLUMN tenant VARCHAR(190) NULL` by hand. henri refuses rather than writing a history it cannot scope: with every row null, a read narrowed to a tenant is every tenant's rows. The rows written before the column exists stay null and are visible in every tenant's listing until they are backfilled -- see the upgrade note of the versions guide.
 
 ### `HENRI_VERSION_UNKNOWN`
 

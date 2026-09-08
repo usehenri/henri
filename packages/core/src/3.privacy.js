@@ -453,12 +453,18 @@ class Privacy extends BaseModule {
    */
   async tolerantly(work) {
     const { encryption } = this.henri;
+    // Across every tenant, and this is the one place it is said: an
+    // erasure and an export are about a *person*, and the records held
+    // about them are whatever holds them. A walk narrowed to the tenant
+    // that happened to be in scope would quietly miss rows -- and from a
+    // command line, where there is no tenant at all, it would not run
+    const walk = () => this.everywhere(work);
 
     if (!encryption || typeof encryption.tolerate !== 'function') {
-      return { ...(await work()), unreadable: [] };
+      return { ...(await walk()), unreadable: [] };
     }
 
-    const { failures, value } = await encryption.tolerate(work);
+    const { failures, value } = await encryption.tolerate(walk);
 
     if (failures.length > 0) {
       this.henri.pen.warn(
@@ -469,6 +475,37 @@ class Privacy extends BaseModule {
     }
 
     return { ...value, unreadable: failures };
+  }
+
+  /**
+   * Runs a walk over the models across every tenant, deliberately.
+   *
+   * henri's own sweeps are the caller `henri.tenancy.unscoped()` was
+   * written for, and saying so here rather than at each call site is the
+   * point: an erasure and an export are about a person,
+   * and the records held about that person are wherever they are. A walk
+   * narrowed to whatever tenant happened to be in scope would answer a
+   * person's request with part of their data and write a receipt saying
+   * it was all of it.
+   *
+   * It is a no-op in an application that is not multi-tenant, and it is
+   * **not** a hole. `unscoped()` only ever means "do not narrow"; what a
+   * person may do is still the policies' question, and nothing here is
+   * reachable from a request that did not already pass one.
+   *
+   * @async
+   * @param {function} work What to run
+   * @returns {Promise<*>} Whatever the work answered
+   * @memberof Privacy
+   */
+  async everywhere(work) {
+    const { tenancy } = this.henri;
+
+    if (!tenancy || !tenancy.enabled) {
+      return work();
+    }
+
+    return tenancy.unscoped(work);
   }
 
   /**

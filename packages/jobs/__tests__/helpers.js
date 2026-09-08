@@ -3,6 +3,11 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 
 const Sql = require('@usehenri/sequelize');
+// The real module, not a stand-in: what a job's tenant is scoped by is
+// core's decision, and the queue is what has to ask. `enabled` is false
+// unless a suite passed a `tenancy` setting, so every other suite is
+// untouched -- the drizzle harness does exactly this
+const Tenancy = require('@usehenri/core/src/0.tenancy');
 // The target of the SQL suites: sqlite unless HENRI_TEST_POSTGRES_URL or
 // HENRI_TEST_MYSQL_URL points at a server, in which case these suites run
 // on that server too (`pnpm test:sql:live`)
@@ -17,12 +22,14 @@ if (typeof afterAll === 'function') {
 /**
  * A minimal henri stand-in
  *
- * @param {object} [options={}] `cwd`
+ * @param {object} [options={}] `cwd`, and `settings` for the configuration
+ *   the modules it carries read (`tenancy`)
  * @returns {object} A fake henri, with the pen calls in `calls`
  */
 const fakeHenri = (options = {}) => {
   const calls = [];
   const pen = {};
+  const settings = options.settings || {};
 
   ['error', 'info', 'warn'].forEach((level) => {
     pen[level] = (...args) => calls.push([level, ...args]);
@@ -35,11 +42,27 @@ const fakeHenri = (options = {}) => {
     return new Error(args.join(' '));
   };
 
-  return {
+  const henri = {
     calls,
+    config: {
+      get: (key) => settings[key],
+      has: (key) => typeof settings[key] !== 'undefined',
+      sourceOf: () => 'the test',
+    },
     cwd: () => options.cwd || path.join(__dirname, 'fixtures', 'app'),
     pen,
   };
+
+  const tenancy = new Tenancy();
+
+  tenancy.henri = henri;
+  tenancy.init();
+  henri.tenancy = tenancy;
+  // The module says at boot that it is on; that is core's line, not the
+  // queue's, and `calls` is what the suites read to see what the queue said
+  calls.length = 0;
+
+  return henri;
 };
 
 /**
@@ -80,10 +103,12 @@ const adapterFor = async (key) => {
  * @param {string} [options.cwd] The application directory (app/jobs)
  * @param {string} [options.key] The key of the database
  * @param {object} [options.adapter] An adapter to reuse
+ * @param {object} [options.henri] A henri stand-in to reuse, so a suite can
+ *   turn tenancy on for it
  * @returns {Promise<object>} `{ adapter, henri, jobs }`
  */
 const build = async (options = {}) => {
-  const henri = fakeHenri({ cwd: options.cwd });
+  const henri = options.henri || fakeHenri({ cwd: options.cwd });
   const adapter = options.adapter || (await adapterFor(options.key));
   const jobs = new Jobs(henri, {
     adapter,

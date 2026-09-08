@@ -150,7 +150,22 @@ class Versions extends BaseModule {
 
     this.enabled = true;
 
-    await this.ready();
+    const store = await this.ready();
+
+    // The upgrade has to be honest. An application that turned tenancy on
+    // and whose table cannot hold the column would write a history nothing
+    // can scope, and a scoped read of a table where every row is null is
+    // every tenant's rows, which is the one answer this must never give.
+    // The `_UNINSTALLED` precedent of `@usehenri/jobs`: fail the boot and
+    // name what is missing
+    if (this.tenancy() && !(await store.tenanted())) {
+      throw refuse(
+        'HENRI_VERSION_TENANT_UNINSTALLED',
+        `config.tenancy is on and ${this.settings.table} has no tenant column, so a version could not say whose record it is about`,
+        `henri adds the column itself on a boot whose database user may ALTER; otherwise run ALTER TABLE ${this.settings.table} ADD COLUMN tenant VARCHAR(190) NULL by hand, and see the upgrade note of guides/versions.md for the rows that are already there`
+      );
+    }
+
     this.mount(this.henri.server);
 
     pen.info(
@@ -306,6 +321,91 @@ class Versions extends BaseModule {
   }
 
   /**
+   * `henri.tenancy`, when the application turned it on
+   *
+   * @returns {?object} the tenancy module, or null
+   * @memberof Versions
+   */
+  tenancy() {
+    const tenancy = this.henri && this.henri.tenancy;
+
+    return tenancy && tenancy.enabled ? tenancy : null;
+  }
+
+  /**
+   * Whose record this version is about.
+   *
+   * **The record's own column, and only then the tenant in scope.** A
+   * version describes a record, and whose record it is is written on the
+   * record: a sweep running `unscoped()` over every customer still writes
+   * rows that name the right one. The scope is the fallback for the
+   * adapter that hands over a partial `before` on a create.
+   *
+   * `null` on a shared model, on an application that is not multi-tenant,
+   * and on a record whose column is empty -- three different things that
+   * are the same thing to read back, which is why a scoped listing takes
+   * the nulls with it.
+   *
+   * @param {string} model the model name
+   * @param {object} event what `record()` was given
+   * @returns {?string} the tenant, or null
+   * @memberof Versions
+   */
+  tenantOf(model, event) {
+    const tenancy = this.tenancy();
+
+    if (!tenancy) {
+      return null;
+    }
+
+    const column = tenancy.columnFor(model);
+
+    if (!column) {
+      return null;
+    }
+
+    for (const values of [event.after, event.before]) {
+      const value = isPlainObject(values) ? values[column] : null;
+
+      if (value !== null && typeof value !== 'undefined' && value !== '') {
+        return String(value);
+      }
+    }
+
+    return tenancy.current();
+  }
+
+  /**
+   * The tenant a read of the history is narrowed to, or nothing.
+   *
+   * The version table holds the old values of records that belong to
+   * tenants, so reading it is scoped exactly the way reading those records
+   * is -- **including the refusal**. With tenancy on, no tenant in scope
+   * and no `unscoped()`, `henri.versions.list()` raises
+   * `HENRI_TENANT_REQUIRED` rather than answering with every customer's
+   * changes, which is `conditionFor()`'s instinct applied to a table core
+   * owns rather than to one an adapter built.
+   *
+   * henri's own callers say `unscoped()` because they mean every tenant:
+   * the retention prune, the erasure, the export, and the three
+   * `henri versions` commands.
+   *
+   * @param {string} [why='reading the version history'] for the message
+   * @returns {?string} the tenant, or null when nothing should be narrowed
+   * @throws HENRI_TENANT_REQUIRED with tenancy on and no tenant in scope
+   * @memberof Versions
+   */
+  scope(why = 'reading the version history') {
+    const tenancy = this.tenancy();
+
+    if (!tenancy || tenancy.isUnscoped()) {
+      return null;
+    }
+
+    return tenancy.require(why);
+  }
+
+  /**
    * Who is acting, and where the change came from.
    *
    * `acting()` wins, then the request the change is being made inside,
@@ -426,6 +526,7 @@ class Versions extends BaseModule {
       request_id: who.requestId,
       snapshot: snapshot ? JSON.stringify(snapshot) : null,
       source: who.source,
+      tenant: this.tenantOf(model, event),
     };
 
     await (await this.ready()).append(row);
@@ -522,7 +623,34 @@ class Versions extends BaseModule {
   async get(id) {
     check('henri.versions.get', [id]);
 
-    return toVersion(await (await this.ready()).get(id));
+    const row = await (await this.ready()).get(id);
+
+    return this.visible(row) ? toVersion(row) : null;
+  }
+
+  /**
+   * May the tenant in scope see this row?
+   *
+   * `null` rather than a refusal, which is `Model.findById()`'s own
+   * answer: a version another tenant wrote is not there, and a message
+   * saying "it is there but not yours" is the oracle the 404 exists to
+   * close. A row of **no** tenant is visible to everybody, for
+   * `conditions()`'s reason: it is what a shared model's history and every
+   * row written before the column look like.
+   *
+   * @param {?object} row a stored row
+   * @returns {boolean} yes or no
+   * @throws HENRI_TENANT_REQUIRED with tenancy on and no tenant in scope
+   * @memberof Versions
+   */
+  visible(row) {
+    if (!row) {
+      return false;
+    }
+
+    const tenant = this.scope();
+
+    return !tenant || !row.tenant || row.tenant === tenant;
   }
 
   /**
@@ -541,6 +669,10 @@ class Versions extends BaseModule {
     return {
       ...filter,
       since: moment(filter.since),
+      // The caller does not get to widen it: a `tenant` in the filter is
+      // overwritten by the scope, the way `req.filters()` intersects a
+      // client's condition with the policy's rather than replacing it
+      tenant: this.scope() || undefined,
       until: moment(filter.until),
     };
   }
@@ -709,6 +841,8 @@ class Versions extends BaseModule {
       return { created: false, missing, record: updated, version: target };
     }
 
+    this.restorable(target);
+
     // The public identifier goes back with it: every url, every link and
     // every foreign key that named this record still names it
     const created = await this.createRecord(Model, {
@@ -717,6 +851,53 @@ class Versions extends BaseModule {
     });
 
     return { created: true, missing, record: created, version: target };
+  }
+
+  /**
+   * May this version be written back as a **new** record here?
+   *
+   * This is the sharp edge of a shared version table, and it is a write
+   * rather than a read: a restore of a record that no longer exists
+   * *creates* one, and a create is stamped with the tenant in scope. So a
+   * version of somebody else's record would materialize their old values
+   * as this tenant's row, under their external id: the leak no later
+   * request notices, which is `HENRI_TENANT_CROSS_WRITE`'s whole argument.
+   *
+   * An **update** needs no check. `liveRecord()` reads through the model
+   * layer, which only ever finds this tenant's row.
+   *
+   * A version with no tenant on a tenanted model is refused here too, and
+   * that is the honest answer rather than a harsh one: the row predates
+   * the column, henri cannot tell whose record it was, and guessing "this
+   * one" is exactly the guess this column exists to stop making.
+   *
+   * @param {object} target the version being restored
+   * @returns {void}
+   * @throws HENRI_TENANT_REQUIRED, HENRI_VERSION_CROSS_TENANT
+   * @memberof Versions
+   */
+  restorable(target) {
+    const tenancy = this.tenancy();
+
+    if (!tenancy || tenancy.isUnscoped() || !tenancy.columnFor(target.model)) {
+      return;
+    }
+
+    const tenant = tenancy.require(
+      `restoring a ${target.model} that no longer exists`
+    );
+
+    if (target.tenant === tenant) {
+      return;
+    }
+
+    throw refuse(
+      'HENRI_VERSION_CROSS_TENANT',
+      target.tenant
+        ? `version ${target.id} is about a ${target.model} of the tenant '${target.tenant}' and the tenant in scope is '${tenant}', so restoring it would create that record here`
+        : `version ${target.id} is about a ${target.model} and names no tenant, having been written before ${this.settings.table} had the column, so restoring it would create the record in '${tenant}' on a guess`,
+      'Restore it as the tenant it belongs to, which is what the tenant flag of henri versions:restore does, or say henri.tenancy.unscoped() when moving a record between tenants is what you mean. A row with no tenant is one an upgrade left behind, and the backfill in guides/versions.md is what fills it in'
+    );
   }
 
   /**

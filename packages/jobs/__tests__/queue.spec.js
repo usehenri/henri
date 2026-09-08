@@ -39,6 +39,7 @@ describe(`queue (${target.name})`, () => {
         'mailers',
         'nested/deep',
         'ok',
+        'scope',
         'slow',
         'tenanted',
       ]);

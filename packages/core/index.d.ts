@@ -4708,6 +4708,14 @@ declare namespace start {
     meta: Record<string, unknown> | null;
     /** When an erasure emptied the values of this row. */
     erasedAt: Date | null;
+    /**
+     * Whose record this version is about, read off the record's own tenant
+     * column. `null` on a shared model, on an application that is not
+     * multi-tenant, and on every row written before the column existed --
+     * and a scoped listing takes the nulls with it, because a shared
+     * model's history belongs to everybody.
+     */
+    tenant: string | null;
   }
 
   /** What a version filter accepts. */
@@ -4774,7 +4782,15 @@ declare namespace start {
       record: object | { model: string; record: string },
       filter?: VersionFilter
     ): Promise<Version[]>;
-    /** The versions matching a filter, newest first. */
+    /**
+     * The versions matching a filter, newest first.
+     *
+     * Narrowed to the tenant in scope when the application is multi-tenant,
+     * and **refused** (`HENRI_TENANT_REQUIRED`) when there is none: a table
+     * holding every tenant's old values is read the way a tenanted model
+     * is. `henri.tenancy.unscoped()` is the one way past, and is what the
+     * `henri versions` commands say.
+     */
     list(filter?: VersionFilter): Promise<Version[]>;
     count(filter?: VersionFilter): Promise<number>;
     get(id: string): Promise<Version | null>;
@@ -4787,6 +4803,13 @@ declare namespace start {
      * Writes a reified record back: an update on one that still exists, an
      * insert under the same `externalId` on one that was destroyed. A
      * write: it refuses an inexact reconstruction unless `force`.
+     */
+    /**
+     * Restoring a record that no longer exists **creates** it, and a create
+     * is stamped with the tenant in scope -- so a version of another
+     * tenant's record, or one written before `henri_versions` had its
+     * `tenant` column, is refused here (`HENRI_VERSION_CROSS_TENANT`).
+     * Updating a record that still exists is never refused.
      */
     restore(
       version: string | Version,
@@ -5274,6 +5297,14 @@ declare namespace start {
     concurrencyKey: string | null;
     /** The batch this job counts into, `null` when it is not in one. */
     batchId: string | null;
+    /**
+     * The tenant this job belongs to, stamped from the request or job it
+     * was enqueued from (`henri.tenancy`). `null` when the application is
+     * not multi-tenant, when the enqueue named `tenant: null`, and on every
+     * row written before the column existed -- and a runner enters no
+     * tenant for any of the three, because null is not every tenant.
+     */
+    tenant: string | null;
   }
 
   /** The options of an enqueue. */
@@ -5295,6 +5326,13 @@ declare namespace start {
      * (`HENRI_JOB_BATCH_CLOSED`).
      */
     batch?: string;
+    /**
+     * The tenant this job belongs to. Defaults to the tenant of the request
+     * or job it is enqueued from when the application is multi-tenant;
+     * `null` is a job of no tenant, and naming a **different** tenant while
+     * one is in scope is refused (`HENRI_TENANT_CROSS_WRITE`).
+     */
+    tenant?: string | null;
   }
 
   /** What a job's `perform(args, context)` receives as its context. */
@@ -5310,6 +5348,12 @@ declare namespace start {
       enqueuedAt: string | null;
       runner: string | null;
       inline?: boolean;
+      /**
+       * The tenant of the row. The runner has already entered it, so
+       * `henri.tenancy.current()` answers the same thing inside `perform()`
+       * and a tenanted model needs nothing said.
+       */
+      tenant?: string | null;
     };
     /** Aborted when the attempt runs past its timeout. */
     signal: AbortSignal;
@@ -5405,6 +5449,12 @@ declare namespace start {
     name?: string;
     /** Only the jobs of one batch. */
     batch?: string;
+    /**
+     * Only the jobs of one tenant. Refused with
+     * `HENRI_JOB_TENANT_UNINSTALLED` when the table has no `tenant` column,
+     * rather than answered with every tenant's rows.
+     */
+    tenant?: string;
     limit?: number;
     offset?: number;
   }
@@ -5463,6 +5513,12 @@ declare namespace start {
     args?: Record<string, unknown> | null;
     /** The jobs of the batch. */
     jobs?: JobBatchEntry[];
+    /**
+     * The tenant of the callback. Defaults to the tenant the batch was made
+     * in: the callback is enqueued by a runner long after that request is
+     * gone, so it has to travel with the batch.
+     */
+    tenant?: string | null;
   }
 
   /**
@@ -6051,6 +6107,13 @@ declare namespace start {
     require(why?: string): string;
     /** The models that carry a mark, and the column each one uses. */
     map(): Record<string, string>;
+    /**
+     * The column a model's tenant lives in, by model name; `null` when
+     * tenancy is off and when the model is shared. What a caller that is
+     * not an adapter asks -- the version store uses it to decide whose
+     * record a version is about.
+     */
+    columnFor(model: string): string | null;
     /** The sources a request's tenant may come from, in order. */
     sources(): string[];
   }

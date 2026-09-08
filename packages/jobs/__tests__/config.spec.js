@@ -143,6 +143,7 @@ describe('definitions', () => {
       'mailers',
       'nested/deep',
       'ok',
+      'scope',
       'slow',
       'tenanted',
     ]);
@@ -507,17 +508,20 @@ describe('the schema', () => {
     for (const dialect of ['sqlite', 'postgres', 'mysql', 'mssql']) {
       const statements = upgrade(dialect, tables);
 
-      // The two columns and the indexes they serve, and nothing else: an
+      // The three columns and the indexes they serve, and nothing else: an
       // upgrade touches an existing table, so it says exactly what it
       // changes. The batches table itself is a *new* table, so the guarded
       // CREATE of the install is all it needs
-      expect(statements).toHaveLength(4);
+      expect(statements).toHaveLength(6);
       expect(statements[0]).toContain('concurrency_key');
       expect(statements[0]).toMatch(/ALTER TABLE/u);
       expect(statements[1]).toContain('batch_id');
       expect(statements[1]).toMatch(/ALTER TABLE/u);
-      expect(statements[2]).toContain('henri_jobs_limited');
-      expect(statements[3]).toContain('henri_jobs_batch');
+      expect(statements[2]).toContain('tenant');
+      expect(statements[2]).toMatch(/ALTER TABLE/u);
+      expect(statements[3]).toContain('henri_jobs_limited');
+      expect(statements[4]).toContain('henri_jobs_batch');
+      expect(statements[5]).toContain('henri_jobs_tenant');
 
       // Every one of them is part of the install, so a fresh database and an
       // upgraded one end up with the same table

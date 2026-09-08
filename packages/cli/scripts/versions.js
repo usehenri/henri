@@ -14,6 +14,20 @@ const { boot, validInstall } = require('./utils');
  *
  * All three boot to runlevel 4: no port is bound and no route is
  * registered. The work is `henri.versions` (`core/src/4.versions.js`).
+ *
+ * ## Tenants
+ *
+ * A command line has no request, so it has no tenant, and
+ * `henri.versions` refuses a read with tenancy on and nothing in scope.
+ * That refusal is for an application's own code; an operator at a shell
+ * holds the database and means every customer, so these three commands say
+ * `henri.tenancy.unscoped()` out loud. `--tenant` narrows them to one.
+ *
+ * `show` and `restore` do one thing more: they read the version first and
+ * then run the reconstruction **as the tenant the row names**, because
+ * both of them touch the record itself through the model layer, which is
+ * scoped. Without that, `henri versions:restore` could not work at all on
+ * a tenanted model.
  */
 
 const COMMANDS = ['list', 'restore', 'show'];
@@ -22,19 +36,77 @@ const COMMANDS = ['list', 'restore', 'show'];
 const LIMIT = 25;
 
 /**
- * Runs one operation against a booted application and stops it again
+ * `henri.tenancy`, when the application turned it on
  *
+ * @param {object} henri A booted instance
+ * @returns {?object} The tenancy module, or null
+ */
+const tenancyOf = (henri) =>
+  henri.tenancy && henri.tenancy.enabled ? henri.tenancy : null;
+
+/**
+ * The tenant `--tenant` named, or null
+ *
+ * @param {object} args CLI arguments
+ * @returns {?string} The tenant
+ */
+const named = (args) =>
+  typeof args.tenant === 'string' && args.tenant !== '' ? args.tenant : null;
+
+/**
+ * Runs one operation against a booted application and stops it again.
+ *
+ * Every tenant unless `--tenant` says otherwise: an operator at a shell is
+ * not a request, and the refusal `henri.versions` makes without a tenant
+ * is aimed at an application's own code.
+ *
+ * @param {object} args CLI arguments
  * @param {function} work `(henri) => result`
  * @returns {Promise<*>} What the work resolved with
  */
-const withHenri = async (work) => {
+const withHenri = async (args, work) => {
   const henri = await boot({ runlevel: 4 });
 
   try {
-    return await work(henri);
+    const tenancy = tenancyOf(henri);
+
+    if (!tenancy) {
+      return await work(henri);
+    }
+
+    const only = named(args);
+
+    return only
+      ? await tenancy.run(only, () => work(henri))
+      : await tenancy.unscoped(() => work(henri));
   } finally {
     await henri.stop();
   }
+};
+
+/**
+ * Runs something as the tenant a version row names.
+ *
+ * `reify()` and `restore()` read (and write) the record itself, which is
+ * scoped -- so the tenant of the row is what has to be in scope for them,
+ * and the row is the only thing that knows it. `--tenant` wins when it was
+ * given, and a row that names no tenant enters none, which is what a
+ * shared model and a pre-upgrade row both are.
+ *
+ * @param {object} henri A booted instance
+ * @param {object} args CLI arguments
+ * @param {?object} version The version that was read
+ * @param {function} work What to run
+ * @returns {*} Whatever the work answered
+ */
+const asRecorded = (henri, args, version, work) => {
+  const tenancy = tenancyOf(henri);
+
+  if (!tenancy || named(args) || !version || !version.tenant) {
+    return work();
+  }
+
+  return tenancy.run(version.tenant, work);
 };
 
 /**
@@ -70,7 +142,9 @@ const filterOf = (args) => {
  */
 const list = async (args) => {
   const filter = filterOf(args);
-  const versions = await withHenri((henri) => henri.versions.list(filter));
+  const versions = await withHenri(args, (henri) =>
+    henri.versions.list(filter)
+  );
 
   return { command: 'list', filter, ok: true, versions };
 };
@@ -105,7 +179,13 @@ const idOf = (args, command) => {
  */
 const show = async (args) => {
   const id = idOf(args, 'show');
-  const reified = await withHenri((henri) => henri.versions.reify(id));
+  const reified = await withHenri(args, async (henri) => {
+    const version = await henri.versions.get(id);
+
+    return asRecorded(henri, args, version, () =>
+      henri.versions.reify(version || id)
+    );
+  });
 
   return { command: 'show', ok: true, ...reified };
 };
@@ -118,9 +198,13 @@ const show = async (args) => {
  */
 const restore = async (args) => {
   const id = idOf(args, 'restore');
-  const done = await withHenri((henri) =>
-    henri.versions.restore(id, { force: args.force === true })
-  );
+  const done = await withHenri(args, async (henri) => {
+    const version = await henri.versions.get(id);
+
+    return asRecorded(henri, args, version, () =>
+      henri.versions.restore(version || id, { force: args.force === true })
+    );
+  });
 
   return {
     command: 'restore',
@@ -129,6 +213,7 @@ const restore = async (args) => {
     model: done.version.model,
     ok: true,
     record: done.version.record,
+    tenant: done.version.tenant || null,
   };
 };
 
@@ -173,6 +258,7 @@ const printList = ({ versions }) => {
 
     const notes = [
       version.actor ? `actor ${version.actor}` : `source ${version.source}`,
+      version.tenant ? `tenant ${version.tenant}` : null,
       version.requestId ? `request ${version.requestId}` : null,
       version.erasedAt ? 'erased' : null,
     ].filter(Boolean);
@@ -236,10 +322,12 @@ const printShow = ({ attributes, complete, existed, missing, version }) => {
  * @param {object} result What restore() answered
  * @returns {void}
  */
-const printRestore = ({ created, missing, model, record }) => {
+const printRestore = ({ created, missing, model, record, tenant }) => {
   console.log('');
   console.log(
-    `  ${model} ${record} was ${created ? 'created again' : 'written back'}.`
+    `  ${model} ${record} was ${created ? 'created again' : 'written back'}${
+      tenant ? ` in ${tenant}` : ''
+    }.`
   );
 
   if (missing.length > 0) {

@@ -1389,6 +1389,17 @@
     },
     {
       "area": "job",
+      "causes": [
+        "a queue installed by a henri older than 1.4, whose table has no `tenant` column",
+        "`jobs.install: false` with no `henri jobs:install` since `config.tenancy` was turned on",
+        "a database user that may not alter a table"
+      ],
+      "code": "HENRI_JOB_TENANT_UNINSTALLED",
+      "fix": "Run `henri jobs:install` once with a user that may alter the table. The queue works without the column, and a multi-tenant application does not: every job would be enqueued with no tenant and performed outside every one of them, which is not the same as being performed across all of them. The rows already in the table keep their null tenant and are performed exactly as they were.",
+      "what": "This application is multi-tenant and the queue has nowhere to write a job's tenant."
+    },
+    {
+      "area": "job",
       "causes": ["a job whose `perform()` never returned in time"],
       "code": "HENRI_JOB_TIMEOUT",
       "fix": "Raise the job\u2019s `timeout`, or split the work: the attempt is failed and retried like any other failure.",
@@ -2483,6 +2494,16 @@
     {
       "area": "version",
       "causes": [
+        "a `henri versions:restore` of a record that no longer exists, made as a tenant other than the one the version names",
+        "a restore of a version written before `henri_versions` had its `tenant` column, so henri cannot tell whose record it was"
+      ],
+      "code": "HENRI_VERSION_CROSS_TENANT",
+      "fix": "Restore it as the tenant it belongs to (`henri versions:restore --tenant <id>`, or `henri.tenancy.run()`), or say `henri.tenancy.unscoped()` when moving a record between tenants is what you mean. Restoring a record that is *gone* creates it again, and a create is stamped with the tenant in scope -- so henri refuses rather than materializing somebody else's record here. Updating a record that still exists is never refused: the model layer only ever found this tenant's row.",
+      "what": "A version of another tenant's record was about to be written back as a new record here."
+    },
+    {
+      "area": "version",
+      "causes": [
         "no model of the application says `options: { versioned: true }`",
         "the versions were read back before the boot reached runlevel 4"
       ],
@@ -2531,6 +2552,16 @@
       "code": "HENRI_VERSION_NO_IDENTIFIER",
       "fix": "A version names the record it is about by its `externalId`, because that is the identifier that already leaves the server (see the models guide). Take `externalId: false` off the model, or stop versioning it.",
       "what": "A version could not name the record it is about, which has no public identifier."
+    },
+    {
+      "area": "version",
+      "causes": [
+        "a version table created by a henri older than 1.4, whose `ALTER TABLE ... ADD COLUMN tenant` has not run",
+        "a database user that may not alter a table"
+      ],
+      "code": "HENRI_VERSION_TENANT_UNINSTALLED",
+      "fix": "Boot once with a database user that may `ALTER`, or run `ALTER TABLE henri_versions ADD COLUMN tenant VARCHAR(190) NULL` by hand. henri refuses rather than writing a history it cannot scope: with every row null, a read narrowed to a tenant is every tenant's rows. The rows written before the column exists stay null and are visible in every tenant's listing until they are backfilled -- see the upgrade note of the versions guide.",
+      "what": "This application is multi-tenant and the version table has no `tenant` column."
     },
     {
       "area": "version",

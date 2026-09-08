@@ -339,6 +339,16 @@ The account that was anonymized cannot be signed into again: its password
 becomes 32 bytes nobody holds, and `passwordChangedAt` is stamped, which is
 what refuses the sessions that were open at the time.
 
+## Tenants
+
+An export and an erasure walk the models **across every tenant**, deliberately
+(`henri.tenancy.unscoped()`). They are about a _person_, and the records held
+about that person are wherever they are: a walk narrowed to whatever tenant
+happened to be in scope would answer a person's request with part of their data
+and write a receipt saying it was all of it. From a command line there is no
+tenant in scope at all, so the alternative was `HENRI_TENANT_REQUIRED` rather
+than a narrower answer. See [multi-tenancy](/guides/multi-tenancy/).
+
 ## Configuration
 
 ```json

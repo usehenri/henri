@@ -251,39 +251,57 @@ a resolution problem, and the refusal is where you find that out.
 ## A job has no request
 
 `henri.jobs` performs work later, in another process, where there is no
-subdomain, no session and no `req.user`. So the tenant travels in the job's
-arguments, and one line puts it back:
+subdomain, no session and no `req.user`. So the queue row carries the tenant,
+henri stamps it on the enqueue and the runner enters it before it calls
+`perform()`:
+
+```js
+// in the controller, inside a request that resolved to `acme`
+await henri.jobs.perform('invoice-reminder', {
+  invoiceId: invoice.externalId,
+});
+```
 
 ```js
 // app/jobs/invoice-reminder.js
 module.exports = {
-  perform: async ({ invoiceId, tenant }) =>
-    henri.tenancy.run(tenant, async () => {
-      const invoice = await Invoice.findById(invoiceId);
+  // Nothing to put back: the runner is already inside `acme`
+  perform: async ({ invoiceId }) => {
+    const invoice = await Invoice.findById(invoiceId);
 
-      await henri.mailers.billing.reminder(invoice).deliverLater();
-    }),
+    await henri.mailers.billing.reminder(invoice).deliverLater();
+  },
 };
 ```
 
+**Null is not every tenant.** A job whose row names none — one enqueued from a
+script, a [recurring](/guides/jobs/#recurring-jobs) occurrence, one enqueued
+with `tenant: null`, or one that was in the queue before the column existed —
+enters no scope, and the refusal fires on its first tenanted model call exactly
+as it did. That is the safe half: **forgetting is loud rather than silent**, and
+a job that means every tenant says `henri.tenancy.unscoped()` itself.
+
+Naming a tenant on the enqueue wins; naming a _different_ one while a tenant is
+in scope is refused (`HENRI_TENANT_CROSS_WRITE`), because a job stamped with
+somebody else's tenant is performed in somebody else's data with arguments that
+came from this one. A fan-out says so:
+
 ```js
-// in the controller
-await henri.jobs.perform('invoice-reminder', {
-  invoiceId: invoice.externalId,
-  tenant: req.tenant,
+await henri.tenancy.unscoped(async () => {
+  for (const tenant of accounts) {
+    await henri.jobs.perform('nightly-report', null, { tenant });
+  }
 });
 ```
 
-**Forgetting is safe rather than silent**, which is the point of the refusal:
-a job that touches a tenanted model without saying which tenant fails on its
-first model call, is retried, and lands in the dead letter queue with
-`HENRI_TENANT_REQUIRED` on it. It does not quietly send acme's invoice to
-globex.
+`henri jobs:list --tenant acme`, `jobs:dead`, `jobs:retry --all` and
+`jobs:discard --all` all take it, and `jobs:show` and every `--json` answer
+carry it. The **claim** is deliberately not narrowed: a runner performs every
+tenant's work, and a runner per customer is a scheduling feature rather than
+this one. The details, including the upgrade, are in the
+[jobs guide](/guides/jobs/#tenants).
 
-henri does **not** stamp the tenant onto the queue row for you — see
-[what was left](#what-was-left) below.
-
-The same one line is what a `henri runner` script, a `henri console` session
+The one line is still what a `henri runner` script, a `henri console` session
 and a recurring sweep use:
 
 ```
@@ -303,20 +321,20 @@ event emitter you registered outside it.
 The tables henri owns are the interesting cases, and the honest answer is
 different for each of them.
 
-| table                             | per tenant?                        |
-| --------------------------------- | ---------------------------------- |
-| your models with `options.tenant` | **per tenant**, by the column      |
-| your models without one           | **shared**, deliberately           |
-| `henri_identities` (sign-in)      | shared, and it has to be           |
-| `henri_webhooks` (endpoints)      | per tenant, by `owner`             |
-| `henri_trail` (the access trail)  | shared                             |
-| `henri_calls` (the call log)      | shared                             |
-| `henri_versions` (model history)  | **shared — the known gap**         |
-| `henri_jobs` (the queue)          | shared; the tenant rides in `args` |
-| the feature flag store            | shared                             |
-| the idempotency keys              | per tenant                         |
-| the rate limit and the lockout    | shared                             |
-| the session store                 | shared                             |
+| table                             | per tenant?                     |
+| --------------------------------- | ------------------------------- |
+| your models with `options.tenant` | **per tenant**, by the column   |
+| your models without one           | **shared**, deliberately        |
+| `henri_identities` (sign-in)      | shared, and it has to be        |
+| `henri_webhooks` (endpoints)      | per tenant, by `owner`          |
+| `henri_trail` (the access trail)  | shared                          |
+| `henri_calls` (the call log)      | shared                          |
+| `henri_versions` (model history)  | per tenant, by the record's own |
+| `henri_jobs` (the queue)          | per tenant, by `tenant`         |
+| the feature flag store            | shared                          |
+| the idempotency keys              | per tenant                      |
+| the rate limit and the lockout    | shared                          |
+| the session store                 | shared                          |
 
 **The identity table is shared, and it has to be.** `(provider, subject)` is
 unique across the whole application, because one Google account is one
@@ -337,6 +355,25 @@ what fills it in: an `emit()` inside a tenant reaches that tenant's endpoints
 without the caller repeating it. Naming an `owner` explicitly still wins, and
 `owner: null` still means the endpoints that belong to nobody, which is what
 a platform-wide event is.
+
+**The queue row carries the tenant, and the runner enters it.**
+`henri.jobs.perform()` stamps the tenant of the request or job it was called
+from, `henri jobs:list --tenant` narrows a listing, and a runner opens
+`henri.tenancy.run()` around `perform()` — which turns a whole class of jobs
+that had to remember a first line into ordinary correct code. A row with no
+tenant enters none, deliberately.
+
+**The versions are per tenant, by the record's own column.** A version names the
+tenant of the record it describes — read off the record, so a sweep running
+across every customer still writes the right one — and `henri.versions` is
+narrowed and refused exactly the way a tenanted model is: a listing with no
+tenant in scope raises `HENRI_TENANT_REQUIRED` rather than answering with
+everybody's old values. The sharp edge is `restore()`: restoring a record that
+no longer exists **creates** it, and a create is stamped with the tenant in
+scope, so restoring another tenant's version is `HENRI_VERSION_CROSS_TENANT`
+rather than that record appearing here. Rows written before the column arrived
+name no tenant and are therefore visible in every tenant's listing; the
+[versions guide](/guides/versions/#tenants) has the backfill.
 
 **The trail and the call log are shared, and that is safe** — for a reason
 worth stating rather than assuming. Both are operator records, not
@@ -380,6 +417,26 @@ and keying the _global_ limit by tenant would make a tenant's own traffic
 count against nobody else — which is not what a defence against a flood is
 for. `config.rateLimit.store` and a middleware of the application's own are
 where a per-customer quota goes.
+
+## henri's own sweeps run across every tenant
+
+`henri privacy:export`, `henri privacy:erase` and `henri retention:sweep` walk
+the models with `henri.tenancy.unscoped()`, and each for its own reason.
+
+An **erasure** and an **export** are about a _person_, and the records held
+about that person are wherever they are; a walk narrowed to whatever tenant
+happened to be in scope would answer a person's request with part of their data
+and write a receipt saying it was all of it. A **retention rule** is the
+application's policy about a _table_ — `after: '90d'` on `Ticket` means every
+ticket — and a sweep narrowed to one customer would delete their records and
+write a receipt saying the rule ran.
+
+There is no tenant in scope on a cron line anyway, so the alternative was never
+a narrower sweep: it was `HENRI_TENANT_REQUIRED` on the first rule.
+
+A per-tenant retention period is a different feature, and it is yours: a rule
+with a `where` of its own, or a job that calls `sweep({ only })` inside
+`henri.tenancy.run()`.
 
 ## What henri cannot narrow, and refuses instead
 
@@ -447,6 +504,14 @@ test('a job with no tenant refuses rather than reading everything', async () => 
     code: 'HENRI_TENANT_REQUIRED',
   });
 });
+
+test('a job carries the tenant it was enqueued in', async () => {
+  const job = await henri.tenancy.run('acme', () =>
+    henri.jobs.perform('invoice-reminder', { invoiceId: 'x' })
+  );
+
+  expect(job.tenant).toBe('acme');
+});
 ```
 
 That second one is the test that catches a regression in this feature, so it
@@ -456,23 +521,28 @@ is worth having even though it asserts a failure.
 
 Written down rather than discovered:
 
-- **The queue row carries no tenant.** `henri_jobs` has no `tenant` column,
-  so `henri jobs:list` cannot filter by customer and a job's tenant has to be
-  in its `args`. The queue's tables are created with
-  `CREATE TABLE IF NOT EXISTS` and there is no migration path for them yet,
-  so adding a column would break an existing installation on upgrade. That
-  path — and `henri jobs:list --tenant` with it — is its own tranche.
-- **`henri_versions` is shared.** A version row names the record's
-  `externalId` and not its tenant, so `henri versions <Model> <record>` shows
-  one record's history correctly but there is no per-tenant view and no
-  per-tenant prune. Same reason, same tranche.
+- **No runner per tenant.** The claim is not narrowed by tenant and
+  `henri jobs --tenant` does not exist: one customer's backlog getting a runner
+  of its own is a scheduling feature with a fairness question attached (what
+  happens to the tenants no runner names?), and it is not this one.
+- **No per-tenant retention or prune.** `versions.keep`, `jobs.keepCompleted`,
+  `calls.keep` and `trail.keep` are one number for the whole application, and
+  the sweeps run across every tenant. A per-customer period is a rule with a
+  `where` of its own, or a job of yours.
+- **No backfill of the rows the upgrade left behind.** A queue row and a version
+  row written before their `tenant` column existed name none, and henri does not
+  guess: a job's tenant is not recoverable at all, and a version's is a `UPDATE`
+  from the records it names that only you can write. The
+  [versions guide](/guides/versions/#the-column-and-an-upgrade) has it.
 - **No `henri tenants` command.** There is no list of tenants, because henri
   holds none: a tenant is a string in a column, and what the set of them is
   belongs to the application's own `Account` model.
-- **Nothing is exercised on MSSQL.** The rest of `@usehenri/sequelize` runs
-  against a real SQL Server now (`pnpm test:sql:mssql`), but the tenancy
-  wiring there is written and reviewed and has no suite of its own to point
-  at it; the proofs are on Drizzle (sqlite offline, PostgreSQL and MySQL
+- **The models are not exercised on MSSQL.** The rest of
+  `@usehenri/sequelize` runs against a real SQL Server now
+  (`pnpm test:sql:mssql`), and the queue's `tenant` column is proved there
+  along with everything else in that project — but the tenancy wiring of
+  the models is written and reviewed and has no suite of its own to point
+  at it; those proofs are on Drizzle (sqlite offline, PostgreSQL and MySQL
   under `pnpm test:sql:live`) and on MongoDB.
 - **No per-tenant connection, schema or key.** That is option 2, and this
   page said why.

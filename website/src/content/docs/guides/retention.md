@@ -259,6 +259,20 @@ henri retention --json                        # the same, as data
 All of them boot the models only: no port is bound and no route is
 registered.
 
+## Tenants
+
+A sweep runs **across every tenant**, deliberately
+(`henri.tenancy.unscoped()`). A retention rule is your policy about a _table_ —
+`after: '90d'` on `Ticket` means every ticket — and a sweep narrowed to whatever
+tenant happened to be in scope would delete one customer's records and write a
+receipt saying the rule ran. There is no tenant in scope on a cron line anyway,
+so the alternative was never a narrower sweep: it was `HENRI_TENANT_REQUIRED` on
+the first rule.
+
+A per-tenant period is a different feature and it is yours: a rule with a
+`where` of its own, or a job that calls `sweep({ only })` inside
+`henri.tenancy.run()`. See [multi-tenancy](/guides/multi-tenancy/).
+
 ## The trail's own retention
 
 The [access trail](/guides/trail/) is a record of who touched personal data,

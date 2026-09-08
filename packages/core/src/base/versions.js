@@ -729,6 +729,10 @@ function toVersion(row) {
     requestId: row.request_id || null,
     snapshot: isPlainObject(snapshot) ? unpack(snapshot) : null,
     source: row.source,
+    // Whose record this is about. Null on a shared model, on an
+    // application that is not multi-tenant, and on a row written before
+    // the column existed
+    tenant: row.tenant || null,
   };
 }
 

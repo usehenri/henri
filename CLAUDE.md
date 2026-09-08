@@ -928,7 +928,20 @@ model }` or Mongoose's `ref` -- which `res.render()`, `res.resource()`,
   user model **cannot** be marked. Around it: the idempotency keys are
   scoped by tenant, `henri.webhooks.emit()` defaults its `owner` to the
   tenant in scope, and `henri audit` gained `tenancy.header-from-any` and
-  `tenancy.unmarked-model`. The guide is `guides/multi-tenancy.md`.
+  `tenancy.unmarked-model`. **`henri_jobs` and `henri_versions` carry a
+  `tenant` column**: `henri.jobs.perform()` stamps the tenant in scope and
+  the runner enters it around `perform()` (a null tenant enters none --
+  null is not every tenant), and a version names the tenant of the
+  **record** it is about, read off the record so a sweep running
+  `unscoped()` still names the right one. `henri.versions` reads are
+  narrowed and refused the way a tenanted model's are; `restore()` of a
+  record that is gone _creates_ one, so across the boundary it is
+  `HENRI_VERSION_CROSS_TENANT`. henri's own sweeps say `unscoped()` out
+  loud (`Privacy#everywhere`, `Retention#everywhere`) -- an erasure is
+  about a person and a retention rule is about a table, and both were
+  raising `HENRI_TENANT_REQUIRED` from a command line before that.
+  `Tenancy#columnFor(name)` is the accessor a caller that is not an adapter
+  asks. The guide is `guides/multi-tenancy.md`.
 - Personal data lives in `3.privacy.js` (`henri.privacy`), `base/privacy.js`
   and `base/erasure.js`. A model marks a field in the schema
   (`name: { personal: true, type: 'string' }`, or
@@ -1118,9 +1131,27 @@ duration, rows, requestId, source, callsite }` -- and the N+1 detector is
   without instances, so recording nothing for a hundred rows would make the
   history lie; the refusal names the loop, `{ versions: false }` is the way
   through, and henri's own sweeps use it. Each adapter has a `versions.js`
-  (the wiring) the way each has an `encryption.js`. `henri versions`,
-  `versions:show` and `versions:restore` read it back, and the guide is
-  `guides/versions.md`.
+  (the wiring) the way each has an `encryption.js`. **A row carries the
+  `tenant` of the record it is about** when `config.tenancy` is on, read
+  off the record's own column (`Versions#tenantOf`) and not off the scope,
+  so a sweep running `unscoped()` names the right one and a shared model
+  names none. `list`/`count`/`of` are narrowed to the tenant in scope and
+  **refused** without one (`Versions#scope`, `HENRI_TENANT_REQUIRED`), a
+  scoped read taking the null rows with it because that is what a shared
+  model's history and every pre-upgrade row look like; `get()` answers
+  `null` for another tenant's row (`findById()`'s non-oracle); and
+  `restore()` of a record that is **gone** is a create, so it refuses
+  across the boundary (`Versions#restorable`,
+  `HENRI_VERSION_CROSS_TENANT`) while an update never needs to. The column
+  arrives through an upgrade block this file did not have before (`ADDED`,
+  `upgrade()`, tolerated by `SqlVersions#install`, probed by `tenanted()`),
+  and a multi-tenant application whose table cannot hold it fails the boot
+  (`HENRI_VERSION_TENANT_UNINSTALLED`). `henri versions`,
+  `versions:show` and `versions:restore` read it back -- across every
+  tenant (`unscoped()`, an operator holds the database), `--tenant`
+  narrowing them, and the last two reifying **as the tenant the row
+  names**, which is what makes a restore work at all on a tenanted model.
+  The guide is `guides/versions.md`.
 - Encrypted attributes live in `1.encryption.js` (`henri.encryption`,
   runlevel 1, so a model that declares one finds a keyring already built),
   `base/encryption.js` (the envelope) and `base/rewrap.js` (the rotation
@@ -1348,12 +1379,28 @@ still holds this runner's claim token and is terminal)` -- so the counter
   (`batch_id`) and its table (`henri_jobs_batches`) arrive through the same
   tolerated `ALTER` inside the idempotent install, and `batch()` on a store
   that has neither is `HENRI_JOB_BATCH_UNINSTALLED` rather than a counter
-  nothing can hold. `henri.jobs.recur(name, entry)` is the seam a
+  nothing can hold. **A job carries the tenant it was enqueued in**
+  (`tenant`, the third column to arrive through that same tolerated
+  `ALTER`, and `SqlStore#tenanted()` asks the table for it): `perform()`
+  stamps `henri.tenancy.current()` the way `emit()` defaults its `owner`,
+  an explicit `tenant` wins (a _different_ one while a tenant is in scope
+  is `HENRI_TENANT_CROSS_WRITE`), and **the runner enters that tenant
+  before it calls `perform()`** (`Jobs#scoped`, inside `invoke()` so it
+  covers the one call that touches the models). A row with no tenant enters
+  none, deliberately: a recurring occurrence, a script, `tenant: null` and
+  every pre-upgrade row keep the refusal they had. A batch's tenant rides
+  in `callback_options`, which is already stored and already handed to
+  `perform()`, so no second table needs the column. The claim is **not**
+  narrowed by tenant -- a runner per customer is a scheduling feature --
+  and an application with `config.tenancy` on whose table has no column
+  fails the boot (`HENRI_JOB_TENANT_UNINSTALLED`).
+  `henri.jobs.recur(name, entry)` is the seam a
   framework module uses to ask for a schedule the configuration did not
   write (`henri.retention` is the one that does); an entry the application
   declared under the same name wins. `henri jobs` runs a worker (`--queue`,
   `--concurrency`, `--once`), `henri jobs:install|status|list|batches|dead|
-show|perform|retry|discard` drive it; `jobs:status` and
+show|perform|retry|discard` drive it (`--tenant` on the last five, and
+  every `--json` job carries one); `jobs:status` and
   `henri.jobs.limits()` report the limits and the slots held, and
   `henri.jobs.batches.*` the batches. The module also registers
   `henri.mailers.onDeliverLater()`, so `deliverLater()` enqueues the rendered
@@ -2258,15 +2305,33 @@ model` gained `status:string:enum=draft,live` in the CLI tranche below,
   real request -- the middleware mounted after passport, the mismatch 404
   and the refused sign-in -- is
   `packages/core/src/__tests__/tenancy-http.spec.js`, which boots the demo
-  application with `HENRI_CONFIG_JSON__tenancy`. MSSQL rides the
-  Sequelize wiring and has **no coverage of its own**: the rest of that
-  adapter runs against a real SQL Server now
+  application with `HENRI_CONFIG_JSON__tenancy`. The **model** wiring on
+  MSSQL rides the Sequelize adapter and has **no coverage of its own**:
+  the rest of that adapter runs against a real SQL Server now
   (`pnpm test:sql:mssql`), but there is no Sequelize tenancy suite for it
-  to point at. What was **deliberately left**: `henri_jobs` carries no `tenant`
-  column, so a job's tenant travels in its arguments and
-  `henri jobs:list --tenant` does not exist -- the queue's tables are
-  `CREATE TABLE IF NOT EXISTS` with no migration path, so adding a column
-  would break an upgrade; `henri_versions` is shared for the same reason;
+  to point at -- the queue's tenant column is covered there, and the models
+  are not. The **queue and the version table were the two known gaps
+  and are closed**: both carry a `tenant` column, proved by
+  `packages/jobs/__tests__/tenancy.spec.js` (sqlite offline plus the live
+  PostgreSQL and MySQL: the stamp, the cross-write refusal, the listing,
+  `retryAll`/`discardAll`, the scope the runner enters, two tenants
+  overlapping in one process, the batch callback, and a downgraded table
+  for the upgrade) -- **and on SQL Server**, since that file is in the
+  `jobs` project `pnpm test:sql:mssql` runs, which makes the queue the one
+  tenancy surface that adapter covers -- and by a `tenants` block in
+  `packages/jobs/__tests__/mongo.spec.js`, and by
+  `packages/drizzle/__tests__/versions-tenancy.spec.js` (the same targets:
+  the write, the scoped read, the refusal without a tenant, `get()`
+  answering null, the restore refusals, the boot refusal with the probe
+  forced false, and the pre-upgrade rows). What is **still deliberately
+  left**: no runner per tenant (the claim is not narrowed -- one customer's
+  backlog getting a runner of its own is scheduling, with a fairness
+  question attached); no per-tenant retention period or prune, since
+  `versions.keep`, `jobs.keepCompleted`, `calls.keep` and `trail.keep` are
+  one number for the application and the sweeps run across every tenant;
+  no backfill of the rows either upgrade left behind, because a job's
+  tenant is not recoverable at all and a version's is an `UPDATE` from the
+  records it names that only the application can write (the guide has it);
   the trail and the call log are shared **on purpose** (operator records,
   one hash chain, and an admin page built over them is the application's own
   cross-tenant view to scope); the flag store is shared and a per-tenant

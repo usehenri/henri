@@ -133,6 +133,10 @@ const DIALECTS = {
 const ADDED = [
   { column: 'concurrency_key', type: 'VARCHAR(190)' },
   { column: 'batch_id', type: 'VARCHAR(36)' },
+  // 190 is the width core gives a tenant (`base/tenancy.js`, MAX_TENANT)
+  // and the width `@usehenri/webhooks` gives an endpoint's owner: what
+  // MySQL indexes in a utf8mb4 key. A tenant is never truncated to fit
+  { column: 'tenant', type: 'VARCHAR(190)' },
 ];
 
 /**
@@ -167,6 +171,7 @@ const jobColumns = (dialect) => [
   'unique_key VARCHAR(190) NULL',
   'concurrency_key VARCHAR(190) NULL',
   'batch_id VARCHAR(36) NULL',
+  'tenant VARCHAR(190) NULL',
   'PRIMARY KEY (id)',
 ];
 
@@ -293,6 +298,15 @@ const jobIndexes = (table) => [
     columns: ['batch_id'],
     late: true,
     name: `${table}_batch`,
+    unique: false,
+  },
+  // The listing `henri jobs:list --tenant` makes, and nothing else: the
+  // claim is deliberately **not** narrowed by tenant, so this index is
+  // never on the hot path (see `SqlStore#claimStatement`)
+  {
+    columns: ['tenant', 'state', 'run_at'],
+    late: true,
+    name: `${table}_tenant`,
     unique: false,
   },
 ];

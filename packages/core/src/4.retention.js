@@ -220,7 +220,38 @@ class Retention extends BaseModule {
     check('henri.retention.plan', [options]);
     this.only(options, 'henri.retention.plan');
 
-    return planOf(this.context(), options);
+    return this.everywhere(() => planOf(this.context(), options));
+  }
+
+  /**
+   * Runs a sweep over the models across every tenant, deliberately.
+   *
+   * A retention rule is the application's policy about a *table*, not
+   * about a customer: `after: '90d'` on `Ticket` means every ticket, and a
+   * sweep narrowed to whatever tenant happened to be in scope would delete
+   * one customer's records and write a receipt saying the rule ran. There
+   * is no tenant in scope on a cron line anyway, so the alternative is not
+   * a narrower sweep -- it is `HENRI_TENANT_REQUIRED` on the first rule.
+   *
+   * A per-tenant retention period is a different feature, and it is the
+   * application's: a rule with a `where` of its own, or a job that calls
+   * `sweep({ only })` inside `henri.tenancy.run()`.
+   *
+   * It is a no-op in an application that is not multi-tenant.
+   *
+   * @async
+   * @param {function} work What to run
+   * @returns {Promise<*>} Whatever the work answered
+   * @memberof Retention
+   */
+  async everywhere(work) {
+    const { tenancy } = this.henri;
+
+    if (!tenancy || !tenancy.enabled) {
+      return work();
+    }
+
+    return tenancy.unscoped(work);
   }
 
   /**
@@ -272,7 +303,9 @@ class Retention extends BaseModule {
     check('henri.retention.sweep', [options]);
     this.only(options, 'henri.retention.sweep');
 
-    const receipt = await sweepOf(this.context(), options);
+    const receipt = await this.everywhere(() =>
+      sweepOf(this.context(), options)
+    );
 
     receipt.id = randomUUID();
     receipt.file = options.dryRun ? null : this.write(receipt);

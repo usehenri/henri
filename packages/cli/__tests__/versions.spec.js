@@ -115,6 +115,38 @@ describe('henri versions', () => {
       expect(stdout).toContain('Nothing is versioned matching that');
     });
 
+    test('reads every tenant, because an operator holds the database', () => {
+      // With tenancy on there is no tenant at a shell prompt, and
+      // `henri.versions` refuses a read without one. These three commands
+      // say `henri.tenancy.unscoped()` out loud, so they keep working --
+      // without it this is HENRI_TENANT_REQUIRED
+      const tenanted = {
+        ...env,
+        HENRI_CONFIG_JSON__tenancy: '{"from":{"user":"tenantId"}}',
+      };
+      const listed = henri(['versions', 'Task', '--json'], {
+        cwd: fixture,
+        env: tenanted,
+        timeout: 120000,
+      });
+
+      expect(listed.status).toBe(0);
+
+      const [version] = JSON.parse(listed.stdout).versions;
+
+      // `Task` is not a tenanted model, so its versions name no tenant
+      expect(version.tenant).toBeNull();
+
+      const shown = henri(['versions:show', version.id, '--json'], {
+        cwd: fixture,
+        env: tenanted,
+        timeout: 120000,
+      });
+
+      expect(shown.status).toBe(0);
+      expect(JSON.parse(shown.stdout).attributes.name).toBe('Seeded');
+    }, 180000);
+
     test('a lowercase word is a command, and an unknown one says so', () => {
       const { status, stderr } = run(['versions:nope']);
 
