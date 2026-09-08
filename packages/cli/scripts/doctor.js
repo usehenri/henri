@@ -1061,6 +1061,30 @@ const ignores = (ignore, file) =>
     );
 
 /**
+ * A path said the shortest way that is still unambiguous: relative to the
+ * application when it is inside it, absolute when it is not.
+ *
+ * A pnpm store puts `@usehenri/core` behind a symlink into `.pnpm`, and a
+ * `../../..` walk out of the application says less than the real path does.
+ *
+ * @param {string} dir The application directory
+ * @param {string} target The path to name
+ * @returns {string} The path
+ */
+const where = (dir, target) => {
+  const real = (one) => {
+    try {
+      return fs.realpathSync(one);
+    } catch {
+      return path.resolve(one);
+    }
+  };
+  const relative = path.relative(real(dir), real(target));
+
+  return relative === '' || relative.startsWith('..') ? target : relative;
+};
+
+/**
  * Run every check on an application directory
  *
  * @param {string} [dir=process.cwd()] The application directory
@@ -2173,6 +2197,54 @@ const check = (dir = process.cwd()) => {
     }
   }
 
+  // --- the documentation the packages ship ----------------------------------
+  // The pages travel inside `@usehenri/core` (`scripts/prepublish.js` copies
+  // `website/src/content/docs` into it at publish time), which is what makes
+  // `henri docs` and the `guide` tool of `henri mcp` answer for the henri
+  // this application runs rather than for whatever the website says today.
+  // Nothing checked that they arrived, and when they did not the reader does
+  // not fail: it falls through to the copy next to the command line, so an
+  // agent is quietly reading another version's documentation and correcting
+  // itself against it.
+  const reader = require('./docs');
+  const ownDocs = reader.shipped(dir);
+  // `@usehenri/core` not installed at all is `deps.installed`, which has
+  // already said so: `shipped()` answers null there and nothing is added
+  const otherDocs = ownDocs && ownDocs.why ? reader.location(dir) : null;
+
+  if (ownDocs && ownDocs.why) {
+    const core = `@usehenri/core${ownDocs.version ? ` ${ownDocs.version}` : ''}`;
+    const said = `${where(dir, ownDocs.dir)}: ${ownDocs.why}`;
+
+    if (!otherDocs || otherDocs.dir === ownDocs.dir) {
+      problem(
+        'warning',
+        'docs.missing',
+        `no documentation is installed: ${core} ships none (${said})`,
+        {
+          code: 'HENRI_AGENT_NO_DOCS',
+          file: 'package.json',
+          hint: `henri docs and the guide tool of henri mcp have nothing to read and fail. Reinstall it (${pm} install --force), upgrade it if it predates the pages shipping inside the package, or read them on https://usehenri.io`,
+        }
+      );
+    } else if (otherDocs.package) {
+      // A copy with no package is `website/src/content/docs` of the henri
+      // checkout, which is what a contributor running this inside the
+      // monorepo is meant to read: right, and nothing to report
+      problem(
+        'warning',
+        'docs.version',
+        `the documentation henri prints comes from ${otherDocs.package}${
+          otherDocs.version ? ` ${otherDocs.version}` : ''
+        }, not from the ${core} this application runs (${said})`,
+        {
+          file: 'package.json',
+          hint: `henri docs and the guide tool of henri mcp answer from those pages, so they describe another henri than the one here. Reinstall @usehenri/core (${pm} install --force), or upgrade it if it predates the pages shipping inside the package`,
+        }
+      );
+    }
+  }
+
   // --- dependencies ---------------------------------------------------------
   const needed = new Set(['@usehenri/core']);
 
@@ -2850,6 +2922,7 @@ module.exports.definesAction = definesAction;
 module.exports.definesGraphql = definesGraphql;
 module.exports.exportsOf = exportsOf;
 module.exports.ignores = ignores;
+module.exports.where = where;
 module.exports.looksPlural = looksPlural;
 module.exports.mailerActions = mailerActions;
 module.exports.moduleDeclaration = moduleDeclaration;

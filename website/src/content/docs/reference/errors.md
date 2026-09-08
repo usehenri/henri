@@ -83,8 +83,9 @@ Usually:
 
 - the henri installed here predates the documentation shipping with it
 - a partial or corrupted install
+- an image or a deploy step that pruned the markdown out of node_modules
 
-**Fix.** The pages ship with @usehenri/core: upgrade it, or read them on https://usehenri.io.
+**Fix.** The pages ship inside @usehenri/core: reinstall it, upgrade it, or read them on https://usehenri.io. `henri doctor` reports this as `docs.missing` before anybody asks for a page, and `docs.version` when the pages that answer come from another package.
 
 ### `HENRI_AGENT_NO_RUNTIME`
 

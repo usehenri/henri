@@ -144,4 +144,64 @@ describe('henri docs', () => {
       expect(fs.existsSync(path.join(found.source.dir, 'guides'))).toBe(true);
     });
   });
+
+  // What `henri doctor` asks, and the one question the reader above does not
+  // answer: the copy it found may be *anybody's*, and the pages that are
+  // right are the ones the application's own core ships
+  describe('what the application own core ships', () => {
+    /** An application whose node_modules holds a core carrying no pages */
+    const bare = () => {
+      const app = tmpdir('henri-docs-bare-');
+      const pkg = path.join(app, 'node_modules', '@usehenri', 'core');
+
+      fs.mkdirSync(pkg, { recursive: true });
+      fs.writeFileSync(
+        path.join(pkg, 'package.json'),
+        JSON.stringify({ name: '@usehenri/core', version: '4.5.6' })
+      );
+
+      return { app, pkg };
+    };
+
+    test('the pages, and nothing to say about them', () => {
+      const app = application('9.9.9');
+
+      expect(docs.shipped(app)).toEqual({
+        // Resolved, so on macOS it carries the /private prefix a temporary
+        // directory really has
+        dir: path.join(
+          fs.realpathSync(app),
+          'node_modules/@usehenri/core/docs'
+        ),
+        pages: 1,
+        version: '9.9.9',
+        why: null,
+      });
+
+      cleanup(app);
+    });
+
+    test('why there are none, so a report can say it', () => {
+      const { app, pkg } = bare();
+
+      expect(docs.shipped(app)).toMatchObject({
+        pages: 0,
+        version: '4.5.6',
+        why: 'it is not there',
+      });
+
+      fs.mkdirSync(path.join(pkg, 'docs'));
+      expect(docs.shipped(app)).toMatchObject({ why: 'it holds no page' });
+
+      cleanup(app);
+    });
+
+    test('and null when there is no core here to ask', () => {
+      const app = tmpdir('henri-docs-none-');
+
+      expect(docs.shipped(app)).toBe(null);
+
+      cleanup(app);
+    });
+  });
 });

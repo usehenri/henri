@@ -1941,6 +1941,104 @@ describe('henri doctor: the packages an application installed', () => {
   });
 });
 
+describe('henri doctor: the documentation the packages ship', () => {
+  let app;
+
+  afterEach(() => cleanup(app));
+
+  /**
+   * Put a documentation page inside an installed package
+   *
+   * @param {string} dir The application directory
+   * @param {string} name The package that ships it
+   * @returns {void}
+   */
+  const pages = (dir, name) => {
+    const target = path.join(dir, 'node_modules', ...name.split('/'), 'docs');
+
+    fs.mkdirSync(path.join(target, 'guides'), { recursive: true });
+    fs.writeFileSync(
+      path.join(target, 'guides', 'routes.md'),
+      '---\ntitle: Routes\n---\n\nThe routes.\n'
+    );
+  };
+
+  test('reports a docs directory that holds no page', () => {
+    app = minimal({}, { dependencies: { '@usehenri/core': '^1.1.0' } });
+    install(app, '@usehenri/core', { version: '1.1.0' });
+    fs.mkdirSync(path.join(app, 'node_modules/@usehenri/core/docs'));
+
+    const { ok, problems } = run(app);
+
+    // The application runs; what does not is `henri docs` and the `guide`
+    // tool an agent reads through, so a warning
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'docs.missing',
+        code: 'HENRI_AGENT_NO_DOCS',
+        file: 'package.json',
+        hint: expect.stringContaining('usehenri.io'),
+        level: 'warning',
+        message: expect.stringContaining('@usehenri/core 1.1.0 ships none'),
+      })
+    );
+    expect(
+      problems.find((entry) => entry.check === 'docs.missing').message
+    ).toContain('node_modules/@usehenri/core/docs: it holds no page');
+  });
+
+  test('and says nothing once the pages are there', () => {
+    app = minimal({}, { dependencies: { '@usehenri/core': '^1.1.0' } });
+    install(app, '@usehenri/core', { version: '1.1.0' });
+    pages(app, '@usehenri/core');
+
+    expect(run(app).names.filter((name) => name.startsWith('docs.'))).toEqual(
+      []
+    );
+  });
+
+  test('reports pages that come from another package than the core here', () => {
+    // The failure this catches is silent: the reader falls through to the
+    // best copy it can find, so an agent reads another version's
+    // documentation and corrects itself against it
+    app = minimal({}, { dependencies: { '@usehenri/core': '^1.1.0' } });
+    install(app, '@usehenri/core', { version: '9.9.9' });
+    install(app, '@usehenri/mcp', { version: '1.0.0' });
+    pages(app, '@usehenri/mcp');
+
+    const { ok, problems } = run(app);
+
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'docs.version',
+        code: null,
+        file: 'package.json',
+        hint: expect.stringContaining('@usehenri/core'),
+        level: 'warning',
+        // Which copy answers depends on what is next to this command line
+        // (a publish, or scripts/smoke.sh, leaves one in packages/core);
+        // what is asserted is that it is not this application's
+        message: expect.stringContaining(
+          'not from the @usehenri/core 9.9.9 this application runs'
+        ),
+      })
+    );
+  });
+
+  test('and nothing at all when @usehenri/core is not installed', () => {
+    // `deps.declared` and `deps.installed` have already said so, in the
+    // vocabulary a person can act on
+    app = minimal({}, { dependencies: { '@usehenri/core': '^1.1.0' } });
+
+    expect(run(app).names).toContain('deps.installed');
+    expect(run(app).names.filter((name) => name.startsWith('docs.'))).toEqual(
+      []
+    );
+  });
+});
+
 describe('henri doctor: the schema of a store', () => {
   const drizzle = path.resolve(__dirname, '../../drizzle');
   const sqlite = path.dirname(
