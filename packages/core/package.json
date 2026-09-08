@@ -24,6 +24,7 @@
   "main": "src/index.js",
   "types": "index.d.ts",
   "files": [
+    "docs",
     "module.js",
     "errors.js",
     "error-codes.json",

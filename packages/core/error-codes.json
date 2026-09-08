@@ -165,12 +165,12 @@
     {
       "area": "agent",
       "causes": [
-        "the documentation was not shipped with this build of the server",
+        "the henri installed here predates the documentation shipping with it",
         "a partial or corrupted install"
       ],
       "code": "HENRI_AGENT_NO_DOCS",
-      "fix": "Reinstall @usehenri/mcp.",
-      "what": "The MCP server has no documentation to serve."
+      "fix": "The pages ship with @usehenri/core: upgrade it, or read them on https://usehenri.io.",
+      "what": "There is no documentation next to the application to read."
     },
     {
       "area": "agent",
@@ -224,7 +224,7 @@
       "area": "agent",
       "causes": ["a typo in the page name", "a page of another henri version"],
       "code": "HENRI_AGENT_UNKNOWN_PAGE",
-      "fix": "Call the guide tool without a page to list the ones this server ships.",
+      "fix": "Run `henri docs` (or call the guide tool without a page) to list the pages this version ships.",
       "what": "There is no documentation page by that name."
     },
     {

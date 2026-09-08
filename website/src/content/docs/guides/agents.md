@@ -76,6 +76,20 @@ The generators write the one JSDoc line that binds a file to its shape
 controller, model or routes file is typed from the moment it exists. See
 [Types](/reference/types/).
 
+## The documentation, offline and version matched
+
+The pages of this site ship **inside the framework**: `scripts/prepublish.js` copies them into `@usehenri/core/docs` at publish time, so an application carries the documentation of the henri version it runs, with nothing to fetch.
+
+```bash
+henri docs                       # the index: every page and what it covers
+henri docs guides/policies       # one page, as markdown
+henri docs guides/policies --json
+```
+
+That is the answer to an agent recalling henri from its training data, which recalls a framework that was asleep for years: the pages next to the code are the ones that describe the code. They are read by `henri docs`, by the `guide` tool of the [MCP server](#the-henri-mcp-server) and by anything that opens `node_modules/@usehenri/core/docs/<page>.md` itself -- one copy, one version, three ways in.
+
+An agent that does have the network can read the whole site instead: [`/llms.txt`](https://usehenri.io/llms.txt) is the index in the [llmstxt.org](https://llmstxt.org/) format, and [`/llms-full.txt`](https://usehenri.io/llms-full.txt) is every page concatenated. Those describe the version deployed on usehenri.io, which is the latest one -- `henri docs` is the one that matches the application.
+
 ## Machine readable output
 
 Every informational command takes `--json`:
@@ -218,7 +232,7 @@ The rules are enforced by the running application (`base/runtime.js` in `@usehen
 - **Development only.** The endpoints are mounted only when `NODE_ENV` is neither `production` nor `test`, nothing is recorded in production, and there is no flag that turns either on. Pointed at a production application, the tools answer `PRODUCTION` and stop; `NODE_ENV=production` is refused before a server would be started.
 - **This machine, and no browser.** The loopback check of `/_routes` and `/_mailers`, plus a required `X-Henri-Runtime: 1` header and a refusal of anything carrying `Origin` or `Sec-Fetch-Site`.
 - **Reads only, proved before the store is touched.** One statement, of `SELECT`, `WITH ... SELECT`, `EXPLAIN`, `SHOW` or `DESCRIBE`, with the strings and the comments removed first so nothing hides in them. A statement carrying `INSERT`, `UPDATE`, `DELETE`, `DROP`, `SET`, `LOCK`, `PG_SLEEP` or a second statement comes back as `REFUSED` with the word that refused it and never reaches the database. Values travel as parameters. `records` refuses anything but a flat `where` of equalities, so no `$where` and no operator.
-- **Redacted.** What `filterParameters` masks in the logs is masked here, in the log lines, in the recorded parameters, in the query rows and in the records; `password` is masked whatever the configuration says, and reading through the model keeps the adapter's own protections (a hash is not selected, a soft-deleted row does not come back).
+- **Redacted, by name and by shape.** What `filterParameters` masks in the logs is masked here, in the log lines, in the recorded parameters, in the query rows and in the records; `password` is masked whatever the configuration says, and reading through the model keeps the adapter's own protections (a hash is not selected, a soft-deleted row does not come back). Those rules match a _key_, and the key of a query row is whatever the SQL said — `SELECT password AS p` renames the column to something no rule knows — so two values are read as well: a password hash and an encrypted column's envelope are masked under any name, at any depth. Neither can be a value you asked to see, so nothing legitimate is lost. It is not a general secret detector: a deliberate `SELECT` of something else still returns it, which is one of the reasons this surface exists in development only.
 - **Bounded, and it says so.** 500 log lines kept, 25 errors, 100 rows a query, 25 records a page, 2000 characters a line, 40 stack frames. Anything cut carries `truncated: true` and the limit that cut it.
 
 `request` is the one tool that can change data, because it is the application's own endpoint doing it: a `POST` really posts, exactly as a browser would. It is never implicit -- the method is `GET` unless the agent names another one.

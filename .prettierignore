@@ -19,5 +19,9 @@ packages/cli/scripts/generate/
 # Written by drizzle-kit through `henri db:generate`, and read back by it
 showcase/db/migrations/
 
+# The documentation pages `scripts/prepublish.js` copies into the package at
+# publish time; the originals under website/ are what is formatted
+packages/core/docs/
+
 # Local, gitignored configuration overrides (see showcase/README.md)
 **/config/dev.json
