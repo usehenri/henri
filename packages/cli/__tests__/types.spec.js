@@ -34,7 +34,7 @@ describe('henri types', () => {
     expect(source).toContain('  title: string;');
     expect(source).toContain("  status: 'draft' | 'in_review' | 'live';");
     expect(source).toContain('  index_tasks_path: true;');
-    expect(source).toMatch(/\/\/ henri:types 1 app=[0-9a-f]{12}\n$/u);
+    expect(source).toMatch(/\/\/ henri:types 2 app=[0-9a-f]{12}\n$/u);
   });
 
   test('--stdout prints them instead of writing the file', () => {

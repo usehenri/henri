@@ -8,9 +8,9 @@
 //
 // A record carries exactly the columns of its model file plus the ones
 // henri adds, so a wrong column name is an error. A model carries what
-// henri guarantees on every adapter and stays open for the rest: the
-// three ORMs answer different things to `find()`, and an honest `any`
-// beats a signature that is right on one of them.
+// the adapter of its store answers: closed on a drizzle store, where
+// the model class belongs to henri, and open on the two where it
+// belongs to an ORM at whatever version this application installed.
 //
 // An editor reads it through `jsconfig.json`. Errors are opt-in: add
 // `// @ts-check` at the top of a file, or turn `checkJs` on for the
@@ -20,7 +20,7 @@
 // `@usehenri/core` ships by hand, aliased here because an interface
 // extends a name and not an import type.
 type HenriModelQuery<T> = import('@usehenri/core').ModelQuery<T>;
-type HenriModelStatics<T> = import('@usehenri/core').ModelStatics<T>;
+type HenriDrizzleModelStatics<T> = import('@usehenri/core').DrizzleModelStatics<T>;
 type HenriDrizzleRecord = import('@usehenri/core').DrizzleRecord;
 
 // --- Note --------------------------------------------------------------
@@ -31,7 +31,7 @@ interface NoteRecord extends HenriDrizzleRecord {
 }
 
 /** The `Note` model: a global in every file of this application. */
-interface NoteModel extends HenriModelStatics<NoteRecord> {}
+interface NoteModel extends HenriDrizzleModelStatics<NoteRecord> {}
 
 declare const Note: NoteModel;
 
@@ -72,7 +72,7 @@ interface TaskRecord extends HenriDrizzleRecord {
 }
 
 /** The `Task` model: a global in every file of this application. */
-interface TaskModel extends HenriModelStatics<TaskRecord> {
+interface TaskModel extends HenriDrizzleModelStatics<TaskRecord> {
   /** The record of a slug (`options.slug`), or null. */
   findBySlug(slug: string, ...args: any[]): HenriModelQuery<TaskRecord | null>;
   /** The values every enum column of this model accepts. */
@@ -116,7 +116,7 @@ interface UserRecord extends HenriDrizzleRecord {
 }
 
 /** The `User` model: a global in every file of this application. */
-interface UserModel extends HenriModelStatics<UserRecord> {
+interface UserModel extends HenriDrizzleModelStatics<UserRecord> {
   /** The one write that may set `roles`. */
   setRoles(id: any, roles: string | string[]): Promise<UserRecord | null>;
 }
@@ -166,4 +166,4 @@ interface HenriPaths {
   update_tasks_path: true;
 }
 
-// henri:types 1 app=ed67f0a29f52
+// henri:types 2 app=44f1cc051143

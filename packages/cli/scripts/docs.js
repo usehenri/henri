@@ -209,6 +209,47 @@ const fileOf = (slug, dir) => {
 };
 
 /**
+ * What the application's *own* `@usehenri/core` ships, which is the copy
+ * `location()` prefers and the only one that is version matched with the
+ * framework this application runs.
+ *
+ * `henri doctor` is what asks. Everything else here takes the best copy it
+ * can find and reads it; this says whether the best copy is the right one,
+ * which is a different question and the one worth reporting -- a `docs/`
+ * that was never installed, or was pruned out of an image, silently moves
+ * `henri docs` and the `guide` tool of `henri mcp` onto the pages of
+ * whatever henri the command line happens to be.
+ *
+ * @param {string} [cwd=process.cwd()] the application directory
+ * @returns {?object} `{ dir, pages, version, why }`, or null when
+ *   `@usehenri/core` is not installed here at all
+ */
+const shipped = (cwd = process.cwd()) => {
+  const root = packageDir('@usehenri/core', cwd);
+
+  if (!root) {
+    // Not installed is `deps.declared` and `deps.installed`, which have
+    // already said so in the vocabulary a person can act on
+    return null;
+  }
+
+  const dir = path.join(root, DIRECTORY);
+  const found = { dir, pages: 0, version: versionOf(root), why: null };
+
+  if (!fs.existsSync(dir)) {
+    return { ...found, why: 'it is not there' };
+  }
+
+  try {
+    found.pages = slugs(dir).length;
+  } catch (error) {
+    return { ...found, why: `it cannot be read (${error.message})` };
+  }
+
+  return found.pages === 0 ? { ...found, why: 'it holds no page' } : found;
+};
+
+/**
  * The index: every page with its title and what it covers
  *
  * @param {string} [cwd=process.cwd()] the application directory
@@ -296,7 +337,7 @@ const main = async (args = {}) => {
       'HENRI_AGENT_NO_DOCS',
       'no documentation is installed next to this application',
       {
-        hint: 'The pages ship with @usehenri/core: upgrade it, or read them on https://usehenri.io',
+        hint: 'The pages ship inside @usehenri/core: reinstall it, upgrade it if it predates them shipping with the package, or read them on https://usehenri.io. `henri doctor` reports this as docs.missing',
       }
     );
   }
@@ -388,4 +429,5 @@ module.exports.index = index;
 module.exports.location = location;
 module.exports.page = page;
 module.exports.parse = parse;
+module.exports.shipped = shipped;
 module.exports.slugs = slugs;

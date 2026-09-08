@@ -63,13 +63,13 @@ task.status = 'published';
 // @ts-expect-error the predicate of a value this column does not have
 task.isPublished();
 
-// A *scope* that does not exist is deliberately not an error: a model stays
-// open, because the three ORMs put their own statics there (see the note
-// under "The statics henri guarantees" below)
+// @ts-expect-error a scope of a value this column does not have. The fixture
+// is on a drizzle store, whose model class is henri's own: the statics of
+// such a model are closed, so a name nothing put there is an error
 Task.published();
 
 // ---------------------------------------------------------------------------
-// The statics henri guarantees on every adapter
+// The statics: what henri guarantees everywhere, and what this adapter adds
 // ---------------------------------------------------------------------------
 
 const found = async () => {
@@ -95,11 +95,39 @@ const found = async () => {
 
   named && expectGenerated<string>(named.slug);
 
-  // The ORM's own surface stays open: three adapters answer three different
-  // things to `find()`, so what henri does not own is `any` rather than an
-  // error in code that runs
-  await Task.findAll({ where: { status: 'draft' } });
-  await Task.where({ status: 'draft' }).limit(5);
+  // What the *adapter* of this store adds. The fixture is on drizzle, whose
+  // model class is henri's own rather than an ORM's, so it is described
+  // exactly: `find()` resolves, `where()` chains and the chain resolves
+  expectGenerated<TaskRecord[]>(await Task.find({ status: 'draft' }));
+  expectGenerated<TaskRecord[]>(await Task.findAll({ status: 'draft' }));
+  expectGenerated<TaskRecord[]>(await Task.where({ status: 'draft' }).limit(5));
+  expectGenerated<TaskRecord | null>(
+    await Task.where({ urgent: true }).first()
+  );
+  expectGenerated<number>(await Task.count({ urgent: true }));
+  expectGenerated<TaskRecord[]>(
+    await Task.query().where({ urgent: true }).order('title').limit(5)
+  );
+  expectGenerated<number>(
+    (await Task.where({ urgent: true }).paginate()).total
+  );
+
+  // @ts-expect-error a drizzle `find()` is a promise, not a chain: `where()`
+  // is the chain, and this is a TypeError at runtime
+  Task.find().sort({ title: 1 });
+
+  // @ts-expect-error the chain does not carry it either
+  Task.where({ urgent: true }).sort();
+
+  // @ts-expect-error a static this model does not have -- the typo the
+  // index signature used to swallow
+  Task.fnid('018f...');
+
+  // @ts-expect-error Mongoose's, and this store is not on Mongoose
+  await Task.aggregate([]);
+
+  // @ts-expect-error Sequelize's
+  await Task.findAndCountAll();
 };
 
 void found;
