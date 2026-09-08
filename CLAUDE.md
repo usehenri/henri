@@ -1886,7 +1886,12 @@ array that forgot them fails.
 - The React (Next.js) engine is frozen on the pages router: it is supported and
   keeps getting fixes, but it does not follow Next.js into the app router,
   because `withHenri` reading `req._henri` on the server has no equivalent
-  there. New applications get Inertia.
+  there. New applications get Inertia. What happens to a React application
+  when Next.js removes the pages router is written down rather than left to
+  the day -- pin the last major that has it, or rewrite the pages onto
+  Inertia, with the mapping between the two engines and the one seam that
+  would make henri redo the calculation: `guides/views.md`
+  (`#when-nextjs-removes-the-pages-router`).
 - The Inertia engine reached parity in 1.2 (server-side rendering in
   development and production, the full scaffold) but is younger than the React
   one; its options may still change.
