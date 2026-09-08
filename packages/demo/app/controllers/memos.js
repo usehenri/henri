@@ -31,7 +31,7 @@ const loadMemo = async (req, res) => {
 };
 
 module.exports = {
-  before: { 'peek,show,update,destroy': loadMemo },
+  before: { 'events,peek,show,update,destroy': loadMemo },
 
   // What a client may ask to see next to a memo, and nothing else: `owner`
   // goes through `ownerId`, which the model declared as a reference to the
@@ -72,12 +72,29 @@ module.exports = {
   },
 
   // The list is what the policy says it is (`scope`), not what the table has
+  // One memo, as it changes. `subject` is what the policy is asked about
+  // -- show(user, memo) at subscribe time, and again before every event --
+  // and the topic is built here, from the memo's public identifier: a
+  // client never names one (see base/stream.js)
+  events: async (req, res) =>
+    res.stream(`memo:${req.memo.externalId}`, {
+      action: 'events',
+      subject: req.memo,
+    }),
+
   index: async (req, res) =>
     res.collection(await Memo.find(await req.scope('memo'))),
 
   // Deliberately asks nothing: the route declared a policy henri could not
   // answer without the record, and this action never authorizes. That is
   // what config.policies.verify reports.
+  // The list, as it changes. No subject, so the record-less question is
+  // asked (index), and every event still carries a memo that show() is
+  // asked about before it goes out -- which is what keeps this topic from
+  // telling one author about another's memo
+  live: async (req, res) =>
+    res.stream('memos', { action: 'live', policy: 'Memo' }),
+
   peek: async (req, res) => res.json({ title: req.memo.title }),
 
   // The whole list as a file, streamed. `where` is left out on purpose:

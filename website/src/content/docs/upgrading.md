@@ -9,6 +9,28 @@ henri 1.0 (2026) moved the framework to a current toolchain and 1.1 hardened it.
 
 ## From 1.2 to 1.3
 
+### `@usehenri/websocket` is gone, and real time is server-sent events
+
+The package was an unwired socket.io loader: never published, never registered as a module, and untouched since 2020. It is deleted rather than revived, and henri's answer to "push something to the browser" is [`res.stream()`](/guides/streams/) — server-sent events on the http server henri already runs, through the same router, session, role guard and `app/policies` as every other route.
+
+```js
+// app/controllers/proposals.js
+events: async (req, res) =>
+  res.stream(`proposal:${proposal.externalId}`, { subject: proposal }),
+```
+
+```js
+await henri.streams.publish(
+  `proposal:${proposal.externalId}`,
+  'changed',
+  proposal
+);
+```
+
+Nothing breaks: the package was private, nothing in core loaded it and `app/websocket` was a directory only the development file watcher had ever heard of. An application that reached for it directly (`require('@usehenri/websocket')`) rewrites its handlers as a controller action and a `publish()`.
+
+**Read the guide before running more than one web process.** A stream lives on the process that accepted it, so a broadcast reaches that process's subscribers and nobody else, and nothing errors. henri warns on the first stream a process opens when the environment says it is one of several.
+
 ### `henri new` scaffolds a Drizzle application on sqlite
 
 `henri new my-app` used to write the zero-config store (`@usehenri/disk`, a MongoDB inside the process). It now writes a drizzle store on sqlite:
@@ -411,6 +433,6 @@ Nothing below breaks anything, they are additions:
 
 ## Packages
 
-- `@usehenri/mailer` and `@usehenri/websocket` are not published; the mailer lives in core (`henri.mail`).
+- `@usehenri/mailer` is not published; the mailer lives in core (`henri.mail`).
 - `express-session` is a peer dependency of `@usehenri/sequelize` and `@usehenri/mongoose` (core depends on it, so applications need nothing).
 - `BaseModule` lost its unused `setup()`, `start()` and `info()` stubs. Custom store adapters must implement the [adapter contract](/reference/api/#store-adapters): `getSessionConnector()` is async and `findUserByEmail`, `findUserById`, `userId` and `toPlain` are required.

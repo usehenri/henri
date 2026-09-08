@@ -23,6 +23,10 @@ module.exports = {
     controller: 'main#limited',
     rateLimit: { max: 2, windowMs: 60000 },
   },
+  // A stream nothing can authorize: main has no app/policies/main.js and
+  // the call names none, so henri refuses to open it rather than serving a
+  // subscription it never asked about (see base/stream.js)
+  'get /live': 'main#live',
   'get /profile': { controller: 'user#profile', roles: ['member'] },
   // The other side of a relation, embedded: a user and their memos, one
   // query for the lot and one policy question per memo (see base/embeds.js)
@@ -70,9 +74,16 @@ module.exports = {
   'resources memos': {
     // `get /memos/search` declares what it may be filtered and ordered by
     // (see base/filters.js); everything else is a 422
-    collection: { 'get report': 'report', 'get search': 'search' },
+    collection: {
+      'get live': 'live',
+      'get report': 'report',
+      'get search': 'search',
+    },
     controller: 'memos',
-    member: { 'get peek': 'peek' },
+    // `get /memos/:id/events` is a server-sent event stream: the policy is
+    // asked here with the memo in hand and again before every event that
+    // goes out (see base/stream.js)
+    member: { 'get events': 'events', 'get peek': 'peek' },
     omit: ['edit', 'new'],
     policy: true,
   },

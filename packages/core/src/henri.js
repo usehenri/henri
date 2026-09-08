@@ -27,6 +27,7 @@ const Calls = require('./4.calls');
 const Retention = require('./4.retention');
 const Trail = require('./4.trail');
 const User = require('./4.user');
+const Streams = require('./4.streams');
 const Versions = require('./4.versions');
 const Router = require('./5.router');
 const Workers = require('./5.workers');
@@ -97,6 +98,7 @@ class Henri extends HenriBase {
     this.modules.add(new Queries());
     this.modules.add(new Retention());
     this.modules.add(new Router());
+    this.modules.add(new Streams());
     this.modules.add(new Telemetry());
     this.modules.add(new Tenancy());
     this.modules.add(new Time());

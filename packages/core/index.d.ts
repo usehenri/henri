@@ -1186,6 +1186,12 @@ declare namespace start {
     uploads?: false | UploadsConfig;
     /** Milliseconds before a running request is answered 503. */
     requestTimeout?: number | false;
+    /**
+     * Server-sent events: what bounds a stream this process holds open.
+     * A broadcast reaches the subscribers of one process and nothing here
+     * changes that -- see [Streams](/guides/streams/).
+     */
+    streams?: StreamsConfig;
     shutdown?: ShutdownConfig;
     /**
      * Where the maintenance switch lives and what a closed application
@@ -1734,6 +1740,44 @@ declare namespace start {
      * link. See [Error codes](https://usehenri.io/reference/errors/).
      */
     url?: string;
+  }
+
+  /**
+   * `config.streams`: the bounds of the server-sent event streams one
+   * process holds. Nothing here turns streams on -- a controller calling
+   * `res.stream()` does -- and nothing here fans a broadcast out to
+   * another process, because henri has no cross-process fan-out.
+   */
+  interface StreamsConfig {
+    /**
+     * Milliseconds between the comment frames that keep an idle stream
+     * from being closed by a proxy (`25000`); `false` sends none.
+     */
+    heartbeat?: number | false;
+    /**
+     * Milliseconds a stream may hold the record, the session and the
+     * policy answer it opened with (`900000`) before henri ends it and the
+     * client reconnects. `false` never ends one, and nothing then bounds
+     * how stale those three may be.
+     */
+    maxAge?: number | false;
+    /**
+     * Unread bytes a subscriber may hold before its stream is closed
+     * (`1048576`); `false` removes the bound.
+     */
+    maxBuffer?: number | false;
+    /**
+     * How many streams this process holds at once (`1000`). Past it a
+     * subscription is answered `503` with a `Retry-After`; `false` removes
+     * the bound.
+     */
+    maxOpen?: number | false;
+    /**
+     * The reconnection delay henri suggests to the client, in milliseconds
+     * (`3000`), jittered when henri is the one closing. `false` suggests
+     * nothing.
+     */
+    retry?: number | false;
   }
 
   /** `config.shutdown`: what a SIGTERM does before the modules stop. */
@@ -2328,6 +2372,54 @@ declare namespace start {
     bom?: boolean;
   }
 
+  /** Options of `res.stream()`. */
+  interface StreamOptions {
+    /**
+     * The record this subscription is about, and what the policy is asked
+     * about. Without one the record-less question is asked instead.
+     */
+    subject?: unknown;
+    /**
+     * The policy to ask, when the subject does not name one. It is
+     * required in the sense that `res.stream()` refuses to open a stream
+     * nothing can authorize (`HENRI_STREAM_POLICY_REQUIRED`): the
+     * controller's own model answers it on a `resources` route.
+     */
+    policy?: string;
+    /**
+     * The subscription's own question, asked at subscribe time and again
+     * before every event. `'show'` with a subject, `'index'` without.
+     */
+    action?: string;
+    /**
+     * The question asked of each record an event carries, before that
+     * event is written (`'show'`).
+     */
+    each?: string;
+    /** The fields marked `personal: { expose: false }` events may carry. */
+    include?: string[];
+  }
+
+  /**
+   * One open server-sent event stream, as `res.stream()` answers it. An
+   * application rarely holds one: `henri.streams.publish()` is how events
+   * are sent, and the drain and `streams.maxAge` are what close it.
+   */
+  interface Stream {
+    /** The address `henri.streams.publish()` writes to. */
+    readonly topic: string;
+    /** Events written to this subscriber. */
+    readonly sent: number;
+    /** Events the policy refused for this subscriber, silently. */
+    readonly dropped: number;
+    /** How long it has been open, in milliseconds. */
+    readonly age: number;
+    /** True once it has ended, whoever ended it. */
+    readonly closed: boolean;
+    /** Ends it. The client's `EventSource` reconnects on its own. */
+    close(reason?: string): boolean;
+  }
+
   /** Options of `res.collection()`. */
   interface CollectionOptions extends ResourceOptions {
     page?: number;
@@ -2389,6 +2481,15 @@ declare namespace start {
   interface Request extends ExpressRequest {
     /** `X-Request-Id`, accepted from the client or generated. */
     id: string;
+    /**
+     * The `Last-Event-ID` a reconnecting `EventSource` sent, or `null`.
+     *
+     * henri buffers no events and replays none, so this is handed over and
+     * used for nothing else: an application that can replay its own reads
+     * it and does. A value longer than 256 characters or holding a control
+     * character is `null` rather than passed on.
+     */
+    lastEventId: string | null;
     /** `'v1'` when the client asked for `application/vnd.henri.v1+json`. */
     apiVersion: string | null;
     /** The CSRF token of the request, with a user model. */
@@ -2584,6 +2685,20 @@ declare namespace start {
      * half file is never mistaken for a whole one.
      */
     csv(model: unknown, options?: CsvOptions): Promise<ExpressResponse>;
+    /**
+     * Opens a server-sent event stream on this response.
+     *
+     * The policy is asked here, before a byte -- a refusal is the ordinary
+     * 404 (or 401 and the login page), never a stream carrying an error --
+     * and again before every event that goes out, because a stream is a
+     * decision made once and answered from for hours. An event carrying a
+     * record leaves through the same gate every other answer does.
+     *
+     * The topic is the controller's to choose and never the client's, and
+     * `henri.streams.publish(topic, ...)` reaches the subscribers of
+     * **this process** alone.
+     */
+    stream(topic: string, options?: StreamOptions): Promise<Stream>;
     /**
      * Runs `html` for browsers and `json` for API clients. The handler is not
      * awaited: what comes back is the response, not what the handler returned.
@@ -5470,6 +5585,55 @@ declare namespace start {
     };
   }
 
+  /**
+   * `henri.streams`: the server-sent event streams this process holds.
+   *
+   * **A broadcast reaches one process.** A connection lives on the process
+   * that accepted it, so behind two workers `publish()` reaches roughly
+   * half the people who asked for the topic and nothing errors. henri has
+   * no cross-process fan-out; the warning on the first stream a process
+   * opens is what says so at runtime.
+   */
+  interface StreamsModule {
+    /**
+     * Sends an event to the subscribers of a topic on this process.
+     *
+     * Every subscriber is asked its own policy question first and a
+     * refusal is silent, so the count is how many people were allowed to
+     * be told -- not how many asked to be. `data` leaves through the same
+     * gate every other answer does, per subscriber.
+     */
+    publish(
+      topic: string,
+      event: string,
+      data?: unknown,
+      options?: {
+        /**
+         * The event id. henri never invents one: an id is a promise the
+         * stream can be resumed from it, and henri replays nothing.
+         */
+        id?: string;
+      }
+    ): Promise<number>;
+    /** How many streams this process holds, on one topic or on all. */
+    count(topic?: string): number;
+    /** The topics somebody is subscribed to on this process. */
+    topics(): string[];
+    /**
+     * Ends every open stream. The drain calls it before the listener
+     * closes, so a client reconnects to a process that still accepts.
+     */
+    drain(reason?: string): number;
+    /** The normalized `config.streams`. */
+    settings: {
+      heartbeat: number | false;
+      maxAge: number | false;
+      maxBuffer: number | false;
+      maxOpen: number | false;
+      retry: number | false;
+    };
+  }
+
   /** `henri.utils`. */
   interface Utils {
     resolveFrom(name: string, dir?: string): string;
@@ -5703,6 +5867,13 @@ declare namespace start {
      * backend -- and then it is that one, with nothing else to configure.
      */
     cache: CacheModule;
+    /**
+     * The server-sent event streams this process is holding, and
+     * `publish()` to send an event to the subscribers of a topic. The
+     * fan-out is **one process**: a broadcast reaches the connections this
+     * process accepted and nobody else.
+     */
+    streams: StreamsModule;
     /**
      * The feature flags: `enabled()` to read one, `enable`, `disable`,
      * `percentage` and `reset` to flip one. The flags are declared in

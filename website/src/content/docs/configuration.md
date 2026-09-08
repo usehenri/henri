@@ -78,6 +78,7 @@ Every key below is declared in `@usehenri/core`, so an editor completes them as 
 | `bodyLimit`        | `1mb`         | Maximum size of a JSON or form body.                                                                                                                                                                                                      |
 | `uploads`          |               | File uploads: where they go, the limits and the accepted types, see below; needs `@usehenri/uploads`. `false` accepts no file.                                                                                                            |
 | `requestTimeout`   | `30000`       | Milliseconds before a running request is answered `503`; `false` disables it.                                                                                                                                                             |
+| `streams`          |               | The bounds of the server-sent event streams this process holds, see below. It turns nothing on -- a controller calling `res.stream()` does -- and it does not fan a broadcast out. See [Streams](/guides/streams/).                       |
 | `shutdown`         |               | What a `SIGTERM` does before the modules stop: `delay`, `drain` and `signals`, see below.                                                                                                                                                 |
 | `maintenance`      |               | Where the switch that closes the application lives and what a visitor is told, see below. `false` gives the application no switch. See [Maintenance mode](/guides/maintenance/).                                                          |
 | `errors`           |               | What henri does with the code of a failure: `url`, a template holding `{code}`. See [Error codes](/reference/errors/).                                                                                                                    |
@@ -641,9 +642,25 @@ nothing whatever this says. See [Model versions](/guides/versions/).
 }
 ```
 
+## The `streams` object
+
+The bounds of the server-sent event streams one process holds
+(`res.stream()`, `henri.streams`). Nothing here turns streams on and
+nothing here fans a broadcast out: `henri.streams.publish()` reaches the
+subscribers of **this process** and henri has no cross-process fan-out. See
+[Streams](/guides/streams/).
+
+| Key                 | Default   | Description                                                                                                                                                                                                               |
+| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `streams.heartbeat` | `25000`   | Milliseconds between the comment frames that keep an idle stream from being closed by a proxy, and how a client that went away is noticed. `false` sends none.                                                            |
+| `streams.maxAge`    | `900000`  | Milliseconds a stream may hold the record, the session and the policy answer it opened with before henri ends it and the client reconnects. `false` never ends one, and then nothing bounds how stale those three may be. |
+| `streams.maxBuffer` | `1048576` | Unread bytes a subscriber may hold before its stream is closed rather than being allowed to grow into this process's memory. `false` removes the bound.                                                                   |
+| `streams.maxOpen`   | `1000`    | How many streams this process holds at once. Past it a subscription is answered `503` with a `Retry-After`, which is better than reaching the file descriptor limit. `false` removes the bound.                           |
+| `streams.retry`     | `3000`    | The reconnection delay henri suggests to the client, jittered when henri is the one closing so a deploy does not bring every subscriber back in the same millisecond. `false` suggests nothing.                           |
+
 ## Shutdown
 
-`SIGINT` and `SIGTERM` drain the server before the modules stop: readiness answers `503`, the port closes, the requests in flight finish, and only then does `henri.stop()` run. See [Health checks](/guides/api/#health-checks).
+`SIGINT` and `SIGTERM` drain the server before the modules stop: readiness answers `503`, the port closes, the requests in flight finish, and only then does `henri.stop()` run. The answers that never end are ended first: every open [stream](/guides/streams/) is closed once readiness is `503`, so a subscriber reconnects to a process that is still accepting instead of being destroyed at the deadline. See [Health checks](/guides/api/#health-checks).
 
 | Key                | Default | Description                                                                                                                                                                                            |
 | ------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

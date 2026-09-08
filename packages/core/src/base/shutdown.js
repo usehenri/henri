@@ -16,12 +16,19 @@
  *    termination -- Kubernetes stops routing when the pod turns Terminating,
  *    before the signal -- pays nothing for it; a proxy that only polls
  *    readiness wants a couple of its intervals here.
- * 3. The listener closes, so the port stops accepting connections and the
+ * 3. The answers that never end are ended (`beforeClose`, which is where
+ *    `henri.streams` closes every open server-sent event stream). A
+ *    response with no last byte holds `server.close()` open until the
+ *    deadline destroys it, so without this every deploy would sit through
+ *    the whole drain and log a line about the streams it killed; ended
+ *    here instead, each client reconnects to a process that is still
+ *    accepting.
+ * 4. The listener closes, so the port stops accepting connections and the
  *    load balancer's own health check fails at the TCP level. The idle
  *    keep-alive sockets are hung up at the same moment: `server.close()`
  *    waits for every open connection, and a keep-alive socket that will never
  *    send another request holds it open for the whole keep-alive timeout.
- * 4. The requests still in flight run to their end, up to `shutdown.drain`
+ * 5. The requests still in flight run to their end, up to `shutdown.drain`
  *    (10 seconds). What is still open then is destroyed and said so: the
  *    alternative is a container that misses its termination grace period and
  *    is killed with SIGKILL, which drops the same requests without the log
@@ -121,12 +128,14 @@ function sleep(ms) {
  *
  * @param {http.Server} server the http server
  * @param {object} [options={}] options
+ * @param {function} [options.beforeClose] run after the delay and before the
+ *   listener closes: where the answers that never end are ended
  * @param {number} [options.deadline=10000] how long the in-flight requests get (ms)
  * @param {number} [options.delay=0] how long to keep serving before closing (ms)
  * @param {object} [options.pen] henri's pen, to say what happened
  * @returns {Promise<{drained: boolean, forced: boolean, open: number}>} what the drain did
  */
-async function drain(server, { deadline, delay, pen } = {}) {
+async function drain(server, { beforeClose, deadline, delay, pen } = {}) {
   const wait = milliseconds(delay, DEFAULTS.delay);
   const limit = milliseconds(deadline, DEFAULTS.drain);
   const say = (level, ...args) =>
@@ -139,6 +148,16 @@ async function drain(server, { deadline, delay, pen } = {}) {
   if (wait > 0) {
     say('info', `not ready, still serving for ${wait}ms`);
     await sleep(wait);
+  }
+
+  // The answers that never end, ended before the listener closes: one of
+  // them would otherwise hold close() open until the deadline destroys it
+  if (typeof beforeClose === 'function') {
+    try {
+      await beforeClose();
+    } catch (error) {
+      say('error', 'unable to end the long-lived answers', error.message);
+    }
   }
 
   const open = await connections(server);

@@ -2506,6 +2506,50 @@ const SCHEMA = {
     oneOf: [{ const: false }, positive()],
   },
 
+  streams: {
+    describe: 'an object of server-sent event settings',
+    hint: 'What bounds a stream this process holds open. A broadcast reaches the subscribers of one process and there is no setting here that changes that: read the Streams guide before running more than one',
+    keys: {
+      heartbeat: {
+        default: 25000,
+        describe: 'a number of milliseconds above zero, or false',
+        hint: 'A comment frame this often keeps a proxy from closing an idle stream and is how a client that went away is noticed; false sends none',
+        oneOf: [{ const: false }, positive()],
+      },
+      maxAge: {
+        default: 900000,
+        describe: 'a number of milliseconds above zero, or false',
+        hint: 'How long a stream may hold the record, the session and the policy answer it opened with before it is ended and the client reconnects; false never ends one, so nothing bounds that staleness',
+        oneOf: [{ const: false }, positive()],
+      },
+      maxBuffer: {
+        default: 1048576,
+        describe: 'a number of bytes above zero, or false',
+        hint: 'A subscriber holding more unread bytes than this has its stream closed rather than being allowed to grow into the memory of this process; false removes the bound',
+        oneOf: [
+          { const: false },
+          positive({ describe: 'a number of bytes above zero' }),
+        ],
+      },
+      maxOpen: {
+        default: 1000,
+        describe: 'a whole number above zero, or false',
+        hint: 'How many streams this process will hold at once; past it a subscription is answered 503 with a Retry-After, which is better than reaching the file descriptor limit and taking the rest of the application with it',
+        oneOf: [
+          { const: false },
+          positive({ describe: 'a whole number above zero', integer: true }),
+        ],
+      },
+      retry: {
+        default: 3000,
+        describe: 'a number of milliseconds above zero, or false',
+        hint: 'The reconnection delay henri suggests to the client, jittered when henri is the one closing; false suggests nothing and leaves the browser its own default',
+        oneOf: [{ const: false }, positive()],
+      },
+    },
+    type: 'object',
+  },
+
   shutdown: {
     describe: 'an object of graceful shutdown settings',
     hint: 'Keep shutdown.delay plus shutdown.drain under the termination grace period of the platform, which is thirty seconds on Kubernetes, so the process leaves before it is killed',

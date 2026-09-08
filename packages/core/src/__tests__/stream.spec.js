@@ -1,0 +1,937 @@
+/* global Memo */
+const http = require('node:http');
+const supertest = require('supertest');
+const { EventEmitter } = require('node:events');
+
+const Henri = require('../henri');
+const { drain } = require('../base/shutdown');
+const {
+  DEFAULTS,
+  MAX_EVENT_ID,
+  MAX_TOPIC,
+  Registry,
+  Stream,
+  dataLines,
+  field,
+  frame,
+  lastEventId,
+  settings,
+  topicOf,
+  writable,
+} = require('../base/stream');
+
+/**
+ * What a call threw, so the assertions about it are not conditional
+ *
+ * @param {function} call the call
+ * @returns {Error} what it threw
+ */
+const thrown = (call) => {
+  try {
+    call();
+  } catch (error) {
+    return error;
+  }
+
+  throw new Error('nothing was thrown');
+};
+
+const password = 'difference-engine';
+const ownerEmail = 'grace@usehenri.io';
+const strangerEmail = 'alan@usehenri.io';
+
+describe('the frame (base/stream.js)', () => {
+  test('a retry hint on its own', () => {
+    expect(frame({ retry: 3000 })).toBe('retry: 3000\n\n');
+  });
+
+  test('an event, its id and its data, in the order the protocol reads', () => {
+    expect(frame({ data: '{"a":1}', event: 'changed', id: '7' })).toBe(
+      'id: 7\nevent: changed\ndata: {"a":1}\n\n'
+    );
+  });
+
+  test('a payload holding line breaks becomes several data lines', () => {
+    expect(frame({ data: 'one\ntwo' })).toBe('data: one\ndata: two\n\n');
+    expect(frame({ data: 'one\r\ntwo' })).toBe('data: one\ndata: two\n\n');
+    expect(frame({ data: 'one\rtwo' })).toBe('data: one\ndata: two\n\n');
+  });
+
+  test('a comment carries no event and no data', () => {
+    expect(frame({ comment: 'keep-alive' })).toBe(': keep-alive\n\n');
+  });
+
+  test('nothing to say is nothing written', () => {
+    expect(frame({})).toBe('');
+  });
+
+  test('the split is a walk, and it keeps every line', () => {
+    expect(dataLines('a\n\nb')).toEqual(['a', '', 'b']);
+    expect(dataLines('')).toEqual(['']);
+    expect(dataLines('a\r\n')).toEqual(['a', '']);
+  });
+});
+
+describe('what may be written into a field', () => {
+  test('a plain name is kept, and nothing is a null', () => {
+    expect(field('event', 'changed')).toBe('changed');
+    expect(field('id', null)).toBeNull();
+    expect(field('id', undefined)).toBeNull();
+  });
+
+  test('a newline is refused rather than escaped', () => {
+    // It would end the field and let whoever chose the name write raw
+    // event-stream fields into the frame
+    for (const bad of ['a\nb', 'a\rb', 'a\u0000b', '', '\u007f']) {
+      expect(() => field('event', bad)).toThrow(/must be a non-empty string/u);
+    }
+
+    const refused = thrown(() => field('event', 'a\nb'));
+
+    expect(refused.code).toBe('HENRI_STREAM_EVENT_INVALID');
+    expect(refused.hint).toContain('proposal.updated');
+  });
+
+  test('writable() walks the code points', () => {
+    expect(writable('memo:42')).toBe(true);
+    expect(writable('memo\t42')).toBe(false);
+  });
+});
+
+describe('the topic', () => {
+  test('a name the controller built is a topic', () => {
+    expect(topicOf('memo:0192f0aa')).toBe('memo:0192f0aa');
+  });
+
+  test('anything henri will not address is refused', () => {
+    for (const bad of ['', null, 42, 'a\nb', 'x'.repeat(MAX_TOPIC + 1)]) {
+      expect(() => topicOf(bad)).toThrow(/stream topic/u);
+    }
+
+    const refused = thrown(() => topicOf(''));
+
+    expect(refused.code).toBe('HENRI_STREAM_TOPIC_INVALID');
+    expect(refused.hint).toContain('never does');
+  });
+});
+
+describe('Last-Event-ID, walked and never matched', () => {
+  const asked = (value) => lastEventId({ get: () => value });
+
+  test('the header, when there is one henri will pass on', () => {
+    expect(asked('42')).toBe('42');
+    expect(asked(undefined)).toBeNull();
+    expect(asked('')).toBeNull();
+  });
+
+  test('too long, or holding a control character, is nothing', () => {
+    expect(asked('x'.repeat(MAX_EVENT_ID + 1))).toBeNull();
+    expect(asked('4\n2')).toBeNull();
+    expect(asked('4\u00002')).toBeNull();
+  });
+
+  test('a request that cannot be asked answers null', () => {
+    expect(lastEventId(null)).toBeNull();
+    expect(lastEventId({})).toBeNull();
+  });
+});
+
+describe('config.streams', () => {
+  test('the defaults, without a block', () => {
+    expect(settings(null)).toEqual(DEFAULTS);
+    expect(settings({ has: () => false })).toEqual(DEFAULTS);
+  });
+
+  test('what an application asked for, and false for never', () => {
+    const config = {
+      get: () => ({ heartbeat: false, maxAge: 60000, retry: 'nonsense' }),
+      has: () => true,
+    };
+
+    expect(settings(config)).toEqual({
+      ...DEFAULTS,
+      heartbeat: false,
+      maxAge: 60000,
+      // Not a number: the default stands rather than a stream with no hint
+      retry: DEFAULTS.retry,
+    });
+  });
+});
+
+/** A response that records what was written to it */
+class FakeResponse extends EventEmitter {
+  /** Creates an instance of FakeResponse. */
+  constructor() {
+    super();
+    this.written = '';
+    this.headers = {};
+    this.statusCode = null;
+    this.writableEnded = false;
+    this.writableLength = 0;
+    this.destroyed = false;
+    this.flushed = false;
+  }
+
+  /**
+   * Sets a header
+   *
+   * @param {string} name the header
+   * @param {string} value the value
+   * @returns {FakeResponse} itself
+   */
+  set(name, value) {
+    this.headers[name] = value;
+
+    return this;
+  }
+
+  /**
+   * Sets the status
+   *
+   * @param {number} code the status
+   * @returns {FakeResponse} itself
+   */
+  status(code) {
+    this.statusCode = code;
+
+    return this;
+  }
+
+  /**
+   * Flushes the headers
+   *
+   * @returns {boolean} always true
+   */
+  flushHeaders() {
+    this.flushed = true;
+
+    return true;
+  }
+
+  /**
+   * Writes
+   *
+   * @param {string} text the bytes
+   * @returns {boolean} whether the socket took them
+   */
+  write(text) {
+    this.written += text;
+
+    return this.writableLength === 0;
+  }
+
+  /**
+   * Ends
+   *
+   * @returns {FakeResponse} itself
+   */
+  end() {
+    this.writableEnded = true;
+
+    return this;
+  }
+
+  /** The frames written so far, without the empty tail */
+  get frames() {
+    return this.written.split('\n\n').filter(Boolean);
+  }
+}
+
+/**
+ * A henri-shaped object with the one module a stream asks
+ *
+ * @param {object} answers what the policy answers, by action
+ * @returns {object} the fake instance
+ */
+const fakeHenri = (answers = {}) => ({
+  pen: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+  policies: {
+    answer: vi.fn(async (user, action) => answers[action] !== false),
+    nameFor: (record) =>
+      record && typeof record === 'object' && record.__model ? 'Memo' : null,
+  },
+});
+
+describe('one stream, against a response that records', () => {
+  /**
+   * An open stream over a fake response
+   *
+   * @param {object} [options={}] what the subscription declared
+   * @param {object} [answers={}] what the policy answers
+   * @returns {object} `{ henri, res, stream }`
+   */
+  const opened = (options = {}, answers = {}) => {
+    const henri = fakeHenri(answers);
+    const res = new FakeResponse();
+    const stream = new Stream(
+      henri,
+      { get: () => undefined, httpVersionMajor: 1, user: { id: 'u1' } },
+      res,
+      {
+        action: 'show',
+        each: 'show',
+        settings: { ...DEFAULTS, heartbeat: false, maxAge: false },
+        topic: 'memo:1',
+        ...options,
+      }
+    );
+
+    stream.open();
+
+    return { henri, res, stream };
+  };
+
+  test('opening writes the event-stream headers and the retry hint', () => {
+    const { res } = opened();
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['Content-Type']).toBe(
+      'text/event-stream; charset=utf-8'
+    );
+    expect(res.headers['Cache-Control']).toBe('no-cache, no-transform');
+    expect(res.headers['X-Accel-Buffering']).toBe('no');
+    expect(res.flushed).toBe(true);
+    expect(res.written).toBe(`retry: ${DEFAULTS.retry}\n\n`);
+  });
+
+  test('opening takes the request timeout off', () => {
+    const henri = fakeHenri();
+    const res = new FakeResponse();
+    const cleared = vi.fn();
+
+    res.once('henri:stream', cleared);
+
+    new Stream(henri, { get: () => undefined, user: null }, res, {
+      action: 'index',
+      each: 'show',
+      settings: DEFAULTS,
+      topic: 'memos',
+    }).open();
+
+    expect(cleared).toHaveBeenCalledOnce();
+  });
+
+  test('an event goes out once the policy has said so, twice', async () => {
+    const { henri, res, stream } = opened({ subject: { __model: true } });
+
+    expect(await stream.send({ data: { title: 'ok' }, event: 'changed' })).toBe(
+      true
+    );
+    expect(stream.sent).toBe(1);
+    expect(res.written).toContain('event: changed\ndata: {"title":"ok"}');
+    // The subscription's own question; the payload names no model, so
+    // there is nothing else to ask about it
+    expect(henri.policies.answer).toHaveBeenCalledTimes(1);
+  });
+
+  test('a payload that is a record is asked about as well', async () => {
+    const { henri, stream } = opened({ subject: { __model: true } });
+
+    await stream.send({ data: { __model: true }, event: 'changed' });
+
+    expect(henri.policies.answer).toHaveBeenCalledTimes(2);
+    expect(henri.policies.answer.mock.calls[1][1]).toBe('show');
+  });
+
+  test('a refusal is silent, and counted', async () => {
+    const { res, stream } = opened({}, { show: false });
+
+    expect(await stream.send({ data: { title: 'no' }, event: 'changed' })).toBe(
+      false
+    );
+    expect(stream.dropped).toBe(1);
+    expect(stream.sent).toBe(0);
+    // Nothing at all: an "event: denied" would say a record they may not
+    // see just changed, which is the leak with a politer name
+    expect(res.written).toBe(`retry: ${DEFAULTS.retry}\n\n`);
+  });
+
+  test('without a policies module nothing goes out', async () => {
+    const res = new FakeResponse();
+    const stream = new Stream({ pen: {} }, { get: () => undefined }, res, {
+      action: 'show',
+      each: 'show',
+      settings: DEFAULTS,
+      topic: 'memo:1',
+    });
+
+    stream.open();
+
+    expect(await stream.send({ data: {}, event: 'changed' })).toBe(false);
+    expect(stream.dropped).toBe(1);
+  });
+
+  test('a bad event name is refused before the policy is asked', async () => {
+    const { henri, stream } = opened();
+
+    await expect(stream.send({ data: {}, event: 'a\nb' })).rejects.toThrow(
+      /non-empty string/u
+    );
+    expect(henri.policies.answer).not.toHaveBeenCalled();
+  });
+
+  test('a subscriber that is not reading is closed rather than buffered', () => {
+    const { res, stream } = opened({
+      settings: { ...DEFAULTS, heartbeat: false, maxAge: false, maxBuffer: 10 },
+    });
+
+    res.writableLength = 11;
+    stream.comment('a comment nobody is taking');
+
+    expect(stream.closed).toBe(true);
+    expect(stream.reason).toBe('backpressure');
+    expect(res.writableEnded).toBe(true);
+  });
+
+  test('a close henri decided re-issues a jittered retry', () => {
+    const { res, stream } = opened();
+
+    expect(stream.close('max-age')).toBe(true);
+    expect(res.writableEnded).toBe(true);
+    expect(res.frames[1].startsWith('retry: ')).toBe(true);
+    expect(
+      Number(res.frames[1].slice('retry: '.length))
+    ).toBeGreaterThanOrEqual(DEFAULTS.retry);
+    // Closing twice is not two closes
+    expect(stream.close('again')).toBe(false);
+  });
+
+  test('a client that went away is not written to on the way out', () => {
+    const { res, stream } = opened();
+
+    stream.close('client');
+
+    expect(res.writableEnded).toBe(false);
+    expect(stream.closed).toBe(true);
+  });
+
+  test('the heartbeat is a comment, and it carries nothing', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { res, stream } = opened({
+        settings: { ...DEFAULTS, heartbeat: 1000, maxAge: false },
+      });
+
+      vi.advanceTimersByTime(2500);
+
+      expect(res.written).toContain(': keep-alive');
+      stream.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('maxAge ends it, and the client reconnects on its own', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { stream } = opened({
+        settings: { ...DEFAULTS, heartbeat: false, maxAge: 1000 },
+      });
+
+      vi.advanceTimersByTime(1500);
+
+      expect(stream.closed).toBe(true);
+      expect(stream.reason).toBe('max-age');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('describe() says what it is without saying who', () => {
+    const { stream } = opened();
+
+    expect(stream.describe()).toMatchObject({
+      action: 'show',
+      dropped: 0,
+      sent: 0,
+      topic: 'memo:1',
+    });
+  });
+});
+
+describe('the registry of one process', () => {
+  /**
+   * A stream held by a registry
+   *
+   * @param {Registry} registry the registry
+   * @param {string} topic the topic
+   * @returns {Stream} the stream
+   */
+  const held = (registry, topic) => {
+    const stream = new Stream(
+      registry.henri,
+      { get: () => undefined },
+      new FakeResponse(),
+      {
+        action: 'show',
+        each: 'show',
+        settings: { ...DEFAULTS, heartbeat: false, maxAge: false },
+        topic,
+      }
+    );
+
+    registry.add(stream);
+
+    return stream.open();
+  };
+
+  test('counts by topic and by all of them', () => {
+    const registry = new Registry(fakeHenri());
+
+    held(registry, 'memos');
+    held(registry, 'memos');
+    held(registry, 'memo:1');
+
+    expect(registry.count()).toBe(3);
+    expect(registry.count('memos')).toBe(2);
+    expect(registry.count('nobody')).toBe(0);
+  });
+
+  test('publishing answers how many were allowed to be told', async () => {
+    const henri = fakeHenri();
+    const registry = new Registry(henri);
+
+    held(registry, 'memos');
+    held(registry, 'memos');
+
+    expect(
+      await registry.publish('memos', { data: {}, event: 'changed' })
+    ).toBe(2);
+    expect(await registry.publish('nobody', { data: {} })).toBe(0);
+  });
+
+  test('a subscriber whose policy says no is not counted', async () => {
+    const registry = new Registry(fakeHenri({ show: false }));
+
+    held(registry, 'memos');
+
+    expect(await registry.publish('memos', { data: {}, event: 'x' })).toBe(0);
+  });
+
+  test('one subscriber failing does not stop the others', async () => {
+    const henri = fakeHenri();
+    const registry = new Registry(henri);
+    const first = held(registry, 'memos');
+
+    held(registry, 'memos');
+    first.send = () => Promise.reject(new Error('gone'));
+
+    expect(await registry.publish('memos', { data: {}, event: 'x' })).toBe(1);
+    expect(henri.pen.error).toHaveBeenCalled();
+  });
+
+  test('a stream that closed is forgotten', () => {
+    const registry = new Registry(fakeHenri());
+    const stream = held(registry, 'memos');
+
+    stream.close();
+
+    expect(registry.count()).toBe(0);
+    expect(registry.topics.has('memos')).toBe(false);
+  });
+
+  test('closeAll ends every one of them', () => {
+    const registry = new Registry(fakeHenri());
+    const first = held(registry, 'memos');
+    const second = held(registry, 'memo:1');
+
+    expect(registry.closeAll('draining')).toBe(2);
+    expect(first.closed).toBe(true);
+    expect(second.closed).toBe(true);
+    expect(registry.count()).toBe(0);
+  });
+});
+
+describe('the drain ends the answers that never end', () => {
+  test('beforeClose runs after the delay and before the listener closes', async () => {
+    const server = http.createServer();
+
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+    const order = [];
+    const closed = server.close.bind(server);
+
+    server.close = (...args) => {
+      order.push('close');
+
+      return closed(...args);
+    };
+
+    await drain(server, {
+      beforeClose: () => order.push('streams'),
+      deadline: 100,
+      delay: 0,
+    });
+
+    expect(order).toEqual(['streams', 'close']);
+  });
+
+  test('a beforeClose that throws does not stop the drain', async () => {
+    const server = http.createServer();
+    const pen = { error: vi.fn(), info: vi.fn() };
+
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+    const answer = await drain(server, {
+      beforeClose: () => {
+        throw new Error('no');
+      },
+      deadline: 100,
+      pen,
+    });
+
+    expect(answer.drained).toBe(true);
+    expect(pen.error).toHaveBeenCalled();
+  });
+});
+
+describe('a stream over http, on the demo application', () => {
+  const skipWorkers = process.env.SKIP_WORKERS;
+  let henri = null;
+  let app = null;
+  let port = null;
+  let ownerCookie = null;
+  let strangerCookie = null;
+  let memo = null;
+  let otherMemo = null;
+
+  /**
+   * The cookies of a response, as a request header
+   *
+   * @param {object} response a supertest response
+   * @returns {string} the Cookie header
+   */
+  const cookiesOf = (response) =>
+    (response.headers['set-cookie'] || [])
+      .map((entry) => entry.split(';')[0])
+      .join('; ');
+
+  /**
+   * Registers a user, signs them in and answers their cookies
+   *
+   * @param {string} email the address
+   * @returns {Promise<string>} the Cookie header
+   */
+  const signUp = async (email) => {
+    const agent = supertest.agent(app);
+
+    await agent.post('/register').send({
+      email,
+      gender: 'unspecified',
+      name: email.split('@')[0],
+      password,
+    });
+
+    return cookiesOf(await agent.post('/login').send({ email, password }));
+  };
+
+  /**
+   * Opens a real connection to the booted server and reads its frames
+   *
+   * @param {string} path the path
+   * @param {?string} cookie the Cookie header, or null
+   * @returns {Promise<object>} the connection
+   */
+  const connect = (path, cookie) =>
+    new Promise((resolve, reject) => {
+      const request = http.request(
+        {
+          headers: cookie ? { Cookie: cookie } : {},
+          host: '127.0.0.1',
+          method: 'GET',
+          path,
+          port,
+        },
+        (response) => {
+          let seen = '';
+          let taken = 0;
+          let waiting = null;
+          const frames = () => seen.split('\n\n').filter(Boolean);
+
+          response.setEncoding('utf8');
+          response.on('data', (chunk) => {
+            seen += chunk;
+
+            if (waiting) {
+              const resume = waiting;
+
+              waiting = null;
+              resume();
+            }
+          });
+
+          resolve({
+            close: () => request.destroy(),
+            get frames() {
+              return frames();
+            },
+            /**
+             * The next frame nobody has taken yet, waiting for it if it
+             * has not arrived. A cursor, not a count: a frame already on
+             * the wire when this is called is the one it answers.
+             *
+             * @returns {Promise<string>} the frame
+             */
+            next: () =>
+              new Promise((done, fail) => {
+                const timer = setTimeout(
+                  () => fail(new Error('no frame arrived')),
+                  5000
+                );
+                const check = () => {
+                  const seenNow = frames();
+
+                  if (seenNow.length > taken) {
+                    clearTimeout(timer);
+                    taken += 1;
+
+                    return done(seenNow[taken - 1]);
+                  }
+
+                  waiting = check;
+
+                  return undefined;
+                };
+
+                check();
+              }),
+            response,
+          });
+        }
+      );
+
+      request.on('error', reject);
+      request.end();
+    });
+
+  /**
+   * The JSON of a `data:` frame
+   *
+   * @param {string} text the frame
+   * @returns {*} what it carried
+   */
+  const payload = (text) =>
+    JSON.parse(
+      text
+        .split('\n')
+        .filter((line) => line.startsWith('data: '))
+        .map((line) => line.slice('data: '.length))
+        .join('\n')
+    );
+
+  beforeAll(async () => {
+    process.env.SKIP_WORKERS = '1';
+    henri = new Henri();
+    await henri.init();
+    global.henri = henri;
+    app = henri.server.app;
+    port = henri.server.httpServer.address().port;
+
+    ownerCookie = await signUp(ownerEmail);
+    strangerCookie = await signUp(strangerEmail);
+
+    const record = await henri.user.findByEmail(ownerEmail);
+    const other = await henri.user.findByEmail(strangerEmail);
+
+    memo = await Memo.create({
+      body: 'the one being watched',
+      ownerId: String(record.id || record._id),
+      title: 'Watch me',
+    });
+    otherMemo = await Memo.create({
+      body: 'not yours',
+      ownerId: String(other.id || other._id),
+      title: 'Somebody else',
+    });
+  }, 60000);
+
+  afterAll(async () => {
+    henri.streams.drain('test');
+    await henri.stop();
+    delete global.henri;
+    process.env.SKIP_WORKERS = skipWorkers;
+  });
+
+  test('the owner subscribes and gets an event stream with a retry hint', async () => {
+    const open = await connect(`/memos/${memo.externalId}/events`, ownerCookie);
+
+    try {
+      expect(open.response.statusCode).toBe(200);
+      expect(open.response.headers['content-type']).toBe(
+        'text/event-stream; charset=utf-8'
+      );
+      expect(open.response.headers['cache-control']).toBe(
+        'no-cache, no-transform'
+      );
+      expect(open.response.headers['x-accel-buffering']).toBe('no');
+      expect(await open.next()).toBe(`retry: ${DEFAULTS.retry}`);
+      expect(henri.streams.count(`memo:${memo.externalId}`)).toBe(1);
+    } finally {
+      open.close();
+    }
+  });
+
+  test('a stranger is refused the way every other refusal is refused', async () => {
+    const open = await connect(
+      `/memos/${memo.externalId}/events`,
+      strangerCookie
+    );
+
+    try {
+      // The configured 404, and not a stream that opens and then says no:
+      // an EventSource that receives this stops rather than retrying
+      expect(open.response.statusCode).toBe(404);
+      expect(open.response.headers['content-type']).not.toContain(
+        'text/event-stream'
+      );
+      expect(henri.streams.count(`memo:${memo.externalId}`)).toBe(0);
+    } finally {
+      open.close();
+    }
+  });
+
+  test('an anonymous visitor never reaches the stream either', async () => {
+    const open = await connect(`/memos/${memo.externalId}/events`, null);
+
+    try {
+      expect([302, 401, 404]).toContain(open.response.statusCode);
+      expect(open.response.headers['content-type']).not.toContain(
+        'text/event-stream'
+      );
+    } finally {
+      open.close();
+    }
+  });
+
+  test('an event leaves through the same gate every other answer does', async () => {
+    const open = await connect(`/memos/${memo.externalId}/events`, ownerCookie);
+
+    try {
+      await open.next();
+
+      const sent = await henri.streams.publish(
+        `memo:${memo.externalId}`,
+        'changed',
+        await Memo.findById(memo.externalId)
+      );
+
+      expect(sent).toBe(1);
+
+      const body = payload(await open.next());
+
+      expect(body.title).toBe('Watch me');
+      // The public identifier, and no internal one at any depth
+      expect(body.externalId).toBe(memo.externalId);
+      expect(body._id).toBeUndefined();
+      expect(body.id).toBeUndefined();
+      // A declared foreign key leaves as the externalId of the row it names
+      expect(body.ownerId).not.toBe(String(memo.ownerId));
+      expect(body.ownerId).toContain('-');
+    } finally {
+      open.close();
+    }
+  });
+
+  test('a field marked expose: false is not in the frame', async () => {
+    const open = await connect(`/memos/${memo.externalId}/events`, ownerCookie);
+
+    try {
+      await open.next();
+      await henri.streams.publish(
+        `memo:${memo.externalId}`,
+        'who',
+        await henri.user.findByEmail(ownerEmail)
+      );
+
+      const body = payload(await open.next());
+
+      expect(body.email).toBe(ownerEmail);
+      // `gender` is personal: { expose: false } on the demo's user model
+      expect(body.gender).toBeUndefined();
+      expect(body.password).toBeUndefined();
+    } finally {
+      open.close();
+    }
+  });
+
+  test('the policy is asked again for the record each event carries', async () => {
+    const open = await connect('/memos/live', ownerCookie);
+
+    try {
+      await open.next();
+
+      // Somebody else's memo, on a topic this subscriber is allowed to be
+      // on: the subscription said yes and the record says no
+      expect(
+        await henri.streams.publish(
+          'memos',
+          'changed',
+          await Memo.findByKey(otherMemo.id || otherMemo._id)
+        )
+      ).toBe(0);
+
+      // ...and their own, on the same topic, reaches them
+      expect(
+        await henri.streams.publish(
+          'memos',
+          'changed',
+          await Memo.findById(memo.externalId)
+        )
+      ).toBe(1);
+
+      expect(payload(await open.next()).title).toBe('Watch me');
+    } finally {
+      open.close();
+    }
+  });
+
+  test('the drain ends it, and the client is the one that reconnects', async () => {
+    const open = await connect(`/memos/${memo.externalId}/events`, ownerCookie);
+
+    await open.next();
+
+    const ended = new Promise((resolve) => open.response.on('end', resolve));
+
+    expect(henri.streams.drain('draining')).toBeGreaterThan(0);
+    await ended;
+
+    expect(henri.streams.count()).toBe(0);
+    // A fresh, jittered hint on the way out, so a deploy does not bring
+    // every subscriber back in the same millisecond
+    expect(open.frames[open.frames.length - 1].startsWith('retry: ')).toBe(
+      true
+    );
+  });
+
+  test('a bad event name is refused whether or not anybody is listening', async () => {
+    // `Registry#publish()` catches what a subscriber's send() throws, so a
+    // newline used to be a log line with subscribers and silence without
+    // any -- and the caller never heard about it either way
+    expect(henri.streams.count('nobody')).toBe(0);
+
+    await expect(
+      henri.streams.publish('nobody', 'a\nevent: denied', { a: 1 })
+    ).rejects.toThrow(/must be a non-empty string/u);
+
+    await expect(
+      henri.streams.publish('nobody', 'changed', { a: 1 }, { id: '4\n2' })
+    ).rejects.toThrow(/must be a non-empty string/u);
+  });
+
+  test('a stream with no policy to ask is never opened', async () => {
+    // The main controller has no app/policies/main.js and the call names
+    // no policy, so henri refuses rather than opening it
+    const open = await connect('/live', ownerCookie);
+
+    try {
+      expect(open.response.statusCode).toBe(500);
+      expect(open.response.headers['content-type']).not.toContain(
+        'text/event-stream'
+      );
+    } finally {
+      open.close();
+    }
+  });
+});

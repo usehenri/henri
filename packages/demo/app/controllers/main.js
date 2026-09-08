@@ -63,6 +63,10 @@ module.exports = {
     res.render('/', { data: { artwork: await Artwork.find() } });
   },
 
+  // A stream with nothing to ask: HENRI_STREAM_POLICY_REQUIRED, because a
+  // stream that skips the policy is a data leak with a heartbeat
+  live: async (req, res) => res.stream('everything'),
+
   version: async (req, res) =>
     res.json({ _links: {}, version: req.apiVersion }),
 };
