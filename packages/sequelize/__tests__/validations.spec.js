@@ -255,7 +255,12 @@ describe('validations on a sequelize store', () => {
     // Sequelize's `instance.update()` is `set()` then `save()` like the
     // other two, so a refusal used to leave the value the store refused on
     // the record. The rule and the argument are in `@usehenri/drizzle`'s
-    // `model.js`, above `rollbackOf()`
+    // `model.js`, above `rollbackOf()`.
+    //
+    // Every note here names its own slug, which is the model's unique
+    // column: SQL Server counts NULL as a value in a unique index, so one
+    // row may leave it out and the next is a duplicate. PostgreSQL, MySQL,
+    // MariaDB and sqlite all allow as many NULLs as you like.
     let Note;
     let adapter;
 
@@ -271,7 +276,7 @@ describe('validations on a sequelize store', () => {
     afterAll(() => adapter.stop());
 
     test('a rule of the validates block puts its value back', async () => {
-      const note = await Note.create({ title: 'a', views: 1 });
+      const note = await Note.create({ slug: 'a', title: 'a', views: 1 });
 
       expect(await errorsOf(note.update({ views: 9000 }))).toEqual({
         views: 'must be at most 1000',
@@ -281,7 +286,11 @@ describe('validations on a sequelize store', () => {
     });
 
     test('the schema’s own required and enum do too', async () => {
-      const note = await Note.create({ status: 'draft', title: 'b' });
+      const note = await Note.create({
+        slug: 'b',
+        status: 'draft',
+        title: 'b',
+      });
 
       expect(await errorsOf(note.update({ title: null }))).toEqual({
         title: 'is required',
@@ -309,7 +318,7 @@ describe('validations on a sequelize store', () => {
     });
 
     test('so the next update is not measured against a refused value', async () => {
-      const note = await Note.create({ title: 'e', views: 1 });
+      const note = await Note.create({ slug: 'e', title: 'e', views: 1 });
 
       await errorsOf(note.update({ views: 9000 }));
       expect(await errorsOf(note.update({ title: 'renamed' }))).toBeNull();
@@ -320,7 +329,7 @@ describe('validations on a sequelize store', () => {
     });
 
     test('set() and save() are two steps and keep what was set', async () => {
-      const note = await Note.create({ title: 'f', views: 1 });
+      const note = await Note.create({ slug: 'f', title: 'f', views: 1 });
 
       note.set({ views: 9000 });
       expect(await errorsOf(note.save())).toEqual({
@@ -339,7 +348,7 @@ describe('validations on a sequelize store', () => {
       });
       await other.start();
 
-      const note = await Broken.create({ title: 'g', views: 1 });
+      const note = await Broken.create({ slug: 'g', title: 'g', views: 1 });
 
       // The row moved before the hook ran, so the record keeps the value
       // that is now stored rather than being put back over it
