@@ -211,9 +211,56 @@ const quiet = async (fn) => {
   }
 };
 
+/**
+ * Runs a function that must not be allowed to end this process.
+ *
+ * drizzle-kit renders its progress with a terminal view, and the one thing
+ * that view does with a task that rejects is `process.exit(1)`: the error
+ * is handed to a renderer that prints a spinner and is then thrown away. So
+ * a failure inside `pushMySQLSchema` -- a schema it cannot read back --
+ * takes `henri db:push`, the development boot and the test worker down with
+ * exit code 1 and not one word about what happened, which is the worst
+ * failure henri has: nothing to read and nothing to search for.
+ *
+ * There is no hook to register and no error to catch, so the exit itself is
+ * what is caught: `process.exit` is replaced for the length of the call
+ * and, when the library reaches for it, throws instead -- inside the catch
+ * block that was about to exit, so the rejection surfaces at the caller.
+ * The cause is gone by then (the library discarded it) and the message says
+ * so rather than inventing one.
+ *
+ * @param {string} code The henri error code to raise
+ * @param {string} message What to say when the call ends the process
+ * @param {string} hint What to do about it
+ * @param {function} fn The function to run
+ * @returns {Promise<*>} What fn returns
+ * @throws {Error} The coded error, when fn ended the process
+ */
+const guarded = async (code, message, hint, fn) => {
+  const { exit } = process;
+  const marker = Symbol('henri.exit');
+
+  process.exit = (status) => {
+    throw Object.assign(new Error(message), { [marker]: status });
+  };
+
+  try {
+    return await fn();
+  } catch (error) {
+    if (error && typeof error === 'object' && marker in error) {
+      throw coded(code, message, hint);
+    }
+
+    throw error;
+  } finally {
+    process.exit = exit;
+  }
+};
+
 module.exports = {
   coded,
   fatal,
+  guarded,
   isPlainObject,
   lowerFirst,
   normalizeEmail,

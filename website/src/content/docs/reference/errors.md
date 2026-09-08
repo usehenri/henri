@@ -1753,6 +1753,17 @@ Usually:
 
 **Fix.** A rollback undoes migrations the database says it applied. `henri db:status` lists them; ask for no more than that.
 
+### `HENRI_MIGRATION_PUSH_FAILED`
+
+drizzle-kit ended the process while reading the schema back for a push.
+
+Usually:
+
+- `henri db:push`, or a development boot, on a MariaDB database that holds a `json` column
+- a schema drizzle-kit could not read back through the introspection it runs before a push
+
+**Fix.** There is nothing else to print. drizzle-kit renders its own progress and discards what a failed task threw before ending the process, so henri caught the exit and this is what is left of it. Read the same database back with `henri db:schema:dump`, which goes through henri and says what is in it. On MariaDB the cause is known and is drizzle-kit's: it cannot introspect a schema holding a CHECK constraint, and a `json` column is one there. Move that store to `henri db:generate` and `henri db:migrate`, with `stores.default.sync` set to false so no boot pushes.
+
 ### `HENRI_MIGRATION_SNAPSHOT_MISSING`
 
 The snapshot a migration left the schema at is missing from meta/.

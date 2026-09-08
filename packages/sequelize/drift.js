@@ -1,3 +1,4 @@
+const { QueryTypes } = require('sequelize');
 const debug = require('debug')('henri:sequelize:drift');
 
 /**
@@ -43,8 +44,16 @@ const ALIASES = new Map([
 // the dialect no suite reaches, and its entry is Microsoft's documented
 // synonym rather than something henri has watched.
 const DIALECT_ALIASES = {
+  // MariaDB has no JSON type of its own: `JSON` is an alias for `LONGTEXT`
+  // with a `CHECK (json_valid(...))` next to it, so a column henri created
+  // as JSON reads back as LONGTEXT for ever. Without this line every model
+  // with a `json` field -- the user model's `roles`, on every application --
+  // is reported as drifted by `henri db:status`, with an
+  // `ALTER TABLE ... CHANGE ... JSON` the server accepts and which changes
+  // nothing, so the drift never closes. Measured on MariaDB 10.11 and 11.8.
   mariadb: new Map([
     ['DOUBLE PRECISION', 'DOUBLE'],
+    ['LONGTEXT', 'JSON'],
     ['REAL', 'DOUBLE'],
   ]),
   mssql: new Map([['DOUBLE PRECISION', 'FLOAT']]),
@@ -230,6 +239,43 @@ class Drift {
   }
 
   /**
+   * The dialect of the server that actually answered
+   *
+   * A store may say `mariadb` and get Sequelize's MariaDB dialect, or say
+   * `mysql` (which is what a `mariadb://` url becomes with
+   * `mariadbRewrite`, and what the mysql2 driver reaches a MariaDB server
+   * with) and get the MySQL one. The two servers do not spell the same
+   * schema the same way, so a comparison has to know which one it read --
+   * and the only way to know is to ask it. One statement, on a command that
+   * already reads the whole catalogue.
+   *
+   * @param {object} sequelize The connector
+   * @returns {Promise<string>} postgres, mysql, mssql, mariadb or sqlite
+   * @memberof Drift
+   */
+  async serverDialect(sequelize) {
+    const dialect = this.dialectName();
+
+    if (dialect !== 'mysql') {
+      return dialect;
+    }
+
+    try {
+      const [row] = await sequelize.query('SELECT VERSION() AS version', {
+        type: QueryTypes.SELECT,
+      });
+
+      return /mariadb/iu.test(String((row && row.version) || ''))
+        ? 'mariadb'
+        : 'mysql';
+    } catch (error) {
+      debug('server version: %s', error.message);
+
+      return dialect;
+    }
+  }
+
+  /**
    * Everything the database and the models disagree about
    *
    * A difference carries the `kind` of disagreement, the `table` and the
@@ -246,7 +292,7 @@ class Drift {
   async report() {
     const { adapter } = this;
     const sequelize = adapter.ensureConnector();
-    const dialect = this.dialectName();
+    const dialect = await this.serverDialect(sequelize);
     const differences = [];
     const unsupported = [];
 
