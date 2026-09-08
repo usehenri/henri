@@ -159,6 +159,107 @@ jobs:
           NODE_ENV: test
           HENRI_TEST_MYSQL_URL: mysql://root:henri@127.0.0.1:3306/henri_test
 
+  # MariaDB is a server rather than a dialect: henri compiles the same MySQL
+  # dialect for it and mysql2 is the driver either way, so this job runs the
+  # same suites the one above does and `target.server` is what the handful of
+  # measured differences branch on. It is here because the day it was first
+  # run it turned up two defects in a published package -- a `db:schema:dump`
+  # that wrote `DEFAULT 'NULL'` on every nullable column, and a `db:status`
+  # drift that could never close -- neither of which any other job can see.
+  mariadb:
+    name: Live MariaDB
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: henri
+          MARIADB_DATABASE: henri_test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd "mariadb-admin ping -h 127.0.0.1 -uroot -phenri"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          # The SQL suites never boot MongoDB
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      # `test:sql:mariadb` rather than `test:sql`: the variable alone would
+      # leave the run on sqlite, and this script is what names the dialect
+      - run: pnpm test:sql:mariadb
+        env:
+          NODE_ENV: test
+          HENRI_MARIADB_PORT: '3307'
+
+  # SQL Server is the dialect `@usehenri/mssql` actually runs on, and until
+  # this job existed the only thing covering it was the DDL it generates,
+  # checked as strings, offline. It is the slowest of the four -- the image
+  # is around 1.5GB unpacked, three to four times postgres -- which is why
+  # it runs the four projects that reach a server rather than the whole
+  # suite. Developer edition is free for this.
+  mssql:
+    name: Live SQL Server
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_SA_PASSWORD: Henri_Passw0rd
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Henri_Passw0rd -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          # The SQL suites never boot MongoDB
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      # The four projects that reach a server: the models, the dialect, the
+      # queue's claim and the webhook endpoints
+      - run: pnpm test:sql:mssql
+        env:
+          NODE_ENV: test
+
   # `config.shared`: the rate limit, the sign-in lockout and the idempotency
   # keys counted in Redis instead of one process. Offline the suite skips, so
   # this job is what actually exercises @usehenri/redis.

@@ -11,9 +11,10 @@
 #   pnpm db:down           stop them, keeping the data
 #   pnpm db:reset          stop them and delete the data
 #
-# The `Live PostgreSQL` and `Live MySQL` jobs are the two the CI runs; the
-# SQL Server below is local only, and the note beside it says what putting it
-# in the CI would cost.
+# All four servers have a CI job of their own (`Live PostgreSQL`,
+# `Live MySQL`, `Live MariaDB`, `Live SQL Server`), each
+# `continue-on-error`, so none of them blocks a pull request. These are the
+# same servers, on ports that do not fight with whatever else is running.
 #
 # Nothing else in the repository needs Docker: `pnpm test` runs on sqlite and
 # an in-process MongoDB, offline. The host ports can be moved when something

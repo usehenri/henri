@@ -51,8 +51,12 @@ HENRI_TEST_MARIADB_URL=mysql://root:henri@127.0.0.1:3307/henri_test pnpm test:sq
 ```
 
 `pnpm db:up` starts all of them from `compose.yaml`, SQL Server and MariaDB
-included. Neither of those two is in the CI, so run them yourself when a
-change touches what they cover.
+included. All four have a job of their own now (`Live PostgreSQL`,
+`Live MySQL`, `Live MariaDB`, `Live SQL Server`), and all four are
+`continue-on-error`, so none of them blocks a pull request -- which means
+nothing stops you merging past a real failure, and reading them when you
+touch an SQL adapter is the whole point. The two below are the slow ones and
+are worth running locally first.
 
 SQL Server is the dialect `@usehenri/mssql` actually runs on, so run it when
 a change touches `@usehenri/sequelize`, `@usehenri/jobs` or
