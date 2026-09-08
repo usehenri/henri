@@ -15,6 +15,13 @@ const { Runner } = require('../src/runner');
  * the runners race on the server rather than in one client. On sqlite that
  * proves the logic; against the PostgreSQL and MySQL of `pnpm test:sql:live`
  * it proves the guarantee.
+ *
+ * **Every assertion about the high-water mark is an upper bound**, and that
+ * is not an accident: a loaded machine may run fewer jobs at once than it
+ * was allowed to, so `most(key) <= limit` fails only on a real bug while
+ * `most(key) >= 2` fails on a slow afternoon. What a drain cannot show --
+ * that a key which is full holds back its own work and nobody else's -- is
+ * asserted through the permits instead, which involve no clock.
  */
 
 const RUNNERS = target.live ? 4 : 2;
@@ -191,14 +198,69 @@ describe(`concurrency limits (${target.name}, ${RUNNERS} runners)`, () => {
       expect(live.most(`tenanted:${tenant}`)).toBeLessThanOrEqual(2);
     }
 
-    // And the bound is on the key, not on the job: more than one tenant's
-    // worth ran at once, or the limit would be indistinguishable from a
-    // limit on `tenanted` itself
-    expect(live.most('*')).toBeGreaterThan(2);
-
     expect(live.performed()).toHaveLength(tenants.length * 4);
     expect(await queues[0].count({ state: 'done' })).toBe(tenants.length * 4);
   }, 120000);
+
+  test('a full key never holds another key of the same job back', async () => {
+    // The other half of a keyed limit, and the half a drain cannot show:
+    // that three tenants of two ran six at once is a claim about wall clock
+    // overlap, which a loaded machine is free to deny. What the bound
+    // actually promises is that a full key stops its own work and no one
+    // else's, and permits say that without a timer
+    for (const tenant of ['acme', 'globex']) {
+      for (let index = 0; index < 2; index += 1) {
+        await queues[0].perform('tenanted', {
+          tenant,
+          token: `${tenant}-${index}`,
+        });
+      }
+    }
+
+    // Somebody else holds every permit acme has
+    const held = [];
+
+    for (let slot = 0; slot < 2; slot += 1) {
+      held.push(
+        await queues[0].store.takeSlot({
+          key: 'tenanted:acme',
+          limit: 2,
+          now: Date.now(),
+          runner: 'somebody-else',
+        })
+      );
+    }
+
+    expect(held).toEqual([0, 1]);
+
+    await new Runner(queues[1 % RUNNERS], {
+      concurrency: 4,
+      recurring: false,
+    }).once();
+
+    // The globex jobs went through; acme is still waiting, and would not be
+    // if the bound were on `tenanted` rather than on the key
+    expect([...live.performed()].sort()).toEqual(['globex-0', 'globex-1']);
+
+    const waiting = await queues[0].list({ state: 'pending' });
+
+    expect(waiting).toHaveLength(2);
+    expect(waiting.every((job) => job.concurrencyKey === 'tenanted:acme')).toBe(
+      true
+    );
+
+    for (const slot of held) {
+      await queues[0].store.releaseSlot('tenanted:acme', slot, 'somebody-else');
+    }
+
+    await new Runner(queues[1 % RUNNERS], {
+      concurrency: 4,
+      recurring: false,
+    }).once();
+
+    expect(live.performed()).toHaveLength(4);
+    expect(await queues[0].count({ state: 'pending' })).toBe(0);
+  }, 60000);
 
   test('the key is stored with the job, prefixed by its group', async () => {
     const bounded = await queues[0].perform('tenanted', {

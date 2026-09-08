@@ -46,26 +46,15 @@ const reset = () => {
  */
 const inside = async (key, token, wait = 25) => {
   const counters = state();
-  // `*` is every key at once, which is what says a keyed bound partitions
-  // rather than serializing: three keys of two may run six
-  const keys = [key, '*'];
 
-  for (const counted of keys) {
-    counters.live[counted] = (counters.live[counted] || 0) + 1;
-    counters.max[counted] = Math.max(
-      counters.max[counted] || 0,
-      counters.live[counted]
-    );
-  }
-
+  counters.live[key] = (counters.live[key] || 0) + 1;
+  counters.max[key] = Math.max(counters.max[key] || 0, counters.live[key]);
   counters.order.push(token);
 
   try {
     await new Promise((resolve) => setTimeout(resolve, wait));
   } finally {
-    for (const counted of keys) {
-      counters.live[counted] -= 1;
-    }
+    counters.live[key] -= 1;
   }
 
   return token;
