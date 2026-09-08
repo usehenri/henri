@@ -526,7 +526,7 @@ const intro = (facts) => {
     ? `\`${facts.adapter}\` (${facts.dialect})`
     : `\`${facts.adapter}\``;
   const more = facts.mcp
-    ? "\n\nWhen you need more than this file, ask the `henri` MCP server that `.mcp.json` starts: `guide` is henri's documentation at the version installed here, `routes`, `models`, `config` and `openapi` answer for this application, and `errors`, `logs` and `request` answer for the running one. Read those rather than recalling henri."
+    ? "\n\nWhen you need more than this file, ask the `henri` MCP server that `.mcp.json` starts: `guide` is henri's documentation at the version installed here, `routes`, `models`, `config` and `openapi` answer for this application, and `errors`, `logs`, `schema` and `request` answer for the running one. Read those rather than recalling henri, and read `schema` before writing SQL: the model files do not know the table and column names the database really has."
     : '';
 
   return `# ${facts.name}: conventions for coding agents

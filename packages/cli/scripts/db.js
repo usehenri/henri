@@ -14,6 +14,7 @@ const COMMANDS = [
   'push',
   'reset',
   'rollback',
+  'schema',
   'schema:dump',
   'schema:load',
   'seed',
@@ -535,6 +536,67 @@ const schema = async (command, store, args) => {
 };
 
 /**
+ * Runs `henri db:schema`: what the database holds, in its own words
+ *
+ * The other half of `henri db:status`, and deliberately not a second way to
+ * compute it. `db:status` answers what is *wrong* -- the migrations that
+ * are pending, or what the database and the models disagree about -- and
+ * says nothing at all when the answer is "nothing". This one answers what
+ * is *there*: the table each model really lives in, the columns the
+ * database really has and the types the dialect really chose, which is the
+ * question a clean `db:status` leaves unanswered and the only question a
+ * MongoDB store has ever been able to answer here.
+ *
+ * @param {object} store The store adapter
+ * @param {object} args CLI arguments (`table` narrows it)
+ * @returns {Promise<object>} The result
+ */
+const described = async (store, args) => {
+  const answer = await store.describe();
+  const filter =
+    typeof args.table === 'string' ? args.table.toLowerCase() : null;
+
+  return {
+    ...answer,
+    command: 'schema',
+    ok: true,
+    tables: filter
+      ? answer.tables.filter(
+          (table) =>
+            table.table.toLowerCase() === filter ||
+            String(table.model).toLowerCase() === filter
+        )
+      : answer.tables,
+  };
+};
+
+/**
+ * The store of `henri db:schema`
+ *
+ * @param {object} henri A booted instance
+ * @param {string} name The store name
+ * @returns {Promise<object>} The store adapter
+ * @throws {CliError} USAGE when the store is unknown, FAILED when the
+ *   adapter cannot read its own storage back
+ */
+const describes = async (henri, name) => {
+  const store = await storeOf(henri, name);
+
+  if (typeof store.describe !== 'function') {
+    await henri.stop();
+    throw new CliError(
+      'FAILED',
+      `Store "${name}" (${store.adapterName}) cannot describe its schema`,
+      {
+        hint: `describe() is part of the store adapter contract: upgrade @usehenri/${store.adapterName} in this application, or read the schema with "henri db:status"`,
+      }
+    );
+  }
+
+  return store;
+};
+
+/**
  * Runs `henri db:status`, whichever adapter the store uses
  *
  * A store with migrations (drizzle) answers what is applied and what is
@@ -619,6 +681,105 @@ const warnings = (findings, token, approved = false) => {
       ? `    Approved: "${token}" is in migrations.approved`
       : `    A production migrate refuses this until migrations.approved holds "${token}"`
   );
+};
+
+/**
+ * What is worth saying about one column past its name and its type
+ *
+ * @param {object} column One described column
+ * @returns {string} The flags, joined
+ */
+const flags = (column) => {
+  const said = [];
+
+  if (column.primaryKey) {
+    said.push('primary key');
+  }
+
+  if (!column.nullable) {
+    said.push('not null');
+  }
+
+  if (column.default !== null && typeof column.default !== 'undefined') {
+    said.push(`default ${column.default}`);
+  }
+
+  if (column.values) {
+    said.push(`one of ${column.values.join(', ')}`);
+  }
+
+  // Only when it is news: a column named after its field says nothing
+  if (column.attribute && column.attribute !== column.name) {
+    said.push(`the model calls it ${column.attribute}`);
+  }
+
+  return said.join(', ');
+};
+
+/**
+ * Prints `henri db:schema`
+ *
+ * @param {object} result What described() returned
+ * @returns {void}
+ */
+const schemaOf = (result) => {
+  const width = Math.max(
+    ...result.tables.flatMap((table) =>
+      table.columns.map((column) => column.name.length)
+    ),
+    8
+  );
+
+  console.log(
+    `  Store ${result.store} (${result.adapter}${
+      result.dialect ? `, ${result.dialect}` : ''
+    }), read from the ${result.read === 'database' ? 'database' : 'models'}`
+  );
+
+  if (result.note) {
+    console.log(`  ! ${result.note}`);
+  }
+
+  result.tables.forEach((table) => {
+    console.log('');
+    console.log(
+      `  ${table.table}${table.model ? ` (${table.model})` : ''}${
+        table.exists ? '' : ' -- the table is missing'
+      }`
+    );
+    table.columns.forEach((column) => {
+      const said = flags(column);
+
+      console.log(
+        `    ${column.name.padEnd(width)}  ${column.type}${said ? `  [${said}]` : ''}`
+      );
+    });
+    table.indexes.forEach((index) => {
+      const kind = [index.primary && 'primary', index.unique && 'unique']
+        .filter(Boolean)
+        .join(' ');
+
+      console.log(
+        `    ${kind ? `${kind} ` : ''}index ${index.name} (${index.columns.join(', ')})`
+      );
+    });
+  });
+
+  if (result.unclaimed.length > 0) {
+    console.log('');
+    console.log(`  No model claims: ${result.unclaimed.join(', ')}`);
+  }
+
+  // Only where there is one to point at: `db:status` refuses on a store
+  // with neither migrations nor a drift to report, which is every
+  // document store
+  if (result.kind === 'sql') {
+    console.log('');
+    console.log(
+      '  This is what the database holds. "henri db:status" says what is'
+    );
+    console.log('  pending, or what it and the models disagree about.');
+  }
 };
 
 /**
@@ -715,6 +876,10 @@ const print = (result) => {
         console.log(`    ${statement.replace(/;(?=.)/g, ';\n    ')}`)
       );
     }
+  }
+
+  if (result.command === 'schema') {
+    schemaOf(result);
   }
 
   if (result.command === 'generate') {
@@ -871,6 +1036,14 @@ const main = async (args) => {
       const store = await storeOf(henri, name);
 
       result = await status(store, args).finally(() => henri.stop());
+    } else if (command === 'schema') {
+      // Without the sync, like db:status: reading a schema must not be
+      // what creates it. A table that is not there answers `exists: false`
+      // rather than being made on the way past
+      const henri = await boot();
+      const store = await describes(henri, name);
+
+      result = await described(store, args).finally(() => henri.stop());
     } else if (command.startsWith('schema:')) {
       const henri = await boot();
       const store = await dumps(henri, name);
@@ -915,6 +1088,8 @@ const main = async (args) => {
 module.exports = main;
 module.exports.COMMANDS = COMMANDS;
 module.exports.create = create;
+module.exports.describes = describes;
+module.exports.described = described;
 module.exports.drop = drop;
 module.exports.dumps = dumps;
 module.exports.migrations = migrations;

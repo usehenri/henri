@@ -58,7 +58,7 @@ const TARGETS = [
   'test',
 ];
 
-const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the openapi tool to learn the HTTP surface in one call -- every path, its guards, its request body and the answers henri itself produces -- and trust what it marks unknown. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor, audit and test. The guide tool serves the documentation of the henri version installed here -- the pages ship inside @usehenri/core, so they describe this application's framework rather than the latest release: read it instead of guessing from memory. errors, logs, query, records, runtime_routes and request answer against the running application rather than its files: start with errors when something failed, and use request to check a fix without a browser.`;
+const INSTRUCTIONS = `henri is a Rails-like MVC framework for Node.js. Read the henri://conventions resource (or AGENTS.md) before changing the application: it states the layout, the naming rules and the commands. Use the openapi tool to learn the HTTP surface in one call -- every path, its guards, its request body and the answers henri itself produces -- and trust what it marks unknown. Use the generate tool to add models, controllers, routes, views, jobs, workers and tests instead of writing files by hand, then run doctor, audit and test. The guide tool serves the documentation of the henri version installed here -- the pages ship inside @usehenri/core, so they describe this application's framework rather than the latest release: read it instead of guessing from memory. errors, logs, query, records, runtime_routes, schema and request answer against the running application rather than its files: start with errors when something failed, read schema before writing any SQL (the model files do not know the table and column names the database really has), and use request to check a fix without a browser.`;
 
 /** The levels pen writes with */
 const LEVELS = ['error', 'warn', 'info', 'verbose', 'debug', 'silly'];
@@ -526,6 +526,38 @@ const createServer = ({ cwd = process.cwd() } = {}) => {
       title: 'Mounted routes',
     },
     async () => answered(await runtime.call('/routes'))
+  );
+
+  server.registerTool(
+    'schema',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        "What the databases of the running application actually hold, per store: the real table name of each model, its real columns (name, type, nullable, default, primary key, the values of an enum) with the model `attribute` a rename maps them back to, its indexes, and the names of the tables no model claims. This is the database's view, not the model files' -- the models tool reads the files and cannot know the table a `tableName` renamed, the column a `field` renamed, the type the dialect chose, or an index somebody added by hand. Write SQL for the query tool from this, never from a model file. A SQL store also answers `drift`, what it and the models disagree about (the same report `henri db:status` prints), or `migrations`, what is applied and pending, whichever its adapter keeps. A MongoDB store answers `enforced: false` and `read: \"models\"`: the collections and the indexes are read from the server, the fields are henri's declaration and MongoDB holds no document to them. Column names are never masked; a column default is, under the same rules as a query row. 50 tables a store, and it says when it cut.",
+      inputSchema: {
+        store: zod
+          .string()
+          .max(60)
+          .optional()
+          .describe('Which store (every store when unset)'),
+        table: zod
+          .string()
+          .max(120)
+          .optional()
+          .describe('One table or model by name, instead of all of them'),
+      },
+      title: 'Read the schema',
+    },
+    async ({ store, table }) =>
+      answered(
+        await runtime.call('/schema', {
+          query: Object.assign(
+            {},
+            store ? { store } : {},
+            table ? { table } : {}
+          ),
+        })
+      )
   );
 
   server.registerTool(

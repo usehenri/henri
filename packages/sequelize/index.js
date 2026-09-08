@@ -1,6 +1,7 @@
 const Sequelize = require('sequelize');
 const debug = require('debug')('henri:sequelize');
 const { Drift, describeDifference } = require('./drift');
+const { describe: describeSchema } = require('./describe');
 const { decorateAttributes, decorateModel } = require('./encryption');
 const { decorateModel: decorateVersions } = require('./versions');
 const { decorateModel: decorateTenant, tenantAttribute } = require('./tenant');
@@ -67,6 +68,19 @@ const { DataTypes } = Sequelize;
  *   (SQL adapters only): the tables, columns and indexes that differ, and
  *   the DDL that would close each one. Reads, never writes. `henri
  *   db:status` prints it and a production boot warns about it.
+ * @method async describe() What the database holds, in its own words:
+ *   `{ store, adapter, kind, dialect, read, enforced, tables, unclaimed }`.
+ *   A table carries its real name, the `model` that claims it, whether it
+ *   `exists`, its `columns` (`name`, `type`, `nullable`, `default`,
+ *   `primaryKey`, the `values` of an enum, and the model `attribute` a
+ *   `field` renamed) and its `indexes`; `unclaimed` names the tables no
+ *   model declares. `read` says where the columns came from -- `database`
+ *   on SQL, where `enforced` is true, and `models` on MongoDB, which
+ *   enforces no shape of its own. Optional and read only:
+ *   `GET /_henri/runtime/schema`, the `schema` tool of `henri mcp` and
+ *   `henri db:schema` are what ask for it. It says what is there;
+ *   `drift()` says what is wrong with it, and the two are never computed
+ *   from one another.
  */
 
 /**
@@ -1136,6 +1150,22 @@ class Sql {
    */
   async drift() {
     return new Drift(this).report();
+  }
+
+  /**
+   * What the database holds, in its own words
+   *
+   * The tables of every model with the columns and the indexes the database
+   * really has, and the names of the tables no model claims. Read with
+   * `describeTable()` and `showIndex()`; nothing is written. `drift()` is
+   * the other question -- what the two disagree about -- and neither is
+   * derived from the other.
+   *
+   * @returns {Promise<object>} The schema
+   * @memberof Sql
+   */
+  async describe() {
+    return describeSchema(this);
   }
 
   /**

@@ -65,9 +65,96 @@ const { buildUrl, coded, fatal, normalizeEmail, redact } = require('./utils');
  * to hand it one from a REPL prompt; and a MongoDB transaction needs a
  * replica set, which `mongodb-memory-server` is not started as.
  * @method async query(sql, params) Raw query (SQL adapters only)
+ * @method async describe() What the database holds, in its own words:
+ *   `{ store, adapter, kind, dialect, read, enforced, tables, unclaimed }`.
+ *   A table carries its real name, the `model` that claims it, whether it
+ *   `exists`, its `columns` (`name`, `type`, `nullable`, `default`,
+ *   `primaryKey`, the `values` of an enum, and the model `attribute` a
+ *   `field` renamed) and its `indexes`; `unclaimed` names the tables no
+ *   model declares. `read` says where the columns came from -- `database`
+ *   on SQL, where `enforced` is true, and `models` here, because MongoDB
+ *   enforces no shape of its own: the collection is real, the indexes are
+ *   real, and the fields are henri's declaration applied by Mongoose in
+ *   this process. Optional and read only: `GET /_henri/runtime/schema`,
+ *   the `schema` tool of `henri mcp` and `henri db:schema` ask for it.
  */
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * The fields a model declares, in the shape `describe()` answers a column
+ * in.
+ *
+ * Two sources, because henri owns half of this: the Mongoose schema says
+ * the path and its type, and `validates` says whether it is required and
+ * what values it takes -- those two are lifted out of the path definition
+ * on the way in (see `validations.js`) so that henri owns the message, so
+ * reading only the path would answer that nothing is required.
+ *
+ * A default that is a function is answered as null rather than as its
+ * source: it is computed per document, so there is no value to state.
+ *
+ * @param {object} schema A Mongoose schema
+ * @param {?object} rules What `validationsOf()` compiled, by field
+ * @returns {Array<object>} The fields
+ */
+const pathsOf = (schema, rules) => {
+  const fields = [];
+
+  schema.eachPath((name, path) => {
+    const options = path.options || {};
+    const rule = (rules && rules[name]) || {};
+    const values = Array.isArray(rule.enum)
+      ? rule.enum.map(String)
+      : (Array.isArray(path.enumValues) && path.enumValues.map(String)) || null;
+
+    fields.push({
+      attribute: name,
+      default:
+        typeof options.default === 'undefined' ||
+        typeof options.default === 'function'
+          ? null
+          : options.default,
+      name,
+      nullable: rule.required !== true && path.isRequired !== true,
+      primaryKey: name === '_id',
+      type: path.instance || 'Mixed',
+      values: values && values.length > 0 ? values : null,
+    });
+  });
+
+  return fields;
+};
+
+/**
+ * The indexes a collection really carries, asked of the server
+ *
+ * @param {object} Model A Mongoose model
+ * @returns {Promise<Array<object>>} The indexes
+ */
+const indexesOf = async (Model) => {
+  let indexes;
+
+  try {
+    indexes = await Model.collection.indexes();
+  } catch (error) {
+    // A collection MongoDB has never been asked to write has no namespace
+    debug(
+      'cannot read the indexes of %s: %s',
+      Model.collection.name,
+      error.message
+    );
+
+    return [];
+  }
+
+  return indexes.map((index) => ({
+    columns: Object.keys(index.key || {}),
+    name: index.name,
+    primary: index.name === '_id_',
+    unique: index.unique === true,
+  }));
+};
 
 // Query middleware where passwords are hashed and roles protected
 const UPDATE_HOOKS = ['updateOne', 'updateMany', 'findOneAndUpdate'];
@@ -874,6 +961,82 @@ class Mongoose {
    */
   async transaction(fn) {
     return this.mongoose.connection.transaction(fn);
+  }
+
+  /**
+   * What the database holds, in its own words -- and MongoDB has fewer
+   * words than a SQL server does.
+   *
+   * Three of the four things asked here are real, server-side facts: which
+   * collections exist, which indexes each one carries, and which
+   * collections no model claims. The fourth, the fields, is not: MongoDB
+   * validates nothing henri gave it, so the columns come from the Mongoose
+   * schema -- henri's own declaration, applied by this process on its way
+   * in and out. A document written by anything else can hold any shape at
+   * all, and one written before a field was added or removed still holds
+   * the old one.
+   *
+   * So the answer says `read: 'models'` and `enforced: false` rather than
+   * pretending it read a schema back, and it carries a `note` saying the
+   * same thing in a sentence, because the reader is usually an agent that
+   * will act on it.
+   *
+   * @returns {Promise<object>} The schema
+   * @memberof Mongoose
+   */
+  async describe() {
+    const { db } = this.mongoose.connection;
+
+    if (!db) {
+      throw coded(
+        'HENRI_STORE_NOT_STARTED',
+        `${this.adapterName}: store ${this.name} is not started`
+      );
+    }
+
+    const present = await db
+      .listCollections({}, { nameOnly: true })
+      .toArray()
+      .then((entries) => entries.map((entry) => entry.name))
+      .catch((error) => {
+        debug('cannot list the collections: %s', error.message);
+
+        return null;
+      });
+    const claimed = new Set();
+    const tables = [];
+
+    for (const globalId of Object.keys(this.models)) {
+      const Model = this.models[globalId];
+      const table = Model.collection.name;
+
+      const declared = (this.definitions[globalId] || {}).model || {};
+
+      claimed.add(table);
+      tables.push({
+        columns: pathsOf(Model.schema, validationsOf(declared)),
+        exists: present ? present.includes(table) : true,
+        indexes: await indexesOf(Model),
+        model: globalId,
+        table,
+      });
+    }
+
+    return {
+      adapter: this.adapterName,
+      dialect: null,
+      enforced: false,
+      kind: 'document',
+      note: 'MongoDB enforces no schema: the fields below are what the models declare and what Mongoose applies in this process, not what the documents hold. The collections and the indexes are read from the server.',
+      read: 'models',
+      store: this.name,
+      tables: tables.sort((left, right) =>
+        left.table.localeCompare(right.table)
+      ),
+      unclaimed: (present || [])
+        .filter((table) => !claimed.has(table))
+        .sort((left, right) => left.localeCompare(right)),
+    };
   }
 
   /**

@@ -852,7 +852,10 @@ Each adapter is a package to install in the application; the name in `stores.<na
 await henri.model.stores.default.ping(); // true when the database answers
 await henri.model.stores.default.transaction(async (t) => { ... }); // SQL transaction, or Mongoose session (needs a replica set)
 await henri.model.stores.default.query('SELECT 1 + ?', [1]); // SQL adapters only
+await henri.model.stores.default.describe(); // what the database holds
 ```
+
+`describe()` is the one that reads the database back rather than the model files, which is why it is worth knowing about: the physical table name, the real column names (the `externalId` a model declares is `external_id` in every SQL store henri writes), the type the dialect chose, the nullability, the defaults, the values of an enum where the dialect keeps them, every index that exists, and the names of the tables no model claims. It reads and never writes, and `henri db:schema` prints it. On a `mongoose` store the answer says `enforced: false` and `read: "models"`: the collections and the indexes come from the server and are real, the fields are henri's own declaration, and MongoDB holds no document to them.
 
 Sessions are stored in the database of the user model's store: a `henriSessions` collection on MongoDB, a `henri_sessions` table on a drizzle store, a table created by connect-session-sequelize on an mssql one (the `session` key of the store configures any of them).
 
@@ -925,6 +928,7 @@ Migrations live in `db/migrations` in the drizzle-kit layout, and `henri db` dri
 
 ```bash
 henri db:status                          # applied and pending migrations
+henri db:schema                          # what the database holds: tables, columns, types, indexes
 henri db:generate --name=add-priority    # writes db/migrations/0001_add_priority.sql from the models
 henri db:migrate                         # applies the pending migrations
 henri db:rollback                        # undoes the last one (--step=<n> for more)
@@ -932,6 +936,8 @@ henri db:push                            # makes the database match the models, 
 henri db:schema:dump                     # writes db/schema.sql from the database
 henri db:schema:load                     # creates that schema in an empty database
 ```
+
+`db:status` and `db:schema` are two questions of the same database and neither is computed from the other: `db:status` says what is _wrong_ and says nothing when the answer is "nothing", `db:schema` says what is _there_. `db:schema` is the only one of the two a `mongoose` store can answer.
 
 In development the boot pushes the schema unless the store sets `"sync": false`; in production the boot applies the pending migrations when the store sets `"migrate": true` and warns about them otherwise. `henri db:push` refuses statements that lose data unless `--force` is passed; every command accepts `--store=<name>` and `--json`. `henri db:seed` is the exception: it runs [`db/seeds.js`](#seeds) on any adapter.
 

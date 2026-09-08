@@ -3201,6 +3201,70 @@ declare namespace start {
       params?: unknown[] | Record<string, unknown>,
       options?: Record<string, unknown>
     ): Promise<any>;
+    /**
+     * What the database holds, in its own words: read from the server, not
+     * from the model files, so it carries the physical table name, the
+     * column a rename produced, the type the dialect chose and the indexes
+     * that really exist. `GET /_henri/runtime/schema`, the `schema` tool of
+     * `henri mcp` and `henri db:schema` are what ask for it.
+     */
+    describe?(): Promise<StoreSchema>;
+  }
+
+  /** One column, as `describe()` answers it. */
+  interface StoreColumn {
+    /** The model attribute this column holds, when one claims it. */
+    attribute: string | null;
+    /** The column default, redacted on the runtime endpoint. */
+    default: unknown;
+    /** The column name in the database. */
+    name: string;
+    nullable: boolean;
+    primaryKey: boolean;
+    /** The type in the database's own words (`character varying(255)`). */
+    type: string;
+    /** The values of an enum, where the dialect keeps them. */
+    values: string[] | null;
+  }
+
+  /** One index, as `describe()` answers it. */
+  interface StoreIndex {
+    columns: string[];
+    name: string;
+    primary: boolean;
+    unique: boolean;
+  }
+
+  /** One table, as `describe()` answers it. */
+  interface StoreTable {
+    columns: StoreColumn[];
+    /** Whether the table is in the database at all. */
+    exists: boolean;
+    indexes: StoreIndex[];
+    /** The model that claims it. */
+    model: string | null;
+    /** The table (or collection) name. */
+    table: string;
+  }
+
+  /** What `StoreAdapter#describe()` answers. */
+  interface StoreSchema {
+    adapter: string;
+    dialect: string | null;
+    /**
+     * Whether the database holds every row to this shape. False on
+     * MongoDB, where the fields are henri's declaration and nothing else.
+     */
+    enforced: boolean;
+    kind: 'sql' | 'document';
+    /** Said out loud when something about the answer needs saying. */
+    note?: string | null;
+    /** Where the columns came from. */
+    read: 'database' | 'models';
+    store: string;
+    tables: StoreTable[];
+    /** The tables in the database no model claims. */
+    unclaimed: string[];
   }
 
   // ---------------------------------------------------------------------------

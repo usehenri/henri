@@ -11,9 +11,16 @@ const { filterParameters, redact, redactUrl } = require('./redact');
  * Everything else an agent has of a henri application is static analysis of
  * the files (`henri routes`, `henri doctor`, the MCP tools built on them).
  * This is the process: the last errors with the request that caused them,
- * the lines `pen` wrote, the routes the router really registered, a
- * read-only query and one record read through its model. `@usehenri/mcp`
- * calls it over the loopback interface and turns it into tools.
+ * the lines `pen` wrote, the routes the router really registered, the
+ * schema the databases really hold, a read-only query and one record read
+ * through its model. `@usehenri/mcp` calls it over the loopback interface
+ * and turns it into tools.
+ *
+ * The schema is here rather than in `henri doctor` for the same reason the
+ * routes are: the physical table name, the column a `field` renamed, the
+ * type the dialect chose and the index somebody added by hand live in the
+ * database and in the ORM objects of *this* process, and no reading of the
+ * model files can produce them.
  *
  * ## The rules this module enforces
  *
@@ -44,11 +51,15 @@ const { filterParameters, redact, redactUrl } = require('./redact');
  *    application says otherwise), urls lose the values of their filtered
  *    query parameters, and rows -- from a query or from a model -- are
  *    redacted on the way out with `password` masked whatever the
- *    configuration says.
+ *    configuration says. A schema is the one answer where a *name* must
+ *    survive that -- naming the columns is the point of it, and `password`
+ *    is a column an agent has to be able to see -- so only the values go
+ *    through the rule: a column default is masked by the column's own name
+ *    and by its shape, exactly as a query row is.
  * 5. **Every answer is bounded, and says by how much.** `LIMITS` holds the
- *    caps: 500 log lines, 25 errors, 100 rows, 25 records, 2000 characters
- *    per line, 40 stack frames. Anything cut carries `truncated: true` and
- *    the limit that cut it.
+ *    caps: 500 log lines, 25 errors, 100 rows, 25 records, 50 tables, 2000
+ *    characters per line, 40 stack frames. Anything cut carries
+ *    `truncated: true` and the limit that cut it.
  */
 
 /** Where the router is mounted */
@@ -80,6 +91,8 @@ const LIMITS = Object.freeze({
   sql: 4000,
   /** Frames of a stack */
   stack: 40,
+  /** Tables one schema may describe */
+  tables: 50,
 });
 
 /** The statements a query may start with */
@@ -984,6 +997,150 @@ async function query(henri, body = {}) {
 }
 
 /**
+ * One column with its default redacted the way every other value here is:
+ * by the key it arrived under, and by shape.
+ *
+ * A column *name* is never masked -- naming the columns is what this
+ * endpoint is for, and `password` is a column an agent has to be able to
+ * see. A column *default* is a value, so it goes through the same rule as
+ * a query row, with the column name as its key: a default under a filtered
+ * name is masked, and so is one that looks like a hash or an encryption
+ * envelope whatever it is called.
+ *
+ * @param {object} entry One column of a described table
+ * @param {{filters: Array<string>, keys: Set<string>}} redaction what to mask
+ * @returns {object} The column
+ */
+function column(entry, redaction) {
+  if (entry.default === null || typeof entry.default === 'undefined') {
+    return entry;
+  }
+
+  return {
+    ...entry,
+    default: scrub({ [entry.name]: entry.default }, redaction)[entry.name],
+  };
+}
+
+/**
+ * What one store holds, and what is wrong with it
+ *
+ * `describe()` says what is there and `drift()` says what the database and
+ * the models disagree about -- the same call `henri db:status` prints, so
+ * the two can never say different things. A store with migrations
+ * (drizzle) has no `drift()` and answers what is applied and what is
+ * pending instead, which is again what `henri db:status` answers there.
+ *
+ * @param {object} store A store adapter
+ * @param {object} options `{ filter, redaction }`
+ * @returns {Promise<object>} The store's schema
+ */
+async function described(store, { filter, redaction }) {
+  if (typeof store.describe !== 'function') {
+    return {
+      adapter: store.adapterName || null,
+      described: false,
+      reason: `the ${store.adapterName} adapter cannot describe its schema: it is older than describe(), or it does not read its own storage back`,
+      store: store.name,
+    };
+  }
+
+  const answer = await store.describe();
+  const wanted = filter
+    ? answer.tables.filter(
+        (table) =>
+          table.table.toLowerCase() === filter ||
+          String(table.model).toLowerCase() === filter
+      )
+    : answer.tables;
+  const tables = wanted.slice(0, LIMITS.tables).map((table) => ({
+    ...table,
+    columns: table.columns.map((entry) => column(entry, redaction)),
+  }));
+  const out = {
+    ...answer,
+    described: true,
+    limit: LIMITS.tables,
+    matched: wanted.length,
+    tables,
+    truncated: wanted.length > LIMITS.tables,
+  };
+
+  if (typeof store.drift === 'function') {
+    const report = await store.drift();
+
+    // The differences without the DDL that would close them: `henri
+    // db:status --sql` is where a statement to run comes from, and an
+    // agent that wanted one would be writing to a database this endpoint
+    // never writes to
+    out.drift = {
+      clean: report.clean,
+      count: report.differences.length,
+      differences: report.differences.map((difference) => ({
+        column: difference.column,
+        description: difference.description,
+        index: difference.index,
+        kind: difference.kind,
+        model: difference.model,
+        table: difference.table,
+      })),
+      unsupported: report.unsupported,
+    };
+
+    return out;
+  }
+
+  if (store.migrations) {
+    const { applied, folder, pending } = await store.migrations.status();
+
+    out.migrations = { applied: applied.length, folder, pending };
+  }
+
+  return out;
+}
+
+/**
+ * What the stores of an application hold, as the databases say it
+ *
+ * Everything else henri can tell an agent about a schema is read off the
+ * model files, and the model files do not know the table a `tableName`
+ * renamed, the column a `field` renamed, the type the dialect chose, the
+ * index somebody added by hand or the table nothing declares. Those live in
+ * the database, in the ORM objects of *this* process, which is why this is
+ * a runtime endpoint and not something `henri doctor` could compute.
+ *
+ * @param {Henri} henri the henri instance
+ * @param {object} [options={}] `{ store, table }`
+ * @returns {Promise<object>} the schema, or `{ error }`
+ */
+async function schema(henri, { store: wanted, table } = {}) {
+  const stores = (henri.model && henri.model.stores) || {};
+  const known = Object.keys(stores);
+  const name = typeof wanted === 'string' && wanted !== '' ? wanted : null;
+
+  if (name && !stores[name]) {
+    return {
+      error: {
+        code: 'UNKNOWN_STORE',
+        known,
+        message: `there is no store named "${name}" in this application`,
+      },
+    };
+  }
+
+  const filter =
+    typeof table === 'string' && table !== '' ? table.toLowerCase() : null;
+  const redaction = redactionOf(henri);
+  const answered = [];
+
+  for (const store of (name ? [name] : known).map((key) => stores[key])) {
+    answered.push(await described(store, { filter, redaction }));
+  }
+
+  return { stores: answered, table: filter };
+}
+
+/**
  * Answer what a handler resolved with: 422 when it refused, 200 when it did
  * the work, and the failure itself when it threw
  *
@@ -1078,6 +1235,13 @@ function runtime(henri) {
 
   router.get('/routes', (req, res) => res.json(routes(henri)));
 
+  router.get('/schema', (req, res) =>
+    answered(
+      res,
+      schema(henri, { store: req.query.store, table: req.query.table })
+    )
+  );
+
   router.post('/query', (req, res) => answered(res, query(henri, req.body)));
 
   router.post('/records', (req, res) =>
@@ -1101,4 +1265,5 @@ module.exports.recorder = recorder;
 module.exports.records = records;
 module.exports.rowsOf = rowsOf;
 module.exports.routes = routes;
+module.exports.schema = schema;
 module.exports.scrub = scrub;
