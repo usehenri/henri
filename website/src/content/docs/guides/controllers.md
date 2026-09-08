@@ -139,6 +139,8 @@ module.exports = {
 
 A rule henri cannot carry out fails the boot with `HENRI_PARAMS_DECLARATION_INVALID`, naming the controller, the action and the key: an unknown type, an unknown key (`requird`), a constraint the type does not take (`min` on a string), a `default` the rule itself refuses, a selector naming an action the controller does not export. A declaration that silently accepts everything is the mistake this feature exists to remove.
 
+[`henri generate scaffold|crud`](/reference/cli/#generators) writes one for `create` and `update`: the columns of the model, typed, with the values of an `enum` column. It stops there deliberately — `required` and the lengths stay on the model, where a job, a seed and a console are held to them too, and the generated file argues why. Adding a `maxLength`, a `min` or a field that is no column at all is the edit that block is written to invite.
+
 ### Coercion
 
 A query string is all strings. A form body is all strings. A JSON body is not, and that is the rule:

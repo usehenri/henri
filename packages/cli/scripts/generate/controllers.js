@@ -39,6 +39,16 @@
  * `enum` column, so `new` and `edit` send `Model.enums` for the `<select>`s
  * of the form. See `fieldsOf()` in ../generate.js.
  *
+ * `accepted` is that same read pointing the other way: the type of every
+ * attribute a request may set, plus the `enum` of a column that has one,
+ * which is what the `params` block declares for `create` and `update`
+ * (`base/params-schema.js`). A hidden column is typed there while it is on
+ * no page -- what a request may set is not what an answer may carry -- and
+ * a column that names another model (`references`) is typed nowhere at
+ * all. `required` is deliberately not copied and the generated comment
+ * argues it: this vocabulary means "the key was absent" by it and the
+ * model means Rails' presence, so the same word would be two rules.
+ *
  * A model that declared `options: { slug: ... }` has a second public name,
  * and the urls of this resource carry that one instead (`base/slug.js`):
  * `slug` is true in the resource, the redirects are built from
@@ -104,6 +114,136 @@ const pageFile = ({ plural, renderer }, view) =>
   `app/views/pages/${plural}/${view}.${renderer === 'inertia' ? 'jsx' : 'js'}`;
 
 // --- the helpers every flavour shares --------------------------------------
+
+/** A field name as an object key: bare when it can be, quoted when not */
+const keyOf = (name) =>
+  /^[A-Za-z_$][\w$]*$/u.test(name) ? name : JSON.stringify(name);
+
+/**
+ * One rule of a `params` block: the short form of a type on its own
+ * (`done: 'boolean'` is `done: { type: 'boolean' }`), the object when the
+ * column has values to name
+ *
+ * @param {object} field { enum, name, type }
+ * @returns {string} The source line
+ */
+const ruleFor = ({ enum: values, name, type }) => {
+  const key = keyOf(name);
+
+  if (!values) {
+    return `      ${key}: '${type}',`;
+  }
+
+  // JSON.stringify rather than quotes of our own, the way `keyOf` above
+  // does it: escaping the quote and not the backslash is how a value
+  // ending in one closes the string it was supposed to stay inside, and
+  // this file writes JavaScript. Prettier runs over the result, so the
+  // double quotes become the house style's single ones on the way out
+  const listed = values.map((value) => JSON.stringify(value));
+
+  return `      ${key}: { enum: [${listed.join(', ')}], type: '${type}' },`;
+};
+
+/**
+ * The paragraph naming what FIELDS permits and the `params` block does not
+ * type, with the reason. Silence would be the wrong shape here: the block
+ * is the boundary of the request, so a column missing from it has to say
+ * why it is missing.
+ *
+ * @param {Array<string>} references Columns naming another model
+ * @param {Array<string>} untyped Columns whose type henri does not have
+ * @returns {string} The comment, or nothing at all
+ */
+const untypedNote = (references, untyped) => {
+  const clauses = [];
+
+  if (references.length > 0) {
+    clauses.push(`  // - ${references.join(', ')} name${references.length > 1 ? '' : 's'} another model.
+  //   henri publishes a foreign key as the \`externalId\` of the row it
+  //   names, so only this application knows whether a request carries that
+  //   or the column's own value -- which is why \`henri openapi\` leaves one
+  //   untyped in a request body too.`);
+  }
+
+  if (untyped.length > 0) {
+    clauses.push(`  // - ${untyped.join(', ')} carr${untyped.length > 1 ? 'y' : 'ies'} a type henri does not have.
+  //   It came from an adapter, and there is no rule to write for it.`);
+  }
+
+  return clauses.length === 0
+    ? ''
+    : `
+  //
+  // Permitted by FIELDS and not declared here:
+${clauses.join('\n')}`;
+};
+
+/**
+ * The `params` block: what a request may hold, and what each of those is.
+ *
+ * One selector for both writes, because the two accept the same thing:
+ * what separates them is `required`, which is not copied (see above). The
+ * short form of a rule is used where it fits (`done: 'boolean'` is
+ * `done: { type: 'boolean' }`). The comment it writes is the argument and
+ * is meant to be read.
+ *
+ * `accepted` is FIELDS minus the columns that name another model and minus
+ * the types henri does not have; when nothing is left there is no block,
+ * rather than an empty one that reads like an oversight.
+ *
+ * @param {object} opts { accepted, doc, references, untyped }
+ * @returns {string} The source code, or nothing at all
+ */
+const params = ({ accepted = [], doc, references = [], untyped = [] }) => {
+  if (accepted.length === 0) {
+    return '';
+  }
+
+  const rules = accepted.map(ruleFor).join('\n');
+  const notTyped = untypedNote(references, untyped);
+  const copied = accepted.some((field) => field.enum)
+    ? `
+  //
+  // The \`enum\` is a copy and the model is the original. A page never
+  // copies one -- \`new\` and \`edit\` send \`${doc}.enums\` -- but this block is
+  // compiled before any model exists (a controller is runlevel 2, a model
+  // 3), so a literal is the only thing that can be written here.`
+    : '';
+
+  return `
+  // What a request may hold, and what each of those is: the fields FIELDS
+  // permits, typed. The check runs behind the role and the policy guards
+  // and ahead of the hooks above, so a request that does not match is a
+  // 422 naming the field before anything is looked up.
+  //
+  // What is accepted is then written back where it came from, which is the
+  // half that changes this file: a form, a query string and a path
+  // parameter can only send text, so \`req.permit(...FIELDS)\` below hands
+  // the action \`true\` rather than the string "true", and \`false\` rather
+  // than "false" -- which every adapter stores as false and JavaScript
+  // reads as truthy. A JSON body is checked and never parsed, so a client
+  // that sends "true" there is refused rather than guessed at.
+  //
+  // What makes a *record* valid belongs on the model, where a job, a seed
+  // and a console are held to it too. \`required\` is the one worth naming:
+  // here it means "the key was absent", and on the model it means Rails'
+  // presence -- the empty string a form posts for an untouched input
+  // passes here and is refused there -- so a copy would read like the
+  // model's rule and would not be it. What is worth adding is what only a
+  // request knows: a \`maxLength\` so a megabyte of text is refused before
+  // anything stores it, a \`min\`/\`max\` on a number, a field this action
+  // takes that is no column at all (guides/controllers.md).${copied}${notTyped}
+  //
+  // Every other action declares nothing: the page and the size of a list
+  // are \`req.pagination()\`'s, and \`:id\` is a path parameter the lookup
+  // above already answers a 404 for -- the slug of a model that has one
+  // included, which is not a uuid.
+  params: {
+    'create,update': {
+${rules}
+    },
+  },`;
+};
 
 const fields = (opts) => {
   const { hidden = [], keys } = opts;
@@ -533,6 +673,7 @@ const resources = (opts) =>
   [
     header(opts),
     before({ actions: ['show', 'edit', 'update', 'destroy'], doc: opts.doc }),
+    params(opts),
     index(opts),
     newC(opts),
     create(opts),
@@ -557,6 +698,7 @@ const crud = (options) => {
   return [
     header(opts),
     before({ actions: ['update', 'destroy'], doc: opts.doc }),
+    params(opts),
     indexJson(opts),
     createJson(opts),
     updateJson(opts),

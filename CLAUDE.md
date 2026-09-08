@@ -2019,7 +2019,24 @@ test:sql:mariadb`, the compose service, `HENRI_TEST_MARIADB_URL`).
   `henri new` writes the sample `Task` model by hand for its `default` and
   the generator reads the `enum` next to it back, which is the worked
   example. Regenerating with `--force` is how pages catch up with a mark
-  that changed.
+  that changed. **The same read writes the controller's `params` block**
+  (`accepted` next to `fields` in `fieldsOf()`): `create` and `update`
+  declare the fields `FIELDS` permits, typed, with the `enum` of a column
+  that has one -- so a 422 arrives at the boundary, the action is handed
+  `false` rather than the truthy string `"false"`, and `henri openapi`
+  describes the request from the declaration instead of the model's
+  writable columns.
+  Three things are left out on purpose and the generated file argues each:
+  `required` (this vocabulary means "the key was absent" by it and the
+  model means Rails' presence, so the empty string a form posts passes here
+  and is refused there -- the same word would be two rules), everything
+  else about what makes a record valid (the model's, said once for a job, a
+  seed and a console too), and a column that names another model, which the
+  comment names rather than dropping in silence -- `base/openapi.js` leaves
+  a foreign key untyped in a request body for the same reason. The `enum`
+  _is_ copied, unlike a page's, because a controller is compiled at
+  runlevel 2 and there is no model to ask until 3. A resource with nothing
+  to type gets no block.
 - `@usehenri/uploads` is new in 1.2. It recognizes a file rather than
   validating it: a signature table plus a text inference over the first 4kb,
   so a valid header followed by anything is that type, a `.docx` is
