@@ -118,6 +118,10 @@
       "what": "the store adapters: loading them, starting them, talking to them"
     },
     {
+      "area": "stream",
+      "what": "the server-sent event streams of `res.stream()` and `henri.streams`: what they are named, what they carry and how many one process holds"
+    },
+    {
       "area": "telemetry",
       "what": "the OpenTelemetry spans and metrics of config.telemetry, and the @opentelemetry/api that carries them"
     },
@@ -2088,6 +2092,45 @@
       "code": "HENRI_STORE_URL_MISSING",
       "fix": "Set `stores.<name>.url`, or the `host`, `port`, `database`, `username` and `password` the adapter assembles one from. `DATABASE_URL` sets `stores.default.url`.",
       "what": "A store has nothing to connect to."
+    },
+    {
+      "area": "stream",
+      "causes": [
+        "an `event` or an `id` holding a newline, a carriage return or another control character",
+        "`henri.streams.publish(topic, event)` called with an empty event name"
+      ],
+      "code": "HENRI_STREAM_EVENT_INVALID",
+      "fix": "Name the event a plain word (`changed`, `proposal.updated`). henri refuses these rather than escaping them: a newline ends the field, so whoever chose the name would be writing raw event-stream fields into the frame.",
+      "what": "The name or the id of a stream event cannot be written into a frame."
+    },
+    {
+      "area": "stream",
+      "causes": [
+        "`res.stream(topic)` on a route whose controller does not name a model",
+        "no `subject` and no `policy`, so nothing said which `app/policies` file to ask"
+      ],
+      "code": "HENRI_STREAM_POLICY_REQUIRED",
+      "fix": "Pass the record the subscription is about (`res.stream(topic, { subject: proposal })`) or name the policy (`{ policy: \"Proposal\" }`). A stream that really is open to everybody says so on purpose, with `show: () => true` in `app/policies/<model>.js`.",
+      "what": "A stream was opened with no policy to ask, and henri opens none it cannot authorize."
+    },
+    {
+      "area": "stream",
+      "causes": [
+        "more subscribers than `streams.maxOpen` (1000 by default) on this process",
+        "streams that are never closed, because `streams.maxAge` was set to `false`"
+      ],
+      "code": "HENRI_STREAM_TOO_MANY",
+      "fix": "The subscriber is answered 503 with a `Retry-After` and comes back. Raise `streams.maxOpen` if the process can hold them, and check `streams.maxAge` is not `false` -- a stream that never ends is one that never gives its slot back.",
+      "what": "This process is already holding as many streams as it was told to."
+    },
+    {
+      "area": "stream",
+      "causes": [
+        "a topic that is not a string, is empty, is longer than 256 characters, or holds a control character"
+      ],
+      "code": "HENRI_STREAM_TOPIC_INVALID",
+      "fix": "Build the topic in the controller out of something henri already publishes: `res.stream(`proposal:${proposal.externalId}`, { subject: proposal })`. A topic is never taken from a query string -- \"subscribe to whatever you name\" is the whole vulnerability.",
+      "what": "A stream was given a topic henri will not address."
     },
     {
       "area": "telemetry",

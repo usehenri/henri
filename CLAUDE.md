@@ -117,7 +117,6 @@ has to be named per record or per process. An application's own suite keeps
 | `packages/redis`               | `@usehenri/redis`     | The shared store of `config.shared`: the rate limit, the sign-in lockout and the idempotency keys counted in Redis instead of one process                                                                                                                                                                            |
 | `packages/testing`             | `@usehenri/testing`   | Boots an app for Vitest and binds supertest to it                                                                                                                                                                                                                                                                    |
 | `packages/mcp`                 | `@usehenri/mcp`       | `henri mcp`: stdio MCP server exposing routes, models, generators, tests and doctor to coding agents                                                                                                                                                                                                                 |
-| `packages/websocket`           | private               | Not published, never wired into core                                                                                                                                                                                                                                                                                 |
 | `packages/demo`                | private               | Demo app used by core's tests (`NODE_ENV=test` chdirs into it)                                                                                                                                                                                                                                                       |
 | `showcase`                     | private               | Lineup, the showcase application (Inertia + Drizzle on PostgreSQL); its own suite, `pnpm test:showcase`                                                                                                                                                                                                              |
 | `website`                      | private               | usehenri.io, deployed by Vercel from `website/`, master only (`vercel.json`)                                                                                                                                                                                                                                         |
@@ -169,7 +168,7 @@ identities }`),
   `cache`, `flags`, `helmet`, `csp`, `filterParameters`, `logs`, `telemetry`,
   `encryption`, `privacy`, `retention`, `trail`, `calls`, `queries`,
   `versions`, `tenancy`, `i18n`, `bodyLimit`, `uploads`, `requestTimeout`,
-  `shutdown`, `maintenance`, `errors`.
+  `streams`, `shutdown`, `maintenance`, `errors`.
 - The configuration is validated at boot, before any other module starts:
   `base/config-schema.js` declares every key henri owns (as data, in the order
   of the documentation page) and `base/config-validate.js` walks it. A wrong
@@ -1444,6 +1443,49 @@ disposition, filename, type })` is one call whatever the backend -- the
   `x-henri.known: false` and no success status, and one that declares its
   answer now carries the schema. The guide is
   `guides/controllers.md` (`#answers-what-an-action-answers`).
+- **Real time is server-sent events** (`base/stream.js`, `4.streams.js`,
+  `henri.streams`), and `packages/websocket` -- an unwired socket.io loader,
+  private and untouched since 2020 -- was deleted for it. A stream is a
+  **route**: `res.stream(topic, { subject })` is a `GET` that does not end on
+  the http server henri already runs, through the same router, session, role
+  guard and `app/policies` as everything else, and
+  `henri.streams.publish(topic, event, data)` is the other half. No second
+  protocol, no sticky sessions, no dependency; what a WebSocket buys over it
+  is a channel the client writes back on, and a client that wants to write
+  back has `POST`, which is authenticated, rate limited, CSRF-checked,
+  idempotent and logged. **The topic is the controller's and never the
+  client's** -- no endpoint anywhere takes one from a query string. **The
+  policy is asked twice**: at subscribe time through `req.authorize()`, where
+  a refusal is the ordinary negotiated refusal and _not_ a stream carrying an
+  error event (an `EventSource` given a non-2xx stops rather than retrying),
+  and **again before every event** -- the subscription's own question plus
+  the one about the record the event carries -- because a stream is a
+  decision made once and answered from for hours, and asking once would make
+  an eight hour subscription as safe as the state of the world when it
+  opened. A per-event refusal is **silent** and counted (`dropped`), since
+  `event: denied` is the #418 oracle with a politer name, and a stream
+  nothing can authorize is refused outright
+  (`HENRI_STREAM_POLICY_REQUIRED`) with no setting that lifts it. The data
+  goes through the same `toPublic()` gate as `res.resource()` and
+  `res.csv()`, and is **always JSON** -- there is no byte escape hatch,
+  because bytes are where the gate stops seeing. `streams.maxAge` (15
+  minutes) is what bounds how stale the record, the session and the policy
+  answer a stream holds may get: henri ends it, the browser reconnects, all
+  three are decided again for free. The drain closes every stream
+  (`beforeClose` in `base/shutdown.js`, called from `Server#drain()`)
+  **before** the listener closes, each with a jittered `retry:`, or a
+  response with no last byte would sit through `shutdown.drain` and be
+  destroyed on every deploy; `base/timeout.js` takes its timer off on
+  `res.emit('henri:stream')`. **Reconnection promises nothing**: the retry
+  hint and `req.lastEventId`, no buffer, no replay, and henri never invents
+  an `id:` because an id is a promise it cannot keep. The framing walks the
+  code points with no regular expression anywhere, and an `event` or `id`
+  holding a newline is refused rather than escaped
+  (`HENRI_STREAM_EVENT_INVALID`) because it would write raw fields into the
+  frame. **A broadcast reaches one process** -- there is no cross-process
+  fan-out yet -- which the guide says in a box at the top and which
+  `warnSingleProcess()` says on the first stream a process opens whenever
+  `manyProcesses()` has evidence. The guide is `guides/streams.md`.
 - The fourth boundary is every entry point an application calls
   (`base/arguments.js`), after the configuration, the request and the
   answer: the
@@ -2118,5 +2160,33 @@ model` gained `status:string:enum=draft,live` in the CLI tranche below,
 review}.spec.js`, the middle one being the claims about the databases
   themselves); **MSSQL has no migrations at all**, so nothing there applies,
   and no adapter but drizzle has a migration to read.
+- Streams (`res.stream()`, `henri.streams`) are new, and the one thing
+  missing is the big one: **there is no cross-process fan-out**. A
+  connection lives on the process that accepted it, so behind two workers a
+  `publish()` reaches half the subscribers and nothing errors. The seam it
+  would go through is `config.shared` (`henri.shared`), the way
+  `base/maintenance.js` already reaches every process, and it is a tranche
+  of its own: pub/sub is a dedicated subscriber connection rather than the
+  key-value surface `@usehenri/redis` exposes today, and the policy has to
+  be re-asked on the receiving process, where the subject record is not in
+  hand. Until then the guide says so in a box at the top, the boot line
+  says where a broadcast reaches, and `warnSingleProcess()` warns on the
+  first stream when the environment has evidence of more than one process
+  -- which cannot see a second machine, so its silence is not a clearance.
+  Also deliberately absent, each argued in the guide: any replay, buffer or
+  delivery guarantee (`Last-Event-ID` is handed over and used for nothing);
+  a client library (`new EventSource(url)` is the client library);
+  receiving, which is a `POST`; presence or rooms (`count(topic)` is
+  this process's connections and must not be presented as presence); and a
+  topic a client can name. Coverage: the framing, the walks, the registry
+  and the drain hook offline, and the whole path over a **real socket**
+  against the booted demo application
+  (`packages/core/src/__tests__/stream.spec.js` opens `http.request`
+  connections to `get /memos/:id/events` and `get /memos/live` and reads
+  the frames) -- the subscribe-time refusal, the per-event refusal, the
+  exit gate over a model with `expose: false` columns, and the drain. What
+  no suite proves is a **proxy** in front of it: `no-transform` and
+  `X-Accel-Buffering` are what henri sends, and whether a particular nginx
+  or CDN honours them is not something this repository measures.
 - The scaffolded app pins ESLint 9 because `eslint-plugin-react` does not
   support ESLint 10 yet.

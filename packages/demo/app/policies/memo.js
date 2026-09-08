@@ -36,7 +36,18 @@ module.exports = {
 
   destroy: (user, memo) => admin(user) || owns(user, memo),
 
+  // The stream of one memo. Declared with a record, so the route gate does
+  // not ask it and `res.stream()` does -- at subscribe time and again
+  // before every event, because a stream opened at nine is still open at
+  // five (see base/stream.js)
+  events: (user, memo) => owns(user, memo),
+
   index: (user) => Boolean(user),
+
+  // The stream of the list: answered without a record, like index. Every
+  // event it carries is still a memo, and `show` above is what decides
+  // whether that memo reaches this subscriber
+  live: (user) => Boolean(user),
 
   // Declared with a record, so it is never asked without one
   peek: (user, memo) => owns(user, memo),

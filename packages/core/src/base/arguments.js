@@ -613,6 +613,31 @@ const CSV_OPTIONS = bag({
   where: ANY,
 });
 
+/**
+ * The address a stream is on.
+ *
+ * A name, and deliberately nothing narrower: a topic is built by the
+ * controller out of a record's public identifier, and `base/stream.js`
+ * walks it for a length and for control characters
+ * (`HENRI_STREAM_TOPIC_INVALID`) rather than holding a pattern over a value
+ * that never came from a client.
+ */
+const TOPIC = {
+  describe: 'a topic',
+  hint: 'the controller names it, never the client: res.stream(`proposal:${proposal.externalId}`, { subject: proposal })',
+  pattern: /\S/u,
+  type: 'string',
+};
+
+/** What `res.stream()` takes */
+const STREAM_OPTIONS = bag({
+  action: maybe(ACTION),
+  each: maybe(ACTION),
+  include: INCLUDE,
+  policy: maybe(NAME),
+  subject: ANY,
+});
+
 /** What `res.resource()` takes */
 const RESOURCE_OPTIONS = bag({
   embed: EMBED,
@@ -928,6 +953,21 @@ const SIGNATURES = {
     },
   ],
 
+  'henri.streams.count': [{ name: 'topic', optional: true, ...TOPIC }],
+
+  'henri.streams.publish': [
+    { name: 'topic', ...TOPIC },
+    {
+      describe: 'the name of the event',
+      hint: "henri.streams.publish(topic, 'changed', record): a newline in it would write raw fields into the frame, so it is refused",
+      name: 'event',
+      pattern: /\S/u,
+      type: 'string',
+    },
+    { name: 'data', optional: true, ...ANY },
+    { name: 'options', optional: true, ...bag({ id: maybe(NAME) }) },
+  ],
+
   'henri.telemetry.histogram': [
     { name: 'name', ...NAME },
     {
@@ -1217,6 +1257,11 @@ const SIGNATURES = {
     { by: 'HENRI_API_INVALID_RESOURCE', name: 'record' },
     { name: 'options', optional: true, ...RESOURCE_OPTIONS },
   ],
+
+  'res.stream': [
+    { name: 'topic', ...TOPIC },
+    { name: 'options', optional: true, ...STREAM_OPTIONS },
+  ],
 };
 
 /**
@@ -1288,6 +1333,10 @@ const UNCHECKED = {
     'says so and answers false, which is its documented contract',
   'henri.reporter.report':
     'the one entry point that must not refuse: it runs on a failure path, so throwing would lose the failure it was called about. A wrong source is coerced and a wrong options is read as none, deliberately',
+  'henri.streams.drain':
+    'the argument is the word a log line prints for why the streams were ended, so anything printable is right and there is nothing to refuse: the drain and henri.stop() are the two callers and both pass their own',
+  'henri.streams.topics':
+    'takes no argument: it reads back the topics somebody is subscribed to',
   'henri.telemetry.boot':
     'henri.init() is the one caller and what it passes is what henri.analyze() answered; anything else answers false rather than failing a boot for the sake of a span',
   'henri.telemetry.on':

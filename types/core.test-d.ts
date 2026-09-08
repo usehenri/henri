@@ -1082,6 +1082,21 @@ res.collection([{ id: '1' }], { embed: [] });
 // @ts-expect-error `embed` names relations, not a boolean
 res.resource({ id: '1' }, { embed: true });
 
+// A stream is a topic the controller built and the policy it is asked
+res.stream('invoice:0192f0aa');
+res.stream('invoice:0192f0aa', { subject: { id: '1' } });
+res.stream('invoices', {
+  action: 'live',
+  each: 'show',
+  include: ['phone'],
+  policy: 'invoice',
+});
+// @ts-expect-error the topic is a string the controller built
+res.stream(42);
+// @ts-expect-error a key the call does not take
+res.stream('invoices', { replay: true });
+expectType<string | null>(req.lastEventId);
+
 declare const page: Page<{ id: string }>;
 expectType<{ id: string }[]>(page.records);
 expectType<number>(page.pages);

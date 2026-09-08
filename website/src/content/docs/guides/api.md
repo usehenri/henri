@@ -214,6 +214,10 @@ RFC 4180 says nothing about the fifth one. A cell whose text starts with `=`, `+
 
 Once bytes really are on the wire there is no status left to send. henri **destroys the connection** instead of ending the response: a truncated CSV is a valid CSV, and a consumer has to be able to tell a file that stopped early from a file that ended, so the terminating chunk is never written and every conforming client reports a transport error. The failure is logged with the row count reached and goes to [`henri.reporter`](/guides/logs/#henrireporter). That answer is blunt, so the other half of it is making it rare: the headers go out with the first **chunk** (64kb) rather than the first row, so an export smaller than that — which is most of them — has written nothing when it fails and still gets an ordinary `500`.
 
+## Pushing to a client
+
+The other answer that does not end: [`res.stream()`](/guides/streams/) is a server-sent event stream on the same http server, through the same session, role guard and policies. The policy is asked at subscribe time and again before every event, an event carrying a record leaves through the same `toPublic()` gate as everything on this page, and a broadcast reaches the subscribers of one process — which the guide says at the top, in a box.
+
 ## Idempotency
 
 Clients retrying a `POST`, `PUT`, `PATCH` or `DELETE` send an `Idempotency-Key` header (1 to 255 printable ASCII characters, otherwise a `400` carrying `HENRI_API_IDEMPOTENCY_KEY_INVALID`), with the same semantics as Stripe:

@@ -150,7 +150,6 @@ function watch(henri) {
     'app/mailers',
     'app/models',
     'app/workers',
-    'app/websocket',
     'app/views/partials',
     'app/routes.js',
     'config',
@@ -807,7 +806,16 @@ class Server extends BaseModule {
 
     this.draining = true;
 
-    return drain(this.httpServer, { deadline, delay, pen: this.henri.pen });
+    return drain(this.httpServer, {
+      // Server-sent events are answers with no last byte: they are ended
+      // once readiness is 503 and the delay has passed, so the clients
+      // reconnect to a process that is still accepting rather than being
+      // destroyed at the deadline (see base/stream.js)
+      beforeClose: () => this.henri.streams && this.henri.streams.drain(),
+      deadline,
+      delay,
+      pen: this.henri.pen,
+    });
   }
 
   /**

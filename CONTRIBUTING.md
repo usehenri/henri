@@ -70,8 +70,8 @@ HENRI_TEST_MYSQL_URL=mysql://root:henri@127.0.0.1:3306/henri_test pnpm test:sql
   features, major for breaking changes), then describe the change for the
   changelog. All public packages share one version number, so the bump applies
   to every package in the release; private packages (`packages/demo`,
-  `packages/websocket`, `website`) are never versioned. Documentation, CI and
-  test-only changes do not need a changeset.
+  `website`) are never versioned. Documentation, CI and test-only changes do
+  not need a changeset.
 
 - Tests live in `__tests__/` or `tests/` next to the code. Snapshot tests exist
   for most core modules; regenerate them only when the diff is explained by

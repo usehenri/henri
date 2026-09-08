@@ -32,6 +32,7 @@ const { needsRecord } = require('./base/policies');
 const filters = require('./base/filters');
 const embeds = require('./base/embeds');
 const { csv } = require('./base/csv');
+const { lastEventId, topicOf } = require('./base/stream');
 const { ormFor } = require('./base/records');
 
 /** Verbs of the routes that change something (idempotency applies) */
@@ -1641,6 +1642,12 @@ class Router extends BaseModule {
           Object.assign({ req }, context)
         );
 
+      // The `Last-Event-ID` a reconnecting EventSource sent, as far as
+      // henri will believe it. It is handed over and used for nothing:
+      // henri buffers no events and replays none, so an application that
+      // can replay its own reads this and does it (see base/stream.js)
+      req.lastEventId = lastEventId(req);
+
       // What this request may narrow and order its list by, intersected
       // with what the policy says the list is (see base/filters.js)
       req.filters = (options = {}) => {
@@ -1687,6 +1694,59 @@ class Router extends BaseModule {
         return csv(this.henri, req, res, Model, {
           ...options,
           where: filters.narrow(Model, scope, options.where || {}),
+        });
+      };
+
+      // Real time as a route rather than a second server: server-sent
+      // events on the http server henri already runs, through the same
+      // session, role guard and policies as everything else. The policy
+      // is asked here, before a byte, and again on every event that goes
+      // out -- a stream is a decision made once and answered from for
+      // hours, so asking once would make an eight hour subscription as
+      // safe as the state of the world when it opened (see base/stream.js)
+      res.stream = async (topic, options = {}) => {
+        check('res.stream', [topic, options]);
+
+        const name = topicOf(topic);
+        const subject =
+          typeof options.subject === 'undefined' ? null : options.subject;
+        const action = options.action || (subject ? 'show' : 'index');
+        const asked = this.policyOptions(
+          req,
+          res,
+          options.policy ? { policy: options.policy } : {}
+        );
+        // The policy name is resolved once and carried, because the
+        // per-event question is asked long after this request's route
+        // context is gone
+        const policy = this.henri.policies.nameFor(subject, asked);
+
+        if (!policy) {
+          const error = fail(
+            'HENRI_STREAM_POLICY_REQUIRED',
+            `res.stream("${name}") named nothing to ask: a stream is a subscription to records and henri will not open one it cannot authorize`
+          );
+
+          error.hint =
+            'pass the record it is about (res.stream(topic, { subject: proposal })), or name the policy (policy: "Proposal"). A stream that really is public writes show: () => true in app/policies/<model>.js';
+
+          throw error;
+        }
+
+        // A refused subscription answers the ordinary refusal -- the
+        // configured 404, or a 401 and the login page for an anonymous
+        // visitor -- and never a stream carrying an error event: an
+        // EventSource that receives a non-2xx status stops rather than
+        // retrying, which is what a refusal should do
+        await req.authorize(action, subject, { policy });
+
+        return this.henri.streams.open(req, res, {
+          action,
+          each: options.each || 'show',
+          include: options.include || [],
+          policy,
+          subject,
+          topic: name,
         });
       };
 
