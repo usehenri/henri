@@ -150,7 +150,7 @@ describe('postgres and mysql without a server', () => {
 
       // The pools are lazy: the client exists, nothing connected
       adapter.client = await adapter.dialect.connect(adapter.config);
-      adapter.db = adapter.dialect.drizzle(adapter.client, adapter.schema);
+      adapter.buildDatabase();
       expect(adapter.rawDatabase()).toBeDefined();
       await adapter.stop();
       expect(adapter.client).toBeNull();

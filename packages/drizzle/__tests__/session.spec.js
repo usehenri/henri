@@ -120,6 +120,45 @@ describe('session store', () => {
     await bare.stop();
   });
 
+  test('builds the database the same way both times it builds one', async () => {
+    const { adapter: twice } = build();
+    const { dialect } = twice;
+    const given = [];
+
+    // The dialect object is shared by every store on it, so the recorder
+    // goes on a copy of it rather than on the module's own
+    twice.dialect = {
+      ...dialect,
+      drizzle: (...args) => {
+        given.push(args);
+
+        return dialect.drizzle(...args);
+      },
+    };
+    twice.addModel(taskModel, 'user');
+    await twice.start();
+    await twice.getSessionConnector(session);
+
+    // Two constructions -- `start()`, then the one `getSessionConnector()`
+    // makes after recompiling the schema with the sessions table, because
+    // drizzle bakes the schema into the instance. They have to be handed
+    // the same things: an argument added to one and not the other would
+    // reach an application with sessions and nowhere else, which is
+    // exactly the kind of difference nothing else here would notice
+    expect(given).toHaveLength(2);
+    expect(given[1]).toHaveLength(given[0].length);
+    expect(given[1][0]).toBe(given[0][0]);
+    expect(given[1].slice(2)).toEqual(given[0].slice(2));
+
+    // The schema is the one thing that may differ, and only by the table
+    // the second construction exists to add
+    expect(Object.keys(given[0][1])).not.toContain('HenriSession');
+    expect(Object.keys(given[1][1])).toContain('HenriSession');
+    expect(given[1][1]).toBe(twice.schema);
+
+    await twice.stop();
+  });
+
   test('stops the sweep with the adapter', async () => {
     const { adapter: timed } = build({ baseRole: 'member' });
 

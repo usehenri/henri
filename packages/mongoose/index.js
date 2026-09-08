@@ -221,7 +221,7 @@ class Mongoose {
     this.definitions = {};
     this.associated = new Set();
     this.userModelName = null;
-    this.mongoose = new mongoose.Mongoose();
+    this.mongoose = this.newConnection();
     this.sessionStore = null;
     this.url = buildUrl(this.config);
 
@@ -1044,6 +1044,29 @@ class Mongoose {
   }
 
   /**
+   * The Mongoose instance this store's models are built on, and the one
+   * place that says what one is built with.
+   *
+   * There are two constructions, not one: the constructor builds it, and
+   * `stop()` builds another so that a store which is started again does
+   * not reuse the connection it disconnected. Nothing configures the
+   * instance today -- the plugins are registered per schema in
+   * `addModel()`, and the connect options are `connectOptions()` -- so the
+   * two were identical and nothing was being lost. They are named once
+   * here so a `set()` or an instance-wide plugin added later cannot reach
+   * the first construction and miss the second, which would leave a
+   * restarted store configured differently from a fresh one and nothing
+   * would say so. `__tests__/mongoose.spec.js` compares what the two
+   * instances hold across a restart.
+   *
+   * @returns {mongoose.Mongoose} A fresh Mongoose instance
+   * @memberof Mongoose
+   */
+  newConnection() {
+    return new mongoose.Mongoose();
+  }
+
+  /**
    * The url to connect to
    *
    * @returns {string} A mongodb:// url
@@ -1133,7 +1156,7 @@ class Mongoose {
     }
 
     await this.mongoose.disconnect();
-    this.mongoose = new mongoose.Mongoose();
+    this.mongoose = this.newConnection();
     this.models = {};
     this.associated = new Set();
     debug('stopped %s', this.name);

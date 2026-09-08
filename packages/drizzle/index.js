@@ -1007,6 +1007,36 @@ class Drizzle {
   }
 
   /**
+   * Builds the Drizzle instance on the connected client, and is the one
+   * place that says what one is built with.
+   *
+   * There are two constructions, not one: `start()` builds it, and
+   * `getSessionConnector()` builds it again when it had to recompile the
+   * schema to add the sessions table -- drizzle bakes the schema into the
+   * instance, so a table added afterwards needs a new one. Both used to
+   * name the arguments themselves, which made anything the first
+   * construction was given (a logger, a cache, an instrumentation hook)
+   * something the second would silently drop, in an application with
+   * sessions and nowhere else. Nothing is passed today beyond the client
+   * and the schema, so nothing was being lost; the arguments are named
+   * here so that stays true without anyone having to remember.
+   *
+   * A transaction is not a third construction: drizzle-orm 0.45 hands the
+   * transaction the session it already has (better-sqlite3) or builds a
+   * fresh one for the pooled connection with `this.options` (mysql2,
+   * node-postgres), so whatever this call was given reaches the
+   * transactions too.
+   *
+   * @returns {object} The Drizzle database, also set on `this.db`
+   * @memberof Drizzle
+   */
+  buildDatabase() {
+    this.db = this.dialect.drizzle(this.client, this.schema);
+
+    return this.db;
+  }
+
+  /**
    * The Drizzle database, or the transaction active in this async context
    *
    * @returns {object} A Drizzle database
@@ -1092,7 +1122,7 @@ class Drizzle {
     if (!this.sessionTable) {
       this.config.sessions = true;
       this.compile();
-      this.db = this.dialect.drizzle(this.client, this.schema);
+      this.buildDatabase();
     }
 
     await this.migrations.ensure({ [SESSIONS_KEY]: this.sessionTable });
@@ -1299,7 +1329,7 @@ class Drizzle {
     }
 
     this.client = await this.dialect.connect(this.config, this.driverPaths);
-    this.db = this.dialect.drizzle(this.client, this.schema);
+    this.buildDatabase();
 
     try {
       await this.ping();

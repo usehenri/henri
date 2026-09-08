@@ -869,6 +869,25 @@ describe('mongoose adapter', () => {
       await adapter.stop();
     });
 
+    test('builds the mongoose instance the same way both times', async () => {
+      const { adapter } = build('rebuilt');
+      const first = adapter.mongoose;
+
+      await adapter.stop();
+
+      const second = adapter.mongoose;
+
+      // Two constructions: the constructor's, and the one `stop()` makes so
+      // a store that is started again does not reuse the connection it
+      // disconnected. Whatever configures the instance has to reach both --
+      // a `set()` or an instance-wide plugin added to only the first would
+      // leave a restarted store behaving differently from a fresh one, and
+      // nothing else here would say so
+      expect(second).not.toBe(first);
+      expect(second.options).toEqual(first.options);
+      expect(second.plugins.length).toBe(first.plugins.length);
+    });
+
     test('stops cleanly and starts again', async () => {
       const { adapter, henri } = build('restart', { baseRole: 'member' });
       const before = adapter.addModel(userModel, 'user');
