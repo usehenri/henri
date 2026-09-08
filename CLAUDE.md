@@ -534,9 +534,23 @@ request-id,redact,headers,pagination,timeout,health}.js`: `res.resource()` and
   `getModels()`, `start()`, `stop()`, async `getSessionConnector(session)`,
   `findUserByEmail()`, `findUserById()`, `userId()`, `toPlain()`,
   `references()`, async `externalIdsOf(model, keys)`, `ping()`,
-  `transaction()` and, on SQL, `query()` and `drift()` (what the database
+  `transaction()`, on SQL `query()` and `drift()` (what the database
   and the models disagree about, which `henri db:status` prints and a
-  production boot warns about). Core loads them from the app cwd
+  production boot warns about), and the optional `describe()` -- what the
+  database _holds_, read from the catalogue and never from the model files:
+  the physical table of every model, its real columns (name, type,
+  nullability, default, primary key, the values of an enum, and the model
+  `attribute` a rename maps back to), its indexes, and the names of the
+  tables no model claims. The two are never derived from one another and
+  `describe()` writes nothing. It is what `GET /_henri/runtime/schema`
+  (`base/runtime.js`, the surface `query` lives on, so development only,
+  loopback only, `X-Henri-Runtime: 1`, no `Origin`; a column _name_ is
+  never masked and a column _default_ is, by name and by shape), the
+  `schema` tool of `henri mcp` and `henri db:schema` all ask for. MongoDB
+  answers `read: 'models'`, `enforced: false` and a note: the collections
+  and the indexes are the server's, the fields are henri's declaration
+  applied by Mongoose, and no document is held to them.
+  Core loads them from the app cwd
   with `utils.resolveFrom('@usehenri/<adapter>')`. Model files use the henri
   schema format (`type: 'string'|'text'|'number'|'integer'|'float'|'decimal'|
 'bigint'|'boolean'|'date'|'json'|'uuid'`, `required`, `default`, `enum`,
@@ -1646,6 +1660,23 @@ the LICENSE and a README into every public package at publish time
   on MSSQL neither it nor the DDL it would write is covered, and sqlite
   reports a column change without a statement because it has no
   `ALTER COLUMN`.
+- `adapter.describe()` is new. It is covered on sqlite offline and on the
+  live PostgreSQL and MySQL of `pnpm test:sql:live` for both SQL adapters
+  (`packages/{drizzle,sequelize}/__tests__/describe.spec.js`), and on
+  MongoDB by `packages/mongoose/__tests__/describe.spec.js` and through the
+  demo application core's suite boots. MSSQL rides the Sequelize
+  implementation with no coverage of its own, like the rest of that
+  adapter, and mariadb is not exercised (`@usehenri/mysql`'s dialect entry
+  is what a mariadb store would use). Deliberately left: **no row counts**
+  (`SELECT count(*)` is a scan per table, and the `query` tool already
+  answers it), **no columns for a table no model claims** -- they are named
+  and nothing else, because `DESCRIBE <table>` through the query endpoint
+  already opens one -- **no classification of what an unclaimed table is**
+  (drizzle has `reservedTables()` and Sequelize has no equivalent, and a
+  second list in core is the "two ways, one is wrong" problem), and no
+  foreign key constraints, check constraints, triggers, views, sequences or
+  collations. On a drizzle store the answer carries `migrations` rather
+  than `drift`, which is what `henri db:status` answers there.
 - The tables henri owns in a drizzle store (`henri_jobs`,
   `henri_jobs_schedules`, `henri_trail`, `henri_calls`, `henri_versions`)
   are created through
