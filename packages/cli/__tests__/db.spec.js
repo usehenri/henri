@@ -3,6 +3,8 @@ const path = require('path');
 
 const { CliError } = require('../scripts/errors');
 const {
+  described,
+  describes,
   dumps,
   migrations,
   run,
@@ -81,20 +83,29 @@ describe('henri db', () => {
       const { error } = JSON.parse(stderr);
 
       expect(error.hint).toContain('rollback');
+      expect(error.hint).toContain('schema');
       expect(error.hint).toContain('schema:dump');
       expect(error.hint).toContain('schema:load');
     });
 
-    test('refuses "schema" without dump or load', () => {
-      const { status, stderr } = henri(['db', 'schema', '--json'], {
+    test('"schema" on its own is the schema of the database', () => {
+      const { status, stdout } = henri(['db', 'schema', '--json'], {
         cwd: app,
       });
+      const answer = JSON.parse(stdout);
 
-      expect(status).toBe(2);
-      expect(JSON.parse(stderr).error.message).toBe(
-        'Unknown db command "schema"'
-      );
-    });
+      expect(status).toBe(0);
+      expect(answer).toMatchObject({
+        command: 'schema',
+        enforced: true,
+        kind: 'sql',
+        ok: true,
+        read: 'database',
+        store: 'default',
+      });
+      // The model the scaffold writes, in the table it really lives in
+      expect(answer.tables.map((table) => table.model)).toContain('Task');
+    }, 120000);
 
     test('says where the seed file should be, without booting', () => {
       fs.rmSync(path.join(app, 'db/seeds.js'));
@@ -420,6 +431,76 @@ describe('henri db', () => {
 
       expect(error.code).toBe('HENRI_CLI_MIGRATIONS_UNSUPPORTED');
       expect(error.hint).toContain('@usehenri/drizzle');
+    });
+
+    // The other half of db:status: what is *there*, which a clean status
+    // says nothing about and a MongoDB store could never answer at all
+    test('db:schema answers what the adapter described', async () => {
+      const answer = {
+        adapter: 'postgresql',
+        dialect: 'postgres',
+        enforced: true,
+        kind: 'sql',
+        read: 'database',
+        store: 'default',
+        tables: [
+          {
+            columns: [
+              {
+                attribute: 'externalId',
+                default: null,
+                name: 'external_id',
+                nullable: false,
+                primaryKey: false,
+                type: 'uuid',
+                values: null,
+              },
+            ],
+            exists: true,
+            indexes: [],
+            model: 'Task',
+            table: 'tasks',
+          },
+          {
+            columns: [],
+            exists: true,
+            indexes: [],
+            model: 'User',
+            table: 'users',
+          },
+        ],
+        unclaimed: ['henri_jobs'],
+      };
+      const store = { ...answer, describe: async () => answer };
+
+      expect(await described(store, {})).toMatchObject({
+        command: 'schema',
+        ok: true,
+        unclaimed: ['henri_jobs'],
+      });
+      // --table narrows it to one table or one model
+      expect(
+        (await described(store, { table: 'TASKS' })).tables.map(
+          (table) => table.model
+        )
+      ).toEqual(['Task']);
+      expect(
+        (await described(store, { table: 'user' })).tables.map(
+          (table) => table.model
+        )
+      ).toEqual(['User']);
+    });
+
+    test('db:schema says an adapter that cannot describe itself so', async () => {
+      const store = { adapterName: 'mongoose', name: 'default' };
+      const error = await describes(booted(store), 'default').catch(
+        (thrown) => thrown
+      );
+
+      expect(error).toBeInstanceOf(CliError);
+      expect(error.message).toContain('cannot describe its schema');
+      expect(error.hint).toContain('@usehenri/mongoose');
+      expect(error.hint).toContain('henri db:status');
     });
   });
 

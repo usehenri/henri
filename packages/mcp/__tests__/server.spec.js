@@ -294,6 +294,7 @@ describe('henri mcp', () => {
       'request',
       'routes',
       'runtime_routes',
+      'schema',
       'test',
       'types',
     ]);
@@ -664,6 +665,7 @@ describe('henri mcp', () => {
       ['query', { sql: 'SELECT 1' }],
       ['records', { model: 'Task' }],
       ['runtime_routes', {}],
+      ['schema', {}],
       ['request', { path: '/' }],
     ]) {
       const result = await call(client, tool, args);
@@ -817,6 +819,33 @@ describe('henri mcp against a running application', () => {
     expect(structuredContent.lines.length).toBeGreaterThan(0);
     expect(structuredContent.lines[0].name).toBe('router');
     expect(structuredContent.kept).toBe(500);
+  });
+
+  test('schema: what the database holds, said honestly', async () => {
+    const { isError, structuredContent } = await call(client, 'schema');
+    const [store] = structuredContent.stores;
+
+    expect(isError).toBe(false);
+    expect(store).toMatchObject({
+      adapter: 'disk',
+      described: true,
+      // MongoDB holds no document to a shape, and the answer says so
+      // rather than dressing the declaration up as a schema
+      enforced: false,
+      kind: 'document',
+      read: 'models',
+      store: 'default',
+    });
+    expect(store.tables.map((table) => table.model)).toContain('Artwork');
+
+    const one = await call(client, 'schema', { table: 'Artwork' });
+
+    expect(one.structuredContent.stores[0].tables).toHaveLength(1);
+
+    const unknown = await call(client, 'schema', { store: 'analytics' });
+
+    expect(unknown.isError).toBe(true);
+    expect(unknown.structuredContent.error.code).toBe('UNKNOWN_STORE');
   });
 
   test('records: a page of a model, and the refusals', async () => {

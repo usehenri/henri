@@ -17,6 +17,7 @@
   "files": [
     "index.js",
     "dialects.js",
+    "describe.js",
     "exact.js",
     "external-id.js",
     "dump.js",

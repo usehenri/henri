@@ -394,6 +394,10 @@ const COMMANDS = [
           'status: print the DDL that would close the difference, for review',
         flag: '--sql',
       },
+      {
+        description: 'schema: one table or model by name, instead of all',
+        flag: '--table=<name>',
+      },
       { description: 'print the result as JSON', flag: '--json' },
     ],
     name: 'db',
@@ -424,6 +428,11 @@ const COMMANDS = [
       },
       {
         description:
+          'what the database holds: the real tables, columns, types and indexes of every model (--table=<name> for one)',
+        name: 'schema',
+      },
+      {
+        description:
           'write a migration for the schema changes (--name=<label>)',
         name: 'generate',
       },
@@ -449,7 +458,7 @@ const COMMANDS = [
       },
     ],
     usage: [
-      'henri db <command> [--store=<name>] [--name=<label>] [--file=<path>] [--step=<n>] [--force] [--sql] [--json]',
+      'henri db <command> [--store=<name>] [--name=<label>] [--file=<path>] [--table=<name>] [--step=<n>] [--force] [--sql] [--json]',
       'henri db:<command>',
     ],
   },

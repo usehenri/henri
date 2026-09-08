@@ -20,6 +20,7 @@ const {
   wantsExternalId,
 } = require('./external-id');
 const { SLUG, lengthOf, slugOf } = require('./slug');
+const { describe: describeSchema } = require('./describe');
 const { coded, fatal, normalizeEmail, redact, toRoles } = require('./utils');
 
 /**
@@ -60,6 +61,18 @@ const { coded, fatal, normalizeEmail, redact, toRoles } = require('./utils');
  *   command line refuses, rather than opening a console whose writes
  *   survive a rollback that never happened
  * @method async query(sql, params) Raw query
+ * @method async describe() What the database holds, in its own words:
+ *   `{ store, adapter, kind, dialect, read, enforced, tables, unclaimed }`.
+ *   A table carries its real name, the `model` that claims it, whether it
+ *   `exists`, its `columns` (`name`, `type`, `nullable`, `default`,
+ *   `primaryKey`, the `values` of an enum, and the model `attribute` a
+ *   `column` renamed) and its `indexes`; `unclaimed` names the tables no
+ *   model declares, which on this adapter includes henri's own and
+ *   drizzle's migration journal. Optional and read only:
+ *   `GET /_henri/runtime/schema`, the `schema` tool of `henri mcp` and
+ *   `henri db:schema` are what ask for it. It says what is there; the
+ *   migration state `henri db:status` prints says what has been applied,
+ *   and neither is computed from the other.
  */
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1038,6 +1051,24 @@ class Drizzle {
     this.rawDatabase();
 
     return this.dialect.listTables(this.client);
+  }
+
+  /**
+   * What the database holds, in its own words
+   *
+   * The tables of every model with the columns and the indexes the server
+   * really has, and the names of the tables no model claims (henri's own,
+   * the sessions, drizzle's migration journal). Read from the catalogue
+   * with `SELECT`s; nothing is written, and the migration state
+   * `henri db:status` prints is a different question answered separately.
+   *
+   * @returns {Promise<object>} The schema
+   * @memberof Drizzle
+   */
+  async describe() {
+    this.rawDatabase();
+
+    return describeSchema(this);
   }
 
   /**

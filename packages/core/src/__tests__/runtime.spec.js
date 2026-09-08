@@ -637,4 +637,177 @@ describe('runtime endpoints (demo app, disk store)', () => {
       expect(res.body.error.known).toContain('Artwork');
     });
   });
+
+  describe('reading the schema', () => {
+    /**
+     * The answer about one store
+     *
+     * @param {object} body What /schema answered
+     * @param {string} name The store name
+     * @returns {?object} The store's schema
+     */
+    const store = (body, name) =>
+      body.stores.find((entry) => entry.store === name) || null;
+
+    test('refuses a browser, like everything else on this surface', async () => {
+      const res = await request
+        .get('/_henri/runtime/schema')
+        .set(HEADERS)
+        .set('Origin', 'http://evil.example');
+
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('BROWSER');
+    });
+
+    test('answers what MongoDB can honestly say, and says what it cannot', async () => {
+      const res = await request.get('/_henri/runtime/schema').set(HEADERS);
+      const answer = store(res.body, 'default');
+
+      expect(res.status).toBe(200);
+      expect(answer).toMatchObject({
+        adapter: 'disk',
+        described: true,
+        // The collections and the indexes are the server's; the fields are
+        // henri's declaration, and nothing holds a document to them
+        enforced: false,
+        kind: 'document',
+        read: 'models',
+      });
+      expect(answer.note).toContain('MongoDB enforces no schema');
+      expect(answer.tables.map((table) => table.model)).toContain('Artwork');
+    });
+
+    test('narrows to one store and to one table', async () => {
+      const one = await request
+        .get('/_henri/runtime/schema?store=default&table=Artwork')
+        .set(HEADERS);
+
+      expect(one.body.stores).toHaveLength(1);
+      expect(one.body.table).toBe('artwork');
+      expect(one.body.stores[0].tables.map((table) => table.model)).toEqual([
+        'Artwork',
+      ]);
+      expect(one.body.stores[0].matched).toBe(1);
+    });
+
+    test('says when a store does not exist', async () => {
+      const res = await request
+        .get('/_henri/runtime/schema?store=analytics')
+        .set(HEADERS);
+
+      expect(res.status).toBe(422);
+      expect(res.body.error).toMatchObject({
+        code: 'UNKNOWN_STORE',
+        known: ['default'],
+      });
+    });
+
+    // The database's own view, and the one place a schema is a map of
+    // where the secrets are rather than a list of names
+    describe('against a sqlite store', () => {
+      let sql;
+
+      beforeAll(async () => {
+        sql = new Sql(
+          'schema',
+          {
+            adapter: 'sqlite',
+            dialect: 'sqlite',
+            logging: false,
+            storage: ':memory:',
+          },
+          henri
+        );
+        sql.addModel(
+          {
+            globalId: 'Ledger',
+            identity: 'ledger',
+            options: { timestamps: false },
+            schema: {
+              apiToken: {
+                default: 'sk-live-not-a-real-secret',
+                type: 'string',
+              },
+              label: { default: 'unnamed', type: 'string' },
+            },
+          },
+          'user'
+        );
+        await sql.start();
+        henri.model.stores.schema = sql;
+      }, 30000);
+
+      afterAll(async () => {
+        delete henri.model.stores.schema;
+        await sql.stop();
+      });
+
+      test('reads the columns out of the database, renames included', async () => {
+        const res = await request
+          .get('/_henri/runtime/schema?store=schema')
+          .set(HEADERS);
+        const answer = store(res.body, 'schema');
+        const table = answer.tables[0];
+        const names = table.columns.map((column) => column.name);
+
+        expect(answer).toMatchObject({
+          enforced: true,
+          kind: 'sql',
+          read: 'database',
+        });
+        expect(table.model).toBe('Ledger');
+        // What no reading of app/models could have said
+        expect(names).toContain('external_id');
+        expect(names).not.toContain('externalId');
+        expect(
+          table.columns.find((column) => column.name === 'external_id')
+            .attribute
+        ).toBe('externalId');
+      });
+
+      test('masks a default, never a column name', async () => {
+        const res = await request
+          .get('/_henri/runtime/schema?store=schema')
+          .set(HEADERS);
+        const columns = store(res.body, 'schema').tables[0].columns;
+        const token = columns.find((column) => column.name === 'apiToken');
+        const label = columns.find((column) => column.name === 'label');
+
+        // Naming the columns is the point: `apiToken` is a column an agent
+        // has to be able to see
+        expect(token).toBeTruthy();
+        expect(token.default).toBe('[FILTERED]');
+        // A default under a name nothing filters is left alone
+        expect(label.default).toBe('unnamed');
+        expect(res.text).not.toContain('sk-live-not-a-real-secret');
+      });
+
+      test('carries the drift the adapter reports, and no DDL', async () => {
+        const res = await request
+          .get('/_henri/runtime/schema?store=schema')
+          .set(HEADERS);
+        const answer = store(res.body, 'schema');
+        const report = await sql.drift();
+
+        // The same call `henri db:status` makes, so the two can never say
+        // different things
+        expect(answer.drift.clean).toBe(report.clean);
+        expect(answer.drift.count).toBe(report.differences.length);
+        // A statement to run belongs to `henri db:status --sql`: nothing
+        // on this surface writes
+        expect(JSON.stringify(answer.drift)).not.toContain('statement');
+      });
+
+      test('bounds the tables it answers and says the bound', async () => {
+        const res = await request
+          .get('/_henri/runtime/schema?store=schema')
+          .set(HEADERS);
+        const answer = store(res.body, 'schema');
+
+        expect(answer.limit).toBe(LIMITS.tables);
+        expect(answer.truncated).toBe(false);
+        expect(answer.tables.length).toBeLessThanOrEqual(LIMITS.tables);
+      });
+    });
+  });
 });
