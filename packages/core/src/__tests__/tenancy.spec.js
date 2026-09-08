@@ -1,3 +1,5 @@
+const Privacy = require('../3.privacy');
+const Retention = require('../4.retention');
 const Tenancy = require('../0.tenancy');
 const {
   MAX_TENANT,
@@ -532,6 +534,78 @@ describe('henri.tenancy', () => {
       expect(() =>
         module.markFor({ globalId: 'Account', options: { tenant: true } })
       ).toThrow(/is the user model/u);
+    });
+  });
+
+  describe('the column of a model, by name', () => {
+    test('answers what the mark said, and null for a shared model', async () => {
+      const module = await build({ tenancy: {} });
+
+      module.markFor({ globalId: 'Invoice', options: { tenant: true } });
+      module.markFor({
+        globalId: 'Ticket',
+        options: { tenant: 'accountId' },
+        schema: { accountId: { type: 'string' } },
+      });
+      module.markFor({ globalId: 'Plan', options: {} });
+
+      expect(module.columnFor('Invoice')).toBe('tenantId');
+      expect(module.columnFor('Ticket')).toBe('accountId');
+      expect(module.columnFor('Plan')).toBeNull();
+      // A model nobody asked about answers the same null a shared one does,
+      // and it is safe for the same reason: it only ever adds a tenant to a
+      // row, never skips a condition
+      expect(module.columnFor('Nothing')).toBeNull();
+    });
+
+    test('answers null with tenancy off, whatever a model said', async () => {
+      const module = await build({});
+
+      expect(module.columnFor('Invoice')).toBeNull();
+    });
+  });
+
+  describe("henri's own sweeps run across every tenant", () => {
+    /**
+     * A module of core's carrying a tenancy module
+     *
+     * @param {function} Module the class
+     * @param {object} tenancy the tenancy module
+     * @returns {object} the module
+     */
+    const sweeper = (Module, tenancy) => {
+      const module = new Module();
+
+      module.henri = { tenancy };
+
+      return module;
+    };
+
+    test.each([
+      ['privacy', Privacy],
+      ['retention', Retention],
+    ])(
+      '%s walks the models inside unscoped(), so a command line works',
+      async (name, Module) => {
+        const tenancy = await build({ tenancy: {} });
+        const module = sweeper(Module, tenancy);
+
+        // Without this the first model call of a sweep raises
+        // HENRI_TENANT_REQUIRED: there is no tenant at a cron line, and a
+        // sweep narrowed to whatever happened to be in scope would delete
+        // one customer's rows and write a receipt saying the rule ran
+        expect(await module.everywhere(() => tenancy.isUnscoped())).toBe(true);
+        expect(tenancy.isUnscoped()).toBe(false);
+      }
+    );
+
+    test.each([
+      ['privacy', Privacy],
+      ['retention', Retention],
+    ])('%s costs nothing when there is no tenancy', async (name, Module) => {
+      const module = sweeper(Module, null);
+
+      expect(await module.everywhere(() => 'ran')).toBe('ran');
     });
   });
 });
