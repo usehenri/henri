@@ -194,6 +194,101 @@ const same = (left, right) => {
 };
 
 /**
+ * What a record holds after a write the store refused.
+ *
+ * `instance.update(attrs)` is `set()` then `save()`, and only the second
+ * half can fail -- a rule of the model's `validates` block, the `required`
+ * or `enum` of its schema, the unique index of the database. The set has
+ * already happened by then, so the value the store refused stays on the
+ * object in hand, and a controller that catches the failure and answers
+ * 422 goes on to render, log or write again from a record holding
+ * something no store ever accepted.
+ *
+ * The three adapters were measured before this was written and they
+ * agreed: drizzle here, mongoose (`set()` then `save()`) and sequelize
+ * (`instance.update()`, which is those same two steps) all kept the
+ * refused value on the record. Agreement is not a decision, though --
+ * what they agree on is what two other ORMs happen to do -- and what is
+ * underneath it is not agreement at all. A second `update()` on the same
+ * instance is measured against the stale value on drizzle and mongoose,
+ * so a write naming a different field entirely is refused for a field it
+ * never named; on sequelize that same second update **succeeds**, because
+ * Sequelize narrows the statement to the fields the call named, so the row
+ * keeps the old value while the object in hand keeps the refused one and
+ * nothing ever says so. One of those is a record that cannot be written
+ * to again and the other is a record that lies.
+ *
+ * So the rule, and it is the same sentence on all three: **a write the
+ * store refused puts back every attribute it set**. The record is left
+ * holding the values it had when the call started, and the next
+ * `update()` on it is measured against those.
+ *
+ * Three things it deliberately is not.
+ *
+ * It is **not a reload**. Nothing is read back: a refusal costs no query,
+ * and what goes back on the record is what the record held, not what the
+ * row holds now. A record another process moved in the meantime is as
+ * stale as it was before the call, which is the same thing every other
+ * read of a loaded record already promises.
+ *
+ * It is **not `set()` + `save()`**. Those are two steps because a caller
+ * wrote them as two, and the values live on the record between them on
+ * purpose -- it is the one way to keep what a person typed after the store
+ * refused it. `update()` is the one call that does both, so it is the one
+ * call that undoes both.
+ *
+ * It is **not every failure**, and the line is drawn where the framework
+ * already draws it: a refusal is what `henri.model.errors()` turns into
+ * `{ field: message }` -- here, this adapter's own `ValidationError`,
+ * which `translateError()` also builds out of a unique violation. A
+ * `beforeUpdate` hook that throws, a connection that drops, an
+ * `afterUpdate` hook that throws are not refusals and roll nothing back;
+ * the last one matters, because by then the row has moved and putting the
+ * record back would make it lie in the other direction. The hole that
+ * leaves is an `afterUpdate` hook whose own write is refused, which is a
+ * refusal raised after the row moved -- it is left, rather than closed
+ * with a per adapter "did the statement land" test, because a rule the
+ * three adapters cannot state the same way is not a rule.
+ *
+ * The database's own refusal -- the unique index, which henri does not
+ * pre-check on purpose (`./validations.js`) -- is rolled back the same
+ * way, and it can be: a single row `INSERT` or `UPDATE` is refused whole
+ * on every engine henri writes to, so there is no half-written row for
+ * the record to disagree with. What no rollback can give back is the
+ * value the caller asked for, and nothing tries: it is still in the
+ * `req.permit()` result they passed in.
+ *
+ * @param {Model} instance The instance a write is about to set on
+ * @param {*} attrs What the caller passed
+ * @returns {function} Puts those attributes back, called with nothing
+ */
+const rollbackOf = (instance, attrs) => {
+  // The fields `set()` is about to write, which is `Object.assign()`'s own
+  // answer: the own enumerable keys, and none at all for anything that is
+  // not an object
+  const kept =
+    attrs === null || typeof attrs !== 'object'
+      ? []
+      : Object.keys(attrs).map((field) => [
+          field,
+          Object.prototype.hasOwnProperty.call(instance, field),
+          instance[field],
+        ]);
+
+  return () => {
+    for (const [field, held, value] of kept) {
+      if (held) {
+        instance[field] = value;
+      } else {
+        // A field the record did not carry is taken off it again rather
+        // than left as an `undefined` the dirty tracking would report
+        delete instance[field];
+      }
+    }
+  };
+};
+
+/**
  * Splits `find(where, options)` and `find({ where, order, limit })`
  *
  * @param {function} Model The model
@@ -1890,17 +1985,31 @@ class Model {
   }
 
   /**
-   * Sets attributes and saves
+   * Sets attributes and saves. A write the store refuses puts them back:
+   * the record is left holding the values it had when the call started,
+   * so the next `update()` on it is not measured against a refused value
+   * (see `rollbackOf()` above for the whole argument).
    *
    * @param {object} attrs The attributes
    * @param {object} [options={}] Options
    * @returns {Promise<Model>} The instance
+   * @throws {ValidationError} When the attributes are invalid
    * @memberof Model
    */
   async update(attrs, options = {}) {
+    const rollback = rollbackOf(this, attrs);
+
     this.set(attrs);
 
-    return this.save(options);
+    try {
+      return await this.save(options);
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        rollback();
+      }
+
+      throw error;
+    }
   }
 
   /**

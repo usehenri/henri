@@ -67,6 +67,45 @@ const boot = async (validates) => {
 };
 
 /**
+ * A model whose name is unique, so the database has a refusal of its own
+ *
+ * @param {object} [validates] The `validates` block
+ * @returns {object} The model file
+ */
+const noteModel = (validates) => ({
+  globalId: 'Note',
+  identity: 'note',
+  options: { timestamps: true },
+  schema: {
+    slug: { type: 'string', unique: true },
+    status: { enum: ['draft', 'live'], type: 'string' },
+    title: { required: true, type: 'string' },
+    views: { type: 'integer' },
+  },
+  store: 'default',
+  validates,
+});
+
+/**
+ * An adapter with the Note model on a database of its own
+ *
+ * @param {object} [validates] The `validates` block
+ * @returns {Promise<{adapter: object, Note: object}>} Both
+ */
+const bootNote = async (validates) => {
+  const adapter = new Mongoose(
+    'default',
+    { url: mongod.getUri(`validations${(sequence += 1)}`) },
+    fakeHenri()
+  );
+  const Note = adapter.addModel(noteModel(validates), 'user');
+
+  await adapter.start();
+
+  return { Note, adapter };
+};
+
+/**
  * The `{ field: message }` a controller would answer with
  *
  * @param {Promise} promise The write
@@ -286,6 +325,108 @@ describe('validations on a mongoose store', () => {
       await expect(
         Post.updateOne({ title: 'a' }, { $unset: { slug: '' } })
       ).resolves.toBeDefined();
+    });
+  });
+
+  describe('what the record holds after a write the store refused', () => {
+    // Mongoose 7 removed `Document.prototype.update`, so henri adds the
+    // one call the other two adapters have (`plugins.js`, `updating()`),
+    // and with it the rule they now share: a write the store refused puts
+    // back every attribute it set. The argument is written down once, in
+    // `@usehenri/drizzle`'s `model.js` above `rollbackOf()`
+    let Note;
+    let adapter;
+
+    beforeAll(async () => {
+      ({ Note, adapter } = await bootNote({ views: { max: 1000, min: 0 } }));
+    });
+
+    afterAll(() => adapter.stop());
+
+    test('the document has update(), the way the other two do', async () => {
+      const note = await Note.create({ slug: 'has-one', title: 'a' });
+
+      expect(typeof note.update).toBe('function');
+      await note.update({ title: 'renamed' });
+      expect((await Note.findByKey(note.id)).title).toBe('renamed');
+    });
+
+    test('a rule of the validates block puts its value back', async () => {
+      const note = await Note.create({ slug: 'rule', title: 'b', views: 1 });
+
+      expect(await errorsOf(note.update({ views: 9000 }))).toEqual({
+        views: 'must be at most 1000',
+      });
+      expect(note.views).toBe(1);
+      expect(note.modifiedPaths()).toEqual([]);
+    });
+
+    test('the schema’s own required and enum do too', async () => {
+      const note = await Note.create({
+        slug: 'schema',
+        status: 'draft',
+        title: 'c',
+      });
+
+      expect(await errorsOf(note.update({ title: null }))).toEqual({
+        title: 'is required',
+      });
+      expect(note.title).toBe('c');
+      expect(await errorsOf(note.update({ status: 'gone' }))).toEqual({
+        status: 'must be one of draft, live',
+      });
+      expect(note.status).toBe('draft');
+      expect(note.modifiedPaths()).toEqual([]);
+    });
+
+    test('and so does the unique index, the database refusing', async () => {
+      await Note.create({ slug: 'taken', title: 'd' });
+      const note = await Note.create({ slug: 'mine', title: 'e' });
+
+      expect(await errorsOf(note.update({ slug: 'taken' }))).toEqual({
+        slug: 'must be unique',
+      });
+      expect(note.slug).toBe('mine');
+      // `updatedAt` is Mongoose's own stamp for a save that reached the
+      // driver before it was refused, not an attribute the call set; the
+      // next save writes the time again whatever this one left behind
+      expect(note.modifiedPaths()).not.toContain('slug');
+    });
+
+    test('so the next update is not measured against a refused value', async () => {
+      const note = await Note.create({ slug: 'next', title: 'f', views: 1 });
+
+      await errorsOf(note.update({ views: 9000 }));
+      expect(await errorsOf(note.update({ title: 'renamed' }))).toBeNull();
+
+      const stored = await Note.findByKey(note.id);
+
+      expect([stored.title, stored.views]).toEqual(['renamed', 1]);
+    });
+
+    test('set() and save() are two steps and keep what was set', async () => {
+      const note = await Note.create({ slug: 'two-steps', title: 'g' });
+
+      note.set({ views: 9000 });
+      expect(await errorsOf(note.save())).toEqual({
+        views: 'must be at most 1000',
+      });
+      // The one way to keep what a person typed after the store said no
+      expect(note.views).toBe(9000);
+    });
+
+    test('a failure that is not a refusal rolls nothing back', async () => {
+      const note = await Note.create({ slug: 'gone', title: 'h', views: 1 });
+
+      await Note.deleteOne({ _id: note.id });
+
+      // The document is not there any more, which Mongoose answers with a
+      // DocumentNotFoundError: a failure, but not the store refusing a
+      // value, so nothing is put back
+      await expect(note.update({ views: 2 })).rejects.toThrow(
+        /No document found/u
+      );
+      expect(note.views).toBe(2);
     });
   });
 

@@ -7,6 +7,7 @@ const {
   paginate,
   paranoid,
   slugged,
+  updating,
   validations,
 } = require('./plugins');
 const { validationsOf } = require('./validations');
@@ -277,6 +278,9 @@ class Mongoose {
     owned(schema, this.henri);
     paginate(schema);
     lookups(schema);
+    // `doc.update(attrs)`, which Mongoose itself dropped in 7, and the
+    // rollback of a write the store refused (./plugins.js)
+    updating(schema);
 
     // Before every other hook, so what a rule measures is the value the
     // application wrote rather than an envelope. A declaration henri

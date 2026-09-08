@@ -45,6 +45,75 @@ const toInt = (value, fallback) => {
 };
 
 /**
+ * `instance.update()` that puts back what it set when the store refuses
+ * the write.
+ *
+ * The rule is henri's and is the same sentence on all three adapters; the
+ * whole argument for it is written down once, in `@usehenri/drizzle`'s
+ * `model.js` above `rollbackOf()`. In short: `update()` is `set()` then
+ * `save()`, so a refused write used to leave the value the store refused
+ * sitting on the record, and a controller answering 422 rendered, logged
+ * or wrote again from it. A refusal is what `henri.model.errors()` turns
+ * into `{ field: message }`, which here is Sequelize's own
+ * `ValidationError` -- `SequelizeUniqueConstraintError` extends it, so the
+ * index's refusal is covered by the same test.
+ *
+ * Sequelize's own `update()` is those two steps too, and it is wrapped
+ * rather than rewritten: `options.fields`, the transaction it picks up and
+ * everything else the call decides stay Sequelize's. What is put back is
+ * `dataValues` and the dirty flag of each attribute the call named --
+ * `dataValues` rather than `get()`, so an encrypted column goes back as
+ * the envelope it was stored as rather than through its getter.
+ *
+ * @param {object} Model A Sequelize model
+ * @returns {object} The model
+ */
+const restoring = (Model) => {
+  const update = Model.prototype.update;
+
+  /**
+   * Sets attributes and saves, putting them back when the store refuses
+   *
+   * @param {object} values The attributes
+   * @param {object} [options] The options
+   * @returns {Promise<object>} The instance
+   */
+  Model.prototype.update = async function updateOrRollBack(values, options) {
+    // The own enumerable keys, which is what Sequelize's `update()` reads
+    // out of `values` as well
+    const kept =
+      values === null || typeof values !== 'object'
+        ? []
+        : Object.keys(values).map((field) => [
+            field,
+            Object.prototype.hasOwnProperty.call(this.dataValues, field),
+            this.dataValues[field],
+            this.changed(field),
+          ]);
+
+    try {
+      return await update.call(this, values, options);
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        for (const [field, held, value, dirty] of kept) {
+          if (held) {
+            this.dataValues[field] = value;
+          } else {
+            delete this.dataValues[field];
+          }
+
+          this.changed(field, dirty);
+        }
+      }
+
+      throw error;
+    }
+  };
+
+  return Model;
+};
+
+/**
  * Adds `Model.paginate()`: one call for a page of rows and the counters
  * `res.collection()` wants
  *
@@ -570,4 +639,11 @@ const validations = (Model, rules) => {
   return Model;
 };
 
-module.exports = { lookup, paginate, publicId, slugged, validations };
+module.exports = {
+  lookup,
+  paginate,
+  publicId,
+  restoring,
+  slugged,
+  validations,
+};

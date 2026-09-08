@@ -28,6 +28,26 @@ const postModel = (validates) => ({
 });
 
 /**
+ * A model whose name is unique, so the database has a refusal of its own
+ *
+ * @param {object} [validates] The `validates` block
+ * @returns {object} The model file
+ */
+const noteModel = (validates) => ({
+  globalId: 'Note',
+  identity: 'note',
+  options: { timestamps: true },
+  schema: {
+    slug: { type: 'string', unique: true },
+    status: { enum: ['draft', 'live'], type: 'string' },
+    title: { required: true, type: 'string' },
+    views: { type: 'integer' },
+  },
+  store: 'default',
+  validates,
+});
+
+/**
  * The `{ field: message }` a controller would answer with
  *
  * @param {Promise} promise The write
@@ -228,6 +248,107 @@ describe('validations on a sequelize store', () => {
         Post.increment('rank', { by: 1, where: { id: post.id } })
       ).resolves.toBeDefined();
       await adapter.stop();
+    });
+  });
+
+  describe('what the record holds after a write the store refused', () => {
+    // Sequelize's `instance.update()` is `set()` then `save()` like the
+    // other two, so a refusal used to leave the value the store refused on
+    // the record. The rule and the argument are in `@usehenri/drizzle`'s
+    // `model.js`, above `rollbackOf()`
+    let Note;
+    let adapter;
+
+    beforeAll(async () => {
+      ({ adapter } = build());
+      Note = adapter.addModel(
+        noteModel({ views: { max: 1000, min: 0 } }),
+        'user'
+      );
+      await adapter.start();
+    });
+
+    afterAll(() => adapter.stop());
+
+    test('a rule of the validates block puts its value back', async () => {
+      const note = await Note.create({ title: 'a', views: 1 });
+
+      expect(await errorsOf(note.update({ views: 9000 }))).toEqual({
+        views: 'must be at most 1000',
+      });
+      expect(note.views).toBe(1);
+      expect(note.changed()).toBe(false);
+    });
+
+    test('the schema’s own required and enum do too', async () => {
+      const note = await Note.create({ status: 'draft', title: 'b' });
+
+      expect(await errorsOf(note.update({ title: null }))).toEqual({
+        title: 'is required',
+      });
+      expect(note.title).toBe('b');
+      expect(await errorsOf(note.update({ status: 'gone' }))).toEqual({
+        status: 'must be one of draft, live',
+      });
+      expect(note.status).toBe('draft');
+      expect(note.changed()).toBe(false);
+    });
+
+    test('and so does the unique index, the database refusing', async () => {
+      await Note.create({ slug: 'taken', title: 'c' });
+      const note = await Note.create({ slug: 'mine', title: 'd' });
+
+      expect(await errorsOf(note.update({ slug: 'taken' }))).toEqual({
+        slug: 'slug must be unique',
+      });
+      // The one the three adapters used to disagree about: Sequelize
+      // narrows the statement to the fields the call named, so the next
+      // update wrote the row while the record kept saying `taken`
+      expect(note.slug).toBe('mine');
+      expect(note.changed()).toBe(false);
+    });
+
+    test('so the next update is not measured against a refused value', async () => {
+      const note = await Note.create({ title: 'e', views: 1 });
+
+      await errorsOf(note.update({ views: 9000 }));
+      expect(await errorsOf(note.update({ title: 'renamed' }))).toBeNull();
+
+      const stored = await Note.findByPk(note.id);
+
+      expect([stored.title, stored.views]).toEqual(['renamed', 1]);
+    });
+
+    test('set() and save() are two steps and keep what was set', async () => {
+      const note = await Note.create({ title: 'f', views: 1 });
+
+      note.set({ views: 9000 });
+      expect(await errorsOf(note.save())).toEqual({
+        views: 'must be at most 1000',
+      });
+      // The one way to keep what a person typed after the store said no
+      expect(note.views).toBe(9000);
+    });
+
+    test('a failure that is not a refusal rolls nothing back', async () => {
+      const { adapter: other } = build();
+      const Broken = other.addModel(noteModel(), 'user');
+
+      Broken.addHook('afterUpdate', () => {
+        throw new Error('the hook says no');
+      });
+      await other.start();
+
+      const note = await Broken.create({ title: 'g', views: 1 });
+
+      // The row moved before the hook ran, so the record keeps the value
+      // that is now stored rather than being put back over it
+      await expect(note.update({ views: 2 })).rejects.toThrow(
+        'the hook says no'
+      );
+      expect(note.views).toBe(2);
+      expect((await Broken.findByPk(note.id)).views).toBe(2);
+      await other.stop();
     });
   });
 

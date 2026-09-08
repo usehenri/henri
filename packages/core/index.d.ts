@@ -3218,6 +3218,13 @@ declare namespace start {
     save(...args: any[]): Promise<any>;
     get(...args: any[]): any;
     set(...args: any[]): any;
+    /**
+     * Sets the attributes and saves them. A write the store refuses puts
+     * them back, so the record is left holding the values it had -- see
+     * `guides/models.md` (`#what-a-record-holds-after-a-refused-write`).
+     * On Mongoose, where the ORM itself has no such method, henri adds it.
+     */
+    update(values: Record<string, any>, ...args: any[]): Promise<any>;
     toJSON(): Record<string, any>;
   }
 
@@ -3234,7 +3241,6 @@ declare namespace start {
 
   /** A record of an `mssql` store: a Sequelize instance. */
   interface SequelizeRecord extends RecordBase {
-    update(values: Record<string, any>, ...args: any[]): Promise<any>;
     destroy(...args: any[]): Promise<any>;
     reload(...args: any[]): Promise<any>;
     changed(...args: any[]): any;
@@ -3245,7 +3251,6 @@ declare namespace start {
 
   /** A record of a `drizzle`, `mysql`, `postgresql` or `mariadb` store. */
   interface DrizzleRecord extends RecordBase {
-    update(values: Record<string, any>, ...args: any[]): Promise<any>;
     destroy(...args: any[]): Promise<any>;
     reload(...args: any[]): Promise<any>;
     changed(): string[];
