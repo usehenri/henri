@@ -39,6 +39,38 @@ const JOBS = target.live ? 12 : 6;
  */
 const callbacks = () => global.__henriJobsCallbacks || [];
 
+/**
+ * Performs everything the queue has, the callback included.
+ *
+ * `Runner#once()` returns as soon as it has nothing left to claim, and a
+ * batch settles *after* the outcome of its last job is written down: the
+ * callback is a row that settle enqueues. So a single pass can return
+ * inside that gap, leaving the callback in the queue with nobody to
+ * perform it -- rarely on an idle machine, and often enough on a CI runner
+ * sharing itself with fifteen other jobs. `drain()` in the batches
+ * describe waits for three consecutive empty polls for this exact reason;
+ * this is that rule for the describes that drive one runner by hand.
+ *
+ * @param {object} jobs The queue module
+ * @param {object} [options={}] Runner options
+ * @returns {Promise<void>} When the queue has nothing left to give
+ */
+const settle = async (jobs, options = {}) => {
+  const runner = new Runner(jobs, { recurring: false, ...options });
+  let empty = 0;
+
+  for (let waited = 0; waited < 400 && empty < 3; waited += 1) {
+    await runner.once();
+
+    const pending = await jobs.count({ state: 'pending' });
+    const running = await jobs.count({ state: 'running' });
+
+    empty = pending === 0 && running === 0 ? empty + 1 : 0;
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+};
+
 describe(`batches (${target.name}, ${RUNNERS} runners)`, () => {
   const adapters = [];
   const queues = [];
@@ -506,9 +538,7 @@ describe(`a batch and a runner that died (${target.name})`, () => {
 
     expect((await jobs.batches.get(batch.id)).done).toBe(0);
 
-    const runner = new Runner(jobs, { concurrency: 2, recurring: false });
-
-    await runner.once();
+    await settle(jobs, { concurrency: 2 });
 
     // Performed by somebody else, counted once, and the callback called
     expect((await jobs.batches.get(batch.id)).done).toBe(1);
@@ -562,7 +592,7 @@ describe(`a batch and a runner that died (${target.name})`, () => {
     expect(stored.done).toBe(1);
     expect(stored.failed).toBe(1);
 
-    await new Runner(jobs, { recurring: false }).once();
+    await settle(jobs);
 
     expect(callbacks()).toHaveLength(1);
     expect(callbacks()[0].batch.failed).toBe(1);
