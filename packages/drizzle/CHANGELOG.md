@@ -1,5 +1,9 @@
 # @usehenri/drizzle
 
+## 1.2.1
+
+No changes in this release.
+
 ## 1.2.0
 
 ### Minor Changes

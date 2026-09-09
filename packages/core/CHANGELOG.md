@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.2.1
+
+### Patch Changes
+
+- [#451](https://github.com/usehenri/henri/pull/451) [`5688415`](https://github.com/usehenri/henri/commit/5688415e21379ba5b6c521479080d8c6125d066f) Thanks [@reel](https://github.com/reel)! - The development server's shortcut list says Ctrl on every platform, and names the two it never mentioned
+  
+  The listener reads the control characters stdin sends in raw mode -- 3, 14, 15
+  and 18 -- so `Cmd+R`, `Cmd+O` and `Cmd+C`, which is what it printed on macOS,
+  named shortcuts that could not work: a terminal never delivers Cmd as a
+  character. It also binds a plain `r` (the loaded routes) and a plain `u` (the
+  unknown ones), which the list left out entirely.
+  
+  `HENRI_CONFIG_INVALID` pointed at a page that does not exist
+  (`/reference/configuration/` rather than `/configuration/`), so the failure
+  that fires when a configuration is wrong sent people to a 404.
+
 ## 1.2.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/inertia",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Inertia.js (Vite + React) view engine for henri",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",

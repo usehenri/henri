@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/mysql",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "henri mysql/mariadb database adapter: @usehenri/drizzle with the dialect and the mysql2 driver chosen",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",

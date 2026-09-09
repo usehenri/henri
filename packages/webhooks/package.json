@@ -1,6 +1,6 @@
 {
   "name": "@usehenri/webhooks",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "henri outbound webhooks: endpoints an application registers, signed deliveries and the retries of the queue",
   "license": "MIT",
   "author": "Felix-Antoine Paradis",

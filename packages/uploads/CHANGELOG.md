@@ -1,5 +1,12 @@
 # @usehenri/uploads
 
+## 1.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`5688415`](https://github.com/usehenri/henri/commit/5688415e21379ba5b6c521479080d8c6125d066f)]:
+  - @usehenri/core@1.2.1
+
 ## 1.2.0
 
 ### Minor Changes
