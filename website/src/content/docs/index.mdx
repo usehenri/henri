@@ -2,74 +2,98 @@
 title: henri
 head:
   - tag: title
-    content: henri - the versatile JavaScript framework
-description: henri is an easy to learn, rails-like, server-side rendered JavaScript framework with real ORMs.
+    content: henri - the Node.js framework that knows what your data is
+description: henri is a Rails-like, server-rendered JavaScript framework for Node.js. Models, controllers, routes, real ORMs and hot reload, with personal data, retention, an access trail, encryption and multi-tenancy declared on the model.
 template: splash
 editUrl: false
 lastUpdated: false
 hero:
-  title: The versatile JavaScript framework
-  tagline: An easy to learn, Rails-like, server-side rendered framework for Node.js. Models, controllers, routes and React views, with real ORMs and hot reload out of the box.
+  title: The Node.js framework that knows what your data is
+  tagline: henri is Rails-shaped — models, controllers, routes, real ORMs, generators, hot reload. It also knows which of your columns are about a person, how long a record is kept and which customer a row belongs to. Those are marks on the model, not a project for next quarter.
   image:
-    alt: henri
+    alt: The henri logo
     file: ../../assets/henri.png
   actions:
     - text: Get started
       link: /getting-started/
       icon: right-arrow
-    - text: View on GitHub
+    - text: What it does with personal data
+      link: /guides/privacy/
+      variant: minimal
+    - text: GitHub
       link: https://github.com/usehenri/henri
       icon: external
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+<div class="landing">
 
-<CardGrid stagger>
-  <Card title="Rails-like structure" icon="open-book">
-    `app/models`, `app/controllers`, `app/views`, `config/routes.js`. If you
-    know Ruby on Rails, you already know where everything goes.
-  </Card>
-  <Card title="Server-side rendered React" icon="rocket">
-    Pages live in `app/views/pages` and controllers hand them data with
-    `res.render()`: no API layer to write. The same endpoint answers JSON when a
-    client asks for it.
-  </Card>
-  <Card title="Real ORMs" icon="document">
-    Drizzle for sqlite, PostgreSQL, MySQL and MariaDB, with generated
-    migrations. Mongoose for MongoDB, Sequelize for SQL Server. A new
-    application starts on sqlite, with no database to install. Models are
-    global, like in Rails.
-  </Card>
-  <Card title="GraphQL, one install away" icon="puzzle">
-    Add `@usehenri/graphql` and a `graphql` key to a model: its types and
-    resolvers are merged into a single schema, served by Apollo Server and
-    queryable from `res.render()`.
-  </Card>
-  <Card title="Hot reload everything" icon="setting">
-    Controllers, models, routes, workers and configuration reload on save. Press
-    `r` in the terminal to list the loaded routes.
-  </Card>
-  <Card title="Generators and tests" icon="pencil">
-    `henri new`, `henri generate scaffold`, `henri test` on Vitest. Users get
-    password hashing, sessions, CSRF and roles for free.
-  </Card>
-</CardGrid>
+<section>
 
-<div class="landing-sample">
+<p class="eyebrow">Install</p>
 
-## A whole app in three files
+## From nothing to a running application
 
-```js
-// config/routes.js
+```bash frame="terminal"
+npm install -g henri
+henri new my-app
+cd my-app && henri server
+```
+
+A new application is a [Drizzle](/guides/models/#drizzle) store on sqlite in
+`.henri/app.db`: nothing to install, migrations from the first day, and a
+database you can deploy rather than one you have to leave behind.
+`--adapter postgresql|mysql|mssql|mongoose|disk` picks another one, and the
+sample resource, the dependencies and the configuration follow it.
+
+<ul class="facts">
+<li>
+
+**1.2.0**, every package
+
+</li>
+<li>
+
+**Twenty packages**, one version
+
+</li>
+<li>
+
+**Node 22** or newer
+
+</li>
+<li>
+
+Inertia + React 19, or Next.js
+
+</li>
+<li>
+
+**MIT**
+
+</li>
+</ul>
+
+</section>
+
+<section>
+
+<p class="eyebrow">The shape</p>
+
+## A whole application in three files
+
+If you have written Rails, you already know where everything goes. Routes
+expand into actions, controllers hand their data straight to the pages, and
+there is no API layer in between to write.
+
+```js title="config/routes.js"
 module.exports = {
-  'resources tasks': 'tasks',
   '/': 'tasks#index',
+  'resources tasks': 'tasks',
 };
 ```
 
-```js
-// app/controllers/tasks.js
+```js title="app/controllers/tasks.js"
 module.exports = {
   index: async (req, res) => {
     res.render('/tasks', { data: { tasks: await Task.find() } });
@@ -81,8 +105,7 @@ module.exports = {
 };
 ```
 
-```jsx
-// app/views/pages/tasks/index.jsx
+```jsx title="app/views/pages/tasks/index.jsx"
 import { useHenri } from '@usehenri/inertia';
 
 export default function Tasks() {
@@ -97,5 +120,345 @@ export default function Tasks() {
   );
 }
 ```
+
+The same route answers JSON when a client asks for it: `res.collection(tasks)`
+is [HAL](/guides/api/) with `_links` built from the route helpers and filtered
+by the reader's roles, then by the [policy](/guides/policies/) of each record —
+so a visitor who may not delete a task never sees the link that would.
+`henri generate scaffold Task name:string!` writes all three of these plus the
+model, the form and the four other pages — reading the model file back as it
+goes, so a `required` column gets a required input and an `enum` column gets a
+`<select>` of its values.
+
+</section>
+
+<section>
+
+<p class="eyebrow">Where henri is different</p>
+
+## It knows what your data is
+
+Your application knows which of its columns are about a person. Nothing else
+does — not the logger, not the serializer, not whoever has to answer an access
+request three years from now. henri moves that knowledge into the schema, where
+it can act on its own.
+
+```js title="app/models/Member.js"
+module.exports = {
+  options: {
+    personal: { onErase: 'anonymize' },
+    retention: { action: 'delete', after: '18mo', from: 'leftAt' },
+    tenant: true,
+    versioned: true,
+  },
+  schema: {
+    userId: { references: { model: 'User' }, required: true, type: 'integer' },
+    name: { personal: true, type: 'string' },
+    phone: { personal: { expose: false }, type: 'string' },
+    taxId: { encrypted: true, type: 'string' },
+    leftAt: { type: 'date' },
+  },
+};
+```
+
+That is the whole declaration. Everything below follows from it, with no `where`
+to write and no `where` to forget.
+
+<ul class="follows">
+<li>
+
+`name` and `phone` are masked by name in every log line and every recorded
+error, next to the substring match `filterParameters` already does.
+
+</li>
+<li>
+
+`phone` is dropped from everything henri serializes — `res.render`,
+`res.resource`, `res.collection`, `res.json`, an embedded relation, a CSV
+export, a stream frame — at every depth, unless the answer names it.
+
+</li>
+<li>
+
+`taxId` is AES-256-GCM in the column, under a keyring that rotates without
+moving `updatedAt`. A read that fails throws rather than answering `null`, and
+an encrypted field is personal unless the model says otherwise.
+
+</li>
+<li>
+
+`henri privacy:export` hands a person every row held about them and
+`privacy:erase` removes them — `userId` is what makes this row theirs, and
+`onErase: 'anonymize'` is this model's answer: the row stays and its personal
+fields are cleared, so the count stays true. Every erasure leaves a receipt
+holding an HMAC of the identity rather than the identity.
+
+</li>
+<li>
+
+A member who left eighteen months ago is deleted by the retention sweep — which
+writes nothing until that rule's token is approved in the configuration, so no
+rule starts deleting because somebody edited a model.
+
+</li>
+<li>
+
+Every change is a row in `henri_versions`: the fields, the old value and the new
+one, who did it and the request id. A mass write is refused rather than recorded
+once for a hundred rows.
+
+</li>
+<li>
+
+No query for a `Member` crosses a tenant, and one with **no** tenant in scope is
+refused rather than answered with everybody's rows — which is what makes a job,
+a seed or a console session fail loudly instead of leaking.
+
+</li>
+</ul>
+
+And what henri did itself is in a chain. The [access trail](/guides/trail/)
+records every export, every erasure and every sweep, plus — when you ask for it
+— every answer henri serialized. Each entry carries a sequence number under a
+unique index and a hash of the entry before it, so a row edited or removed
+breaks the chain and `henri trail:verify` says where.
+
+```bash frame="terminal"
+henri privacy                          # the map: what is held about a person, and where
+henri privacy:export ada@example.com   # everything held about them
+henri privacy:erase ada@example.com    # remove them, and leave a receipt
+henri retention:sweep --yes            # the cron line; or a recurring job
+henri trail:verify                     # the chain, and where it breaks
+henri audit                            # the ASVS requirements your files answer
+```
+
+None of this is compliance, and henri does not claim to make you compliant. It
+is the machinery a compliance answer gets written from — and `henri audit` names
+the requirement each finding maps to, so the engineering half and the paperwork
+half are the same conversation.
+
+</section>
+
+<section>
+
+<p class="eyebrow">The framework</p>
+
+## Everything else you would have installed anyway
+
+<div class="cards">
+<div class="card">
+<h3>Real ORMs, and real migrations</h3>
+
+Drizzle on sqlite, PostgreSQL and MySQL with generated, versioned migrations;
+Mongoose on MongoDB; Sequelize under SQL Server. One model format for all of
+them.
+
+A generated migration is read back before it runs, and a production `migrate()`
+refuses a dangerous one until its token has been approved.
+
+</div>
+<div class="card">
+<h3>A JSON API you did not write</h3>
+
+HAL answers, declared `params`, `filters`, `embeds` and `answers`, idempotency
+keys, rate limits, pagination, and a CSV export that streams on a cursor.
+
+`henri openapi` writes the OpenAPI 3.1 description from your routes and models
+without booting — and refuses to describe what a controller writes rather than
+guessing at it.
+
+</div>
+<div class="card">
+<h3>Background work that survives a restart</h3>
+
+A database-backed queue with retries, a dead letter queue, recurring jobs,
+per-job concurrency limits and batches. No second server to run.
+
+Outbound webhooks sign with
+[Standard Webhooks](https://www.standardwebhooks.com), and every address is
+checked when the request is made — then the socket is pinned to the address
+that was checked.
+
+</div>
+<div class="card">
+<h3>Users, roles and record-level rules</h3>
+
+argon2id or bcrypt, sessions in your database, double-submit CSRF with an origin
+check, sign-up, password reset, confirmation, and sign-in with somebody else's
+identity provider.
+
+Policies fail closed: no policy, no rule for the action and a rule that threw
+all mean no, and only the boolean `true` allows.
+
+</div>
+<div class="card">
+<h3>Real time, without a second protocol</h3>
+
+`res.stream()` is a route: server-sent events on the http server henri already
+runs, through the same router, session, role guard and policies as everything
+else.
+
+The policy is asked at subscribe time and again before every event, because a
+stream is one decision answered from for hours.
+
+</div>
+<div class="card">
+<h3>The day-to-day</h3>
+
+Generators that read your model files back, tests on Vitest with factories and a
+mail inbox, a console whose `--sandbox` rolls back on exit, and hot reload for
+controllers, models, routes, workers and configuration.
+
+Mail with previews, caching, feature flags, uploads, i18n, time zones,
+maintenance mode, OpenTelemetry and GraphQL are in the box or one install away.
+
+</div>
+</div>
+
+</section>
+
+<section>
+
+<p class="eyebrow">Coding agents</p>
+
+## Built to be driven by one
+
+None of it is required — a person typing commands gets the same framework — but
+the conventions are written where an agent will read them, and the failures
+carry codes instead of prose.
+
+<div class="cards">
+<div class="card">
+<h3>An MCP server</h3>
+
+`henri mcp` exposes the routes, the models, the configuration, the OpenAPI
+document, the generators, the tests, `doctor` and `audit` — plus what the
+database actually holds, read from its catalogue rather than from the model
+files.
+
+</div>
+<div class="card">
+<h3>AGENTS.md, generated</h3>
+
+Not a template with your name in it: it is read off your application, held to
+150 lines because it loads on every task, and regenerating replaces only what is
+between the markers. `henri new` writes it.
+
+</div>
+<div class="card">
+<h3>Types it can read</h3>
+
+Every published package ships TypeScript declarations, and `.henri/types.d.ts`
+is generated from your application: an interface per model, an enum column as a
+union of its values, and every path helper your routes expand to.
+
+</div>
+<div class="card">
+<h3>254 error codes</h3>
+
+One catalogue across the framework, the adapters, the queue, the view engines
+and the command line, in 39 areas — each code with what it means, what usually
+causes it and how to fix it.
+
+</div>
+<div class="card">
+<h3>The documentation, at your version</h3>
+
+The guides ship inside `@usehenri/core`, so `henri docs` and the MCP `guide`
+tool answer for the henri your application runs rather than for whatever this
+site says today.
+
+</div>
+<div class="card">
+<h3>Something to check it against</h3>
+
+`henri doctor` reports what an application cannot have meant; `henri audit`
+weighs what it chose, against ASVS 4.0.3. Both answer `--json`, and so does
+everything else.
+
+</div>
+</div>
+
+</section>
+
+<section>
+
+<p class="eyebrow">Before you install, not after</p>
+
+## What henri does not do
+
+The guides argue each of these where they live. The list is here because it is
+short, and because you should have it now.
+
+<ul class="limits">
+<li>
+
+**A broadcast reaches one process.** Server-sent events run on the process that
+accepted the connection, and there is no cross-process fan-out yet. Behind two
+workers half the subscribers are not told — and nothing errors. henri warns when
+the environment gives it evidence of a second process, which cannot see a second
+machine.
+
+</li>
+<li>
+
+**There is no queue dashboard, and there will not be one.** A job's arguments
+are the customer's address and the invoice being rebuilt: the data the personal
+marks exist to keep out of answers. A read-only page behind your own policy is
+the answer, and `henri.jobs.*` is what you build it from.
+
+</li>
+<li>
+
+**The Next.js engine is frozen on the pages router.** It is supported and keeps
+getting fixes, but it does not follow Next.js into the app router. New
+applications get Inertia, and the views guide has the mapping between the two.
+
+</li>
+<li>
+
+**henri inlines no CSS into mail.** The honest version of that is a CSS parser,
+a selector engine and an html serializer, and a mangled mail cannot be fixed
+after it is sent. What henri owns is the seam: `onRender` runs last, so an
+inliner cannot leak a style attribute into the plain text part.
+
+</li>
+<li>
+
+**`henri audit` is not a code analysis.** It reads your settings, your marks,
+your declarations and four shapes. There is no dataflow, so a clean run means
+your declarations are right. It does not mean the code is.
+
+</li>
+<li>
+
+**SQL Server gets no migrations.** Drizzle has no dialect for it, so an mssql
+store creates what is missing in development and `henri db:status` reports the
+drift for a person to review.
+
+</li>
+</ul>
+
+</section>
+
+<div class="closing">
+
+## Start
+
+```bash frame="terminal"
+npm install -g henri
+henri new my-app
+```
+
+[Getting started](/getting-started/) walks the first application end to end. The
+[guides](/guides/models/) are the long form — 34 of them, and they argue their
+decisions rather than listing features. [Configuration](/configuration/) is
+every key henri owns.
+
+henri is MIT and built in the open at
+[usehenri/henri](https://github.com/usehenri/henri). Twenty packages, versioned
+together at 1.2.0 and published from CI with npm provenance.
+
+</div>
 
 </div>
