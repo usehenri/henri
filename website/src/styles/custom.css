@@ -40,12 +40,251 @@
   border-radius: 1rem;
 }
 
+/* On a phone the logo sits above the headline, so it is kept small enough that
+   the first sentence is still on the first screen. */
+@media (max-width: 50rem) {
+  .hero img {
+    max-width: 10rem;
+  }
+}
+
 .site-title img {
   height: 1.75rem;
   width: auto;
 }
 
-/* Landing page: tighten the code sample under the cards */
-.landing-sample {
-  margin-top: 3rem;
+/* ---------------------------------------------------------------------------
+   The landing page.
+
+   Everything below is scoped to .landing, which only index.mdx carries, so no
+   rule here can reach a documentation page. The colours are Starlight tokens
+   only, so both schemes follow the palette declared above and neither is
+   spelled twice.
+   --------------------------------------------------------------------------- */
+
+.landing {
+  --landing-gap: clamp(3rem, 8vw, 5.5rem);
+  overflow-wrap: break-word;
+}
+
+/* The tagline is a paragraph rather than a slogan: give it room to be read. */
+.hero .tagline {
+  max-width: 48ch;
+  font-size: var(--sl-text-lg);
+  line-height: 1.6;
+}
+
+.hero h1 {
+  text-wrap: balance;
+}
+
+@media (min-width: 50rem) {
+  .hero h1 {
+    max-width: 18ch;
+  }
+}
+
+/* A section is a heading, a lede, and the proof under it. */
+.landing section {
+  margin-top: var(--landing-gap);
+}
+
+.landing section > h2 {
+  margin-top: 0;
+  font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.125rem);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.landing .eyebrow {
+  margin: 0 0 0.65rem;
+  font-size: var(--sl-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-3);
+}
+
+/* A measure. The splash template has no sidebar, so prose would otherwise run
+   the full 1080px and be unreadable; the code samples and the grids keep it. */
+.landing section > p,
+.landing .closing > p {
+  max-width: 40rem;
+}
+
+/* The lists carry their own rules and dividers, so the measure goes on the list
+   rather than on each paragraph: a divider must end where its text does. */
+.landing .follows,
+.landing .limits {
+  max-width: 42rem;
+}
+
+.landing .lede {
+  font-size: var(--sl-text-lg);
+  line-height: 1.65;
+}
+
+/* The strip under the install command: the version, the count, the licence. */
+.landing .facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing .facts li {
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 999px;
+  font-size: var(--sl-text-xs);
+  line-height: 1.5;
+  color: var(--sl-color-gray-2);
+}
+
+.landing .facts li > p {
+  margin: 0;
+}
+
+.landing .facts li strong {
+  color: var(--sl-color-white);
+  font-weight: 600;
+}
+
+/* Cards: a claim, and the artifact that proves it. */
+.landing .cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr));
+  margin-top: 1.75rem;
+}
+
+/* Starlight gives every sibling a top margin; inside a grid that offsets the
+   cards from the top of their own row, so the row stops lining up. */
+.landing .cards > .card {
+  margin: 0;
+}
+
+.landing .card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.75rem;
+  background: var(--sl-color-gray-6);
+}
+
+.landing .card > :first-child {
+  margin-top: 0;
+}
+
+.landing .card > :last-child {
+  margin-bottom: 0;
+}
+
+.landing .card h3 {
+  margin: 0 0 0.5rem;
+  font-size: var(--sl-text-base);
+  line-height: 1.35;
+}
+
+.landing .card > p {
+  margin: 0;
+  font-size: var(--sl-text-sm);
+  line-height: 1.6;
+}
+
+.landing .card > p + p {
+  margin-top: 0.8rem;
+}
+
+.landing .card code {
+  font-size: 0.85em;
+}
+
+/* What follows from one mark. The subject of each line is the code in it. */
+.landing .follows {
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing .follows li {
+  margin: 0;
+  padding: 0.85rem 0 0.85rem 1.1rem;
+  border-left: 2px solid var(--sl-color-gray-5);
+  line-height: 1.6;
+}
+
+.landing .follows li + li {
+  border-top: 1px solid var(--sl-color-gray-5);
+}
+
+.landing .follows li:first-child {
+  padding-top: 0;
+}
+
+.landing .follows li:last-child {
+  padding-bottom: 0;
+}
+
+.landing .follows li > p,
+.landing .limits li > p {
+  margin: 0;
+}
+
+.landing .follows li > p + p,
+.landing .limits li > p + p {
+  margin-top: 0.7rem;
+}
+
+/* What henri does not do. The same shape, accented, because it is an argument
+   rather than a caveat. */
+.landing .limits {
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing .limits li {
+  margin: 0 0 1.15rem;
+  padding-left: 1.1rem;
+  border-left: 2px solid var(--sl-color-accent);
+  line-height: 1.6;
+}
+
+.landing .limits li:last-child {
+  margin-bottom: 0;
+}
+
+.landing .limits strong {
+  display: block;
+  color: var(--sl-color-white);
+}
+
+/* The closing call to action. */
+.landing .closing {
+  margin-top: var(--landing-gap);
+  max-width: 52rem;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.75rem;
+  background: var(--sl-color-gray-6);
+}
+
+.landing .closing > :first-child {
+  margin-top: 0;
+}
+
+.landing .closing > :last-child {
+  margin-bottom: 0;
+}
+
+/* Code samples sit tighter here than in a guide, and a little wider than the
+   prose so a sample reads as evidence next to the sentence that made a claim. */
+.landing .expressive-code {
+  margin-top: 1rem;
+  max-width: 48rem;
 }
