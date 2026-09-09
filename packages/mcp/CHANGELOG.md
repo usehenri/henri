@@ -1,5 +1,12 @@
 # @usehenri/mcp
 
+## 1.2.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @usehenri/cli@1.2.1
+
 ## 1.2.0
 
 ### Minor Changes
