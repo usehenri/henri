@@ -1855,7 +1855,13 @@ environment. There is no npm token to rotate. npm cannot create a package
 through OIDC, so a new package is bootstrapped once by a maintainer
 (`npm login`, then `node scripts/npm-bootstrap.mjs @usehenri/<name>` publishes
 an empty 0.0.0), gets its trusted publisher registered on npmjs.com, and must
-be added to the `fixed` group of `.changeset/config.json`. `scripts/prepublish.js` copies
+be added to the `fixed` group of `.changeset/config.json`. **It also needs
+"Allow npm publish" ticked** under that package's Settings -> Publishing
+access: npm turns it off for a package first published from a laptop, which
+blocks OIDC however correctly the trusted publisher is registered. That step
+was missed for the seven packages first published by hand and it split the
+1.2.0 release in half -- twelve went out, eight did not, and the publish job
+had to be re-run once the box was ticked. `scripts/prepublish.js` copies
 the LICENSE and a README into every public package at publish time
 (`packages/henri` gets the root README), and copies
 `website/src/content/docs` into `@usehenri/core/docs`, which is what makes
@@ -2056,9 +2062,7 @@ test:sql:mariadb`, the compose service, `HENRI_TEST_MARIADB_URL`).
 /data`). **Nothing is exercised against AWS, R2, Spaces or GCS**: the
   differences those have from MinIO -- IAM, virtual-host style on a real
   domain, an eventual-consistency window, a region redirect -- are covered
-  only by the code that handles them. It is not on npm yet: a new package is
-  bootstrapped once by a maintainer (see Releasing) before the release
-  workflow can publish it.
+  only by the code that handles them. It went out with the rest of 1.2.0.
 - Variants are exercised against sharp on the platform the suite runs on,
   which is the only one it can be. The formats a build of libvips was
   compiled with are not henri's to promise: `avif` in particular is present
