@@ -707,7 +707,7 @@ class ConfigurationError extends Error {
     this.code = 'HENRI_CONFIG_INVALID';
     this.exitCode = 1;
     this.hint =
-      'Every key henri reads is documented at https://usehenri.io/reference/configuration/';
+      'Every key henri reads is documented at https://usehenri.io/configuration/';
     this.problems = problems;
   }
 }
