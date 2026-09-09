@@ -188,14 +188,19 @@ function watch(henri) {
   keyboardShortcuts(henri);
 
   setTimeout(() => {
-    const cmdCtrl = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
-
-    pen.info('server', `To reload the server codebase, use ${cmdCtrl}+R`);
+    // Ctrl on every platform, macOS included: the listener below reads the
+    // control characters stdin sends in raw mode (3, 14, 15, 18), and Cmd
+    // is not one of them -- a terminal never delivers it as a character, so
+    // the `Cmd` this used to print on darwin named a shortcut that could
+    // not work. The two plain letters are on the same list because they are
+    // bound too (114, 117) and were never mentioned
+    pen.info('server', 'To reload the server codebase, use Ctrl+R');
     pen.info(
       'server',
-      `To open the a new browser tab with the project, use ${cmdCtrl}+O or ${cmdCtrl}+N`
+      'To open a new browser tab with the project, use Ctrl+O or Ctrl+N'
     );
-    pen.info('server', `To quit, use ${cmdCtrl}+C`);
+    pen.info('server', 'To list the loaded routes press r, the unknown ones u');
+    pen.info('server', 'To quit, use Ctrl+C');
   }, 1 * 1000);
 
   return watcher;
