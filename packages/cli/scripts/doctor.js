@@ -2136,6 +2136,113 @@ const check = (dir = process.cwd()) => {
     }
   }
 
+  // The skills are the procedures `henri generate skills` writes: one file
+  // per procedure, each with a generated region and the team's own text
+  // around it. What is checked is deliberately narrower than `AGENTS.md`.
+  //
+  // An application with **no** skills at all is not reported. `AGENTS.md` is
+  // read by every agent on every task, so its absence is a gap; a skill
+  // nobody has costs nothing, and an application that removed them said
+  // something by removing them. Half of them, though, is not a decision --
+  // it is what a henri that learned a new procedure leaves behind -- so
+  // that is worth a line.
+  const skills = require('./skills');
+  const catalogue = skills
+    .skillFiles()
+    .map((skill) => ({ ...skill, there: exists(skill.file) }));
+  const present = catalogue.filter((skill) => skill.there);
+
+  if (present.length > 0) {
+    const missing = catalogue.filter((skill) => !skill.there);
+    const now = skills.fingerprint(dir);
+    const foreign = [];
+    const edited = [];
+    const stale = [];
+
+    for (const skill of present) {
+      const source = read(skill.file);
+      const marker = skills.markerOf(source);
+
+      if (!marker || marker.format !== now.format) {
+        // No marker is somebody's own skill at a name henri also uses, and
+        // an older format is one this henri cannot compare itself with.
+        // Either way the generator will not touch it, which is the point of
+        // saying so: it is not being kept current and nothing else says it
+        foreign.push(skill.name);
+        continue;
+      }
+
+      if (marker.app !== now.app) {
+        stale.push(skill.name);
+      }
+    }
+
+    if (missing.length > 0) {
+      problem(
+        'warning',
+        'skills.missing',
+        `${missing.length} of henri's ${catalogue.length} skills ${
+          missing.length === 1 ? 'is' : 'are'
+        } not written here: ${missing.map(({ name }) => name).join(', ')}`,
+        {
+          file: '.claude/skills',
+          hint: 'henri generate skills writes the ones that are missing and leaves the rest alone. A henri that gained a procedure since these were written is the usual reason',
+        }
+      );
+    }
+
+    if (stale.length > 0) {
+      problem(
+        'warning',
+        'skills.stale',
+        `${stale.length === 1 ? 'a skill is' : `${stale.length} skills are`} out of date: the application has changed since ${
+          stale.length === 1 ? 'it was' : 'they were'
+        } written (${stale.join(', ')})`,
+        {
+          file: '.claude/skills',
+          hint: 'henri generate skills rewrites the generated section of each and keeps everything around it. Until it does, an agent is following the migration commands, the renderer or the marks of an application this is no longer',
+        }
+      );
+    }
+
+    if (foreign.length > 0) {
+      problem(
+        'warning',
+        'skills.foreign',
+        `${foreign.length === 1 ? 'a skill was' : `${foreign.length} skills were`} not written by this henri (no marker, or an older format): ${foreign.join(', ')}`,
+        {
+          file: '.claude/skills',
+          hint: "henri generate skills will not touch either without --force, which is deliberate: a file it did not write is somebody else's. Rename it if it should be kept, or pass --force if it should be henri's again",
+        }
+      );
+    }
+
+    // A region edited by hand is the one case the generator refuses on its
+    // own, so doctor asks the generator what it *would* do rather than
+    // reimplementing the comparison: `plan()` writes nothing and answers
+    // exactly what a real run would skip
+    for (const { action, file } of skills.plan(dir)) {
+      if (
+        action === 'skipped' &&
+        !foreign.includes(path.basename(path.dirname(file)))
+      ) {
+        edited.push(file);
+      }
+    }
+
+    if (edited.length > 0) {
+      problem(
+        'warning',
+        'skills.edited',
+        `the generated section of ${edited.length === 1 ? 'a skill was' : `${edited.length} skills were`} edited by hand: ${edited.join(', ')}`,
+        {
+          file: '.claude/skills',
+          hint: 'henri generate skills writes nothing there rather than throwing the edit away, so that skill stops following the application. Move the change below the closing marker, where it is kept and henri never reads it, or pass --force to take the edit back out',
+        }
+      );
+    }
+  }
+
   if (!exists('vitest.config.js')) {
     problem(
       'warning',

@@ -5,6 +5,7 @@ const path = require('path');
 const adapters = require('./adapters');
 const { writeAgentFiles } = require('./agents');
 const { CliError } = require('./errors');
+const { writeSkillFiles } = require('./skills');
 const {
   DEFAULT_RENDERER,
   RENDERERS,
@@ -100,6 +101,9 @@ const main = async (args, name) => {
   const force = args.force === true;
   const skipInstall = args['skip-install'] === true;
   const skipGit = args.git === false;
+  // `--no-skills` is the way out; they are written by default for the
+  // reason `createAgentFiles` gives
+  const skills = args.skills !== false;
   const projectName = slug(name) || slug(path.basename(cwd)) || 'henri-app';
 
   selectRenderer(args);
@@ -129,7 +133,7 @@ const main = async (args, name) => {
   await sampleResource(force);
   createDockerfile(pm, store);
   createReadme(projectName, pm, store);
-  createAgentFiles(force);
+  createAgentFiles(force, skills);
   initGit(skipGit);
 
   if (!skipInstall) {
@@ -153,7 +157,7 @@ ${storeNotice(store)}
 
 /**
  * Writes AGENTS.md (generated from the application that was just written),
- * CLAUDE.md and .mcp.json.
+ * CLAUDE.md, .mcp.json and the skills.
  *
  * It runs last on purpose: the configuration, the models, the routes and
  * the sample resource are all on disk by now, so this reads the finished
@@ -161,17 +165,37 @@ ${storeNotice(store)}
  * directory is the only argument either of them takes, which is what makes
  * a scaffolded file and a regenerated one the same bytes.
  *
+ * The skills go in for the same reason `AGENTS.md` does: the moment an
+ * application is most likely to be handed to an agent is the moment it is
+ * created, and an opt-in nobody knows about is an opt-in nobody takes. They
+ * cost nothing until one is loaded -- a skill's body reaches a model only
+ * when its description matches what is being done -- and `henri new
+ * --no-skills` is the way out for a team that does not want them.
+ *
  * @param {boolean} force Overwrite what would otherwise be kept
+ * @param {boolean} skills Write the skills too
  * @returns {void}
  */
-const createAgentFiles = (force) => {
+const createAgentFiles = (force, skills) => {
   console.log(
-    ' - Writing AGENTS.md, CLAUDE.md and .mcp.json for coding agents...'
+    ` - Writing AGENTS.md, CLAUDE.md, .mcp.json${
+      skills ? ' and the skills' : ''
+    } for coding agents...`
   );
 
-  const { skipped } = writeAgentFiles(process.cwd(), { force });
+  // The skills go first, and the order is load-bearing: `AGENTS.md` names
+  // the skills an application has, so it has to be written after they
+  // exist or a freshly scaffolded application would be reported stale by
+  // its own `henri doctor`
+  if (skills) {
+    for (const { file, reason } of writeSkillFiles(process.cwd(), { force })
+      .skipped) {
+      console.log(`   (${file} kept: ${reason})`);
+    }
+  }
 
-  for (const { file, reason } of skipped) {
+  for (const { file, reason } of writeAgentFiles(process.cwd(), { force })
+    .skipped) {
     console.log(`   (${file} kept: ${reason})`);
   }
 };

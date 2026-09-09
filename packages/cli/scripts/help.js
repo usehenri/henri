@@ -826,12 +826,22 @@ const COMMANDS = [
         description:
           'Rewrites AGENTS.md from the application (the generated section only), CLAUDE.md and .mcp.json',
       },
+      {
+        command: 'henri g skills',
+        description:
+          "Rewrites .claude/skills: the procedures a coding agent follows here, with this store's commands",
+      },
     ],
     flags: [
       FORCE_FLAG,
       {
         description: 'print the files written and the routes added as JSON',
         flag: '--json',
+      },
+      {
+        description:
+          "which editor's layout `generate skills` writes (default: claude)",
+        flag: '--for <vendor>',
       },
     ],
     name: 'generate',
@@ -887,6 +897,11 @@ const COMMANDS = [
         description:
           'AGENTS.md, generated from this application (the renderer, the stores, the models and their marks, the routes, the jobs, the packages installed), plus CLAUDE.md and .mcp.json. Only the region between its markers is rewritten: your own text around it is kept, and a region edited by hand or a file henri did not write is skipped unless --force',
         name: 'agents',
+      },
+      {
+        description:
+          'the skills: one file per procedure that has an order (add a model, add a resource, before you commit, diagnose a failure, drive the running app), generic text specialised by this application -- the migration commands this store really has, the renderer, whether tenancy is on. Written where the editor looks (.claude/skills/<name>/SKILL.md by default, --for picks another). The YAML frontmatter is written once and never rewritten, so the description that decides when a skill loads stays yours; the region below it follows the same rule as AGENTS.md',
+        name: 'skills',
       },
     ],
     usage: [
@@ -970,6 +985,10 @@ const COMMANDS = [
         flag: '--skip-install',
       },
       { description: 'do not run "git init"', flag: '--no-git' },
+      {
+        description: 'do not write .claude/skills (the agent procedures)',
+        flag: '--no-skills',
+      },
       {
         description: 'inertia (default) or react',
         flag: '--renderer <name>',
@@ -1659,6 +1678,10 @@ const COMMANDS = [
         flag: '--skip-install',
       },
       { description: 'do not run "git init"', flag: '--no-git' },
+      {
+        description: 'do not write .claude/skills (the agent procedures)',
+        flag: '--no-skills',
+      },
       {
         description: 'inertia (default) or react',
         flag: '--renderer <name>',

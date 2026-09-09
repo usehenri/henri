@@ -1,8 +1,8 @@
-const crypto = require('crypto');
 const fs = require('fs-extra');
 const path = require('path');
 
 const { APIS, DEFAULT_ADAPTER, PRESET_DIALECTS } = require('./adapters');
+const { digest, markers } = require('./markers');
 const { expand } = require('./routing');
 const {
   DEFAULT_RENDERER,
@@ -79,14 +79,13 @@ const AGENTS = 'AGENTS.md';
  * by another henri is recognised as one this version cannot compare itself
  * with, rather than silently mis-read. Bump it when the *facts* change
  * shape, never for a wording change.
+ *
+ * 2 added `tenancy`, and the `tenant` and `versioned` marks of a model:
+ * `henri skills` reads these facts too, and a fact it needed that this
+ * function did not read would have meant a second reader of the same
+ * application, which is the thing this file exists not to have.
  */
-const FORMAT = 1;
-
-/** The marker that opens the generated region (the rest of the line is data) */
-const OPEN = '<!-- henri:agents';
-
-/** The marker that closes it */
-const CLOSE = '<!-- /henri:agents -->';
+const FORMAT = 2;
 
 /**
  * The size the generated region is held to, in lines. A budget, not a
@@ -127,16 +126,6 @@ const MIGRATIONS = {
   sequelize:
     'There are no migrations: a development boot runs `sequelize.sync()` and creates the tables that are missing, a production boot changes nothing, and `henri db:status` reports what the database and the models disagree about.',
 };
-
-/**
- * A short digest of a string. Twelve hex characters: this tells a hand edit
- * from henri's own text, which is not a place an attacker sits.
- *
- * @param {string} value The text
- * @returns {string} The digest
- */
-const digest = (value) =>
-  crypto.createHash('sha256').update(value, 'utf8').digest('hex').slice(0, 12);
 
 /**
  * A markdown table with its columns padded, so the raw file reads as a
@@ -330,6 +319,8 @@ const modelFacts = (source, name) => {
     retention: marked(options, 'retention'),
     slug: marked(options, 'slug'),
     store: storeOf(source),
+    tenant: marked(options, 'tenant'),
+    versioned: marked(options, 'versioned'),
   };
 };
 
@@ -403,6 +394,36 @@ const pagesOf = (dir) => {
           ? `${entry.name}/`
           : entry.name.replace(/\.\w+$/u, '')
       )
+      .sort();
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * The skills of an application: the directories under `.claude/skills`
+ * that hold a `SKILL.md`, whatever wrote them.
+ *
+ * It is a listing and not a question for `skills.js`, deliberately. What
+ * `AGENTS.md` needs to say is "there are procedures here, here is what they
+ * are called", which is true of a skill a team wrote by hand as much as of
+ * one henri generated -- and reading the directory keeps this file from
+ * depending on the one that requires it.
+ *
+ * @param {string} dir The skills directory
+ * @returns {Array<string>} The names, sorted
+ */
+const skillsOf = (dir) => {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter(
+        (entry) =>
+          entry.isDirectory() &&
+          !entry.name.startsWith('.') &&
+          fs.existsSync(path.join(dir, entry.name, 'SKILL.md'))
+      )
+      .map((entry) => entry.name)
       .sort();
   } catch {
     return [];
@@ -503,7 +524,9 @@ const describe = (dir = process.cwd()) => {
     policies: listModules(inside('app', 'policies')),
     renderer: RENDERERS[renderer] ? renderer : DEFAULT_RENDERER,
     routes: { count: routes.length, lines: routeLines(routes) },
+    skills: skillsOf(inside('.claude', 'skills')),
     stores,
+    tenancy: Boolean(config.tenancy),
     user: {
       configured: person,
       model: models.some((model) => model.name.toLowerCase() === user)
@@ -528,10 +551,13 @@ const intro = (facts) => {
   const more = facts.mcp
     ? "\n\nWhen you need more than this file, ask the `henri` MCP server that `.mcp.json` starts: `guide` is henri's documentation at the version installed here, `routes`, `models`, `config` and `openapi` answer for this application, and `errors`, `logs`, `schema` and `request` answer for the running one. Read those rather than recalling henri, and read `schema` before writing SQL: the model files do not know the table and column names the database really has."
     : '';
+  const procedures = facts.skills
+    ? `\n\nThis file says what is true here; \`.claude/skills/\` says what to *do*, in order, for the things that have an order: ${listed(facts.skills)}. They are written from this application by \`henri generate skills\` the way this file is, so the commands in them are the ones that run here. Read the one that matches the task before starting it.`
+    : '';
 
   return `# ${facts.name}: conventions for coding agents
 
-A [henri](https://usehenri.io) application: Rails-like MVC for Node.js, CommonJS on the server, renderer \`${facts.renderer}\`, store ${store}. Everything here is read from this application by \`henri generate agents\`, so it says what is in front of you rather than what henri can do, and \`henri doctor\` reports it when the two drift apart. Keep the \`/** @type ... */\` line the generators write above \`module.exports\`: \`jsconfig.json\` points at the types every package ships, so \`req\`, \`res\` and \`henri\` complete instead of being guessed. \`.henri/types.d.ts\` is generated from this application's own models and routes -- read it to know what a column is called, and add \`// @ts-check\` to a file (or \`"checkJs": true\` to \`jsconfig.json\`) to have \`npx tsc --noEmit -p jsconfig.json\` say so.${more}`;
+A [henri](https://usehenri.io) application: Rails-like MVC for Node.js, CommonJS on the server, renderer \`${facts.renderer}\`, store ${store}. Everything here is read from this application by \`henri generate agents\`, so it says what is in front of you rather than what henri can do, and \`henri doctor\` reports it when the two drift apart. Keep the \`/** @type ... */\` line the generators write above \`module.exports\`: \`jsconfig.json\` points at the types every package ships, so \`req\`, \`res\` and \`henri\` complete instead of being guessed. \`.henri/types.d.ts\` is generated from this application's own models and routes -- read it to know what a column is called, and add \`// @ts-check\` to a file (or \`"checkJs": true\` to \`jsconfig.json\`) to have \`npx tsc --noEmit -p jsconfig.json\` say so.${more}${procedures}`;
 };
 
 /**
@@ -680,6 +706,14 @@ const modelSection = (facts) => {
       held.push('a slug (its urls carry the name, not the uuid)');
     }
 
+    if (model.versioned) {
+      held.push('a version history');
+    }
+
+    if (model.tenant) {
+      held.push('a tenant column');
+    }
+
     if (held.length > 0) {
       marks.push(`\`${model.name}\` carries ${held.join(', ')}`);
     }
@@ -688,7 +722,10 @@ const modelSection = (facts) => {
   const carried =
     marks.length === 0
       ? ''
-      : `\n\nMarks this application already made: ${marks.join('; ')}. Keep them when you edit those models: \`personal\` is what henri masks in the logs, hands to \`henri privacy:export\` and removes in \`henri privacy:erase\`; \`encrypted\` is ciphertext in the column and the plain string on the model; a \`retention\` rule is swept by \`henri retention:sweep\`; a \`slug\` is the name a url of that record carries, written by henri and resolved by \`findById()\` next to the externalId.`;
+      : `\n\nMarks this application already made: ${marks.join('; ')}. Keep them when you edit those models: \`personal\` is what henri masks in the logs, hands to \`henri privacy:export\` and removes in \`henri privacy:erase\`; \`encrypted\` is ciphertext in the column and the plain string on the model; a \`retention\` rule is swept by \`henri retention:sweep\`; a \`slug\` is the name a url of that record carries, written by henri and resolved by \`findById()\` next to the externalId; a versioned model records every change and refuses a mass write.`;
+  const tenanted = facts.tenancy
+    ? "\n\nThis application is **multi-tenant** (`config.tenancy`). A model that holds one tenant's rows says so -- `options: { tenant: true }` -- and from then on henri adds the condition to every query it builds for it; a tenanted model touched with no tenant in scope raises `HENRI_TENANT_REQUIRED` rather than reading every tenant's rows. So a new model is one decision before it is anything else: whose rows are these? Mark it, or write down why it is shared."
+    : '';
 
   return `## Models (\`${facts.api}\`)
 
@@ -696,7 +733,7 @@ ${MODEL_API[facts.api]} ${MIGRATIONS[facts.api]}
 
 A field is \`{ type, required, default, enum, unique, index }\` and anything else is handed to the adapter as is. Every model gets \`createdAt\`/\`updatedAt\`, \`paginate({ page, perPage })\` answering \`{ records, page, perPage, total, pages }\`, and \`externalId\` -- a uuid, and the only identifier that leaves the server: routes, links and payloads carry it and \`findById()\` takes it, while the numeric key stays inside. \`henri.model.errors(error)\` turns a validation failure into \`{ field: message }\`.
 
-A \`validates\` block next to the schema says what must be true of a record, keyed by field: \`validates: { title: { minLength: 3, maxLength: 120 }, slug: { pattern: /^[a-z-]+$/ } }\`. The keys are \`required\`, \`enum\`, \`min\`, \`max\`, \`minLength\`, \`maxLength\`, \`pattern\` and \`validate\` (a function of the value, and of the record when it declares a second parameter) -- the same words a controller's \`params\` block uses, with no \`type\` because the schema says it. They run on **every** write: a create, a save, an update, a mass update, a bulk insert. That is where a rule about the record belongs; \`params\` and \`req.permit()\` are about the request, and a job, a seed or a console has none. Anything else in the schema -- an adapter's own \`min\`, \`match\` or \`validate\` -- is that ORM's and does not travel.${carried}`;
+A \`validates\` block next to the schema says what must be true of a record, keyed by field: \`validates: { title: { minLength: 3, maxLength: 120 }, slug: { pattern: /^[a-z-]+$/ } }\`. The keys are \`required\`, \`enum\`, \`min\`, \`max\`, \`minLength\`, \`maxLength\`, \`pattern\` and \`validate\` (a function of the value, and of the record when it declares a second parameter) -- the same words a controller's \`params\` block uses, with no \`type\` because the schema says it. They run on **every** write: a create, a save, an update, a mass update, a bulk insert. That is where a rule about the record belongs; \`params\` and \`req.permit()\` are about the request, and a job, a seed or a console has none. Anything else in the schema -- an adapter's own \`min\`, \`match\` or \`validate\` -- is that ORM's and does not travel.${carried}${tenanted}`;
 };
 
 /**
@@ -1011,34 +1048,6 @@ const renderAgents = (options = process.cwd()) => {
     .replace(/\n{3,}/g, '\n\n');
 };
 
-/**
- * The marker line that opens a region, carrying the format, a digest of the
- * facts (which is what `henri doctor` compares to tell a stale file from a
- * current one) and a digest of the body (which is what tells henri's own
- * text from a hand edit inside the region)
- *
- * @param {object} facts What describe() read
- * @param {string} body The region
- * @returns {string} The line
- */
-const openMarker = (facts, body) =>
-  `${OPEN} ${FORMAT} app=${digest(JSON.stringify(facts))} gen=${digest(body)} -->`;
-
-/**
- * Read a marker line back
- *
- * @param {string} line The line
- * @returns {?{app: string, format: number, gen: string}} What it says
- */
-const readMarker = (line) => {
-  const match =
-    /^<!-- henri:agents (\d+) app=([0-9a-f]+) gen=([0-9a-f]+) -->/.exec(line);
-
-  return match
-    ? { app: match[2], format: Number(match[1]), gen: match[3] }
-    : null;
-};
-
 /** The notice inside the region, and the one below it on a fresh file */
 const NOTICE =
   '<!-- Generated by `henri generate agents` from this application. Everything\n     between these markers is rewritten; write your own notes outside them. -->';
@@ -1048,16 +1057,24 @@ const FOOTER =
   '<!-- Below the marker is yours: `henri generate agents` never reads or\n     rewrites it. Run it again whenever the application changes shape. -->';
 
 /**
+ * The marked region of `AGENTS.md`. The machinery is `markers.js`, which
+ * `henri skills` calls too: one merge, one digest, one refusal.
+ */
+const MARKED = markers({
+  footer: FOOTER,
+  format: FORMAT,
+  kind: 'agents',
+  notice: NOTICE,
+  subject: AGENTS,
+});
+
+/**
  * The whole generated region, markers included
  *
  * @param {object} facts What describe() read
  * @returns {string} The region
  */
-const region = (facts) => {
-  const body = `${NOTICE}\n\n${renderAgents(facts)}`;
-
-  return `${openMarker(facts, body)}\n${body}\n${CLOSE}`;
-};
+const region = (facts) => MARKED.region(facts, renderAgents(facts));
 
 /**
  * Put a freshly generated region into whatever `AGENTS.md` already is,
@@ -1068,63 +1085,8 @@ const region = (facts) => {
  * @param {boolean} force Overwrite what would otherwise be kept
  * @returns {{action: string, content: ?string, reason: ?string}} What to do
  */
-const merge = (existing, facts, force) => {
-  const built = region(facts);
-
-  if (existing === null) {
-    return {
-      action: 'created',
-      content: `${built}\n\n${FOOTER}\n`,
-      reason: null,
-    };
-  }
-
-  const start = existing.indexOf(OPEN);
-  const end = existing.indexOf(CLOSE);
-
-  if (start === -1 || end === -1 || end < start) {
-    if (!force) {
-      return {
-        action: 'skipped',
-        content: null,
-        reason:
-          "it has no generated section, so it is somebody's own AGENTS.md and nothing here was written by henri",
-      };
-    }
-
-    return {
-      action: 'updated',
-      content: `${built}\n\n${FOOTER}\n`,
-      reason: null,
-    };
-  }
-
-  const before = existing.slice(0, start);
-  const after = existing.slice(end + CLOSE.length);
-  const lineEnd = existing.indexOf('\n', start);
-  const marker = readMarker(
-    existing.slice(start, lineEnd === -1 ? end : lineEnd)
-  );
-  const body = existing.slice(
-    lineEnd === -1 ? start : lineEnd + 1,
-    end > 0 && existing[end - 1] === '\n' ? end - 1 : end
-  );
-
-  if (!force && (!marker || marker.gen !== digest(body))) {
-    return {
-      action: 'skipped',
-      content: null,
-      reason:
-        'the generated section was edited by hand, and rewriting it would throw that away',
-    };
-  }
-
-  return {
-    action: 'updated',
-    content: `${before}${built}${after}`,
-    reason: null,
-  };
-};
+const merge = (existing, facts, force) =>
+  MARKED.merge(existing, { facts, force, rendered: renderAgents(facts) });
 
 /**
  * Write AGENTS.md, CLAUDE.md and .mcp.json in an application directory.
@@ -1178,17 +1140,7 @@ const writeAgentFiles = (dir, { force = false } = {}) => {
  * @param {string} source The AGENTS.md content
  * @returns {?{app: string, format: number, gen: string}} The claim, or null
  */
-const markerOf = (source) => {
-  const start = source.indexOf(OPEN);
-
-  if (start === -1) {
-    return null;
-  }
-
-  const lineEnd = source.indexOf('\n', start);
-
-  return readMarker(source.slice(start, lineEnd === -1 ? undefined : lineEnd));
-};
+const markerOf = (source) => MARKED.markerOf(source);
 
 /**
  * The digest of what an application is now, in the format a marker carries

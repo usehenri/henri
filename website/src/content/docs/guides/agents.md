@@ -9,11 +9,14 @@ henri is built to be driven by a coding agent as well as by a person. The conven
 
 ## What `henri new` writes for an agent
 
-| File        | Role                                                                                                                   |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md` | The conventions of _this_ application, generated from it: the layout, the models, the routes, the commands that apply. |
-| `CLAUDE.md` | A pointer to `AGENTS.md`, so a tool looking for either finds the same text.                                            |
-| `.mcp.json` | Starts the henri MCP server (`henri mcp`) for the project.                                                             |
+| File              | Role                                                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`       | The conventions of _this_ application, generated from it: the layout, the models, the routes, the commands that apply. |
+| `CLAUDE.md`       | A pointer to `AGENTS.md`, so a tool looking for either finds the same text.                                            |
+| `.mcp.json`       | Starts the henri MCP server (`henri mcp`) for the project.                                                             |
+| `.claude/skills/` | [The procedures](#skills-are-the-order-things-happen-in): what to do, in order, for the things that have an order.     |
+
+`henri new --no-skills` leaves the last one out.
 
 ## `AGENTS.md` is generated
 
@@ -31,7 +34,7 @@ Run it whenever the application changes shape — a store swapped, a renderer ch
 Everything henri writes sits between two markers:
 
 ```markdown
-<!-- henri:agents 1 app=045d7a7b2a0f gen=42e21bae9532 -->
+<!-- henri:agents 2 app=045d7a7b2a0f gen=42e21bae9532 -->
 
 # app: conventions for coding agents
 
@@ -62,6 +65,65 @@ The opening marker carries two short digests: `app`, what the application was wh
 `AGENTS.md` is loaded on every task, so it is budgeted rather than allowed to grow: the generated region is held to 150 lines, and a fresh application lands around a hundred. A line earns its place by being one of three things — a convention that changes what an agent writes here, a fact about this application it cannot get from the documentation, or a command that will actually run here. Everything else is a manual, and a manual belongs where an agent can fetch it when it needs it.
 
 That is how the three pieces fit together and why none of them repeats another: `AGENTS.md` is the always-loaded part, the [MCP server](#the-henri-mcp-server) is the part fetched on demand (`guide` is henri's documentation at the version installed, `routes`, `models` and `config` answer for this application), and [`henri doctor`](#henri-doctor) is what checks the claims.
+
+## Skills are the order things happen in
+
+Those three answer three different questions — what an agent can _ask_, what is always true _here_, and what henri _is_ — and none of them is the **order**. An agent holding all three still has to work out on its own that adding a tenanted model means a mark, a migration, a policy, a `params` block and a test, in that order, with the commands this particular store has. That sequence is what a skill is, and `henri generate skills` writes it down.
+
+```bash
+henri generate skills                # write or refresh .claude/skills
+henri generate skills --json         # { created, updated, skipped } like any generator
+henri generate skills --for claude   # which editor's layout to write (the default)
+```
+
+Five of them, and each is a sequence rather than an explanation:
+
+| Skill                      | What it sequences                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `henri-add-a-model`        | The marks, where record rules go, and the migration commands this store actually has.           |
+| `henri-add-a-resource`     | Scaffold, policy, `params`, `filters`, the answer, the test.                                    |
+| `henri-before-you-commit`  | The real gate list for this application, in the order that fails cheapest first.                |
+| `henri-diagnose-a-failure` | From a `HENRI_*` code to the catalogue, then `henri doctor` and a small reproduction.           |
+| `henri-drive-the-app`      | What the MCP server can answer about the running application, and when to ask rather than read. |
+
+### Generic procedure, derived facts, judgement left to the agent
+
+The three layers matter, because each one rots differently if it is put in the wrong place.
+
+The **procedure** is generic and ships inside the package, versioned with the code it describes, so it can never describe a henri that does not exist. The **facts** are derived from the application by the same reader `AGENTS.md` uses — so a Drizzle store is told to run `henri db:generate` and read what it wrote, a Mongoose store is told there is no migration and what that costs instead, and an mssql store is told it has no migrations at all and that `henri db:status --sql` is what will tell it. Turn `config.tenancy` on and every skill that touches a model gains the question of whose rows these are. And the **judgement** stays the agent's, at read time: a skill says _ask `schema` before you write SQL_ rather than baking this application's tables into a file that would start rotting immediately.
+
+Nothing here asks a model for anything. `henri new` runs in Docker builds and in CI with no API key, so the input is the directory and the output is bytes — the rule [`henri types`](/reference/types/) already follows, and a fixture application with its generated skills committed next to it is what keeps it true.
+
+### No skill restates a guide
+
+`henri docs <page>` and the `guide` tool serve this documentation at the version installed. A skill that explained what a policy _is_ would be a second copy of [that page](/guides/policies/) with none of its updates — so a skill says the order and names the page. The budgets are what keep it honest: a description is bounded because it is loaded on _every_ turn, and a body is bounded because a procedure that has grown into a manual has stopped being a procedure.
+
+### Your description is never taken back
+
+A skill is discovered at `.claude/skills/<name>/SKILL.md`, and its YAML frontmatter has to open the very first line of the file — so the generated region starts _below_ it:
+
+```markdown
+---
+name: henri-add-a-model
+description: 'Add a model to this henri application, or change one: ...'
+---
+
+<!-- henri:skills 1 app=1c148f230a33 gen=8cb5e89cf2b0 -->
+
+# Add or change a model
+
+...
+
+<!-- /henri:skills -->
+
+## Our own step
+
+Run `make check` too.
+```
+
+That puts the frontmatter outside the region, which is the right way round: the `description` is what decides when the skill loads, so it is the line a team is most likely to retune, and henri writes it once and never takes it back. Everything below the closing marker is yours as well. The region itself follows exactly the same four cases as `AGENTS.md` above, with the same two digests and the same `--force`.
+
+`henri doctor` reports `skills.stale` when the application has moved on, `skills.edited` when a region was changed by hand (henri then writes nothing there, so that skill silently stops following the application — which is the whole reason it is worth a line), `skills.foreign` for a file henri did not write, and `skills.missing` when a newer henri knows a procedure this application has not got yet. An application with no skills at all is not reported: unlike `AGENTS.md`, which every agent reads, a skill nobody has costs nothing, and removing them says something.
 
 ## Types the agent can read
 
@@ -177,7 +239,7 @@ It checks the Node version, every `config/*.json` — its syntax, then the whole
 
 It also reads what an edit breaks only at the next boot, which for an agent is the difference between a green run and a green run that means something: a model naming a store no environment configures, a store adapter only `config/production.json` asks for, a route asking for a policy that is not there, a file of `app/jobs` with no `perform`, a recurring schedule naming a job that does not exist, a mailer action with no view, an `app/modules` file whose name is taken or whose `needs` nothing provides, and the henri packages installed at two versions. One check asks a database: whether the store holds the migrations of `db/migrations` — and when it cannot reach it, it says so rather than guessing. That one needs the dependencies installed, since the store adapter is resolved from the application.
 
-`AGENTS.md` itself is checked against the application: `agents.stale` fires when the file no longer describes it, which is exactly when an agent that trusts it writes the wrong code. Because the file is [generated](#agentsmd-is-generated) it carries a digest of what the application was, so the check is exact — a model added or a package installed is drift too, not only a switched renderer or store. `henri generate agents` rewrites the generated region and keeps everything you added around it.
+`AGENTS.md` itself is checked against the application: `agents.stale` fires when the file no longer describes it, which is exactly when an agent that trusts it writes the wrong code. Because the file is [generated](#agentsmd-is-generated) it carries a digest of what the application was, so the check is exact — a model added or a package installed is drift too, not only a switched renderer or store. `henri generate agents` rewrites the generated region and keeps everything you added around it. The [skills](#skills-are-the-order-things-happen-in) are checked the same way (`skills.stale`, `skills.edited`, `skills.foreign`, `skills.missing`).
 
 Problems are reported as errors or warnings, each with a stable `check` name, a file, a hint saying what to run — and a `code`, the [henri error code](/reference/errors/) the boot would raise, when the check predicts a failure the framework has a name for. The full list is in [the CLI reference](/reference/cli/#doctor).
 

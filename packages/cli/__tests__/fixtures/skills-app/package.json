@@ -1,0 +1,13 @@
+{
+  "name": "skills-fixture",
+  "private": true,
+  "henri": true,
+  "description": "The application `henri generate skills` is generated from in the suite",
+  "dependencies": {
+    "@usehenri/drizzle": "^1.2.0",
+    "@usehenri/jobs": "^1.2.0"
+  },
+  "devDependencies": {
+    "@usehenri/mcp": "^1.2.0"
+  }
+}
