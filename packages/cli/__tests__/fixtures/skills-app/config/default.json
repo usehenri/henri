@@ -1,0 +1,18 @@
+{
+  "renderer": "inertia",
+  "stores": {
+    "default": {
+      "adapter": "drizzle",
+      "dialect": "sqlite",
+      "url": "file:.henri/app.db"
+    }
+  },
+  "tenancy": {
+    "from": {
+      "user": "accountId"
+    }
+  },
+  "user": {
+    "model": "user"
+  }
+}

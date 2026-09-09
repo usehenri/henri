@@ -68,6 +68,9 @@ describe('--json', () => {
       expect(generate.flags.map((flag) => flag.flag)).toEqual([
         '--force',
         '--json',
+        // `henri generate skills` writes into a vendor's own layout, and
+        // this is how another one is named
+        '--for <vendor>',
       ]);
       expect(generate.targets.map((target) => target.name)).toContain(
         'scaffold <Name> [field:type[!][:enum=a,b] ...] [--slug <field>]'

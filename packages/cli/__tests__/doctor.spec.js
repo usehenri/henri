@@ -1609,6 +1609,121 @@ module.exports = Metrics;
     expect(run(app).names).not.toContain('agents.stale');
   });
 
+  // --- what the skills claim -------------------------------------------------
+
+  test('says nothing about skills when the application has none', () => {
+    // An application that removed them said something by removing them, and
+    // unlike AGENTS.md a skill nobody has costs nothing
+    const dir = path.join(app, '.claude');
+    const kept = fs.existsSync(dir);
+
+    if (kept) {
+      fs.renameSync(dir, `${dir}.kept`);
+    }
+
+    const names = run(app).names;
+
+    if (kept) {
+      fs.renameSync(`${dir}.kept`, dir);
+    }
+
+    expect(names.filter((name) => name.startsWith('skills.'))).toEqual([]);
+  });
+
+  test('reports skills the application has moved on from', () => {
+    const model = path.join(app, 'app/models/Task.js');
+    const original = fs.readFileSync(model, 'utf8');
+
+    // A new model changes the facts the skills were written from
+    fs.writeFileSync(
+      path.join(app, 'app/models/Ledger.js'),
+      'module.exports = { schema: { name: { type: "string" } } };\n'
+    );
+
+    const { ok, problems } = run(app);
+
+    fs.rmSync(path.join(app, 'app/models/Ledger.js'), { force: true });
+    fs.writeFileSync(model, original);
+
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'skills.stale',
+        file: '.claude/skills',
+        hint: expect.stringContaining('henri generate skills rewrites'),
+        level: 'warning',
+      })
+    );
+    expect(run(app).names).not.toContain('skills.stale');
+  });
+
+  test('reports a skill whose generated section was edited by hand', () => {
+    const file = path.join(app, '.claude/skills/henri-add-a-model/SKILL.md');
+    const original = fs.readFileSync(file, 'utf8');
+
+    fs.writeFileSync(file, original.replace('## 5. Migrate', '## 5. Ours'));
+
+    const { ok, problems } = run(app);
+
+    fs.writeFileSync(file, original);
+
+    // Henri writes nothing there rather than throwing the edit away, so the
+    // only thing that says the skill has stopped following the app is this
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'skills.edited',
+        level: 'warning',
+        message: expect.stringContaining('henri-add-a-model'),
+      })
+    );
+    expect(run(app).names).not.toContain('skills.edited');
+  });
+
+  test('reports a skill this henri did not write', () => {
+    const file = path.join(app, '.claude/skills/henri-add-a-model/SKILL.md');
+    const original = fs.readFileSync(file, 'utf8');
+
+    fs.writeFileSync(file, '---\nname: henri-add-a-model\n---\n\nMine.\n');
+
+    const { ok, problems } = run(app);
+
+    fs.writeFileSync(file, original);
+
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'skills.foreign',
+        level: 'warning',
+        message: expect.stringContaining('henri-add-a-model'),
+      })
+    );
+    // A file with no marker is somebody's own, so it is not also "edited"
+    expect(problems.map(({ check }) => check)).not.toContain('skills.edited');
+  });
+
+  test('reports the skills a newer henri would add', () => {
+    const file = path.join(app, '.claude/skills/henri-drive-the-app/SKILL.md');
+    const original = fs.readFileSync(file, 'utf8');
+
+    fs.rmSync(path.dirname(file), { force: true, recursive: true });
+
+    const { ok, problems } = run(app);
+
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, original);
+
+    expect(ok).toBe(true);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        check: 'skills.missing',
+        level: 'warning',
+        message: expect.stringContaining('henri-drive-the-app'),
+      })
+    );
+    expect(run(app).names).not.toContain('skills.missing');
+  });
+
   // --- the generated declarations --------------------------------------------
 
   test('says nothing when .henri/types.d.ts was never written', () => {

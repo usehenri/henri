@@ -62,7 +62,7 @@ const PAGE_EXTENSIONS = { inertia: 'jsx', react: 'js' };
 /**
  * Generators that take no name
  */
-const NAMELESS = ['agents', 'authentication'];
+const NAMELESS = ['agents', 'authentication', 'skills'];
 
 /**
  * Initial function
@@ -76,6 +76,10 @@ const main = async (args) => {
   const report = new Report({ command: 'generate', json: args.json === true });
   const opts = {
     force: args.force === true,
+    // `--for claude`: which vendor's layout `generate skills` writes. One
+    // entry of `LAYOUTS`, so another editor is an entry rather than a
+    // rewrite of the generator
+    layout: typeof args.for === 'string' && args.for !== '' ? args.for : null,
     report,
     // `--slug title`: the model gets a name a person reads in a url, and
     // the controller and the pages are written to use it (base/slug.js)
@@ -725,6 +729,61 @@ const agents = async (name, rest = [], opts = {}) => {
 };
 
 /**
+ * Writes the skills: the procedures a coding agent follows in this
+ * application, derived from it.
+ *
+ * The three files an application already had answer three different
+ * questions -- `.mcp.json` what an agent can *ask*, `AGENTS.md` what is
+ * always true here, `henri docs` what henri *is* -- and none of them is the
+ * order to do things in. A skill is that order, generic in this package and
+ * specialised by the facts of this application (the store's real migration
+ * commands, the renderer, whether tenancy is on).
+ *
+ * Like `agents`, only the region between the markers is ever rewritten --
+ * and the YAML frontmatter above it is outside that region on purpose, so
+ * the `description`, which is what decides when a skill loads, stays the
+ * team's to retune.
+ *
+ * @param {string} [name] Unused (the skills are a fixed catalogue)
+ * @param {string[]} [rest] Unused
+ * @param {object} [opts] { force, layout, report }
+ * @return {Promise<boolean>} True when at least one file was written
+ */
+const skills = async (name, rest = [], opts = {}) => {
+  const { LAYOUTS, writeSkillFiles } = require('./skills');
+  const report = opts.report || new Report();
+  const layout = opts.layout || undefined;
+
+  if (layout && !LAYOUTS[layout]) {
+    throw new CliError('USAGE', `Unknown skill layout "${layout}"`, {
+      hint: `Available: ${Object.keys(LAYOUTS).join(', ')}`,
+    });
+  }
+
+  const { created, skipped, updated } = writeSkillFiles(process.cwd(), {
+    force: opts.force === true,
+    layout,
+  });
+
+  for (const file of created) {
+    report.add('created', file);
+    report.log(`> created ${file}`);
+  }
+
+  for (const file of updated) {
+    report.add('updated', file);
+    report.log(`> updated ${file} (the generated section only)`);
+  }
+
+  for (const { file, reason } of skipped) {
+    report.add('skipped', file);
+    report.log(`> skipped ${file}: ${reason} (use --force to overwrite)`);
+  }
+
+  return created.length + updated.length > 0;
+};
+
+/**
  * Scaffold builder: model, resources controller, routes and views
  *
  * @param {string} name Model name (singular, ex: Post)
@@ -1167,6 +1226,7 @@ const generators = {
   model,
   policy,
   scaffold,
+  skills,
   test,
   worker,
 };
