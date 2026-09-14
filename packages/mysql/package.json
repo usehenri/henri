@@ -35,6 +35,6 @@
   },
   "dependencies": {
     "@usehenri/drizzle": "workspace:^",
-    "mysql2": "^3.24.3"
+    "mysql2": "^3.24.4"
   }
 }

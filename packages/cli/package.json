@@ -36,7 +36,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.7.1",
+    "@inquirer/prompts": "^8.7.2",
     "@usehenri/core": "workspace:^",
     "chalk": "^4.1.2",
     "cross-spawn": "^7.0.6",
@@ -85,7 +85,7 @@
     "webhooks"
   ],
   "devDependencies": {
-    "@babel/parser": "^8.0.4",
+    "@babel/parser": "^8.0.5",
     "@seriousme/openapi-schema-validator": "^2.9.1"
   }
 }

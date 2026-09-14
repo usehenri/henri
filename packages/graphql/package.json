@@ -40,8 +40,8 @@
   "dependencies": {
     "@apollo/server": "^5.2.0",
     "@as-integrations/express5": "^1.1.2",
-    "@graphql-tools/merge": "^9.2.3",
-    "@graphql-tools/schema": "^10.1.0",
+    "@graphql-tools/merge": "^9.2.4",
+    "@graphql-tools/schema": "^10.1.1",
     "debug": "^4.4.3",
     "graphql": "^16.11.0"
   },
