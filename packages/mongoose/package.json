@@ -50,7 +50,7 @@
     "connect-mongo": "^6.0.0",
     "debug": "^4.4.3",
     "mongodb": "~7.6.0",
-    "mongoose": "^9.9.5"
+    "mongoose": "^9.10.1"
   },
   "peerDependencies": {
     "express-session": "^1.17.1"
