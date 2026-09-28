@@ -18,7 +18,7 @@
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@usehenri/testing": "workspace:^",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.2"
   },
   "scripts": {
     "test": "node ../henri/bin/henri.js test"
