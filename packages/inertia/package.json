@@ -56,11 +56,11 @@
     }
   },
   "devDependencies": {
-    "@inertiajs/react": "^3.7.0",
+    "@inertiajs/react": "^3.8.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "sass": "^1.104.0",
-    "vite": "^8.2.2"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "sass": "^1.105.1",
+    "vite": "^8.3.2"
   }
 }

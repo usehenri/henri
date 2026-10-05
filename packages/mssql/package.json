@@ -35,6 +35,6 @@
   },
   "dependencies": {
     "@usehenri/sequelize": "workspace:^",
-    "tedious": "^20.0.0"
+    "tedious": "^20.3.3"
   }
 }

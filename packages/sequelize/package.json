@@ -58,10 +58,10 @@
   "devDependencies": {
     "@usehenri/core": "workspace:^",
     "express-session": "^1.19.0",
-    "mysql2": "^3.24.3",
-    "pg": "^8.23.0",
+    "mysql2": "^3.24.5",
+    "pg": "^8.23.1",
     "pg-hstore": "^2.3.4",
     "sqlite3": "^6.0.1",
-    "tedious": "^20.0.0"
+    "tedious": "^20.3.3"
   }
 }
