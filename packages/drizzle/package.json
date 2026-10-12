@@ -40,8 +40,8 @@
   ],
   "dependencies": {
     "debug": "^4.4.3",
-    "drizzle-kit": "^0.31.10",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-kit": "^0.31.11",
+    "drizzle-orm": "^0.45.4"
   },
   "engines": {
     "node": ">=22"
@@ -67,7 +67,7 @@
     "@usehenri/core": "workspace:^",
     "better-sqlite3": "^13.0.3",
     "express-session": "^1.19.0",
-    "mysql2": "^3.24.3",
-    "pg": "^8.23.0"
+    "mysql2": "^3.24.5",
+    "pg": "^8.23.1"
   }
 }

@@ -26,24 +26,24 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@inertiajs/react": "^3.7.0",
+    "@inertiajs/react": "^3.9.1",
     "@tailwindcss/vite": "^4.3.3",
     "@usehenri/core": "workspace:^",
     "@usehenri/drizzle": "workspace:^",
     "@usehenri/inertia": "workspace:^",
-    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-react": "^6.1.2",
     "henri": "workspace:^",
-    "pg": "^8.23.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "pg": "^8.23.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "tailwindcss": "^4.3.3",
-    "vite": "^8.2.2"
+    "vite": "^8.3.4"
   },
   "devDependencies": {
-    "@seriousme/openapi-schema-validator": "^2.9.1",
+    "@seriousme/openapi-schema-validator": "^2.11.0",
     "@usehenri/testing": "workspace:^",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.3"
   }
 }
