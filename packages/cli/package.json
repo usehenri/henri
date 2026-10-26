@@ -36,15 +36,15 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.7.1",
+    "@inquirer/prompts": "^8.7.4",
     "@usehenri/core": "workspace:^",
     "chalk": "^4.1.2",
     "cross-spawn": "^7.0.6",
     "debug": "^4.4.3",
-    "fs-extra": "^11.4.0",
-    "handlebars": "^4.7.9",
+    "fs-extra": "^11.4.1",
+    "handlebars": "^4.7.10",
     "minimist": "^1.2.8",
-    "prettier": "^3.9.6"
+    "prettier": "^3.9.10"
   },
   "commands": [
     "about",
@@ -85,7 +85,7 @@
     "webhooks"
   ],
   "devDependencies": {
-    "@babel/parser": "^8.0.4",
-    "@seriousme/openapi-schema-validator": "^2.9.1"
+    "@babel/parser": "^8.0.8",
+    "@seriousme/openapi-schema-validator": "^2.11.0"
   }
 }
