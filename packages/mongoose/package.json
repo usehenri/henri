@@ -49,8 +49,8 @@
   "dependencies": {
     "connect-mongo": "^6.0.0",
     "debug": "^4.4.3",
-    "mongodb": "~7.6.0",
-    "mongoose": "^9.9.5"
+    "mongodb": "~7.7.0",
+    "mongoose": "^9.11.4"
   },
   "peerDependencies": {
     "express-session": "^1.17.1"
@@ -58,6 +58,6 @@
   "devDependencies": {
     "@usehenri/core": "workspace:^",
     "express-session": "^1.19.0",
-    "mongodb-memory-server": "^11.2.0"
+    "mongodb-memory-server": "^11.3.0"
   }
 }
