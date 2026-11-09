@@ -35,6 +35,6 @@
   },
   "dependencies": {
     "@usehenri/drizzle": "workspace:^",
-    "pg": "^8.23.0"
+    "pg": "^8.23.1"
   }
 }
