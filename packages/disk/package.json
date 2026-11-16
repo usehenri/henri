@@ -36,6 +36,6 @@
   "dependencies": {
     "@usehenri/mongoose": "workspace:^",
     "debug": "^4.4.3",
-    "mongodb-memory-server": "^11.2.0"
+    "mongodb-memory-server": "^11.3.0"
   }
 }
